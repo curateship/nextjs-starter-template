@@ -19,6 +19,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
+  SaveStatusIndicator,
+  type SaveStatus,
+} from "@/components/ui/save-status"
+import {
   ViewSwitcher,
   type AutomationView,
 } from "@/components/automations/automation-view-switcher"
@@ -30,11 +34,9 @@ export function AutomationToolbar({
   backtestDisabledReason,
   view,
   onViewChange,
-  dirty,
-  saving,
+  saveStatus,
   onNameChange,
   onOpenSettings,
-  onSave,
   onSaveRun,
   onOpenPalette,
   onOpenInspector,
@@ -44,11 +46,10 @@ export function AutomationToolbar({
   /** Which editor surface is showing — the switcher renders it pressed. */
   view: AutomationView
   onViewChange: (view: AutomationView) => void
-  dirty: boolean
-  saving: boolean
+  /** The canvas auto-saves, so this replaces the old Save button. */
+  saveStatus: SaveStatus
   onNameChange: (name: string) => void
   onOpenSettings: () => void
-  onSave: () => void
   /** Backtest results only: opens the name-and-save-this-run modal. */
   onSaveRun?: () => void
   onOpenPalette: () => void
@@ -142,6 +143,9 @@ export function AutomationToolbar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* No Save button — the canvas saves itself. This is the only feedback,
+          and it sits where that button used to be. */}
+      <SaveStatusIndicator status={saveStatus} className="text-xs" />
       {onSaveRun ? (
         <Button
           type="button"
@@ -162,15 +166,6 @@ export function AutomationToolbar({
       >
         <SettingsIcon className="size-3.5" />
         Settings
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        className="h-8"
-        disabled={saving || !dirty}
-        onClick={onSave}
-      >
-        {saving ? "Saving…" : dirty ? "Save" : "Saved"}
       </Button>
       <Button
         type="button"

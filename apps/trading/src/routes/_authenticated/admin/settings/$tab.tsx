@@ -20,7 +20,6 @@ function SettingsTabRoute() {
       activeTab={activeTab}
       config={runtime.config}
       settingsError={runtime.settingsError}
-      saveStatus={runtime.saveStatus}
       onConfigChange={runtime.onConfigChange}
       onSaveConfig={runtime.onSaveConfig}
     />

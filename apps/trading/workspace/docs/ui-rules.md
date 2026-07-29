@@ -61,6 +61,16 @@ The Trade terminal, the backtest run workspace, the bot run workspace, and the t
 - Use component size props; never override heights at individual call sites.
 - Align a divergent shared primitive in a focused design-system change instead of adding local exceptions.
 
+## Saving
+
+- **A modal is the only place a save button belongs.** Pages and full-screen workspaces auto-save: the edit goes into state immediately and a debounced write follows once typing stops (700ms, the same everywhere). Never add a page-level Save button, a dirty flag the user has to clear, or an "unsaved changes" prompt.
+- The only feedback is the shared `SaveStatusIndicator` (`src/components/ui/save-status.tsx`): nothing while idle, "Saving…" during the write, a "Saved" tick that clears itself after two seconds. The settings page shows it in the sticky header; the Automation editor shows it in its own toolbar. Do not build a second version of this.
+- Auto-save must never disable the field being edited. A control greyed out mid-write steals focus and drops keystrokes; reserve `disabled` for things genuinely switched off (a border colour when the border is 0).
+- Never write a server response back over state the user has kept typing into. Compare what was sent against current state first and adopt the normalized copy only if they still match.
+- Skip the write while a required field is empty rather than flashing a validation error at someone who just cleared it, and don't retry a failed save until the next edit — otherwise a rejected value loops every 700ms.
+- Anything that reads the *saved* record (starting a backtest, deploying a bot) flushes the pending write first and stops if it fails. Gate those buttons on whether the thing is valid, never on whether it is saved.
+- Leaving a surface flushes what the debounce never got to, keyed on the pending snapshot rather than on a live timer — an effect cleanup may already have cleared the timer by then.
+
 ## Buttons, Forms, and Action Icons
 
 - Standard buttons are always 32px (`h-8`) by default, including modal footer and table-toolbar buttons. Use another documented size only for a clear compact or prominent context.
