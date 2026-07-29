@@ -45,9 +45,11 @@ export function TradingSettings({
         <CardHeader>
           <CardTitle>Order confirmation</CardTitle>
           <CardDescription>
-            When on, entering, exiting, or cancelling all orders opens a
-            confirmation box first. Turn it off to send those actions straight
-            away.
+            When on, every button that sends a real order asks &ldquo;Are you
+            sure?&rdquo; first: placing an order (order ticket, chart trading,
+            one-click panel), Close and Reverse in the positions table, and
+            Cancel all orders. Turn it off and one click trades immediately,
+            with no confirmation.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -66,7 +68,8 @@ export function TradingSettings({
               }}
             />
             <Label htmlFor="order-confirmation" className="font-normal">
-              Ask me to confirm before entering, exiting, or cancelling all orders
+              Ask me to confirm before placing, closing, reversing, or
+              cancelling orders
             </Label>
           </div>
         </CardContent>
