@@ -6,7 +6,6 @@ import { z } from "zod"
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
-import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
 import {
   getAuthErrorMessage,
@@ -29,9 +28,18 @@ function ResetPasswordRoute() {
   const { token } = Route.useSearch()
   const [password, setPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
+  const [confirmTouched, setConfirmTouched] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [done, setDone] = React.useState(false)
+
+  // Only flag a mismatch once the confirm field has content and has been
+  // visited, so the hint appears as the user types the second password rather
+  // than the instant they enter the first character.
+  const mismatch =
+    confirmTouched &&
+    confirmPassword.length > 0 &&
+    confirmPassword !== password
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -39,7 +47,9 @@ function ResetPasswordRoute() {
       setError(null)
 
       if (password !== confirmPassword) {
-        setError("Those passwords do not match.")
+        // Surface the mismatch inline on the confirm field rather than as a
+        // generic top-of-form alert.
+        setConfirmTouched(true)
         return
       }
       if (!token) {
@@ -107,15 +117,32 @@ function ResetPasswordRoute() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="confirm-password">Confirm new password</Label>
+        <FieldLabel
+          htmlFor="confirm-password"
+          hint="Type the same password again."
+        >
+          Confirm new password
+        </FieldLabel>
         <PasswordInput
           id="confirm-password"
           autoComplete="new-password"
           minLength={8}
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
+          onBlur={() => setConfirmTouched(true)}
+          aria-invalid={mismatch || undefined}
+          aria-describedby={mismatch ? "confirm-password-error" : undefined}
           required
         />
+        {mismatch ? (
+          <p
+            id="confirm-password-error"
+            role="alert"
+            className="text-sm text-destructive"
+          >
+            Those passwords do not match.
+          </p>
+        ) : null}
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? (
