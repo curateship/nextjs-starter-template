@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -108,7 +109,9 @@ function LoginRoute() {
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="password">Password</Label>
+        <FieldLabel htmlFor="password" hint="At least 8 characters.">
+          Password
+        </FieldLabel>
         <PasswordInput
           id="password"
           autoComplete="current-password"
