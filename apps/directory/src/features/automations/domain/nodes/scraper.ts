@@ -25,5 +25,5 @@ export const scraperNode = defineNode({
       }
     }
   },
-  allowedTargets: (port) => (port === 'documents' ? ['router', 'agent', 'listing'] : []),
+  allowedTargets: (port) => (port === 'documents' ? ['router', 'agent', 'listing', 'event'] : []),
 })

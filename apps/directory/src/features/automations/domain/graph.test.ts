@@ -94,6 +94,46 @@ describe('automation graph validation', () => {
     assert.ok(codes.includes('listing-template'))
   })
 
+  it('accepts a scraper and a router route feeding a terminal Event node', () => {
+    const graph: AutomationGraph = {
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '02:00', timezone: 'UTC' } } },
+        { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/calendar'] } },
+        { id: ids.router, kind: 'router', name: 'AI Router', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', routes: [{ id: ids.route, name: 'Concerts', description: 'Live music.' }] } },
+        { id: ids.newsPost, kind: 'event', name: 'Event', x: 900, y: 0, config: { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' } },
+        { id: ids.elsePost, kind: 'event', name: 'Other Events', x: 900, y: 180, config: { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' } },
+      ],
+      edges: [
+        { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+        { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.router },
+        { id: 'e3', from: ids.router, sourcePort: `route:${ids.route}`, to: ids.newsPost },
+        { id: 'e4', from: ids.router, sourcePort: 'else', to: ids.elsePost },
+      ],
+    }
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
+  })
+
+  it('rejects an Event node with outgoing connections and requires its template', () => {
+    const graph: AutomationGraph = {
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '02:00', timezone: 'UTC' } } },
+        { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/calendar'] } },
+        { id: ids.newsPost, kind: 'event', name: 'Event', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', templateId: '', categoryId: null, instructions: '' } },
+        { id: ids.elsePost, kind: 'post', name: 'Post', x: 900, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } },
+      ],
+      edges: [
+        { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+        { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsPost },
+        { id: 'e3', from: ids.newsPost, sourcePort: 'article', to: ids.elsePost },
+      ],
+    }
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('post-terminal'))
+    assert.ok(codes.includes('event-template'))
+  })
+
   it('parses structurally valid incomplete drafts so they can be saved', () => {
     const graph = validGraph()
     const agent = graph.nodes.find((node) => node.id === ids.newsAgent)

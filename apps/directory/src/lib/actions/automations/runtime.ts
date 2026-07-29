@@ -1,4 +1,5 @@
 import type { ScrapedDocument, StructuredArticle } from '@/features/automations/domain/types'
+import type { EventNodeResult } from './nodes/event'
 import type { ListingNodeResult } from './nodes/listing'
 import type { PostNodeResult } from './nodes/post'
 
@@ -12,6 +13,7 @@ export type RuntimeOutput =
   | { type: 'article'; article: StructuredArticle; imageError?: string }
   | { type: 'post'; post: PostNodeResult }
   | { type: 'listing'; listing: ListingNodeResult }
+  | { type: 'event'; event: EventNodeResult }
 
 export function articleFrom(payloads: RuntimeOutput[]) {
   return payloads.find((payload): payload is Extract<RuntimeOutput, { type: 'article' }> => payload.type === 'article')?.article

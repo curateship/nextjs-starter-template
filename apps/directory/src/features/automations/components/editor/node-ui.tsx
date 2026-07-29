@@ -2,6 +2,7 @@
 
 import type { ComponentType } from "react";
 import Bot from "lucide-react/dist/esm/icons/bot.js"
+import CalendarDays from "lucide-react/dist/esm/icons/calendar-days.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import CornerDownLeft from "lucide-react/dist/esm/icons/corner-down-left.js"
 import FileText from "lucide-react/dist/esm/icons/file-text.js"
@@ -39,12 +40,21 @@ import {
   formatRunAtForTimezoneInput,
   runAtFromTimezoneInput,
 } from "@/features/automations/domain/schedule";
-import { AI_IMAGE_PROVIDERS, AI_PROVIDER_LABELS } from "@/lib/utils/ai-models";
+import {
+  AI_IMAGE_PROVIDERS,
+  AI_PROVIDER_LABELS,
+  type AIProvider,
+} from "@/lib/utils/ai-models";
 import { MediaInput } from "@/components/admin/media-library/MediaInput";
 
 export type NodePanelData = Pick<
   AutomationEditorData,
-  "automation" | "templates" | "listingTemplates" | "categories" | "providers"
+  | "automation"
+  | "templates"
+  | "listingTemplates"
+  | "eventTemplates"
+  | "categories"
+  | "providers"
 >;
 
 export interface NodePanelProps {
@@ -139,6 +149,12 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
     describe: (node) =>
       node.kind === "listing" ? `Draft listings · ${node.config.model}` : "",
     Panel: ListingPanel,
+  },
+  event: {
+    icon: CalendarDays,
+    describe: (node) =>
+      node.kind === "event" ? `Draft events · ${node.config.model}` : "",
+    Panel: EventPanel,
   },
 };
 
@@ -583,12 +599,32 @@ function AgentPanel({ node, data, onChange }: NodePanelProps) {
   );
 }
 
+// AI Agent, AI Router, Listing, and Event all carry the same provider + model
+// config, so they share these two fields and one updater.
+type AiConfiguredNode = Extract<
+  AutomationNode,
+  { kind: "agent" | "router" | "listing" | "event" }
+>;
+
+// The branches are all the same edit; they exist because spreading the node
+// union would detach `kind` from `config` and stop type-checking. Doing it once
+// here keeps both fields below down to a single call each.
+function setAiConfig(
+  node: AiConfiguredNode,
+  changes: { provider?: AIProvider; model?: string },
+): AutomationNode {
+  if (node.kind === "agent") return { ...node, config: { ...node.config, ...changes } };
+  if (node.kind === "router") return { ...node, config: { ...node.config, ...changes } };
+  if (node.kind === "listing") return { ...node, config: { ...node.config, ...changes } };
+  return { ...node, config: { ...node.config, ...changes } };
+}
+
 function AiProviderFields({
   node,
   providers,
   onChange,
 }: {
-  node: Extract<AutomationNode, { kind: "agent" | "router" | "listing" }>;
+  node: AiConfiguredNode;
   providers: AutomationEditorData["providers"];
   onChange: (node: AutomationNode) => void;
 }) {
@@ -603,21 +639,12 @@ function AiProviderFields({
           onValueChange={(value) => {
             const provider = providers.find((item) => item.provider === value);
             if (!provider) return;
-            if (node.kind === "agent")
-              onChange({
-                ...node,
-                config: { ...node.config, provider: provider.provider, model: provider.defaultModel },
-              });
-            else if (node.kind === "router")
-              onChange({
-                ...node,
-                config: { ...node.config, provider: provider.provider, model: provider.defaultModel },
-              });
-            else
-              onChange({
-                ...node,
-                config: { ...node.config, provider: provider.provider, model: provider.defaultModel },
-              });
+            onChange(
+              setAiConfig(node, {
+                provider: provider.provider,
+                model: provider.defaultModel,
+              }),
+            );
           }}
         >
           <SelectTrigger
@@ -658,14 +685,9 @@ function AiProviderFields({
           className="rounded-xl font-semibold"
           value={node.config.model}
           maxLength={120}
-          onChange={(event) => {
-            if (node.kind === "agent")
-              onChange({ ...node, config: { ...node.config, model: event.target.value } });
-            else if (node.kind === "router")
-              onChange({ ...node, config: { ...node.config, model: event.target.value } });
-            else
-              onChange({ ...node, config: { ...node.config, model: event.target.value } });
-          }}
+          onChange={(event) =>
+            onChange(setAiConfig(node, { model: event.target.value }))
+          }
         />
       </Field>
     </>
@@ -947,6 +969,77 @@ function ListingPanel({ node, data, onChange }: NodePanelProps) {
       >
         <Textarea
           id="listing-instructions"
+          rows={6}
+          maxLength={4000}
+          value={node.config.instructions}
+          onChange={(event) =>
+            setConfig({ ...node.config, instructions: event.target.value })
+          }
+        />
+      </Field>
+    </>
+  );
+}
+
+function EventPanel({ node, data, onChange }: NodePanelProps) {
+  if (node.kind !== "event") return null;
+  const setConfig = (config: typeof node.config) => onChange({ ...node, config });
+  return (
+    <>
+      <AiProviderFields node={node} providers={data.providers} onChange={onChange} />
+      <Field
+        label="Event template"
+        htmlFor="event-template"
+        description="New events are drafted with this template's blocks. Events are never auto-published."
+      >
+        <Select
+          value={node.config.templateId || undefined}
+          onValueChange={(templateId) => setConfig({ ...node.config, templateId })}
+        >
+          <SelectTrigger id="event-template" className="w-full">
+            <SelectValue placeholder="Choose a template" />
+          </SelectTrigger>
+          <SelectContent>
+            {data.eventTemplates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+                {template.isDefault ? " (default)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Default category"
+        htmlFor="event-category"
+        description="Optional category applied to every drafted event."
+      >
+        <Select
+          value={node.config.categoryId || "none"}
+          onValueChange={(value) =>
+            setConfig({ ...node.config, categoryId: value === "none" ? null : value })
+          }
+        >
+          <SelectTrigger id="event-category" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No category</SelectItem>
+            {data.categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Instructions"
+        htmlFor="event-instructions"
+        description="Optional hints for what to extract, such as which events count or how to fill the description. An event with no exact date is always skipped."
+      >
+        <Textarea
+          id="event-instructions"
           rows={6}
           maxLength={4000}
           value={node.config.instructions}

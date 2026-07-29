@@ -25,6 +25,7 @@ import { db } from '@/lib/db'
 import {
   categories,
   directoryTemplates,
+  eventTemplates,
   postTemplates,
   siteAutomations,
   siteAutomationApprovals,
@@ -271,7 +272,7 @@ export async function getAutomationEditorData(automationId: string): Promise<{
     const automation = await requireOwnedAutomation(automationId)
     if (!automation) return { data: null, error: 'Automation not found' }
     const graph = parseAutomationGraph(automation.graph)
-    const [runRows, templates, listingTemplates, categoryRows, configuredProviders] = await Promise.all([
+    const [runRows, templates, listingTemplates, eventTemplateRows, categoryRows, configuredProviders] = await Promise.all([
       db.select().from(siteAutomationRuns)
         .where(eq(siteAutomationRuns.automationId, automation.id))
         .orderBy(desc(siteAutomationRuns.startedAt))
@@ -284,6 +285,10 @@ export async function getAutomationEditorData(automationId: string): Promise<{
         .from(directoryTemplates)
         .where(eq(directoryTemplates.siteId, automation.siteId))
         .orderBy(desc(directoryTemplates.isDefault), asc(directoryTemplates.name)),
+      db.select({ id: eventTemplates.id, name: eventTemplates.name, isDefault: eventTemplates.isDefault })
+        .from(eventTemplates)
+        .where(eq(eventTemplates.siteId, automation.siteId))
+        .orderBy(desc(eventTemplates.isDefault), asc(eventTemplates.name)),
       db.select({ id: categories.id, title: categories.title })
         .from(categories)
         .where(and(eq(categories.siteId, automation.siteId), eq(categories.isPublished, true)))
@@ -314,6 +319,7 @@ export async function getAutomationEditorData(automationId: string): Promise<{
         runs: runRows.map((run) => automationRunRowToItem(run, stepsByRun.get(run.id) ?? [], approvalsByRun.get(run.id) ?? [])),
         templates,
         listingTemplates,
+        eventTemplates: eventTemplateRows,
         categories: categoryRows,
         providers,
         validationErrors,
@@ -507,13 +513,17 @@ async function validateAutomationResources(
   const refs: ResourceRefs[] = graph.nodes.map((node) => getNodeDescriptor(node.kind).resourceRefs?.(node) ?? {})
   const templateIds = [...new Set(refs.flatMap((ref) => ref.postTemplateIds ?? []))]
   const listingTemplateIds = [...new Set(refs.flatMap((ref) => ref.listingTemplateIds ?? []))]
+  const eventTemplateIds = [...new Set(refs.flatMap((ref) => ref.eventTemplateIds ?? []))]
   const categoryIds = [...new Set(refs.flatMap((ref) => ref.categoryIds ?? []))]
-  const [templateRows, listingTemplateRows, categoryRows] = await Promise.all([
+  const [templateRows, listingTemplateRows, eventTemplateRows, categoryRows] = await Promise.all([
     templateIds.length
       ? db.select({ id: postTemplates.id }).from(postTemplates).where(and(eq(postTemplates.siteId, siteId), inArray(postTemplates.id, templateIds)))
       : [],
     listingTemplateIds.length
       ? db.select({ id: directoryTemplates.id }).from(directoryTemplates).where(and(eq(directoryTemplates.siteId, siteId), inArray(directoryTemplates.id, listingTemplateIds)))
+      : [],
+    eventTemplateIds.length
+      ? db.select({ id: eventTemplates.id }).from(eventTemplates).where(and(eq(eventTemplates.siteId, siteId), inArray(eventTemplates.id, eventTemplateIds)))
       : [],
     categoryIds.length
       ? db.select({ id: categories.id }).from(categories).where(and(eq(categories.siteId, siteId), eq(categories.isPublished, true), inArray(categories.id, categoryIds)))
@@ -522,6 +532,7 @@ async function validateAutomationResources(
   const resolved: ResolvedResources = {
     postTemplates: new Set(templateRows.map((row) => row.id)),
     listingTemplates: new Set(listingTemplateRows.map((row) => row.id)),
+    eventTemplates: new Set(eventTemplateRows.map((row) => row.id)),
     categories: new Set(categoryRows.map((row) => row.id)),
   }
   for (const node of graph.nodes) {
