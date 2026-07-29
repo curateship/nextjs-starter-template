@@ -16,10 +16,10 @@ The editor follows Trading's workspace interaction: the left palette has Fav and
 Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post) or a Listing (directory listing). Source nodes (Scraper, RSS Feed) are interchangeable — both emit `documents`, so either can feed a Router, Agent, or Listing. Allowed paths are:
 
 ```text
-Time -> Scraper  -> AI Router -> AI Agent -> [AI Image ->] Post
-Time -> RSS Feed -> AI Router -> AI Agent -> [AI Image ->] Post
-Time -> Scraper  -------------> AI Agent -> [AI Image ->] Post
-Time ------------------------->  AI Agent -> [AI Image ->] Post
+Time -> Scraper  -> AI Router -> AI Agent -> [AI Image ->] [Approval ->] Post
+Time -> RSS Feed -> AI Router -> AI Agent -> [AI Image ->] [Approval ->] Post
+Time -> Scraper  -------------> AI Agent -> [AI Image ->] [Approval ->] Post
+Time ------------------------->  AI Agent -> [AI Image ->] [Approval ->] Post
 Time -> RSS Feed -> AI Router ------------> Listing
 Time -> Scraper  -------------------------> Listing
 ```
@@ -46,6 +46,15 @@ restricted to `file_type = 'image'` and the stored `file_size` is checked before
 is downloaded. If the row is gone, is not an image, is oversized, or cannot be read, the
 node reports that reason and the post is still created without an image.
 
+The optional **Approval** node is a "wait for my OK" gate. A run that reaches one stops
+there and goes no further on that branch until the owner approves or rejects it. It can
+sit anywhere between the AI Agent and the Post — before or after an AI Image — and its
+only setting is how long it waits before giving up (1 hour to 30 days, 48 hours by
+default). Its allowed targets are deliberately just AI Image and Post, both of which take
+exactly one input; that keeps everything after a gate reachable *only* through the gate,
+which is what makes resuming a paused run in a later process safe. See
+[Approval Gates](#approval-gates) for the run states and the resume/expiry rules.
+
 AI Router exposes every named route plus Else. Every route must be connected. Graphs must be acyclic, reachable from Time, and lead to a Post or Listing. Invalid graphs may be saved as drafts, but cannot activate or run.
 
 The RSS Feed node is a source like Scraper, but reads RSS 2.0, RSS 1.0/RDF, and Atom
@@ -65,6 +74,8 @@ The Listing node reads scraped pages directly (like AI Agent), extracts real bus
 ## Execution
 
 - Active schedules are checked every minute. One-time schedules pause after completion.
+- The same cron tick also resumes approved runs and expires unanswered ones (see
+  [Approval Gates](#approval-gates)).
 - A database lock prevents overlapping runs.
 - Scraper and RSS Feed URLs must use public HTTPS. DNS resolution is pinned and private/reserved addresses, redirects, oversized responses, and slow requests are blocked.
 - Content hashes skip unchanged Scraper pages, and per-entry state skips already-seen RSS Feed entries; either way an unchanged source yields no downstream work.
@@ -72,6 +83,49 @@ The Listing node reads scraped pages directly (like AI Agent), extracts real bus
 - Independent branches continue after another branch fails. Mixed post and failure outcomes are `partial`; no changed input is `noop`.
 - Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post/Listing links plus skipped-listing counts. Full scraped text and generated bodies are not stored in run logs.
 - Post and Listing HTML is sanitized before storage and slugs remain unique. Listing runs that create nothing (all duplicates) are `noop`.
+
+## Approval Gates
+
+**Run states.** A run is `waiting` while any gate in it is open. It ends as `rejected` if a
+gate was rejected, `expired` if one timed out, and otherwise by the normal rules
+(`success` / `partial` / `failed` / `noop`). A decision that stopped the run wins over the
+normal outcome, even when another branch of the same run did create something — that is
+the most useful single label for it. Step statuses gain `waiting`, `rejected`, and
+`expired` to match. A `waiting` run has no completion time or duration until it finishes.
+
+**Pausing.** Reaching a gate writes a row in `site_automation_approvals` holding the
+article the run is carrying, a deadline, and a safe display summary (title, excerpt, word
+count). The gate's step goes `waiting`; every step after it stays `pending`. The run then
+releases the automation's lock and keeps its schedule — a human may take days, and the
+automation should not be blocked meanwhile. The owner gets a Hub notification
+(`automation_approval`) pointing at the automation, where the paused run's approve/reject
+card sits in the run history panel.
+
+**Deciding.** A gate is identified by its own random ID and can only be decided by the
+user who owns the site behind it, so the notification's link is neither guessable nor
+usable by anyone else. Every decision is claimed with a `status = 'pending'` condition,
+which makes it single-use. Rejecting ends the branch immediately. Approving only records
+the decision; the cron runner performs the resume.
+
+**Resuming.** Each cron tick runs approved gates before starting new scheduled runs. A
+resume takes the automation's lock, replays *only* the nodes after the gate, and uses the
+run's own graph snapshot — so edits made to the automation while it waited cannot change
+what was approved. The held payload is consumed (set to null) *before* the downstream work
+runs, so a process that dies mid-resume fails the run cleanly rather than creating the
+post twice; a cleared payload is also what marks a gate as already used. If a resume
+fails, the gate's step is marked failed and the branch is closed rather than left hanging.
+
+**Expiry.** The same tick expires any pending gate past its deadline: the gate's step
+becomes `expired`, everything after it is `skipped`, and the run closes as `expired`. A
+paused run therefore never sits in the list forever.
+
+**Run status is derived from the persisted steps**, not from in-memory results, so the
+first pass and every resume judge a run the same way. `stepCreatedContent` in
+`execution.ts` reads the summaries `summarizeOutput` writes; the two must stay in step.
+
+A run's final status only overwrites the automation's headline `lastRunStatus` when it is
+still that automation's newest run, so a run approved late cannot overwrite a fresher
+result.
 
 ## Adding A Node
 
@@ -93,6 +147,11 @@ No database migration is needed for a new node kind — the run-step node-kind c
 constraint was removed; the registry is the source of truth. Add focused tests and
 keep credentials server-only and run summaries free of scraped or generated body
 content.
+
+The one exception to step 4 is the Approval node, which has no executor: pausing a run
+cannot be expressed by returning a value, so the graph runner handles it directly. That
+is why `node-executors.ts` is keyed by `ExecutableAutomationNode['kind']` rather than
+every node kind.
 
 ## Verification
 

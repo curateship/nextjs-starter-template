@@ -27,6 +27,7 @@ import {
   directoryTemplates,
   postTemplates,
   siteAutomations,
+  siteAutomationApprovals,
   siteAutomationRuns,
   siteAutomationRunSteps,
   sites,
@@ -114,6 +115,9 @@ function summarizeRunMessage(
   const success = counts.success ?? 0
   const failed = counts.failed ?? 0
   if (status === 'running') return total > 0 ? `${success} of ${total} steps completed` : 'Run in progress'
+  if (status === 'waiting') return 'Paused — waiting for your approval'
+  if (status === 'rejected') return 'You rejected an approval step'
+  if (status === 'expired') return 'An approval expired before anyone answered'
   if (status === 'noop') return 'No changes detected'
   if (status === 'failed') {
     const line = (error ?? '').split('\n')[0]?.trim() ?? ''
@@ -287,13 +291,18 @@ export async function getAutomationEditorData(automationId: string): Promise<{
       getConfiguredAIProviders(automation.siteId),
     ])
     const runIds = runRows.map((run) => run.id)
-    const stepRows = runIds.length
-      ? await db.select().from(siteAutomationRunSteps)
-        .where(inArray(siteAutomationRunSteps.runId, runIds))
-        .orderBy(asc(siteAutomationRunSteps.startedAt), asc(siteAutomationRunSteps.nodeName))
-      : []
+    const [stepRows, approvalRows] = runIds.length
+      ? await Promise.all([
+        db.select().from(siteAutomationRunSteps)
+          .where(inArray(siteAutomationRunSteps.runId, runIds))
+          .orderBy(asc(siteAutomationRunSteps.startedAt), asc(siteAutomationRunSteps.nodeName)),
+        db.select().from(siteAutomationApprovals).where(inArray(siteAutomationApprovals.runId, runIds)),
+      ])
+      : [[], []]
     const stepsByRun = new Map<string, typeof stepRows>()
     for (const step of stepRows) stepsByRun.set(step.runId, [...(stepsByRun.get(step.runId) ?? []), step])
+    const approvalsByRun = new Map<string, typeof approvalRows>()
+    for (const approval of approvalRows) approvalsByRun.set(approval.runId, [...(approvalsByRun.get(approval.runId) ?? []), approval])
     const providers = configuredProviders.map((provider) => providerOption(provider))
     const validationErrors = [
       ...validateAutomationGraph(graph),
@@ -302,7 +311,7 @@ export async function getAutomationEditorData(automationId: string): Promise<{
     return {
       data: {
         automation: { ...automationRowToListItem(automation, graph), graph },
-        runs: runRows.map((run) => automationRunRowToItem(run, stepsByRun.get(run.id) ?? [])),
+        runs: runRows.map((run) => automationRunRowToItem(run, stepsByRun.get(run.id) ?? [], approvalsByRun.get(run.id) ?? [])),
         templates,
         listingTemplates,
         categories: categoryRows,
@@ -462,11 +471,14 @@ export async function runAutomationNow(automationId: string): Promise<{ data: Au
     const validationErrors = [...validateAutomationGraph(graph), ...await validateAutomationResources(automation.siteId, graph, configured)]
     if (validationErrors.length) return { data: null, error: validationErrors[0].message }
     const run = await executeAutomation(automation.id, 'manual')
-    const steps = await db.select().from(siteAutomationRunSteps)
-      .where(eq(siteAutomationRunSteps.runId, run.id))
-      .orderBy(asc(siteAutomationRunSteps.startedAt), asc(siteAutomationRunSteps.nodeName))
+    const [steps, approvals] = await Promise.all([
+      db.select().from(siteAutomationRunSteps)
+        .where(eq(siteAutomationRunSteps.runId, run.id))
+        .orderBy(asc(siteAutomationRunSteps.startedAt), asc(siteAutomationRunSteps.nodeName)),
+      db.select().from(siteAutomationApprovals).where(eq(siteAutomationApprovals.runId, run.id)),
+    ])
     revalidateAutomationPaths(automation.id)
-    return { data: automationRunRowToItem(run, steps), error: null }
+    return { data: automationRunRowToItem(run, steps, approvals), error: null }
   } catch (error) {
     console.error('runAutomationNow error:', error)
     return { data: null, error: friendlyError(error, 'Failed to run automation') }

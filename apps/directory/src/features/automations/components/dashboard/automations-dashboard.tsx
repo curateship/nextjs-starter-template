@@ -173,7 +173,11 @@ export function AutomationsDashboard() {
     const result = await runAutomationNow(item.id)
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
-    showActionSuccess("Automation run finished")
+    showActionSuccess(
+      result.data?.status === "waiting"
+        ? "Paused — this run needs your approval"
+        : "Automation run finished",
+    )
     await load()
   }
 

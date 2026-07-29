@@ -13,6 +13,8 @@ import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
 import Store from "lucide-react/dist/esm/icons/store.js"
+import TimerOff from "lucide-react/dist/esm/icons/timer-off.js"
+import UserCheck from "lucide-react/dist/esm/icons/user-check.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import TriangleAlert from "lucide-react/dist/esm/icons/triangle-alert.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
@@ -136,6 +138,9 @@ const RUN_STATUS_META: Record<DashboardAutomationRun["status"], {
   failed: { label: "Failed", icon: TriangleAlert, iconClass: "bg-red-100 text-red-700", labelClass: "text-red-600" },
   partial: { label: "Partial", icon: TriangleAlert, iconClass: "bg-amber-100 text-amber-700", labelClass: "text-amber-600" },
   noop: { label: "Skipped", icon: Minus, iconClass: "bg-muted text-muted-foreground", labelClass: "text-muted-foreground" },
+  waiting: { label: "Needs approval", icon: UserCheck, iconClass: "bg-amber-100 text-amber-700", labelClass: "text-amber-600" },
+  rejected: { label: "Rejected", icon: TriangleAlert, iconClass: "bg-red-100 text-red-700", labelClass: "text-red-600" },
+  expired: { label: "Expired", icon: TimerOff, iconClass: "bg-muted text-muted-foreground", labelClass: "text-muted-foreground" },
 }
 
 const NOTIFICATION_ICONS: Record<HubNotificationType, typeof Bell> = {
@@ -148,6 +153,7 @@ const NOTIFICATION_ICONS: Record<HubNotificationType, typeof Bell> = {
   event_submission: CalendarPlus,
   directory_submission: Store,
   event_registration: Users,
+  automation_approval: UserCheck,
 }
 
 const TRIGGER_LABELS: Record<string, string> = {

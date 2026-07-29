@@ -5,18 +5,43 @@ import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import CircleDashed from "lucide-react/dist/esm/icons/circle-dashed.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import MinusCircle from "lucide-react/dist/esm/icons/circle-minus.js"
+import TimerOff from "lucide-react/dist/esm/icons/timer-off.js"
+import UserCheck from "lucide-react/dist/esm/icons/user-check.js"
 import XCircle from "lucide-react/dist/esm/icons/circle-x.js"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { AutomationRunItem, AutomationRunStatus, AutomationStepStatus } from "@/features/automations/domain/types"
+import type {
+  AutomationRunApprovalItem,
+  AutomationRunItem,
+  AutomationRunStatus,
+  AutomationStepStatus,
+} from "@/features/automations/domain/types"
 import { cn } from "@/lib/utils/tailwind"
 
-export function AutomationRunHistory({ runs }: { runs: AutomationRunItem[] }) {
+export type ApprovalDecision = { approvalId: string; decision: "approve" | "reject" }
+
+export function AutomationRunHistory({
+  runs,
+  deciding,
+  onDecideApproval,
+}: {
+  runs: AutomationRunItem[]
+  deciding?: ApprovalDecision | null
+  onDecideApproval?: (approvalId: string, decision: "approve" | "reject") => void
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(runs[0]?.id ?? null)
   useEffect(() => { if (!selectedId || !runs.some((run) => run.id === selectedId)) setSelectedId(runs[0]?.id ?? null) }, [runs, selectedId])
   const selected = runs.find((run) => run.id === selectedId) ?? runs[0] ?? null
+  // Only a run that is still waiting can act on a decision. A run that ended some
+  // other way may still carry an undecided gate; offering buttons there would
+  // promise a resume that can never happen.
+  const pendingApprovals = selected?.status === "waiting"
+    ? selected.approvals.filter((approval) => approval.status === "pending")
+    : []
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -37,6 +62,15 @@ export function AutomationRunHistory({ runs }: { runs: AutomationRunItem[] }) {
           <ScrollArea>
             {selected ? (
               <div className="min-w-[520px] p-3">
+                {pendingApprovals.map((approval) => (
+                  <ApprovalCard
+                    key={approval.id}
+                    approval={approval}
+                    deciding={deciding?.approvalId === approval.id ? deciding.decision : null}
+                    disabled={Boolean(deciding)}
+                    onDecide={onDecideApproval}
+                  />
+                ))}
                 {selected.error ? <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">{selected.error}</div> : null}
                 <div className="grid gap-2">
                   {selected.steps.map((step) => (
@@ -57,24 +91,70 @@ export function AutomationRunHistory({ runs }: { runs: AutomationRunItem[] }) {
   )
 }
 
+function ApprovalCard({
+  approval,
+  deciding,
+  disabled,
+  onDecide,
+}: {
+  approval: AutomationRunApprovalItem
+  deciding: "approve" | "reject" | null
+  disabled: boolean
+  onDecide?: (approvalId: string, decision: "approve" | "reject") => void
+}) {
+  return (
+    <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+      <div className="flex items-center gap-2">
+        <UserCheck className="size-4 shrink-0 text-amber-700 dark:text-amber-200" aria-hidden />
+        <div className="text-xs font-semibold">{approval.nodeName} is waiting for your decision</div>
+      </div>
+      {approval.summary.title ? <div className="mt-2 text-sm font-medium">{approval.summary.title}</div> : null}
+      {approval.summary.excerpt ? <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{approval.summary.excerpt}</p> : null}
+      <div className="mt-2 text-[10px] text-muted-foreground">
+        {typeof approval.summary.wordCount === "number" ? `${approval.summary.wordCount} words · ` : ""}
+        Expires {formatDateTime(approval.expiresAt)}
+      </div>
+      {onDecide ? (
+        <div className="mt-3 flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={disabled} onClick={() => onDecide(approval.id, "reject")}>
+            {deciding === "reject" ? <Loader2 className="animate-spin" /> : null}
+            Reject
+          </Button>
+          <Button size="sm" disabled={disabled} onClick={() => onDecide(approval.id, "approve")}>
+            {deciding === "approve" ? <Loader2 className="animate-spin" /> : null}
+            Approve
+          </Button>
+          <span className="text-[10px] text-muted-foreground">Approving runs the rest within a minute.</span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function RunBadge({ status }: { status: AutomationRunStatus }) {
   if (status === "success") return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Success</Badge>
   if (status === "partial") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Partial</Badge>
   if (status === "failed") return <Badge variant="destructive">Failed</Badge>
+  if (status === "rejected") return <Badge variant="destructive">Rejected</Badge>
+  if (status === "waiting") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Waiting</Badge>
+  if (status === "expired") return <Badge variant="outline">Expired</Badge>
   if (status === "running") return <Badge variant="secondary">Running</Badge>
   return <Badge variant="outline">No changes</Badge>
 }
 
 function StepIcon({ status }: { status: AutomationStepStatus }) {
   if (status === "success") return <CheckCircle2 className="size-3.5 text-emerald-600" />
-  if (status === "failed") return <XCircle className="size-3.5 text-destructive" />
+  if (status === "failed" || status === "rejected") return <XCircle className="size-3.5 text-destructive" />
+  if (status === "expired") return <TimerOff className="size-3.5 text-muted-foreground" />
   if (status === "skipped") return <MinusCircle className="size-3.5 text-muted-foreground" />
+  if (status === "waiting") return <UserCheck className="size-3.5 text-amber-600" />
   if (status === "running") return <Clock3 className="size-3.5 text-amber-600" />
   return <CircleDashed className="size-3.5 text-muted-foreground" />
 }
 
 function StepSummary({ output, error }: { output: Record<string, unknown>; error: string | null }) {
   if (error) return <div className="line-clamp-2 text-destructive" title={error}>{error}</div>
+  if (output.awaitingApproval) return <div className="text-muted-foreground">Waiting for your approval</div>
   if (typeof output.url === "string" && typeof output.title === "string") return <a href={output.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1 text-primary hover:underline"><span className="truncate">{output.title}</span><ExternalLink className="size-3 shrink-0" /></a>
   if (typeof output.title === "string") return <div className="truncate" title={output.title}>{output.title}</div>
   if (typeof output.changedCount === "number") return <div>{output.changedCount} changed page{output.changedCount === 1 ? "" : "s"}{typeof output.unchangedCount === "number" ? ` · ${output.unchangedCount} unchanged` : ""}</div>

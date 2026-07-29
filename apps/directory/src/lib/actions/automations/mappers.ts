@@ -1,6 +1,9 @@
 import type {
+  AutomationApprovalStatus,
+  AutomationApprovalSummary,
   AutomationGraph,
   AutomationListItem,
+  AutomationRunApprovalItem,
   AutomationRunItem,
   AutomationRunStepItem,
   AutomationRunStatus,
@@ -10,6 +13,7 @@ import type {
 } from '@/features/automations/domain/types'
 import type {
   siteAutomations,
+  siteAutomationApprovals,
   siteAutomationRuns,
   siteAutomationRunSteps,
 } from '@/lib/db/schema'
@@ -35,8 +39,10 @@ export function automationRowToListItem(
 
 export function automationRunRowToItem(
   row: typeof siteAutomationRuns.$inferSelect,
-  steps: Array<typeof siteAutomationRunSteps.$inferSelect>
+  steps: Array<typeof siteAutomationRunSteps.$inferSelect>,
+  approvals: Array<typeof siteAutomationApprovals.$inferSelect> = []
 ): AutomationRunItem {
+  const stepNames = new Map(steps.map((step) => [step.nodeId, step.nodeName]))
   return {
     id: row.id,
     automationId: row.automationId,
@@ -47,6 +53,25 @@ export function automationRunRowToItem(
     completedAt: row.completedAt?.toISOString() ?? null,
     durationMs: row.durationMs,
     steps: steps.map(automationStepRowToItem),
+    // The held payload never leaves the server — only the display summary does.
+    approvals: approvals.map((approval) => ({
+      id: approval.id,
+      nodeId: approval.nodeId,
+      nodeName: stepNames.get(approval.nodeId) ?? 'Approval',
+      status: approval.status as AutomationApprovalStatus,
+      summary: approvalSummary(approval.summary),
+      expiresAt: approval.expiresAt.toISOString(),
+      decidedAt: approval.decidedAt?.toISOString() ?? null,
+    })) satisfies AutomationRunApprovalItem[],
+  }
+}
+
+function approvalSummary(value: unknown): AutomationApprovalSummary {
+  const record = asRecord(value)
+  return {
+    ...(typeof record.title === 'string' ? { title: record.title } : {}),
+    ...(typeof record.excerpt === 'string' ? { excerpt: record.excerpt } : {}),
+    ...(typeof record.wordCount === 'number' ? { wordCount: record.wordCount } : {}),
   }
 }
 
