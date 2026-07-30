@@ -1,6 +1,6 @@
 "use client"
 
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"

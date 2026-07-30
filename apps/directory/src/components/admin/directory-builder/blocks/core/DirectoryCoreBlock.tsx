@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { BlockEditorEmptyState } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/admin/layout/builder/block-tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"

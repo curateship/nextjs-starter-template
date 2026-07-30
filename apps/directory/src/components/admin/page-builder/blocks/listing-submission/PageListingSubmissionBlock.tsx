@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { LISTING_SUBMISSION_FIELDS } from "@/lib/utils/listing-submission-fields"
 

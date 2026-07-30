@@ -10,7 +10,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"

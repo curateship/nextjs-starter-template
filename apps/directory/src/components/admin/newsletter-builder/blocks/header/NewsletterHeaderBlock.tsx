@@ -10,7 +10,7 @@ import AlignRight from "lucide-react/dist/esm/icons/align-right.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 interface NewsletterHeaderBlockProps {

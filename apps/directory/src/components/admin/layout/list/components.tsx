@@ -1,23 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import ArrowDown from "lucide-react/dist/esm/icons/arrow-down.js"
-import ArrowUp from "lucide-react/dist/esm/icons/arrow-up.js"
 import ChevronLeft from "lucide-react/dist/esm/icons/chevron-left.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import ChevronsLeft from "lucide-react/dist/esm/icons/chevrons-left.js"
 import ChevronsRight from "lucide-react/dist/esm/icons/chevrons-right.js"
-import ChevronsUpDown from "lucide-react/dist/esm/icons/chevrons-up-down.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
 import { Button } from "@/components/ui/button";
-import { CardSection } from "@/components/ui/card";
+import { CardSection } from "@/components/shared/card-sections";
 import { Badge } from "@/components/ui/badge";
 import {
   TableCell,
   TableRow,
-  TableStatusIndicator,
+  TableSortButton,
   TableSurface,
 } from "@/components/ui/table";
 import { TableRightActionsButton } from "@/components/admin/layout/content/table-right-actions";
@@ -46,6 +43,30 @@ type AdminTableStatus = {
   tone: "error" | "success";
   text: string;
 };
+
+// Directory-only status chip (moved out of ui/table.tsx so that file stays
+// byte-aligned with custom-shell). Color tokens are revisited in task 10.
+function TableStatusIndicator({
+  tone,
+  children,
+}: {
+  tone: "error" | "success";
+  children: ReactNode;
+}) {
+  return (
+    <span
+      role={tone === "error" ? "alert" : "status"}
+      className={cn(
+        "rounded-md border px-2 py-1 text-xs",
+        tone === "error"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
 
 export function AdminTableShell({
   children,
@@ -112,6 +133,8 @@ export function AdminTableShell({
   );
 }
 
+// Thin wrapper over the shared TableSortButton so every table sorts (and looks)
+// identically; kept for its established prop shape across the admin screens.
 export function AdminSortButton({
   active,
   children,
@@ -126,25 +149,14 @@ export function AdminSortButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <TableSortButton
+      active={active}
+      direction={direction}
       onClick={onClick}
-      className={cn(
-        "flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-foreground outline-none transition-colors hover:text-foreground sm:text-sm",
-        className,
-      )}
+      className={className}
     >
-      <span>{children}</span>
-      <span className="flex h-3.5 w-3.5 items-center justify-center">
-        {!active ? (
-          <ChevronsUpDown className="size-3 opacity-50" />
-        ) : direction === "asc" ? (
-          <ArrowUp className="size-3" />
-        ) : (
-          <ArrowDown className="size-3" />
-        )}
-      </span>
-    </button>
+      {children}
+    </TableSortButton>
   );
 }
 

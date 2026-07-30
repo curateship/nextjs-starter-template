@@ -1,11 +1,11 @@
 "use client";
 
 import React from "react";
-import DotPattern from "@/components/ui/dot-pattern";
+import DotPattern from "@/components/frontend/blocks/dot-pattern";
 import Image from "@/components/app-image";
 import { cn } from "@/lib/utils/tailwind";
-import { GradientOverlays } from "@/components/ui/gradient-overlays";
-import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
+import { GradientOverlays } from "@/components/frontend/blocks/gradient-overlays";
+import { TrustedByAvatars } from "@/components/frontend/blocks/trusted-by-avatars";
 import type { HeroStyleRendererProps } from ".";
 
 // Background Pattern component that supports different pattern types

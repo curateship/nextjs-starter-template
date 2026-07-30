@@ -6,7 +6,7 @@ import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
@@ -31,7 +31,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
-import { BlockEditorEmptyState } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/admin/layout/builder/block-tabs"
 
 interface FaqItem {
   id: string

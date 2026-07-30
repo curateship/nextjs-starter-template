@@ -1,64 +1,59 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/lib/utils/tailwind"
+import { Slider as SliderPrimitive } from "radix-ui"
 
-interface SliderProps {
-  value: number[]
-  onValueChange: (value: number[]) => void
-  min: number
-  max: number
-  step: number
-  className?: string
-}
+import { cn } from "@/lib/utils"
 
-export function Slider({
-  value,
-  onValueChange,
-  min,
-  max,
-  step,
+function Slider({
   className,
-}: SliderProps) {
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseFloat(event.target.value)
-    onValueChange([newValue])
-  }
+  defaultValue,
+  value,
+  min = 0,
+  max = 100,
+  ...props
+}: React.ComponentProps<typeof SliderPrimitive.Root>) {
+  const values = React.useMemo(
+    () =>
+      Array.isArray(value)
+        ? value
+        : Array.isArray(defaultValue)
+          ? defaultValue
+          : [min, max],
+    [value, defaultValue, min, max]
+  )
 
   return (
-    <div className={cn("relative", className)}>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value[0]}
-        onChange={handleChange}
-        className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
-        style={{
-          background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
-            ((value[0] - min) / (max - min)) * 100
-          }%, var(--muted) ${((value[0] - min) / (max - min)) * 100}%, var(--muted) 100%)`
-        }}
-      />
-      <style>{`
-        .slider::-webkit-slider-thumb {
-          appearance: none;
-          width: 16px;
-          height: 16px;
-          background: var(--primary);
-          border-radius: 50%;
-          cursor: pointer;
-        }
-        .slider::-moz-range-thumb {
-          width: 16px;
-          height: 16px;
-          background: var(--primary);
-          border-radius: 50%;
-          cursor: pointer;
-          border: none;
-        }
-      `}</style>
-    </div>
+    <SliderPrimitive.Root
+      data-slot="slider"
+      defaultValue={defaultValue}
+      value={value}
+      min={min}
+      max={max}
+      className={cn(
+        "relative flex w-full touch-none items-center select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        className
+      )}
+      {...props}
+    >
+      <SliderPrimitive.Track
+        data-slot="slider-track"
+        className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted"
+      >
+        <SliderPrimitive.Range
+          data-slot="slider-range"
+          className="absolute h-full bg-foreground"
+        />
+      </SliderPrimitive.Track>
+      {Array.from({ length: values.length }, (_, index) => (
+        <SliderPrimitive.Thumb
+          data-slot="slider-thumb"
+          key={index}
+          className="block size-4 shrink-0 rounded-full border border-foreground bg-background shadow-sm transition-[color,box-shadow] hover:ring-4 hover:ring-foreground/20 focus-visible:ring-4 focus-visible:ring-foreground/30 focus-visible:outline-hidden"
+        />
+      ))}
+    </SliderPrimitive.Root>
   )
 }
+
+export { Slider }

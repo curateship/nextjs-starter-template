@@ -5,7 +5,7 @@ import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRi
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { normalizePageRichTextContent } from "@/components/admin/page-builder/config/page-block-utils"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 
 interface PageRichTextEditorBlockProps {
   content: Record<string, any>

@@ -1,6 +1,6 @@
 "use client"
 
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,7 +34,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { BlockEditorEmptyState } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/admin/layout/builder/block-tabs"
 import { getMediaType } from '@/lib/utils/media-type'
 
 interface Feature {

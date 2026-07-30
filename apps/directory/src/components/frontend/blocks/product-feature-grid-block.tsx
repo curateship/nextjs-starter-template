@@ -14,8 +14,7 @@ const ProductFeatureGridBlock = () => {
             <div className="mt-8 grid gap-4 sm:grid-cols-2 md:mt-16 md:grid-cols-3">
                 <div className="space-y-4">
                     <Card
-                        className="aspect-video overflow-hidden px-6"
-                        variant="soft">
+                        className="aspect-video overflow-hidden px-6 bg-foreground/5 ring-0">
                         <Card className="h-full translate-y-6" />
                     </Card>
                     <div className="sm:max-w-sm">
@@ -25,8 +24,7 @@ const ProductFeatureGridBlock = () => {
                 </div>
                 <div className="space-y-4">
                     <Card
-                        className="aspect-video overflow-hidden p-6"
-                        variant="soft">
+                        className="aspect-video overflow-hidden p-6 bg-foreground/5 ring-0">
                         <Card className="h-full" />
                     </Card>
                     <div className="sm:max-w-sm">
@@ -36,8 +34,7 @@ const ProductFeatureGridBlock = () => {
                 </div>
                 <div className="space-y-4">
                     <Card
-                        className="aspect-video overflow-hidden"
-                        variant="soft">
+                        className="aspect-video overflow-hidden bg-foreground/5 ring-0">
                         <Card className="translate-6 h-full" />
                     </Card>
                     <div className="sm:max-w-sm">

@@ -1037,6 +1037,9 @@ importers:
       sanitize-html:
         specifier: ^2.17.4
         version: 2.17.6
+      shadcn:
+        specifier: ^4.13.1
+        version: 4.13.1(supports-color@7.2.0)(typescript@5.9.3)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

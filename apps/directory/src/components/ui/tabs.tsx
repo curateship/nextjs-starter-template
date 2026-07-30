@@ -1,188 +1,31 @@
 "use client"
 
 import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
-import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left.js"
+import { Tabs as TabsPrimitive } from "radix-ui"
 
-import type { ModalTabItem } from "@/components/admin/layout/dashboard/modal-tabs"
-import { useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
-import { cn } from "@/lib/utils/tailwind"
+import { cn } from "@/lib/utils"
 
-const Tabs = TabsPrimitive.Root
-Tabs.displayName = "Tabs"
-
-const TabsList = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      "inline-flex h-10 items-center justify-center gap-1 rounded-md bg-muted p-1 text-muted-foreground",
-      className
-    )}
-    {...props}
-  />
-))
-TabsList.displayName = "TabsList"
-
-const TabsTrigger = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-background/50",
-      className
-    )}
-    {...props}
-  />
-))
-TabsTrigger.displayName = "TabsTrigger"
-
-const TabsContent = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content
-    ref={ref}
-    className={cn(
-      "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-      className
-    )}
-    {...props}
-  />
-))
-TabsContent.displayName = "TabsContent"
-
-interface BlockTab {
-  value: string
-  label: string
-  content: React.ReactNode
-}
-
-interface BlockTabsProps {
-  tabs: BlockTab[]
-  defaultTab?: string
-  onBack?: () => void
-  className?: string
-  headerClassName?: string
-  contentClassName?: string
-}
-
-function BlockTabs({
-  tabs,
-  defaultTab,
-  onBack,
-  className,
-  headerClassName,
-  contentClassName,
-}: BlockTabsProps) {
-  const dock = useModalTabsDock()
-  const [localActiveTab, setLocalActiveTab] = React.useState(defaultTab || tabs[0]?.value || "content")
-  const contentClasses = contentClassName === undefined ? "mt-0" : contentClassName
-  const activeTab = dock ? dock.activeTab || defaultTab || tabs[0]?.value || "content" : localActiveTab
-  const setActiveTab = dock ? dock.setActiveTab : setLocalActiveTab
-  const dockSetTabs = dock?.setTabs
-  const dockClearTabs = dock?.clearTabs
-  const hasMultipleTabs = tabs.length > 1
-  const dockTabsKey = JSON.stringify(tabs.map((tab) => ({ value: tab.value, label: tab.label })))
-
-  React.useEffect(() => {
-    if (!dockSetTabs || !dockClearTabs) return
-
-    if (!hasMultipleTabs) {
-      dockClearTabs()
-      return
-    }
-
-    const dockTabs = JSON.parse(dockTabsKey) as ModalTabItem[]
-    dockSetTabs(dockTabs, defaultTab)
-    return dockClearTabs
-  }, [dockSetTabs, dockClearTabs, dockTabsKey, defaultTab, hasMultipleTabs])
-
-  React.useEffect(() => {
-    if (!tabs.some((tab) => tab.value === activeTab)) {
-      setActiveTab(defaultTab || tabs[0]?.value || "content")
-    }
-  }, [activeTab, defaultTab, tabs, setActiveTab])
-
+function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Root>) {
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className={cn("flex w-full flex-col gap-4", className)}>
-      {!dock && (onBack || hasMultipleTabs) ? (
-        <div className={cn("flex items-center gap-2", headerClassName || "px-4 pt-3")}>
-          {onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-md bg-muted px-3 text-sm font-medium text-muted-foreground transition-all hover:bg-background hover:text-foreground hover:shadow-sm"
-            >
-              <ArrowLeft className="mr-1.5 h-4 w-3.5" />
-              Back
-            </button>
-          ) : null}
-          {hasMultipleTabs ? (
-            <TabsList>
-              {tabs.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value}>
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          ) : null}
-        </div>
-      ) : null}
-
-      {tabs.map((tab) => (
-        <TabsContent key={tab.value} value={tab.value} className={cn(contentClasses)}>
-          {tab.content}
-        </TabsContent>
-      ))}
-    </Tabs>
+    <TabsPrimitive.Root
+      data-slot="tabs"
+      className={cn("flex flex-col gap-2", className)}
+      {...props}
+    />
   )
 }
 
-interface BlockEditorSectionProps extends Omit<React.ComponentProps<"section">, "title"> {
-  heading?: React.ReactNode
-  action?: React.ReactNode
-  description?: React.ReactNode
-  contentClassName?: string
-}
-
-function BlockEditorSection({
-  heading,
-  action,
-  description,
-  className,
-  contentClassName,
-  children,
-  ...props
-}: BlockEditorSectionProps) {
-  return (
-    <section className={cn("space-y-4", className)} {...props}>
-      {heading || action || description ? (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-3">
-            {heading ? <h3 className="text-base font-medium">{heading}</h3> : <div />}
-            {action}
-          </div>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
-        </div>
-      ) : null}
-      <div className={cn("space-y-4", contentClassName)}>{children}</div>
-    </section>
-  )
-}
-
-function BlockEditorEmptyState({
+// Segmented style per the UI rules: muted container, raised selected tab, and
+// triggers that stay content-width instead of stretching.
+function TabsList({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
-    <div
+    <TabsPrimitive.List
+      data-slot="tabs-list"
       className={cn(
-        "rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground",
+        "inline-flex h-8 w-fit items-center justify-center rounded-lg bg-muted p-0.5 text-muted-foreground",
         className
       )}
       {...props}
@@ -190,12 +33,36 @@ function BlockEditorEmptyState({
   )
 }
 
-export {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-  BlockTabs,
-  BlockEditorSection,
-  BlockEditorEmptyState,
+function TabsTrigger({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+  return (
+    <TabsPrimitive.Trigger
+      data-slot="tabs-trigger"
+      className={cn(
+        "inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "disabled:pointer-events-none disabled:opacity-50",
+        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+        className
+      )}
+      {...props}
+    />
+  )
 }
+
+function TabsContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+  return (
+    <TabsPrimitive.Content
+      data-slot="tabs-content"
+      className={cn("flex-1 outline-none", className)}
+      {...props}
+    />
+  )
+}
+
+export { Tabs, TabsList, TabsTrigger, TabsContent }

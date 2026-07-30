@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
@@ -107,11 +108,7 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
           <div className="flex-1">
             <CardTitle className="text-base flex items-center gap-2">
               {entry.label}
-              {!isConfigured && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                  Not configured
-                </span>
-              )}
+              {!isConfigured && <Badge variant="secondary">Not configured</Badge>}
               {entry.type === "stripe" && isConfigured && (
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stripeMode === "Sandbox" ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"}`}
@@ -127,20 +124,30 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
 
       <CardContent>
         {entry.fields.map((field) => (
-          <div key={field.key} className="space-y-2">
+          <div key={field.key} className="grid gap-2">
             {entry.type === "stripe" && field.key === "secret_key" && (
               <h3 className="pt-4 text-base font-semibold">Live Credentials</h3>
             )}
             {entry.type === "stripe" && field.key === "sandbox_secret_key" && (
               <h3 className="pt-4 text-base font-semibold">Sandbox Credentials</h3>
             )}
-            <Label htmlFor={`${entry.type}-${field.key}`}>
-              {field.label}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </Label>
+            {entry.type === "stripe" && field.key === "mode" ? (
+              <FieldLabel
+                htmlFor={`${entry.type}-${field.key}`}
+                hint="Unchecked uses live keys for checkout payments and webhooks."
+              >
+                {field.label}
+                {field.required && <span className="text-destructive ml-1">*</span>}
+              </FieldLabel>
+            ) : (
+              <Label htmlFor={`${entry.type}-${field.key}`}>
+                {field.label}
+                {field.required && <span className="text-destructive ml-1">*</span>}
+              </Label>
+            )}
             <div className="relative">
               {entry.type === "stripe" && field.key === "mode" ? (
-                <div className="flex h-10 items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Checkbox
                     id={`${entry.type}-${field.key}`}
                     checked={(formValues[field.key] || field.options?.[0]?.value || "") === "sandbox"}
@@ -202,16 +209,11 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
                 </span>
               ) : null}
             </div>
-            {entry.type === "stripe" && field.key === "mode" && (
-              <p className="text-sm text-muted-foreground">
-                Unchecked uses live keys for checkout payments and webhooks.
-              </p>
-            )}
           </div>
         ))}
 
         {entry.type === "notion_marketplace" && (
-          <div className="space-y-2">
+          <div className="grid gap-2">
             <Label htmlFor={`${entry.type}-webhook-url`}>Webhook URL</Label>
             <div className="flex gap-2">
               <Input
