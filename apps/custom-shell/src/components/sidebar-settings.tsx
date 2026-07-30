@@ -36,6 +36,7 @@ import {
   CardGroup,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ShellIconPicker } from "@/components/shell-icon-picker"
 import {
   Dialog,
@@ -540,9 +541,11 @@ function SortableSectionCard({
             />
           </div>
           <div className="flex items-center gap-2">
+            {/* Not a per-section reset — this throws away the whole shell
+                config, so the label has to say so. */}
             <Button type="button" variant="outline" size="sm" onClick={onReset}>
               <RotateCcwIcon className="h-4 w-4" />
-              Reset
+              Reset all to defaults
             </Button>
             <Button
               type="button"
@@ -553,11 +556,13 @@ function SortableSectionCard({
               <PlusIcon className="h-4 w-4" />
               Add Link
             </Button>
+            {/* Must be the destructive variant, not an outline button with a
+                red hover class: the outline variant's own dark:hover:bg-input/50
+                beats a call-site hover, so the red would vanish in dark mode. */}
             <Button
               type="button"
-              variant="outline"
+              variant="destructive"
               size="sm"
-              className="hover:bg-destructive/10 hover:text-destructive"
               onClick={() => onSectionDelete(section.id)}
               aria-label={`Delete ${section.title || "sidebar section"}`}
             >
@@ -619,6 +624,10 @@ export function SidebarSettings({
   onSaveConfig,
 }: SidebarSettingsProps) {
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
+  const [resetOpen, setResetOpen] = React.useState(false)
+  const [pendingDeleteSectionId, setPendingDeleteSectionId] = React.useState<
+    string | null
+  >(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -1024,6 +1033,9 @@ export function SidebarSettings({
   }
 
   const isDraggingItem = activeDragId ? itemIds.has(activeDragId) : false
+  const pendingDeleteSection =
+    config.sections.find((section) => section.id === pendingDeleteSectionId) ??
+    null
 
   return (
     <>
@@ -1047,8 +1059,10 @@ export function SidebarSettings({
                 section={section}
                 isDraggingItem={isDraggingItem}
                 onSectionTitleChange={handleSectionTitleChange}
-                onSectionDelete={handleSectionDelete}
-                onReset={() => onConfigChange(createDefaultShellConfig())}
+                onSectionDelete={(sectionId) =>
+                  setPendingDeleteSectionId(sectionId)
+                }
+                onReset={() => setResetOpen(true)}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={handleItemDelete}
@@ -1072,6 +1086,46 @@ export function SidebarSettings({
           Add Section
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        title="Reset All Settings"
+        description="Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone."
+        confirmLabel="Reset everything"
+        onConfirm={() => {
+          setResetOpen(false)
+          onConfigChange(createDefaultShellConfig())
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteSection)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteSectionId(null)
+        }}
+        title="Delete Section"
+        description={describeSectionDelete(pendingDeleteSection)}
+        confirmLabel="Delete section"
+        onConfirm={() => {
+          if (!pendingDeleteSection) return
+          setPendingDeleteSectionId(null)
+          handleSectionDelete(pendingDeleteSection.id)
+        }}
+      />
     </>
   )
+}
+
+function describeSectionDelete(section: ShellSection | null) {
+  const name = section?.title.trim() || "Untitled Section"
+  const linkCount = section?.entries.filter(isShellItem).length ?? 0
+  const links =
+    linkCount === 0
+      ? ""
+      : linkCount === 1
+        ? " and its link"
+        : ` and its ${linkCount} links`
+
+  return `"${name}"${links} will be removed from the sidebar. This cannot be undone.`
 }
