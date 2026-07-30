@@ -1,7 +1,7 @@
 import * as React from "react"
 import { ImagePlus, PlayIcon, XIcon } from "lucide-react"
 
-import { MediaPicker } from "@/components/media-picker"
+import { MediaPicker } from "@/components/media/media-picker"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"

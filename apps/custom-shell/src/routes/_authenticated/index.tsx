@@ -1,7 +1,7 @@
 import * as React from "react"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { useOpenAccount } from "@/components/account-dialog"
+import { useOpenAccount } from "@/components/account/account-dialog"
 import { loadShellBootstrap } from "@/lib/api/shell"
 import { configuredRouteTarget } from "@/lib/home-route"
 

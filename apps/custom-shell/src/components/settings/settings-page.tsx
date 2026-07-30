@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router"
 import { Card, CardContent } from "@/components/ui/card"
-import { GeneralSettings } from "@/components/general-settings"
-import { SidebarSettings } from "@/components/sidebar-settings"
-import { StylingSettings } from "@/components/styling-settings"
+import { GeneralSettings } from "@/components/settings/general-settings"
+import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { StylingSettings } from "@/components/settings/styling-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
 

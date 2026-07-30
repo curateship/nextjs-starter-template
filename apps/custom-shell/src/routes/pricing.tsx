@@ -3,9 +3,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 
 import { showErrorToast } from "@/lib/error-toast"
 
-import { authLinkClassName } from "@/components/auth-shell"
-import { PublicPageFrame } from "@/components/public-page-frame"
-import { PricingTable, type BillingInterval } from "@/components/pricing-table"
+import { authLinkClassName } from "@/components/shell/auth-shell"
+import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { loadCurrentUser, type AuthUser } from "@/lib/api/auth"
 import {

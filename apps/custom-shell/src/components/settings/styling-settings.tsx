@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { CollapsibleSettingsCard } from "@/components/collapsible-settings-card"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
   Card,
   CardContent,

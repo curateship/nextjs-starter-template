@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
-import { useOpenAccount } from "@/components/account-dialog"
+import { useOpenAccount } from "@/components/account/account-dialog"
 import {
   Avatar,
   AvatarFallback,

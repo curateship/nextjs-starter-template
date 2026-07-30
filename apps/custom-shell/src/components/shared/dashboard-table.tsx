@@ -13,7 +13,7 @@ import {
   DashboardToolbarControls,
   DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,
-} from "@/components/dashboard-toolbar"
+} from "@/components/shared/dashboard-toolbar"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {

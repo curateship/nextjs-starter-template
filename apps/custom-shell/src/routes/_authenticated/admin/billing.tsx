@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { AdminRevenueDashboard } from "@/components/admin-revenue-dashboard"
+import { AdminRevenueDashboard } from "@/components/admin/admin-revenue-dashboard"
 import { loadRevenue } from "@/lib/api/admin-users"
 
 export const Route = createFileRoute("/_authenticated/admin/billing")({

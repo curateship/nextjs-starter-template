@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ShellIconPicker } from "@/components/shell-icon-picker"
+import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
 import {
   Dialog,
   DialogBody,

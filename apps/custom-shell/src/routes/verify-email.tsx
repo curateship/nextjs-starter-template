@@ -3,7 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
-import { AuthShell, authLinkClassName } from "@/components/auth-shell"
+import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
 import { getAuthErrorMessage, loadCurrentUser, verifyEmail } from "@/lib/api/auth"
 import { showErrorToast } from "@/lib/error-toast"
 

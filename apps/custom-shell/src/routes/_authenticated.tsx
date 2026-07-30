@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { ShellLayout } from "@/components/shell-layout"
-import { isAccountTab } from "@/components/account-dialog"
+import { ShellLayout } from "@/components/shell/shell-layout"
+import { isAccountTab } from "@/components/account/account-dialog"
 import { loadShellBootstrap } from "@/lib/api/shell"
 
 // The shell's data changes rarely and every mutation that touches it calls
