@@ -12,12 +12,16 @@ import { DashboardContent } from "@/components/demo/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
-import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
+import {
+  StickyHeader,
+  type SaveStatus,
+} from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   getModalStyleVars,
+  isShellEntryNamed,
   isShellItem,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
@@ -40,8 +44,6 @@ import {
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { clampSidebarWidth } from "@/lib/sidebar-width"
-
-type SaveStatus = "idle" | "saving" | "saved"
 
 // Debounce window before an edit on the settings page is auto-saved.
 const CONFIG_SAVE_DEBOUNCE_MS = 700
@@ -137,8 +139,11 @@ export function ShellLayout({
   // the cookie from the request directly — that's the reliable gate.
 
   // Persists the freshest config immediately, cancelling any pending debounce.
-  // Skips while the workspace name is blank (the server rejects an empty name)
-  // so an in-progress edit doesn't flash an error. Returns whether it saved.
+  // The server rejects an empty workspace name, so skip the request — but say
+  // "Not saved" in the header instead of dropping the edit in silence. The
+  // header is the only warning that reaches you when the edit that emptied the
+  // name happened on another settings tab (e.g. the sidebar's Reset).
+  // Returns whether it saved.
   const saveConfigNow = React.useCallback(async () => {
     if (configSaveTimerRef.current) {
       clearTimeout(configSaveTimerRef.current)
@@ -147,6 +152,7 @@ export function ShellLayout({
 
     const snapshot = latestConfigRef.current
     if (!snapshot.workspaceName.trim()) {
+      setSaveStatus("blocked")
       return false
     }
 
@@ -471,10 +477,12 @@ function getOrCreateShellFaviconLink() {
 function getShellItems(config: ShellConfig, role: string) {
   return config.sections
     .flatMap((section) => section.entries.filter(isShellItem))
-    .filter((item) => canSeeShellEntry(item, role))
+    .filter((item) => canSeeShellEntry(item, role) && isShellEntryNamed(item))
     .map((item) => ({
       ...item,
-      children: item.children?.filter((child) => canSeeShellEntry(child, role)),
+      children: item.children?.filter(
+        (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+      ),
     }))
 }
 

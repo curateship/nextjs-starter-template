@@ -91,6 +91,7 @@ export function AccountDialog({
   const [profileStatus, setProfileStatus] = React.useState({
     saving: false,
     saved: false,
+    dirty: false,
   })
 
   return (
@@ -153,7 +154,7 @@ export function AccountDialog({
               <Button
                 type="submit"
                 form={PROFILE_FORM_ID}
-                disabled={profileStatus.saving}
+                disabled={profileStatus.saving || !profileStatus.dirty}
               >
                 <SaveIcon className="size-4" />
                 Save

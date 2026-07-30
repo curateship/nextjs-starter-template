@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, PanelLeftIcon } from "lucide-react"
+import { CheckIcon, PanelLeftIcon, TriangleAlertIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,7 @@ import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import type { ShellTopRightNavigationItem } from "@/lib/custom-shell"
 
-type SaveStatus = "idle" | "saving" | "saved"
+export type SaveStatus = "idle" | "saving" | "saved" | "blocked"
 
 type StickyHeaderProps = {
   className?: string
@@ -81,7 +81,9 @@ export function StickyHeader({
 
 // Auto-save status for the settings page, surfaced in the shared header so the
 // settings page itself needs no save button or header. Renders nothing unless a
-// save is in flight or just finished.
+// save is in flight, just finished, or was refused. "blocked" is visible from
+// every settings tab, which is the only warning you get when the edit that
+// broke the save happened on a different tab.
 function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
   if (status === "saving") {
     return <span className="text-sm text-muted-foreground">Saving…</span>
@@ -91,6 +93,17 @@ function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
       <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
         <CheckIcon className="h-4 w-4" />
         Saved
+      </span>
+    )
+  }
+  if (status === "blocked") {
+    return (
+      <span
+        role="status"
+        className="inline-flex items-center gap-1.5 text-sm text-destructive"
+      >
+        <TriangleAlertIcon className="h-4 w-4" />
+        Not saved — add a workspace name
       </span>
     )
   }

@@ -3,6 +3,7 @@ import { CollapsibleSettingsCard } from "@/components/collapsible-settings-card"
 import { CardGroup } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
+import { InlineError } from "@/components/ui/inline-error"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -25,6 +26,11 @@ export function GeneralSettings({
   config,
   onConfigChange,
 }: GeneralSettingsProps) {
+  // The auto-save refuses a blank workspace name (saveConfigNow in
+  // shell-layout.tsx), so say so beside the field rather than letting the edit
+  // sit on screen looking saved.
+  const workspaceNameMissing = !config.workspaceName.trim()
+
   return (
     <CardGroup>
       <CollapsibleSettingsCard
@@ -37,14 +43,24 @@ export function GeneralSettings({
           <Label htmlFor="workspace-name">Workspace name</Label>
           <Input
             id="workspace-name"
-            value={config.workspaceName}            onChange={(event) =>
+            value={config.workspaceName}
+            onChange={(event) =>
               onConfigChange({
                 ...config,
                 workspaceName: event.target.value,
               })
             }
             placeholder="Workspace name"
+            aria-invalid={workspaceNameMissing || undefined}
+            aria-describedby={
+              workspaceNameMissing ? "workspace-name-error" : undefined
+            }
           />
+          {workspaceNameMissing ? (
+            <InlineError id="workspace-name-error">
+              Add a workspace name — settings can't be saved without one.
+            </InlineError>
+          ) : null}
         </div>
 
         <div className="grid gap-2">
