@@ -224,7 +224,7 @@ export function ContentListPage<TItem extends ContentListItem>({
     if (isPublished(item)) {
       return (
         <div className="flex gap-1">
-          <Badge variant="default" className="bg-green-100 text-green-800">
+          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">
             Published
           </Badge>
           {privateItem && (

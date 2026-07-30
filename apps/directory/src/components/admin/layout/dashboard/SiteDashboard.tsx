@@ -271,7 +271,7 @@ export function SiteDashboard({
           {/* Custom Domain */}
           {onCustomDomainChange && (
             <div className="space-y-2">
-              <label htmlFor="customDomain" className="text-sm font-medium text-gray-700">
+              <label htmlFor="customDomain" className="text-sm font-medium text-foreground">
                 Custom Domain
               </label>
               <Input

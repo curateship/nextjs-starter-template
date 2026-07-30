@@ -133,13 +133,13 @@ const RUN_STATUS_META: Record<DashboardAutomationRun["status"], {
   iconClass: string
   labelClass: string
 }> = {
-  success: { label: "Success", icon: Check, iconClass: "bg-green-100 text-green-700", labelClass: "text-green-600" },
-  running: { label: "Running", icon: RefreshCw, iconClass: "bg-blue-100 text-blue-700", labelClass: "text-blue-600" },
-  failed: { label: "Failed", icon: TriangleAlert, iconClass: "bg-red-100 text-red-700", labelClass: "text-red-600" },
-  partial: { label: "Partial", icon: TriangleAlert, iconClass: "bg-amber-100 text-amber-700", labelClass: "text-amber-600" },
+  success: { label: "Success", icon: Check, iconClass: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400", labelClass: "text-green-600" },
+  running: { label: "Running", icon: RefreshCw, iconClass: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400", labelClass: "text-blue-600" },
+  failed: { label: "Failed", icon: TriangleAlert, iconClass: "bg-destructive/10 text-destructive", labelClass: "text-red-600" },
+  partial: { label: "Partial", icon: TriangleAlert, iconClass: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400", labelClass: "text-amber-600" },
   noop: { label: "Skipped", icon: Minus, iconClass: "bg-muted text-muted-foreground", labelClass: "text-muted-foreground" },
-  waiting: { label: "Needs approval", icon: UserCheck, iconClass: "bg-amber-100 text-amber-700", labelClass: "text-amber-600" },
-  rejected: { label: "Rejected", icon: TriangleAlert, iconClass: "bg-red-100 text-red-700", labelClass: "text-red-600" },
+  waiting: { label: "Needs approval", icon: UserCheck, iconClass: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400", labelClass: "text-amber-600" },
+  rejected: { label: "Rejected", icon: TriangleAlert, iconClass: "bg-destructive/10 text-destructive", labelClass: "text-red-600" },
   expired: { label: "Expired", icon: TimerOff, iconClass: "bg-muted text-muted-foreground", labelClass: "text-muted-foreground" },
 }
 

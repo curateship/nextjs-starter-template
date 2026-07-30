@@ -78,7 +78,7 @@ type EntitlementSortColumn = "listing" | "owner" | "plan" | "started" | "expires
 function entitlementStatusBadge(status: DirectoryFeaturedEntitlementStatus) {
   switch (status) {
     case "active":
-      return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
     case "expired":
       return <Badge variant="secondary">Expired</Badge>
     default:
@@ -412,7 +412,7 @@ export default function DirectoryMonetizationPage() {
                           </TableCell>
                           <TableCell column="meta">
                             {plan.is_active
-                              ? <Badge className="bg-green-100 text-green-800">Active</Badge>
+                              ? <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
                               : <Badge variant="secondary">Archived</Badge>
                             }
                           </TableCell>

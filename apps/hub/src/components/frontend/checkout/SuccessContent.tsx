@@ -72,13 +72,13 @@ export function SuccessContent({
 
       {/* Session Error */}
       {sessionError && (
-        <Card className="border-yellow-200 bg-yellow-50">
+        <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950/50">
           <CardContent>
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-yellow-900">Payment verification pending</p>
-                <p className="text-sm text-yellow-700 mt-1">
+                <p className="font-semibold text-yellow-900 dark:text-yellow-200">Payment verification pending</p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                   Your payment is being processed. You will receive a confirmation email shortly.
                 </p>
               </div>

@@ -328,7 +328,7 @@ function SortableStepEditor({
 
 function getStatusBadge(form: GuidedForm) {
   if (form.status === "published") {
-    return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+    return <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Published</Badge>
   }
   if (form.status === "archived") {
     return <Badge variant="outline">Archived</Badge>

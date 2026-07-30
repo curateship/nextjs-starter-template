@@ -519,7 +519,7 @@ export function MediaPicker({
                           )}
                           {actualCurrentUrl === media.public_url && (
                             <div className="absolute top-2 right-2">
-                              <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                              <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300 rounded-full">
                                 Current
                               </span>
                             </div>

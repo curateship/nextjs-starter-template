@@ -52,9 +52,9 @@ const STATUS_RANK: Record<EventRegistrationStatus, number> = {
 function statusBadge(status: EventRegistrationStatus) {
   switch (status) {
     case "confirmed":
-      return <Badge className="bg-green-100 text-green-800">Registered</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Registered</Badge>
     case "pending":
-      return <Badge className="bg-amber-100 text-amber-800">Awaiting payment</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Awaiting payment</Badge>
     default:
       return <Badge variant="destructive">Removed</Badge>
   }

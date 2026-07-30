@@ -263,9 +263,9 @@ export default function ContactsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
       case "cold":
-        return <Badge className="bg-yellow-100 text-yellow-800">Cold</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Cold</Badge>
       case "unsubscribed":
         return <Badge variant="secondary">Unsubscribed</Badge>
       case "bounced":
@@ -301,7 +301,7 @@ export default function ContactsPage() {
         )
       case "Notion Marketplace":
         return (
-          <Badge variant="outline" className="border-neutral-300 bg-neutral-50 text-neutral-900">
+          <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
             Notion Marketplace
           </Badge>
         )

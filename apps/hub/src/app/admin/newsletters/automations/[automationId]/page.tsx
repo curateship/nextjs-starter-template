@@ -681,9 +681,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const delayChipClass =
-    "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50"
+    "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950/50 dark:text-yellow-300 dark:hover:bg-yellow-950/50"
   const emailChipClass =
-    "h-6 shrink-0 rounded-full border-blue-200 bg-blue-50 px-2 text-xs font-normal text-blue-700 hover:bg-blue-50"
+    "h-6 shrink-0 rounded-full border-blue-200 bg-blue-50 px-2 text-xs font-normal text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:bg-blue-950/50"
 
   const getEmailStatusLabel = (node: AutomationStep) => {
     if (!node.subject?.trim()) return "Needs subject"
@@ -756,7 +756,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
       return {
         label: `${segmentLabel} - ${segmentTotal.toLocaleString()} contacts`,
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
+        className: "border-border bg-muted text-muted-foreground hover:bg-muted"
       }
     }
 
@@ -766,7 +766,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
       return {
         label: productName || "Choose lead magnet",
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
+        className: "border-border bg-muted text-muted-foreground hover:bg-muted"
       }
     }
 
@@ -776,7 +776,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
       return {
         label: productName || "Choose product",
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
+        className: "border-border bg-muted text-muted-foreground hover:bg-muted"
       }
     }
 
@@ -949,7 +949,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               <>
                 <Badge
                   variant={automation.status === "active" ? "default" : "secondary"}
-                  className={automation.status === "active" ? "bg-green-100 text-green-800" : ""}
+                  className={automation.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" : ""}
                 >
                   {automation.status === "active" ? "Active" : automation.status === "paused" ? "Paused" : "Draft"}
                 </Badge>
@@ -1003,7 +1003,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         }
                       }}
                       className={cn(
-                        "w-full cursor-pointer p-4 text-left transition-colors hover:bg-[#fcfcfc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                        "w-full cursor-pointer p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                         isSelected && !isPlaceholder ? "ring-1 ring-blue-500/15" : "",
                         isSelected && isPlaceholder ? "ring-1 ring-border" : ""
                       )}
@@ -1069,7 +1069,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <div key={node.id} className="w-full">
                   {node.node_type === "delay" ? (
                     <Card
-                      className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
+                      className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50 hover:bg-muted"
                       style={node.id === currentDelayStepId ? {
                         borderColor: "#22c55e",
                         borderLeftColor: "#22c55e",
@@ -1121,7 +1121,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     </Card>
                   ) : node.node_type === "end_rules" ? (
                     <Card
-                      className="w-full cursor-pointer border-l-4 border-l-green-500 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
+                      className="w-full cursor-pointer border-l-4 border-l-green-500 p-4 transition-colors hover:border-primary/50 hover:bg-muted"
                       onClick={() => openEndRulesEditor(node)}
                     >
                       <div className="flex items-center justify-between">
@@ -1139,7 +1139,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               <Badge
                                 variant="outline"
-                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
+                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300 dark:hover:bg-green-950/50"
                               >
                                 {getCheckpointActionLabel(getCheckpointAction(node.node_config))}
                               </Badge>
@@ -1161,7 +1161,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     </Card>
                   ) : (
                     <Card
-                      className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
+                      className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50 hover:bg-muted"
                       onClick={() => setEditingEmailSettings(node)}
                     >
                       <div className="flex items-center justify-between">

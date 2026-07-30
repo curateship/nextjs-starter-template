@@ -41,9 +41,9 @@ const STATUS_FILTERS = [
 function statusBadge(status: EventSubmissionStatus) {
   switch (status) {
     case "pending":
-      return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Pending Review</Badge>
     case "approved":
-      return <Badge className="bg-green-100 text-green-800">Approved</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Approved</Badge>
     default:
       return <Badge variant="destructive">Rejected</Badge>
   }
