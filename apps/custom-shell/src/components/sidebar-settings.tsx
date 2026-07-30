@@ -557,7 +557,7 @@ function SortableSectionCard({
               type="button"
               variant="outline"
               size="sm"
-              className="hover:bg-red-50"
+              className="hover:bg-destructive/10 hover:text-destructive"
               onClick={() => onSectionDelete(section.id)}
               aria-label={`Delete ${section.title || "sidebar section"}`}
             >

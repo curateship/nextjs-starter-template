@@ -44,9 +44,9 @@ const STATUS_FILTERS = [
 function statusBadge(status: DirectorySubmissionStatus) {
   switch (status) {
     case "pending_review":
-      return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Pending Review</Badge>
     case "approved":
-      return <Badge className="bg-green-100 text-green-800">Approved</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Approved</Badge>
     case "rejected":
       return <Badge variant="destructive">Rejected</Badge>
     default:
@@ -198,7 +198,7 @@ export default function DirectorySubmissionsPage() {
                             <h4 className="flex items-center gap-2 truncate font-medium hover:underline">
                               {submission.business_name}
                               {submission.possible_duplicate ? (
-                                <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-800">
+                                <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
                                   <TriangleAlert className="h-3 w-3" />
                                   Possible duplicate
                                 </span>
@@ -248,7 +248,7 @@ export default function DirectorySubmissionsPage() {
           {selected ? (
             <div className="space-y-5">
               {selected.possible_duplicate ? (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300">
                   <TriangleAlert className="h-4 w-4 shrink-0" />
                   A listing with this name already exists on the site. Check for a duplicate before approving.
                 </div>

@@ -77,9 +77,9 @@ function statusBadge(item: ClaimOutreachListItem) {
     case "not_invited":
       return <Badge variant="secondary">Not invited</Badge>
     case "invited":
-      return <Badge className="bg-blue-100 text-blue-800">Invited</Badge>
+      return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">Invited</Badge>
     case "recently_invited":
-      return <Badge className="bg-amber-100 text-amber-800">Invited recently</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Invited recently</Badge>
     case "opted_out":
       return <Badge variant="destructive">Opted out</Badge>
   }

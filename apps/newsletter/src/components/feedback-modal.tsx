@@ -79,9 +79,9 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
   suggestion: "",
   bug_report: "",
   question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
+    "border-yellow-200 bg-yellow-100 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200 dark:hover:bg-yellow-900/40",
   praise:
-    "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
+    "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200 dark:hover:bg-green-900/40",
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {

@@ -307,7 +307,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           className={cn(
             "h-8 rounded-r-none",
             viewMode === "list" &&
-              "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+              "border-primary bg-primary bg-clip-border text-primary-foreground hover:bg-primary hover:text-primary-foreground"
           )}
           onClick={() => setViewMode("list")}
           aria-label="List view"
@@ -321,7 +321,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           className={cn(
             "h-8 rounded-l-none",
             viewMode === "gallery" &&
-              "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+              "border-primary bg-primary bg-clip-border text-primary-foreground hover:bg-primary hover:text-primary-foreground"
           )}
           onClick={() => setViewMode("gallery")}
           aria-label="Gallery view"

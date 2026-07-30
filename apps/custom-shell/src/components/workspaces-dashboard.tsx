@@ -196,7 +196,7 @@ export function WorkspacesDashboard({
       {error ? <Message>{error}</Message> : null}
 
       <DashboardTable
-        title="Projects"
+        title="Workspaces"
         icon={renderShellIcon(
           "briefcaseBusiness",
           "size-4 text-muted-foreground sm:size-[18px]"
@@ -293,9 +293,6 @@ export function WorkspacesDashboard({
                   >
                     {workspace.name}
                   </button>
-                  <div className="text-xs text-muted-foreground">
-                    Private project
-                  </div>
                 </div>
               </div>
             </TableCell>

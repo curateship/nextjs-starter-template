@@ -184,7 +184,7 @@ function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkIt
           variant="ghost"
           size="icon"
           onClick={() => onDelete(link.id)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          className={cn(ACTION_BUTTON_CLASS, "hover:bg-destructive/10 hover:text-destructive")}
           aria-label={`Delete ${link.label || "quick link"}`}
         >
           <Trash2 className="h-4 w-4" />

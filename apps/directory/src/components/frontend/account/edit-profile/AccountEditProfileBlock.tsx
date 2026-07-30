@@ -312,7 +312,7 @@ export function AccountEditProfileBlock({
         {message && (
           <Alert
             variant={message.type === "error" ? "destructive" : "default"}
-            className={message.type === "success" ? "border-green-200 bg-green-50 text-green-900" : undefined}
+            className={message.type === "success" ? "border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300" : undefined}
           >
             {message.type === "error" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
             <AlertDescription>{message.text}</AlertDescription>

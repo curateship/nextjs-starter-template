@@ -748,7 +748,7 @@ function UsageStatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant={status === "blocked" ? "destructive" : "secondary"}
-      className={cn(status === "warning" && "bg-amber-100 text-amber-800")}
+      className={cn(status === "warning" && "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300")}
     >
       {status}
     </Badge>

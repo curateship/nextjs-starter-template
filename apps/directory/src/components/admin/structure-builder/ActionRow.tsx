@@ -65,7 +65,7 @@ export function ActionRow({
           variant="ghost"
           size="icon"
           onClick={onDelete}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          className={cn(ACTION_BUTTON_CLASS, "hover:bg-destructive/10 hover:text-destructive")}
           aria-label={`Delete ${ariaName}`}
         >
           <Trash2 className="h-4 w-4" />

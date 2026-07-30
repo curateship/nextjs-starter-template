@@ -51,9 +51,9 @@ function statusBadge(status: DirectoryClaimStatus) {
     case "pending_email":
       return <Badge variant="secondary">Pending Email</Badge>
     case "pending_review":
-      return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Pending Review</Badge>
     case "approved":
-      return <Badge className="bg-green-100 text-green-800">Approved</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Approved</Badge>
     case "rejected":
       return <Badge variant="destructive">Rejected</Badge>
     default:
@@ -64,9 +64,9 @@ function statusBadge(status: DirectoryClaimStatus) {
 function ownerEditStatusBadge(status: DirectoryOwnerEditRequestStatus) {
   switch (status) {
     case "pending":
-      return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Pending Review</Badge>
     case "approved":
-      return <Badge className="bg-green-100 text-green-800">Approved</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Approved</Badge>
     default:
       return <Badge variant="destructive">Rejected</Badge>
   }
@@ -381,7 +381,7 @@ export default function DirectoryClaimsPage() {
                           <div className="truncate text-sm">{claim.business_email}</div>
                           <div className="mt-1">
                             {claim.domain_matches ? (
-                              <Badge className="bg-green-100 text-green-800">Domain Match</Badge>
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Domain Match</Badge>
                             ) : (
                               <Badge variant="secondary">Domain Mismatch</Badge>
                             )}

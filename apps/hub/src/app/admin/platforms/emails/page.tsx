@@ -109,7 +109,7 @@ export default function PlatformEmailsPage() {
 
           {message && (
             <div
-              className={`mb-6 rounded-md border px-4 py-3 text-sm ${message.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-green-200 bg-green-50 text-green-800"}`}
+              className={`mb-6 rounded-md border px-4 py-3 text-sm ${message.type === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300"}`}
             >
               {message.text}
             </div>

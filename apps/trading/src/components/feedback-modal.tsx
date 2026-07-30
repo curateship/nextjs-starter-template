@@ -65,8 +65,8 @@ const feedbackTypes = Object.entries(feedbackTypeLabels).map(
 const feedbackTypeHoverClassNames: Record<FeedbackType, string> = {
   suggestion: "",
   bug_report: "",
-  question: "hover:bg-yellow-100",
-  praise: "hover:bg-green-100",
+  question: "hover:bg-yellow-100 dark:hover:bg-yellow-900/40",
+  praise: "hover:bg-green-100 dark:hover:bg-green-900/40",
 }
 
 const dateFormatter = feedbackDateFormatter

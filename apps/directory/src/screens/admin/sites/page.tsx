@@ -258,11 +258,11 @@ export default function SitesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
       case "inactive":
         return <Badge variant="destructive">Inactive</Badge>
       case "draft":
-        return <Badge className="bg-yellow-100 text-yellow-800">Draft</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Draft</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }

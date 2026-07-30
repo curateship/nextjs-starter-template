@@ -122,7 +122,7 @@ function createDraft(item: ClaimedDirectoryEditorItem): DraftState {
 
 function statusBadge(item: ClaimedDirectoryEditorItem | null) {
   if (!item?.pending_edit) return null
-  return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
+  return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Pending Review</Badge>
 }
 
 type FeaturedUpgradeState = Awaited<ReturnType<typeof getMyDirectoryFeaturedUpgradeStateAction>>

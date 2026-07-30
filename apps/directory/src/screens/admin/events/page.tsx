@@ -21,7 +21,7 @@ function EventStatusBadge({ event }: { event: Event }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
       {event.is_published ? (
-        <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+        <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Published</Badge>
       ) : (
         <Badge variant="secondary">Draft</Badge>
       )}
