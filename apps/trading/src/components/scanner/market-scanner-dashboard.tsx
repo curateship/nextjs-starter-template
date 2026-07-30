@@ -1,3 +1,4 @@
+import { signedPct } from "@/lib/format"
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
@@ -607,7 +608,7 @@ function ruleStatus(rule: MarketScannerRuleItem, runtimeEnabled: boolean, paused
 }
 
 function formatObserved(alert: MarketScannerAlertItem) {
-  return alert.kind === "volume_spike" ? `${alert.observed.toFixed(1)}×` : `${alert.observed > 0 ? "+" : ""}${alert.observed.toFixed(2)}%`
+  return alert.kind === "volume_spike" ? `${alert.observed.toFixed(1)}×` : signedPct(alert.observed)
 }
 
 function mergeAlerts(

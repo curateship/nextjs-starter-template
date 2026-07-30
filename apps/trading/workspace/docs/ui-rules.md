@@ -9,6 +9,11 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Match neighboring screens and use semantic theme tokens instead of hardcoded colors.
 - The default page canvas is `bg-muted/60 dark:bg-background`. In dark mode the canvas must track the true Background color (near black at 0% dark-theme brightness) so it matches the Appearance settings preview and darkens with the brightness slider; translucent muted stays light-gray and does not. Content surfaces use `bg-card` with `rounded-xl border border-foreground/5`; use shared `Card`, `TableSurface`, and `WorkspacePanel` components instead of restating that shell.
 
+## Numbers
+
+- **Every displayed dollar amount, price, or percent goes through `src/lib/format.ts`** — `usd`/`usdWhole`/`signedUsd`, `compactUsd`/`signedCompactUsd`, `formatPrice`, `pct`/`signedPct`, `toneClass`. Never hand-roll `toFixed` money or percents in a component, and never create a page-local formatter; the canonical rules (uppercase K/M/B, three meaningful digits, ASCII minus, sign-after-rounding, dash only for missing data) are documented in that module's header.
+- Percent *changes* (24h move, returns) use `signedPct`; percent *magnitudes* (win rate, margin used, distance) use `pct`. Profit/loss text colour comes from `toneClass`, not ad-hoc class conditions.
+
 ## Spacing and Page Layout
 
 - The app shell owns page padding. Where an app uses `DashboardContent`, it is the single source of truth for the page gutter and section spacing. In Trading, `src/components/ui/dashboard-content.tsx` defines `p-2 space-y-2 md:p-3 md:space-y-3`, or 8px on narrow screens and 12px on desktop.

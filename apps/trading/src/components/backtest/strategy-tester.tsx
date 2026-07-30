@@ -26,7 +26,7 @@ import type {
 import { cn } from "@/lib/utils"
 
 import { BacktestTradesTable } from "./backtest-trades-table"
-import { num, profitFactor, signedUsd, toneClass, usd } from "./backtest-format"
+import { num, profitFactor, signedUsd, toneClass, usd } from "@/lib/format"
 
 const UP = "#089981"
 const DOWN = "#f23645"

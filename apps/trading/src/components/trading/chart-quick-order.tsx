@@ -1,10 +1,9 @@
 import * as React from "react"
 import { GripVerticalIcon, Loader2Icon } from "lucide-react"
 
-import { formatPriceDisplay } from "@/components/trading/format"
+import { formatPrice, usd } from "@/lib/format"
 import {
   ConfirmOrderDialog,
-  formatUsd,
   resolveSizeCoin,
   type SizeUnit,
   type TicketState,
@@ -311,7 +310,7 @@ export function ChartQuickOrder({
             </span>
           </span>
           <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-            {market} @ {formatPriceDisplay(quick.px)}
+            {market} @ {formatPrice(quick.px)}
           </span>
         </div>
 
@@ -321,7 +320,7 @@ export function ChartQuickOrder({
               Size
             </Label>
             <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-              Avail. {formatUsd(equity)}
+              Avail. {usd(equity)}
             </span>
           </div>
           <div className="flex items-center rounded-lg bg-muted pl-3">

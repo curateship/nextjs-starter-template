@@ -1,4 +1,4 @@
-import { formatNotional } from "@/components/scanner/format"
+import { signedCompactUsd, toneClass } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -15,14 +15,8 @@ export function SignedUsd({
 }) {
   const num = value === null ? null : Number(value)
   return (
-    <span
-      className={cn(
-        className,
-        num !== null && num > 0 && "text-emerald-600",
-        num !== null && num < 0 && "text-red-500"
-      )}
-    >
-      {num === null ? "—" : `${num > 0 ? "+" : ""}${formatNotional(num)}`}
+    <span className={cn(className, num !== null && toneClass(num))}>
+      {num === null ? "—" : signedCompactUsd(num)}
     </span>
   )
 }

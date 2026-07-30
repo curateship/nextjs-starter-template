@@ -67,7 +67,7 @@ import {
   verifyAgentApproval,
 } from "@/lib/api/agent-onboarding"
 import { liquidationDistanceClass } from "@/lib/trading/liquidation-risk"
-import { shortAddress } from "@/components/scanner/format"
+import { pct, shortAddress, usd } from "@/lib/format"
 import { ConnectWalletFlow } from "@/components/trading/connect-wallet-flow"
 import { NewWalletDialog } from "@/components/trading/new-wallet-dialog"
 import { RecoveryDialog } from "@/components/trading/recovery-dialog"
@@ -473,7 +473,7 @@ export function WalletsUnified({
 function MarginHealthCard({ wallets }: { wallets: WalletItem[] }) {
   if (wallets.length === 0) return null
   const money = (value: number | null | undefined) =>
-    typeof value === "number" ? `$${value.toFixed(2)}` : "—"
+    typeof value === "number" ? usd(value) : "—"
   return (
     <Card className="mb-[var(--shell-gutter,0.75rem)]">
       <CardHeader>
@@ -510,7 +510,7 @@ function MarginHealthCard({ wallets }: { wallets: WalletItem[] }) {
                 <div className="font-mono text-sm">
                   {marginPct === null
                     ? "—"
-                    : `${marginPct.toFixed(1)}% (${money(wallet.margin_used)})`}
+                    : `${pct(marginPct, 1)} (${money(wallet.margin_used)})`}
                 </div>
               </div>
               <div>
@@ -528,7 +528,7 @@ function MarginHealthCard({ wallets }: { wallets: WalletItem[] }) {
                 <div
                   className={`font-mono text-sm ${liquidationDistanceClass(worst) ?? ""}`}
                 >
-                  {worst === null ? "—" : `${worst.toFixed(1)}% away`}
+                  {worst === null ? "—" : `${pct(worst, 1)} away`}
                 </div>
               </div>
             </div>

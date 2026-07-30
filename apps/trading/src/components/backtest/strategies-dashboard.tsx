@@ -80,13 +80,13 @@ import { usePanelLayout } from "@/lib/use-panel-layout"
 import { cn } from "@/lib/utils"
 
 import {
-  pct,
+  signedPct,
   signedUsd,
   toneClass,
   truncateWords,
   usd,
   windowDaysOf,
-} from "./backtest-format"
+} from "@/lib/format"
 import {
   BacktestMarketsTable,
   sortHead,
@@ -872,7 +872,7 @@ export function RunGroupsDashboard({
               )}
             >
               {group.status === "done" && group.monthlyPnlPct !== null
-                ? pct(group.monthlyPnlPct)
+                ? signedPct(group.monthlyPnlPct)
                 : "—"}
             </TableCell>
             <TableCell
@@ -1224,7 +1224,7 @@ export function RunHistoryDashboard({
                               )}
                             >
                               {summary.netPnlPct >= 0 ? "▲" : "▼"}{" "}
-                              {pct(summary.netPnlPct)}
+                              {signedPct(summary.netPnlPct)}
                             </span>
                           ) : null}
                         </div>

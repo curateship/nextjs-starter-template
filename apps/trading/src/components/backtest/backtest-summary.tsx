@@ -3,7 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestResult } from "@/lib/backtest/types"
 
 import { BacktestKpis } from "./backtest-kpis"
-import { pct, usd } from "./backtest-format"
+import { signedPct, usd } from "@/lib/format"
 
 export function BacktestSummary({ result }: { result: BacktestResult | null }) {
   const stats = result?.stats ?? null
@@ -18,7 +18,7 @@ export function BacktestSummary({ result }: { result: BacktestResult | null }) {
         <div className="flex flex-col gap-2 p-3 pt-1">
           <Row
             label="Buy & Hold"
-            value={stats ? pct(stats.buyHoldPct) : "—"}
+            value={stats ? signedPct(stats.buyHoldPct) : "—"}
             tone={stats?.buyHoldPct}
           />
           <Row label="Fees paid" value={stats ? usd(stats.fees) : "—"} />

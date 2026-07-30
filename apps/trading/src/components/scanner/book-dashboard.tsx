@@ -4,10 +4,9 @@ import { BookOpenIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { DashboardTable } from "@/components/dashboard-table"
 import { Badge } from "@/components/ui/badge"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { formatNotional } from "@/components/scanner/format"
+import { compactUsd, formatPrice } from "@/lib/format"
 import { SortHeaderRow, type SortDir } from "@/components/scanner/sort-head"
 import { OrderBook } from "@/components/trading/order-book"
-import { formatPriceDisplay } from "@/components/trading/format"
 import {
   loadBookMetrics,
   type BookMetricsItem,
@@ -169,7 +168,7 @@ function BookRow({
       </TableCell>
       <TableCell column="meta">
         <span className="font-mono text-xs tabular-nums">
-          {item.mid === null ? "—" : formatPriceDisplay(item.mid)}
+          {item.mid === null ? "—" : formatPrice(item.mid)}
         </span>
       </TableCell>
       <TableCell column="meta">
@@ -181,12 +180,12 @@ function BookRow({
       </TableCell>
       <TableCell column="meta">
         <span className="font-mono text-xs text-emerald-600 tabular-nums">
-          {bid1 === undefined ? "—" : formatNotional(bid1)}
+          {bid1 === undefined ? "—" : compactUsd(bid1)}
         </span>
       </TableCell>
       <TableCell column="meta">
         <span className="font-mono text-xs text-red-500 tabular-nums">
-          {ask1 === undefined ? "—" : formatNotional(ask1)}
+          {ask1 === undefined ? "—" : compactUsd(ask1)}
         </span>
       </TableCell>
       <TableCell column="meta">
@@ -214,8 +213,8 @@ function BookRow({
                   wall.side === "bid" ? "text-emerald-600" : "text-red-500"
                 )}
               >
-                {wall.side} {formatNotional(wall.usd)} @{" "}
-                {formatPriceDisplay(wall.px)}
+                {wall.side} {compactUsd(wall.usd)} @{" "}
+                {formatPrice(wall.px)}
               </Badge>
             ))}
             {item.walls.length > 2 ? (
