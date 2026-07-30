@@ -5,6 +5,7 @@ import type {
   CandlestickData,
   HistogramData,
   IChartApi,
+  IPanePrimitive,
   IPriceLine,
   ISeriesApi,
   ISeriesMarkersPluginApi,
@@ -347,6 +348,50 @@ type Measurement = {
   daysText: string
 }
 
+/** One drawn trendline projected to container pixels for the current frame. */
+type TrendlinePixels = {
+  id: string
+  start: PixelPoint
+  end: PixelPoint
+  color: string
+  draft?: boolean
+}
+
+function samePixelLines(a: TrendlinePixels[], b: TrendlinePixels[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((line, index) => {
+    const other = b[index]
+    return (
+      line.id === other.id &&
+      line.color === other.color &&
+      line.draft === other.draft &&
+      line.start.x === other.start.x &&
+      line.start.y === other.start.y &&
+      line.end.x === other.end.x &&
+      line.end.y === other.end.y
+    )
+  })
+}
+
+function samePixelBoxes(
+  a: ChartPositionPixels[],
+  b: ChartPositionPixels[]
+): boolean {
+  if (a.length !== b.length) return false
+  return a.every((box, index) => {
+    const other = b[index]
+    return (
+      box.id === other.id &&
+      box.side === other.side &&
+      box.left === other.left &&
+      box.right === other.right &&
+      box.entryY === other.entryY &&
+      box.stopY === other.stopY &&
+      box.targetY === other.targetY
+    )
+  })
+}
+
 const DRAG_HIT_PX = 6
 const DRAG_START_PX = 3
 /** After a drop, hold the line at its new price until the backend confirms. */
@@ -359,6 +404,12 @@ const DROP_HOLD_MS = 8_000
  */
 const MAX_VISIBLE_CHIPS = 300
 const TRENDLINE_HIT_PX = 8
+/**
+ * Grab radius for a selected trendline's endpoint dots — deliberately wider
+ * than the body radius, and tested first, so a near-miss on a dot stretches
+ * the line instead of sliding the whole thing.
+ */
+const TRENDLINE_ENDPOINT_HIT_PX = 14
 /** Grab radius for a position drawing's stop/entry/target/right-edge handles. */
 const POSITION_HIT_PX = 8
 
@@ -600,13 +651,7 @@ export function PriceChartView({
   const [pendingTouch, setPendingTouch] =
     React.useState<TrendlineTouchMode>("wick")
   const [trendlinePixels, setTrendlinePixels] = React.useState<
-    {
-      id: string
-      start: PixelPoint
-      end: PixelPoint
-      color: string
-      draft?: boolean
-    }[]
+    TrendlinePixels[]
   >([])
   const [positionPixels, setPositionPixels] = React.useState<ChartPositionPixels[]>(
     []
@@ -1025,12 +1070,12 @@ export function PriceChartView({
                 Math.hypot(
                   point.x - pixels.start.x,
                   point.y - pixels.start.y
-                ) <= TRENDLINE_HIT_PX
+                ) <= TRENDLINE_ENDPOINT_HIT_PX
               )
                 return { id: selected, endpoint: "start" }
               if (
                 Math.hypot(point.x - pixels.end.x, point.y - pixels.end.y) <=
-                TRENDLINE_HIT_PX
+                TRENDLINE_ENDPOINT_HIT_PX
               )
                 return { id: selected, endpoint: "end" }
             }
@@ -1516,8 +1561,20 @@ export function PriceChartView({
           const point = { x: paneX(event), y }
           const trendHit = trendlineHit(point)
           const posHit = trendHit ? null : positionHit(point)
+          // An endpoint dot shows a stretch cursor along the line's own slope,
+          // so you can tell "stretch" from "slide" before pressing the button.
+          const trendCursor = () => {
+            if (!trendHit?.endpoint) return "move"
+            const pixels = trendlinePixelsRef.current.find(
+              (line) => line.id === trendHit.id
+            )
+            if (!pixels) return "move"
+            const slope =
+              (pixels.end.x - pixels.start.x) * (pixels.end.y - pixels.start.y)
+            return slope > 0 ? "nwse-resize" : "nesw-resize"
+          }
           container.style.cursor = trendHit
-            ? "move"
+            ? trendCursor()
             : posHit
               ? posHit.handle === "width"
                 ? "ew-resize"
@@ -2000,12 +2057,11 @@ export function PriceChartView({
   }, [ready])
 
   // Drawings are stored in chart values (time + price) and projected back to
-  // pixels whenever the user pans, zooms, resizes, or edits one.
+  // pixels whenever the chart repaints or a drawing is edited.
   React.useEffect(() => {
     const chart = chartRef.current
     const series = candleSeriesRef.current
-    const container = containerRef.current
-    if (!ready || !chart || !series || !container) return
+    if (!ready || !chart || !series) return
     const timeScale = chart.timeScale()
     /**
      * X for any drawing anchor. Anchors past the newest candle sit in empty
@@ -2046,13 +2102,7 @@ export function PriceChartView({
       return index < 0 ? null : timeScale.logicalToCoordinate(index as Logical)
     }
     const recompute = (sync = false) => {
-      const next: {
-        id: string
-        start: PixelPoint
-        end: PixelPoint
-        color: string
-        draft?: boolean
-      }[] = []
+      const next: TrendlinePixels[] = []
       for (const line of [
         ...trendlines,
         ...(trendlineDraft ? [trendlineDraft] : []),
@@ -2077,7 +2127,6 @@ export function PriceChartView({
           draft: line === trendlineDraft,
         })
       }
-      trendlinePixelsRef.current = next
 
       const boxes: ChartPositionPixels[] = []
       for (const position of positions) {
@@ -2097,7 +2146,10 @@ export function PriceChartView({
           // it just vanishes off the screen, which is exactly what the
           // "flickering / my box disappeared" reports look like. Say WHICH of
           // the five numbers came back empty, with the raw values behind it, so
-          // the cause is named instead of guessed at.
+          // the cause is named instead of guessed at. A chart with no candles
+          // yet is not an anomaly — saved drawings load ahead of the data and
+          // simply cannot be placed until it lands.
+          if (candleTimes.length === 0) continue
           reportDrawingAnomaly(
             `Box not drawable: ${[
               ["left", left],
@@ -2124,12 +2176,18 @@ export function PriceChartView({
           targetY,
         })
       }
-      positionPixelsRef.current = boxes
+      // The paint hook below fires on every real repaint, including live data
+      // ticks — skip the React work when no drawing actually moved on screen.
+      const linesChanged = !samePixelLines(trendlinePixelsRef.current, next)
+      const boxesChanged = !samePixelBoxes(positionPixelsRef.current, boxes)
+      if (!linesChanged && !boxesChanged) return
+      if (linesChanged) trendlinePixelsRef.current = next
+      if (boxesChanged) positionPixelsRef.current = boxes
       const apply = () => {
-        setTrendlinePixels(next)
-        setPositionPixels(boxes)
+        if (linesChanged) setTrendlinePixels(next)
+        if (boxesChanged) setPositionPixels(boxes)
       }
-      // Event-driven recomputes (pan, zoom, replay follow, resize) commit the
+      // Paint-driven recomputes (pan, zoom, replay follow, resize) commit the
       // overlay DOM in the SAME frame as the canvas move. Without this the
       // drawings re-place a frame behind every view change — at replay speed
       // that reads as every drawing shivering or skipping.
@@ -2159,26 +2217,30 @@ export function PriceChartView({
         }
       })
     }
-    const recomputeSync = () => recompute(true)
-    const recomputeAfterWheel = () => requestAnimationFrame(recomputeSync)
-    recompute()
-    timeScale.subscribeVisibleTimeRangeChange(recomputeSync)
-    const observer = new ResizeObserver(recomputeSync)
-    observer.observe(container)
-    container.addEventListener("wheel", recomputeAfterWheel)
-    return () => {
-      timeScale.unsubscribeVisibleTimeRangeChange(recomputeSync)
-      observer.disconnect()
-      container.removeEventListener("wheel", recomputeAfterWheel)
+    // The chart calls a pane primitive's updateAllViews() inside every real
+    // repaint — pan, zoom, price-axis drag, autoscale refit, resize, new data
+    // — after the frame's scales are final and just before the canvas draws.
+    // Re-projecting there keeps the drawings pinned to their candles exactly
+    // like the native arrow markers, which ride the same paint. The previous
+    // trigger (the visible-time-range event, plus wheel and resize listeners)
+    // fired mid-update with the previous frame's coordinates, so the drawings
+    // visibly trailed the candles while the chart was dragged — and some
+    // repaints (a price-axis drag with auto-scale off, the autoscale refit a
+    // frame after a pan) fired no event at all, leaving the projection stale.
+    const paintSync: IPanePrimitive<Time> = {
+      updateAllViews: () => recompute(true),
     }
-  }, [
-    ready,
-    trendlines,
-    positions,
-    trendlineDraft,
-    overlayRevision,
-    candleTimes,
-  ])
+    const pane = chart.panes()[0]
+    pane.attachPrimitive(paintSync)
+    // Editing a drawing changes no chart state, so it never repaints the
+    // canvas — project those directly.
+    recompute()
+    return () => {
+      // chartRef is nulled once the chart itself is torn down; detaching from
+      // a disposed chart throws.
+      if (chartRef.current) pane.detachPrimitive(paintSync)
+    }
+  }, [ready, trendlines, positions, trendlineDraft, candleTimes])
 
   // Pan (without changing zoom) so a newly focused trade is centered in view —
   // the user's current zoom level is preserved.
@@ -2985,7 +3047,7 @@ export function PriceChartView({
                     <circle
                       cx={line.start.x}
                       cy={line.start.y}
-                      r={4}
+                      r={6}
                       fill="var(--card)"
                       stroke={color}
                       strokeWidth={2}
@@ -2993,7 +3055,7 @@ export function PriceChartView({
                     <circle
                       cx={line.end.x}
                       cy={line.end.y}
-                      r={4}
+                      r={6}
                       fill="var(--card)"
                       stroke={color}
                       strokeWidth={2}
