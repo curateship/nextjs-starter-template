@@ -255,13 +255,22 @@ export async function deleteUserAccount(
   const [deleted] = await database
     .delete(customShellUsers)
     .where(eq(customShellUsers.id, userId))
-    .returning({ id: customShellUsers.id })
+    .returning({ id: customShellUsers.id, email: customShellUsers.email })
 
   if (!deleted) {
     throw new Error("USER_NOT_FOUND")
   }
 
-  await recordAdminAudit(actorId, "delete", "user", [userId], null, database)
+  // Keep the email on the entry: the row is gone, so the id can never be looked
+  // up again, and "an account was deleted" is not an audit trail.
+  await recordAdminAudit(
+    actorId,
+    "delete",
+    "user",
+    [userId],
+    deleted.email,
+    database
+  )
   return { id: deleted.id }
 }
 
@@ -283,14 +292,14 @@ export async function deleteUserAccounts(
   const deleted = await database
     .delete(customShellUsers)
     .where(inArray(customShellUsers.id, targets))
-    .returning({ id: customShellUsers.id })
+    .returning({ id: customShellUsers.id, email: customShellUsers.email })
 
   await recordAdminAudit(
     actorId,
     "delete",
     "user",
     deleted.map((row) => row.id),
-    null,
+    deleted.map((row) => row.email).join(", ") || null,
     database
   )
 

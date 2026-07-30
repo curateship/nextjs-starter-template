@@ -107,8 +107,16 @@ const updatePlanFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const actor = await requireAdmin()
-    const plan = await updatePlan(data.planId, data.plan)
-    await recordAdminAudit(actor.id, "update", "plan", [plan.id], plan.slug)
+    const { plan, changedFields } = await updatePlan(data.planId, data.plan)
+    // The plan's own name is read back from its id, so the detail is free to
+    // carry the one thing nothing else records: what the edit actually changed.
+    await recordAdminAudit(
+      actor.id,
+      "update",
+      "plan",
+      [plan.id],
+      changedFields.join(", ") || null
+    )
     return serializePlan(plan)
   })
 

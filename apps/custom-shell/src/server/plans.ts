@@ -121,6 +121,10 @@ export async function createPlan(
   })
 }
 
+/**
+ * Returns the fields that actually changed alongside the plan, so the audit
+ * trail can say what an edit did instead of only that one happened.
+ */
 export async function updatePlan(
   planId: string,
   input: PlanInput,
@@ -129,13 +133,19 @@ export async function updatePlan(
   validatePlanInput(input)
 
   return database.transaction(async (tx) => {
+    const before = await getPlan(planId, tx)
+    if (!before) {
+      throw new Error("PLAN_NOT_FOUND")
+    }
+
     if (input.isDefault) {
       await clearDefaultPlan(tx)
     }
 
+    const values = normalizePlanInput(input)
     const [plan] = await tx
       .update(customShellPlans)
-      .set({ ...normalizePlanInput(input), updatedAt: now() })
+      .set({ ...values, updatedAt: now() })
       .where(eq(customShellPlans.id, planId))
       .returning()
 
@@ -143,8 +153,51 @@ export async function updatePlan(
       throw new Error("PLAN_NOT_FOUND")
     }
 
-    return plan
+    return { plan, changedFields: changedPlanFields(before, values) }
   })
+}
+
+/** What each plan field is called in the activity log, in plain words. */
+const planFieldLabels: Record<keyof PlanInput, string> = {
+  slug: "id",
+  name: "name",
+  description: "description",
+  priceMonthlyCents: "monthly price",
+  priceYearlyCents: "yearly price",
+  currency: "currency",
+  stripePriceIdMonthly: "monthly Stripe price",
+  stripePriceIdYearly: "yearly Stripe price",
+  trialDays: "trial length",
+  features: "features",
+  isDefault: "default plan",
+  isPublic: "visibility",
+  sortOrder: "order",
+  active: "archived state",
+}
+
+function changedPlanFields(
+  before: CustomShellPlan,
+  after: ReturnType<typeof normalizePlanInput>
+) {
+  return (Object.keys(planFieldLabels) as (keyof PlanInput)[])
+    .filter((field) =>
+      field === "features"
+        ? featuresFingerprint(before.features) !==
+          featuresFingerprint(after.features)
+        : before[field] !== after[field]
+    )
+    .map((field) => planFieldLabels[field])
+}
+
+/**
+ * Postgres stores jsonb with its own key order, so the features read back are
+ * rarely in the order they were typed. Compare them sorted, or saving a plan
+ * without touching its features still reports a features change.
+ */
+function featuresFingerprint(features: PlanFeatures | null | undefined) {
+  return JSON.stringify(
+    Object.entries(features ?? {}).sort(([a], [b]) => a.localeCompare(b))
+  )
 }
 
 /**
