@@ -60,6 +60,7 @@ import {
 } from "@/lib/api/feedback"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type CommentSortColumn = "message" | "feedback" | "type" | "author" | "created"
@@ -201,6 +202,11 @@ export function FeedbackCommentsDashboard({
   React.useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery, sortColumn, sortDirection, typeFilter, pageSize])
+
+  useClearSelectionOnListChange(
+    setSelectedIds,
+    `${searchQuery}|${typeFilter}|${sortColumn}|${sortDirection}|${currentPage}|${pageSize}`
+  )
 
   const toggleSort = (column: CommentSortColumn) => {
     if (sortColumn === column) {

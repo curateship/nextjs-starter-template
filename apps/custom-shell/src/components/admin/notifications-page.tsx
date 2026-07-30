@@ -39,6 +39,7 @@ import {
   type NotificationItem,
   type NotificationType,
 } from "@/lib/api/notification"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { cn } from "@/lib/utils"
 
 type ReadFilter = "all" | "unread" | "read"
@@ -108,6 +109,11 @@ export function NotificationsPage({
   React.useEffect(() => {
     void loadNotifications()
   }, [loadNotifications])
+
+  useClearSelectionOnListChange(
+    setSelectedIds,
+    `${searchQuery}|${readFilter}|${typeFilter}|${sortColumn}|${sortDirection}`
+  )
 
   const filteredNotifications = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()

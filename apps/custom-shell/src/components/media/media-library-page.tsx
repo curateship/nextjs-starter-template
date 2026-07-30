@@ -63,6 +63,7 @@ import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { formatFileSize } from "@/lib/format-bytes"
 import { formatDate } from "@/lib/money"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { cn } from "@/lib/utils"
 
 const imageTypes = [
@@ -82,14 +83,13 @@ const videoTypes = [
 ]
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
-/** What the route loader asks for, so the page knows when it must refetch. */
-export const ADMIN_MEDIA_LOADER_PAGE_SIZE = 25
-
 type ViewMode = "list" | "gallery"
 
 export type AdminMediaPageData = {
   media: AdminMediaListResponse
   owners: MediaOwner[]
+  /** The configured rows-per-page the loader's first page was fetched at. */
+  pageSize: number
 }
 
 const sortableColumns: {
@@ -113,12 +113,10 @@ const sortableColumns: {
 export function MediaLibraryPage({
   initialData,
   initialOwnerId,
-  defaultPageSize,
   currentUserId,
 }: {
   initialData: AdminMediaPageData
   initialOwnerId: string
-  defaultPageSize: number
   currentUserId: string
 }) {
   const [data, setData] = React.useState(initialData)
@@ -127,7 +125,7 @@ export function MediaLibraryPage({
   const [ownerId, setOwnerId] = React.useState(initialOwnerId)
   const [typeFilter, setTypeFilter] = React.useState<AdminMediaTypeFilter>("all")
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(defaultPageSize)
+  const [pageSize, setPageSize] = React.useState(initialData.pageSize)
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
   const [sort, setSort] = React.useState<AdminMediaSort>("created")
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
@@ -162,15 +160,15 @@ export function MediaLibraryPage({
     }
   }, [query])
 
-  // The route already loaded the first page. Anything else — a filter, a page,
-  // a different rows-per-page than the loader used — refetches.
+  // The route already loaded the first page at the configured rows-per-page.
+  // Anything else — a filter, a page, a different size — refetches.
   const loadedQuery = React.useRef(
     JSON.stringify({
       search: "",
       ownerId: initialOwnerId,
       fileType: "all",
       page: 1,
-      pageSize: ADMIN_MEDIA_LOADER_PAGE_SIZE,
+      pageSize: initialData.pageSize,
       sort: "created",
       direction: "desc",
     })
@@ -181,6 +179,8 @@ export function MediaLibraryPage({
     const timer = setTimeout(() => void refresh(), 250)
     return () => clearTimeout(timer)
   }, [query, refresh])
+
+  useClearSelectionOnListChange(setSelectedIds, JSON.stringify(query))
 
   const media = data.media.media
   const visibleIds = media.map((item) => item.id)
@@ -286,8 +286,8 @@ export function MediaLibraryPage({
     }
   }
 
-  // Selection survives paging, so "Clear n selected" has to count everything
-  // held — counting only this page would understate what Delete would remove.
+  // Ticks are cleared whenever the query changes, so everything held is on the
+  // current page: "Clear n selected" and "Delete (n)" always say the same thing.
   const selectedCount = selectedIds.size
   const isFiltered = Boolean(search.trim()) || ownerId !== "all" || typeFilter !== "all"
 

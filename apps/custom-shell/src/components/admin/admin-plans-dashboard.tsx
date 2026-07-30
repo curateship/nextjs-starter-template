@@ -55,6 +55,7 @@ import {
 import { formatMoney } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
@@ -154,6 +155,11 @@ export function AdminPlansDashboard({
   React.useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery, sort, direction, pageSize])
+
+  useClearSelectionOnListChange(
+    setSelectedIds,
+    `${searchQuery}|${sort}|${direction}|${currentPage}|${pageSize}`
+  )
 
   // The default plan is everyone's fallback, so it can never be archived.
   // Selection works on the visible page, like every other paginated table.

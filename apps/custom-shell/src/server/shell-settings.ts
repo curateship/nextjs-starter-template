@@ -16,6 +16,24 @@ import {
 export const DEFAULT_SETTINGS_KEY = "default"
 
 /**
+ * Just the configured rows-per-page. A route loader needs this to fetch the
+ * first page at the size the table will show, and it is an app-wide global, so
+ * it reads the settings row alone rather than paying for the workspace lookup
+ * that `readShellSettings` does.
+ */
+export async function readDashboardRowsPerPage(
+  database: CustomShellDb = db
+): Promise<number> {
+  const [row] = await database
+    .select()
+    .from(customShellSettings)
+    .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+    .limit(1)
+
+  return parseShellGlobals(row?.settings).dashboardRowsPerPage
+}
+
+/**
  * The shell config for one person: app-wide globals from the settings row,
  * merged with their current workspace's own navigation and styling.
  */

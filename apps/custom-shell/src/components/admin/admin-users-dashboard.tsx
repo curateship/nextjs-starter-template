@@ -33,6 +33,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import {
   Select,
   SelectContent,
@@ -127,6 +128,11 @@ export function AdminUsersDashboard({
     const timer = setTimeout(refresh, 250)
     return () => clearTimeout(timer)
   }, [refresh])
+
+  useClearSelectionOnListChange(
+    setSelectedIds,
+    `${search}|${role}|${status}|${sort}|${direction}|${page}|${pageSize}`
+  )
 
   const toggleSort = React.useCallback(
     (column: SortColumn) => {

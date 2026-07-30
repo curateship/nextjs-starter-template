@@ -1,10 +1,6 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router"
 
-import {
-  ADMIN_MEDIA_LOADER_PAGE_SIZE,
-  MediaLibraryPage,
-} from "@/components/media/media-library-page"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+import { MediaLibraryPage } from "@/components/media/media-library-page"
 import { loadAdminMediaPage } from "@/lib/api/admin-media"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -21,12 +17,10 @@ export const Route = createFileRoute("/_authenticated/admin/media")({
         : undefined,
   }),
   loaderDeps: ({ search }) => ({ owner: search.owner }),
+  // No page size here: the server reads the configured rows-per-page and sends
+  // it back, so the first page holds exactly what the grid will show.
   loader: ({ deps }) =>
-    loadAdminMediaPage({
-      page: 1,
-      pageSize: ADMIN_MEDIA_LOADER_PAGE_SIZE,
-      ownerId: deps.owner ?? "all",
-    }),
+    loadAdminMediaPage({ page: 1, ownerId: deps.owner ?? "all" }),
   component: AdminMediaRoute,
 })
 
@@ -34,14 +28,12 @@ function AdminMediaRoute() {
   const data = Route.useLoaderData()
   const { owner } = Route.useSearch()
   const { user } = authenticatedRoute.useLoaderData()
-  const runtime = useShellRuntime()
 
   return (
     <MediaLibraryPage
       key={owner ?? "all"}
       initialData={data}
       initialOwnerId={owner ?? "all"}
-      defaultPageSize={runtime.config.dashboardRowsPerPage}
       currentUserId={user.id}
     />
   )
