@@ -3,7 +3,7 @@
 import { useState } from "react"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import Play from "lucide-react/dist/esm/icons/play.js"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

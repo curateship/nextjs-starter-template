@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
-import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import {

@@ -20,7 +20,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Input } from "@/components/ui/input"

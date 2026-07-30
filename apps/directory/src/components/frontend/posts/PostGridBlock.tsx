@@ -3,7 +3,7 @@ import ArrowRight from "lucide-react/dist/esm/icons/arrow-right.js"
 import Link from "@/components/app-link"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { ViewAllButton } from "@/components/ui/view-all-button"
+import { ViewAllButton } from "@/components/frontend/blocks/view-all-button"
 
 interface PostGridBlockProps {
   tagline?: string

@@ -5,7 +5,7 @@ import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRi
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { normalizeProductLeadMagnetContent } from "@/lib/actions/products/lead-magnet"

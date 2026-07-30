@@ -83,7 +83,7 @@ export function AdminStylingSettings({
             preview live and persist when you save.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <SliderRow
             label="Content spacing"
             value={styling.gutter}
@@ -175,7 +175,7 @@ export function AdminStylingSettings({
             gridlines. The whole admin area recolors live as you adjust this.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <BackgroundField
             idPrefix="divider-color"
             value={styling.dividerColor}
@@ -206,7 +206,7 @@ export function AdminStylingSettings({
           <CardTitle>Main content area</CardTitle>
           <CardDescription>The background behind your pages and cards.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="gap-6">
           <BackgroundField
             idPrefix="content-bg"
             value={styling.content}
@@ -224,7 +224,7 @@ export function AdminStylingSettings({
             The background of the sidebar rail and the sticky top bar.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="gap-6">
           <BackgroundField
             idPrefix="chrome-bg"
             value={styling.chrome}
@@ -242,7 +242,7 @@ export function AdminStylingSettings({
             Dialogs across the admin area. Changes apply to any open modal live.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <SliderRow
             label="Inner spacing"
             value={modal.padding}
@@ -307,7 +307,7 @@ export function AdminStylingSettings({
           <CardTitle>Cards inside modals</CardTitle>
           <CardDescription>The bordered sections within a modal.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <div className="grid gap-3">
             <Label>Background</Label>
             <BackgroundField
@@ -502,18 +502,17 @@ function SliderRow({
       <div className="grid max-w-sm gap-2">
         <div className="flex items-center justify-between">
           <Label>{label}</Label>
-          <span className="text-xs tabular-nums text-muted-foreground">{valueLabel}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {valueLabel}
+          </span>
         </div>
         <Slider
           min={min}
           max={max}
           step={step}
           value={[value]}
-          className={cn(disabled && "pointer-events-none opacity-50")}
-          onValueChange={(next) => {
-            if (disabled) return
-            onChange(next[0] ?? min)
-          }}
+          disabled={disabled}
+          onValueChange={(next) => onChange(next[0] ?? min)}
         />
       </div>
       {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}

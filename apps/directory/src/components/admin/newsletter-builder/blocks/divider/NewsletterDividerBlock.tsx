@@ -3,7 +3,7 @@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 interface NewsletterDividerBlockProps {
