@@ -21,6 +21,7 @@ import {
 import { R2StorageNotConfiguredError } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin } from "@/server/security"
+import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 export type {
   AdminMediaItem,
@@ -39,7 +40,9 @@ const listQuerySchema = z.object({
   ownerId: z.string().trim().max(36).default("all"),
   fileType: z.enum(["all", "image", "video", "svg"]).default("all"),
   page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(5).max(100).default(25),
+  // Left out by the route loader, which cannot know the configured
+  // rows-per-page; the handler reads it in that case.
+  pageSize: z.number().int().min(5).max(100).optional(),
   sort: z.enum(["file", "owner", "type", "size", "created"]).default("created"),
   direction: z.enum(["asc", "desc"]).default("desc"),
 })
@@ -83,16 +86,24 @@ function asStorageError(error: unknown): never {
   throw error
 }
 
-/** The media page in one request: a page of files plus the owner filter list. */
+/**
+ * The media page in one request: a page of files plus the owner filter list.
+ *
+ * `pageSize` is optional so the route loader can leave it out. The route cannot
+ * know the configured rows-per-page without another round trip, so when it is
+ * missing the size is read here and sent back — that is what keeps the tiles on
+ * screen and the footer's "1-10 of N" agreeing on first paint.
+ */
 const loadAdminMediaPageFn = createServerFn({ method: "GET" })
   .inputValidator(listQuerySchema)
   .handler(async ({ data }) => {
     await requireAdmin()
+    const pageSize = data.pageSize ?? (await readDashboardRowsPerPage())
     const [media, owners] = await Promise.all([
-      listAllMedia(data).catch(asStorageError),
+      listAllMedia({ ...data, pageSize }).catch(asStorageError),
       listMediaOwners(),
     ])
-    return { media, owners }
+    return { media, owners, pageSize }
   })
 
 const loadStorageDashboardFn = createServerFn({ method: "GET" }).handler(

@@ -15,6 +15,7 @@ import {
 import { listPlans } from "@/server/plans"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin } from "@/server/security"
+import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 export type { AccountRow, RevenueSummary }
 
@@ -57,18 +58,27 @@ const listAccountsFn = createServerFn({ method: "GET" })
     return listAccounts(data)
   })
 
-/** Users page data in one request: the first page of accounts plus the plans. */
+/**
+ * Users page data in one request: the first page of accounts plus the plans.
+ *
+ * The page size is not passed in — the loader cannot know the configured
+ * rows-per-page without another round trip, so it is read here and sent back,
+ * which is what keeps the rows on screen and the footer's "1-10 of N" agreeing
+ * on first paint.
+ */
 const loadAdminUsersPageFn = createServerFn({ method: "GET" })
-  .inputValidator(listQuerySchema)
+  .inputValidator(listQuerySchema.omit({ pageSize: true }))
   .handler(async ({ data }) => {
     await requireAdmin()
-    const [accounts, plans] = await Promise.all([
-      listAccounts(data),
+    const [pageSize, plans] = await Promise.all([
+      readDashboardRowsPerPage(),
       listPlans(),
     ])
+    const accounts = await listAccounts({ ...data, pageSize })
 
     return {
       accounts,
+      pageSize,
       plans: plans
         .filter((plan) => plan.active && !plan.isDefault)
         .map((plan) => ({ id: plan.id, name: plan.name, slug: plan.slug })),
@@ -143,7 +153,9 @@ const loadRevenueFn = createServerFn({ method: "GET" }).handler(async () => {
   return loadRevenueSummary()
 })
 
-export function loadAdminUsersPage(query: AccountListQueryInput) {
+export function loadAdminUsersPage(
+  query: Omit<AccountListQueryInput, "pageSize">
+) {
   return loadAdminUsersPageFn({ data: query })
 }
 

@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 import {
+  Loader2Icon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -61,6 +62,8 @@ import {
   renderShellIcon,
   type IconKey,
 } from "@/lib/custom-shell"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type WorkspaceForm = {
@@ -94,7 +97,7 @@ export function WorkspacesDashboard({
     icon: defaultIcon,
   })
   const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [nameInvalid, setNameInvalid] = React.useState(false)
   const [sortColumn, setSortColumn] = React.useState<WorkspaceSortColumn>("name")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("asc")
 
@@ -121,6 +124,11 @@ export function WorkspacesDashboard({
     setCurrentPage(1)
   }, [searchQuery, sortColumn, sortDirection, pageSize])
 
+  useClearSelectionOnListChange(
+    setSelectedIds,
+    `${searchQuery}|${sortColumn}|${sortDirection}|${currentPage}|${pageSize}`
+  )
+
   function toggleSort(column: WorkspaceSortColumn) {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
@@ -134,26 +142,30 @@ export function WorkspacesDashboard({
   function openCreateForm() {
     setEditing(null)
     setForm({ name: "", icon: defaultIcon })
-    setError(null)
+    setNameInvalid(false)
+    dismissErrorToast()
     setFormOpen(true)
   }
 
   function openEditForm(workspace: WorkspaceItem) {
     setEditing(workspace)
     setForm({ name: workspace.name, icon: workspace.icon })
-    setError(null)
+    setNameInvalid(false)
+    dismissErrorToast()
     setFormOpen(true)
   }
 
   async function saveWorkspace() {
     const name = form.name.trim()
     if (!name) {
-      setError("Workspace name is required")
+      setNameInvalid(true)
+      showErrorToast("Workspace name is required")
       return
     }
 
+    setNameInvalid(false)
+    dismissErrorToast()
     setBusy(true)
-    setError(null)
     try {
       if (editing) {
         await updateWorkspace(editing.id, name, form.icon)
@@ -165,7 +177,7 @@ export function WorkspacesDashboard({
       setFormOpen(false)
       setEditing(null)
     } catch (error) {
-      setError(getWorkspaceErrorMessage(error))
+      showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -202,8 +214,8 @@ export function WorkspacesDashboard({
 
   // One workspace always has to survive, so the last one cannot be selected away.
   async function confirmMassDelete() {
+    dismissErrorToast()
     setBusy(true)
-    setError(null)
     try {
       for (const id of selectedIds) {
         await deleteWorkspace(id)
@@ -213,7 +225,7 @@ export function WorkspacesDashboard({
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (error) {
-      setError(getWorkspaceErrorMessage(error))
+      showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -222,15 +234,15 @@ export function WorkspacesDashboard({
   async function confirmDelete() {
     if (!pendingDelete) return
 
+    dismissErrorToast()
     setBusy(true)
-    setError(null)
     try {
       await deleteWorkspace(pendingDelete.id)
       await router.invalidate()
       toast.success("Workspace deleted.")
       setPendingDelete(null)
     } catch (error) {
-      setError(getWorkspaceErrorMessage(error))
+      showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -242,7 +254,6 @@ export function WorkspacesDashboard({
         title="Workspaces"
         icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
         count={sortedWorkspaces.length}
-        error={error ? { message: error } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -404,7 +415,11 @@ export function WorkspacesDashboard({
         editing={editing}
         form={form}
         saving={busy}
-        onFormChange={setForm}
+        nameInvalid={nameInvalid}
+        onFormChange={(next) => {
+          if (next.name.trim()) setNameInvalid(false)
+          setForm(next)
+        }}
         onOpenChange={setFormOpen}
         onSave={() => void saveWorkspace()}
       />
@@ -429,6 +444,7 @@ function WorkspaceFormDialog({
   editing,
   form,
   saving,
+  nameInvalid,
   onFormChange,
   onOpenChange,
   onSave,
@@ -437,12 +453,19 @@ function WorkspaceFormDialog({
   editing: WorkspaceItem | null
   form: WorkspaceForm
   saving: boolean
+  nameInvalid: boolean
   onFormChange: (form: WorkspaceForm) => void
   onOpenChange: (open: boolean) => void
   onSave: () => void
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && saving) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>
@@ -452,50 +475,60 @@ function WorkspaceFormDialog({
             Choose the name and icon shown in the workspace switcher.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Workspace</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="workspace-name">Name</Label>
-                <Input
-                  id="workspace-name"
-                  value={form.name}
-                  disabled={saving}
-                  onChange={(event) =>
-                    onFormChange({ ...form, name: event.target.value })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="workspace-icon">Icon</Label>
-                <Select
-                  value={form.icon}
-                  disabled={saving}
-                  onValueChange={(value) =>
-                    onFormChange({ ...form, icon: value as IconKey })
-                  }
-                >
-                  <SelectTrigger id="workspace-icon" className="w-full sm:w-fit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(iconMeta).map(([icon, meta]) => (
-                      <SelectItem key={icon} value={icon}>
-                        {renderShellIcon(icon as IconKey)}
-                        {meta.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault()
+            onSave()
+          }}
+        >
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Workspace</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="workspace-name">Name</Label>
+                  <Input
+                    id="workspace-name"
+                    value={form.name}
+                    disabled={saving}
+                    aria-invalid={nameInvalid || undefined}
+                    onChange={(event) =>
+                      onFormChange({ ...form, name: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="workspace-icon">Icon</Label>
+                  <Select
+                    value={form.icon}
+                    disabled={saving}
+                    onValueChange={(value) =>
+                      onFormChange({ ...form, icon: value as IconKey })
+                    }
+                  >
+                    <SelectTrigger
+                      id="workspace-icon"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(iconMeta).map(([icon, meta]) => (
+                        <SelectItem key={icon} value={icon}>
+                          {renderShellIcon(icon as IconKey)}
+                          {meta.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          </DialogBody>
+          <DialogFooter variant="plain">
             <Button
               type="button"
               variant="outline"
@@ -504,11 +537,12 @@ function WorkspaceFormDialog({
             >
               Cancel
             </Button>
-            <Button type="button" disabled={saving} onClick={onSave}>
+            <Button type="submit" disabled={saving}>
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Save
             </Button>
-          </>
-        </DialogFooter>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )
