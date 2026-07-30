@@ -22,6 +22,25 @@
 - Supporting columns stay compact, left-aligned, and should not compete with the primary column.
 - Do not create two wide text columns in the same table.
 
+## Refreshing Data After Changes
+
+One approach, two cases:
+
+- A dashboard that makes a change itself updates its own rows in place (the way
+  the feedback and comments dashboards do after their own edits and deletes).
+  No refetch is needed for your own change.
+- A change made from a surface that floats over other pages — today that is the
+  shell's feedback modal — must call its `onMutated` callback after **every**
+  successful write (create, vote, comment add/edit/delete). The shell bumps
+  `feedbackRefreshToken` in `useShellRuntime`, and every dashboard showing that
+  data takes the token as a `refreshToken` prop and lists it in its fetch
+  effect's dependencies, so it refetches and stays honest.
+
+Dashboards on sibling routes unmount and refetch on navigation, so they never
+need to signal each other directly. Do not invent a second mechanism (manual
+cross-component `refresh()` calls, shared mutable stores); wire new shell-level
+surfaces into the same token.
+
 ## Dashboard Filters
 
 - Dashboard filter bars should use the dashboard toolbar primitives from `src/components/dashboard-toolbar`.

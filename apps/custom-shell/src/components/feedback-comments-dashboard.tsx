@@ -97,7 +97,13 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 })
 
-export function FeedbackCommentsDashboard() {
+type FeedbackCommentsDashboardProps = {
+  refreshToken: number
+}
+
+export function FeedbackCommentsDashboard({
+  refreshToken,
+}: FeedbackCommentsDashboardProps) {
   const { config } = useShellRuntime()
   const [comments, setComments] = React.useState<FeedbackCommentItem[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -127,6 +133,15 @@ export function FeedbackCommentsDashboard() {
       .then((data) => {
         if (!active) return
         setComments(data.comments)
+        // The shell's feedback modal can delete a comment that is selected
+        // here, so drop selections the refreshed list no longer contains.
+        const commentIds = new Set(data.comments.map((comment) => comment.id))
+        setSelectedIds((current) => {
+          const next = new Set(
+            [...current].filter((id) => commentIds.has(id))
+          )
+          return next.size === current.size ? current : next
+        })
       })
       .catch((loadError) => {
         if (!active) return
@@ -140,7 +155,7 @@ export function FeedbackCommentsDashboard() {
     return () => {
       active = false
     }
-  }, [reloadCount])
+  }, [refreshToken, reloadCount])
 
   const filteredComments = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
