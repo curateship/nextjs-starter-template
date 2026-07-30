@@ -134,6 +134,7 @@ export async function GET(request: NextRequest) {
           id: eventRegistrations.id,
           name: eventRegistrations.name,
           email: eventRegistrations.email,
+          checkInCode: eventRegistrations.checkInCode,
         })
         .from(eventRegistrations)
         .where(and(
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest) {
 
       for (const registration of registrations) {
         try {
-          const result = await mailer.send(registration.name, registration.email)
+          const result = await mailer.send(registration.name, registration.email, registration.checkInCode)
 
           if (!result.sent) continue
 

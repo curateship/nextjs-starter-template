@@ -190,8 +190,8 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       description: 'Sent immediately after someone RSVPs to an event or buys a ticket.',
       scopeLabel: 'Current Site',
       subject: "You're registered for {{event_name}}",
-      bodyHtml: '<p>Hi {{attendee_name}}, you are registered for <strong>{{event_name}}</strong>.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
-      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
+      bodyHtml: '<p>Hi {{attendee_name}}, you are registered for <strong>{{event_name}}</strong>.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p>Show this code at the door:</p><p><a href="{{ticket_url}}"><img src="{{ticket_qr_url}}" alt="Your ticket QR code" width="180" height="180" style="width:180px;height:180px;" /></a></p><p><a href="{{ticket_url}}">Open your ticket</a> &middot; <a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{ticket_url}}', '{{ticket_qr_url}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
     }
   }
 
@@ -201,8 +201,8 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       description: 'Sent to everyone registered for an event shortly before it starts.',
       scopeLabel: 'Current Site',
       subject: '{{event_name}} is coming up',
-      bodyHtml: '<p>Hi {{attendee_name}}, a quick reminder that <strong>{{event_name}}</strong> is coming up.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
-      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
+      bodyHtml: '<p>Hi {{attendee_name}}, a quick reminder that <strong>{{event_name}}</strong> is coming up.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{ticket_url}}">Open your ticket</a> &middot; <a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{ticket_url}}', '{{ticket_qr_url}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
     }
   }
 
@@ -435,6 +435,10 @@ export async function buildSystemEmailTokens(params: {
     event_location: params.eventLocation || '',
     event_url: '',
     event_calendar_url: '',
+    // Per-attendee, so only the event mailer fills these in (see
+    // event-registration-email.ts); everything else renders them empty.
+    ticket_url: '',
+    ticket_qr_url: '',
   }
 
   if (params.siteId) {
