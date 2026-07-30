@@ -59,6 +59,8 @@ The DCA node owns every setting its own rule reads, in four cards in the inspect
    ladder.
 2. **Only buy in an uptrend** — the trend gate, its average length, and whether a
    broken trend also sells.
+2b. **After a big crash, wait for the bottom** — the crash gate (added July 29,
+   2026; see its own section below).
 3. **Ladder** — the pot preview, the rung table (deviation + computed buy size),
    add/remove rung.
 4. **Sizing and fills** — max position %, size ramp, compound vs fixed, market vs
@@ -531,3 +533,106 @@ hold benchmarks:
 
 The full-window figure fell from +238.6% to +62.8% once exposure was measured at cost.
 The two windows where the wallet stayed inside its budget are the only ones to quote.
+
+## The crash gate: never start the ladder in a dead cat bounce (July 29, 2026)
+
+Asked for by Tyler after a −85.88% loss on a 4h chart. A coin dumped hard, jumped
+back up, the ladder started buying that jump, and then price bled away for 37 days
+with nothing left to bounce off. His words: the recovery **was** the cat bounce,
+and after it there are no buyers left.
+
+**The switch:** "Never start the ladder in the bounce", in the **After a big crash,
+wait for the bottom** card on the DCA node. Off by default, so nothing saved
+changes.
+
+**What it does.** Look back over `crashLookbackBars` candles for the highest high.
+Find the lowest closing price after it. If the fall between those two is inside the
+`crashMinFallPct` … `crashMaxFallPct` band, the ladder may only start once price is
+back down within `crashEntryAbovePct` of that low. If no fall inside the band is
+found, the gate passes and an ordinary ladder behaves exactly as before.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| Counts as a crash from | 50% | Smaller falls are ignored; the ladder trades normally. |
+| Stop counting past | 90% | Bigger falls are ignored too — that coin is finished, not cheap. |
+| Allowed above the bottom | 5% | How close to the low price must get before buying may start. |
+| Look back | 500 candles | How far back to search for the pre-crash high. |
+
+### Three decisions worth keeping
+
+**The bottom is the lowest CLOSE, not the lowest wick.** Tyler spotted this on FET:
+its crash low was a liquidation spike that traded for one candle and never again,
+and price bottomed and turned well above it. Measured across the top 120 coins the
+wick sticks out 11–14% below the lowest close, and waiting for a return to the wick
+means sitting out about 1 crash in 5. Using the lowest close, price returns 94 times
+in 100 instead of 82.
+
+**"Allowed above the bottom" defaults to 5, not 0.** A base confirms `pumpPeriods`
+candles AFTER the low it marks, and by then price has ticked back above the lowest
+close. At 0 the gate opens only on the single candle that prints the low, when no
+base exists yet, so the ladder would essentially never start.
+
+**The gate guards the re-anchor as well as the first arm.** Re-anchoring is the
+other way a ladder ends up resting under a bounce-high base — block only the arm and
+the re-anchor walks straight past it. Blocked means the ladder sits where it is with
+nothing filled, and re-anchors once price is back at the bottom.
+
+### The bug this exposed in the engine
+
+`needsWindow` in `onCandleClose` decides whether the engine loads the whole candle
+window or just the newest bar (a speed optimisation — the base tracker keeps its own
+rolling window). The crash gate needs the full lookback, and until it was added to
+that condition the gate saw a **one-bar window**, concluded no crash had happened,
+and passed everything. It looked wired up and did nothing.
+
+This is the same failure as the dead `crackPct` above. **After adding a rule that
+reads history, check it is on the list of things that make the engine load history.**
+
+### What the measurement actually says — read this before trusting the rule
+
+Scanned all 677 cached 4h markets, 1,055 falls of 50–90% off a genuine top (the
+highest high of the prior 500 candles, no overlapping episodes).
+
+- **Small coins never recover.** They lost money at every entry price tested,
+  including 35% below the bottom. Big and mid coins recovered. A volume floor is
+  probably worth more than any entry-timing rule. Cutting them was Tyler's call and
+  the data agrees.
+- **Bigger is worse, not better.** On the top 120 coins, falls over 70% did worst
+  (14 of 100 made money) and falls of 50–70% did best (23 of 100). This argues
+  against aiming the rule at the deepest crashes.
+- **82 of every 100 crashes sink back to the bottom; 18 turn and run.** Buying the
+  bounce is only a disaster in the sinking group (15 of 100 made money) and roughly
+  break-even in the turning group (49 of 100). **Nothing visible at the bounce told
+  the two apart** — bounce volume, whether only that coin crashed, how fast the fall
+  was, how fast the bounce was, all landed within noise on 386 cases.
+- So the gate does not sort winners from losers. It refuses to trade until a coin
+  has proved it is in the sinking group by coming back down.
+
+**The measurement's own flaw, and it is a big one.** Every number above is "buy
+once, hold two months, no exit." That is NOT this ladder, which buys at several
+prices and sells a few percent up. A coin that grinds down 30% over two months while
+bouncing 8% four times scores as a 30% loss there and as four wins for the ladder.
+Along the way these crashes rallied 19–36% off the entry at their best point.
+
+**So nothing here is evidence about the strategy.** The scripts were throwaway ones
+in a scratchpad, not the app's engine, and they are gone. Before believing this rule
+helps, run the real ladder through the backtest on the top 120 coins with the gate
+off and on, following `../backtesting-guide.md`.
+
+### The band cannot be set so it never matches
+
+If the smaller fall is set at or above the larger one, no fall is ever inside the
+band, the gate passes every bar, and the whole card does nothing while looking
+switched on. `compileAutomationGraph` rejects that with an `invalid_strategy`
+error so the editor says so. This repo has been bitten by silently inert settings
+twice — the dead `crackPct` above and the Base indicator's toggle-plus-percentage
+— so the rule is: never ship a setting that can quietly do nothing.
+
+### Coverage
+
+Four tests in `dca-automation.test.ts`, all through the real backtest runner: it
+refuses a ladder up in a bounce (and the same tape with the gate off buys there, at
+36 against a bottom of 25); it trades once price is back at the bottom, with every
+buy under 30; it leaves a 24% dip completely alone; and it declines to have an
+opinion on a 98% fall. **Not opened in a browser and not run on a live bot** — the
+inspector card is unverified.

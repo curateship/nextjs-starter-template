@@ -251,7 +251,58 @@ export async function claimNextPendingBacktest(
           // so only the group leader
           // (id = groupId) is claimable — it then pulls in its siblings. Every
           // other strategy is one independent run per market, claimed on its own.
-          sql<boolean>`(((${tradingBacktests.params} -> 'qfl') is null and (${tradingBacktests.params} -> 'dca') is null) or ${tradingBacktests.id} = ${tradingBacktests.groupId})`
+          //
+          // LEADERSHIP PASSES ON. A basket whose leader row has already finished
+          // or failed used to strand every sibling forever: the siblings are not
+          // `id = groupId`, so nothing could ever claim them. That happened for
+          // real on 29 July 2026 — the leader market was HYPE, which Binance does
+          // not list, so its history load failed instantly; the worker then
+          // restarted and `resetOrphanedRunning` put the other 399 markets back
+          // to `pending` with a dead leader above them. 399 rows sat unclaimable.
+          //
+          // So a sibling may lead, but ONLY when the whole basket is still
+          // unstarted apart from a failed leader. Two conditions, both load-bearing:
+          //
+          // 1. The leader must have FAILED, not merely stopped being pending.
+          //    While it is `running` it legitimately owns the basket, and letting
+          //    a sibling in would replay the same basket a second time on a
+          //    second wallet.
+          // 2. No sibling may be `running` OR `done`. `running` is the duplicate
+          //    guard the old leader-only rule gave for free. `done` matters more:
+          //    `runPortfolioGroup` finishes markets one at a time in a loop, so a
+          //    worker killed mid-loop can leave some markets `done` and the rest
+          //    back at `pending`. Promoting there would replay only the leftovers
+          //    on a FRESH FULL wallet, while the finished markets were computed
+          //    sharing that wallet — every leftover's numbers would be inflated
+          //    and saved as if they were real. A shared basket is only meaningful
+          //    replayed as one set.
+          //
+          // A partially finished basket therefore still strands, exactly as it did
+          // before promotion existed. That is deliberate: a visibly stuck run is
+          // recoverable, silently wrong shared-wallet numbers are not. Re-run the
+          // group to get a coherent result.
+          //
+          // Residual risk: two drainers opening this transaction at the same
+          // instant cannot see each other's uncommitted claim, so the guard is not
+          // airtight against true simultaneity. It holds for the sequential drain
+          // this queue does, and the backtest worker takes a leadership lock so
+          // only one drainer runs at a time.
+          sql<boolean>`(
+            ((${tradingBacktests.params} -> 'qfl') is null and (${tradingBacktests.params} -> 'dca') is null)
+            or ${tradingBacktests.id} = ${tradingBacktests.groupId}
+            or (
+              exists (
+                select 1 from ${tradingBacktests} leader
+                where leader.id = ${tradingBacktests.groupId}
+                  and leader.status = 'error'
+              )
+              and not exists (
+                select 1 from ${tradingBacktests} sibling
+                where sibling.group_id = ${tradingBacktests.groupId}
+                  and sibling.status in ('running', 'done')
+              )
+            )
+          )`
         )
       )
       .orderBy(asc(tradingBacktests.createdAt))

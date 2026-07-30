@@ -187,6 +187,62 @@ function trendQualifies(
   return trendVerdict(candles, dca) === "up"
 }
 
+/**
+ * CRASH GATE. After a coin has already fallen a long way, the ladder must not
+ * start buying up in the dead-cat bounce. The bounce IS the recovery; what
+ * follows is a bleed with no buyers left, and the ladder spends every rung on
+ * the way down. That is the −85.88% chart this was built for.
+ *
+ * Find the highest high in the lookback, then the deepest point after it. If
+ * that fall lands inside the configured band, the ladder may only start once
+ * price is back down at the bottom (plus `crashEntryAbovePct`).
+ *
+ * The bottom is the lowest CLOSE of the fall, not the lowest low. A crash wick
+ * is a price that traded for one candle and never again — on the top 120 coins
+ * it stuck out 11–14% below the lowest close, and waiting for a return to it
+ * meant sitting out 1 crash in 5 that never went back (FET). Measuring from the
+ * lowest close instead, price returns 94 times in 100 rather than 82.
+ *
+ * With NO qualifying fall in the lookback the gate passes, so an ordinary ladder
+ * on a market that has not crashed behaves exactly as before. Everything here
+ * reads backwards only, so a live bot and the chart agree.
+ */
+function crashQualifies(
+  candles: IndicatorCandle[],
+  dca: AutomationDcaConfig
+): boolean {
+  if (!dca.crashFilterEnabled) return true
+  const last = candles.at(-1)
+  if (!last) return true
+  const window = candles.slice(-dca.crashLookbackBars)
+  if (window.length < 10) return true
+
+  let topIdx = 0
+  let top = window[0].h
+  for (let i = 1; i < window.length; i++) {
+    if (window[i].h > top) {
+      top = window[i].h
+      topIdx = i
+    }
+  }
+  if (!(top > 0)) return true
+
+  // The deepest point AFTER the top, by close. A fall that is still making new
+  // lows is included: price at the bottom is exactly when we want to be allowed.
+  let bottomClose = Infinity
+  for (let i = topIdx; i < window.length; i++) {
+    if (window[i].c < bottomClose) bottomClose = window[i].c
+  }
+  if (!Number.isFinite(bottomClose) || bottomClose <= 0) return true
+
+  const fallPct = ((top - bottomClose) / top) * 100
+  // No crash worth gating — leave the ladder alone.
+  if (fallPct < dca.crashMinFallPct || fallPct > dca.crashMaxFallPct) return true
+
+  // A crash IS in force, so the ladder may only start down at the bottom.
+  return last.c <= bottomClose * (1 + dca.crashEntryAbovePct / 100)
+}
+
 /** Exit side: only a confirmed DOWNtrend may close an open ladder. "unknown"
  * must NOT close it — treating "I can't tell yet" as "the trend broke" would
  * dump a live position during warmup or after a gap in the candle feed. */
@@ -605,6 +661,17 @@ export function createDcaAutomationStrategy(
         // refuse every ladder.
         (dca.trendFilterEnabled &&
           (ctx.state.active === null || dca.exitOnTrendBreak)) ||
+        // The crash gate needs the whole lookback to find the pre-crash top.
+        // Without the window it sees a ONE-BAR series, decides no crash has
+        // happened, and passes everything — wired up and doing nothing.
+        //
+        // It guards two places and only two: the arm check (idle) and the
+        // re-anchor (active but nothing filled yet). Once a rung has filled the
+        // gate is never consulted again, so the window is not needed then —
+        // which is most bars of an open cycle, and this is the documented hot
+        // path.
+        (dca.crashFilterEnabled &&
+          (ctx.state.active === null || !ctx.state.active.hadFill)) ||
         closeConfig !== null
       let candles: IndicatorCandle[]
       if (needsWindow) {
@@ -725,6 +792,12 @@ export function createDcaAutomationStrategy(
         !state.active.stepArmed &&
         currentBase !== null &&
         last.c >= currentBase &&
+        // The crash gate applies here too. Re-anchoring is the other way a ladder
+        // can end up resting under a bounce-high base, so without this the gate
+        // blocks the first arm and then the re-anchor walks straight past it.
+        // Blocked means the ladder just sits where it is with nothing filled, and
+        // it re-anchors once price is back down at the bottom.
+        crashQualifies(candles, dca) &&
         (dca.requireTwoGreen
           ? currentBase > state.active.base
           : currentBase !== state.active.base)
@@ -772,7 +845,8 @@ export function createDcaAutomationStrategy(
         state.candidateBase === null &&
         positionSz === 0 &&
         baseArmable &&
-        trendQualifies(candles, dca)
+        trendQualifies(candles, dca) &&
+        crashQualifies(candles, dca)
       ) {
         state = {
           ...state,

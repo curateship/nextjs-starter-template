@@ -536,7 +536,7 @@ function DcaFields({
             />
             Skip the base unless price is above its average
           </label>
-          <InfoHint text="This ladder only ever buys, so in a falling market it keeps averaging down into the fall. With this on, a new ladder only starts while the latest close is above the average of the last N candles — so it sits out downtrends instead of bleeding through them." />
+          <InfoHint text="This ladder only buys, so in a falling market it averages down into the fall. On, a new ladder only starts while price is above its own average." />
         </div>
         <div className="grid grid-cols-2 gap-2">
           {number("trendMaBars", "Average length (candles)", {
@@ -558,8 +558,55 @@ function DcaFields({
             />
             Also SELL when the trend breaks
           </label>
-          <InfoHint text="Off, the filter only stops NEW ladders starting — one that is already open rides the whole way down when the trend turns. On, price closing back below the average closes the position too. This is the ladder's only way to give up on a losing cycle apart from the stop." />
+          <InfoHint text="Off, it only blocks new ladders — one already open rides the fall down. On, it sells the position too." />
         </div>
+      </NodeCard>
+      <NodeCard title="After a big crash, wait for the bottom">
+        <div className="flex items-center gap-1">
+          <label className="flex cursor-pointer items-center gap-2 text-xs">
+            <Checkbox
+              checked={node.crashFilterEnabled}
+              onCheckedChange={(checked) =>
+                onChange({ ...node, crashFilterEnabled: checked === true })
+              }
+            />
+            Never start the ladder in the bounce
+          </label>
+          <InfoHint text="After a big fall, the jump back up is usually the whole recovery. This waits until price is back at the low of the fall before buying. No big fall found = no effect." />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {number("crashMinFallPct", "Counts as a crash from (%)", {
+            min: 1,
+            max: 99,
+            step: 1,
+            disabled: !node.crashFilterEnabled,
+            info: "How far a coin must have fallen from its high before this rule kicks in. Below this, the ladder behaves normally.",
+          })}
+          {number("crashMaxFallPct", "Stop counting past (%)", {
+            min: 2,
+            max: 99,
+            step: 1,
+            disabled: !node.crashFilterEnabled,
+            info: "Falls bigger than this are ignored by the rule. A coin down more than this is usually finished rather than cheap.",
+          })}
+          {number("crashEntryAbovePct", "Allowed above the bottom (%)", {
+            min: 0,
+            max: 100,
+            step: 0.5,
+            disabled: !node.crashFilterEnabled,
+            info: "How close to the lowest point price must get before the ladder may start. 0 means at the bottom or below. Raise it to start a little earlier, at the cost of buying higher.",
+          })}
+          {number("crashLookbackBars", "Look back (candles)", {
+            min: 50,
+            max: 5000,
+            step: 10,
+            disabled: !node.crashFilterEnabled,
+            info: "How far back to search for the high the crash fell from, counted on this bot's own timeframe. On a 4-hour bot, 500 candles is about 83 days.",
+          })}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          The bottom is the lowest close, not the lowest wick.
+        </p>
       </NodeCard>
       <NodeCard title="Ladder">
         <div className="rounded-md border bg-background/60 px-2.5 py-2 text-[11px]">
@@ -578,11 +625,11 @@ function DcaFields({
           <span>#</span>
           <span className="flex items-center gap-1">
             Deviation %
-            <InfoHint text="How far below the PREVIOUS buy this rung rests, in percent. The first rung is measured from the base; each rung after it drops a further this-much below the one above." />
+            <InfoHint text="How far below the previous buy this rung sits. The first one is measured from the base." />
           </span>
           <span className="flex items-center gap-1">
             Buy size
-            <InfoHint text="How much this buy spends — set automatically by the Size ramp, bigger the deeper it drops. Shown for the account size above; it scales with the real account." />
+            <InfoHint text="What this buy spends — set by the Size ramp, bigger the deeper it drops. Scales with the real account." />
           </span>
           <span />
         </div>
@@ -649,7 +696,7 @@ function DcaFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`dca-${node.id}-compound`}
-            info="Compound: each buy is sized off your CURRENT balance, so profits grow your bets and losses shrink them. Fixed: each buy is the same dollar size based on your starting balance, no matter how the account grows."
+            info="Compound: each buy is sized off your current balance, so profits grow your bets. Fixed: the same dollar size every time, off your starting balance."
           >
             Bet sizing
           </FieldLabel>
@@ -676,7 +723,7 @@ function DcaFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`dca-${node.id}-rungEntry`}
-            info="Market: the buy fires the moment price reaches a rung, so the fill lands a little past the exact price (that's slippage), and a violent crash makes it wait for the first green candle then take just one rung at the bounce. Limit: sets a single limit order at the rung's exact price, so you fill at exactly that level with no slippage. Neither ties up money until a buy actually fills."
+            info="Market buys the moment price reaches a rung, so you pay a little slippage. Limit rests an order at the rung's exact price and fills there. Neither ties up money until it fills."
           >
             When a rung is hit
           </FieldLabel>
@@ -712,7 +759,7 @@ function DcaFields({
             />
             Only buy after 2 green candles
           </label>
-          <InfoHint text="Buy one rung at a time, stepping down. A rung only fires once price sits at least a full rung-step below your last buy (the base for the first rung), two green candles in a row confirm the turn, AND the buy candle itself is still below that step level (it doesn't chase a bounce that already recovered). So every rung is genuinely at least a step lower, one red crash can't fill the whole ladder, and if the position gets sold on a bounce the cycle just ends. It keeps stepping down like that until the stop closes it." />
+          <InfoHint text="A rung only buys once price sits a full step below your last buy and two green candles confirm the turn. Stops one crash filling the whole ladder." />
         </div>
       </NodeCard>
       <p className="text-[11px] text-muted-foreground">
@@ -1084,7 +1131,7 @@ function ProtectionNodeFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`stop-level-${node.id}`}
-            info="Percent from entry: the stop sits that far from where you got in. Session open: the stop sits at the price the session opened at. The confirmed base: the stop sits on the base itself — the teal dash the Base node draws — because that level holding is the whole reason for the trade; if price loses it, the trade is wrong. Wire the node that supplies the level into this one. Either way the percent below is the fallback for a trade opened when there is no level to sit at."
+            info="A set percent from your entry, the session's opening price, or the confirmed base itself. The last two need the node that supplies the level wired in; the percent is the fallback when there is no level yet."
           >
             Stop sits at
           </FieldLabel>
@@ -1125,7 +1172,7 @@ function ProtectionNodeFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`stop-base-reclaim-${node.id}`}
-            info="After this stop cuts you at a base, watch that same base. If price closes back above it and KEEPS closing above it for this many days, the break was a fakeout — the drop took the stops out and price carried on — so the trade goes back on at market, same size, with a fresh stop under whatever base is in force by then. A wick under the base does not reset the wait; a close under it starts it again from zero. 0 means never buy back."
+            info="Watches the base it cut you at. Every candle must close above it for this many days straight — one close below restarts the count at zero. Wicks don't count. Then the trade goes back on at market. 0 = never."
           >
             Buy back after (days above the base)
           </FieldLabel>
@@ -1142,7 +1189,7 @@ function ProtectionNodeFields({
           />
           <p className="text-[11px] text-muted-foreground">
             {node.baseReclaimDays
-              ? `Reclaim the base and hold it ${node.baseReclaimDays} days and the trade goes back on. You buy higher than you were stopped at — that is the price of waiting for proof.`
+              ? `Price must close above the base every candle for ${node.baseReclaimDays} days straight — one close below restarts the count. You buy back higher than you were stopped at.`
               : "Once stopped out, the ladder moves on to its next rung and never buys that level back."}
           </p>
         </div>
@@ -1183,7 +1230,7 @@ function ProtectionNodeFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`stop-anchor-${node.id}`}
-            info="Average buy: the stop sits this far below your blended average, so every extra buy drags the stop down with it — your earliest buys can end up losing far more than the percent you set. First buy: the stop stays this far below your very first entry, so the percent is the real worst case for the whole position."
+            info="Average buy: every extra buy drags the stop down with it, so your earliest buys can lose far more than the percent you set. First buy: the percent is the real worst case."
           >
             Measured from
           </FieldLabel>
@@ -1217,7 +1264,7 @@ function ProtectionNodeFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`tp-mode-${node.id}`}
-            info="Average: close the whole position once it's this far above your average buy. Sell at previous rung: as price recovers, peel the ladder off — sell each averaged-in buy at the price of the buy above it, one at a time (the first at the base). Sell everything at nearest rung: put the whole position up for sale at the nearest rung above your deepest buy, so a bounce back to that one level closes it all at once."
+            info="Average: sell the lot once it is this far above your average buy. Previous rung: peel one buy off at a time as price recovers. Nearest rung: sell everything at the first rung above your deepest buy."
           >
             Take profit style
           </FieldLabel>
@@ -1250,7 +1297,7 @@ function ProtectionNodeFields({
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`tp-basis-${node.id}`}
-            info="A percent is a fixed distance from your entry. A risk-reward ratio measures against the stop instead: at 1:1 a 2% stop takes profit at 2%, at 2:1 it takes profit at 4%. It follows whatever the stop does, so it works with every kind of stop and every entry node."
+            info="A percent is a fixed distance from your entry. A ratio measures against the stop instead: at 2:1, a 2% stop takes profit at 4%. It follows whatever the stop does."
           >
             Take profit measured as
           </FieldLabel>
