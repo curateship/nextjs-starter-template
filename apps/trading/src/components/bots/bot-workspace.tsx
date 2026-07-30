@@ -23,6 +23,7 @@ import { buildBotMarketRows } from "@/components/bots/bot-market-rows"
 import { buildBotResult } from "@/components/bots/bot-result"
 import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
 import { useBotLive } from "@/components/bots/use-bot-live"
+import { BotSettingsBanner } from "@/components/bots/bot-settings-banner"
 import { WorkerOfflineBanner } from "@/components/bots/worker-offline-banner"
 import { ViewSwitcher } from "@/components/automations/automation-view-switcher"
 import { IconButton } from "@/components/icon-button"
@@ -387,6 +388,14 @@ export function BotWorkspace({
       {!data.workerOnline ? (
         <WorkerOfflineBanner className="border-b px-4 py-1.5 text-xs" />
       ) : null}
+      <BotSettingsBanner
+        settingsBehind={bot.settings_behind}
+        botId={bot.id}
+        desiredState={bot.desired_state}
+        commandBusy={botCommandBusy}
+        onPause={() => runBotCommand("pause")}
+        onChanged={refresh}
+      />
 
       <ClientOnly fallback={null}>
         <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">

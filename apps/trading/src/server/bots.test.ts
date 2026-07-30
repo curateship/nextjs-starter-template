@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AutomationConfig } from "@/lib/automations/automation"
 import {
+  applyAutomationSettings,
   createUserBot,
   getBotDetail,
   listUserBotEvents,
@@ -390,6 +391,93 @@ describe("Fleet events", () => {
       "event 3",
       "event 2",
     ])
+  })
+})
+
+describe("Apply automation settings by hand", () => {
+  const EDITED_CONFIG: AutomationConfig = {
+    ...AUTOMATION_CONFIG,
+    rules: [
+      {
+        ...AUTOMATION_CONFIG.rules[0],
+        targetEquityPct: 50,
+      },
+    ],
+  }
+
+  async function pausedBotWithEditedAutomation() {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+    await database
+      .update(schema.tradingBots)
+      .set({ desiredState: "paused", status: "paused" })
+      .where(eq(schema.tradingBots.id, bot.id))
+    await database
+      .update(tradingAutomations)
+      .set({ compiledConfig: EDITED_CONFIG })
+      .where(eq(tradingAutomations.id, automationId))
+    return { userId, bot, automationId }
+  }
+
+  it("flags the drift on the detail, without touching the bot", async () => {
+    const { userId, bot } = await pausedBotWithEditedAutomation()
+
+    const detail = await getBotDetail(userId, bot.id)
+    expect(detail.settingsBehind).toBe(true)
+
+    const [fresh] = await database
+      .select()
+      .from(schema.tradingBots)
+      .where(eq(schema.tradingBots.id, bot.id))
+    expect(fresh?.params).toEqual(AUTOMATION_CONFIG)
+    expect(await database.select().from(tradingBotCommands)).toHaveLength(0)
+  })
+
+  it("writes the fresh config to a paused bot and wakes the worker", async () => {
+    const { userId, bot } = await pausedBotWithEditedAutomation()
+
+    await applyAutomationSettings(userId, bot.id)
+
+    const [fresh] = await database
+      .select()
+      .from(schema.tradingBots)
+      .where(eq(schema.tradingBots.id, bot.id))
+    expect(fresh?.params).toEqual(EDITED_CONFIG)
+    const commands = await database.select().from(tradingBotCommands)
+    expect(commands).toHaveLength(1)
+    expect(commands[0]?.command).toBe("update_params")
+    expect((await getBotDetail(userId, bot.id)).settingsBehind).toBe(false)
+  })
+
+  it("refuses while the bot is running", async () => {
+    const { userId, bot } = await pausedBotWithEditedAutomation()
+    await database
+      .update(schema.tradingBots)
+      .set({ desiredState: "running", status: "running" })
+      .where(eq(schema.tradingBots.id, bot.id))
+
+    await expect(applyAutomationSettings(userId, bot.id)).rejects.toThrow(
+      "Pause the bot first"
+    )
+    expect(await database.select().from(tradingBotCommands)).toHaveLength(0)
+  })
+
+  it("does nothing when the configs already match", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+    await database
+      .update(schema.tradingBots)
+      .set({ desiredState: "paused", status: "paused" })
+      .where(eq(schema.tradingBots.id, bot.id))
+
+    expect((await getBotDetail(userId, bot.id)).settingsBehind).toBe(false)
+    await applyAutomationSettings(userId, bot.id)
+
+    expect(await database.select().from(tradingBotCommands)).toHaveLength(0)
   })
 })
 
