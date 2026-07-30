@@ -1,5 +1,7 @@
 import * as React from "react"
 import { flushSync } from "react-dom"
+
+import { signedPct } from "@/lib/format"
 import { BellRingIcon, Trash2Icon, XIcon } from "lucide-react"
 import type {
   CandlestickData,
@@ -1197,7 +1199,7 @@ export function PriceChartView({
             width: Math.abs(x - anchor.startX),
             height: Math.abs(y - anchor.startY),
             up: endPrice >= anchor.startPrice,
-            pctText: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
+            pctText: signedPct(pct),
             priceText: `${priceDelta >= 0 ? "+" : ""}${priceFormatter.format(
               priceDelta
             )}`,

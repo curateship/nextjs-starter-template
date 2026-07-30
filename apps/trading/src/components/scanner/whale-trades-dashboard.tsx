@@ -14,12 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { formatNotional } from "@/components/scanner/format"
+import { compactUsd, formatPrice } from "@/lib/format"
 import { SortHeaderRow } from "@/components/scanner/sort-head"
 import { usePolledData } from "@/components/scanner/use-polled-data"
 import { WalletChip } from "@/components/scanner/wallet-chip"
 import { WalletDialog } from "@/components/scanner/wallet-dialog"
-import { formatPriceDisplay } from "@/components/trading/format"
 import {
   loadWhalesPage,
   type ScannerWalletInfo,
@@ -254,12 +253,12 @@ function WhaleTradeRow({
       </TableCell>
       <TableCell column="meta">
         <span className="font-mono text-xs tabular-nums">
-          {formatPriceDisplay(item.px)}
+          {formatPrice(item.px)}
         </span>
       </TableCell>
       <TableCell column="meta">
         <span className="font-mono text-xs font-medium tabular-nums">
-          {formatNotional(item.notional)}
+          {compactUsd(item.notional)}
         </span>
       </TableCell>
       <TableCell column="meta">

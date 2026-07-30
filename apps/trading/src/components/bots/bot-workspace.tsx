@@ -8,7 +8,7 @@ import {
   sortMarketRows,
   useMarketSort,
 } from "@/components/backtest/backtest-markets-table"
-import { truncateWords } from "@/components/backtest/backtest-format"
+import { truncateWords } from "@/lib/format"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { StrategyTester } from "@/components/backtest/strategy-tester"
 import { BotEventsList } from "@/components/bots/bot-events-list"

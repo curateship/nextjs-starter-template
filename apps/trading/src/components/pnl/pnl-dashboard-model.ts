@@ -1,4 +1,5 @@
 import type { PnlCostEntry, PnlTrade, PnlWallet } from "@/lib/api/pnl"
+import { compactUsd, pct, signedCompactUsd } from "@/lib/format"
 
 // ————————————————————————————————————————————————————————————————
 // Constants
@@ -30,34 +31,9 @@ export type Today = { y: number; m: number; d: number }
 // Formatting & color helpers
 // ————————————————————————————————————————————————————————————————
 
-export function num(n: number) {
-  return Math.round(n).toLocaleString("en-US")
-}
-
-/** Signed dollars, e.g. "+$1,240" / "−$820". */
-export function money(n: number) {
-  const sign = n > 0 ? "+" : n < 0 ? "−" : ""
-  return `${sign}$${num(Math.abs(n))}`
-}
-
-/** Compact dollars for tight spaces, e.g. "$12k" / "$1.4k". */
-function kfmt(v: number) {
-  v = Math.abs(v)
-  return v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : `${Math.round(v)}`
-}
-
-export function moneyK(n: number) {
-  const sign = n > 0 ? "+" : n < 0 ? "−" : ""
-  return `${sign}$${kfmt(n)}`
-}
-
-/** Unsigned compact dollars, for a drawdown magnitude. */
+/** A drawdown magnitude always reads as money lost, e.g. "-$12.3K". */
 export function ddStr(n: number) {
-  return `−$${kfmt(n)}`
-}
-
-export function pct(n: number) {
-  return `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}%`
+  return compactUsd(-Math.abs(n))
 }
 
 /** Color a value by sign: up green, down red, flat muted. */
@@ -211,17 +187,6 @@ export function mergeWallets(wallets: PnlWallet[]): PnlWallet {
 // ————————————————————————————————————————————————————————————————
 // Cost breakdown — where the money actually went
 // ————————————————————————————————————————————————————————————————
-
-/** Signed dollars with cents, e.g. "+$1,240.55" — costs need exact figures. */
-export function moneyCents(n: number) {
-  // Sign follows the rounded value, so a hair below zero reads "$0.00", not "−$0.00".
-  const cents = Math.round(n * 100) / 100
-  const sign = cents > 0 ? "+" : cents < 0 ? "−" : ""
-  return `${sign}$${Math.abs(cents).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
 
 export type CostBreakdown = {
   /** Realized trading result before any costs (sum of closedPnl). */
@@ -379,9 +344,6 @@ export function compute(
   }
 }
 
-export function pfStr(pf: number) {
-  return pf === Infinity ? "∞" : pf.toFixed(2)
-}
 
 /** Consecutive same-sign trading days ending at the latest one. */
 export function streakOf(index: DayIndex) {
@@ -496,7 +458,7 @@ export function eqGeom(eqPts: EqPoint[], W = 1000, H = 280, pad = 14): EqGeom {
     area,
     pts,
     up: eqPts[eqPts.length - 1].cum >= 0,
-    mxStr: moneyK(mx),
+    mxStr: signedCompactUsd(mx),
     startLabel: dstr(eqPts[0].t),
     endLabel: dstr(eqPts[eqPts.length - 1].t),
   }
@@ -581,7 +543,7 @@ export function donutGeom(metrics: Metrics) {
   return {
     r,
     dash: `${(c * frac).toFixed(1)} ${(c * (1 - frac)).toFixed(1)}`,
-    winRateStr: `${Math.round(frac * 100)}%`,
+    winRateStr: pct(Math.round(frac * 100), 0),
     greenDays: g,
     redDays: rd,
   }

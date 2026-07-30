@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { signedUsd, toneClass } from "@/components/backtest/backtest-format"
+import { signedUsd, toneClass } from "@/lib/format"
 import { botBadgeState } from "@/components/bots/bot-status"
 import { BotStatusBadge } from "@/components/bots/bot-status-badge"
 import { GuardianBanner } from "@/components/bots/guardian-banner"

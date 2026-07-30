@@ -5,7 +5,7 @@ import { DashboardTable, pagedFooter } from "@/components/dashboard-table"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { formatNotional, shortAddress } from "@/components/scanner/format"
+import { compactUsd, shortAddress } from "@/lib/format"
 import { SignedUsd } from "@/components/scanner/signed-usd"
 import { SortHeaderRow } from "@/components/scanner/sort-head"
 import { usePolledData } from "@/components/scanner/use-polled-data"
@@ -131,7 +131,7 @@ function WhaleRow({
       </TableCell>
       <TableCell column="meta">
         <span className="font-mono text-xs font-medium tabular-nums">
-          {item.accountValue === null ? "—" : formatNotional(item.accountValue)}
+          {item.accountValue === null ? "—" : compactUsd(item.accountValue)}
         </span>
       </TableCell>
       <TableCell column="meta">

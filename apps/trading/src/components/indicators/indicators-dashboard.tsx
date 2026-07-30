@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import {
   PinIcon,
   PinOffIcon,
@@ -140,7 +141,20 @@ export function IndicatorsDashboard({
           </TableHeader>
         }
         isEmpty={sorted.length === 0}
-        emptyText="No indicators."
+        emptyText={
+          <span>
+            No indicators loaded yet. The built-in set appears here — pin one
+            and it shows in the Indicators menu on the{" "}
+            <Link
+              to="/trade"
+              search={{ market: "BTC" }}
+              className="font-medium text-foreground underline underline-offset-2"
+            >
+              Trade chart
+            </Link>
+            . If this stays empty, reload the page.
+          </span>
+        }
         emptyColSpan={5}
         footer={{ type: "summary", count: sorted.length, label: "indicators" }}
       >

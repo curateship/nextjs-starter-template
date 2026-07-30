@@ -1,7 +1,7 @@
 import * as React from "react"
 import { CheckCircle2Icon, Loader2Icon, ShieldAlertIcon } from "lucide-react"
 
-import { shortAddress } from "@/components/scanner/format"
+import { shortAddress } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import {
   Card,

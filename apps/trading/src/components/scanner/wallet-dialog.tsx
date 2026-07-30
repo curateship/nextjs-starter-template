@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updateScannerWallet, type ScannerWalletInfo } from "@/lib/api/scanner"
-import { shortAddress } from "./format"
+import { shortAddress } from "@/lib/format"
 
 /**
  * Label / track / ignore controls for a scanner wallet. Works for wallets

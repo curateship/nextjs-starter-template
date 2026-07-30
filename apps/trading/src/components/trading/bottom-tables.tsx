@@ -2,7 +2,7 @@ import * as React from "react"
 import { useUserFills, type AccountSnapshot } from "@/lib/hl/hooks"
 import { Loader2Icon } from "lucide-react"
 
-import { formatPriceDisplay } from "@/components/trading/format"
+import { formatPrice, pct, signedPct, signedUsd, usd } from "@/lib/format"
 import {
   ClosedPnlCell,
   EmptyState,
@@ -63,7 +63,7 @@ function PricePreview({
   return (
     <p className="text-[11px] text-muted-foreground">
       {label}{" "}
-      <span className="font-mono">{formatPriceDisplay(String(price))}</span>
+      <span className="font-mono">{formatPrice(String(price))}</span>
     </p>
   )
 }
@@ -211,7 +211,10 @@ export function PositionsTable({
   }
 
   if (positions.length === 0) {
-    return <EmptyState text="No open positions." />
+    return <EmptyState
+        text="No open positions."
+        hint="Place an order from the ticket, or right-click a price on the chart."
+      />
   }
 
   return (
@@ -256,17 +259,15 @@ export function PositionsTable({
               {/* Dollars, not coins: the exchange's own notional, signed so a
                   short still reads as negative alongside the color. */}
               <MonoCell className={szi > 0 ? "text-emerald-600" : "text-red-500"}>
-                {szi < 0 ? "-" : ""}$
-                {Math.abs(Number(position.positionValue)).toFixed(2)}
+                {usd((szi < 0 ? -1 : 1) * Number(position.positionValue))}
               </MonoCell>
               <MonoCell className={liquidationDistanceClass(liqDistance)}>
-                {liqDistance === null ? "—" : `${liqDistance.toFixed(1)}%`}
+                {liqDistance === null ? "—" : pct(liqDistance, 1)}
               </MonoCell>
               <MonoCell className={upnl >= 0 ? "text-emerald-600" : "text-red-500"}>
-                {upnl >= 0 ? "+" : ""}
-                {upnl.toFixed(2)} ({roe.toFixed(1)}%)
+                {signedUsd(upnl)} ({signedPct(roe, 1)})
               </MonoCell>
-              <MonoCell>${Number(position.marginUsed).toFixed(2)}</MonoCell>
+              <MonoCell>{usd(Number(position.marginUsed))}</MonoCell>
               <TableCell>
                 {/* Row actions must not also trigger the row's market switch. */}
                 <div
@@ -353,7 +354,7 @@ export function PositionsTable({
             </DialogTitle>
             <DialogDescription>
               Percent from your entry price ({
-                protecting ? formatPriceDisplay(String(protecting.entryPx)) : "—"
+                protecting ? formatPrice(String(protecting.entryPx)) : "—"
               }). Protects your whole {protecting?.coin} position and keeps
               covering it if you add to it later. Fill in one or both.
             </DialogDescription>
@@ -501,7 +502,10 @@ export function OpenOrdersTable({
   return (
     <>
       {orders.length === 0 ? (
-        <EmptyState text="No open orders." />
+        <EmptyState
+          text="No open orders."
+          hint="Resting limit orders wait here until they fill or are cancelled."
+        />
       ) : (
         <StickyTable
           headers={[
@@ -525,7 +529,7 @@ export function OpenOrdersTable({
                 <SideCell isBuy={order.side === "B"}>
                   {description.label}
                 </SideCell>
-                <MonoCell>{formatPriceDisplay(description.price)}</MonoCell>
+                <MonoCell>{formatPrice(description.price)}</MonoCell>
                 <MonoCell>{order.origSz}</MonoCell>
                 <MonoCell>{filled > 0 ? filled.toFixed(4) : "—"}</MonoCell>
                 <TableCell>{order.reduceOnly ? "Yes" : "No"}</TableCell>
@@ -632,7 +636,10 @@ export function FillsTable({
     return <EmptyState text="Select a wallet to see fills." />
   }
   if (fills.length === 0) {
-    return <EmptyState text="No fills yet." />
+    return <EmptyState
+        text="No fills yet."
+        hint="Every executed trade lands here with its price and fee."
+      />
   }
 
   return (
@@ -644,7 +651,7 @@ export function FillsTable({
           <TimeCell time={fill.time} full />
           <TableCell className="font-medium">{fill.coin}</TableCell>
           <SideCell isBuy={fill.side === "B"}>{fill.dir}</SideCell>
-          <MonoCell>{formatPriceDisplay(fill.px)}</MonoCell>
+          <MonoCell>{formatPrice(fill.px)}</MonoCell>
           <MonoCell>{fill.sz}</MonoCell>
           <MonoCell>{Number(fill.fee).toFixed(4)}</MonoCell>
           <ClosedPnlCell value={Number(fill.closedPnl)} />

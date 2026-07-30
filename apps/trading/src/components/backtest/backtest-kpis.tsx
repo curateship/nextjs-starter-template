@@ -10,12 +10,12 @@ import type { CombinedBacktestSummary } from "./backtest-combine"
 import {
   formatFocusDays,
   num,
-  pct,
+  signedPct,
   profitFactor,
   signedUsd,
   usd,
   usdWhole,
-} from "./backtest-format"
+} from "@/lib/format"
 
 /** The one home for a run's headline numbers — summary rail + editor backtest mode. */
 export function BacktestKpis({
@@ -29,7 +29,7 @@ export function BacktestKpis({
     <div className={cn("grid grid-cols-2 gap-2", className)}>
       <Kpi
         label="Net P&L"
-        value={stats ? pct(stats.netPnlPct) : "—"}
+        value={stats ? signedPct(stats.netPnlPct) : "—"}
         sub={stats ? signedUsd(stats.netPnl) : ""}
         tone={stats?.netPnl}
       />
@@ -135,7 +135,7 @@ export function BacktestGroupKpis({
     <div className={cn("grid grid-cols-2 gap-2", className)}>
       <Kpi
         label="Net P&L"
-        value={summary.netPnlPct !== null ? pct(summary.netPnlPct) : "—"}
+        value={summary.netPnlPct !== null ? signedPct(summary.netPnlPct) : "—"}
         sub={signedUsd(summary.netPnl)}
         tone={summary.netPnl}
       />

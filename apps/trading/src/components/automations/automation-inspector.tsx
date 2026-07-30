@@ -1,3 +1,4 @@
+import { usd, usdWhole } from "@/lib/format"
 import {
   AlertCircleIcon,
   InfoIcon,
@@ -518,10 +519,7 @@ function DcaFields({
     node.sizeMultiplier
   )
   const potUsd = (equity * node.maxPositionPct) / 100
-  const money = (value: number) =>
-    value >= 100
-      ? `$${Math.round(value).toLocaleString()}`
-      : `$${value.toFixed(2)}`
+  const money = (value: number) => (value >= 100 ? usdWhole(value) : usd(value))
 
   return (
     <div className="grid gap-4">

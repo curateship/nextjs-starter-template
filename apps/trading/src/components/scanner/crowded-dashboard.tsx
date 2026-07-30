@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { formatNotional, shortAddress } from "@/components/scanner/format"
+import { compactUsd, shortAddress } from "@/lib/format"
 import { SortHeaderRow } from "@/components/scanner/sort-head"
 import { usePolledData } from "@/components/scanner/use-polled-data"
 import {
@@ -117,7 +117,7 @@ function CrowdSignalRow({ item }: { item: CrowdSignalItem }) {
               .slice(0, 3)
               .map(
                 (wallet) =>
-                  `${shortAddress(wallet.taker)} ${formatNotional(wallet.notional)}`
+                  `${shortAddress(wallet.taker)} ${compactUsd(wallet.notional)}`
               )
               .join(" · ")}
           </div>
@@ -140,7 +140,7 @@ function CrowdSignalRow({ item }: { item: CrowdSignalItem }) {
       </TableCell>
       <TableCell column="meta">
         <span className="font-mono text-xs font-medium tabular-nums">
-          {formatNotional(item.notional)}
+          {compactUsd(item.notional)}
         </span>
       </TableCell>
       <TableCell column="meta">
