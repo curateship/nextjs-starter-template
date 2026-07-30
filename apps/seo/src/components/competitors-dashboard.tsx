@@ -100,7 +100,7 @@ export function CompetitorsDashboard({
 
       <DashboardTable
         title="Competitors"
-        icon={<UsersIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<UsersIcon className="text-muted-foreground" />}
         count={competitors.length}
         controls={
           <>

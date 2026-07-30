@@ -305,7 +305,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       >
         <DashboardToolbarSelectTrigger
           aria-label="Media type filter"
-          labels={["All", "Images", "Videos", "SVG"]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -382,7 +381,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       {viewMode === "gallery" ? (
         <DashboardTable
           title={getTabTitle(activeTab)}
-          icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<ImageIcon className="text-muted-foreground" />}
           count={data?.total ?? 0}
           controls={mediaControls}
           content={
@@ -427,7 +426,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       ) : (
         <DashboardTable
           title={getTabTitle(activeTab)}
-          icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<ImageIcon className="text-muted-foreground" />}
           count={data?.total ?? 0}
           controls={mediaControls}
           header={

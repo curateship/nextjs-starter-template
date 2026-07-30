@@ -225,7 +225,7 @@ export default function ThemesPage() {
 
           <AdminTableShell
             title="Themes"
-            icon={<Paintbrush className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Paintbrush className="text-muted-foreground" />}
             count={filteredTemplates.length}
             controls={
               <TableRightActions>

@@ -316,7 +316,6 @@ export function AiGenerationsDashboard() {
       >
         <DashboardToolbarSelectTrigger
           aria-label="Filter generations by status"
-          labels={Object.values(statusFilterLabels)}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -331,7 +330,6 @@ export function AiGenerationsDashboard() {
       <Select value={projectFilter} onValueChange={setProjectFilter}>
         <DashboardToolbarSelectTrigger
           aria-label="Filter generations by project"
-          labels={["All Projects", ...projectOptions.map((p) => p.name)]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -356,7 +354,7 @@ export function AiGenerationsDashboard() {
         <DashboardTable
           title="AI Generations"
           icon={
-            <SparklesIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <SparklesIcon className="text-muted-foreground" />
           }
           count={filteredGenerations.length}
           controls={controls}
@@ -400,7 +398,7 @@ export function AiGenerationsDashboard() {
         <DashboardTable
           title="AI Generations"
           icon={
-            <SparklesIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <SparklesIcon className="text-muted-foreground" />
           }
           count={filteredGenerations.length}
           controls={controls}

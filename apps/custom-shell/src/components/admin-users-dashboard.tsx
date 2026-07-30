@@ -197,7 +197,7 @@ export function AdminUsersDashboard({
     >
       <DashboardTable
         title="Users"
-        icon={<UsersIcon className="size-4" />}
+        icon={<UsersIcon />}
         count={total}
         status={error ? { tone: "error", text: error } : null}
         selectedCount={selectedIds.size}
@@ -234,7 +234,6 @@ export function AdminUsersDashboard({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by role"
-                labels={["All roles", "Admins", "Members"]}
               >
                 <SelectValue placeholder="Role" />
               </DashboardToolbarSelectTrigger>
@@ -253,7 +252,6 @@ export function AdminUsersDashboard({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by status"
-                labels={["All accounts", "Active", "Suspended"]}
               >
                 <SelectValue placeholder="Status" />
               </DashboardToolbarSelectTrigger>

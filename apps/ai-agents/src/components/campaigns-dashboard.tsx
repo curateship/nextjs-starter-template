@@ -84,7 +84,7 @@ export function CampaignsDashboard() {
       <DashboardTable
         title="Campaigns"
         icon={
-          <MegaphoneIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <MegaphoneIcon className="text-muted-foreground" />
         }
         count={campaigns.length}
         controls={

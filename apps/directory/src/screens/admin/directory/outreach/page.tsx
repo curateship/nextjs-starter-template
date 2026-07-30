@@ -236,7 +236,7 @@ export default function DirectoryOutreachPage() {
 
           <AdminTableShell
             title="Claim Outreach"
-            icon={<Send className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Send className="text-muted-foreground" />}
             count={filtered.length}
             loading={loading}
             status={shellStatus}

@@ -316,7 +316,6 @@ export function ApiUsageDashboard() {
                 >
                   <DashboardToolbarSelectTrigger
                     aria-label="Status filter"
-                    labels={["All", "Normal", "Warning", "Blocked"]}
                   >
                     <SelectValue />
                   </DashboardToolbarSelectTrigger>
@@ -468,7 +467,6 @@ export function ApiUsageDashboard() {
                 >
                   <DashboardToolbarSelectTrigger
                     aria-label="Provider filter"
-                    labels={["All", "Gemini", "OpenAI", "Veo", "ElevenLabs"]}
                   >
                     <SelectValue />
                   </DashboardToolbarSelectTrigger>
@@ -488,7 +486,6 @@ export function ApiUsageDashboard() {
                 >
                   <DashboardToolbarSelectTrigger
                     aria-label="Event status filter"
-                    labels={["All", "Success", "Failed", "Blocked"]}
                   >
                     <SelectValue />
                   </DashboardToolbarSelectTrigger>

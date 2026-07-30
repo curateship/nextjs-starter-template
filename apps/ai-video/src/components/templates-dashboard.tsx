@@ -456,7 +456,7 @@ export function TemplatesDashboard() {
         <DashboardTable
           title="Templates"
           icon={
-            <LayoutTemplateIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <LayoutTemplateIcon className="text-muted-foreground" />
           }
           count={filteredTemplates.length}
           controls={controls}
@@ -492,7 +492,7 @@ export function TemplatesDashboard() {
         <DashboardTable
           title="Templates"
           icon={
-            <LayoutTemplateIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <LayoutTemplateIcon className="text-muted-foreground" />
           }
           count={filteredTemplates.length}
           controls={controls}

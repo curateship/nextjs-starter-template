@@ -66,7 +66,7 @@ export function PositionsDashboard({
       <DashboardTable
         title="Position Changes"
         icon={
-          <ArrowRightLeftIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <ArrowRightLeftIcon className="text-muted-foreground" />
         }
         count={data.total}
         controls={

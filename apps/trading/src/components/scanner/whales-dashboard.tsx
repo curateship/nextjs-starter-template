@@ -48,7 +48,7 @@ export function WhalesDashboard({
       <DashboardTable
         title="Whales"
         icon={
-          <WavesIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <WavesIcon className="text-muted-foreground" />
         }
         count={data.total}
         controls={

@@ -139,7 +139,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
 
         <AdminTableShell
           title={title}
-          icon={<ClipboardList className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<ClipboardList className="text-muted-foreground" />}
           count={total}
           loading={loading}
           status={error ? { tone: "error", text: error } : null}

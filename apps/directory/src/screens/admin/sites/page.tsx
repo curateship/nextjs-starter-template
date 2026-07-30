@@ -279,7 +279,7 @@ export default function SitesPage() {
 
           <AdminTableShell
             title="Sites"
-            icon={<Globe className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Globe className="text-muted-foreground" />}
             count={filteredSites.length}
             loading={loading}
             controls={

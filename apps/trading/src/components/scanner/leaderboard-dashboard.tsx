@@ -51,7 +51,7 @@ export function LeaderboardDashboard({
       <DashboardTable
         title="Smart Wallet Leaderboard"
         icon={
-          <TrophyIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <TrophyIcon className="text-muted-foreground" />
         }
         count={data.total}
         controls={

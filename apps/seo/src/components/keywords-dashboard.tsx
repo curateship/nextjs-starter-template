@@ -410,7 +410,7 @@ export function KeywordsDashboard({
 
       <DashboardTable
         title="Keywords"
-        icon={<SearchIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<SearchIcon className="text-muted-foreground" />}
         count={total}
         status={status}
         selectedCount={selectedIds.size}

@@ -111,9 +111,7 @@ function DashboardToolbarSearch({
 function DashboardToolbarSelectTrigger({
   className,
   ...props
-}: React.ComponentProps<typeof SelectTrigger> & {
-  labels?: readonly string[]
-}) {
+}: React.ComponentProps<typeof SelectTrigger>) {
   return (
     <SelectTrigger
       className={cn("h-8 w-fit text-xs sm:text-sm", className)}

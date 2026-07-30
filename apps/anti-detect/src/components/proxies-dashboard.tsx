@@ -222,7 +222,7 @@ export function ProxiesDashboard({
 
       <DashboardTable
         title="Proxies"
-        icon={<GlobeIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<GlobeIcon className="text-muted-foreground" />}
         count={proxies.length}
         controls={
           <>

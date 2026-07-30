@@ -101,7 +101,7 @@ export function BookDashboard({ initial }: { initial: BookMetricsResponse }) {
       <DashboardTable
         title="Order Book Scanner"
         icon={
-          <BookOpenIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BookOpenIcon className="text-muted-foreground" />
         }
         count={data.items.length}
         header={

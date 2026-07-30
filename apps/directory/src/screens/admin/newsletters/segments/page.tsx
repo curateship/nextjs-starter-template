@@ -176,7 +176,7 @@ export default function SegmentsPage() {
 
           <AdminTableShell
             title="Segments"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={filteredSegments.length}
             loading={loading}
             selectedCount={segmentSelection.selectedCount}

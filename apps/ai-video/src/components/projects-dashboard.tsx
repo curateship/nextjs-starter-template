@@ -454,7 +454,7 @@ export function ProjectsDashboard() {
         <DashboardTable
           title="Projects"
           icon={
-            <ClapperboardIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <ClapperboardIcon className="text-muted-foreground" />
           }
           count={filteredProjects.length}
           controls={controls}
@@ -485,7 +485,7 @@ export function ProjectsDashboard() {
         <DashboardTable
           title="Projects"
           icon={
-            <ClapperboardIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <ClapperboardIcon className="text-muted-foreground" />
           }
           count={filteredProjects.length}
           controls={controls}

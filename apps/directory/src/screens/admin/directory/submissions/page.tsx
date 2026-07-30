@@ -135,7 +135,7 @@ export default function DirectorySubmissionsPage() {
 
           <AdminTableShell
             title="Listing Submissions"
-            icon={<Store className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Store className="text-muted-foreground" />}
             count={submissions.length}
             loading={loading}
             controls={

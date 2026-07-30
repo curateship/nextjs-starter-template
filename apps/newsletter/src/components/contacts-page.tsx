@@ -113,7 +113,7 @@ export function ContactsPage() {
       <DashboardTable
         title="Contacts"
         icon={
-          <UsersIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <UsersIcon className="text-muted-foreground" />
         }
         count={total}
         controls={

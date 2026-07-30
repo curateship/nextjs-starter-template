@@ -446,7 +446,7 @@ export default function UsersPage() {
 
           <AdminTableShell
             title="Users"
-            icon={<User className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<User className="text-muted-foreground" />}
             count={filteredUsers.length}
             loading={loading}
             selectedCount={userSelection.selectedCount}

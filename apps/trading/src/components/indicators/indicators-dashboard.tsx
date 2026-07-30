@@ -124,7 +124,7 @@ export function IndicatorsDashboard({
       <DashboardTable
         title="Indicators"
         icon={
-          <SlidersHorizontalIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <SlidersHorizontalIcon className="text-muted-foreground" />
         }
         count={rows.length}
         status={status}

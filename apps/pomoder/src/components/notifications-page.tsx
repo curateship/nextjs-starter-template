@@ -236,7 +236,7 @@ export function NotificationsPage({
 
       <DashboardTable
         title="Notifications"
-        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<BellIcon className="text-muted-foreground" />}
         count={filteredNotifications.length}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -281,7 +281,6 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Read filter"
-                labels={["All", "Unread", "Read"]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
@@ -297,7 +296,6 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
-                labels={["All types", "Thumbs up", "Comments"]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>

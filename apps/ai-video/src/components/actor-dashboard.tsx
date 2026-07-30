@@ -354,7 +354,6 @@ export function ActorDashboard() {
       >
         <DashboardToolbarSelectTrigger
           aria-label="Filter actors by status"
-          labels={["All Statuses", ...Object.values(statusLabels)]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -367,7 +366,6 @@ export function ActorDashboard() {
       <Select value={tagFilter} onValueChange={setTagFilter}>
         <DashboardToolbarSelectTrigger
           aria-label="Filter actors by tag"
-          labels={["All Tags", ...tagOptions]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -396,7 +394,7 @@ export function ActorDashboard() {
         <DashboardTable
           title="Actors"
           icon={
-            <SparklesIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <SparklesIcon className="text-muted-foreground" />
           }
           count={filteredActors.length}
           controls={controls}
@@ -435,7 +433,7 @@ export function ActorDashboard() {
         <DashboardTable
           title="Actors"
           icon={
-            <SparklesIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <SparklesIcon className="text-muted-foreground" />
           }
           count={filteredActors.length}
           controls={controls}

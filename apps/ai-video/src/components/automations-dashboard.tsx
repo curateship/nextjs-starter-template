@@ -298,7 +298,7 @@ export function AutomationsDashboard() {
       <DashboardTable
         title="Automations"
         icon={
-          <WorkflowIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <WorkflowIcon className="text-muted-foreground" />
         }
         count={filteredAutomations.length}
         controls={controls}

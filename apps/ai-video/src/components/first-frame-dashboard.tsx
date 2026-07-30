@@ -458,7 +458,6 @@ export function FirstFrameDashboard() {
       <Select value={actorFilter} onValueChange={setActorFilter}>
         <DashboardToolbarSelectTrigger
           aria-label="Filter first frames by actor"
-          labels={["All Actors", ...actorOptions.map((actor) => actor.name)]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -474,7 +473,6 @@ export function FirstFrameDashboard() {
       <Select value={tagFilter} onValueChange={setTagFilter}>
         <DashboardToolbarSelectTrigger
           aria-label="Filter first frames by tag"
-          labels={["All Tags", ...tagOptions]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -490,7 +488,6 @@ export function FirstFrameDashboard() {
       <Select value={modelFilter} onValueChange={setModelFilter}>
         <DashboardToolbarSelectTrigger
           aria-label="Filter first frames by model"
-          labels={["All Models", ...ACTOR_MODELS.map((option) => option.label)]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -511,7 +508,6 @@ export function FirstFrameDashboard() {
       >
         <DashboardToolbarSelectTrigger
           aria-label="Filter first frames by aspect ratio"
-          labels={["All Ratios", ...FIRST_FRAME_ASPECT_RATIOS]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -540,7 +536,7 @@ export function FirstFrameDashboard() {
         <DashboardTable
           title="First Frame"
           icon={
-            <ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <ImageIcon className="text-muted-foreground" />
           }
           count={filteredFirstFrames.length}
           controls={controls}
@@ -583,7 +579,7 @@ export function FirstFrameDashboard() {
         <DashboardTable
           title="First Frame"
           icon={
-            <ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <ImageIcon className="text-muted-foreground" />
           }
           count={filteredFirstFrames.length}
           controls={controls}

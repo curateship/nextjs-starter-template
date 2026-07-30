@@ -109,7 +109,7 @@ function AudienceBody({
       <TableSurface>
         <DashboardToolbar>
           <DashboardToolbarTitle>
-            <UsersIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <UsersIcon className="text-muted-foreground" />
             <span className="text-sm font-medium sm:text-base">Audience</span>
             {loading ? (
               <Loader2Icon className="size-4 animate-spin text-muted-foreground" />

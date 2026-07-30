@@ -157,7 +157,7 @@ export default function UnusedMediaPage() {
 
           <AdminTableShell
             title="Unused Media"
-            icon={<ImageOff className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<ImageOff className="text-muted-foreground" />}
             count={filteredMedia.length}
             loading={isScanning}
             selectedCount={mediaSelection.selectedCount}

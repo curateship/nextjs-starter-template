@@ -239,7 +239,7 @@ export function WalletsUnified({
       <DashboardTable
         title="Wallets"
         icon={
-          <WalletIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <WalletIcon className="text-muted-foreground" />
         }
         count={rows.length}
         status={verifyStatus}

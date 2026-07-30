@@ -418,17 +418,17 @@ export function FeedbackModal({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-        <div className="rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+        <div className="space-y-2">
           <Textarea
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="What's on your mind?"
-            className="min-h-32 resize-none border-0 text-base shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            className="min-h-32 resize-none text-base"
             disabled={isSubmitting}
             autoFocus={!targetFeedbackId}
           />
 
-          <div className="flex flex-col gap-2 p-3 pt-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
               {feedbackTypes.map((item) => (
                   <Button

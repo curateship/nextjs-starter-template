@@ -522,7 +522,7 @@ export default function SiteUsersPage() {
 
           <AdminTableShell
             title="Site Users"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={total}
             selectedCount={userSelection.selectedCount}
             onClearSelection={userSelection.clearSelection}

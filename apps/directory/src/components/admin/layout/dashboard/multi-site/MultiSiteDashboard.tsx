@@ -453,7 +453,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
 
       <AdminTableShell
         title="Your sites"
-        icon={<Globe className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<Globe className="text-muted-foreground" />}
         count={filteredRows.length}
         controls={
           <TableRightActions>
