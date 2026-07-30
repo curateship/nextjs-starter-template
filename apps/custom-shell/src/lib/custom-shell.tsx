@@ -242,6 +242,23 @@ export function canSeeShellEntry(
   return !isAdminHref(entry.href)
 }
 
+/**
+ * A link or child link with no label has nothing to render but its icon, so it
+ * would show up in the sidebar and the header shortcuts as a nameless row that
+ * still takes a click. New links start blank on purpose, so keep them out of
+ * the navigation until they are named. They stay listed in Sidebar settings as
+ * a placeholder row, which is where you finish them. Dividers are exempt — a
+ * label-less divider is just a rule.
+ *
+ * `label` is typed as required, but stored sections are read back from jsonb
+ * with only an Array.isArray check (`parseWorkspaceSettings`), so a legacy or
+ * hand-edited row can still arrive without one. Treat that as unnamed rather
+ * than throwing on `.trim()` mid-render.
+ */
+export function isShellEntryNamed(entry: { label?: string }) {
+  return Boolean(entry.label?.trim())
+}
+
 export type ShellDivider = {
   type: "divider"
   id: string

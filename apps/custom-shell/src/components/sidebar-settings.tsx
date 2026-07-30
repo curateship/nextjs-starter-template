@@ -32,10 +32,15 @@ import {
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
+  CardDescription,
   CardGroup,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ShellIconPicker } from "@/components/shell-icon-picker"
 import {
   Dialog,
@@ -58,6 +63,7 @@ import {
 import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
+  isShellEntryNamed,
   isShellItem,
   renderShellIcon,
   type ShellChildItem,
@@ -179,6 +185,7 @@ function DividerPreview({ entry }: { entry: ShellEntry }) {
 }
 
 function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
+  const childName = isShellEntryNamed(child) ? child.label : "child link"
   const {
     attributes,
     listeners,
@@ -205,7 +212,7 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
         {...attributes}
         {...listeners}
         className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-        aria-label={`Reorder ${child.label || "child link"}`}
+        aria-label={`Reorder ${childName}`}
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -235,7 +242,7 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
         variant="ghost"
         size="icon"
         onClick={() => onDelete(child.id)}
-        aria-label={`Delete ${child.label || "child link"}`}
+        aria-label={`Delete ${childName}`}
       >
         <Trash2Icon className="h-4 w-4" />
       </Button>
@@ -255,6 +262,11 @@ function SortableSidebarItem({
   onSaveConfig,
 }: SortableItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const labelInputRef = React.useRef<HTMLInputElement>(null)
+  // One source of truth for "has this link been named yet" — it drives the row
+  // text, the accessible names, the dialog title and where focus lands.
+  const isNamed = isShellEntryNamed(item)
+  const itemName = isNamed ? item.label : "sidebar link"
   const {
     attributes,
     listeners,
@@ -289,7 +301,7 @@ function SortableSidebarItem({
           {...attributes}
           {...listeners}
           className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
-          aria-label={`Reorder ${item.label || "sidebar link"}`}
+          aria-label={`Reorder ${itemName}`}
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -303,8 +315,16 @@ function SortableSidebarItem({
             {renderShellIcon(item.icon, "h-4 w-4")}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">
-              {item.label || "Untitled link"}
+            {/* An unnamed link reads as a placeholder, the same muted grey an
+                empty input uses — never as normal text, which would look like
+                the link had been named "Untitled link" for you. */}
+            <span
+              className={cn(
+                "block truncate text-sm",
+                isNamed ? "font-medium" : "font-normal text-muted-foreground"
+              )}
+            >
+              {isNamed ? item.label : "Name this link"}
             </span>
           </span>
           {children.length ? (
@@ -329,7 +349,7 @@ function SortableSidebarItem({
               onItemChange(sectionId, item.id, { visible: checked === true })
             }
           />
-          <span className="sr-only">Show {item.label || "sidebar link"}</span>
+          <span className="sr-only">Show {itemName}</span>
         </label>
 
         <Button
@@ -338,128 +358,154 @@ function SortableSidebarItem({
           size="icon"
           className="hover:bg-transparent"
           onClick={() => onItemDelete(sectionId, item.id)}
-          aria-label={`Delete ${item.label || "sidebar link"}`}
+          aria-label={`Delete ${itemName}`}
         >
           <Trash2Icon className="h-4 w-4" />
         </Button>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent variant="admin">
+        <DialogContent
+          variant="admin"
+          // Opening a link that has no name yet drops the cursor straight in
+          // the Label box so you can type. A named link keeps the dialog's
+          // normal focus, since landing in a filled field invites a stray edit.
+          onOpenAutoFocus={(event) => {
+            if (isNamed) return
+            event.preventDefault()
+            labelInputRef.current?.focus()
+          }}
+        >
           <DialogHeader>
-            <DialogTitle>{item.label || "Sidebar Link"}</DialogTitle>
+            <DialogTitle>{isNamed ? item.label : "Sidebar Link"}</DialogTitle>
             <DialogDescription>
               Edit this sidebar destination and its child links.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-              <ShellIconPicker
-                value={item.icon}
-                compact
-                onValueChange={(icon) =>
-                  icon ? onItemChange(sectionId, item.id, { icon }) : undefined
-                }
-              />
-              <Input
-                value={item.label}
-                onChange={(event) =>
-                  onItemChange(sectionId, item.id, {
-                    label: event.target.value,
-                  })
-                }
-                placeholder="Label"
-                aria-label="Sidebar link label"
-              />
-              <Input
-                value={item.href}
-                onChange={(event) =>
-                  onItemChange(sectionId, item.id, {
-                    href: event.target.value,
-                  })
-                }
-                placeholder="/admin/example"
-                aria-label="Sidebar link URL"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor={`item-roles-${item.id}`}
-                hint="Links to /admin pages are always hidden from members, whatever this says."
-              >
-                Visible to
-              </FieldLabel>
-              <Select
-                value={item.roles?.includes("admin") ? "admin" : "everyone"}
-                onValueChange={(value) =>
-                  onItemChange(sectionId, item.id, {
-                    roles: value === "admin" ? ["admin"] : undefined,
-                  })
-                }
-              >
-                <SelectTrigger id={`item-roles-${item.id}`} className="w-full sm:w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="everyone">Everyone</SelectItem>
-                  <SelectItem value="admin">Admins only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Child links</p>
-                  <p className="text-xs text-muted-foreground">
-                    These become the nested links and sticky header shortcuts.
-                  </p>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Destination</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
+                  <ShellIconPicker
+                    value={item.icon}
+                    compact
+                    onValueChange={(icon) =>
+                      icon
+                        ? onItemChange(sectionId, item.id, { icon })
+                        : undefined
+                    }
+                  />
+                  <Input
+                    ref={labelInputRef}
+                    value={item.label}
+                    onChange={(event) =>
+                      onItemChange(sectionId, item.id, {
+                        label: event.target.value,
+                      })
+                    }
+                    placeholder="Label"
+                    aria-label="Sidebar link label"
+                  />
+                  <Input
+                    value={item.href}
+                    onChange={(event) =>
+                      onItemChange(sectionId, item.id, {
+                        href: event.target.value,
+                      })
+                    }
+                    placeholder="/admin/example"
+                    aria-label="Sidebar link URL"
+                  />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onChildAdd(sectionId, item.id)}
-                >
-                  <PlusIcon className="h-4 w-4" />
-                  Add Child
-                </Button>
-              </div>
 
-              {children.length ? (
-                <DndContext
-                  id={`custom-shell-sidebar-children-${item.id}`}
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={(event) => onChildDragEnd(sectionId, item.id, event)}
-                >
-                  <SortableContext
-                    items={children.map((child) => child.id)}
-                    strategy={verticalListSortingStrategy}
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor={`item-roles-${item.id}`}
+                    hint="Links to /admin pages are always hidden from members, whatever this says."
                   >
-                    <div className="space-y-2">
-                      {children.map((child) => (
-                        <SortableChild
-                          key={child.id}
-                          child={child}
-                          onChange={(childId, patch) =>
-                            onChildChange(sectionId, item.id, childId, patch)
-                          }
-                          onDelete={(childId) =>
-                            onChildDelete(sectionId, item.id, childId)
-                          }
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              ) : (
-                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                  No child links.
+                    Visible to
+                  </FieldLabel>
+                  <Select
+                    value={item.roles?.includes("admin") ? "admin" : "everyone"}
+                    onValueChange={(value) =>
+                      onItemChange(sectionId, item.id, {
+                        roles: value === "admin" ? ["admin"] : undefined,
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      id={`item-roles-${item.id}`}
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="everyone">Everyone</SelectItem>
+                      <SelectItem value="admin">Admins only</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Child links</CardTitle>
+                <CardDescription>
+                  These become the nested links and sticky header shortcuts.
+                </CardDescription>
+                <CardAction>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onChildAdd(sectionId, item.id)}
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Add Child
+                  </Button>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                {children.length ? (
+                  <DndContext
+                    id={`custom-shell-sidebar-children-${item.id}`}
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) =>
+                      onChildDragEnd(sectionId, item.id, event)
+                    }
+                  >
+                    <SortableContext
+                      items={children.map((child) => child.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                        {children.map((child) => (
+                          <SortableChild
+                            key={child.id}
+                            child={child}
+                            onChange={(childId, patch) =>
+                              onChildChange(sectionId, item.id, childId, patch)
+                            }
+                            onDelete={(childId) =>
+                              onChildDelete(sectionId, item.id, childId)
+                            }
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                ) : (
+                  <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                    No child links.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </DialogBody>
           <DialogFooter variant="plain">
             <Button
@@ -494,6 +540,7 @@ function SortableSectionCard({
   onChildDragEnd,
   onSaveConfig,
 }: SortableSectionProps) {
+  const sectionName = section.title?.trim() || "sidebar section"
   const {
     attributes,
     listeners,
@@ -524,7 +571,7 @@ function SortableSectionCard({
             {...attributes}
             {...listeners}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
-            aria-label={`Reorder ${section.title || "sidebar section"}`}
+            aria-label={`Reorder ${sectionName}`}
           >
             <GripVertical className="h-4 w-4" />
           </button>
@@ -540,9 +587,11 @@ function SortableSectionCard({
             />
           </div>
           <div className="flex items-center gap-2">
+            {/* Not a per-section reset — this throws away the whole shell
+                config, so the label has to say so. */}
             <Button type="button" variant="outline" size="sm" onClick={onReset}>
               <RotateCcwIcon className="h-4 w-4" />
-              Reset
+              Reset all to defaults
             </Button>
             <Button
               type="button"
@@ -553,13 +602,15 @@ function SortableSectionCard({
               <PlusIcon className="h-4 w-4" />
               Add Link
             </Button>
+            {/* Must be the destructive variant, not an outline button with a
+                red hover class: the outline variant's own dark:hover:bg-input/50
+                beats a call-site hover, so the red would vanish in dark mode. */}
             <Button
               type="button"
-              variant="outline"
+              variant="destructive"
               size="sm"
-              className="hover:bg-destructive/10 hover:text-destructive"
               onClick={() => onSectionDelete(section.id)}
-              aria-label={`Delete ${section.title || "sidebar section"}`}
+              aria-label={`Delete ${sectionName}`}
             >
               <MinusIcon className="h-4 w-4" />
               Delete Section
@@ -619,6 +670,10 @@ export function SidebarSettings({
   onSaveConfig,
 }: SidebarSettingsProps) {
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
+  const [resetOpen, setResetOpen] = React.useState(false)
+  const [pendingDeleteSectionId, setPendingDeleteSectionId] = React.useState<
+    string | null
+  >(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -931,10 +986,12 @@ export function SidebarSettings({
   }
 
   const handleChildAdd = (sectionId: string, itemId: string) => {
+    // Blank like a new top-level link. Pre-filled values would ship a live
+    // sidebar entry pointing at a route that doesn't exist.
     const child: ShellChildItem = {
       id: createShellId("child"),
-      label: "New Child",
-      href: "/admin/new-child",
+      label: "",
+      href: "",
     }
 
     onConfigChange(
@@ -1024,6 +1081,9 @@ export function SidebarSettings({
   }
 
   const isDraggingItem = activeDragId ? itemIds.has(activeDragId) : false
+  const pendingDeleteSection =
+    config.sections.find((section) => section.id === pendingDeleteSectionId) ??
+    null
 
   return (
     <>
@@ -1047,8 +1107,10 @@ export function SidebarSettings({
                 section={section}
                 isDraggingItem={isDraggingItem}
                 onSectionTitleChange={handleSectionTitleChange}
-                onSectionDelete={handleSectionDelete}
-                onReset={() => onConfigChange(createDefaultShellConfig())}
+                onSectionDelete={(sectionId) =>
+                  setPendingDeleteSectionId(sectionId)
+                }
+                onReset={() => setResetOpen(true)}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={handleItemDelete}
@@ -1072,6 +1134,46 @@ export function SidebarSettings({
           Add Section
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        title="Reset All Settings"
+        description="Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone."
+        confirmLabel="Reset everything"
+        onConfirm={() => {
+          setResetOpen(false)
+          onConfigChange(createDefaultShellConfig())
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteSection)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteSectionId(null)
+        }}
+        title="Delete Section"
+        description={describeSectionDelete(pendingDeleteSection)}
+        confirmLabel="Delete section"
+        onConfirm={() => {
+          if (!pendingDeleteSection) return
+          setPendingDeleteSectionId(null)
+          handleSectionDelete(pendingDeleteSection.id)
+        }}
+      />
     </>
   )
+}
+
+function describeSectionDelete(section: ShellSection | null) {
+  const name = section?.title?.trim() || "Untitled Section"
+  const linkCount = section?.entries.filter(isShellItem).length ?? 0
+  const links =
+    linkCount === 0
+      ? ""
+      : linkCount === 1
+        ? " and its link"
+        : ` and its ${linkCount} links`
+
+  return `"${name}"${links} will be removed from the sidebar. This cannot be undone.`
 }

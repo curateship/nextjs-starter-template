@@ -33,15 +33,22 @@ export function AccountProfilePage({
   formId: string
   onSaved: () => void
   onManageBilling: () => void
-  onStatusChange: (status: { saving: boolean; saved: boolean }) => void
+  onStatusChange: (status: {
+    saving: boolean
+    saved: boolean
+    dirty: boolean
+  }) => void
 }) {
   const [name, setName] = React.useState(user.name)
   const [saved, setSaved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  // Nothing to write when the name matches what's already stored, so the
+  // footer's Save button switches off rather than sending a pointless request.
+  const dirty = name.trim() !== user.name
 
   React.useEffect(() => {
-    onStatusChange({ saving, saved })
-  }, [saving, saved, onStatusChange])
+    onStatusChange({ saving, saved, dirty })
+  }, [saving, saved, dirty, onStatusChange])
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -106,7 +113,12 @@ export function AccountProfilePage({
               <Input
                 id="account-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  // Drop the footer's "Saved" the moment the field no longer
+                  // matches what was saved.
+                  setSaved(false)
+                  setName(event.target.value)
+                }}
                 maxLength={255}
                 required
               />

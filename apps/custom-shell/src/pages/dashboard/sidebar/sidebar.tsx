@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   canSeeShellEntry,
+  isShellEntryNamed,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
@@ -50,10 +51,12 @@ function getActiveHref(config: ShellConfig, currentPath: string, role: string) {
   config.sections.forEach((section) => {
     section.entries.forEach((entry) => {
       if (!isShellItem(entry) || !entry.visible) return
-      if (!canSeeShellEntry(entry, role)) return
+      if (!canSeeShellEntry(entry, role) || !isShellEntryNamed(entry)) return
       hrefs.push(entry.href)
       entry.children
-        ?.filter((child) => canSeeShellEntry(child, role))
+        ?.filter(
+          (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+        )
         .forEach((child) => hrefs.push(child.href))
     })
   })
@@ -80,12 +83,16 @@ function mapSectionEntries(
       return
     }
 
-    if (!entry.visible || !canSeeShellEntry(entry, role)) {
+    if (
+      !entry.visible ||
+      !canSeeShellEntry(entry, role) ||
+      !isShellEntryNamed(entry)
+    ) {
       return
     }
 
-    const children = entry.children?.filter((child) =>
-      canSeeShellEntry(child, role)
+    const children = entry.children?.filter(
+      (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
     )
 
     entries.push({
