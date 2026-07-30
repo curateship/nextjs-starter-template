@@ -44,6 +44,8 @@ import {
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { clampSidebarWidth } from "@/lib/sidebar-width"
+import { setToastSeconds } from "@/lib/toast-duration"
+import { clampToastSeconds } from "@/lib/toast-seconds"
 
 // Debounce window before an edit on the settings page is auto-saved.
 const CONFIG_SAVE_DEBOUNCE_MS = 700
@@ -257,6 +259,12 @@ export function ShellLayout({
     }
   }, [])
 
+  // The Toaster lives above the router outlet and can't see the config, so
+  // hand it the saved duration whenever it changes. See lib/toast-duration.ts.
+  React.useEffect(() => {
+    setToastSeconds(config.toastSeconds)
+  }, [config.toastSeconds])
+
   // Auto-clear the "Saved" badge a couple seconds after it appears so it
   // doesn't linger in the shared header after leaving the settings page.
   React.useEffect(() => {
@@ -376,7 +384,7 @@ export function ShellLayout({
   )
 }
 
-function normalizeConfig(settings: ShellConfig | null) {
+function normalizeConfig(settings: ShellConfig | null): ShellConfig {
   const fallback = createDefaultShellConfig()
   if (!settings) {
     return fallback
@@ -391,6 +399,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     )
       ? settings.dashboardRowsPerPage
       : fallback.dashboardRowsPerPage,
+    toastSeconds: clampToastSeconds(settings.toastSeconds),
     sidebarWidth: clampSidebarWidth(
       settings.sidebarWidth ?? fallback.sidebarWidth
     ),

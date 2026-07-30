@@ -4,6 +4,7 @@ import {
   type IconName as DynamicLucideIconName,
 } from "lucide-react/dynamic"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
+import { DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -292,6 +293,8 @@ export type ShellConfig = {
   workspaceName: string
   workspacePlan: string
   dashboardRowsPerPage: number
+  /** How many seconds a success message stays on screen. Failures ignore it. */
+  toastSeconds: number
   // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
   sidebarWidth: number
   /** Route the home page (/) and /admin open; empty = Settings. */
@@ -305,6 +308,7 @@ export type ShellConfig = {
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
 export const DEFAULT_DASHBOARD_ROWS_PER_PAGE = 10
+
 
 // ---------------------------------------------------------------------------
 // Styling (Settings → Styling tab). Applied at runtime via inline CSS vars on
@@ -589,6 +593,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceName: "",
     workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
+    toastSeconds: DEFAULT_TOAST_SECONDS,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     adminRoute: "",
     favicon: "",
