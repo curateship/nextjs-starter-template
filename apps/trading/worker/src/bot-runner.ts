@@ -43,6 +43,10 @@ import type {
 const EVALUATE_DEBOUNCE_MS = 250
 const TICK_THROTTLE_MS = 500
 const PERSIST_THROTTLE_MS = 2_000
+// How long after a bar boundary the close clock fires. Long enough for the
+// exchange's own final update of the finished bar (when it comes at all, it
+// arrives within ~1s) to land first, so the buffer holds the authoritative bar.
+const CANDLE_CLOSE_GRACE_MS = 2_000
 const DEFAULT_PAPER_EQUITY = 10_000
 
 type BotStatus = TradingBot["status"]
@@ -75,6 +79,12 @@ export class BotRunner {
   private lastPersistAt = 0
   private paused = false
   private stopped = true
+  private candleCloseTimers = new Map<
+    CandleInterval,
+    ReturnType<typeof setTimeout>
+  >()
+  /** Newest bar-open time (t) already run through onCandleClose, per interval. */
+  private lastProcessedClose = new Map<CandleInterval, number>()
 
   constructor(
     bot: TradingBot,
@@ -163,10 +173,7 @@ export class BotRunner {
           this.botNetwork,
           this.market,
           interval,
-          (candle) => {
-            // Candle close: the event whose t differs from the running one.
-            if (candle.T <= Date.now()) this.onCandleClose(candle)
-          }
+          () => this.processPendingCandleClose(interval)
         )
         this.unsubscribers.push(unsubscribe)
       }
@@ -205,6 +212,12 @@ export class BotRunner {
         `Bot started in ${this.bot.mode} mode.`
       )
       this.scheduleEvaluate()
+      // Evaluate the newest already-closed bar right away (a runner usually
+      // starts mid-candle), then keep our own close clock per interval.
+      for (const interval of warmup.candleIntervals) {
+        this.processPendingCandleClose(interval)
+        this.scheduleCandleCloseTimer(interval)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "start failed"
       await this.setStatus("error", message)
@@ -235,6 +248,10 @@ export class BotRunner {
   async resume() {
     this.paused = false
     this.runtime.cooldownUntil = null
+    // A bar boundary may have passed while paused; don't wait for the next one.
+    for (const interval of this.candleCloseTimers.keys()) {
+      this.processPendingCandleClose(interval)
+    }
     await this.setStatus("running")
     await this.event("info", "resumed", "Bot resumed.")
     this.scheduleEvaluate()
@@ -279,6 +296,38 @@ export class BotRunner {
     if (this.stopped || this.paused) return
     this.strategy.onTick?.(this.ctx(), this.params as never)
     this.scheduleEvaluate()
+  }
+
+  /**
+   * Runs the strategy's close hook for the newest finished bar, exactly once
+   * per bar. The exchange stream cannot be trusted to announce a close: it
+   * sends the running candle on trades, and a final update of the finished
+   * candle arrives only sometimes (measured live: 1 in 3 closes, even on BTC
+   * 1m). So every stream event, a per-interval boundary timer, startup and
+   * resume all funnel here, and whichever sees the finished bar first wins.
+   */
+  private processPendingCandleClose(interval: CandleInterval) {
+    if (this.stopped || this.paused) return
+    const nowMs = Date.now()
+    const closed = this.candles(interval, 3)
+      .filter((candle) => candle.T <= nowMs)
+      .at(-1)
+    if (!closed) return
+    if ((this.lastProcessedClose.get(interval) ?? 0) >= closed.t) return
+    this.lastProcessedClose.set(interval, closed.t)
+    this.onCandleClose(closed)
+  }
+
+  private scheduleCandleCloseTimer(interval: CandleInterval) {
+    const intervalMs = INTERVAL_MS[interval]
+    if (!intervalMs) return
+    // Hyperliquid bars are epoch-aligned, so the next boundary is a modulus.
+    const delay = intervalMs - (Date.now() % intervalMs) + CANDLE_CLOSE_GRACE_MS
+    const timer = setTimeout(() => {
+      this.processPendingCandleClose(interval)
+      if (!this.stopped) this.scheduleCandleCloseTimer(interval)
+    }, delay)
+    this.candleCloseTimers.set(interval, timer)
   }
 
   private onCandleClose(candle: never | { t: number }) {
@@ -865,6 +914,8 @@ export class BotRunner {
   }
 
   private teardown() {
+    for (const timer of this.candleCloseTimers.values()) clearTimeout(timer)
+    this.candleCloseTimers.clear()
     for (const unsubscribe of this.unsubscribers) unsubscribe()
     this.unsubscribers = []
     this.broker?.stop()

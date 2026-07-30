@@ -79,6 +79,12 @@ export type BotDetailResponse = {
     paper_starting_equity: number | null
     source_name: string | null
     automation_id: string | null
+    /**
+     * The source automation has been saved with different settings since
+     * this run last took them. Saves never touch a deployed run — the admin
+     * applies by hand (pause → apply → resume).
+     */
+    settings_behind: boolean
   }
   states: BotMarketState[]
   trades: {
@@ -181,6 +187,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
           : null,
         source_name: detail.sourceName,
         automation_id: detail.bot.automationId,
+        settings_behind: detail.settingsBehind,
         realized_pnl: Number(detail.aggregates?.realizedPnl ?? 0),
         trade_count: Number(detail.aggregates?.tradeCount ?? 0),
         ...aggregateBotStates(detail.states),
@@ -291,6 +298,18 @@ const renameBotFn = createServerFn({ method: "POST" })
     return { ok: true }
   })
 
+/** Pulls the automation's saved settings into a PAUSED bot, by hand. */
+const applyBotSettingsFn = createServerFn({ method: "POST" })
+  .inputValidator(botIdSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { applyAutomationSettings } = await import("@/server/bots")
+    requireAppOrigin()
+    const user = await requireUser()
+    await applyAutomationSettings(user.id, data.botId)
+    return { ok: true }
+  })
+
 const botCommandFn = createServerFn({ method: "POST" })
   .inputValidator(botCommandSchema)
   .handler(async ({ data }): Promise<BotListResponse> => {
@@ -347,6 +366,10 @@ export function renameBot(botId: string, name: string) {
 
 export function updateBotMarkets(botId: string, markets: string[]) {
   return updateBotMarketsFn({ data: { botId, markets } })
+}
+
+export function applyBotSettings(botId: string) {
+  return applyBotSettingsFn({ data: { botId } })
 }
 
 export function sendCommand(
