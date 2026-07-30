@@ -1,17 +1,16 @@
 import * as React from "react"
 import { toast } from "sonner"
 import {
-  EditIcon,
   GridIcon,
   ImageIcon,
   ListIcon,
+  SettingsIcon,
   Trash2Icon,
   UploadIcon,
   VideoIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,11 +27,13 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DetailRow } from "@/components/media/media-detail-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -49,114 +50,145 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  bulkDeleteMedia,
-  deleteMedia,
-  getMediaErrorMessage,
-  listMedia,
-  updateMedia,
-  uploadMedia,
-  type MediaFileType,
-  type MediaItem,
-  type MediaListResponse,
-  type MediaSortBy,
-  type MediaSortDirection,
-} from "@/lib/api/media"
+  getAdminMediaErrorMessage,
+  deleteMediaAsAdminAction,
+  loadAdminMediaPage,
+  type AdminMediaItem,
+  type AdminMediaListResponse,
+  type AdminMediaSort,
+  type AdminMediaTypeFilter,
+  type MediaOwner,
+} from "@/lib/api/admin-media"
+import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { formatFileSize } from "@/lib/format-bytes"
+import { formatDate } from "@/lib/money"
 import { cn } from "@/lib/utils"
-import { useShellRuntime } from "@/components/shell/shell-layout"
 
-const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
-const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
+const imageTypes = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+]
+const videoTypes = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-matroska",
+]
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-const pageTabs = ["all", "images", "videos"] as const
 
-export type MediaTabId = (typeof pageTabs)[number]
+/** What the route loader asks for, so the page knows when it must refetch. */
+export const ADMIN_MEDIA_LOADER_PAGE_SIZE = 25
 
 type ViewMode = "list" | "gallery"
-type MediaTypeFilter = "all" | MediaFileType | "svg"
 
-const sortableMediaColumns: {
-  by: MediaSortBy
+export type AdminMediaPageData = {
+  media: AdminMediaListResponse
+  owners: MediaOwner[]
+}
+
+const sortableColumns: {
+  by: AdminMediaSort
   label: string
   column: "main" | "meta"
   className?: string
 }[] = [
-  { by: "original_name", label: "File", column: "main" },
-  { by: "file_type", label: "Type", column: "meta" },
-  { by: "file_size", label: "Size", column: "meta", className: "hidden md:table-cell" },
-  { by: "created_at", label: "Added", column: "meta", className: "hidden lg:table-cell" },
+  { by: "file", label: "File", column: "main" },
+  { by: "owner", label: "Owner", column: "meta" },
+  { by: "type", label: "Type", column: "meta" },
+  { by: "size", label: "Size", column: "meta", className: "hidden md:table-cell" },
+  { by: "created", label: "Added", column: "meta", className: "hidden lg:table-cell" },
 ]
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-
-export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
-  const { config } = useShellRuntime()
-  const [data, setData] = React.useState<MediaListResponse | null>(null)
+/**
+ * Every account's media in one place, with an owner column and filter. Storage
+ * accounting and orphan cleanup live on their own page. Uploads still land in
+ * the signed-in admin's own library.
+ */
+export function MediaLibraryPage({
+  initialData,
+  initialOwnerId,
+  defaultPageSize,
+  currentUserId,
+}: {
+  initialData: AdminMediaPageData
+  initialOwnerId: string
+  defaultPageSize: number
+  currentUserId: string
+}) {
+  const [data, setData] = React.useState(initialData)
   const [error, setError] = React.useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(() => activeTabToFileType(activeTab) ?? "all")
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const [search, setSearch] = React.useState("")
+  const [ownerId, setOwnerId] = React.useState(initialOwnerId)
+  const [typeFilter, setTypeFilter] = React.useState<AdminMediaTypeFilter>("all")
+  const [page, setPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(defaultPageSize)
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
-  const [sortBy, setSortBy] = React.useState<MediaSortBy>("created_at")
-  const [sortDirection, setSortDirection] = React.useState<MediaSortDirection>("desc")
+  const [sort, setSort] = React.useState<AdminMediaSort>("created")
+  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
   const [uploading, setUploading] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
-  const [editingMedia, setEditingMedia] = React.useState<MediaItem | null>(null)
-  const [editAltText, setEditAltText] = React.useState("")
-  const [savingEdit, setSavingEdit] = React.useState(false)
+  const [openMedia, setOpenMedia] = React.useState<AdminMediaItem | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  React.useEffect(() => {
-    setMediaTypeFilter(activeTabToFileType(activeTab) ?? "all")
-    setCurrentPage(1)
-    setSelectedIds(new Set())
-  }, [activeTab])
+  const query = React.useMemo(
+    () => ({ search, ownerId, fileType: typeFilter, page, pageSize, sort, direction }),
+    [direction, ownerId, page, pageSize, search, sort, typeFilter]
+  )
 
-  const fileType = mediaTypeFilter === "all" || mediaTypeFilter === "svg" ? undefined : mediaTypeFilter
-  const mimeType = mediaTypeFilter === "svg" ? "image/svg+xml" : undefined
-
-  const loadCurrentPage = React.useCallback(async () => {
-    setError(null)
+  const refresh = React.useCallback(async () => {
     try {
-      setData(await listMedia({
-        page: currentPage,
-        pageSize,
-        fileType,
-        mimeType,
-        sortBy,
-        sortDirection,
-      }))
+      const next = await loadAdminMediaPage(query)
+      setData(next)
+      setError(null)
+      // Deleting someone's last file drops them from the owner list. Left
+      // alone, the filter would sit on a name that no longer has a label.
+      if (
+        query.ownerId !== "all" &&
+        !next.owners.some((owner) => owner.userId === query.ownerId)
+      ) {
+        setOwnerId("all")
+        setPage(1)
+      }
     } catch (loadError) {
-      setError(getMediaErrorMessage(loadError))
+      setError(getAdminMediaErrorMessage(loadError))
     }
-  }, [currentPage, fileType, mimeType, pageSize, sortBy, sortDirection])
+  }, [query])
 
-  React.useEffect(() => {
-    loadCurrentPage()
-  }, [loadCurrentPage])
-
-  const visibleMedia = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return (data?.media ?? []).filter((item) => {
-      if (!query) return true
-      return `${item.original_name} ${item.filename} ${item.alt_text ?? ""} ${item.file_type}`
-        .toLowerCase()
-        .includes(query)
+  // The route already loaded the first page. Anything else — a filter, a page,
+  // a different rows-per-page than the loader used — refetches.
+  const loadedQuery = React.useRef(
+    JSON.stringify({
+      search: "",
+      ownerId: initialOwnerId,
+      fileType: "all",
+      page: 1,
+      pageSize: ADMIN_MEDIA_LOADER_PAGE_SIZE,
+      sort: "created",
+      direction: "desc",
     })
-  }, [data?.media, searchQuery])
+  )
+  React.useEffect(() => {
+    if (JSON.stringify(query) === loadedQuery.current) return
 
-  const visibleIds = visibleMedia.map((item) => item.id)
-  const allVisibleSelected =
+    const timer = setTimeout(() => void refresh(), 250)
+    return () => clearTimeout(timer)
+  }, [query, refresh])
+
+  const media = data.media.media
+  const visibleIds = media.map((item) => item.id)
+  const allSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+  const someSelected = visibleIds.some((id) => selectedIds.has(id))
 
-  function handleToggleOne(mediaId: string) {
+  function toggleOne(mediaId: string) {
     setSelectedIds((current) => {
       const next = new Set(current)
       if (next.has(mediaId)) {
@@ -168,20 +200,10 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     })
   }
 
-  function handleSort(by: MediaSortBy) {
-    setSortDirection((current) =>
-      sortBy === by
-        ? current === "asc" ? "desc" : "asc"
-        : by === "created_at" || by === "file_size" ? "desc" : "asc"
-    )
-    setSortBy(by)
-    setCurrentPage(1)
-  }
-
-  function handleToggleVisible() {
+  function toggleVisible() {
     setSelectedIds((current) => {
       const next = new Set(current)
-      if (allVisibleSelected) {
+      if (visibleIds.every((id) => next.has(id))) {
         visibleIds.forEach((id) => next.delete(id))
       } else {
         visibleIds.forEach((id) => next.add(id))
@@ -190,12 +212,25 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     })
   }
 
+  function toggleSort(by: AdminMediaSort) {
+    setDirection((current) =>
+      sort === by
+        ? current === "asc"
+          ? "desc"
+          : "asc"
+        : by === "created" || by === "size"
+          ? "desc"
+          : "asc"
+    )
+    setSort(by)
+    setPage(1)
+  }
+
   async function handleUploadSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const allowedTypes = [...imageTypes, ...videoTypes]
-    if (!allowedTypes.includes(file.type)) {
+    if (![...imageTypes, ...videoTypes].includes(file.type)) {
       showErrorToast("Invalid file type. Only images, SVGs, and videos are allowed.")
       event.target.value = ""
       return
@@ -204,7 +239,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     const kind = imageTypes.includes(file.type) ? "image" : "video"
     const maxSize = kind === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
     if (file.size > maxSize) {
-      showErrorToast(`File size too large. Maximum size is ${kind === "image" ? "10MB" : "100MB"}.`)
+      showErrorToast(
+        `File size too large. Maximum size is ${kind === "image" ? "10MB" : "100MB"}.`
+      )
       event.target.value = ""
       return
     }
@@ -214,41 +251,12 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     try {
       await uploadMedia(file)
       toast.success("Media uploaded.")
-      await loadCurrentPage()
+      await refresh()
     } catch (uploadError) {
       showErrorToast(getMediaErrorMessage(uploadError))
     } finally {
       setUploading(false)
       event.target.value = ""
-    }
-  }
-
-  function handleEdit(media: MediaItem) {
-    setEditingMedia(media)
-    setEditAltText(media.alt_text ?? "")
-  }
-
-  async function handleSaveEdit() {
-    if (!editingMedia) return
-
-    setSavingEdit(true)
-    dismissErrorToast()
-    try {
-      const updated = await updateMedia(editingMedia.id, editAltText)
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              media: current.media.map((item) => (item.id === updated.id ? updated : item)),
-            }
-          : current
-      )
-      setEditingMedia(null)
-      toast.success("Media updated.")
-    } catch (saveError) {
-      showErrorToast(getMediaErrorMessage(saveError))
-    } finally {
-      setSavingEdit(false)
     }
   }
 
@@ -259,26 +267,29 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     dismissErrorToast()
     setDeleting(true)
     try {
-      if (ids.length === 1) {
-        await deleteMedia(ids[0])
-        toast.success("Media deleted.")
-      } else {
-        const result = await bulkDeleteMedia(ids)
-        toast.success(`Deleted ${result.deleted_count} media ${result.deleted_count === 1 ? "item" : "items"}.`)
-      }
+      const result = await deleteMediaAsAdminAction(ids)
+      toast.success(
+        `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "file" : "files"}.`
+      )
       setSelectedIds((current) => {
         const next = new Set(current)
         ids.forEach((id) => next.delete(id))
         return next
       })
       setDeleteIds(null)
-      await loadCurrentPage()
+      setOpenMedia(null)
+      await refresh()
     } catch (deleteError) {
-      showErrorToast(getMediaErrorMessage(deleteError))
+      showErrorToast(getAdminMediaErrorMessage(deleteError))
     } finally {
       setDeleting(false)
     }
   }
+
+  // Selection survives paging, so "Clear n selected" has to count everything
+  // held — counting only this page would understate what Delete would remove.
+  const selectedCount = selectedIds.size
+  const isFiltered = Boolean(search.trim()) || ownerId !== "all" || typeFilter !== "all"
 
   const mediaControls = (
     <>
@@ -295,24 +306,44 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       <DashboardToolbarSearch
         name="media-search"
         aria-label="Search media"
-        placeholder="Search media..."
-        value={searchQuery}
-        onChange={(event) => setSearchQuery(event.target.value)}
+        placeholder="Search files or people..."
+        value={search}
+        onChange={(event) => {
+          setPage(1)
+          setSearch(event.target.value)
+        }}
       />
       <Select
-        value={mediaTypeFilter}
+        value={ownerId}
         onValueChange={(value) => {
-          setMediaTypeFilter(value as MediaTypeFilter)
-          setCurrentPage(1)
+          setPage(1)
+          setOwnerId(value)
         }}
       >
-        <DashboardToolbarSelectTrigger
-          aria-label="Media type filter"
-        >
+        <DashboardToolbarSelectTrigger aria-label="Filter by owner">
+          <SelectValue placeholder="Owner" />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All owners</SelectItem>
+          {data.owners.map((owner) => (
+            <SelectItem key={owner.userId} value={owner.userId}>
+              {owner.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={typeFilter}
+        onValueChange={(value) => {
+          setPage(1)
+          setTypeFilter(value as AdminMediaTypeFilter)
+        }}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Media type filter">
           <SelectValue />
         </DashboardToolbarSelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All</SelectItem>
+          <SelectItem value="all">All types</SelectItem>
           <SelectItem value="image">Images</SelectItem>
           <SelectItem value="video">Videos</SelectItem>
           <SelectItem value="svg">SVG</SelectItem>
@@ -355,8 +386,29 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     </>
   )
 
+  const footer = {
+    type: "pagination",
+    page,
+    pageSize,
+    total: data.media.total,
+    totalPages: data.media.total_pages,
+    pageSizeOptions,
+    onPageChange: setPage,
+    onPageSizeChange: (size: number) => {
+      setPageSize(size)
+      setPage(1)
+    },
+  } as const
+
+  const emptyText = isFiltered
+    ? "No files match those filters."
+    : "No media has been uploaded yet."
+
   return (
-    <div className="w-full pb-8">
+    <div
+      className="flex w-full flex-col"
+      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -365,84 +417,81 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         onChange={handleUploadSelect}
       />
 
-      {error ? (
-        <div className="mb-4">
-          <ErrorBanner message={error} onRetry={() => void loadCurrentPage()} />
-        </div>
-      ) : null}
-
       {viewMode === "gallery" ? (
         <DashboardTable
-          title={getTabTitle(activeTab)}
+          title="All media"
           icon={<ImageIcon className="text-muted-foreground" />}
-          count={data?.total ?? 0}
+          count={data.media.total}
+          error={error ? { message: error, onRetry: () => void refresh() } : null}
+          selectedCount={selectedCount}
+          onClearSelection={() => setSelectedIds(new Set())}
           controls={mediaControls}
           content={
             <div className="px-5 pb-5">
-              {visibleMedia.length === 0 ? (
+              {media.length === 0 ? (
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
                     <ImageIcon className="mx-auto mb-3 size-10" />
-                    <p>No media found.</p>
+                    <p>{emptyText}</p>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-                  {visibleMedia.map((item) => (
+                  {media.map((item) => (
                     <GalleryItem
                       key={item.id}
                       item={item}
                       selected={selectedIds.has(item.id)}
-                      onEdit={() => handleEdit(item)}
+                      onOpen={() => setOpenMedia(item)}
                       onDelete={() => setDeleteIds([item.id])}
-                      onToggle={() => handleToggleOne(item.id)}
+                      onToggle={() => toggleOne(item.id)}
                     />
                   ))}
                 </div>
               )}
             </div>
           }
-          footer={{
-            type: "pagination",
-            page: currentPage,
-            pageSize,
-            total: data?.total ?? 0,
-            totalPages: data?.total_pages ?? 0,
-            pageSizeOptions,
-            onPageChange: setCurrentPage,
-            onPageSizeChange: (size) => {
-              setPageSize(size)
-              setCurrentPage(1)
-            },
-          }}
+          footer={footer}
         />
       ) : (
         <DashboardTable
-          title={getTabTitle(activeTab)}
+          title="All media"
           icon={<ImageIcon className="text-muted-foreground" />}
-          count={data?.total ?? 0}
+          count={data.media.total}
+          error={error ? { message: error, onRetry: () => void refresh() } : null}
+          selectedCount={selectedCount}
+          onClearSelection={() => setSelectedIds(new Set())}
           controls={mediaControls}
           header={
             <TableHeader>
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
-                    onCheckedChange={handleToggleVisible}
+                    checked={
+                      allSelected ? true : someSelected ? "indeterminate" : false
+                    }
+                    onCheckedChange={toggleVisible}
+                    disabled={media.length === 0}
                     aria-label="Select visible media"
                   />
                 </TableHead>
-                {sortableMediaColumns.map((column) => (
+                {sortableColumns.map((column) => (
                   <TableHead
                     key={column.by}
                     column={column.column}
                     className={column.className}
-                    aria-sort={getAriaSort(sortBy, sortDirection, column.by)}
+                    aria-sort={
+                      sort === column.by
+                        ? direction === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
                   >
                     <TableSortButton
-                      active={sortBy === column.by}
-                      direction={sortDirection}
-                      onClick={() => handleSort(column.by)}
+                      active={sort === column.by}
+                      direction={direction}
+                      onClick={() => toggleSort(column.by)}
                     >
                       {column.label}
                     </TableSortButton>
@@ -452,102 +501,45 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={visibleMedia.length === 0}
-          emptyText="No media found."
-          emptyColSpan={6}
-          footer={{
-            type: "pagination",
-            page: currentPage,
-            pageSize,
-            total: data?.total ?? 0,
-            totalPages: data?.total_pages ?? 0,
-            pageSizeOptions,
-            onPageChange: setCurrentPage,
-            onPageSizeChange: (size) => {
-              setPageSize(size)
-              setCurrentPage(1)
-            },
-          }}
+          isEmpty={media.length === 0}
+          emptyText={emptyText}
+          emptyColSpan={7}
+          footer={footer}
         >
-          {visibleMedia.map((item) => (
+          {media.map((item) => (
             <MediaTableRow
               key={item.id}
               item={item}
               selected={selectedIds.has(item.id)}
-              onToggle={() => handleToggleOne(item.id)}
-              onEdit={() => handleEdit(item)}
+              onToggle={() => toggleOne(item.id)}
+              onOpen={() => setOpenMedia(item)}
               onDelete={() => setDeleteIds([item.id])}
             />
           ))}
         </DashboardTable>
       )}
 
-      <Dialog open={!!editingMedia} onOpenChange={(open) => !open && setEditingMedia(null)}>
-        <DialogContent variant="admin" className="max-h-[85vh] w-[710px] max-w-[calc(100vw-2rem)] sm:max-w-[710px]">
-          <DialogHeader>
-            <DialogTitle>{editingMedia?.file_type === "video" ? "Edit Video" : "Edit Image"}</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            {editingMedia ? (
-              <Card size="sm">
-                <CardContent className="grid gap-4">
-                  {editingMedia.file_type === "video" ? (
-                    <video
-                      src={editingMedia.url}
-                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
-                      controls
-                      muted
-                    />
-                  ) : (
-                    <img
-                      src={editingMedia.url}
-                      alt={editingMedia.alt_text ?? editingMedia.original_name}
-                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
-                    />
-                  )}
-                  <div className="grid gap-2">
-                    <Label htmlFor="media-alt-text">
-                      {editingMedia.file_type === "video" ? "Description" : "Alt text"}
-                    </Label>
-                    <Input
-                      id="media-alt-text"
-                      value={editAltText}
-                      onChange={(event) => setEditAltText(event.target.value)}
-                      placeholder="Optional"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
-          </DialogBody>
-          <DialogFooter variant="plain">
-            {editingMedia ? (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => {
-                  setDeleteIds([editingMedia.id])
-                  setEditingMedia(null)
-                }}
-              >
-                Delete
-              </Button>
-            ) : null}
-            <Button type="button" variant="outline" onClick={() => setEditingMedia(null)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={savingEdit} onClick={handleSaveEdit}>
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <MediaDetailsDialog
+        key={openMedia?.id ?? "closed"}
+        item={openMedia}
+        editable={openMedia?.owner_id === currentUserId}
+        onClose={() => setOpenMedia(null)}
+        onDelete={() => {
+          if (openMedia) setDeleteIds([openMedia.id])
+        }}
+        onSaved={async () => {
+          setOpenMedia(null)
+          await refresh()
+        }}
+      />
 
       <ConfirmDialog
-        open={!!deleteIds}
-        onOpenChange={(open) => !open && setDeleteIds(null)}
-        title={`Delete ${deleteIds?.length ?? 0} ${(deleteIds?.length ?? 0) === 1 ? "item" : "items"}?`}
-        description="This action cannot be undone."
+        open={Boolean(deleteIds)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteIds(null)
+        }}
+        title={`Delete ${deleteIds?.length ?? 0} ${(deleteIds?.length ?? 0) === 1 ? "file" : "files"}?`}
+        description="The file is erased from storage and removed from its owner's library. This cannot be undone."
         confirmLabel="Delete"
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
@@ -556,40 +548,177 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   )
 }
 
-function getAriaSort(
-  sortBy: MediaSortBy,
-  sortDirection: MediaSortDirection,
-  by: MediaSortBy
-) {
-  if (sortBy !== by) return "none"
-  return sortDirection === "asc" ? "ascending" : "descending"
+/**
+ * Alt text is saved through the owner-scoped endpoint, so it is editable only
+ * on your own files. Someone else's file opens read-only, with delete.
+ */
+function MediaDetailsDialog({
+  item,
+  editable,
+  onClose,
+  onDelete,
+  onSaved,
+}: {
+  item: AdminMediaItem | null
+  editable: boolean
+  onClose: () => void
+  onDelete: () => void
+  onSaved: () => Promise<void>
+}) {
+  const [altText, setAltText] = React.useState(item?.alt_text ?? "")
+  const [saving, setSaving] = React.useState(false)
+
+  async function handleSave() {
+    if (!item) return
+
+    setSaving(true)
+    dismissErrorToast()
+    try {
+      await updateMedia(item.id, altText)
+      toast.success("Media updated.")
+      await onSaved()
+    } catch (saveError) {
+      showErrorToast(getMediaErrorMessage(saveError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={Boolean(item)}
+      onOpenChange={(open) => {
+        if (!open && !saving) onClose()
+      }}
+    >
+      <DialogContent variant="admin">
+        <DialogHeader>
+          {/* A file name is the whole point of this header, so it wraps rather
+              than losing its end to the shared one-line truncation. */}
+          <DialogTitle className="pr-8 break-all whitespace-normal">
+            {item?.original_name ?? "File"}
+          </DialogTitle>
+          <DialogDescription className="break-words">
+            {item ? `Uploaded by ${item.owner_name} (${item.owner_email})` : null}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          {item ? (
+            <>
+              <Card size="sm">
+                <CardContent className="grid gap-4">
+                  {item.file_type === "video" ? (
+                    <video
+                      src={item.url}
+                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                      controls
+                      muted
+                    />
+                  ) : (
+                    <img
+                      src={item.url}
+                      alt={item.alt_text ?? item.original_name}
+                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                    />
+                  )}
+                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                    <DetailRow label="Type" value={item.mime_type} />
+                    <DetailRow label="Size" value={formatFileSize(item.file_size)} />
+                    <DetailRow label="Added" value={formatDate(item.created_at)} />
+                    <DetailRow label="Stored at" value={item.storage_path} />
+                  </dl>
+                </CardContent>
+              </Card>
+
+              {editable ? (
+                <Card size="sm">
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="media-alt-text">
+                        {item.file_type === "video" ? "Description" : "Alt text"}
+                      </Label>
+                      <Input
+                        id="media-alt-text"
+                        value={altText}
+                        onChange={(event) => setAltText(event.target.value)}
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : item.alt_text ? (
+                <Card size="sm">
+                  <CardContent className="grid gap-4">
+                    <dl className="grid gap-2 text-sm">
+                      <DetailRow
+                        label={item.file_type === "video" ? "Description" : "Alt text"}
+                        value={item.alt_text}
+                      />
+                    </dl>
+                  </CardContent>
+                </Card>
+              ) : null}
+            </>
+          ) : null}
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={saving}
+            onClick={onDelete}
+          >
+            Delete
+          </Button>
+          <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
+            {editable ? "Cancel" : "Close"}
+          </Button>
+          {editable ? (
+            <Button type="button" disabled={saving} onClick={() => void handleSave()}>
+              Save
+            </Button>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
+
 
 function MediaTableRow({
   item,
   selected,
   onToggle,
-  onEdit,
+  onOpen,
   onDelete,
 }: {
-  item: MediaItem
+  item: AdminMediaItem
   selected: boolean
   onToggle: () => void
-  onEdit: () => void
+  onOpen: () => void
   onDelete: () => void
 }) {
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell column="select">
-        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${item.original_name}`} />
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggle}
+          aria-label={`Select ${item.original_name}`}
+        />
       </TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
           <MediaPreview item={item} className="size-12 shrink-0 rounded-md border bg-muted" />
           <div className="min-w-0">
-            <div className="truncate font-medium" title={item.original_name}>
+            <button
+              type="button"
+              className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
+              title={item.original_name}
+              onClick={onOpen}
+            >
               {item.original_name}
-            </div>
+            </button>
             {item.alt_text ? (
               <div
                 className="max-w-[280px] truncate text-xs text-muted-foreground"
@@ -601,17 +730,40 @@ function MediaTableRow({
           </div>
         </div>
       </TableCell>
-      <TableCell column="mutedMeta" className="capitalize">{item.file_type}</TableCell>
-      <TableCell column="mutedMeta" className="hidden md:table-cell">{formatFileSize(item.file_size)}</TableCell>
+      <TableCell column="meta" className="max-w-56">
+        <span className="block truncate" title={item.owner_email}>
+          {item.owner_name}
+        </span>
+      </TableCell>
+      <TableCell column="mutedMeta" className="capitalize">
+        {item.file_type}
+      </TableCell>
+      <TableCell column="mutedMeta" className="hidden md:table-cell">
+        {formatFileSize(item.file_size)}
+      </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
-        {dateFormatter.format(new Date(item.created_at))}
+        {formatDate(item.created_at)}
       </TableCell>
       <TableCell column="meta">
-        <div className="flex justify-start gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
-            <EditIcon className="size-4" />
+        <div className="flex items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onOpen}
+            title="File settings"
+            aria-label={`File settings for ${item.original_name}`}
+          >
+            <SettingsIcon className="size-4" />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            title="Delete file"
+            aria-label={`Delete ${item.original_name}`}
+          >
             <Trash2Icon className="size-4" />
           </Button>
         </div>
@@ -624,21 +776,36 @@ function GalleryItem({
   item,
   selected,
   onToggle,
-  onEdit,
+  onOpen,
   onDelete,
 }: {
-  item: MediaItem
+  item: AdminMediaItem
   selected: boolean
   onToggle: () => void
-  onEdit: () => void
+  onOpen: () => void
   onDelete: () => void
 }) {
   return (
-    <div className={cn("group relative overflow-hidden rounded-lg border bg-muted", selected && "border-destructive ring-2 ring-destructive/25")}>
-      <button type="button" className="relative block aspect-[3/4] w-full bg-muted" onClick={onEdit}>
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-lg border bg-muted",
+        selected && "border-destructive ring-2 ring-destructive/25"
+      )}
+    >
+      <button
+        type="button"
+        className="relative block aspect-[3/4] w-full bg-muted"
+        onClick={onOpen}
+      >
         <MediaPreview item={item} className="h-full w-full" />
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
           {item.file_type}
+        </span>
+        <span
+          className="absolute right-2 bottom-2 left-2 truncate rounded bg-background/90 px-1.5 py-0.5 text-left text-[10px] group-hover:opacity-0"
+          title={item.owner_email}
+        >
+          {item.owner_name}
         </span>
       </button>
       <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
@@ -650,10 +817,22 @@ function GalleryItem({
             aria-label={`Select ${item.original_name}`}
           />
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
-          <EditIcon className="size-4" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onOpen}
+          aria-label={`File settings for ${item.original_name}`}
+        >
+          <SettingsIcon className="size-4" />
         </Button>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDelete}
+          aria-label={`Delete ${item.original_name}`}
+        >
           <Trash2Icon className="size-4" />
         </Button>
       </div>
@@ -661,7 +840,13 @@ function GalleryItem({
   )
 }
 
-function MediaPreview({ item, className }: { item: MediaItem; className?: string }) {
+function MediaPreview({
+  item,
+  className,
+}: {
+  item: AdminMediaItem
+  className?: string
+}) {
   return (
     <div className={cn("relative grid place-items-center overflow-hidden", className)}>
       {item.file_type === "video" ? (
@@ -678,23 +863,4 @@ function MediaPreview({ item, className }: { item: MediaItem; className?: string
       )}
     </div>
   )
-}
-
-function activeTabToFileType(tab: MediaTabId): MediaFileType | undefined {
-  if (tab === "images") return "image"
-  if (tab === "videos") return "video"
-  return undefined
-}
-
-function getTabTitle(tab: MediaTabId) {
-  if (tab === "images") return "Images"
-  if (tab === "videos") return "Videos"
-  return "All Media"
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes === 0) return "0 Bytes"
-  const units = ["Bytes", "KB", "MB", "GB"]
-  const index = Math.floor(Math.log(bytes) / Math.log(1024))
-  return `${parseFloat((bytes / 1024 ** index).toFixed(2))} ${units[index]}`
 }

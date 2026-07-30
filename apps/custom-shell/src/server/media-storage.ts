@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
@@ -62,6 +63,49 @@ export async function deleteFromR2(storagePath: string) {
       Key: storagePath,
     })
   )
+}
+
+export type R2ObjectSummary = { key: string; size: number }
+
+/**
+ * Every object in the bucket, paged 1000 at a time. `truncated` means the cap
+ * was hit before the end, so the caller must not treat a key's absence from
+ * this list as proof the file is gone.
+ */
+export async function listR2Objects(maxKeys: number) {
+  const client = getR2Client()
+  const bucket = getBucketName()
+  const objects: R2ObjectSummary[] = []
+  let continuationToken: string | undefined
+  let more = false
+
+  do {
+    const response = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        ContinuationToken: continuationToken,
+        MaxKeys: 1000,
+      })
+    )
+
+    for (const item of response.Contents ?? []) {
+      if (item.Key) {
+        objects.push({ key: item.Key, size: item.Size ?? 0 })
+      }
+    }
+
+    // More pages exist but we cannot ask for them without a token. Report the
+    // list as incomplete rather than letting a caller delete on the strength of
+    // a key it never saw.
+    more = Boolean(response.IsTruncated)
+    continuationToken = more ? response.NextContinuationToken : undefined
+
+    if (objects.length >= maxKeys || (more && !continuationToken)) {
+      return { objects, truncated: more }
+    }
+  } while (continuationToken)
+
+  return { objects, truncated: false }
 }
 
 export async function getFromR2(storagePath: string, range?: string | null) {

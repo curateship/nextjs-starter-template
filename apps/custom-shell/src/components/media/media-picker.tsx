@@ -37,6 +37,7 @@ import {
   type MediaItem,
   type MediaListResponse,
 } from "@/lib/api/media"
+import { formatFileSize } from "@/lib/format-bytes"
 import { cn } from "@/lib/utils"
 
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
@@ -383,11 +384,4 @@ export function MediaPicker({
       </DialogContent>
     </Dialog>
   )
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes === 0) return "0 Bytes"
-  const units = ["Bytes", "KB", "MB", "GB"]
-  const index = Math.floor(Math.log(bytes) / Math.log(1024))
-  return `${parseFloat((bytes / 1024 ** index).toFixed(2))} ${units[index]}`
 }

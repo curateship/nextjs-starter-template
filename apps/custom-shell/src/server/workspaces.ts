@@ -5,6 +5,7 @@ import {
   iconMeta,
   normalizeStyling,
   type IconKey,
+  type ShellChildItem,
   type ShellSection,
   type ShellStyling,
   type ShellTopRightNavigationItem,
@@ -23,6 +24,22 @@ import { now, uuid } from "@/server/security"
 
 const DEFAULT_WORKSPACE_NAME = "My project"
 const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
+
+/** The pages that hang off the media library. */
+const MEDIA_CHILD_LINKS: ShellChildItem[] = [
+  {
+    id: "item-media-storage",
+    label: "Storage by user",
+    href: "/admin/media/storage",
+    icon: "hard-drive",
+  },
+  {
+    id: "item-media-orphans",
+    label: "Orphaned files",
+    href: "/admin/media/orphans",
+    icon: "unlink",
+  },
+]
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -341,7 +358,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
       sections: Array.isArray(settings.sections)
-        ? settings.sections
+        ? withMediaChildLinks(settings.sections)
         : fallback.sections,
       // Default fills rows saved before this field existed.
       sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
@@ -352,6 +369,26 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
   }
 
   return fallback
+}
+
+/**
+ * The storage and orphan pages arrived after most workspaces were created, and
+ * saved navigation is never rewritten by a deploy — so their links would only
+ * ever show up in brand new workspaces. Fill them in for a media entry that has
+ * no children at all. Once the entry has any child, the sidebar is the user's
+ * again: removing one of the two links keeps it removed.
+ */
+function withMediaChildLinks(sections: ShellSection[]): ShellSection[] {
+  return sections.map((section) => ({
+    ...section,
+    entries: (section.entries ?? []).map((entry) =>
+      entry.type === "item" &&
+      entry.href === "/admin/media" &&
+      !entry.children?.length
+        ? { ...entry, children: MEDIA_CHILD_LINKS.map((child) => ({ ...child })) }
+        : entry
+    ),
+  }))
 }
 
 function cleanWorkspaceSettings(
@@ -454,6 +491,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           href: "/admin/media",
           icon: "image",
           visible: true,
+          children: MEDIA_CHILD_LINKS.map((child) => ({ ...child })),
         },
         {
           type: "item",
