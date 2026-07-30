@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import {
   compileAutomationGraph,
   automationConfigSchema,
-  automationGraphSchema,
   type AutomationEdge,
   type AutomationNode,
   type AutomationTakeProfitNode,
@@ -26,7 +25,11 @@ const baseIndicator = (id: string): AutomationNode => ({
   },
 })
 
-const dca = (id: string, maxPositionPct = 25): AutomationNode => ({
+const dca = (
+  id: string,
+  maxPositionPct = 25,
+  overrides: Partial<AutomationNode & { kind: "dca" }> = {}
+): AutomationNode => ({
   id,
   kind: "dca",
   rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
@@ -38,8 +41,14 @@ const dca = (id: string, maxPositionPct = 25): AutomationNode => ({
   trendFilterEnabled: false,
   trendMaBars: 200,
   exitOnTrendBreak: false,
+  crashFilterEnabled: false,
+  crashLookbackBars: 500,
+  crashMinFallPct: 50,
+  crashMaxFallPct: 90,
+  crashEntryAbovePct: 5,
   x: 0,
   y: 0,
+  ...overrides,
 })
 
 const takeProfit = (
@@ -93,6 +102,76 @@ describe("dca ladder math", () => {
 })
 
 describe("compileAutomationGraph — DCA", () => {
+  it("rejects a crash band that can never match", () => {
+    // Floor at or above ceiling means no fall is ever inside the band, so the
+    // gate passes every bar and the card does nothing while looking switched on.
+    const result = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [
+          baseIndicator("base"),
+          dca("dca", 25, {
+            crashFilterEnabled: true,
+            crashMinFallPct: 90,
+            crashMaxFallPct: 50,
+          }),
+          takeProfit("tp", 3),
+        ],
+        edges: [
+          edge("e1", "base", "bullish", "dca"),
+          edge("e2", "dca", "tp", "tp"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(
+      result.errors.some(
+        (error) =>
+          error.code === "invalid_strategy" && /Crash gate/.test(error.message)
+      )
+    ).toBe(true)
+
+    // The same band the right way round compiles clean.
+    const ok = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [
+          baseIndicator("base"),
+          dca("dca", 25, {
+            crashFilterEnabled: true,
+            crashMinFallPct: 50,
+            crashMaxFallPct: 90,
+          }),
+          takeProfit("tp", 3),
+        ],
+        edges: [
+          edge("e1", "base", "bullish", "dca"),
+          edge("e2", "dca", "tp", "tp"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(ok.errors).toEqual([])
+
+    // And an inverted band is ignored entirely while the gate is switched off.
+    const off = compileAutomationGraph({
+      interval: "1h",
+      graph: {
+        nodes: [
+          baseIndicator("base"),
+          dca("dca", 25, { crashMinFallPct: 90, crashMaxFallPct: 50 }),
+          takeProfit("tp", 3),
+        ],
+        edges: [
+          edge("e1", "base", "bullish", "dca"),
+          edge("e2", "dca", "tp", "tp"),
+        ],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+    })
+    expect(off.errors).toEqual([])
+  })
+
   it("compiles Base → DCA → TP/SL into a runnable config", () => {
     const result = compileAutomationGraph({
       interval: "1h",
@@ -125,6 +204,11 @@ describe("compileAutomationGraph — DCA", () => {
       trendFilterEnabled: false,
       trendMaBars: 200,
       exitOnTrendBreak: false,
+      crashFilterEnabled: false,
+      crashLookbackBars: 500,
+      crashMinFallPct: 50,
+      crashMaxFallPct: 90,
+      crashEntryAbovePct: 5,
     })
     // The exits fold into the long side, measured from the blended average.
     expect(result.config?.protection.long).toEqual({

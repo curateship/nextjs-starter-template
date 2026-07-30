@@ -185,6 +185,12 @@ export function automationInputRows(
               : "off",
           },
           {
+            label: "DCA crash gate",
+            value: config.dca.crashFilterEnabled
+              ? `after a ${config.dca.crashMinFallPct}-${config.dca.crashMaxFallPct}% fall, wait until price is within ${config.dca.crashEntryAbovePct}% of the bottom (${config.dca.crashLookbackBars}-candle look back)`
+              : "off",
+          },
+          {
             label: "DCA confirmations",
             value:
               (config.dca.confirmations?.length ?? 0) > 0

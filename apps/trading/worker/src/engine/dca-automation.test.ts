@@ -68,6 +68,11 @@ function dcaConfig(
       trendFilterEnabled: false,
       trendMaBars: 200,
       exitOnTrendBreak: false,
+      crashFilterEnabled: false,
+      crashLookbackBars: 500,
+      crashMinFallPct: 50,
+      crashMaxFallPct: 90,
+      crashEntryAbovePct: 5,
       ...overrides,
     },
   }
@@ -176,6 +181,126 @@ describe("DCA through the real backtest runner", () => {
       bar(9, 200, 79, 210, 10, 82),
     ])
     expect(ungated.fills.length).toBeGreaterThan(0)
+  })
+
+  // A 75% crash, then a dead-cat bounce that pulls back near its high — which is
+  // what confirms a base UP in the bounce, since a base only forms on a low lower
+  // than the previous `basePeriods` lows. Then the bleed. This is the shape of the
+  // -85.88% chart the crash gate exists for.
+  const crashThenBounce = [
+    // the pre-crash shelf at 100 — the top the fall is measured from
+    bar(0, 100, 99, 101),
+    bar(1, 100, 99, 101),
+    bar(2, 100, 99, 101),
+    bar(3, 100, 99, 101),
+    bar(4, 100, 99, 101),
+    bar(5, 100, 99, 101),
+    // the crash: 101 down to a close of 25, a 75% fall
+    bar(6, 80, 78, 100),
+    bar(7, 60, 58, 81),
+    bar(8, 40, 38, 61),
+    bar(9, 26, 25, 41),
+    bar(10, 25, 24, 27),
+    // the dead cat bounce, climbing to a shelf in the mid 40s
+    bar(11, 33, 26, 34),
+    bar(12, 38, 32, 39),
+    bar(13, 42, 37, 43),
+    bar(14, 45, 43, 46),
+    bar(15, 46, 44, 47),
+    bar(16, 47, 45, 48),
+    bar(17, 47, 46, 48),
+    // the pullback that confirms a base at 42, high up inside the bounce
+    bar(18, 44, 42, 47),
+    bar(19, 45, 43, 46),
+    // and then the bleed. 5% below 42 is 39.9, so an ungated ladder buys here
+    bar(20, 40, 39, 46),
+    bar(21, 36, 35, 41),
+  ]
+
+  it("crash gate: will not start a ladder up in the dead cat bounce", () => {
+    const gated = run(dcaConfig({ crashFilterEnabled: true }), crashThenBounce)
+    expect(gated.fills.length).toBe(0)
+    expect(gated.openPosition).toBeNull()
+
+    // The identical tape with the gate off buys the bounce, which is the loss
+    // this rule exists to prevent. Proves the gate is what stopped it.
+    const ungated = run(dcaConfig(), crashThenBounce)
+    expect(ungated.fills.length).toBeGreaterThan(0)
+    expect(
+      ungated.fills.some((fill) => fill.side === "buy" && Number(fill.px) > 35)
+    ).toBe(true)
+  })
+
+  it("crash gate: trades once price is back down at the bottom", () => {
+    // Same tape, continued: the bleed carries price back to the crash bottom, a
+    // base confirms down there, and the ladder is finally allowed to buy.
+    const backToTheBottom = [
+      ...crashThenBounce,
+      bar(22, 31, 30, 37),
+      bar(23, 28, 27, 32),
+      bar(24, 26, 25, 29),
+      bar(25, 25, 23, 27),
+      bar(26, 26, 24, 27),
+      // base 23 confirms here. 5% below it is 21.85, and market mode needs a
+      // candle to CLOSE below the level, not just wick through it.
+      bar(27, 21, 20, 26),
+      bar(28, 22, 20, 23),
+    ]
+    const gated = run(dcaConfig({ crashFilterEnabled: true }), backToTheBottom)
+    expect(gated.fills.length).toBeGreaterThan(0)
+    // Every buy has to be down at the bottom, not up in the bounce it sat out.
+    for (const fill of gated.fills.filter((f) => f.side === "buy")) {
+      expect(Number(fill.px)).toBeLessThan(30)
+    }
+  })
+
+  it("crash gate: leaves a market that has NOT crashed alone", () => {
+    // This tape slides 101 -> 77, a 24% dip. Nowhere near the 50% floor, so the
+    // gate must pass and the ladder must behave exactly as if it were off.
+    const shallow = [
+      ...setup,
+      bar(7, 84, 83, 88, 10, 87),
+      bar(8, 77, 76, 85, 10, 84),
+      bar(9, 200, 79, 210, 10, 82),
+    ]
+    const gated = run(dcaConfig({ crashFilterEnabled: true }), shallow)
+    const off = run(dcaConfig(), shallow)
+    expect(gated.fills.length).toBe(off.fills.length)
+    expect(gated.fills.length).toBeGreaterThan(0)
+  })
+
+  it("crash gate: ignores falls deeper than the band, where a coin is finished", () => {
+    // 101 -> 2 is a 98% fall, past the 90% ceiling, so the gate stops applying and
+    // the ladder is on its own. This is the "don't pretend a dead coin is cheap"
+    // boundary: the rule declines to have an opinion rather than gating.
+    const dead = [
+      bar(0, 100, 99, 101),
+      bar(1, 100, 99, 101),
+      bar(2, 100, 99, 101),
+      bar(3, 100, 99, 101),
+      bar(4, 100, 99, 101),
+      bar(5, 100, 99, 101),
+      bar(6, 80, 78, 100),
+      bar(7, 40, 38, 81),
+      bar(8, 12, 10, 41),
+      bar(9, 4, 3.5, 13),
+      bar(10, 2, 1.8, 4.5),
+      bar(11, 2.6, 2.0, 2.7),
+      bar(12, 3.0, 2.6, 3.1),
+      bar(13, 3.3, 2.9, 3.4),
+      bar(14, 3.5, 3.2, 3.6),
+      bar(15, 3.6, 3.3, 3.7),
+      bar(16, 3.7, 3.4, 3.8),
+      bar(17, 3.7, 3.5, 3.8),
+      bar(18, 3.4, 3.1, 3.7),
+      bar(19, 3.5, 3.2, 3.6),
+      // base 3.1 confirms; 5% below it is 2.945, and this closes under it
+      bar(20, 2.9, 2.8, 3.5),
+    ]
+    const gated = run(dcaConfig({ crashFilterEnabled: true }), dead)
+    const off = run(dcaConfig(), dead)
+    expect(gated.fills.length).toBe(off.fills.length)
+    expect(off.fills.length).toBeGreaterThan(0)
   })
 
   it("trend gate: lets the same ladder through when the market has been rising", () => {
