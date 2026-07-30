@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -113,6 +114,7 @@ export function AdminPlansDashboard({
   const [editing, setEditing] = React.useState<AdminPlan | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [archiveTarget, setArchiveTarget] = React.useState<AdminPlan | null>(null)
+  const [archiving, setArchiving] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massArchiving, setMassArchiving] = React.useState(false)
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
@@ -184,7 +186,7 @@ export function AdminPlansDashboard({
         title="Plans"
         icon={<PackageIcon />}
         count={plans.length}
-        status={error ? { tone: "error", text: error } : null}
+        error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -358,88 +360,60 @@ export function AdminPlansDashboard({
         }}
       />
 
-      <Dialog open={massArchiveOpen} onOpenChange={setMassArchiveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Archive {selectedIds.size}{" "}
-              {selectedIds.size === 1 ? "plan" : "plans"}?
-            </DialogTitle>
-            <DialogDescription>
-              They disappear from the pricing page. Anyone already on them keeps
-              their plan until their subscription ends.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setMassArchiveOpen(false)}
-              disabled={massArchiving}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={massArchiving}
-              onClick={async () => {
-                setMassArchiving(true)
-                try {
-                  for (const planId of selectedIds) {
-                    await archiveAdminPlan(planId)
-                  }
-                  toast.success("Plans archived.")
-                  setSelectedIds(new Set())
-                  setMassArchiveOpen(false)
-                  await refresh()
-                } catch (archiveError) {
-                  toast.error(getPlanErrorMessage(archiveError))
-                } finally {
-                  setMassArchiving(false)
-                }
-              }}
-            >
-              Archive plans
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={massArchiveOpen}
+        onOpenChange={setMassArchiveOpen}
+        title={`Archive ${selectedIds.size} ${selectedIds.size === 1 ? "plan" : "plans"}?`}
+        description="They disappear from the pricing page. Anyone already on them keeps their plan until their subscription ends."
+        confirmLabel="Archive plans"
+        loading={massArchiving}
+        onConfirm={async () => {
+          setMassArchiving(true)
+          try {
+            for (const planId of selectedIds) {
+              await archiveAdminPlan(planId)
+            }
+            toast.success("Plans archived.")
+            setSelectedIds(new Set())
+            setMassArchiveOpen(false)
+            await refresh()
+          } catch (archiveError) {
+            toast.error(getPlanErrorMessage(archiveError))
+          } finally {
+            setMassArchiving(false)
+          }
+        }}
+      />
 
-      <Dialog
+      <ConfirmDialog
         open={Boolean(archiveTarget)}
         onOpenChange={(open) => {
           if (!open) setArchiveTarget(null)
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Archive this plan?</DialogTitle>
-            <DialogDescription>
-              {archiveTarget
-                ? `${archiveTarget.name} disappears from the pricing page. People already on it keep it until their subscription ends.`
-                : null}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setArchiveTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                try {
-                  await archiveAdminPlan(archiveTarget!.id)
-                  toast.success("Plan archived.")
-                  setArchiveTarget(null)
-                  await refresh()
-                } catch (archiveError) {
-                  toast.error(getPlanErrorMessage(archiveError))
-                }
-              }}
-            >
-              Archive plan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Archive this plan?"
+        description={
+          archiveTarget
+            ? `${archiveTarget.name} disappears from the pricing page. People already on it keep it until their subscription ends.`
+            : null
+        }
+        confirmLabel="Archive plan"
+        loading={archiving}
+        onConfirm={async () => {
+          const target = archiveTarget
+          if (!target) return
+          setArchiving(true)
+          try {
+            await archiveAdminPlan(target.id)
+            toast.success("Plan archived.")
+            setArchiveTarget(null)
+            await refresh()
+          } catch (archiveError) {
+            toast.error(getPlanErrorMessage(archiveError))
+          } finally {
+            setArchiving(false)
+          }
+        }}
+      />
     </div>
   )
 }

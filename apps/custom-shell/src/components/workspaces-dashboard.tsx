@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
+import { toast } from "sonner"
 import {
   PlusIcon,
   SettingsIcon,
@@ -26,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -131,6 +133,7 @@ export function WorkspacesDashboard({
         await createWorkspace(name, form.icon)
       }
       await router.invalidate()
+      toast.success(editing ? "Workspace updated." : "Workspace created.")
       setFormOpen(false)
       setEditing(null)
     } catch (error) {
@@ -166,6 +169,7 @@ export function WorkspacesDashboard({
         await deleteWorkspace(id)
       }
       await router.invalidate()
+      toast.success("Workspaces deleted.")
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (error) {
@@ -183,6 +187,7 @@ export function WorkspacesDashboard({
     try {
       await deleteWorkspace(pendingDelete.id)
       await router.invalidate()
+      toast.success("Workspace deleted.")
       setPendingDelete(null)
     } catch (error) {
       setError(getWorkspaceErrorMessage(error))
@@ -193,12 +198,11 @@ export function WorkspacesDashboard({
 
   return (
     <div className="w-full pb-8">
-      {error ? <Message>{error}</Message> : null}
-
       <DashboardTable
         title="Workspaces"
         icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
         count={sortedWorkspaces.length}
+        error={error ? { message: error } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -287,6 +291,7 @@ export function WorkspacesDashboard({
                     type="button"
                     className="block max-w-full truncate text-left font-medium group-hover:underline"
                     onClick={() => openEditForm(workspace)}
+                    title={workspace.name}
                   >
                     {workspace.name}
                   </button>
@@ -329,35 +334,15 @@ export function WorkspacesDashboard({
         ))}
       </DashboardTable>
 
-      <Dialog open={massDeleteOpen} onOpenChange={setMassDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Delete {selectedIds.size}{" "}
-              {selectedIds.size === 1 ? "workspace" : "workspaces"}?
-            </DialogTitle>
-            <DialogDescription>
-              Their settings and navigation are removed. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setMassDeleteOpen(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmMassDelete}
-              disabled={busy}
-            >
-              Delete workspaces
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={massDeleteOpen}
+        onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "workspace" : "workspaces"}?`}
+        description="Their settings and navigation are removed. This cannot be undone."
+        confirmLabel="Delete workspaces"
+        loading={busy}
+        onConfirm={confirmMassDelete}
+      />
 
       <WorkspaceFormDialog
         open={formOpen}
@@ -369,12 +354,15 @@ export function WorkspacesDashboard({
         onSave={() => void saveWorkspace()}
       />
 
-      <DeleteWorkspaceDialog
-        workspace={pendingDelete}
-        deleting={busy}
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null)
         }}
+        title="Delete Workspace"
+        description={`${pendingDelete?.name ?? "This workspace"} and its settings are removed. This cannot be undone.`}
+        confirmLabel="Delete"
+        loading={busy}
         onConfirm={() => void confirmDelete()}
       />
     </div>
@@ -468,60 +456,5 @@ function WorkspaceFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function DeleteWorkspaceDialog({
-  workspace,
-  deleting,
-  onOpenChange,
-  onConfirm,
-}: {
-  workspace: WorkspaceItem | null
-  deleting: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={Boolean(workspace)} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Delete Workspace</DialogTitle>
-          <DialogDescription>
-            {workspace?.name ?? "This workspace"} and its settings are removed.
-            This cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={deleting}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleting}
-              onClick={onConfirm}
-            >
-              <Trash2Icon className="size-4" />
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function Message({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {children}
-    </div>
   )
 }

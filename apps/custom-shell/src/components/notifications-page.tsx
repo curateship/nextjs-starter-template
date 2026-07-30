@@ -8,7 +8,6 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -16,14 +15,7 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Select,
   SelectContent,
@@ -409,7 +401,7 @@ export function NotificationsPage({
               </div>
             </TableCell>
             <TableCell column="preview">
-              <span className="line-clamp-1 max-w-44">
+              <span className="block truncate" title={item.feedback_message}>
                 {item.feedback_message}
               </span>
             </TableCell>
@@ -435,68 +427,24 @@ export function NotificationsPage({
           </TableRow>
         ))}
       </DashboardTable>
-      <NotificationDeleteDialog
+      <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedIds.size} notification${selectedIds.size === 1 ? "" : "s"}?`}
+        description="This cannot be undone."
         confirmLabel="Delete"
-        deleting={deleting}
+        loading={deleting}
         onConfirm={() => void deleteSelected()}
       />
-      <NotificationDeleteDialog
+      <ConfirmDialog
         open={clearAllOpen}
         onOpenChange={setClearAllOpen}
         title="Clear all notifications?"
+        description="This cannot be undone."
         confirmLabel="Clear all"
-        deleting={deleting}
+        loading={deleting}
         onConfirm={() => void clearAll()}
       />
     </div>
-  )
-}
-
-function NotificationDeleteDialog({
-  open,
-  title,
-  confirmLabel,
-  deleting,
-  onOpenChange,
-  onConfirm,
-}: {
-  open: boolean
-  title: string
-  confirmLabel: string
-  deleting: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This cannot be undone.</DialogDescription>
-        </DialogHeader>
-
-        <DialogFooter variant="plain">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={deleting}
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={deleting}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

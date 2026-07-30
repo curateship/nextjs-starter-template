@@ -1,6 +1,6 @@
 import * as React from "react"
+import { toast } from "sonner"
 import {
-  AlertCircleIcon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
   SaveIcon,
@@ -24,6 +24,7 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -125,6 +126,7 @@ export function FeedbackDashboard({
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [quickDeleting, setQuickDeleting] = React.useState(false)
+  const [reloadCount, setReloadCount] = React.useState(0)
 
   React.useEffect(() => {
     let active = true
@@ -148,7 +150,7 @@ export function FeedbackDashboard({
     return () => {
       active = false
     }
-  }, [refreshToken])
+  }, [refreshToken, reloadCount])
 
   const filteredFeedback = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -258,6 +260,7 @@ export function FeedbackDashboard({
       const result = await deleteFeedbackMany(ids)
       const deletedIds = new Set(result.feedbackIds)
       setFeedback((current) => current.filter((item) => !deletedIds.has(item.id)))
+      toast.success("Feedback deleted.")
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (deleteError) {
@@ -275,6 +278,7 @@ export function FeedbackDashboard({
     try {
       await deleteFeedback(deletingFeedback.id)
       handleDeleted(deletingFeedback.id)
+      toast.success("Feedback deleted.")
       setDeletingFeedback(null)
     } catch (deleteError) {
       setError(getFeedbackErrorMessage(deleteError))
@@ -285,20 +289,18 @@ export function FeedbackDashboard({
 
   return (
     <div className="w-full pb-8">
-      {error ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
-
       <DashboardTable
         title="Feedback"
         icon={<MessageSquarePlusIcon className="text-muted-foreground" />}
         count={filteredFeedback.length}
+        error={
+          error
+            ? {
+                message: error,
+                onRetry: () => setReloadCount((count) => count + 1),
+              }
+            : null
+        }
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -511,119 +513,29 @@ export function FeedbackDashboard({
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
       />
-      <MassDeleteFeedbackModal
-        count={selectedIds.size}
-        deleting={massDeleting}
+      <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} Feedback Item${selectedIds.size === 1 ? "" : "s"}`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        loading={massDeleting}
+        disabled={selectedIds.size === 0}
         onConfirm={handleMassDelete}
       />
-      <DeleteFeedbackModal
-        feedback={deletingFeedback}
-        deleting={quickDeleting}
+      <ConfirmDialog
         open={Boolean(deletingFeedback)}
         onOpenChange={(open) => {
           if (!open) setDeletingFeedback(null)
         }}
+        title="Delete Feedback Item"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        loading={quickDeleting}
+        disabled={!deletingFeedback}
         onConfirm={handleQuickDelete}
       />
     </div>
-  )
-}
-
-function DeleteFeedbackModal({
-  feedback,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  feedback: FeedbackItem | null
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Delete Feedback Item</DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || !feedback}
-            >
-              <Trash2Icon className="h-4 w-4" />
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function MassDeleteFeedbackModal({
-  count,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  count: number
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>
-            Delete {count} Feedback Item{count === 1 ? "" : "s"}
-          </DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || count === 0}
-            >
-              <Trash2Icon className="h-4 w-4" />
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -671,6 +583,7 @@ function EditFeedbackModal({
         message: trimmedMessage,
       })
       onUpdated(updated)
+      toast.success("Feedback updated.")
       onOpenChange(false)
     } catch (saveError) {
       setError(getFeedbackErrorMessage(saveError))
@@ -687,6 +600,7 @@ function EditFeedbackModal({
     try {
       await deleteFeedback(feedback.id)
       onDeleted(feedback.id)
+      toast.success("Feedback deleted.")
       onOpenChange(false)
     } catch (deleteError) {
       setError(getFeedbackErrorMessage(deleteError))

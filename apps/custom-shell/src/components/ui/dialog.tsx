@@ -115,9 +115,9 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-header"
       className={cn(
-        "flex flex-col gap-1 text-left",
+        "flex flex-col gap-2 text-left",
         contentVariant === "admin"
-          ? "relative px-6 pt-6 pb-0"
+          ? "relative p-6"
           : "px-6 py-5",
         className
       )}
@@ -140,7 +140,7 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
         data-slot="dialog-body"
         className={cn(
           contentVariant === "admin"
-            ? "grid gap-6 px-6 pt-6 pb-6 **:data-[slot=card]:shadow-none"
+            ? "grid gap-6 px-6 pt-0 pb-6 **:data-[slot=card]:shadow-none"
             : "px-6 py-6",
           className
         )}

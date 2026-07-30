@@ -215,10 +215,20 @@
   padding-top: var(--shell-modal-padding, 1.5rem);
 }
 
+/* The admin header owns the space below itself (the body starts flush), so a
+   modal with no body — a confirmation — still separates header from footer. */
+[data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-header"] {
+  padding-bottom: var(--shell-modal-padding, 1.5rem);
+}
+
 [data-slot="dialog-body"] {
   padding: var(--shell-modal-padding, 1.5rem);
   /* Inner spacing also drives the gap between the modal's stacked cards. */
   gap: var(--shell-modal-padding, 1.5rem);
+}
+
+[data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-body"] {
+  padding-top: 0;
 }
 
 [data-slot="dialog-footer"] {

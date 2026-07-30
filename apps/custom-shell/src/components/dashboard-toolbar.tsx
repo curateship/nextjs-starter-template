@@ -42,14 +42,6 @@ function DashboardToolbarControls({
   )
 }
 
-const dashboardToolbarSegmentedGroupClassName =
-  "flex items-center gap-1 rounded-lg bg-muted p-1"
-const dashboardToolbarSegmentedButtonClassName =
-  "inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition-all"
-const dashboardToolbarSegmentedButtonActiveClassName =
-  "bg-card text-foreground shadow-sm"
-const dashboardToolbarSegmentedButtonInactiveClassName =
-  "text-muted-foreground hover:text-foreground"
 const dashboardToolbarButtonGroupClassName =
   "flex h-8 overflow-hidden rounded-lg border"
 const dashboardToolbarButtonGroupItemClassName =
@@ -144,10 +136,6 @@ export {
   dashboardToolbarClearButtonClassName,
   dashboardToolbarFilterChipClassName,
   dashboardToolbarMutedButtonClassName,
-  dashboardToolbarSegmentedButtonActiveClassName,
-  dashboardToolbarSegmentedButtonClassName,
-  dashboardToolbarSegmentedGroupClassName,
-  dashboardToolbarSegmentedButtonInactiveClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,

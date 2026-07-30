@@ -14,6 +14,7 @@ import {
   DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -26,15 +27,14 @@ import {
   TableBody,
   TableCell,
   TableRow,
-  TableStatusIndicator,
   TableSurface,
 } from "@/components/ui/table"
 
 const defaultPageSizeOptions = [10, 25, 50]
 
-type DashboardTableStatus = {
-  tone: "error" | "success"
-  text: string
+type DashboardTableError = {
+  message: string
+  onRetry?: () => void
 }
 
 type DashboardTableFooter =
@@ -68,7 +68,7 @@ type DashboardTableBaseProps = {
   icon?: React.ReactNode
   count: number
   controls?: React.ReactNode
-  status?: DashboardTableStatus | null
+  error?: DashboardTableError | null
   selectedCount?: number
   onClearSelection?: () => void
   footer: DashboardTableFooter
@@ -99,7 +99,7 @@ export function DashboardTable(props: DashboardTableProps) {
     icon,
     count,
     controls,
-    status,
+    error,
     selectedCount = 0,
     onClearSelection,
     footer,
@@ -125,17 +125,16 @@ export function DashboardTable(props: DashboardTableProps) {
               Clear {selectedCount} selected
             </button>
           ) : null}
-          {status ? (
-            <TableStatusIndicator tone={status.tone}>
-              {status.text}
-            </TableStatusIndicator>
-          ) : null}
         </DashboardToolbarTitle>
 
         {controls ? (
           <DashboardToolbarControls>{controls}</DashboardToolbarControls>
         ) : null}
       </DashboardToolbar>
+
+      {error ? (
+        <ErrorBanner message={error.message} onRetry={error.onRetry} />
+      ) : null}
 
       {"content" in props ? (
         <div>{props.content}</div>
