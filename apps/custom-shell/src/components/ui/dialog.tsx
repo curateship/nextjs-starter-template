@@ -130,17 +130,21 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   const contentVariant = React.useContext(DialogContentVariantContext)
 
   return (
+    // The admin scroll viewport tucks 8px up under the header's bottom padding
+    // and the body takes those 8px back as its own top padding: the visible
+    // gap is unchanged, but a focus ring on the first control now paints
+    // inside the viewport instead of being clipped at its top edge.
     <ScrollArea
       className={cn(
         "min-h-0",
-        contentVariant === "admin" && "flex flex-1 flex-col overflow-hidden"
+        contentVariant === "admin" && "-mt-2 flex flex-1 flex-col overflow-hidden"
       )}
     >
       <div
         data-slot="dialog-body"
         className={cn(
           contentVariant === "admin"
-            ? "grid gap-6 px-6 pt-0 pb-6 **:data-[slot=card]:shadow-none"
+            ? "grid gap-6 px-6 pt-2 pb-6 **:data-[slot=card]:shadow-none"
             : "px-6 py-6",
           className
         )}

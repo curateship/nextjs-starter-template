@@ -8,7 +8,10 @@ import {
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
-import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+} from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -52,13 +55,21 @@ import {
   updateWorkspace,
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
-import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
+import {
+  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  iconMeta,
+  renderShellIcon,
+  type IconKey,
+} from "@/lib/custom-shell"
+import { useShellRuntime } from "@/components/shell-layout"
 
 type WorkspaceForm = {
   name: string
   icon: IconKey
 }
 type WorkspaceSortColumn = "name" | "status"
+
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 const defaultIcon = "briefcaseBusiness" satisfies IconKey
 
@@ -68,6 +79,10 @@ export function WorkspacesDashboard({
   initialWorkspaces: WorkspaceItem[]
 }) {
   const router = useRouter()
+  const { config } = useShellRuntime()
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
   const [pendingDelete, setPendingDelete] =
     React.useState<WorkspaceItem | null>(null)
@@ -85,13 +100,26 @@ export function WorkspacesDashboard({
 
   const sortedWorkspaces = React.useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1
-    return [...workspaces].sort((a, b) => {
-      if (sortColumn === "status") {
-        return (Number(b.active) - Number(a.active)) * direction
-      }
-      return a.name.localeCompare(b.name) * direction
-    })
-  }, [sortColumn, sortDirection, workspaces])
+    const query = searchQuery.trim().toLowerCase()
+    return workspaces
+      .filter((workspace) => !query || workspace.name.toLowerCase().includes(query))
+      .sort((a, b) => {
+        if (sortColumn === "status") {
+          return (Number(b.active) - Number(a.active)) * direction
+        }
+        return a.name.localeCompare(b.name) * direction
+      })
+  }, [searchQuery, sortColumn, sortDirection, workspaces])
+
+  const totalPages = Math.ceil(sortedWorkspaces.length / pageSize)
+  const paginatedWorkspaces = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return sortedWorkspaces.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, pageSize, sortedWorkspaces])
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, sortColumn, sortDirection, pageSize])
 
   function toggleSort(column: WorkspaceSortColumn) {
     if (sortColumn === column) {
@@ -153,12 +181,24 @@ export function WorkspacesDashboard({
   }
 
   function toggleVisibleSelection() {
-    setSelectedIds((current) =>
-      current.size === sortedWorkspaces.length
-        ? new Set()
-        : new Set(sortedWorkspaces.map((workspace) => workspace.id))
-    )
+    const visibleIds = paginatedWorkspaces.map((workspace) => workspace.id)
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (visibleIds.every((id) => next.has(id))) {
+        visibleIds.forEach((id) => next.delete(id))
+      } else {
+        visibleIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
   }
+
+  const visibleSelected =
+    paginatedWorkspaces.length > 0 &&
+    paginatedWorkspaces.every((workspace) => selectedIds.has(workspace.id))
+  const visiblePartiallySelected =
+    !visibleSelected &&
+    paginatedWorkspaces.some((workspace) => selectedIds.has(workspace.id))
 
   // One workspace always has to survive, so the last one cannot be selected away.
   async function confirmMassDelete() {
@@ -218,6 +258,13 @@ export function WorkspacesDashboard({
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
+            <DashboardToolbarSearch
+              name="workspace-search"
+              aria-label="Search workspaces"
+              placeholder="Search workspaces..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
             <DashboardToolbarButton type="button" onClick={openCreateForm}>
               <PlusIcon className="size-4" />
               Add Workspace
@@ -230,10 +277,9 @@ export function WorkspacesDashboard({
               <TableHead column="select">
                 <Checkbox
                   checked={
-                    selectedIds.size === sortedWorkspaces.length &&
-                    sortedWorkspaces.length > 0
+                    visibleSelected
                       ? true
-                      : selectedIds.size
+                      : visiblePartiallySelected
                         ? "indeterminate"
                         : false
                   }
@@ -259,12 +305,21 @@ export function WorkspacesDashboard({
         emptyText="No workspaces found."
         emptyColSpan={4}
         footer={{
-          type: "summary",
-          count: sortedWorkspaces.length,
-          label: "workspaces",
+          type: "pagination",
+          page: currentPage,
+          pageSize,
+          total: sortedWorkspaces.length,
+          totalPages,
+          onPageChange: (page) =>
+            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
+          onPageSizeChange: (nextSize) => {
+            setCurrentPage(1)
+            setPageSize(nextSize)
+          },
+          pageSizeOptions,
         }}
       >
-        {sortedWorkspaces.map((workspace) => (
+        {paginatedWorkspaces.map((workspace) => (
           <TableRow key={workspace.id} className="group">
             <TableCell column="select">
               <Checkbox

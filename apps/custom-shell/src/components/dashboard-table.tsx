@@ -166,28 +166,60 @@ export function DashboardTable(props: DashboardTableProps) {
   )
 }
 
+// The one pagination control. Exported so non-table surfaces (the media
+// picker) page with the same footer instead of hand-rolling buttons.
+export function DashboardTablePagination({
+  page,
+  pageSize,
+  total,
+  totalPages: totalPagesInput,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions,
+}: {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+  onPageChange: (page: number) => void
+  onPageSizeChange?: (pageSize: number) => void
+  pageSizeOptions?: number[]
+}) {
+  const options = pageSizeOptions ?? defaultPageSizeOptions
+  const totalPages = totalPagesInput || 1
+  const currentPage = Math.max(1, Math.min(page, totalPages))
+  const firstRow = total ? (currentPage - 1) * pageSize + 1 : 0
+  const lastRow = Math.min(currentPage * pageSize, total)
+
+  return (
+    <DashboardTablePaginationFooter
+      pageSize={pageSize}
+      pageSizeOptions={options}
+      rangeText={`${firstRow ? `${firstRow}-${lastRow}` : "0"} of ${total}`}
+      onPageSizeChange={onPageSizeChange}
+      firstDisabled={currentPage === 1}
+      previousDisabled={currentPage === 1}
+      nextDisabled={currentPage === totalPages || total === 0}
+      lastDisabled={currentPage === totalPages || total === 0}
+      onFirst={() => onPageChange(1)}
+      onPrevious={() => onPageChange(currentPage - 1)}
+      onNext={() => onPageChange(currentPage + 1)}
+      onLast={() => onPageChange(totalPages)}
+    />
+  )
+}
+
 function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
   if (footer.type === "pagination") {
-    const pageSizeOptions = footer.pageSizeOptions ?? defaultPageSizeOptions
-    const totalPages = footer.totalPages || 1
-    const currentPage = Math.max(1, Math.min(footer.page, totalPages))
-    const firstRow = footer.total ? (currentPage - 1) * footer.pageSize + 1 : 0
-    const lastRow = Math.min(currentPage * footer.pageSize, footer.total)
-
     return (
-      <DashboardTablePaginationFooter
+      <DashboardTablePagination
+        page={footer.page}
         pageSize={footer.pageSize}
-        pageSizeOptions={pageSizeOptions}
-        rangeText={`${firstRow ? `${firstRow}-${lastRow}` : "0"} of ${footer.total}`}
+        total={footer.total}
+        totalPages={footer.totalPages}
+        onPageChange={footer.onPageChange}
         onPageSizeChange={footer.onPageSizeChange}
-        firstDisabled={currentPage === 1}
-        previousDisabled={currentPage === 1}
-        nextDisabled={currentPage === totalPages || footer.total === 0}
-        lastDisabled={currentPage === totalPages || footer.total === 0}
-        onFirst={() => footer.onPageChange(1)}
-        onPrevious={() => footer.onPageChange(currentPage - 1)}
-        onNext={() => footer.onPageChange(currentPage + 1)}
-        onLast={() => footer.onPageChange(totalPages)}
+        pageSizeOptions={footer.pageSizeOptions}
       />
     )
   }

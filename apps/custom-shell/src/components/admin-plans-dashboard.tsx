@@ -10,7 +10,10 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DashboardTable } from "@/components/dashboard-table"
-import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+} from "@/components/dashboard-toolbar"
 import {
   Card,
   CardContent,
@@ -50,8 +53,12 @@ import {
 } from "@/lib/api/admin-plans"
 import { formatMoney } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { useShellRuntime } from "@/components/shell-layout"
 
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
+
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
   switch (column) {
@@ -108,7 +115,11 @@ export function AdminPlansDashboard({
 }: {
   initialPlans: AdminPlan[]
 }) {
+  const { config } = useShellRuntime()
   const [plans, setPlans] = React.useState(initialPlans)
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [sort, setSort] = React.useState<PlanSortColumn>("name")
   const [direction, setDirection] = React.useState<"asc" | "desc">("asc")
   const [editing, setEditing] = React.useState<AdminPlan | null>(null)
@@ -120,11 +131,37 @@ export function AdminPlansDashboard({
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
+  const sortedPlans = React.useMemo(() => {
+    const factor = direction === "asc" ? 1 : -1
+    const query = searchQuery.trim().toLowerCase()
+    return plans
+      .filter(
+        (plan) =>
+          !query ||
+          plan.name.toLowerCase().includes(query) ||
+          plan.slug.toLowerCase().includes(query)
+      )
+      .sort((a, b) => factor * comparePlans(a, b, sort))
+  }, [direction, plans, searchQuery, sort])
+
+  const totalPages = Math.ceil(sortedPlans.length / pageSize)
+  const paginatedPlans = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return sortedPlans.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, pageSize, sortedPlans])
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, sort, direction, pageSize])
+
   // The default plan is everyone's fallback, so it can never be archived.
+  // Selection works on the visible page, like every other paginated table.
   const archivableIds = React.useMemo(
     () =>
-      plans.filter((plan) => plan.active && !plan.isDefault).map((plan) => plan.id),
-    [plans]
+      paginatedPlans
+        .filter((plan) => plan.active && !plan.isDefault)
+        .map((plan) => plan.id),
+    [paginatedPlans]
   )
   const allSelected =
     archivableIds.length > 0 && archivableIds.every((id) => selectedIds.has(id))
@@ -163,11 +200,6 @@ export function AdminPlansDashboard({
     [direction, sort]
   )
 
-  const sortedPlans = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
-    return [...plans].sort((a, b) => factor * comparePlans(a, b, sort))
-  }, [direction, plans, sort])
-
   const refresh = React.useCallback(async () => {
     try {
       setPlans(await loadAdminPlans())
@@ -185,7 +217,7 @@ export function AdminPlansDashboard({
       <DashboardTable
         title="Plans"
         icon={<PackageIcon />}
-        count={plans.length}
+        count={sortedPlans.length}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -202,6 +234,13 @@ export function AdminPlansDashboard({
                 Archive ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
+            <DashboardToolbarSearch
+              name="plan-search"
+              aria-label="Search plans"
+              placeholder="Search plans..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
               New plan
@@ -269,12 +308,29 @@ export function AdminPlansDashboard({
             </TableRow>
           </TableHeader>
         }
-        isEmpty={plans.length === 0}
-        emptyText="No plans yet. Create the first one."
+        isEmpty={sortedPlans.length === 0}
+        emptyText={
+          plans.length === 0
+            ? "No plans yet. Create the first one."
+            : "No plans found matching your search."
+        }
         emptyColSpan={7}
-        footer={{ type: "summary", count: plans.length, label: "plans" }}
+        footer={{
+          type: "pagination",
+          page: currentPage,
+          pageSize,
+          total: sortedPlans.length,
+          totalPages,
+          onPageChange: (page) =>
+            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
+          onPageSizeChange: (nextSize) => {
+            setCurrentPage(1)
+            setPageSize(nextSize)
+          },
+          pageSizeOptions,
+        }}
       >
-        {sortedPlans.map((plan) => (
+        {paginatedPlans.map((plan) => (
           <TableRow key={plan.id} className="group">
             <TableCell column="select">
               <Checkbox

@@ -227,8 +227,10 @@
   gap: var(--shell-modal-padding, 1.5rem);
 }
 
+/* 8px of the header's gap lives inside the scroll viewport (paired with the
+   ScrollArea's -mt-2) so focus rings on the first control are not clipped. */
 [data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-body"] {
-  padding-top: 0;
+  padding-top: 0.5rem;
 }
 
 [data-slot="dialog-footer"] {

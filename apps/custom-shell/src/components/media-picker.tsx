@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { DashboardTablePagination } from "@/components/dashboard-table"
 import {
   Dialog,
   DialogBody,
@@ -340,30 +341,17 @@ export function MediaPicker({
             </div>
 
             {data && data.total_pages > 1 ? (
-              <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-                <span>
-                  Page {data.page} of {data.total_pages}
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= data.total_pages}
-                    onClick={() => setCurrentPage((page) => page + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
+              <div className="overflow-hidden rounded-lg">
+                <DashboardTablePagination
+                  page={currentPage}
+                  pageSize={pageSize}
+                  total={data.total}
+                  totalPages={data.total_pages}
+                  onPageChange={(page) =>
+                    setCurrentPage(Math.max(1, Math.min(page, data.total_pages)))
+                  }
+                  pageSizeOptions={[pageSize]}
+                />
               </div>
             ) : null}
           </div>
