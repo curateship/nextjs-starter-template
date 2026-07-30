@@ -31,6 +31,8 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
+import { Route as AuthenticatedAdminMediaOrphansRouteImport } from './routes/_authenticated/admin/media_.orphans'
+import { Route as AuthenticatedAdminMediaStorageRouteImport } from './routes/_authenticated/admin/media_.storage'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
@@ -149,6 +151,18 @@ const AuthenticatedAdminFeedbackCommentsRoute =
     path: '/comments',
     getParentRoute: () => AuthenticatedAdminFeedbackRoute,
   } as any)
+const AuthenticatedAdminMediaOrphansRoute =
+  AuthenticatedAdminMediaOrphansRouteImport.update({
+    id: '/media_/orphans',
+    path: '/media/orphans',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminMediaStorageRoute =
+  AuthenticatedAdminMediaStorageRouteImport.update({
+    id: '/media_/storage',
+    path: '/media/storage',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSettingsTabRoute =
   AuthenticatedAdminSettingsTabRouteImport.update({
     id: '/$tab',
@@ -183,6 +197,8 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
+  '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
+  '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -207,6 +223,8 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
+  '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
+  '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -234,6 +252,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
+  '/_authenticated/admin/media_/orphans': typeof AuthenticatedAdminMediaOrphansRoute
+  '/_authenticated/admin/media_/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -261,6 +281,8 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/account/billing/success'
     | '/admin/feedback/comments'
+    | '/admin/media/orphans'
+    | '/admin/media/storage'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
@@ -285,6 +307,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/account/billing/success'
     | '/admin/feedback/comments'
+    | '/admin/media/orphans'
+    | '/admin/media/storage'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   id:
@@ -311,6 +335,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/feedback/comments'
+    | '/_authenticated/admin/media_/orphans'
+    | '/_authenticated/admin/media_/storage'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
@@ -483,6 +509,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
       parentRoute: typeof AuthenticatedAdminFeedbackRoute
     }
+    '/_authenticated/admin/media_/orphans': {
+      id: '/_authenticated/admin/media_/orphans'
+      path: '/media/orphans'
+      fullPath: '/admin/media/orphans'
+      preLoaderRoute: typeof AuthenticatedAdminMediaOrphansRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/media_/storage': {
+      id: '/_authenticated/admin/media_/storage'
+      path: '/media/storage'
+      fullPath: '/admin/media/storage'
+      preLoaderRoute: typeof AuthenticatedAdminMediaStorageRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/settings/$tab': {
       id: '/_authenticated/admin/settings/$tab'
       path: '/$tab'
@@ -550,6 +590,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminMediaOrphansRoute: typeof AuthenticatedAdminMediaOrphansRoute
+  AuthenticatedAdminMediaStorageRoute: typeof AuthenticatedAdminMediaStorageRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
@@ -561,6 +603,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAdminMediaOrphansRoute: AuthenticatedAdminMediaOrphansRoute,
+  AuthenticatedAdminMediaStorageRoute: AuthenticatedAdminMediaStorageRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =

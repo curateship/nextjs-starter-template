@@ -1,9 +1,29 @@
 import sanitizeHtml from "sanitize-html"
-import { and, asc, desc, eq, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm"
 
-import { db } from "@/server/db"
-import { getPublicMediaUrl } from "@/server/media-storage"
-import { customShellMedia, type CustomShellMedia } from "@/server/schema"
+import { db, type CustomShellDb } from "@/server/db"
+import {
+  deleteFromR2,
+  getPublicMediaUrl,
+  listR2Objects,
+  R2StorageNotConfiguredError,
+} from "@/server/media-storage"
+import {
+  customShellMedia,
+  customShellUsers,
+  type CustomShellMedia,
+} from "@/server/schema"
 import { uuid } from "@/server/security"
 
 export const IMAGE_TYPES = new Set([
@@ -273,6 +293,497 @@ export function serializeMedia(row: CustomShellMedia): MediaItem {
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Admin-wide media. Everything below crosses account boundaries and is only
+// ever reached through server functions that call requireAdmin() first.
+// ---------------------------------------------------------------------------
+
+/** How many bucket keys one orphan scan will read before giving up. */
+const ORPHAN_SCAN_MAX_KEYS = 20000
+
+/**
+ * Uploads are stored at `<user id>/<filename>`. Anything else in the bucket was
+ * put there by something other than this app, so an orphan sweep leaves it
+ * alone rather than deleting a stranger's file.
+ */
+const APP_STORAGE_KEY = /^[0-9a-fA-F-]{36}\/.+/
+
+export type AdminMediaSort = "file" | "owner" | "type" | "size" | "created"
+export type AdminMediaTypeFilter = "all" | MediaFileType | "svg"
+
+export type AdminMediaItem = MediaItem & {
+  owner_id: string
+  owner_name: string
+  owner_email: string
+  storage_path: string
+}
+
+export type AdminMediaListQuery = {
+  search: string
+  ownerId: string
+  fileType: AdminMediaTypeFilter
+  page: number
+  pageSize: number
+  sort: AdminMediaSort
+  direction: MediaSortDirection
+}
+
+export type AdminMediaListResponse = {
+  media: AdminMediaItem[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export type MediaOwner = { userId: string; name: string }
+
+export type MediaOrphanKind = "missing_file" | "unlinked_object"
+
+export type MediaOrphan = {
+  kind: MediaOrphanKind
+  mediaId: string | null
+  storagePath: string
+  name: string
+  bytes: number
+  ownerId: string | null
+  ownerName: string | null
+  createdAt: string | null
+  fileType: MediaFileType | "other"
+  /** Null when the file is gone, so there is nothing to preview. */
+  url: string | null
+}
+
+type MediaOrphanScan = {
+  orphans: MediaOrphan[]
+  scannedObjects: number
+  /** True when the bucket held more keys than one scan reads. */
+  truncated: boolean
+}
+
+export type StorageUserRow = {
+  userId: string
+  name: string
+  email: string
+  files: number
+  bytes: number
+  orphanFiles: number
+  orphanBytes: number
+}
+
+export type StorageDashboard = {
+  users: StorageUserRow[]
+  totalBytes: number
+  /** Set when the bucket could not be read, so orphan numbers are unknown. */
+  scanError: string | null
+}
+
+export type OrphanDashboard = {
+  orphans: MediaOrphan[]
+  scannedObjects: number
+  truncated: boolean
+  /** Everyone the orphans could be traced back to, for the owner filter. */
+  owners: MediaOwner[]
+  scanError: string | null
+}
+
+export async function listAllMedia(
+  query: AdminMediaListQuery,
+  database: CustomShellDb = db
+): Promise<AdminMediaListResponse> {
+  const page = Math.max(1, query.page)
+  const pageSize = Math.min(Math.max(1, query.pageSize), 100)
+  const where = buildAdminMediaWhere(query)
+  const direction = query.direction === "asc" ? asc : desc
+  const sortColumn = {
+    file: customShellMedia.originalName,
+    owner: customShellUsers.name,
+    type: customShellMedia.fileType,
+    size: customShellMedia.fileSize,
+    created: customShellMedia.createdAt,
+  }[query.sort]
+
+  const rows = await database
+    .select({ media: customShellMedia, owner: customShellUsers })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .where(where)
+    .orderBy(direction(sortColumn))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  const [totals] = await database
+    .select({ total: count() })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .where(where)
+
+  const total = totals?.total ?? 0
+
+  return {
+    media: rows.map((row) => ({
+      ...serializeMedia(row.media),
+      owner_id: row.owner.id,
+      owner_name: row.owner.name,
+      owner_email: row.owner.email,
+      storage_path: row.media.storagePath,
+    })),
+    total,
+    page,
+    page_size: pageSize,
+    total_pages: total ? Math.ceil(total / pageSize) : 0,
+  }
+}
+
+function buildAdminMediaWhere(query: AdminMediaListQuery) {
+  const filters: SQL[] = []
+  const search = query.search.trim()
+
+  if (search) {
+    const pattern = `%${search}%`
+    const match = or(
+      ilike(customShellMedia.originalName, pattern),
+      ilike(customShellMedia.filename, pattern),
+      ilike(customShellUsers.name, pattern),
+      ilike(customShellUsers.email, pattern)
+    )
+    if (match) filters.push(match)
+  }
+  if (query.ownerId !== "all") {
+    filters.push(eq(customShellMedia.userId, query.ownerId))
+  }
+  if (query.fileType === "svg") {
+    filters.push(eq(customShellMedia.mimeType, "image/svg+xml"))
+  } else if (query.fileType !== "all") {
+    filters.push(eq(customShellMedia.fileType, query.fileType))
+  }
+
+  return filters.length ? and(...filters) : undefined
+}
+
+/** Just enough to fill the media page's owner filter. */
+export async function listMediaOwners(
+  database: CustomShellDb = db
+): Promise<MediaOwner[]> {
+  const rows = await database
+    .selectDistinct({
+      userId: customShellUsers.id,
+      name: customShellUsers.name,
+    })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .orderBy(asc(customShellUsers.name))
+
+  return rows
+}
+
+/** The orphan list, with the people it could be traced to. */
+export async function loadOrphanDashboard(
+  database: CustomShellDb = db
+): Promise<OrphanDashboard> {
+  const { scan, scanError } = await tryScanMediaOrphans(database)
+  const owners = new Map<string, MediaOwner>()
+  for (const orphan of scan.orphans) {
+    if (orphan.ownerId && orphan.ownerName) {
+      owners.set(orphan.ownerId, {
+        userId: orphan.ownerId,
+        name: orphan.ownerName,
+      })
+    }
+  }
+
+  return {
+    orphans: scan.orphans,
+    scannedObjects: scan.scannedObjects,
+    truncated: scan.truncated,
+    owners: Array.from(owners.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    ),
+    scanError,
+  }
+}
+
+/**
+ * A bucket that cannot be read is reported rather than swallowed, so a page can
+ * still show the numbers it does have.
+ */
+async function tryScanMediaOrphans(database: CustomShellDb) {
+  try {
+    return { scan: await scanMediaOrphans(database), scanError: null }
+  } catch (error) {
+    return {
+      scan: { orphans: [], scannedObjects: 0, truncated: false },
+      scanError:
+        error instanceof R2StorageNotConfiguredError
+          ? "R2_NOT_CONFIGURED"
+          : "SCAN_FAILED",
+    } satisfies { scan: MediaOrphanScan; scanError: string }
+  }
+}
+
+/**
+ * Who is storing what, with their orphans folded in. Someone can hold orphans
+ * without holding any live media, so the two sources are merged rather than
+ * joined.
+ */
+export async function loadStorageDashboard(
+  database: CustomShellDb = db
+): Promise<StorageDashboard> {
+  const bytesColumn = sql<number>`coalesce(sum(${customShellMedia.fileSize}), 0)::bigint`
+  const usage = await database
+    .select({
+      userId: customShellUsers.id,
+      name: customShellUsers.name,
+      email: customShellUsers.email,
+      files: count(),
+      bytes: bytesColumn,
+    })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .groupBy(customShellUsers.id, customShellUsers.name, customShellUsers.email)
+    .orderBy(desc(bytesColumn))
+
+  const { scan, scanError } = await tryScanMediaOrphans(database)
+
+  const users = new Map<string, StorageUserRow>()
+  for (const row of usage) {
+    users.set(row.userId, {
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      files: row.files,
+      bytes: Number(row.bytes),
+      orphanFiles: 0,
+      orphanBytes: 0,
+    })
+  }
+
+  // Someone can hold orphans without holding any live media — a deleted row or
+  // a file whose record went away still belongs to whoever uploaded it. Their
+  // name and email come from the lookup below, not from the orphan.
+  const strays = new Map<string, { files: number; bytes: number }>()
+  for (const orphan of scan.orphans) {
+    if (!orphan.ownerId) continue
+    const existing = users.get(orphan.ownerId)
+    if (existing) {
+      existing.orphanFiles += 1
+      existing.orphanBytes += orphan.bytes
+      continue
+    }
+    const stray = strays.get(orphan.ownerId) ?? { files: 0, bytes: 0 }
+    stray.files += 1
+    stray.bytes += orphan.bytes
+    strays.set(orphan.ownerId, stray)
+  }
+
+  if (strays.size) {
+    const strayUsers = await database
+      .select({
+        id: customShellUsers.id,
+        name: customShellUsers.name,
+        email: customShellUsers.email,
+      })
+      .from(customShellUsers)
+      .where(inArray(customShellUsers.id, Array.from(strays.keys())))
+
+    for (const user of strayUsers) {
+      const stray = strays.get(user.id)
+      if (!stray) continue
+      users.set(user.id, {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        files: 0,
+        bytes: 0,
+        orphanFiles: stray.files,
+        orphanBytes: stray.bytes,
+      })
+    }
+  }
+
+  return {
+    users: Array.from(users.values()).sort((a, b) => b.bytes - a.bytes),
+    totalBytes: usage.reduce((sum, row) => sum + Number(row.bytes), 0),
+    scanError,
+  }
+}
+
+/**
+ * Compares the media table against the bucket in both directions: rows whose
+ * file is gone, and files no row points at. When the bucket is bigger than one
+ * scan reads, the missing-file half is skipped — a key we never looked at is
+ * not evidence the file is missing.
+ */
+async function scanMediaOrphans(
+  database: CustomShellDb = db
+): Promise<MediaOrphanScan> {
+  const { objects, truncated } = await listR2Objects(ORPHAN_SCAN_MAX_KEYS)
+  const storedKeys = new Set(objects.map((object) => object.key))
+
+  const rows = await database
+    .select({ media: customShellMedia, owner: customShellUsers })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .orderBy(desc(customShellMedia.createdAt))
+
+  const knownPaths = new Set(rows.map((row) => row.media.storagePath))
+  const orphans: MediaOrphan[] = []
+
+  if (!truncated) {
+    for (const row of rows) {
+      if (storedKeys.has(row.media.storagePath)) continue
+      orphans.push({
+        kind: "missing_file",
+        mediaId: row.media.id,
+        storagePath: row.media.storagePath,
+        name: row.media.originalName,
+        bytes: row.media.fileSize,
+        ownerId: row.owner.id,
+        ownerName: row.owner.name,
+        createdAt: row.media.createdAt.toISOString(),
+        fileType: row.media.fileType as MediaFileType,
+        // The file is gone, so its URL would only ever 404.
+        url: null,
+      })
+    }
+  }
+
+  // A key is `<uploader id>/<filename>`, so a file that lost its record can
+  // still be traced back to a person.
+  const unlinked = objects
+    .filter(
+      (object) => !knownPaths.has(object.key) && APP_STORAGE_KEY.test(object.key)
+    )
+    .map((object) => {
+      const [ownerId, ...rest] = object.key.split("/")
+      return { ...object, ownerId, filename: rest.join("/") }
+    })
+  const owners = await findUsersByIds(
+    Array.from(new Set(unlinked.map((object) => object.ownerId))),
+    database
+  )
+
+  for (const object of unlinked) {
+    const owner = owners.get(object.ownerId)
+    orphans.push({
+      kind: "unlinked_object",
+      mediaId: null,
+      storagePath: object.key,
+      name: object.filename || object.key,
+      bytes: object.size,
+      ownerId: owner?.id ?? null,
+      ownerName: owner?.name ?? null,
+      createdAt: null,
+      fileType: fileTypeFromKey(object.key),
+      // The file is still there, so it can be previewed before it is erased.
+      url: getPublicMediaUrl(object.key),
+    })
+  }
+
+  return { orphans, scannedObjects: objects.length, truncated }
+}
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg"])
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "avi", "mkv"])
+
+/** A stray file has no record, so its extension is all there is to go on. */
+function fileTypeFromKey(key: string): MediaFileType | "other" {
+  const extension = key.split(".").pop()?.toLowerCase() ?? ""
+  if (IMAGE_EXTENSIONS.has(extension)) return "image"
+  if (VIDEO_EXTENSIONS.has(extension)) return "video"
+  return "other"
+}
+
+async function findUsersByIds(ids: string[], database: CustomShellDb) {
+  if (!ids.length) return new Map<string, { id: string; name: string }>()
+
+  const rows = await database
+    .select({ id: customShellUsers.id, name: customShellUsers.name })
+    .from(customShellUsers)
+    .where(inArray(customShellUsers.id, ids))
+
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+/**
+ * Removes only entries the server can still prove are orphans, so a stale page
+ * (or a crafted request) can never delete a live file or an unrelated object.
+ */
+export async function cleanMediaOrphans(
+  input: { mediaIds: string[]; storagePaths: string[] },
+  database: CustomShellDb = db
+) {
+  const scan = await scanMediaOrphans(database)
+  const requestedIds = new Set(input.mediaIds)
+  const requestedPaths = new Set(input.storagePaths)
+
+  const rowsToDelete = scan.orphans
+    .filter(
+      (orphan) => orphan.kind === "missing_file" && requestedIds.has(orphan.mediaId ?? "")
+    )
+    .map((orphan) => orphan.mediaId as string)
+  const objectsToDelete = scan.orphans
+    .filter(
+      (orphan) =>
+        orphan.kind === "unlinked_object" && requestedPaths.has(orphan.storagePath)
+    )
+    .map((orphan) => orphan.storagePath)
+
+  for (const storagePath of objectsToDelete) {
+    await deleteFromR2(storagePath)
+  }
+
+  if (rowsToDelete.length) {
+    await database
+      .delete(customShellMedia)
+      .where(inArray(customShellMedia.id, rowsToDelete))
+  }
+
+  return { deletedCount: rowsToDelete.length + objectsToDelete.length }
+}
+
+/** Deletes any owner's media, file first so a failure never strands the file. */
+export async function deleteMediaAsAdmin(
+  mediaIds: string[],
+  database: CustomShellDb = db
+) {
+  const uniqueIds = Array.from(new Set(mediaIds))
+  const rows = await database
+    .select()
+    .from(customShellMedia)
+    .where(inArray(customShellMedia.id, uniqueIds))
+
+  for (const row of rows) {
+    await deleteFromR2(row.storagePath)
+  }
+
+  if (rows.length) {
+    await database.delete(customShellMedia).where(
+      inArray(
+        customShellMedia.id,
+        rows.map((row) => row.id)
+      )
+    )
+  }
+
+  return { deletedCount: rows.length }
 }
 
 function defaultExtensionForMimeType(mimeType: string) {
