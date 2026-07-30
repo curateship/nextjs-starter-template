@@ -337,7 +337,7 @@ export function BacklinksDashboard({
 
       <DashboardTable
         title="Backlink Prospects"
-        icon={<Link2Icon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<Link2Icon className="text-muted-foreground" />}
         count={total}
         status={status}
         controls={

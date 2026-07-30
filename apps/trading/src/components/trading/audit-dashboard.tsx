@@ -43,7 +43,7 @@ export function AuditDashboard({ initial }: { initial: AuditPageResponse }) {
       <DashboardTable
         title="Audit Log"
         icon={
-          <ShieldCheckIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <ShieldCheckIcon className="text-muted-foreground" />
         }
         count={data.total}
         controls={

@@ -152,7 +152,7 @@ export function ContentPlanDashboard({ project }: { project: ProjectItem }) {
       <DashboardTable
         title="Content Plan"
         icon={
-          <CalendarClockIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <CalendarClockIcon className="text-muted-foreground" />
         }
         count={total}
         controls={

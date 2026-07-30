@@ -241,7 +241,6 @@ export function GeneralSettings({
           aspect="square"
           fit="contain"
           emptyLabel="Select favicon"
-          showLabel={false}
           className="max-w-20"
         />
       </CollapsibleSettingsCard>

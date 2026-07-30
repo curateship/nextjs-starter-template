@@ -133,7 +133,7 @@ function OverviewBody({
       <TableSurface>
         <DashboardToolbar>
           <DashboardToolbarTitle>
-            <BarChart3Icon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <BarChart3Icon className="text-muted-foreground" />
             <span className="text-sm font-medium sm:text-base">Overview</span>
             {loading ? (
               <Loader2Icon className="size-4 animate-spin text-muted-foreground" />

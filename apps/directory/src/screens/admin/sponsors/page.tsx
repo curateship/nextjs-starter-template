@@ -212,7 +212,7 @@ export default function SponsorsPage() {
 
         <AdminTableShell
           title="Sponsors"
-          icon={<Handshake className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<Handshake className="text-muted-foreground" />}
           count={filteredSponsors.length}
           loading={loading}
           selectedCount={sponsorSelection.selectedCount}

@@ -891,7 +891,7 @@ export default function AdminGuidedFormsPage() {
 
         <AdminTableShell
           title="Forms"
-          icon={<ClipboardList className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<ClipboardList className="text-muted-foreground" />}
           count={total}
           selectedCount={formSelection.selectedCount}
           onClearSelection={formSelection.clearSelection}

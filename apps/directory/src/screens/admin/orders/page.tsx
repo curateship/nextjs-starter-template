@@ -245,7 +245,7 @@ export default function OrdersPage() {
 
           <AdminTableShell
             title="Orders"
-            icon={<ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<ShoppingCart className="text-muted-foreground" />}
             count={filteredOrders.length}
             loading={loading}
             selectedCount={orderSelection.selectedCount}

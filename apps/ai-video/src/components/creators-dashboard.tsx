@@ -301,7 +301,7 @@ export function CreatorsDashboard() {
 
       <DashboardTable
         title="Creators"
-        icon={<UsersIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<UsersIcon className="text-muted-foreground" />}
         count={filteredCreators.length}
         controls={controls}
         selectedCount={selectedIds.size}

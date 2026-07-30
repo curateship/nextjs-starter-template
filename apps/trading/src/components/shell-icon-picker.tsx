@@ -7,6 +7,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -116,9 +117,10 @@ export function ShellIconPicker({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent variant="admin" className="sm:max-w-3xl">
           <DialogHeader>
-            <div className="flex min-w-0 flex-wrap items-center gap-3 pr-8">
-              <DialogTitle className="shrink-0">Choose Icon</DialogTitle>
-            </div>
+            <DialogTitle>Choose Icon</DialogTitle>
+            <DialogDescription>
+              Pick an icon from the library, or add any Lucide icon by name.
+            </DialogDescription>
           </DialogHeader>
 
           <DialogBody>

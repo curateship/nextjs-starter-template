@@ -179,7 +179,7 @@ export function SitesDashboard({
     <div className="w-full">
       <DashboardTable
         title="Sites"
-        icon={<GlobeIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<GlobeIcon className="text-muted-foreground" />}
         count={sortedSites.length}
         selectedCount={selectedSites.length}
         onClearSelection={() => setSelected(new Set())}

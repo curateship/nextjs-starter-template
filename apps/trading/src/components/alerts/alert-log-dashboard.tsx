@@ -166,7 +166,7 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
       <DashboardTable
         title="Alert Log"
         icon={
-          <BellRingIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BellRingIcon className="text-muted-foreground" />
         }
         count={data.total}
         loading={loading}

@@ -197,10 +197,7 @@ export function WorkspacesDashboard({
 
       <DashboardTable
         title="Workspaces"
-        icon={renderShellIcon(
-          "briefcaseBusiness",
-          "size-4 text-muted-foreground sm:size-[18px]"
-        )}
+        icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
         count={sortedWorkspaces.length}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}

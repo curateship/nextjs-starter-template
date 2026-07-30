@@ -150,7 +150,7 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
 
       <DashboardTable
         title="Market scanner"
-        icon={<ActivityIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<ActivityIcon className="text-muted-foreground" />}
         count={rules.length}
         status={!data.runtimeEnabled
           ? { tone: "neutral", text: "Scanner off" }
@@ -316,7 +316,7 @@ export function MarketScannerAlertsDashboard({ initial }: { initial: AlertsPage 
       ) : null}
       <DashboardTable
         title="Market alerts"
-        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<BellIcon className="text-muted-foreground" />}
         count={alerts.length}
         controls={alerts.length > 0 ? (
           <>

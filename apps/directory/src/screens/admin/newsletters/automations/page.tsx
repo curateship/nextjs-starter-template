@@ -252,7 +252,7 @@ export default function EmailAutomationsPage() {
 
           <AdminTableShell
             title="Automations"
-            icon={<Zap className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Zap className="text-muted-foreground" />}
             count={filtered.length}
             loading={loading}
             selectedCount={automationSelection.selectedCount}

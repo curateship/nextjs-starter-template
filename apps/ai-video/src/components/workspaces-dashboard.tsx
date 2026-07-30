@@ -192,7 +192,7 @@ export function WorkspacesDashboard({
         title="Workspaces"
         icon={renderShellIcon(
           "briefcaseBusiness",
-          "size-4 text-muted-foreground sm:size-[18px]"
+          "text-muted-foreground"
         )}
         count={sortedWorkspaces.length}
         status={error ? { tone: "error", text: error } : null}

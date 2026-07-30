@@ -190,7 +190,7 @@ export default function TemplatesPage() {
 
           <AdminTableShell
             title="Templates"
-            icon={<FileText className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<FileText className="text-muted-foreground" />}
             count={filteredTemplates.length}
             loading={loading}
             selectedCount={templateSelection.selectedCount}

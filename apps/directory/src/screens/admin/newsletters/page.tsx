@@ -362,7 +362,7 @@ export default function NewslettersPage() {
 
           <AdminTableShell
             title="Newsletters"
-            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Mail className="text-muted-foreground" />}
             count={filteredNewsletters.length}
             loading={loading}
             selectedCount={newsletterSelection.selectedCount}

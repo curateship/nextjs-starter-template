@@ -233,8 +233,8 @@ export default function DirectoryMonetizationPage() {
           <AdminTableShell
             title={activeView === "plans" ? "Featured Plans" : "Featured Listings"}
             icon={activeView === "plans"
-              ? <BadgeDollarSign className="size-4 text-muted-foreground sm:size-[18px]" />
-              : <Star className="size-4 text-muted-foreground sm:size-[18px]" />
+              ? <BadgeDollarSign className="text-muted-foreground" />
+              : <Star className="text-muted-foreground" />
             }
             count={activeRowsCount}
             controls={

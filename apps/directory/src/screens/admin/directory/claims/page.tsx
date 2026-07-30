@@ -243,8 +243,8 @@ export default function DirectoryClaimsPage() {
           <AdminTableShell
             title={activeView === "claims" ? "Claims" : "Owner Edits"}
             icon={activeView === "claims"
-              ? <ShieldCheck className="size-4 text-muted-foreground sm:size-[18px]" />
-              : <FilePenLine className="size-4 text-muted-foreground sm:size-[18px]" />
+              ? <ShieldCheck className="text-muted-foreground" />
+              : <FilePenLine className="text-muted-foreground" />
             }
             count={activeRowsCount}
             loading={loading}

@@ -224,7 +224,7 @@ export function FeedbackCommentsDashboard() {
 
       <DashboardTable
         title="Comments"
-        icon={<MessageSquareIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<MessageSquareIcon className="text-muted-foreground" />}
         count={filteredComments.length}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -251,7 +251,6 @@ export function FeedbackCommentsDashboard() {
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by feedback type"
-                labels={["All Types", ...Object.values(feedbackTypeLabels)]}
               >
                 <SelectValue placeholder="Type" />
               </DashboardToolbarSelectTrigger>

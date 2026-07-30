@@ -182,7 +182,7 @@ export function AdminPlansDashboard({
     >
       <DashboardTable
         title="Plans"
-        icon={<PackageIcon className="size-4" />}
+        icon={<PackageIcon />}
         count={plans.length}
         status={error ? { tone: "error", text: error } : null}
         selectedCount={selectedIds.size}

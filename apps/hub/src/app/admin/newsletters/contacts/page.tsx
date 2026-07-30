@@ -380,7 +380,7 @@ export default function ContactsPage() {
 
           <AdminTableShell
             title="Contacts"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={total}
             selectedCount={contactSelection.selectedCount}
             onClearSelection={contactSelection.clearSelection}

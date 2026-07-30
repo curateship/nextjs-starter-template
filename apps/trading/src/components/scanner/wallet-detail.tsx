@@ -52,7 +52,7 @@ export function WalletDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-              <WavesIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+              <WavesIcon className="text-muted-foreground" />
             </span>
             <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium sm:text-base">
               <Link

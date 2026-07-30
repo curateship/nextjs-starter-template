@@ -242,7 +242,7 @@ export function BotRunsDashboard({ initial }: { initial: BotListResponse }) {
 
       <DashboardTable
         title="Bot runs"
-        icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<BotIcon className="text-muted-foreground" />}
         count={data.bots.length}
         status={guardianTableStatus(data.guardian)}
         selectedCount={selection.selectedIds.size}
@@ -872,7 +872,7 @@ function FleetActivityTable({
     <DashboardTable
       title="Activity"
       icon={
-        <HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+        <HistoryIcon className="text-muted-foreground" />
       }
       count={rows.length}
       controls={

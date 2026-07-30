@@ -290,7 +290,7 @@ export function ContentListPage<TItem extends ContentListItem>({
 
           <AdminTableShell
             title={listLabel}
-            icon={<EmptyIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<EmptyIcon className="text-muted-foreground" />}
             count={usesCursorPagination || showTotalCount ? total : filteredItems.length}
             selectedCount={itemSelection.selectedCount}
             onClearSelection={itemSelection.clearSelection}

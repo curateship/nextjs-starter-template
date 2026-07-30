@@ -668,7 +668,7 @@ export function RunGroupsDashboard({
       <DashboardTable
         title="Backtest"
         icon={
-          <ListIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <ListIcon className="text-muted-foreground" />
         }
         count={filtered.length}
         selectedCount={selection.selected.size}

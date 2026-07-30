@@ -129,7 +129,7 @@ export default function EventSubmissionsPage() {
 
           <AdminTableShell
             title="Event Submissions"
-            icon={<CalendarPlus className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<CalendarPlus className="text-muted-foreground" />}
             count={submissions.length}
             loading={loading}
             controls={

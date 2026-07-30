@@ -195,7 +195,7 @@ export default function EventRegistrationsPage() {
 
           <AdminTableShell
             title="Event Registrations"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={filtered.length}
             loading={loading}
             titleMeta={selectedSummary ? (

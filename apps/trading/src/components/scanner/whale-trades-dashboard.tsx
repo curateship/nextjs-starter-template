@@ -81,7 +81,7 @@ export function WhaleTradesDashboard({
       <DashboardTable
         title="Whale Trades"
         icon={
-          <RadarIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <RadarIcon className="text-muted-foreground" />
         }
         count={data.total}
         controls={

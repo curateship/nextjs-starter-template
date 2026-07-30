@@ -52,7 +52,7 @@ export function CrowdedDashboard({
       <DashboardTable
         title="Crowded Trades"
         icon={
-          <UsersIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <UsersIcon className="text-muted-foreground" />
         }
         count={data.total}
         controls={

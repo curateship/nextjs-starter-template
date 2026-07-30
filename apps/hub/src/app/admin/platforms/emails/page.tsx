@@ -117,7 +117,7 @@ export default function PlatformEmailsPage() {
 
           <AdminTableShell
             title="Email Templates"
-            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Mail className="text-muted-foreground" />}
             count={filteredTemplates.length}
             controls={
               <TableRightActions>
