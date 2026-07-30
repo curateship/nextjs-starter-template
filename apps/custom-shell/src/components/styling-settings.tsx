@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -31,6 +32,7 @@ import {
   type ShellModalStyling,
   type ShellStyling,
 } from "@/lib/custom-shell"
+import { showErrorToast } from "@/lib/error-toast"
 import { cn } from "@/lib/utils"
 
 type StylingSettingsProps = {
@@ -268,9 +270,7 @@ export function StylingSettings({
         />
 
         <div className="grid gap-3">
-          <div className="grid gap-0.5">
-            <Label>Border color</Label>
-          </div>
+          <Label>Border color</Label>
           <BackgroundField
             idPrefix="modal-border"
             value={modal.borderColor}
@@ -312,9 +312,7 @@ export function StylingSettings({
         />
 
         <div className="grid gap-3">
-          <div className="grid gap-0.5">
-            <Label>Border color</Label>
-          </div>
+          <Label>Border color</Label>
           <BackgroundField
             idPrefix="modal-card-border"
             value={modal.cardBorderColor}
@@ -377,6 +375,9 @@ const BACKGROUND_MODE_LABELS: Record<ShellBackgroundMode, string> = {
   custom: "Custom color",
 }
 
+/** The only hex shape the native <input type="color"> swatch accepts. */
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
+
 function BackgroundField({
   idPrefix,
   value,
@@ -390,7 +391,11 @@ function BackgroundField({
   defaultHint: string
   onChange: (patch: Partial<ShellBackground>) => void
 }) {
-  const color = /^#[0-9a-fA-F]{6}$/.test(value.color) ? value.color : "#ffffff"
+  // The native swatch only accepts #rrggbb, so it has to fall back to white on
+  // anything else. That fallback used to be the only feedback you got; the
+  // error reported on blur is what makes it not a silent reset.
+  const hexValid = HEX_COLOR_PATTERN.test(value.color)
+  const color = hexValid ? value.color : "#ffffff"
 
   return (
     <div className="grid gap-6">
@@ -438,7 +443,12 @@ function BackgroundField({
 
       {value.mode === "custom" ? (
         <div className="grid gap-2">
-          <Label htmlFor={`${idPrefix}-color`}>Color</Label>
+          <FieldLabel
+            htmlFor={`${idPrefix}-color-hex`}
+            hint="A custom color stays the same in light and dark mode."
+          >
+            Color
+          </FieldLabel>
           <div className="flex items-center gap-2">
             <input
               id={`${idPrefix}-color`}
@@ -450,16 +460,22 @@ function BackgroundField({
               aria-label="Pick a color"
             />
             <Input
+              id={`${idPrefix}-color-hex`}
               value={value.color}
               disabled={disabled}
               onChange={(event) => onChange({ color: event.target.value })}
               placeholder="#ffffff"
               className="w-40"
+              aria-invalid={!hexValid || undefined}
+              onBlur={() => {
+                if (!hexValid) {
+                  showErrorToast(
+                    "Enter a 6-digit hex code, like #3b82f6. The swatch shows white until you do."
+                  )
+                }
+              }}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            A custom color stays the same in light and dark mode.
-          </p>
         </div>
       ) : null}
     </div>

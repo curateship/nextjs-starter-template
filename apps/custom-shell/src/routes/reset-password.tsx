@@ -6,7 +6,6 @@ import { z } from "zod"
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
-import { InlineError } from "@/components/ui/inline-error"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { PasswordInput } from "@/components/ui/password-input"
 import {
@@ -26,6 +25,8 @@ export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordRoute,
 })
 
+const MISMATCH_MESSAGE = "Those passwords do not match."
+
 function ResetPasswordRoute() {
   const { token } = Route.useSearch()
   const [password, setPassword] = React.useState("")
@@ -34,13 +35,12 @@ function ResetPasswordRoute() {
   const [loading, setLoading] = React.useState(false)
   const [done, setDone] = React.useState(false)
 
-  // Only flag a mismatch once the confirm field has content and has been
-  // visited, so the hint appears as the user types the second password rather
-  // than the instant they enter the first character.
-  const mismatch =
-    confirmTouched &&
-    confirmPassword.length > 0 &&
-    confirmPassword !== password
+  const confirmMismatches =
+    confirmPassword.length > 0 && confirmPassword !== password
+  // Only show the red ring once the confirm field has been visited, so it
+  // appears as the user types the second password rather than the instant they
+  // enter the first character.
+  const mismatch = confirmTouched && confirmMismatches
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -48,9 +48,8 @@ function ResetPasswordRoute() {
       dismissErrorToast()
 
       if (password !== confirmPassword) {
-        // Surface the mismatch inline on the confirm field rather than as a
-        // generic alert.
         setConfirmTouched(true)
+        showErrorToast(MISMATCH_MESSAGE)
         return
       }
       if (!token) {
@@ -130,16 +129,15 @@ function ResetPasswordRoute() {
           minLength={8}
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
-          onBlur={() => setConfirmTouched(true)}
+          onBlur={() => {
+            setConfirmTouched(true)
+            // Report on leaving the field, never per keystroke — a toast on
+            // every character typed would be unreadable.
+            if (confirmMismatches) showErrorToast(MISMATCH_MESSAGE)
+          }}
           aria-invalid={mismatch || undefined}
-          aria-describedby={mismatch ? "confirm-password-error" : undefined}
           required
         />
-        {mismatch ? (
-          <InlineError id="confirm-password-error">
-            Those passwords do not match.
-          </InlineError>
-        ) : null}
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? (

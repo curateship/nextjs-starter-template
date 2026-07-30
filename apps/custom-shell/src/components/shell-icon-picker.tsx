@@ -7,7 +7,6 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { InlineError } from "@/components/ui/inline-error"
 import {
   Dialog,
   DialogBody,
@@ -18,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { showErrorToast } from "@/lib/error-toast"
 import {
   Popover,
   PopoverContent,
@@ -61,11 +61,6 @@ export function ShellIconPicker({
   const currentLabel = getShellIconLabel(value)
   const normalizedQuery = query.trim().toLowerCase()
   const customLucideIcon = normalizeDynamicLucideIconName(customIconName)
-  const customIconError =
-    customIconName.trim() && !customLucideIcon
-      ? "No Lucide icon found with that name."
-      : null
-
   const filteredIcons = React.useMemo(() => {
     if (!normalizedQuery) return iconOptions
     return iconOptions.filter((option) =>
@@ -91,7 +86,16 @@ export function ShellIconPicker({
 
   function handleCustomIconSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!customLucideIcon) return
+    // "Use Icon" stays enabled on an unknown name so the click has somewhere to
+    // report to; a disabled button plus no message would be a silent dead end.
+    if (!customLucideIcon) {
+      showErrorToast(
+        customIconName.trim()
+          ? "No Lucide icon found with that name."
+          : "Enter a Lucide icon name, like octagon-x."
+      )
+      return
+    }
     onValueChange(customLucideIcon)
     closePicker()
   }
@@ -159,9 +163,7 @@ export function ShellIconPicker({
                       onChange={(event) => setCustomIconName(event.target.value)}
                       placeholder="octagon-x"
                     />
-                    {customIconError ? (
-                      <InlineError>{customIconError}</InlineError>
-                    ) : customLucideIcon ? (
+                    {customLucideIcon ? (
                       <p className="text-xs text-muted-foreground">
                         Found {getShellIconLabel(customLucideIcon)}.
                       </p>
@@ -174,9 +176,7 @@ export function ShellIconPicker({
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={!customLucideIcon}>
-                        Use Icon
-                      </Button>
+                      <Button type="submit">Use Icon</Button>
                     </div>
                   </form>
                 </PopoverContent>

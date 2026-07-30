@@ -4,8 +4,8 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
-import { InlineError } from "@/components/ui/inline-error"
 import { getAuthErrorMessage, loadCurrentUser, verifyEmail } from "@/lib/api/auth"
+import { showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/verify-email")({
   validateSearch: z.object({ token: z.string().optional() }),
@@ -25,12 +25,13 @@ function VerifyEmailRoute() {
   const [state, setState] = React.useState<VerifyState>(
     token ? "verifying" : "failed"
   )
-  const [error, setError] = React.useState<string | null>(
-    token ? null : "This link is missing its verification code."
-  )
-
+  // The page title says the link failed; the toast carries why. It stays until
+  // dismissed, and clears itself when the user leaves for the sign-in page.
   React.useEffect(() => {
-    if (!token) return
+    if (!token) {
+      showErrorToast("This link is missing its verification code.")
+      return
+    }
 
     let cancelled = false
     verifyEmail(token)
@@ -39,7 +40,7 @@ function VerifyEmailRoute() {
       })
       .catch((verifyError) => {
         if (cancelled) return
-        setError(getAuthErrorMessage(verifyError))
+        showErrorToast(getAuthErrorMessage(verifyError))
         setState("failed")
       })
 
@@ -91,7 +92,6 @@ function VerifyEmailRoute() {
         </p>
       }
     >
-      {error ? <InlineError>{error}</InlineError> : null}
       <p className="text-sm text-muted-foreground">
         Verification links expire after 24 hours and can only be used once.
       </p>

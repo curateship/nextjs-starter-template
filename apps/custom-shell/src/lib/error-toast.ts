@@ -8,12 +8,17 @@ import { toast } from "sonner"
 let currentErrorToastId: string | number | null = null
 
 /**
- * The one way to report a failed action: a red toast in the same fixed spot
- * as the success toasts. One shared slot — a repeat failure replaces the
+ * The one way to report a failure, of any kind: a red toast in the same fixed
+ * spot as the success toasts. One shared slot — a repeat failure replaces the
  * previous message instead of stacking, and it stays until dismissed or until
- * the next attempt starts. Data-surface load failures use ErrorBanner and
- * live while-you-type field hints use InlineError; everything else that fails
- * on a click reports here.
+ * the next attempt starts. Data-surface *load* failures are the single
+ * exception and use ErrorBanner, because they belong to a panel that has no
+ * content to show.
+ *
+ * Field validation reports here too. Fire it when the field is left (onBlur)
+ * or on submit — never per keystroke, which would replace the message on every
+ * character typed. Keep `aria-invalid` on the input so the red ring marks which
+ * field is at fault after the toast is dismissed.
  */
 export function showErrorToast(message: string) {
   if (currentErrorToastId !== null) {

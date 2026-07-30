@@ -8,6 +8,7 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
@@ -87,6 +88,11 @@ const shellConfigSchema = z.object({
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
   ),
+  toastSeconds: z
+    .number()
+    .int()
+    .min(MIN_TOAST_SECONDS)
+    .max(MAX_TOAST_SECONDS),
   // Per-workspace sidebar width. Always populated with a valid value by the
   // loader (workspace settings default it), so a plain required field is fine.
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),

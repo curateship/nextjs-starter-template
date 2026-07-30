@@ -5,6 +5,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import { clampToastSeconds } from "@/lib/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellSettings } from "@/server/schema"
 import {
@@ -60,6 +61,9 @@ export function parseShellGlobals(value: unknown) {
       )
         ? settings.dashboardRowsPerPage
         : fallback.dashboardRowsPerPage,
+    // Rows saved before this setting existed have no value; clampToastSeconds
+    // falls back to the default rather than writing NaN into the Toaster.
+    toastSeconds: clampToastSeconds(settings.toastSeconds),
     adminRoute:
       typeof settings.adminRoute === "string"
         ? settings.adminRoute
@@ -73,6 +77,7 @@ export function pickShellGlobals(settings: ShellConfig) {
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
+    toastSeconds: settings.toastSeconds,
     adminRoute: settings.adminRoute,
   }
 }

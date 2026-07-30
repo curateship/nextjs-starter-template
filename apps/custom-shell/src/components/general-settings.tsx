@@ -1,9 +1,9 @@
+import * as React from "react"
 import { ImageUpload } from "@/components/image-upload"
 import { CollapsibleSettingsCard } from "@/components/collapsible-settings-card"
 import { CardGroup } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
-import { InlineError } from "@/components/ui/inline-error"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -16,6 +16,8 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import { showErrorToast } from "@/lib/error-toast"
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -27,8 +29,8 @@ export function GeneralSettings({
   onConfigChange,
 }: GeneralSettingsProps) {
   // The auto-save refuses a blank workspace name (saveConfigNow in
-  // shell-layout.tsx), so say so beside the field rather than letting the edit
-  // sit on screen looking saved.
+  // shell-layout.tsx), so say so on blur rather than letting the edit sit on
+  // screen looking saved.
   const workspaceNameMissing = !config.workspaceName.trim()
 
   return (
@@ -52,15 +54,14 @@ export function GeneralSettings({
             }
             placeholder="Workspace name"
             aria-invalid={workspaceNameMissing || undefined}
-            aria-describedby={
-              workspaceNameMissing ? "workspace-name-error" : undefined
-            }
+            onBlur={() => {
+              if (workspaceNameMissing) {
+                showErrorToast(
+                  "Add a workspace name — settings can't be saved without one."
+                )
+              }
+            }}
           />
-          {workspaceNameMissing ? (
-            <InlineError id="workspace-name-error">
-              Add a workspace name — settings can't be saved without one.
-            </InlineError>
-          ) : null}
         </div>
 
         <div className="grid gap-2">
@@ -121,6 +122,8 @@ export function GeneralSettings({
           </Select>
         </div>
 
+        <ToastSecondsField config={config} onConfigChange={onConfigChange} />
+
         <ImageUpload
           label="Favicon"
           value={config.favicon}
@@ -132,5 +135,74 @@ export function GeneralSettings({
         />
       </CollapsibleSettingsCard>
     </CardGroup>
+  )
+}
+
+/**
+ * Seconds a success message stays on screen. Kept as its own draft string so a
+ * half-typed or out-of-range value is reported instead of being written to
+ * the config — writing a clamped number back mid-keystroke would rewrite "9"
+ * to "60" while the user was still typing "90".
+ */
+function ToastSecondsField({
+  config,
+  onConfigChange,
+}: GeneralSettingsProps) {
+  const [draft, setDraft] = React.useState(() => String(config.toastSeconds))
+  const [lastSaved, setLastSaved] = React.useState(config.toastSeconds)
+
+  // Follow the saved value when something else changes it (a workspace switch,
+  // or "Reset all to defaults" on the Sidebar tab). Adjusted during render
+  // rather than in an effect so the field never paints the stale number first.
+  if (lastSaved !== config.toastSeconds) {
+    setLastSaved(config.toastSeconds)
+    setDraft(String(config.toastSeconds))
+  }
+
+  const parsed = Number(draft)
+  const valid =
+    draft.trim() !== "" &&
+    Number.isInteger(parsed) &&
+    parsed >= MIN_TOAST_SECONDS &&
+    parsed <= MAX_TOAST_SECONDS
+
+  return (
+    <div className="grid gap-2">
+      <FieldLabel
+        htmlFor="toast-seconds"
+        hint={`How long a success message stays on screen, from ${MIN_TOAST_SECONDS} to ${MAX_TOAST_SECONDS} seconds. Failures are not affected — they stay until you dismiss them.`}
+      >
+        Toast message duration (seconds)
+      </FieldLabel>
+      <Input
+        id="toast-seconds"
+        type="number"
+        inputMode="numeric"
+        min={MIN_TOAST_SECONDS}
+        max={MAX_TOAST_SECONDS}
+        value={draft}
+        onChange={(event) => {
+          const next = event.target.value
+          setDraft(next)
+          const seconds = Number(next)
+          if (
+            next.trim() !== "" &&
+            Number.isInteger(seconds) &&
+            seconds >= MIN_TOAST_SECONDS &&
+            seconds <= MAX_TOAST_SECONDS
+          ) {
+            onConfigChange({ ...config, toastSeconds: seconds })
+          }
+        }}
+        aria-invalid={!valid || undefined}
+        onBlur={() => {
+          if (!valid) {
+            showErrorToast(
+              `Enter a whole number of seconds between ${MIN_TOAST_SECONDS} and ${MAX_TOAST_SECONDS}. The last valid value is still in use.`
+            )
+          }
+        }}
+      />
+    </div>
   )
 }
