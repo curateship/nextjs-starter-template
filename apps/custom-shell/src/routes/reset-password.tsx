@@ -6,6 +6,8 @@ import { z } from "zod"
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
+import { InlineError } from "@/components/ui/inline-error"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { PasswordInput } from "@/components/ui/password-input"
 import {
   getAuthErrorMessage,
@@ -29,7 +31,6 @@ function ResetPasswordRoute() {
   const [password, setPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [confirmTouched, setConfirmTouched] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [done, setDone] = React.useState(false)
 
@@ -44,16 +45,16 @@ function ResetPasswordRoute() {
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      setError(null)
+      dismissErrorToast()
 
       if (password !== confirmPassword) {
         // Surface the mismatch inline on the confirm field rather than as a
-        // generic top-of-form alert.
+        // generic alert.
         setConfirmTouched(true)
         return
       }
       if (!token) {
-        setError("This link is missing its reset code.")
+        showErrorToast("This link is missing its reset code.")
         return
       }
 
@@ -62,7 +63,7 @@ function ResetPasswordRoute() {
         await resetPassword(token, password)
         setDone(true)
       } catch (resetError) {
-        setError(getAuthErrorMessage(resetError))
+        showErrorToast(getAuthErrorMessage(resetError))
       } finally {
         setLoading(false)
       }
@@ -93,7 +94,6 @@ function ResetPasswordRoute() {
   return (
     <AuthShell
       title="Choose a new password"
-      error={error}
       onSubmit={handleSubmit}
       footer={
         <p>
@@ -136,13 +136,9 @@ function ResetPasswordRoute() {
           required
         />
         {mismatch ? (
-          <p
-            id="confirm-password-error"
-            role="alert"
-            className="text-sm text-destructive"
-          >
+          <InlineError id="confirm-password-error">
             Those passwords do not match.
-          </p>
+          </InlineError>
         ) : null}
       </div>
       <Button type="submit" className="w-full" disabled={loading}>

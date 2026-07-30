@@ -14,6 +14,7 @@ import {
   login,
   resendVerification,
 } from "@/lib/api/auth"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 /**
  * Only same-origin, root-relative paths are honored after login. A
@@ -46,7 +47,6 @@ function LoginRoute() {
   const { redirect: redirectTo } = Route.useSearch()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [unverified, setUnverified] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
@@ -55,7 +55,7 @@ function LoginRoute() {
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      setError(null)
+      dismissErrorToast()
       setNotice(null)
       setUnverified(false)
       setLoading(true)
@@ -69,7 +69,7 @@ function LoginRoute() {
         const message =
           loginError instanceof Error ? loginError.message : ""
         setUnverified(message.includes("EMAIL_NOT_VERIFIED"))
-        setError(getAuthErrorMessage(loginError))
+        showErrorToast(getAuthErrorMessage(loginError))
       } finally {
         setLoading(false)
       }
@@ -79,14 +79,14 @@ function LoginRoute() {
 
   const handleResend = React.useCallback(async () => {
     if (resending) return
-    setError(null)
+    dismissErrorToast()
     setResending(true)
     try {
       await resendVerification(email)
       setUnverified(false)
       setNotice("We sent a new verification link to your email.")
     } catch (resendError) {
-      setError(getAuthErrorMessage(resendError))
+      showErrorToast(getAuthErrorMessage(resendError))
     } finally {
       setResending(false)
     }
@@ -96,7 +96,6 @@ function LoginRoute() {
     <AuthShell
       title="Sign in"
       description="Use your Custom Shell account."
-      error={error}
       notice={notice}
       onSubmit={handleSubmit}
       footer={

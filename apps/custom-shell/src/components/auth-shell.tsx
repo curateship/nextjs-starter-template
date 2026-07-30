@@ -1,5 +1,5 @@
 import * as React from "react"
-import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react"
+import { CheckCircle2Icon } from "lucide-react"
 
 import { PublicPageFrame } from "@/components/public-page-frame"
 
@@ -7,7 +7,6 @@ import { PublicPageFrame } from "@/components/public-page-frame"
 export function AuthShell({
   title,
   description,
-  error,
   notice,
   footer,
   children,
@@ -15,7 +14,6 @@ export function AuthShell({
 }: {
   title: string
   description?: string
-  error?: string | null
   notice?: string | null
   footer?: React.ReactNode
   children: React.ReactNode
@@ -30,15 +28,6 @@ export function AuthShell({
         ) : null}
       </div>
       <div className="space-y-4">
-        {error ? (
-          <p
-            role="alert"
-            className="flex items-start gap-2 text-sm text-destructive"
-          >
-            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </p>
-        ) : null}
         {notice ? (
           <p
             role="status"

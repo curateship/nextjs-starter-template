@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   MessageSquareIcon,
   PencilIcon,
   SendIcon,
@@ -34,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { Textarea } from "@/components/ui/textarea"
 import {
   createFeedbackComment,
@@ -48,6 +48,7 @@ import {
   type FeedbackItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { cn } from "@/lib/utils"
 
 const feedbackTypes: Array<{ type: FeedbackType; label: string }> = [
@@ -118,7 +119,7 @@ export function FeedbackModal({
   const [feedbackType, setFeedbackType] =
     React.useState<FeedbackType>("suggestion")
   const [message, setMessage] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
   const [feedbackFilter, setFeedbackFilter] =
@@ -155,7 +156,7 @@ export function FeedbackModal({
     let active = true
     const targetId = targetFeedbackId ?? null
 
-    setError(null)
+    setLoadError(null)
     setExpandedIds(new Set(targetId ? [targetId] : []))
     setOpenThreadIds(new Set(targetId ? [targetId] : []))
     setCommentThreads({})
@@ -179,9 +180,9 @@ export function FeedbackModal({
         const comments = await listFeedbackComments(targetId)
         if (!active) return
         setCommentThreads({ [targetId]: comments.comments })
-      } catch (loadError) {
+      } catch (feedbackLoadError) {
         if (!active) return
-        setError(getFeedbackErrorMessage(loadError))
+        setLoadError(getFeedbackErrorMessage(feedbackLoadError))
       } finally {
         if (!active) return
         setLoadingFeedback(false)
@@ -239,11 +240,11 @@ export function FeedbackModal({
   const handleSubmit = async () => {
     const trimmedMessage = message.trim()
     if (!trimmedMessage) {
-      setError("Feedback message is required.")
+      showErrorToast("Feedback message is required.")
       return
     }
 
-    setError(null)
+    dismissErrorToast()
     setIsSubmitting(true)
     try {
       const created = await createFeedback({
@@ -255,7 +256,7 @@ export function FeedbackModal({
       setFeedbackType("suggestion")
       onMutated?.()
     } catch (submitError) {
-      setError(getFeedbackErrorMessage(submitError))
+      showErrorToast(getFeedbackErrorMessage(submitError))
     } finally {
       setIsSubmitting(false)
     }
@@ -263,7 +264,7 @@ export function FeedbackModal({
 
   const handleVote = async (item: FeedbackItem) => {
     setVotingId(item.id)
-    setError(null)
+    dismissErrorToast()
     try {
       const updated = await toggleFeedbackVote(item.id)
       setFeedback((current) =>
@@ -273,7 +274,7 @@ export function FeedbackModal({
       )
       onMutated?.()
     } catch (voteError) {
-      setError(getFeedbackErrorMessage(voteError))
+      showErrorToast(getFeedbackErrorMessage(voteError))
     } finally {
       setVotingId(null)
     }
@@ -306,15 +307,15 @@ export function FeedbackModal({
     if (!shouldOpen || commentThreads[feedbackId]) return
 
     setLoadingThreadId(feedbackId)
-    setError(null)
+    dismissErrorToast()
     try {
       const data = await listFeedbackComments(feedbackId)
       setCommentThreads((current) => ({
         ...current,
         [feedbackId]: data.comments,
       }))
-    } catch (loadError) {
-      setError(getFeedbackErrorMessage(loadError))
+    } catch (threadLoadError) {
+      showErrorToast(getFeedbackErrorMessage(threadLoadError))
     } finally {
       setLoadingThreadId(null)
     }
@@ -323,12 +324,12 @@ export function FeedbackModal({
   const handleCommentSubmit = async (feedbackId: string) => {
     const message = commentInputs[feedbackId]?.trim()
     if (!message) {
-      setError("Comment is required.")
+      showErrorToast("Comment is required.")
       return
     }
 
     setSubmittingCommentId(feedbackId)
-    setError(null)
+    dismissErrorToast()
     try {
       const created = await createFeedbackComment({ feedbackId, message })
       setCommentThreads((current) => ({
@@ -345,7 +346,7 @@ export function FeedbackModal({
       )
       onMutated?.()
     } catch (submitError) {
-      setError(getFeedbackErrorMessage(submitError))
+      showErrorToast(getFeedbackErrorMessage(submitError))
     } finally {
       setSubmittingCommentId(null)
     }
@@ -359,12 +360,12 @@ export function FeedbackModal({
   const handleCommentUpdate = async (comment: FeedbackCommentItem) => {
     const message = editingCommentMessage.trim()
     if (!message) {
-      setError("Comment is required.")
+      showErrorToast("Comment is required.")
       return
     }
 
     setBusyCommentId(comment.id)
-    setError(null)
+    dismissErrorToast()
     try {
       const updated = await updateFeedbackComment({
         commentId: comment.id,
@@ -380,7 +381,7 @@ export function FeedbackModal({
       setEditingCommentMessage("")
       onMutated?.()
     } catch (updateError) {
-      setError(getFeedbackErrorMessage(updateError))
+      showErrorToast(getFeedbackErrorMessage(updateError))
     } finally {
       setBusyCommentId(null)
     }
@@ -388,7 +389,7 @@ export function FeedbackModal({
 
   const handleCommentDelete = async (comment: FeedbackCommentItem) => {
     setBusyCommentId(comment.id)
-    setError(null)
+    dismissErrorToast()
     try {
       await deleteFeedbackComment(comment.id)
       setCommentThreads((current) => ({
@@ -406,7 +407,7 @@ export function FeedbackModal({
       )
       onMutated?.()
     } catch (deleteError) {
-      setError(getFeedbackErrorMessage(deleteError))
+      showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setBusyCommentId(null)
     }
@@ -517,6 +518,8 @@ export function FeedbackModal({
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 Loading feedback
               </div>
+            ) : loadError ? (
+              <ErrorBanner message={loadError} />
             ) : filteredFeedback.length === 0 ? (
               <p className="text-sm text-muted-foreground">No feedback found.</p>
             ) : (
@@ -773,15 +776,6 @@ export function FeedbackModal({
           </CardContent>
         </Card>
 
-        {error ? (
-          <div
-            role="alert"
-            className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        ) : null}
         </DialogBody>
       </DialogContent>
     </Dialog>

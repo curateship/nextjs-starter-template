@@ -11,6 +11,7 @@ import {
   loadCurrentUser,
   requestPasswordReset,
 } from "@/lib/api/auth"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/forgot-password")({
   loader: async () => {
@@ -24,21 +25,20 @@ export const Route = createFileRoute("/forgot-password")({
 
 function ForgotPasswordRoute() {
   const [email, setEmail] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
   const [sent, setSent] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      setError(null)
+      dismissErrorToast()
       setLoading(true)
 
       try {
         await requestPasswordReset(email)
         setSent(true)
       } catch (resetError) {
-        setError(getAuthErrorMessage(resetError))
+        showErrorToast(getAuthErrorMessage(resetError))
       } finally {
         setLoading(false)
       }
@@ -50,7 +50,6 @@ function ForgotPasswordRoute() {
     <AuthShell
       title="Reset your password"
       description="We will email you a link to set a new one."
-      error={error}
       notice={
         sent
           ? "If that email has an account, a reset link is on its way. The link expires in one hour."

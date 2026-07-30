@@ -19,7 +19,6 @@ function SettingsTabRoute() {
     <SettingsPage
       activeTab={activeTab}
       config={runtime.config}
-      settingsError={runtime.settingsError}
       onConfigChange={runtime.onConfigChange}
       onSaveConfig={runtime.onSaveConfig}
     />

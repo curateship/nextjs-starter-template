@@ -58,6 +58,7 @@ import {
   type FeedbackCommentItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useShellRuntime } from "@/components/shell-layout"
 
@@ -259,7 +260,7 @@ export function FeedbackCommentsDashboard({
     if (!ids.length) return
 
     setMassDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       const result = await deleteFeedbackCommentsMany(ids)
       const deletedIds = new Set(result.commentIds)
@@ -270,7 +271,7 @@ export function FeedbackCommentsDashboard({
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (deleteError) {
-      setError(getFeedbackErrorMessage(deleteError))
+      showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setMassDeleting(false)
     }
@@ -280,14 +281,14 @@ export function FeedbackCommentsDashboard({
     if (!deletingComment) return
 
     setQuickDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       await deleteFeedbackComment(deletingComment.id)
       handleDeleted(deletingComment)
       toast.success("Comment deleted.")
       setDeletingComment(null)
     } catch (deleteError) {
-      setError(getFeedbackErrorMessage(deleteError))
+      showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setQuickDeleting(false)
     }
@@ -539,26 +540,24 @@ function EditFeedbackCommentModal({
   onDeleted: (comment: FeedbackCommentItem) => void
 }) {
   const [message, setMessage] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
 
   React.useEffect(() => {
     if (!comment) return
     setMessage(comment.message)
-    setError(null)
   }, [comment])
 
   const handleSave = async () => {
     if (!comment) return
     const trimmedMessage = message.trim()
     if (!trimmedMessage) {
-      setError("Comment is required.")
+      showErrorToast("Comment is required.")
       return
     }
 
     setSaving(true)
-    setError(null)
+    dismissErrorToast()
     try {
       const updated = await updateFeedbackComment({
         commentId: comment.id,
@@ -568,7 +567,7 @@ function EditFeedbackCommentModal({
       toast.success("Comment updated.")
       onOpenChange(false)
     } catch (saveError) {
-      setError(getFeedbackErrorMessage(saveError))
+      showErrorToast(getFeedbackErrorMessage(saveError))
     } finally {
       setSaving(false)
     }
@@ -578,14 +577,14 @@ function EditFeedbackCommentModal({
     if (!comment) return
 
     setDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       await deleteFeedbackComment(comment.id)
       onDeleted(comment)
       toast.success("Comment deleted.")
       onOpenChange(false)
     } catch (deleteError) {
-      setError(getFeedbackErrorMessage(deleteError))
+      showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setDeleting(false)
     }
@@ -626,12 +625,6 @@ function EditFeedbackCommentModal({
               </div>
             </CardContent>
           </Card>
-
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
           <>

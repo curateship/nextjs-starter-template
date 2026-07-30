@@ -20,7 +20,6 @@ function SettingsRoute() {
     <SettingsPage
       activeTab={getSettingsTabFromPath(pathname)}
       config={runtime.config}
-      settingsError={runtime.settingsError}
       onConfigChange={runtime.onConfigChange}
       onSaveConfig={runtime.onSaveConfig}
     />

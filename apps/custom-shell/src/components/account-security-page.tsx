@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -19,6 +18,7 @@ import {
   getAuthErrorMessage,
   signOutOtherSessions,
 } from "@/lib/api/auth"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export function AccountSecurityPage() {
   return (
@@ -37,18 +37,17 @@ function ChangePasswordCard() {
   const [currentPassword, setCurrentPassword] = React.useState("")
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
   const [saved, setSaved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      setError(null)
+      dismissErrorToast()
       setSaved(false)
 
       if (newPassword !== confirmPassword) {
-        setError("Those passwords do not match.")
+        showErrorToast("Those passwords do not match.")
         return
       }
 
@@ -60,7 +59,7 @@ function ChangePasswordCard() {
         setConfirmPassword("")
         setSaved(true)
       } catch (changeError) {
-        setError(getAuthErrorMessage(changeError))
+        showErrorToast(getAuthErrorMessage(changeError))
       } finally {
         setSaving(false)
       }
@@ -115,11 +114,6 @@ function ChangePasswordCard() {
               required
             />
           </div>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={saving}>
               Update password
@@ -151,7 +145,7 @@ function SessionsCard() {
           : `Signed out ${removed} other ${removed === 1 ? "device" : "devices"}.`
       )
     } catch (sessionError) {
-      toast.error(getAuthErrorMessage(sessionError))
+      showErrorToast(getAuthErrorMessage(sessionError))
     } finally {
       setWorking(false)
     }
@@ -182,18 +176,17 @@ function SessionsCard() {
 function DeleteAccountCard() {
   const [open, setOpen] = React.useState(false)
   const [password, setPassword] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState(false)
 
   const handleDelete = React.useCallback(async () => {
-    setError(null)
+    dismissErrorToast()
     setDeleting(true)
 
     try {
       await deleteAccount(password)
       window.location.href = "/login"
     } catch (deleteError) {
-      setError(getAuthErrorMessage(deleteError))
+      showErrorToast(getAuthErrorMessage(deleteError))
       setDeleting(false)
     }
   }, [password])
@@ -239,11 +232,6 @@ function DeleteAccountCard() {
             </div>
           </CardContent>
         </Card>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
       </ConfirmDialog>
     </Card>
   )

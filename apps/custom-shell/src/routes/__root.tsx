@@ -9,6 +9,7 @@ import {
 import "@/styles.css"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { useDismissErrorToastOnNavigate } from "@/lib/error-toast"
 import { ThemeProvider } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 
 export const Route = createRootRoute({
@@ -23,6 +24,8 @@ export const Route = createRootRoute({
 })
 
 function RootComponent() {
+  useDismissErrorToastOnNavigate()
+
   return (
     <RootDocument>
       <ThemeProvider>

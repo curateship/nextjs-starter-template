@@ -5,7 +5,6 @@ import { SidebarSettings } from "@/components/sidebar-settings"
 import { StylingSettings } from "@/components/styling-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
-import { AlertCircleIcon } from "lucide-react"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
@@ -25,13 +24,11 @@ export function getSettingsTabFromPath(path: string): SettingsTabId {
 export function SettingsPage({
   activeTab,
   config,
-  settingsError,
   onConfigChange,
   onSaveConfig,
 }: {
   activeTab: SettingsTabId
   config: ShellConfig
-  settingsError: string | null
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
 }) {
@@ -40,15 +37,6 @@ export function SettingsPage({
       className="flex w-full flex-col pb-8"
       style={{ gap: "var(--shell-gutter, 1.5rem)" }}
     >
-      {settingsError ? (
-        <div
-          role="alert"
-          className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{settingsError}</span>
-        </div>
-      ) : null}
 
       <div
         className="flex flex-col items-start lg:flex-row"

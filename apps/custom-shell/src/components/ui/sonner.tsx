@@ -18,6 +18,13 @@ function Toaster({ ...props }: ToasterProps) {
       richColors
       style={
         {
+          // Above dialog overlays (z-50), so a failure reported while a modal
+          // is open stays readable and its close button stays clickable. An
+          // open Radix modal also sets pointer-events: none on <body>, which
+          // the toaster inherits — re-enable it or toasts can't be dismissed
+          // while a dialog is up.
+          zIndex: 100,
+          pointerEvents: "auto",
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",

@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
   Card,
   CardContent,
@@ -73,7 +74,6 @@ export function WorkspaceSwitcher({
     null
   )
   const [creating, setCreating] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
 
   if (!activeWorkspace) {
     return null
@@ -82,15 +82,13 @@ export function WorkspaceSwitcher({
   const handleSwitch = async (workspaceId: string) => {
     if (workspaceId === activeWorkspace.id) return
 
-    setError(null)
+    dismissErrorToast()
     setBusyWorkspaceId(workspaceId)
     try {
       await switchWorkspace(workspaceId)
       await router.invalidate()
     } catch (error) {
-      const message = getWorkspaceErrorMessage(error)
-      setError(message)
-      window.alert(message)
+      showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
       setBusyWorkspaceId(null)
     }
@@ -99,11 +97,11 @@ export function WorkspaceSwitcher({
   const handleCreate = async () => {
     const workspaceName = name.trim()
     if (!workspaceName) {
-      setError("Workspace name is required")
+      showErrorToast("Workspace name is required")
       return
     }
 
-    setError(null)
+    dismissErrorToast()
     setCreating(true)
     try {
       await createWorkspace(workspaceName)
@@ -112,7 +110,7 @@ export function WorkspaceSwitcher({
       setCreateOpen(false)
       setName("")
     } catch (error) {
-      setError(getWorkspaceErrorMessage(error))
+      showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
       setCreating(false)
     }
@@ -216,7 +214,7 @@ export function WorkspaceSwitcher({
                   <DropdownMenuItem
                     disabled={Boolean(busyWorkspaceId)}
                     onSelect={() => {
-                      setError(null)
+                      dismissErrorToast()
                       setName("")
                       setCreateOpen(true)
                     }}
@@ -274,11 +272,6 @@ export function WorkspaceSwitcher({
                   </div>
                 </CardContent>
               </Card>
-              {error ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {error}
-                </p>
-              ) : null}
             </DialogBody>
             <DialogFooter variant="plain">
               <Button

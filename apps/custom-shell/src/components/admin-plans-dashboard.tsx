@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
   TableCell,
   TableHead,
@@ -434,7 +435,7 @@ export function AdminPlansDashboard({
             setMassArchiveOpen(false)
             await refresh()
           } catch (archiveError) {
-            toast.error(getPlanErrorMessage(archiveError))
+            showErrorToast(getPlanErrorMessage(archiveError))
           } finally {
             setMassArchiving(false)
           }
@@ -464,7 +465,7 @@ export function AdminPlansDashboard({
             setArchiveTarget(null)
             await refresh()
           } catch (archiveError) {
-            toast.error(getPlanErrorMessage(archiveError))
+            showErrorToast(getPlanErrorMessage(archiveError))
           } finally {
             setArchiving(false)
           }
@@ -490,7 +491,6 @@ function PlanDialog({
   const [draft, setDraft] = React.useState<PlanDraft>(() =>
     plan ? toDraft(plan) : emptyDraft
   )
-  const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
 
   const update = React.useCallback(
@@ -501,13 +501,13 @@ function PlanDialog({
   )
 
   const handleSave = React.useCallback(async () => {
-    setError(null)
+    dismissErrorToast()
 
     let features: PlanFeatures
     try {
       features = parseFeatures(draft.features)
     } catch {
-      setError(getPlanErrorMessage(new Error("FEATURES_INVALID")))
+      showErrorToast(getPlanErrorMessage(new Error("FEATURES_INVALID")))
       return
     }
 
@@ -539,7 +539,7 @@ function PlanDialog({
       }
       await onSaved()
     } catch (saveError) {
-      setError(getPlanErrorMessage(saveError))
+      showErrorToast(getPlanErrorMessage(saveError))
     } finally {
       setSaving(false)
     }
@@ -726,12 +726,6 @@ function PlanDialog({
               </div>
             </CardContent>
           </Card>
-
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

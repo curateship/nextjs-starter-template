@@ -1,13 +1,14 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   BellIcon,
   MessageSquareIcon,
   ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
 
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Badge } from "@/components/ui/badge"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -170,7 +171,7 @@ export function NotificationsPage({
     if (!notificationIds.length) return
 
     setDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       await deleteAdminNotifications(notificationIds)
       const deletedIds = new Set(notificationIds)
@@ -180,7 +181,7 @@ export function NotificationsPage({
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (deleteError) {
-      setError(getNotificationErrorMessage(deleteError))
+      showErrorToast(getNotificationErrorMessage(deleteError))
     } finally {
       setDeleting(false)
     }
@@ -188,7 +189,7 @@ export function NotificationsPage({
 
   async function clearAll() {
     setDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       await clearAdminNotifications()
       setNotifications([])
@@ -196,7 +197,7 @@ export function NotificationsPage({
       setSelectedIds(new Set())
       setClearAllOpen(false)
     } catch (deleteError) {
-      setError(getNotificationErrorMessage(deleteError))
+      showErrorToast(getNotificationErrorMessage(deleteError))
     } finally {
       setDeleting(false)
     }
@@ -215,12 +216,11 @@ export function NotificationsPage({
   return (
     <div className="w-full pb-8">
       {error ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <div className="mt-4">
+          <ErrorBanner
+            message={error}
+            onRetry={() => void loadNotifications()}
+          />
         </div>
       ) : null}
 

@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountProfilePage } from "@/components/account-profile-page"
 import {
@@ -190,11 +191,7 @@ function BillingTab() {
   }, [])
 
   if (error) {
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        {error}
-      </p>
-    )
+    return <ErrorBanner message={error} />
   }
 
   if (!data) {

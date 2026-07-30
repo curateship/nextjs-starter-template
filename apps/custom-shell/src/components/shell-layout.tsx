@@ -6,7 +6,6 @@ import {
   useRouterState,
   useSearch,
 } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { AccountDialog, accountTabForHref } from "@/components/account-dialog"
 import { DashboardContent } from "@/components/demo/dashboard-content"
@@ -39,6 +38,7 @@ import {
   saveSidebarWidth,
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { clampSidebarWidth } from "@/lib/sidebar-width"
 
 type SaveStatus = "idle" | "saving" | "saved"
@@ -48,7 +48,6 @@ const CONFIG_SAVE_DEBOUNCE_MS = 700
 
 type ShellRuntime = {
   config: ShellConfig
-  settingsError: string | null
   saveStatus: SaveStatus
   feedbackRefreshToken: number
   onConfigChange: (config: ShellConfig) => void
@@ -100,7 +99,6 @@ export function ShellLayout({
   )
   const configSaveQueueRef = React.useRef(Promise.resolve())
   const configSaveVersionRef = React.useRef(0)
-  const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   const [targetFeedbackId, setTargetFeedbackId] = React.useState<string | null>(
@@ -128,7 +126,6 @@ export function ShellLayout({
     }
     latestConfigRef.current = nextConfig
     setConfig(nextConfig)
-    setSettingsError(null)
     setSaveStatus("idle")
   }, [settings])
 
@@ -173,10 +170,8 @@ export function ShellLayout({
       return true
     } catch (error) {
       if (version === configSaveVersionRef.current) {
-        const message = getShellSettingsErrorMessage(error)
-        setSettingsError(message)
         setSaveStatus("idle")
-        toast.error(message)
+        showErrorToast(getShellSettingsErrorMessage(error))
       }
       return false
     }
@@ -189,7 +184,7 @@ export function ShellLayout({
     (nextConfig: ShellConfig) => {
       setConfig(nextConfig)
       latestConfigRef.current = nextConfig
-      setSettingsError(null)
+      dismissErrorToast()
       if (configSaveTimerRef.current) {
         clearTimeout(configSaveTimerRef.current)
       }
@@ -228,7 +223,7 @@ export function ShellLayout({
             ...current,
             sidebarWidth: savedSidebarWidthRef.current,
           }))
-          toast.error(getShellSettingsErrorMessage(error))
+          showErrorToast(getShellSettingsErrorMessage(error))
         }
       })
   }, [])
@@ -286,7 +281,6 @@ export function ShellLayout({
   const runtime = React.useMemo<ShellRuntime>(
     () => ({
       config,
-      settingsError,
       saveStatus,
       feedbackRefreshToken,
       onConfigChange: handleConfigChange,
@@ -301,7 +295,6 @@ export function ShellLayout({
       handleSaveConfig,
       openFeedback,
       saveStatus,
-      settingsError,
     ]
   )
 

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { getAuthErrorMessage, updateProfile } from "@/lib/api/auth"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import type { AuthUser } from "@/lib/api/auth"
 
 export function AccountProfilePage({
@@ -35,7 +36,6 @@ export function AccountProfilePage({
   onStatusChange: (status: { saving: boolean; saved: boolean }) => void
 }) {
   const [name, setName] = React.useState(user.name)
-  const [error, setError] = React.useState<string | null>(null)
   const [saved, setSaved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
 
@@ -46,7 +46,7 @@ export function AccountProfilePage({
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      setError(null)
+      dismissErrorToast()
       setSaved(false)
       setSaving(true)
 
@@ -55,7 +55,7 @@ export function AccountProfilePage({
         setSaved(true)
         onSaved()
       } catch (saveError) {
-        setError(getAuthErrorMessage(saveError))
+        showErrorToast(getAuthErrorMessage(saveError))
       } finally {
         setSaving(false)
       }
@@ -120,11 +120,6 @@ export function AccountProfilePage({
               </FieldLabel>
               <Input id="account-email" value={user.email} readOnly disabled />
             </div>
-            {error ? (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
           </CardContent>
         </form>
       </Card>
