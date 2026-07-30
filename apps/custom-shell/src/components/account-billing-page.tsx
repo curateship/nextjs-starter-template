@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ExternalLinkIcon } from "lucide-react"
-import { toast } from "sonner"
+
+import { showErrorToast } from "@/lib/error-toast"
 
 import { PricingTable, type BillingInterval } from "@/components/pricing-table"
 import { Badge } from "@/components/ui/badge"
@@ -91,7 +92,7 @@ export function AccountBillingPage({
         const { url } = await startCheckout(plan.slug, selectedInterval)
         window.location.href = url
       } catch (checkoutError) {
-        toast.error(getBillingErrorMessage(checkoutError))
+        showErrorToast(getBillingErrorMessage(checkoutError))
         setBusyPlanSlug(null)
       }
     },
@@ -104,7 +105,7 @@ export function AccountBillingPage({
       const { url } = await openBillingPortal()
       window.location.href = url
     } catch (portalError) {
-      toast.error(getBillingErrorMessage(portalError))
+      showErrorToast(getBillingErrorMessage(portalError))
       setOpeningPortal(false)
     }
   }, [])

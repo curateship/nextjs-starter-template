@@ -32,6 +32,7 @@ import {
 import { DatePicker } from "@/components/ui/date-picker"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
   Select,
   SelectContent,
@@ -147,7 +148,7 @@ export function AdminUsersDashboard({
         await refresh()
         return true
       } catch (actionError) {
-        toast.error(getAdminUserErrorMessage(actionError))
+        showErrorToast(getAdminUserErrorMessage(actionError))
         return false
       }
     },
@@ -513,7 +514,6 @@ function EditAccountDialog({
   )
   const [planId, setPlanId] = React.useState(grantedPlanId)
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
-  const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
 
   const initial = React.useRef({
@@ -526,7 +526,7 @@ function EditAccountDialog({
   const handleSave = React.useCallback(async () => {
     if (!account) return
 
-    setError(null)
+    dismissErrorToast()
     setSaving(true)
     try {
       // Only send what changed, so a no-op save writes no audit rows.
@@ -550,7 +550,7 @@ function EditAccountDialog({
       toast.success("Account updated.")
       await onSaved()
     } catch (saveError) {
-      setError(getAdminUserErrorMessage(saveError))
+      showErrorToast(getAdminUserErrorMessage(saveError))
     } finally {
       setSaving(false)
     }
@@ -664,12 +664,6 @@ function EditAccountDialog({
               </div>
             </CardContent>
           </Card>
-
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>

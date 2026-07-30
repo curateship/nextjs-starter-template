@@ -9,6 +9,7 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
 import { getAuthErrorMessage, loadCurrentUser, register } from "@/lib/api/auth"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/register")({
   loader: async () => {
@@ -24,21 +25,20 @@ function RegisterRoute() {
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [registered, setRegistered] = React.useState(false)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      setError(null)
+      dismissErrorToast()
       setLoading(true)
 
       try {
         await register({ name, email, password })
         setRegistered(true)
       } catch (registerError) {
-        setError(getAuthErrorMessage(registerError))
+        showErrorToast(getAuthErrorMessage(registerError))
       } finally {
         setLoading(false)
       }
@@ -71,7 +71,6 @@ function RegisterRoute() {
     <AuthShell
       title="Create your account"
       description="It takes less than a minute."
-      error={error}
       onSubmit={handleSubmit}
       footer={
         <p>

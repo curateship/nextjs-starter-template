@@ -1,6 +1,7 @@
 import * as React from "react"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { toast } from "sonner"
+
+import { showErrorToast } from "@/lib/error-toast"
 
 import { authLinkClassName } from "@/components/auth-shell"
 import { PublicPageFrame } from "@/components/public-page-frame"
@@ -53,7 +54,7 @@ function PricingRoute() {
         const { url } = await startCheckout(plan.slug, selectedInterval)
         window.location.href = url
       } catch (checkoutError) {
-        toast.error(getBillingErrorMessage(checkoutError))
+        showErrorToast(getBillingErrorMessage(checkoutError))
         setBusyPlanSlug(null)
       }
     },

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { toast } from "sonner"
 import {
-  AlertCircleIcon,
   EditIcon,
   GridIcon,
   ImageIcon,
@@ -12,6 +11,8 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
@@ -195,7 +196,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     const allowedTypes = [...imageTypes, ...videoTypes]
     if (!allowedTypes.includes(file.type)) {
-      setError("Invalid file type. Only images, SVGs, and videos are allowed.")
+      showErrorToast("Invalid file type. Only images, SVGs, and videos are allowed.")
       event.target.value = ""
       return
     }
@@ -203,19 +204,19 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     const kind = imageTypes.includes(file.type) ? "image" : "video"
     const maxSize = kind === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
     if (file.size > maxSize) {
-      setError(`File size too large. Maximum size is ${kind === "image" ? "10MB" : "100MB"}.`)
+      showErrorToast(`File size too large. Maximum size is ${kind === "image" ? "10MB" : "100MB"}.`)
       event.target.value = ""
       return
     }
 
     setUploading(true)
-    setError(null)
+    dismissErrorToast()
     try {
       await uploadMedia(file)
       toast.success("Media uploaded.")
       await loadCurrentPage()
     } catch (uploadError) {
-      setError(getMediaErrorMessage(uploadError))
+      showErrorToast(getMediaErrorMessage(uploadError))
     } finally {
       setUploading(false)
       event.target.value = ""
@@ -231,7 +232,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     if (!editingMedia) return
 
     setSavingEdit(true)
-    setError(null)
+    dismissErrorToast()
     try {
       const updated = await updateMedia(editingMedia.id, editAltText)
       setData((current) =>
@@ -245,7 +246,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       setEditingMedia(null)
       toast.success("Media updated.")
     } catch (saveError) {
-      setError(getMediaErrorMessage(saveError))
+      showErrorToast(getMediaErrorMessage(saveError))
     } finally {
       setSavingEdit(false)
     }
@@ -255,7 +256,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     if (!deleteIds?.length) return
 
     const ids = deleteIds
-    setError(null)
+    dismissErrorToast()
     setDeleting(true)
     try {
       if (ids.length === 1) {
@@ -273,7 +274,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       setDeleteIds(null)
       await loadCurrentPage()
     } catch (deleteError) {
-      setError(getMediaErrorMessage(deleteError))
+      showErrorToast(getMediaErrorMessage(deleteError))
     } finally {
       setDeleting(false)
     }
@@ -365,12 +366,8 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       />
 
       {error ? (
-        <div
-          role="alert"
-          className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <div className="mb-4">
+          <ErrorBanner message={error} onRetry={() => void loadCurrentPage()} />
         </div>
       ) : null}
 

@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/auth-shell"
+import { InlineError } from "@/components/ui/inline-error"
 import { getAuthErrorMessage, loadCurrentUser, verifyEmail } from "@/lib/api/auth"
 
 export const Route = createFileRoute("/verify-email")({
@@ -81,7 +82,6 @@ function VerifyEmailRoute() {
   return (
     <AuthShell
       title="We could not verify that link"
-      error={error}
       footer={
         <p>
           <Link to="/login" className={authLinkClassName}>
@@ -91,6 +91,7 @@ function VerifyEmailRoute() {
         </p>
       }
     >
+      {error ? <InlineError>{error}</InlineError> : null}
       <p className="text-sm text-muted-foreground">
         Verification links expire after 24 hours and can only be used once.
       </p>

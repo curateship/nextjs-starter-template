@@ -60,6 +60,7 @@ import {
   type FeedbackItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useShellRuntime } from "@/components/shell-layout"
 
@@ -255,7 +256,7 @@ export function FeedbackDashboard({
     if (!ids.length) return
 
     setMassDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       const result = await deleteFeedbackMany(ids)
       const deletedIds = new Set(result.feedbackIds)
@@ -264,7 +265,7 @@ export function FeedbackDashboard({
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (deleteError) {
-      setError(getFeedbackErrorMessage(deleteError))
+      showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setMassDeleting(false)
     }
@@ -274,14 +275,14 @@ export function FeedbackDashboard({
     if (!deletingFeedback) return
 
     setQuickDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       await deleteFeedback(deletingFeedback.id)
       handleDeleted(deletingFeedback.id)
       toast.success("Feedback deleted.")
       setDeletingFeedback(null)
     } catch (deleteError) {
-      setError(getFeedbackErrorMessage(deleteError))
+      showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setQuickDeleting(false)
     }
@@ -555,7 +556,6 @@ function EditFeedbackModal({
   const [feedbackType, setFeedbackType] =
     React.useState<FeedbackType>("suggestion")
   const [message, setMessage] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
 
@@ -563,19 +563,18 @@ function EditFeedbackModal({
     if (!feedback) return
     setFeedbackType(feedback.type)
     setMessage(feedback.message)
-    setError(null)
   }, [feedback])
 
   const handleSave = async () => {
     if (!feedback) return
     const trimmedMessage = message.trim()
     if (!trimmedMessage) {
-      setError("Feedback message is required.")
+      showErrorToast("Feedback message is required.")
       return
     }
 
     setSaving(true)
-    setError(null)
+    dismissErrorToast()
     try {
       const updated = await updateFeedback({
         feedbackId: feedback.id,
@@ -586,7 +585,7 @@ function EditFeedbackModal({
       toast.success("Feedback updated.")
       onOpenChange(false)
     } catch (saveError) {
-      setError(getFeedbackErrorMessage(saveError))
+      showErrorToast(getFeedbackErrorMessage(saveError))
     } finally {
       setSaving(false)
     }
@@ -596,14 +595,14 @@ function EditFeedbackModal({
     if (!feedback) return
 
     setDeleting(true)
-    setError(null)
+    dismissErrorToast()
     try {
       await deleteFeedback(feedback.id)
       onDeleted(feedback.id)
       toast.success("Feedback deleted.")
       onOpenChange(false)
     } catch (deleteError) {
-      setError(getFeedbackErrorMessage(deleteError))
+      showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setDeleting(false)
     }
@@ -659,12 +658,6 @@ function EditFeedbackModal({
           </div>
             </CardContent>
           </Card>
-
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
           <>

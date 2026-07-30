@@ -10,6 +10,7 @@ import {
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -314,7 +315,9 @@ export function NotificationCenter({
                 </div>
               )}
               {error ? (
-                <p className="mt-4 text-sm text-destructive">{error}</p>
+                <div className="mt-4">
+                  <ErrorBanner message={error} />
+                </div>
               ) : null}
             </div>
           </ScrollArea>

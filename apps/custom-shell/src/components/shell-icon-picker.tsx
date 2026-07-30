@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { InlineError } from "@/components/ui/inline-error"
 import {
   Dialog,
   DialogBody,
@@ -159,7 +160,7 @@ export function ShellIconPicker({
                       placeholder="octagon-x"
                     />
                     {customIconError ? (
-                      <p className="text-xs text-destructive">{customIconError}</p>
+                      <InlineError>{customIconError}</InlineError>
                     ) : customLucideIcon ? (
                       <p className="text-xs text-muted-foreground">
                         Found {getShellIconLabel(customLucideIcon)}.

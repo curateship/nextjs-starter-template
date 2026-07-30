@@ -18,6 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -142,7 +144,7 @@ export function MediaPicker({
 
     const allowedTypes = showVideos ? [...imageTypes, ...videoTypes] : imageTypes
     if (!allowedTypes.includes(file.type)) {
-      setError(
+      showErrorToast(
         showVideos
           ? "Invalid file type. Only images, SVGs, and videos are allowed."
           : "Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed."
@@ -154,7 +156,7 @@ export function MediaPicker({
     const fileType = imageTypes.includes(file.type) ? "image" : "video"
     const maxSize = fileType === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
     if (file.size > maxSize) {
-      setError(`File size too large. Maximum size is ${fileType === "image" ? "10MB" : "100MB"}.`)
+      showErrorToast(`File size too large. Maximum size is ${fileType === "image" ? "10MB" : "100MB"}.`)
       event.target.value = ""
       return
     }
@@ -164,7 +166,7 @@ export function MediaPicker({
     reader.readAsDataURL(file)
     setUploadFile(file)
     setAltText("")
-    setError(null)
+    dismissErrorToast()
     event.target.value = ""
   }
 
@@ -172,14 +174,14 @@ export function MediaPicker({
     if (!uploadFile) return
 
     setUploading(true)
-    setError(null)
+    dismissErrorToast()
     try {
       const item = await uploadMedia(uploadFile, altText)
       onSelectMedia(item.url, item.alt_text ?? undefined)
       clearUpload()
       onOpenChange(false)
     } catch (uploadError) {
-      setError(getMediaErrorMessage(uploadError))
+      showErrorToast(getMediaErrorMessage(uploadError))
     } finally {
       setUploading(false)
     }
@@ -244,9 +246,10 @@ export function MediaPicker({
             </div>
 
             {error ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </div>
+              <ErrorBanner
+                message={error}
+                onRetry={() => void loadCurrentMedia()}
+              />
             ) : null}
 
             {uploadFile ? (
