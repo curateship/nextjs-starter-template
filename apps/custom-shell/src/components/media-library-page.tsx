@@ -1,4 +1,5 @@
 import * as React from "react"
+import { toast } from "sonner"
 import {
   AlertCircleIcon,
   EditIcon,
@@ -30,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -94,7 +96,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const { config } = useShellRuntime()
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(() => activeTabToFileType(activeTab) ?? "all")
   const [currentPage, setCurrentPage] = React.useState(1)
@@ -108,6 +109,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [editAltText, setEditAltText] = React.useState("")
   const [savingEdit, setSavingEdit] = React.useState(false)
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -208,10 +210,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     setUploading(true)
     setError(null)
-    setNotice(null)
     try {
       await uploadMedia(file)
-      setNotice("Media uploaded.")
+      toast.success("Media uploaded.")
       await loadCurrentPage()
     } catch (uploadError) {
       setError(getMediaErrorMessage(uploadError))
@@ -231,7 +232,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     setSavingEdit(true)
     setError(null)
-    setNotice(null)
     try {
       const updated = await updateMedia(editingMedia.id, editAltText)
       setData((current) =>
@@ -243,7 +243,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           : current
       )
       setEditingMedia(null)
-      setNotice("Media updated.")
+      toast.success("Media updated.")
     } catch (saveError) {
       setError(getMediaErrorMessage(saveError))
     } finally {
@@ -256,14 +256,14 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     const ids = deleteIds
     setError(null)
-    setNotice(null)
+    setDeleting(true)
     try {
       if (ids.length === 1) {
         await deleteMedia(ids[0])
-        setNotice("Media deleted.")
+        toast.success("Media deleted.")
       } else {
         const result = await bulkDeleteMedia(ids)
-        setNotice(`Deleted ${result.deleted_count} media ${result.deleted_count === 1 ? "item" : "items"}.`)
+        toast.success(`Deleted ${result.deleted_count} media ${result.deleted_count === 1 ? "item" : "items"}.`)
       }
       setSelectedIds((current) => {
         const next = new Set(current)
@@ -274,6 +274,8 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       await loadCurrentPage()
     } catch (deleteError) {
       setError(getMediaErrorMessage(deleteError))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -286,7 +288,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           onClick={() => setDeleteIds(Array.from(selectedIds))}
         >
           <Trash2Icon className="size-4" />
-          Delete {selectedIds.size}
+          Delete ({selectedIds.size})
         </DashboardToolbarButton>
       ) : null}
       <DashboardToolbarSearch
@@ -361,12 +363,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         accept={[...imageTypes, ...videoTypes].join(",")}
         onChange={handleUploadSelect}
       />
-
-      {notice ? (
-        <div className="mb-4 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {notice}
-        </div>
-      ) : null}
 
       {error ? (
         <div
@@ -550,24 +546,15 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteIds} onOpenChange={(open) => !open && setDeleteIds(null)}>
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              Delete {deleteIds?.length ?? 0} {(deleteIds?.length ?? 0) === 1 ? "item" : "items"}?
-            </DialogTitle>
-          </DialogHeader>
-
-          <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>
-              Cancel
-            </Button>
-            <Button type="button" variant="destructive" onClick={handleConfirmDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteIds}
+        onOpenChange={(open) => !open && setDeleteIds(null)}
+        title={`Delete ${deleteIds?.length ?? 0} ${(deleteIds?.length ?? 0) === 1 ? "item" : "items"}?`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={() => void handleConfirmDelete()}
+      />
     </div>
   )
 }
@@ -603,9 +590,16 @@ function MediaTableRow({
         <div className="flex min-w-0 items-center gap-3">
           <MediaPreview item={item} className="size-12 shrink-0 rounded-md border bg-muted" />
           <div className="min-w-0">
-            <div className="truncate font-medium">{item.original_name}</div>
+            <div className="truncate font-medium" title={item.original_name}>
+              {item.original_name}
+            </div>
             {item.alt_text ? (
-              <div className="max-w-[280px] truncate text-xs text-muted-foreground">{item.alt_text}</div>
+              <div
+                className="max-w-[280px] truncate text-xs text-muted-foreground"
+                title={item.alt_text}
+              >
+                {item.alt_text}
+              </div>
             ) : null}
           </div>
         </div>

@@ -5,12 +5,21 @@ import { Link, useRouter } from "@tanstack/react-router"
 import {
   CheckIcon,
   ChevronsUpDownIcon,
+  Loader2Icon,
   PlusIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -99,6 +108,7 @@ export function WorkspaceSwitcher({
     try {
       await createWorkspace(workspaceName)
       await router.invalidate()
+      toast.success("Workspace created.")
       setCreateOpen(false)
       setName("")
     } catch (error) {
@@ -226,8 +236,14 @@ export function WorkspaceSwitcher({
         </SidebarMenuItem>
       </SidebarMenu>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(next) => {
+          if (!next && creating) return
+          setCreateOpen(next)
+        }}
+      >
+        <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>New workspace</DialogTitle>
             <DialogDescription>
@@ -235,27 +251,36 @@ export function WorkspaceSwitcher({
             </DialogDescription>
           </DialogHeader>
           <form
-            className="grid gap-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault()
               void handleCreate()
             }}
           >
-            <div className="grid gap-2">
-              <Label htmlFor="workspace-name">Name</Label>
-              <Input
-                id="workspace-name"
-                value={name}
-                disabled={creating}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            {error ? (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-            <DialogFooter variant="plain" className="p-0">
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Workspace</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="workspace-name">Name</Label>
+                    <Input
+                      id="workspace-name"
+                      value={name}
+                      disabled={creating}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              {error ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
+            </DialogBody>
+            <DialogFooter variant="plain">
               <Button
                 type="button"
                 variant="outline"
@@ -265,7 +290,8 @@ export function WorkspaceSwitcher({
                 Cancel
               </Button>
               <Button type="submit" disabled={creating}>
-                {creating ? "Creating..." : "Create"}
+                {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                Create
               </Button>
             </DialogFooter>
           </form>

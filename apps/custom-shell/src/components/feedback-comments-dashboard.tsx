@@ -1,6 +1,6 @@
 import * as React from "react"
+import { toast } from "sonner"
 import {
-  AlertCircleIcon,
   MessageSquareIcon,
   SaveIcon,
   SettingsIcon,
@@ -9,10 +9,6 @@ import {
 
 import {
   DashboardToolbarButton,
-  dashboardToolbarSegmentedButtonActiveClassName,
-  dashboardToolbarSegmentedButtonClassName,
-  dashboardToolbarSegmentedButtonInactiveClassName,
-  dashboardToolbarSegmentedGroupClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
@@ -36,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -63,18 +60,10 @@ import {
 } from "@/lib/api/feedback"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useShellRuntime } from "@/components/shell-layout"
-import { cn } from "@/lib/utils"
 
-type FeedbackPeriod = "1year" | "3months" | "30days"
 type CommentSortColumn = "message" | "feedback" | "type" | "author" | "created"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-
-const feedbackPeriodLabels: Record<FeedbackPeriod, string> = {
-  "1year": "1 Year",
-  "3months": "3 Months",
-  "30days": "30 Days",
-}
 
 const feedbackTypeLabels: Record<FeedbackType, string> = {
   suggestion: "Suggestion",
@@ -113,8 +102,6 @@ export function FeedbackCommentsDashboard() {
   const [comments, setComments] = React.useState<FeedbackCommentItem[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
-  const [periodFilter, setPeriodFilter] =
-    React.useState<FeedbackPeriod>("1year")
   const [sortColumn, setSortColumn] = React.useState<CommentSortColumn>("created")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
@@ -129,6 +116,7 @@ export function FeedbackCommentsDashboard() {
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [quickDeleting, setQuickDeleting] = React.useState(false)
+  const [reloadCount, setReloadCount] = React.useState(0)
 
   React.useEffect(() => {
     let active = true
@@ -152,11 +140,10 @@ export function FeedbackCommentsDashboard() {
     return () => {
       active = false
     }
-  }, [])
+  }, [reloadCount])
 
   const filteredComments = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const periodStart = getPeriodStart(periodFilter)
     const direction = sortDirection === "asc" ? 1 : -1
     return comments.filter((comment) => {
       const matchesSearch =
@@ -166,8 +153,7 @@ export function FeedbackCommentsDashboard() {
         comment.author_name.toLowerCase().includes(query)
       const matchesType =
         typeFilter === "all" || comment.feedback_type === typeFilter
-      const matchesPeriod = new Date(comment.created_at) >= periodStart
-      return matchesSearch && matchesType && matchesPeriod
+      return matchesSearch && matchesType
     }).sort((a, b) => {
       if (sortColumn === "message") return a.message.localeCompare(b.message) * direction
       if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
@@ -175,7 +161,7 @@ export function FeedbackCommentsDashboard() {
       if (sortColumn === "author") return a.author_name.localeCompare(b.author_name) * direction
       return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
     })
-  }, [comments, periodFilter, searchQuery, sortColumn, sortDirection, typeFilter])
+  }, [comments, searchQuery, sortColumn, sortDirection, typeFilter])
 
   const totalPages = Math.ceil(filteredComments.length / pageSize)
   const paginatedComments = React.useMemo(() => {
@@ -198,7 +184,7 @@ export function FeedbackCommentsDashboard() {
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, periodFilter, sortColumn, sortDirection, typeFilter, pageSize])
+  }, [searchQuery, sortColumn, sortDirection, typeFilter, pageSize])
 
   const toggleSort = (column: CommentSortColumn) => {
     if (sortColumn === column) {
@@ -265,6 +251,7 @@ export function FeedbackCommentsDashboard() {
       setComments((current) =>
         current.filter((comment) => !deletedIds.has(comment.id))
       )
+      toast.success("Comments deleted.")
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (deleteError) {
@@ -282,6 +269,7 @@ export function FeedbackCommentsDashboard() {
     try {
       await deleteFeedbackComment(deletingComment.id)
       handleDeleted(deletingComment)
+      toast.success("Comment deleted.")
       setDeletingComment(null)
     } catch (deleteError) {
       setError(getFeedbackErrorMessage(deleteError))
@@ -292,20 +280,18 @@ export function FeedbackCommentsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      {error ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
-
       <DashboardTable
         title="Comments"
         icon={<MessageSquareIcon className="text-muted-foreground" />}
         count={filteredComments.length}
+        error={
+          error
+            ? {
+                message: error,
+                onRetry: () => setReloadCount((count) => count + 1),
+              }
+            : null
+        }
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -321,11 +307,6 @@ export function FeedbackCommentsDashboard() {
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
-            <PeriodTabs
-              activePeriod={periodFilter}
-              onPeriodChange={setPeriodFilter}
-            />
-
             <DashboardToolbarSearch
               name="comment-search"
               aria-label="Search comments"
@@ -430,7 +411,7 @@ export function FeedbackCommentsDashboard() {
               </button>
             </TableCell>
             <TableCell column="preview">
-              <span className="line-clamp-1 max-w-44">
+              <span className="block truncate" title={comment.feedback_message}>
                 {comment.feedback_message}
               </span>
             </TableCell>
@@ -503,119 +484,29 @@ export function FeedbackCommentsDashboard() {
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
       />
-      <MassDeleteFeedbackCommentsModal
-        count={selectedIds.size}
-        deleting={massDeleting}
+      <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} Comment${selectedIds.size === 1 ? "" : "s"}`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        loading={massDeleting}
+        disabled={selectedIds.size === 0}
         onConfirm={handleMassDelete}
       />
-      <DeleteFeedbackCommentModal
-        comment={deletingComment}
-        deleting={quickDeleting}
+      <ConfirmDialog
         open={Boolean(deletingComment)}
         onOpenChange={(open) => {
           if (!open) setDeletingComment(null)
         }}
+        title="Delete Comment"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        loading={quickDeleting}
+        disabled={!deletingComment}
         onConfirm={handleQuickDelete}
       />
     </div>
-  )
-}
-
-function DeleteFeedbackCommentModal({
-  comment,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  comment: FeedbackCommentItem | null
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Delete Comment</DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || !comment}
-            >
-              <Trash2Icon className="h-4 w-4" />
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function MassDeleteFeedbackCommentsModal({
-  count,
-  deleting,
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  count: number
-  deleting: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>
-            Delete {count} Comment{count === 1 ? "" : "s"}
-          </DialogTitle>
-          <DialogDescription>This action cannot be undone.</DialogDescription>
-        </DialogHeader>
-
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onConfirm}
-              disabled={deleting || count === 0}
-            >
-              <Trash2Icon className="h-4 w-4" />
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -659,6 +550,7 @@ function EditFeedbackCommentModal({
         message: trimmedMessage,
       })
       onUpdated(updated)
+      toast.success("Comment updated.")
       onOpenChange(false)
     } catch (saveError) {
       setError(getFeedbackErrorMessage(saveError))
@@ -675,6 +567,7 @@ function EditFeedbackCommentModal({
     try {
       await deleteFeedbackComment(comment.id)
       onDeleted(comment)
+      toast.success("Comment deleted.")
       onOpenChange(false)
     } catch (deleteError) {
       setError(getFeedbackErrorMessage(deleteError))
@@ -745,49 +638,4 @@ function EditFeedbackCommentModal({
       </DialogContent>
     </Dialog>
   )
-}
-
-function PeriodTabs({
-  activePeriod,
-  onPeriodChange,
-}: {
-  activePeriod: FeedbackPeriod
-  onPeriodChange: (period: FeedbackPeriod) => void
-}) {
-  return (
-    <div className={dashboardToolbarSegmentedGroupClassName}>
-      {(Object.keys(feedbackPeriodLabels) as FeedbackPeriod[]).map((key) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => onPeriodChange(key)}
-          className={cn(
-            dashboardToolbarSegmentedButtonClassName,
-            activePeriod === key
-              ? dashboardToolbarSegmentedButtonActiveClassName
-              : dashboardToolbarSegmentedButtonInactiveClassName
-          )}
-        >
-          {feedbackPeriodLabels[key]}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function getPeriodStart(period: FeedbackPeriod) {
-  const date = new Date()
-
-  if (period === "30days") {
-    date.setDate(date.getDate() - 30)
-    return date
-  }
-
-  if (period === "3months") {
-    date.setMonth(date.getMonth() - 3)
-    return date
-  }
-
-  date.setFullYear(date.getFullYear() - 1)
-  return date
 }

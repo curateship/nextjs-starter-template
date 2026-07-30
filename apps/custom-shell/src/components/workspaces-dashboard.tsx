@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
+import { toast } from "sonner"
 import {
   PlusIcon,
   SettingsIcon,
@@ -7,7 +8,10 @@ import {
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
-import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+} from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -26,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -50,13 +55,21 @@ import {
   updateWorkspace,
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
-import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
+import {
+  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  iconMeta,
+  renderShellIcon,
+  type IconKey,
+} from "@/lib/custom-shell"
+import { useShellRuntime } from "@/components/shell-layout"
 
 type WorkspaceForm = {
   name: string
   icon: IconKey
 }
 type WorkspaceSortColumn = "name" | "status"
+
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 const defaultIcon = "briefcaseBusiness" satisfies IconKey
 
@@ -66,6 +79,10 @@ export function WorkspacesDashboard({
   initialWorkspaces: WorkspaceItem[]
 }) {
   const router = useRouter()
+  const { config } = useShellRuntime()
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
   const [pendingDelete, setPendingDelete] =
     React.useState<WorkspaceItem | null>(null)
@@ -83,13 +100,26 @@ export function WorkspacesDashboard({
 
   const sortedWorkspaces = React.useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1
-    return [...workspaces].sort((a, b) => {
-      if (sortColumn === "status") {
-        return (Number(b.active) - Number(a.active)) * direction
-      }
-      return a.name.localeCompare(b.name) * direction
-    })
-  }, [sortColumn, sortDirection, workspaces])
+    const query = searchQuery.trim().toLowerCase()
+    return workspaces
+      .filter((workspace) => !query || workspace.name.toLowerCase().includes(query))
+      .sort((a, b) => {
+        if (sortColumn === "status") {
+          return (Number(b.active) - Number(a.active)) * direction
+        }
+        return a.name.localeCompare(b.name) * direction
+      })
+  }, [searchQuery, sortColumn, sortDirection, workspaces])
+
+  const totalPages = Math.ceil(sortedWorkspaces.length / pageSize)
+  const paginatedWorkspaces = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return sortedWorkspaces.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, pageSize, sortedWorkspaces])
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, sortColumn, sortDirection, pageSize])
 
   function toggleSort(column: WorkspaceSortColumn) {
     if (sortColumn === column) {
@@ -131,6 +161,7 @@ export function WorkspacesDashboard({
         await createWorkspace(name, form.icon)
       }
       await router.invalidate()
+      toast.success(editing ? "Workspace updated." : "Workspace created.")
       setFormOpen(false)
       setEditing(null)
     } catch (error) {
@@ -150,12 +181,24 @@ export function WorkspacesDashboard({
   }
 
   function toggleVisibleSelection() {
-    setSelectedIds((current) =>
-      current.size === sortedWorkspaces.length
-        ? new Set()
-        : new Set(sortedWorkspaces.map((workspace) => workspace.id))
-    )
+    const visibleIds = paginatedWorkspaces.map((workspace) => workspace.id)
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (visibleIds.every((id) => next.has(id))) {
+        visibleIds.forEach((id) => next.delete(id))
+      } else {
+        visibleIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
   }
+
+  const visibleSelected =
+    paginatedWorkspaces.length > 0 &&
+    paginatedWorkspaces.every((workspace) => selectedIds.has(workspace.id))
+  const visiblePartiallySelected =
+    !visibleSelected &&
+    paginatedWorkspaces.some((workspace) => selectedIds.has(workspace.id))
 
   // One workspace always has to survive, so the last one cannot be selected away.
   async function confirmMassDelete() {
@@ -166,6 +209,7 @@ export function WorkspacesDashboard({
         await deleteWorkspace(id)
       }
       await router.invalidate()
+      toast.success("Workspaces deleted.")
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (error) {
@@ -183,6 +227,7 @@ export function WorkspacesDashboard({
     try {
       await deleteWorkspace(pendingDelete.id)
       await router.invalidate()
+      toast.success("Workspace deleted.")
       setPendingDelete(null)
     } catch (error) {
       setError(getWorkspaceErrorMessage(error))
@@ -193,12 +238,11 @@ export function WorkspacesDashboard({
 
   return (
     <div className="w-full pb-8">
-      {error ? <Message>{error}</Message> : null}
-
       <DashboardTable
         title="Workspaces"
         icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
         count={sortedWorkspaces.length}
+        error={error ? { message: error } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -214,6 +258,13 @@ export function WorkspacesDashboard({
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
+            <DashboardToolbarSearch
+              name="workspace-search"
+              aria-label="Search workspaces"
+              placeholder="Search workspaces..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
             <DashboardToolbarButton type="button" onClick={openCreateForm}>
               <PlusIcon className="size-4" />
               Add Workspace
@@ -226,10 +277,9 @@ export function WorkspacesDashboard({
               <TableHead column="select">
                 <Checkbox
                   checked={
-                    selectedIds.size === sortedWorkspaces.length &&
-                    sortedWorkspaces.length > 0
+                    visibleSelected
                       ? true
-                      : selectedIds.size
+                      : visiblePartiallySelected
                         ? "indeterminate"
                         : false
                   }
@@ -255,12 +305,21 @@ export function WorkspacesDashboard({
         emptyText="No workspaces found."
         emptyColSpan={4}
         footer={{
-          type: "summary",
-          count: sortedWorkspaces.length,
-          label: "workspaces",
+          type: "pagination",
+          page: currentPage,
+          pageSize,
+          total: sortedWorkspaces.length,
+          totalPages,
+          onPageChange: (page) =>
+            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
+          onPageSizeChange: (nextSize) => {
+            setCurrentPage(1)
+            setPageSize(nextSize)
+          },
+          pageSizeOptions,
         }}
       >
-        {sortedWorkspaces.map((workspace) => (
+        {paginatedWorkspaces.map((workspace) => (
           <TableRow key={workspace.id} className="group">
             <TableCell column="select">
               <Checkbox
@@ -287,6 +346,7 @@ export function WorkspacesDashboard({
                     type="button"
                     className="block max-w-full truncate text-left font-medium group-hover:underline"
                     onClick={() => openEditForm(workspace)}
+                    title={workspace.name}
                   >
                     {workspace.name}
                   </button>
@@ -329,35 +389,15 @@ export function WorkspacesDashboard({
         ))}
       </DashboardTable>
 
-      <Dialog open={massDeleteOpen} onOpenChange={setMassDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Delete {selectedIds.size}{" "}
-              {selectedIds.size === 1 ? "workspace" : "workspaces"}?
-            </DialogTitle>
-            <DialogDescription>
-              Their settings and navigation are removed. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setMassDeleteOpen(false)}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmMassDelete}
-              disabled={busy}
-            >
-              Delete workspaces
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={massDeleteOpen}
+        onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "workspace" : "workspaces"}?`}
+        description="Their settings and navigation are removed. This cannot be undone."
+        confirmLabel="Delete workspaces"
+        loading={busy}
+        onConfirm={confirmMassDelete}
+      />
 
       <WorkspaceFormDialog
         open={formOpen}
@@ -369,12 +409,15 @@ export function WorkspacesDashboard({
         onSave={() => void saveWorkspace()}
       />
 
-      <DeleteWorkspaceDialog
-        workspace={pendingDelete}
-        deleting={busy}
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null)
         }}
+        title="Delete Workspace"
+        description={`${pendingDelete?.name ?? "This workspace"} and its settings are removed. This cannot be undone.`}
+        confirmLabel="Delete"
+        loading={busy}
         onConfirm={() => void confirmDelete()}
       />
     </div>
@@ -468,60 +511,5 @@ function WorkspaceFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function DeleteWorkspaceDialog({
-  workspace,
-  deleting,
-  onOpenChange,
-  onConfirm,
-}: {
-  workspace: WorkspaceItem | null
-  deleting: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={Boolean(workspace)} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Delete Workspace</DialogTitle>
-          <DialogDescription>
-            {workspace?.name ?? "This workspace"} and its settings are removed.
-            This cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter variant="plain">
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={deleting}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleting}
-              onClick={onConfirm}
-            >
-              <Trash2Icon className="size-4" />
-              Delete
-            </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function Message({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {children}
-    </div>
   )
 }

@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Card,
   CardContent,
@@ -89,6 +90,7 @@ export function AdminUsersDashboard({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [editing, setEditing] = React.useState<AccountRow | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
 
@@ -199,7 +201,7 @@ export function AdminUsersDashboard({
         title="Users"
         icon={<UsersIcon />}
         count={total}
-        status={error ? { tone: "error", text: error } : null}
+        error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -366,7 +368,11 @@ export function AdminUsersDashboard({
                 </span>
               )}
             </TableCell>
-            <TableCell column="meta">{account.email}</TableCell>
+            <TableCell column="meta" className="max-w-56">
+              <span className="block truncate" title={account.email}>
+                {account.email}
+              </span>
+            </TableCell>
             <TableCell column="meta">
               <Badge variant={account.role === "admin" ? "default" : "outline"}>
                 {account.role === "admin" ? "Admin" : "Member"}
@@ -428,83 +434,52 @@ export function AdminUsersDashboard({
         }}
       />
 
-      <Dialog
+      <ConfirmDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null)
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete this account?</DialogTitle>
-            <DialogDescription>
-              {deleteTarget
-                ? `${deleteTarget.name} (${deleteTarget.email}) and everything they own is removed. This cannot be undone.`
-                : null}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                const target = deleteTarget
-                if (!target) return
-                const ok = await runAction(
-                  () => deleteAccountAsAdmin(target.id),
-                  "Account deleted."
-                )
-                if (ok) setDeleteTarget(null)
-              }}
-            >
-              Delete account
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete this account?"
+        description={
+          deleteTarget
+            ? `${deleteTarget.name} (${deleteTarget.email}) and everything they own is removed. This cannot be undone.`
+            : null
+        }
+        confirmLabel="Delete account"
+        loading={deleting}
+        onConfirm={async () => {
+          const target = deleteTarget
+          if (!target) return
+          setDeleting(true)
+          const ok = await runAction(
+            () => deleteAccountAsAdmin(target.id),
+            "Account deleted."
+          )
+          setDeleting(false)
+          if (ok) setDeleteTarget(null)
+        }}
+      />
 
-      <Dialog open={massDeleteOpen} onOpenChange={setMassDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Delete {selectedIds.size}{" "}
-              {selectedIds.size === 1 ? "account" : "accounts"}?
-            </DialogTitle>
-            <DialogDescription>
-              Everything those people own is removed. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setMassDeleteOpen(false)}
-              disabled={massDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={massDeleting}
-              onClick={async () => {
-                setMassDeleting(true)
-                const ok = await runAction(
-                  () => deleteAccountsAsAdmin([...selectedIds]),
-                  "Accounts deleted."
-                )
-                setMassDeleting(false)
-                if (ok) {
-                  setSelectedIds(new Set())
-                  setMassDeleteOpen(false)
-                }
-              }}
-            >
-              Delete accounts
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={massDeleteOpen}
+        onOpenChange={setMassDeleteOpen}
+        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "account" : "accounts"}?`}
+        description="Everything those people own is removed. This cannot be undone."
+        confirmLabel="Delete accounts"
+        loading={massDeleting}
+        onConfirm={async () => {
+          setMassDeleting(true)
+          const ok = await runAction(
+            () => deleteAccountsAsAdmin([...selectedIds]),
+            "Accounts deleted."
+          )
+          setMassDeleting(false)
+          if (ok) {
+            setSelectedIds(new Set())
+            setMassDeleteOpen(false)
+          }
+        }}
+      />
     </div>
   )
 }

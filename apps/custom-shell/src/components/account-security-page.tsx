@@ -9,15 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -46,12 +38,14 @@ function ChangePasswordCard() {
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
+  const [saved, setSaved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       setError(null)
+      setSaved(false)
 
       if (newPassword !== confirmPassword) {
         setError("Those passwords do not match.")
@@ -64,7 +58,7 @@ function ChangePasswordCard() {
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
-        toast.success("Password updated. Other devices were signed out.")
+        setSaved(true)
       } catch (changeError) {
         setError(getAuthErrorMessage(changeError))
       } finally {
@@ -126,10 +120,15 @@ function ChangePasswordCard() {
               {error}
             </p>
           ) : null}
-          <div>
+          <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={saving}>
               Update password
             </Button>
+            {saved ? (
+              <span role="status" className="text-sm text-muted-foreground">
+                Password updated. Other devices were signed out.
+              </span>
+            ) : null}
           </div>
         </CardContent>
       </form>
@@ -139,12 +138,14 @@ function ChangePasswordCard() {
 
 function SessionsCard() {
   const [working, setWorking] = React.useState(false)
+  const [result, setResult] = React.useState<string | null>(null)
 
   const handleSignOutOthers = React.useCallback(async () => {
     setWorking(true)
+    setResult(null)
     try {
       const { removed } = await signOutOtherSessions()
-      toast.success(
+      setResult(
         removed === 0
           ? "No other devices were signed in."
           : `Signed out ${removed} other ${removed === 1 ? "device" : "devices"}.`
@@ -164,10 +165,15 @@ function SessionsCard() {
           Signed in somewhere you do not recognise? Sign those sessions out.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-wrap items-center gap-3">
         <Button variant="outline" onClick={handleSignOutOthers} disabled={working}>
           Sign out other devices
         </Button>
+        {result ? (
+          <span role="status" className="text-sm text-muted-foreground">
+            {result}
+          </span>
+        ) : null}
       </CardContent>
     </Card>
   )
@@ -206,18 +212,23 @@ function DeleteAccountCard() {
         </Button>
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete your account?</DialogTitle>
-            <DialogDescription>
-              Everything you have here is deleted straight away, and any paid
-              plan stops at the end of the period you already paid for.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Delete your account?"
+        description="Everything you have here is deleted straight away, and any paid plan stops at the end of the period you already paid for."
+        confirmLabel="Delete account"
+        loading={deleting}
+        disabled={!password}
+        onConfirm={() => void handleDelete()}
+      >
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Confirm it is you</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="grid gap-2">
-              <Label htmlFor="delete-password">Confirm your password</Label>
+              <Label htmlFor="delete-password">Password</Label>
               <Input
                 id="delete-password"
                 type="password"
@@ -226,26 +237,14 @@ function DeleteAccountCard() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </div>
-            {error ? (
-              <p role="alert" className="mt-2 text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleting || !password}
-            >
-              Delete account
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </Card>
   )
 }

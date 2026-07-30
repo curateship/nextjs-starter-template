@@ -10,7 +10,10 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DashboardTable } from "@/components/dashboard-table"
-import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+} from "@/components/dashboard-toolbar"
 import {
   Card,
   CardContent,
@@ -28,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -49,8 +53,12 @@ import {
 } from "@/lib/api/admin-plans"
 import { formatMoney } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { useShellRuntime } from "@/components/shell-layout"
 
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
+
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
   switch (column) {
@@ -107,22 +115,53 @@ export function AdminPlansDashboard({
 }: {
   initialPlans: AdminPlan[]
 }) {
+  const { config } = useShellRuntime()
   const [plans, setPlans] = React.useState(initialPlans)
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [sort, setSort] = React.useState<PlanSortColumn>("name")
   const [direction, setDirection] = React.useState<"asc" | "desc">("asc")
   const [editing, setEditing] = React.useState<AdminPlan | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [archiveTarget, setArchiveTarget] = React.useState<AdminPlan | null>(null)
+  const [archiving, setArchiving] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massArchiving, setMassArchiving] = React.useState(false)
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
+  const sortedPlans = React.useMemo(() => {
+    const factor = direction === "asc" ? 1 : -1
+    const query = searchQuery.trim().toLowerCase()
+    return plans
+      .filter(
+        (plan) =>
+          !query ||
+          plan.name.toLowerCase().includes(query) ||
+          plan.slug.toLowerCase().includes(query)
+      )
+      .sort((a, b) => factor * comparePlans(a, b, sort))
+  }, [direction, plans, searchQuery, sort])
+
+  const totalPages = Math.ceil(sortedPlans.length / pageSize)
+  const paginatedPlans = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return sortedPlans.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, pageSize, sortedPlans])
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, sort, direction, pageSize])
+
   // The default plan is everyone's fallback, so it can never be archived.
+  // Selection works on the visible page, like every other paginated table.
   const archivableIds = React.useMemo(
     () =>
-      plans.filter((plan) => plan.active && !plan.isDefault).map((plan) => plan.id),
-    [plans]
+      paginatedPlans
+        .filter((plan) => plan.active && !plan.isDefault)
+        .map((plan) => plan.id),
+    [paginatedPlans]
   )
   const allSelected =
     archivableIds.length > 0 && archivableIds.every((id) => selectedIds.has(id))
@@ -161,11 +200,6 @@ export function AdminPlansDashboard({
     [direction, sort]
   )
 
-  const sortedPlans = React.useMemo(() => {
-    const factor = direction === "asc" ? 1 : -1
-    return [...plans].sort((a, b) => factor * comparePlans(a, b, sort))
-  }, [direction, plans, sort])
-
   const refresh = React.useCallback(async () => {
     try {
       setPlans(await loadAdminPlans())
@@ -183,8 +217,8 @@ export function AdminPlansDashboard({
       <DashboardTable
         title="Plans"
         icon={<PackageIcon />}
-        count={plans.length}
-        status={error ? { tone: "error", text: error } : null}
+        count={sortedPlans.length}
+        error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -200,6 +234,13 @@ export function AdminPlansDashboard({
                 Archive ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
+            <DashboardToolbarSearch
+              name="plan-search"
+              aria-label="Search plans"
+              placeholder="Search plans..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
               New plan
@@ -267,12 +308,29 @@ export function AdminPlansDashboard({
             </TableRow>
           </TableHeader>
         }
-        isEmpty={plans.length === 0}
-        emptyText="No plans yet. Create the first one."
+        isEmpty={sortedPlans.length === 0}
+        emptyText={
+          plans.length === 0
+            ? "No plans yet. Create the first one."
+            : "No plans found matching your search."
+        }
         emptyColSpan={7}
-        footer={{ type: "summary", count: plans.length, label: "plans" }}
+        footer={{
+          type: "pagination",
+          page: currentPage,
+          pageSize,
+          total: sortedPlans.length,
+          totalPages,
+          onPageChange: (page) =>
+            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
+          onPageSizeChange: (nextSize) => {
+            setCurrentPage(1)
+            setPageSize(nextSize)
+          },
+          pageSizeOptions,
+        }}
       >
-        {sortedPlans.map((plan) => (
+        {paginatedPlans.map((plan) => (
           <TableRow key={plan.id} className="group">
             <TableCell column="select">
               <Checkbox
@@ -358,88 +416,60 @@ export function AdminPlansDashboard({
         }}
       />
 
-      <Dialog open={massArchiveOpen} onOpenChange={setMassArchiveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Archive {selectedIds.size}{" "}
-              {selectedIds.size === 1 ? "plan" : "plans"}?
-            </DialogTitle>
-            <DialogDescription>
-              They disappear from the pricing page. Anyone already on them keeps
-              their plan until their subscription ends.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setMassArchiveOpen(false)}
-              disabled={massArchiving}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={massArchiving}
-              onClick={async () => {
-                setMassArchiving(true)
-                try {
-                  for (const planId of selectedIds) {
-                    await archiveAdminPlan(planId)
-                  }
-                  toast.success("Plans archived.")
-                  setSelectedIds(new Set())
-                  setMassArchiveOpen(false)
-                  await refresh()
-                } catch (archiveError) {
-                  toast.error(getPlanErrorMessage(archiveError))
-                } finally {
-                  setMassArchiving(false)
-                }
-              }}
-            >
-              Archive plans
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={massArchiveOpen}
+        onOpenChange={setMassArchiveOpen}
+        title={`Archive ${selectedIds.size} ${selectedIds.size === 1 ? "plan" : "plans"}?`}
+        description="They disappear from the pricing page. Anyone already on them keeps their plan until their subscription ends."
+        confirmLabel="Archive plans"
+        loading={massArchiving}
+        onConfirm={async () => {
+          setMassArchiving(true)
+          try {
+            for (const planId of selectedIds) {
+              await archiveAdminPlan(planId)
+            }
+            toast.success("Plans archived.")
+            setSelectedIds(new Set())
+            setMassArchiveOpen(false)
+            await refresh()
+          } catch (archiveError) {
+            toast.error(getPlanErrorMessage(archiveError))
+          } finally {
+            setMassArchiving(false)
+          }
+        }}
+      />
 
-      <Dialog
+      <ConfirmDialog
         open={Boolean(archiveTarget)}
         onOpenChange={(open) => {
           if (!open) setArchiveTarget(null)
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Archive this plan?</DialogTitle>
-            <DialogDescription>
-              {archiveTarget
-                ? `${archiveTarget.name} disappears from the pricing page. People already on it keep it until their subscription ends.`
-                : null}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setArchiveTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                try {
-                  await archiveAdminPlan(archiveTarget!.id)
-                  toast.success("Plan archived.")
-                  setArchiveTarget(null)
-                  await refresh()
-                } catch (archiveError) {
-                  toast.error(getPlanErrorMessage(archiveError))
-                }
-              }}
-            >
-              Archive plan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Archive this plan?"
+        description={
+          archiveTarget
+            ? `${archiveTarget.name} disappears from the pricing page. People already on it keep it until their subscription ends.`
+            : null
+        }
+        confirmLabel="Archive plan"
+        loading={archiving}
+        onConfirm={async () => {
+          const target = archiveTarget
+          if (!target) return
+          setArchiving(true)
+          try {
+            await archiveAdminPlan(target.id)
+            toast.success("Plan archived.")
+            setArchiveTarget(null)
+            await refresh()
+          } catch (archiveError) {
+            toast.error(getPlanErrorMessage(archiveError))
+          } finally {
+            setArchiving(false)
+          }
+        }}
+      />
     </div>
   )
 }
