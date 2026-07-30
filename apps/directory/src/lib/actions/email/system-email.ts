@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
-import { generateEmailHtml } from '@/lib/actions/newsletters/render'
+import { generateEmailHtml, sortNewsletterBlocks } from '@/lib/actions/newsletters/render'
 import { db } from '@/lib/db'
 import { emailSystemTemplates, products, sites } from '@/lib/db/schema'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
@@ -350,12 +350,6 @@ function interpolateValue(value: unknown, tokens: Record<string, string>): unkno
   return value
 }
 
-function getSortedNewsletterBlocks(contentBlocks: Record<string, any>) {
-  return Object.values(contentBlocks || {})
-    .filter((block: any) => block?.id && block?.type)
-    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
-}
-
 function normalizeTransactionalBlocks(contentBlocks: Record<string, any>) {
   const interpolated = interpolateValue(contentBlocks, {}) as Record<string, any>
   return Object.fromEntries(
@@ -380,7 +374,7 @@ export function renderSystemEmailContent(
 ) {
   const interpolatedBlocks = interpolateValue(template.content_blocks, tokens) as Record<string, any>
   const transactionalBlocks = normalizeTransactionalBlocks(interpolatedBlocks)
-  return generateEmailHtml(getSortedNewsletterBlocks(transactionalBlocks), 600)
+  return generateEmailHtml(sortNewsletterBlocks(transactionalBlocks))
 }
 
 export function renderSystemEmailSubject(subject: string, tokens: Record<string, string>) {

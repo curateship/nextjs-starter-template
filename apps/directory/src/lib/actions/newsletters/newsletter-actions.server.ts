@@ -5,8 +5,8 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
-import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
+import { DEFAULT_NEWSLETTER_MAX_WIDTH, sortNewsletterBlocks } from '@/lib/actions/newsletters/render'
+import { renderNewsletterEmailHtml } from '@/lib/actions/newsletters/render-blocks'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
 import { queryNewsletterStatusEvents, type NewsletterStatusEvent, type NewsletterStatusEventFilter } from '@/lib/actions/newsletters/status-events-query'
 import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
@@ -36,15 +36,6 @@ export interface Newsletter {
   created_at: string
   updated_at: string
 }
-
-export interface NewsletterBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-  display_order?: number
-}
-
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
@@ -81,21 +72,6 @@ function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: numb
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
   }
-}
-
-function getSortedNewsletterBlocks(contentBlocks: Record<string, any> | null | undefined): NewsletterBlock[] {
-  return Object.values(contentBlocks || {})
-    .filter((block: any) => block?.id && block?.type)
-    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)) as NewsletterBlock[]
-}
-
-async function generateNewsletterEmailHtml(siteId: string, blocks: NewsletterBlock[], maxWidth = 600) {
-  const sponsorIds = extractNewsletterSponsorIds(blocks)
-  const sponsorsById = sponsorIds.length > 0
-    ? await getActiveSponsorsByIdsAction(siteId, sponsorIds)
-    : {}
-
-  return generateEmailHtml(blocks, maxWidth, { sponsorsById })
 }
 
 export async function getNewslettersBySiteImpl(
@@ -286,10 +262,10 @@ export async function createNewsletterImpl(input: {
 
     const subjectTrimmed = input.subject.trim()
     const contentBlocks = input.content_blocks || {}
-    const sortedBlocks = getSortedNewsletterBlocks(contentBlocks)
-    const maxWidth = input.metadata?.maxWidth || 600
+    const sortedBlocks = sortNewsletterBlocks(contentBlocks)
+    const maxWidth = input.metadata?.maxWidth || DEFAULT_NEWSLETTER_MAX_WIDTH
     const generatedContent = sortedBlocks.length > 0
-      ? await generateNewsletterEmailHtml(input.siteId, sortedBlocks, maxWidth)
+      ? await renderNewsletterEmailHtml(input.siteId, sortedBlocks, maxWidth)
       : (input.content || '')
 
     const [data] = await db
@@ -352,13 +328,12 @@ export async function updateNewsletterImpl(
     if (updates.content_blocks !== undefined) {
       allowedFields.contentBlocks = updates.content_blocks
       // Regenerate email HTML from blocks
-      const blockEntries = Object.values(updates.content_blocks).filter((b: any) => b.id && b.type)
-      const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      const sortedBlocks = sortNewsletterBlocks(updates.content_blocks)
       if (sortedBlocks.length > 0) {
         // Get maxWidth from metadata (check updates first, then existing DB metadata)
         const existingMeta = newsletter.metadata as Record<string, any> | null
-        const maxWidth = updates.metadata?.maxWidth || existingMeta?.maxWidth || 600
-        allowedFields.content = await generateNewsletterEmailHtml(newsletter.siteId, sortedBlocks, maxWidth)
+        const maxWidth = updates.metadata?.maxWidth || existingMeta?.maxWidth || DEFAULT_NEWSLETTER_MAX_WIDTH
+        allowedFields.content = await renderNewsletterEmailHtml(newsletter.siteId, sortedBlocks, maxWidth)
       }
     }
 
@@ -438,10 +413,10 @@ export async function sendNewsletterImpl(newsletterId: string): Promise<{ succes
     if (newsletter.status === 'sent' || newsletter.status === 'sending' || newsletter.status === 'paused') {
       return { success: false, error: 'Already sent or in progress' }
     }
-    const sortedBlocks = getSortedNewsletterBlocks(newsletter.content_blocks)
+    const sortedBlocks = sortNewsletterBlocks(newsletter.content_blocks)
     if (sortedBlocks.length > 0) {
-      const maxWidth = newsletter.metadata?.maxWidth || 600
-      newsletter.content = await generateNewsletterEmailHtml(newsletter.site_id, sortedBlocks, maxWidth)
+      const maxWidth = newsletter.metadata?.maxWidth || DEFAULT_NEWSLETTER_MAX_WIDTH
+      newsletter.content = await renderNewsletterEmailHtml(newsletter.site_id, sortedBlocks, maxWidth)
       await db.update(newsletters).set({ content: newsletter.content }).where(eq(newsletters.id, newsletterId))
     }
 
@@ -688,11 +663,11 @@ export async function sendTestNewsletterImpl(
     const newsletter = rowToNewsletter(nlRow)
 
     // Generate HTML from content_blocks (always fresh)
-    const sortedBlocks = getSortedNewsletterBlocks(newsletter.content_blocks)
+    const sortedBlocks = sortNewsletterBlocks(newsletter.content_blocks)
 
-    const maxWidth = newsletter.metadata?.maxWidth || 600
+    const maxWidth = newsletter.metadata?.maxWidth || DEFAULT_NEWSLETTER_MAX_WIDTH
     const html = sortedBlocks.length > 0
-      ? await generateNewsletterEmailHtml(newsletter.site_id, sortedBlocks, maxWidth)
+      ? await renderNewsletterEmailHtml(newsletter.site_id, sortedBlocks, maxWidth)
       : newsletter.content
     if (!html?.trim()) {
       return { success: false, error: 'Newsletter has no content. Add some blocks and save first.' }

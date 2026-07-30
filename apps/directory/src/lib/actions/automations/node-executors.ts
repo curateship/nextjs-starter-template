@@ -7,6 +7,7 @@ import type {
   FeedAutomationNode,
   ImageAutomationNode,
   ListingAutomationNode,
+  NewsletterAutomationNode,
   PostAutomationNode,
   RouterAutomationNode,
   ScraperAutomationNode,
@@ -16,6 +17,7 @@ import { runEventNode } from './nodes/event'
 import { runFeedNode } from './nodes/feed'
 import { runImageNode } from './nodes/image'
 import { runListingNode } from './nodes/listing'
+import { runNewsletterNode } from './nodes/newsletter'
 import { runPostNode } from './nodes/post'
 import { runRouterNode } from './nodes/router'
 import { runScraperNode } from './nodes/scraper'
@@ -117,6 +119,15 @@ const NODE_EXECUTORS: Record<ExecutableAutomationNode['kind'], NodeExecutor> = {
     run: async (ctx, payloads, node) => {
       const event = await runEventNode(ctx.siteId, node as EventAutomationNode, documentsFrom(payloads))
       return { type: 'event', event }
+    },
+  },
+  newsletter: {
+    retry: false,
+    run: async (ctx, payloads, node) => {
+      const article = articleFrom(payloads)
+      if (!article) throw new Error('Newsletter did not receive an article')
+      const newsletter = await runNewsletterNode(ctx.siteId, node as NewsletterAutomationNode, article)
+      return { type: 'newsletter', newsletter }
     },
   },
 }

@@ -7,24 +7,27 @@ The editor follows Trading's workspace interaction: the left palette has Fav and
 ## Code Layout
 
 - `src/features/automations/` owns graph types, validation, scheduling, and the dashboard/editor UI.
-- `src/lib/actions/automations/` owns authenticated actions, execution, AI providers, scraping, routing, and Post creation.
+- `src/lib/actions/automations/` owns authenticated actions, execution, AI providers, scraping, routing, and Post/Listing/Event/Newsletter creation.
 - `src/app/admin/automations/` and `src/app/api/cron/automations/` stay thin.
 - The current Drizzle schema is the runtime source of truth. Migrations only describe database cutovers.
 
 ## Graph Contract
 
-Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post), a Listing (directory listing), or an Event (calendar event). Source nodes (Scraper, RSS Feed) are interchangeable — both emit `documents`, so either can feed a Router, Agent, Listing, or Event. Allowed paths are:
+Every valid graph has exactly one Time node and at least one terminal action node — a Post (Hub blog post), a Listing (directory listing), an Event (calendar event), or a Newsletter (draft broadcast). Source nodes (Scraper, RSS Feed) are interchangeable — both emit `documents`, so either can feed a Router, Agent, Listing, or Event. Anywhere a Post can sit, a Newsletter can sit instead: both consume one `article`. Allowed paths are:
 
 ```text
-Time -> Scraper  -> AI Router -> AI Agent -> [AI Image ->] [Approval ->] Post
-Time -> RSS Feed -> AI Router -> AI Agent -> [AI Image ->] [Approval ->] Post
-Time -> Scraper  -------------> AI Agent -> [AI Image ->] [Approval ->] Post
-Time ------------------------->  AI Agent -> [AI Image ->] [Approval ->] Post
+Time -> Scraper  -> AI Router -> AI Agent -> [AI Image ->] [Approval ->] Post | Newsletter
+Time -> RSS Feed -> AI Router -> AI Agent -> [AI Image ->] [Approval ->] Post | Newsletter
+Time -> Scraper  -------------> AI Agent -> [AI Image ->] [Approval ->] Post | Newsletter
+Time ------------------------->  AI Agent -> [AI Image ->] [Approval ->] Post | Newsletter
 Time -> RSS Feed -> AI Router ------------> Listing
 Time -> Scraper  -------------------------> Listing
 Time -> RSS Feed -> AI Router ------------> Event
 Time -> Scraper  -------------------------> Event
 ```
+
+The two validation messages that name the terminal actions are built from the registry
+(`terminalActionNodeNames()`), so adding a terminal kind cannot leave them behind.
 
 The optional AI Image node sits between the AI Agent and the Post. It generates one
 featured image from the article's title and summary, uploads it to the site's media
@@ -52,9 +55,9 @@ The optional **Approval** node is a "wait for my OK" gate. A run that reaches on
 there and goes no further on that branch until the owner approves or rejects it. It can
 sit anywhere between the AI Agent and the Post — before or after an AI Image — and its
 only setting is how long it waits before giving up (1 hour to 30 days, 48 hours by
-default). Its allowed targets are deliberately just AI Image and Post, both of which take
-exactly one input; that keeps everything after a gate reachable *only* through the gate,
-which is what makes resuming a paused run in a later process safe. See
+default). Its allowed targets are deliberately just AI Image, Post, and Newsletter, all of
+which take exactly one input; that keeps everything after a gate reachable *only* through
+the gate, which is what makes resuming a paused run in a later process safe. See
 [Approval Gates](#approval-gates) for the run states and the resume/expiry rules.
 
 AI Router exposes every named route plus Else. Every route must be connected. Graphs must be acyclic, reachable from Time, and lead to a Post or Listing. Invalid graphs may be saved as drafts, but cannot activate or run.
@@ -103,6 +106,37 @@ emits nothing downstream at all — a re-run creates nothing and a changed page 
 the events that are new. Every skip (undated, duplicate, per-run cap, insert failure)
 is listed on the run step with its reason.
 
+The Newsletter node is the Post node's twin for the mailing list: it consumes the same
+`article` the AI Agent produces and drafts one newsletter in the newsletter builder
+instead of a blog post. **It never sends.** The row is written `status = 'draft'` with no
+schedule and an empty `audience_filter`, and the module imports no delivery code at all;
+the empty audience is a second lock, because the send path refuses a newsletter with no
+segment or audience chosen. There is no configuration that changes any of this.
+
+Its two settings are the **newsletter template** and the **subject line**:
+
+- The template (from `newsletter_templates`) owns the whole email frame — logo header,
+  dividers, footer, unsubscribe link — and only the body of its **first Rich Text block**
+  (lowest `display_order`) is replaced, so the draft renders the way the template was
+  designed to. Every other block, and the chosen block's own settings (padding, background),
+  are copied through untouched. A template with no Rich Text block fails the node by name
+  rather than being quietly patched — a draft that renders broken in the builder is worse
+  than no draft. **Blank** (the default, and the same option the builder's own create modal
+  offers) means no template: the newsletter gets one Rich Text block, identical to the one
+  the block palette would add, so the node works with no setup.
+- The subject line is either the AI's own article title or a fixed line of the owner's own,
+  where `{{title}}` stands in for that AI title (`Austin Weekly: {{title}}`). It is trimmed
+  to the column's 255 characters. Nothing else is pre-filled: the builder has no preview-text
+  field, and picking the audience is deliberately left to the person who presses send.
+
+The article's HTML is sanitized before storage with `sanitizeRichMediaHtml` rather than the
+Post node's `sanitizeRichHtml`, because the newsletter renderer styles `img` tags for email.
+That is what carries a featured image generated by an AI Image node into the newsletter as
+its header picture; the image URL must be a real http(s) address or it is dropped. The
+stored `content` HTML is rendered through the same `renderNewsletterEmailHtml` the builder's
+create, save, and send all use, so a drafted newsletter's HTML matches what the builder
+would produce for the same blocks.
+
 ## Execution
 
 - Active schedules are checked every minute. One-time schedules pause after completion.
@@ -113,8 +147,8 @@ is listed on the run step with its reason.
 - Content hashes skip unchanged Scraper pages, and per-entry state skips already-seen RSS Feed entries; either way an unchanged source yields no downstream work.
 - Scraper and AI network failures receive at most two retries. Validation and malformed output do not retry.
 - Independent branches continue after another branch fails. Mixed post and failure outcomes are `partial`; no changed input is `noop`.
-- Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post/Listing/Event links plus skipped counts. Full scraped text and generated bodies are not stored in run logs.
-- Post, Listing, and Event HTML is sanitized before storage and slugs remain unique. Listing and Event runs that create nothing (all duplicates) are `noop`.
+- Every run snapshots its graph and stores safe per-node summaries, timings, attempts, errors, and created Post/Listing/Event/Newsletter links plus skipped counts. Full scraped text and generated bodies are not stored in run logs. A Newsletter step records only its ID, subject (as `title`, which is what the run-history panel links) and builder URL.
+- Post, Listing, Event, and Newsletter HTML is sanitized before storage and slugs remain unique. Listing and Event runs that create nothing (all duplicates) are `noop`.
 
 ## Approval Gates
 
@@ -124,6 +158,10 @@ gate was rejected, `expired` if one timed out, and otherwise by the normal rules
 normal outcome, even when another branch of the same run did create something — that is
 the most useful single label for it. Step statuses gain `waiting`, `rejected`, and
 `expired` to match. A `waiting` run has no completion time or duration until it finishes.
+
+A gate in front of a **Newsletter** node is the most useful place for one on the whole
+canvas: it is the only output that reaches a mailing list, so approving before the draft
+exists is worth more there than anywhere else.
 
 **Pausing.** Reaching a gate writes a row in `site_automation_approvals` holding the
 article the run is carrying, a deadline, and a safe display summary (title, excerpt, word

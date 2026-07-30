@@ -505,14 +505,21 @@ function summarizeOutput(output: RuntimeOutput | undefined) {
     events: output.event.events.map((event) => ({ title: event.title, slug: event.slug, url: event.url })),
     skipped: output.event.skipped,
   }
+  // `title` is what the run-history panel turns into the link's label, so the
+  // subject line is reported under that name rather than a second copy of it.
+  if (output.type === 'newsletter') return {
+    newsletterId: output.newsletter.newsletterId,
+    title: output.newsletter.subject,
+    url: output.newsletter.url,
+  }
   return output.post
 }
 
 /**
  * Whether a finished step actually put something on the site. Reads the summary
- * `summarizeOutput` above wrote, so the two must stay in step: Post always records
- * the created post's ID, Listing and Event record how many rows they drafted
- * (which can be zero when everything on the page was already there).
+ * `summarizeOutput` above wrote, so the two must stay in step: Post and Newsletter
+ * always record the created row's ID, Listing and Event record how many rows they
+ * drafted (which can be zero when everything on the page was already there).
  *
  * This is what makes a run's final status derivable from the database alone, which
  * a run that pauses for approval and finishes in a later process needs.
@@ -520,6 +527,7 @@ function summarizeOutput(output: RuntimeOutput | undefined) {
 function stepCreatedContent(nodeKind: string, outputSummary: unknown) {
   if (!isRecord(outputSummary)) return false
   if (nodeKind === 'post') return typeof outputSummary.postId === 'string'
+  if (nodeKind === 'newsletter') return typeof outputSummary.newsletterId === 'string'
   if (nodeKind === 'listing' || nodeKind === 'event') {
     return typeof outputSummary.createdCount === 'number' && outputSummary.createdCount > 0
   }
