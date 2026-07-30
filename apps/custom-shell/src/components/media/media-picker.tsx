@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { DashboardTablePagination } from "@/components/dashboard-table"
+import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import {
   Dialog,
   DialogBody,

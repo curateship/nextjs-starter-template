@@ -9,11 +9,11 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { DashboardTable } from "@/components/dashboard-table"
+import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
-} from "@/components/dashboard-toolbar"
+} from "@/components/shared/dashboard-toolbar"
 import {
   Card,
   CardContent,
@@ -55,7 +55,7 @@ import {
 import { formatMoney } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
 

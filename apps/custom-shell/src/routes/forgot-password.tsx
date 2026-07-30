@@ -2,7 +2,7 @@ import * as React from "react"
 import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
-import { AuthShell, authLinkClassName } from "@/components/auth-shell"
+import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

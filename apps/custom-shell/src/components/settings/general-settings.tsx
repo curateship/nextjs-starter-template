@@ -1,6 +1,6 @@
 import * as React from "react"
-import { ImageUpload } from "@/components/image-upload"
-import { CollapsibleSettingsCard } from "@/components/collapsible-settings-card"
+import { ImageUpload } from "@/components/shared/image-upload"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { CardGroup } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"

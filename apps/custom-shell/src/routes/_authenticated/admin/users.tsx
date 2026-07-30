@@ -1,7 +1,7 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router"
 
-import { AdminUsersDashboard } from "@/components/admin-users-dashboard"
-import { useShellRuntime } from "@/components/shell-layout"
+import { AdminUsersDashboard } from "@/components/admin/admin-users-dashboard"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import { loadAdminUsersPage } from "@/lib/api/admin-users"
 
 const authenticatedRoute = getRouteApi("/_authenticated")

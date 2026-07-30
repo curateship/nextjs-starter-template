@@ -10,12 +10,12 @@ import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Badge } from "@/components/ui/badge"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { Checkbox } from "@/components/ui/checkbox"
-import { DashboardTable } from "@/components/dashboard-table"
+import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-} from "@/components/dashboard-toolbar"
+} from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Select,

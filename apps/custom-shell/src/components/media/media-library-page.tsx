@@ -15,7 +15,7 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { DashboardTable } from "@/components/dashboard-table"
+import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
   dashboardToolbarButtonActiveClassName,
@@ -23,7 +23,7 @@ import {
   dashboardToolbarButtonGroupItemClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-} from "@/components/dashboard-toolbar"
+} from "@/components/shared/dashboard-toolbar"
 import {
   Dialog,
   DialogBody,
@@ -63,7 +63,7 @@ import {
 } from "@/lib/api/media"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { cn } from "@/lib/utils"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]

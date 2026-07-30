@@ -7,9 +7,9 @@ import {
   useSearch,
 } from "@tanstack/react-router"
 
-import { AccountDialog, accountTabForHref } from "@/components/account-dialog"
+import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
 import { DashboardContent } from "@/components/demo/dashboard-content"
-import { FeedbackModal } from "@/components/feedback-modal"
+import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import {

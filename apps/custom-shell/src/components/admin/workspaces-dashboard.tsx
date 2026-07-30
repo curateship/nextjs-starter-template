@@ -7,11 +7,11 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { DashboardTable } from "@/components/dashboard-table"
+import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
-} from "@/components/dashboard-toolbar"
+} from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -61,7 +61,7 @@ import {
   renderShellIcon,
   type IconKey,
 } from "@/lib/custom-shell"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type WorkspaceForm = {
   name: string

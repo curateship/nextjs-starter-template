@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router"
 import {
   getSettingsTabFromPath,
   SettingsPage,
-} from "@/components/settings-page"
-import { useShellRuntime } from "@/components/shell-layout"
+} from "@/components/settings/settings-page"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 
 export const Route = createFileRoute("/_authenticated/admin/settings/$tab")({
   component: SettingsTabRoute,

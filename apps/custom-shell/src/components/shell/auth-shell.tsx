@@ -1,7 +1,7 @@
 import * as React from "react"
 import { CheckCircle2Icon } from "lucide-react"
 
-import { PublicPageFrame } from "@/components/public-page-frame"
+import { PublicPageFrame } from "@/components/shell/public-page-frame"
 
 /** Shared frame for every signed-out page: sign in, register, verify, reset. */
 export function AuthShell({

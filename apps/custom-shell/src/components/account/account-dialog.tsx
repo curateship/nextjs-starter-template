@@ -13,12 +13,12 @@ import {
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AccountProfilePage } from "@/components/account-profile-page"
+import { AccountProfilePage } from "@/components/account/account-profile-page"
 import {
   AccountBillingPage,
   BillingTabSkeleton,
-} from "@/components/account-billing-page"
-import { AccountSecurityPage } from "@/components/account-security-page"
+} from "@/components/account/account-billing-page"
+import { AccountSecurityPage } from "@/components/account/account-security-page"
 import type { AuthUser } from "@/lib/api/auth"
 import {
   getBillingErrorMessage,

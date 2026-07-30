@@ -3,7 +3,7 @@ import { ExternalLinkIcon } from "lucide-react"
 
 import { showErrorToast } from "@/lib/error-toast"
 
-import { PricingTable, type BillingInterval } from "@/components/pricing-table"
+import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

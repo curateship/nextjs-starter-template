@@ -2,37 +2,27 @@ import * as React from "react"
 import { toast } from "sonner"
 import {
   MessageSquareIcon,
-  MessageSquarePlusIcon,
   SaveIcon,
   SettingsIcon,
-  ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-} from "@/components/dashboard-toolbar"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Label } from "@/components/ui/label"
+} from "@/components/shared/dashboard-toolbar"
+import { DashboardTable } from "@/components/shared/dashboard-table"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogBody,
@@ -42,7 +32,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   TableCell,
   TableHead,
@@ -51,18 +48,23 @@ import {
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import {
-  deleteFeedback,
-  deleteFeedbackMany,
+  deleteFeedbackComment,
+  deleteFeedbackCommentsMany,
   getFeedbackErrorMessage,
-  listFeedback,
-  updateFeedback,
-  type FeedbackItem,
+  listFeedbackCommentDashboard,
+  updateFeedbackComment,
+  type FeedbackCommentItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { useShellRuntime } from "@/components/shell-layout"
+import { useShellRuntime } from "@/components/shell/shell-layout"
+
+type CommentSortColumn = "message" | "feedback" | "type" | "author" | "created"
+
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 const feedbackTypeLabels: Record<FeedbackType, string> = {
   suggestion: "Suggestion",
@@ -90,39 +92,33 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
     "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
 }
 
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-
-type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
-
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
 })
 
-type FeedbackDashboardProps = {
+type FeedbackCommentsDashboardProps = {
   refreshToken: number
-  onOpenFeedback: () => void
 }
 
-export function FeedbackDashboard({
+export function FeedbackCommentsDashboard({
   refreshToken,
-  onOpenFeedback,
-}: FeedbackDashboardProps) {
+}: FeedbackCommentsDashboardProps) {
   const { config } = useShellRuntime()
-  const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
+  const [comments, setComments] = React.useState<FeedbackCommentItem[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
-  const [sortColumn, setSortColumn] = React.useState<FeedbackSortColumn>("created")
+  const [sortColumn, setSortColumn] = React.useState<CommentSortColumn>("created")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [editingFeedback, setEditingFeedback] =
-    React.useState<FeedbackItem | null>(null)
-  const [deletingFeedback, setDeletingFeedback] =
-    React.useState<FeedbackItem | null>(null)
+  const [editingComment, setEditingComment] =
+    React.useState<FeedbackCommentItem | null>(null)
+  const [deletingComment, setDeletingComment] =
+    React.useState<FeedbackCommentItem | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
@@ -134,10 +130,19 @@ export function FeedbackDashboard({
     setLoading(true)
     setError(null)
 
-    listFeedback()
+    listFeedbackCommentDashboard()
       .then((data) => {
         if (!active) return
-        setFeedback(data.feedback)
+        setComments(data.comments)
+        // The shell's feedback modal can delete a comment that is selected
+        // here, so drop selections the refreshed list no longer contains.
+        const commentIds = new Set(data.comments.map((comment) => comment.id))
+        setSelectedIds((current) => {
+          const next = new Set(
+            [...current].filter((id) => commentIds.has(id))
+          )
+          return next.size === current.size ? current : next
+        })
       })
       .catch((loadError) => {
         if (!active) return
@@ -153,52 +158,51 @@ export function FeedbackDashboard({
     }
   }, [refreshToken, reloadCount])
 
-  const filteredFeedback = React.useMemo(() => {
+  const filteredComments = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const matches = feedback.filter((item) => {
+    const direction = sortDirection === "asc" ? 1 : -1
+    return comments.filter((comment) => {
       const matchesSearch =
         !query ||
-        item.message.toLowerCase().includes(query) ||
-        item.author_name.toLowerCase().includes(query)
-      const matchesType = typeFilter === "all" || item.type === typeFilter
+        comment.message.toLowerCase().includes(query) ||
+        comment.feedback_message.toLowerCase().includes(query) ||
+        comment.author_name.toLowerCase().includes(query)
+      const matchesType =
+        typeFilter === "all" || comment.feedback_type === typeFilter
       return matchesSearch && matchesType
-    })
-
-    const direction = sortDirection === "asc" ? 1 : -1
-    return matches.sort((a, b) => {
+    }).sort((a, b) => {
       if (sortColumn === "message") return a.message.localeCompare(b.message) * direction
-      if (sortColumn === "type") return feedbackTypeLabels[a.type].localeCompare(feedbackTypeLabels[b.type]) * direction
+      if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
+      if (sortColumn === "type") return feedbackTypeLabels[a.feedback_type].localeCompare(feedbackTypeLabels[b.feedback_type]) * direction
       if (sortColumn === "author") return a.author_name.localeCompare(b.author_name) * direction
-      if (sortColumn === "comments") return (a.comment_count - b.comment_count) * direction
-      if (sortColumn === "votes") return (a.vote_count - b.vote_count) * direction
       return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
     })
-  }, [feedback, searchQuery, sortColumn, sortDirection, typeFilter])
+  }, [comments, searchQuery, sortColumn, sortDirection, typeFilter])
 
-  const totalPages = Math.ceil(filteredFeedback.length / pageSize)
-  const paginatedFeedback = React.useMemo(() => {
+  const totalPages = Math.ceil(filteredComments.length / pageSize)
+  const paginatedComments = React.useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize
-    return filteredFeedback.slice(startIndex, startIndex + pageSize)
-  }, [filteredFeedback, currentPage, pageSize])
-  const paginatedFeedbackIds = React.useMemo(
-    () => paginatedFeedback.map((item) => item.id),
-    [paginatedFeedback]
+    return filteredComments.slice(startIndex, startIndex + pageSize)
+  }, [filteredComments, currentPage, pageSize])
+  const paginatedCommentIds = React.useMemo(
+    () => paginatedComments.map((comment) => comment.id),
+    [paginatedComments]
   )
-  const filteredFeedbackIds = React.useMemo(
-    () => filteredFeedback.map((item) => item.id),
-    [filteredFeedback]
+  const filteredCommentIds = React.useMemo(
+    () => filteredComments.map((comment) => comment.id),
+    [filteredComments]
   )
   const visibleSelected =
-    paginatedFeedbackIds.length > 0 &&
-    paginatedFeedbackIds.every((id) => selectedIds.has(id))
+    paginatedCommentIds.length > 0 &&
+    paginatedCommentIds.every((id) => selectedIds.has(id))
   const visiblePartiallySelected =
-    !visibleSelected && paginatedFeedbackIds.some((id) => selectedIds.has(id))
+    !visibleSelected && paginatedCommentIds.some((id) => selectedIds.has(id))
 
   React.useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery, sortColumn, sortDirection, typeFilter, pageSize])
 
-  const toggleSort = (column: FeedbackSortColumn) => {
+  const toggleSort = (column: CommentSortColumn) => {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
       return
@@ -212,28 +216,28 @@ export function FeedbackDashboard({
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
   }
 
-  const handleUpdated = (updated: FeedbackItem) => {
-    setFeedback((current) =>
-      current.map((item) => (item.id === updated.id ? updated : item))
+  const handleUpdated = (updated: FeedbackCommentItem) => {
+    setComments((current) =>
+      current.map((comment) => (comment.id === updated.id ? updated : comment))
     )
   }
 
-  const handleDeleted = (feedbackId: string) => {
-    setFeedback((current) => current.filter((item) => item.id !== feedbackId))
+  const handleDeleted = (comment: FeedbackCommentItem) => {
+    setComments((current) => current.filter((item) => item.id !== comment.id))
     setSelectedIds((current) => {
       const next = new Set(current)
-      next.delete(feedbackId)
+      next.delete(comment.id)
       return next
     })
   }
 
-  const toggleFeedbackSelection = (feedbackId: string) => {
+  const toggleCommentSelection = (commentId: string) => {
     setSelectedIds((current) => {
       const next = new Set(current)
-      if (next.has(feedbackId)) {
-        next.delete(feedbackId)
+      if (next.has(commentId)) {
+        next.delete(commentId)
       } else {
-        next.add(feedbackId)
+        next.add(commentId)
       }
       return next
     })
@@ -243,11 +247,11 @@ export function FeedbackDashboard({
     setSelectedIds((current) => {
       if (visibleSelected) {
         const next = new Set(current)
-        paginatedFeedbackIds.forEach((id) => next.delete(id))
+        paginatedCommentIds.forEach((id) => next.delete(id))
         return next
       }
 
-      return new Set([...current, ...paginatedFeedbackIds])
+      return new Set([...current, ...paginatedCommentIds])
     })
   }
 
@@ -258,10 +262,12 @@ export function FeedbackDashboard({
     setMassDeleting(true)
     dismissErrorToast()
     try {
-      const result = await deleteFeedbackMany(ids)
-      const deletedIds = new Set(result.feedbackIds)
-      setFeedback((current) => current.filter((item) => !deletedIds.has(item.id)))
-      toast.success("Feedback deleted.")
+      const result = await deleteFeedbackCommentsMany(ids)
+      const deletedIds = new Set(result.commentIds)
+      setComments((current) =>
+        current.filter((comment) => !deletedIds.has(comment.id))
+      )
+      toast.success("Comments deleted.")
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
     } catch (deleteError) {
@@ -272,15 +278,15 @@ export function FeedbackDashboard({
   }
 
   const handleQuickDelete = async () => {
-    if (!deletingFeedback) return
+    if (!deletingComment) return
 
     setQuickDeleting(true)
     dismissErrorToast()
     try {
-      await deleteFeedback(deletingFeedback.id)
-      handleDeleted(deletingFeedback.id)
-      toast.success("Feedback deleted.")
-      setDeletingFeedback(null)
+      await deleteFeedbackComment(deletingComment.id)
+      handleDeleted(deletingComment)
+      toast.success("Comment deleted.")
+      setDeletingComment(null)
     } catch (deleteError) {
       showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
@@ -291,9 +297,9 @@ export function FeedbackDashboard({
   return (
     <div className="w-full pb-8">
       <DashboardTable
-        title="Feedback"
-        icon={<MessageSquarePlusIcon className="text-muted-foreground" />}
-        count={filteredFeedback.length}
+        title="Comments"
+        icon={<MessageSquareIcon className="text-muted-foreground" />}
+        count={filteredComments.length}
         error={
           error
             ? {
@@ -318,16 +324,16 @@ export function FeedbackDashboard({
               </DashboardToolbarButton>
             ) : null}
             <DashboardToolbarSearch
-              name="feedback-search"
-              aria-label="Search feedback"
-              placeholder="Search feedback..."
+              name="comment-search"
+              aria-label="Search comments"
+              placeholder="Search comments..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <DashboardToolbarSelectTrigger
-                aria-label="Filter by type"
+                aria-label="Filter by feedback type"
               >
                 <SelectValue placeholder="Type" />
               </DashboardToolbarSelectTrigger>
@@ -340,14 +346,6 @@ export function FeedbackDashboard({
                 ))}
               </SelectContent>
             </Select>
-
-            <DashboardToolbarButton
-              type="button"
-              onClick={onOpenFeedback}
-            >
-              <MessageSquarePlusIcon className="size-4" />
-              New feedback
-            </DashboardToolbarButton>
           </>
         }
         header={
@@ -363,11 +361,16 @@ export function FeedbackDashboard({
                           : false
                     }
                     onCheckedChange={toggleVisibleSelection}
-                    aria-label="Select visible feedback"
+                    aria-label="Select visible comments"
                   />
                 </TableHead>
                 <TableHead column="main">
                   <TableSortButton active={sortColumn === "message"} direction={sortDirection} onClick={() => toggleSort("message")}>
+                    Comment
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="preview">
+                  <TableSortButton active={sortColumn === "feedback"} direction={sortDirection} onClick={() => toggleSort("feedback")}>
                     Feedback
                   </TableSortButton>
                 </TableHead>
@@ -376,7 +379,7 @@ export function FeedbackDashboard({
                     Type
                   </TableSortButton>
                 </TableHead>
-                <TableHead column="meta" className="hidden md:table-cell">
+                <TableHead column="meta" className="hidden lg:table-cell">
                   <TableSortButton active={sortColumn === "author"} direction={sortDirection} onClick={() => toggleSort("author")}>
                     Author
                   </TableSortButton>
@@ -386,80 +389,61 @@ export function FeedbackDashboard({
                     Created
                   </TableSortButton>
                 </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "comments"} direction={sortDirection} onClick={() => toggleSort("comments")}>
-                    Comments
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "votes"} direction={sortDirection} onClick={() => toggleSort("votes")}>
-                    Votes
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  Actions
-                </TableHead>
+                <TableHead column="meta">Actions</TableHead>
               </TableRow>
             </TableHeader>
         }
-        isEmpty={!loading && paginatedFeedback.length === 0}
-        emptyText="No feedback found matching your filters."
-        emptyColSpan={8}
+        isEmpty={!loading && paginatedComments.length === 0}
+        emptyText="No comments found matching your filters."
+        emptyColSpan={7}
         footer={{
           type: "pagination",
           page: currentPage,
           pageSize,
-          total: filteredFeedback.length,
+          total: filteredComments.length,
           totalPages,
           pageSizeOptions,
           onPageChange: goToPage,
           onPageSizeChange: setPageSize,
         }}
       >
-        {paginatedFeedback.map((item) => (
-          <TableRow key={item.id} className="group">
+        {paginatedComments.map((comment) => (
+          <TableRow key={comment.id} className="group">
             <TableCell column="select">
               <Checkbox
-                checked={selectedIds.has(item.id)}
-                onCheckedChange={() => toggleFeedbackSelection(item.id)}
-                aria-label={`Select feedback ${item.message}`}
+                checked={selectedIds.has(comment.id)}
+                onCheckedChange={() => toggleCommentSelection(comment.id)}
+                aria-label={`Select comment ${comment.message}`}
               />
             </TableCell>
             <TableCell column="main">
               <button
                 type="button"
                 className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
-                onClick={() => setEditingFeedback(item)}
-                title={item.message}
+                onClick={() => setEditingComment(comment)}
+                title={comment.message}
               >
-                {item.message}
+                {comment.message}
               </button>
+            </TableCell>
+            <TableCell column="preview">
+              <span className="block truncate" title={comment.feedback_message}>
+                {comment.feedback_message}
+              </span>
             </TableCell>
             <TableCell column="meta">
               <Badge
-                variant={feedbackTypeBadgeVariants[item.type]}
-                className={feedbackTypeClassNames[item.type]}
+                variant={feedbackTypeBadgeVariants[comment.feedback_type]}
+                className={feedbackTypeClassNames[comment.feedback_type]}
               >
-                {feedbackTypeLabels[item.type]}
+                {feedbackTypeLabels[comment.feedback_type]}
               </Badge>
-            </TableCell>
-            <TableCell column="mutedMeta" className="hidden md:table-cell">
-              {item.author_name}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
-              {dateFormatter.format(new Date(item.created_at))}
+              {comment.author_name}
             </TableCell>
-            <TableCell column="meta">
-              <Badge variant="secondary">
-                <MessageSquareIcon className="h-3.5 w-3.5" />
-                {item.comment_count}
-              </Badge>
-            </TableCell>
-            <TableCell column="meta">
-              <Badge variant="secondary">
-                <ThumbsUpIcon className="h-3.5 w-3.5" />
-                {item.vote_count}
-              </Badge>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {dateFormatter.format(new Date(comment.created_at))}
             </TableCell>
             <TableCell column="meta">
               <div className="flex items-center">
@@ -467,49 +451,51 @@ export function FeedbackDashboard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => setEditingFeedback(item)}
-                  title="Feedback settings"
-                  aria-label="Feedback settings"
+                  onClick={() => setEditingComment(comment)}
+                  title="Comment settings"
+                  aria-label="Comment settings"
                 >
                   <SettingsIcon className="h-4 w-4" />
-                  <span className="sr-only">Feedback settings</span>
+                  <span className="sr-only">Comment settings</span>
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => setDeletingFeedback(item)}
-                  title="Delete feedback"
-                  aria-label="Delete feedback"
+                  onClick={() => setDeletingComment(comment)}
+                  title="Delete comment"
+                  aria-label="Delete comment"
                 >
                   <Trash2Icon className="h-4 w-4" />
-                  <span className="sr-only">Delete feedback</span>
+                  <span className="sr-only">Delete comment</span>
                 </Button>
               </div>
             </TableCell>
           </TableRow>
         ))}
       </DashboardTable>
+
       {visibleSelected &&
-      filteredFeedbackIds.length > paginatedFeedbackIds.length ? (
+      filteredCommentIds.length > paginatedCommentIds.length ? (
         <div className="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {paginatedFeedbackIds.length} feedback item
-          {paginatedFeedbackIds.length === 1 ? "" : "s"} on this page are
+          {paginatedCommentIds.length} comment
+          {paginatedCommentIds.length === 1 ? "" : "s"} on this page are
           selected.{" "}
           <button
             type="button"
             className="font-medium text-foreground underline underline-offset-2"
-            onClick={() => setSelectedIds(new Set(filteredFeedbackIds))}
+            onClick={() => setSelectedIds(new Set(filteredCommentIds))}
           >
-            Select all {filteredFeedbackIds.length}
+            Select all {filteredCommentIds.length}
           </button>
         </div>
       ) : null}
-      <EditFeedbackModal
-        feedback={editingFeedback}
-        open={Boolean(editingFeedback)}
+
+      <EditFeedbackCommentModal
+        comment={editingComment}
+        open={Boolean(editingComment)}
         onOpenChange={(open) => {
-          if (!open) setEditingFeedback(null)
+          if (!open) setEditingComment(null)
         }}
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
@@ -517,7 +503,7 @@ export function FeedbackDashboard({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} Feedback Item${selectedIds.size === 1 ? "" : "s"}`}
+        title={`Delete ${selectedIds.size} Comment${selectedIds.size === 1 ? "" : "s"}`}
         description="This action cannot be undone."
         confirmLabel="Delete"
         loading={massDeleting}
@@ -525,64 +511,60 @@ export function FeedbackDashboard({
         onConfirm={handleMassDelete}
       />
       <ConfirmDialog
-        open={Boolean(deletingFeedback)}
+        open={Boolean(deletingComment)}
         onOpenChange={(open) => {
-          if (!open) setDeletingFeedback(null)
+          if (!open) setDeletingComment(null)
         }}
-        title="Delete Feedback Item"
+        title="Delete Comment"
         description="This action cannot be undone."
         confirmLabel="Delete"
         loading={quickDeleting}
-        disabled={!deletingFeedback}
+        disabled={!deletingComment}
         onConfirm={handleQuickDelete}
       />
     </div>
   )
 }
 
-function EditFeedbackModal({
-  feedback,
+function EditFeedbackCommentModal({
+  comment,
   open,
   onOpenChange,
   onUpdated,
   onDeleted,
 }: {
-  feedback: FeedbackItem | null
+  comment: FeedbackCommentItem | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onUpdated: (feedback: FeedbackItem) => void
-  onDeleted: (feedbackId: string) => void
+  onUpdated: (comment: FeedbackCommentItem) => void
+  onDeleted: (comment: FeedbackCommentItem) => void
 }) {
-  const [feedbackType, setFeedbackType] =
-    React.useState<FeedbackType>("suggestion")
   const [message, setMessage] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
 
   React.useEffect(() => {
-    if (!feedback) return
-    setFeedbackType(feedback.type)
-    setMessage(feedback.message)
-  }, [feedback])
+    if (!comment) return
+    setMessage(comment.message)
+  }, [comment])
 
   const handleSave = async () => {
-    if (!feedback) return
+    if (!comment) return
     const trimmedMessage = message.trim()
     if (!trimmedMessage) {
-      showErrorToast("Feedback message is required.")
+      showErrorToast("Comment is required.")
       return
     }
 
     setSaving(true)
     dismissErrorToast()
     try {
-      const updated = await updateFeedback({
-        feedbackId: feedback.id,
-        type: feedbackType,
+      const updated = await updateFeedbackComment({
+        commentId: comment.id,
         message: trimmedMessage,
       })
       onUpdated(updated)
-      toast.success("Feedback updated.")
+      toast.success("Comment updated.")
       onOpenChange(false)
     } catch (saveError) {
       showErrorToast(getFeedbackErrorMessage(saveError))
@@ -592,14 +574,14 @@ function EditFeedbackModal({
   }
 
   const handleDelete = async () => {
-    if (!feedback) return
+    if (!comment) return
 
     setDeleting(true)
     dismissErrorToast()
     try {
-      await deleteFeedback(feedback.id)
-      onDeleted(feedback.id)
-      toast.success("Feedback deleted.")
+      await deleteFeedbackComment(comment.id)
+      onDeleted(comment)
+      toast.success("Comment deleted.")
       onOpenChange(false)
     } catch (deleteError) {
       showErrorToast(getFeedbackErrorMessage(deleteError))
@@ -614,48 +596,33 @@ function EditFeedbackModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle>Edit Feedback</DialogTitle>
+          <DialogTitle>Edit Comment</DialogTitle>
           <DialogDescription>
-            Update the message and feedback type.
+            Update the comment or remove it from the thread.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <Card size="sm">
             <CardHeader>
-              <CardTitle>Feedback</CardTitle>
+              <CardTitle>Comment</CardTitle>
+              {comment ? (
+                <CardDescription className="line-clamp-2">
+                  On: {comment.feedback_message}
+                </CardDescription>
+              ) : null}
             </CardHeader>
             <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="feedback-message">Feedback</Label>
-            <Textarea
-              id="feedback-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              rows={1}
-              disabled={busy}
-              autoFocus
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="feedback-type">Type</Label>
-            <Select
-              value={feedbackType}
-              onValueChange={(value) => setFeedbackType(value as FeedbackType)}
-              disabled={busy}
-            >
-              <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(feedbackTypeLabels).map(([type, label]) => (
-                  <SelectItem key={type} value={type}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="grid gap-2">
+                <Label htmlFor="feedback-comment-message">Comment</Label>
+                <Textarea
+                  id="feedback-comment-message"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  rows={1}
+                  disabled={busy}
+                  autoFocus
+                />
+              </div>
             </CardContent>
           </Card>
         </DialogBody>

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { WorkspacesDashboard } from "@/components/workspaces-dashboard"
+import { WorkspacesDashboard } from "@/components/admin/workspaces-dashboard"
 import { loadWorkspaces } from "@/lib/api/workspaces"
 
 export const Route = createFileRoute("/_authenticated/workspaces")({
