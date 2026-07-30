@@ -1,6 +1,7 @@
 import type { ScrapedDocument, StructuredArticle } from '@/features/automations/domain/types'
 import type { EventNodeResult } from './nodes/event'
 import type { ListingNodeResult } from './nodes/listing'
+import type { NewsletterNodeResult } from './nodes/newsletter'
 import type { PostNodeResult } from './nodes/post'
 
 // The value a node produces at run time, carried along its outgoing edges to the
@@ -14,6 +15,7 @@ export type RuntimeOutput =
   | { type: 'post'; post: PostNodeResult }
   | { type: 'listing'; listing: ListingNodeResult }
   | { type: 'event'; event: EventNodeResult }
+  | { type: 'newsletter'; newsletter: NewsletterNodeResult }
 
 export function articleFrom(payloads: RuntimeOutput[]) {
   return payloads.find((payload): payload is Extract<RuntimeOutput, { type: 'article' }> => payload.type === 'article')?.article

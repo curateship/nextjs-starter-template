@@ -6,7 +6,7 @@ export type AutomationStatus = 'draft' | 'active' | 'paused'
 export type AutomationRunStatus = 'running' | 'waiting' | 'success' | 'partial' | 'failed' | 'noop' | 'rejected' | 'expired'
 export type AutomationStepStatus = 'pending' | 'running' | 'waiting' | 'success' | 'failed' | 'skipped' | 'rejected' | 'expired'
 export type AutomationTriggerType = 'manual' | 'schedule'
-export type AutomationNodeKind = 'time' | 'scraper' | 'feed' | 'router' | 'agent' | 'image' | 'approval' | 'post' | 'listing' | 'event'
+export type AutomationNodeKind = 'time' | 'scraper' | 'feed' | 'router' | 'agent' | 'image' | 'approval' | 'post' | 'listing' | 'event' | 'newsletter'
 export type AutomationApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
 export type AutomationImageSize = 'square' | 'landscape' | 'portrait'
@@ -114,6 +114,25 @@ export interface EventAutomationNode extends AutomationNodeBase {
   }
 }
 
+/**
+ * How the drafted newsletter's subject line is decided. 'article' takes the title
+ * the AI wrote; 'fixed' uses the owner's own line, where `{{title}}` stands in for
+ * that same AI title.
+ */
+export type NewsletterSubjectMode = 'article' | 'fixed'
+
+export interface NewsletterAutomationNode extends AutomationNodeBase {
+  kind: 'newsletter'
+  config: {
+    // A newsletter template supplies the whole email frame (logo header, footer,
+    // unsubscribe). Null means start from a single Rich Text block, matching the
+    // newsletter builder's own "Blank" option.
+    templateId: string | null
+    subjectMode: NewsletterSubjectMode
+    subjectText: string
+  }
+}
+
 export type AutomationNode =
   | TimeAutomationNode
   | ScraperAutomationNode
@@ -125,6 +144,7 @@ export type AutomationNode =
   | PostAutomationNode
   | ListingAutomationNode
   | EventAutomationNode
+  | NewsletterAutomationNode
 
 export type AutomationSourcePort = 'then' | 'documents' | 'article' | 'approved' | 'else' | `route:${string}`
 
@@ -219,6 +239,7 @@ export interface AutomationEditorData {
   templates: Array<{ id: string; name: string; isDefault: boolean }>
   listingTemplates: Array<{ id: string; name: string; isDefault: boolean }>
   eventTemplates: Array<{ id: string; name: string; isDefault: boolean }>
+  newsletterTemplates: Array<{ id: string; name: string; isDefault: boolean }>
   categories: Array<{ id: string; title: string }>
   providers: Array<{ provider: AIProvider; label: string; defaultModel: string }>
   validationErrors: AutomationValidationError[]

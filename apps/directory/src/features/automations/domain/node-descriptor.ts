@@ -35,6 +35,7 @@ export interface ResourceRefs {
   postTemplateIds?: string[]
   listingTemplateIds?: string[]
   eventTemplateIds?: string[]
+  newsletterTemplateIds?: string[]
   categoryIds?: string[]
 }
 
@@ -42,6 +43,7 @@ export interface ResolvedResources {
   postTemplates: Set<string>
   listingTemplates: Set<string>
   eventTemplates: Set<string>
+  newsletterTemplates: Set<string>
   categories: Set<string>
 }
 
@@ -57,7 +59,7 @@ export interface NodeDomainDescriptor<K extends AutomationNodeKind = AutomationN
   defaultName?: string
   // Incoming-connection arity used by graph validation.
   inputs: 'none' | 'single' | 'multi'
-  // Terminal action nodes (Post, Listing, Event) create content and take no outputs.
+  // Terminal action nodes (Post, Listing, Event, Newsletter) create content and take no outputs.
   terminal?: boolean
   // Whether a configured AI provider is required to save/activate ('required')
   // or merely used best-effort at run time ('optional').

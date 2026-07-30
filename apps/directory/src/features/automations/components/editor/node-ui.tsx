@@ -9,6 +9,7 @@ import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
 import Globe2 from "lucide-react/dist/esm/icons/earth.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
+import Mail from "lucide-react/dist/esm/icons/mail.js"
 import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Rss from "lucide-react/dist/esm/icons/rss.js"
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { NEWSLETTER_SUBJECT_MAX } from "@/features/automations/domain/nodes/newsletter";
 import type {
   AutomationEditorData,
   AutomationNode,
@@ -53,6 +55,7 @@ export type NodePanelData = Pick<
   | "templates"
   | "listingTemplates"
   | "eventTemplates"
+  | "newsletterTemplates"
   | "categories"
   | "providers"
 >;
@@ -155,6 +158,16 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
     describe: (node) =>
       node.kind === "event" ? `Draft events · ${node.config.model}` : "",
     Panel: EventPanel,
+  },
+  newsletter: {
+    icon: Mail,
+    describe: (node) =>
+      node.kind === "newsletter"
+        ? node.config.subjectMode === "fixed"
+          ? "Draft newsletter · fixed subject"
+          : "Draft newsletter · AI subject"
+        : "",
+    Panel: NewsletterPanel,
   },
 };
 
@@ -1048,6 +1061,80 @@ function EventPanel({ node, data, onChange }: NodePanelProps) {
           }
         />
       </Field>
+    </>
+  );
+}
+
+function NewsletterPanel({ node, data, onChange }: NodePanelProps) {
+  if (node.kind !== "newsletter") return null;
+  const setConfig = (config: typeof node.config) => onChange({ ...node, config });
+  return (
+    <>
+      <Field
+        label="Newsletter template"
+        htmlFor="newsletter-template"
+        description="The template supplies the whole email frame — logo header, footer, and unsubscribe link. Its first Rich Text block holds the written content. Blank starts from a single Rich Text block."
+      >
+        <Select
+          value={node.config.templateId ?? "blank"}
+          onValueChange={(value) =>
+            setConfig({ ...node.config, templateId: value === "blank" ? null : value })
+          }
+        >
+          <SelectTrigger id="newsletter-template" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="blank">Blank</SelectItem>
+            {data.newsletterTemplates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+                {template.isDefault ? " (default)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Subject line"
+        htmlFor="newsletter-subject-mode"
+        description="Drafts are never sent. You choose the audience and press send yourself in the newsletter builder."
+      >
+        <Select
+          value={node.config.subjectMode}
+          onValueChange={(value) =>
+            setConfig({
+              ...node.config,
+              subjectMode: value === "fixed" ? "fixed" : "article",
+            })
+          }
+        >
+          <SelectTrigger id="newsletter-subject-mode" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="article">Written by the AI</SelectItem>
+            <SelectItem value="fixed">The same line every time</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      {node.config.subjectMode === "fixed" ? (
+        <Field
+          label="Fixed subject line"
+          htmlFor="newsletter-subject-text"
+          description="Write {{title}} anywhere in the line to drop in the AI's own title, such as: Austin Weekly: {{title}}"
+        >
+          <Input
+            id="newsletter-subject-text"
+            value={node.config.subjectText}
+            maxLength={NEWSLETTER_SUBJECT_MAX}
+            placeholder="Austin Weekly: {{title}}"
+            onChange={(event) =>
+              setConfig({ ...node.config, subjectText: event.target.value })
+            }
+          />
+        </Field>
+      ) : null}
     </>
   );
 }

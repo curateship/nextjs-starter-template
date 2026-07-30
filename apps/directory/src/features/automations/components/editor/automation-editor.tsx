@@ -25,7 +25,11 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { createAutomationNode } from "@/features/automations/domain/catalog";
 import { validateAutomationGraph } from "@/features/automations/domain/graph";
-import { isAutomationNodeKind } from "@/features/automations/domain/node-registry";
+import type { ResolvedResources } from "@/features/automations/domain/node-descriptor";
+import {
+  getNodeDescriptor,
+  isAutomationNodeKind,
+} from "@/features/automations/domain/node-registry";
 import type {
   AutomationEditorData,
   AutomationGraph,
@@ -778,16 +782,20 @@ function clientResourceErrors(
 ) {
   const errors: AutomationValidationError[] = [];
   const providers = new Set(data.providers.map((item) => item.provider));
-  const templates = new Set(data.templates.map((item) => item.id));
-  const listingTemplates = new Set(data.listingTemplates.map((item) => item.id));
-  const eventTemplates = new Set(data.eventTemplates.map((item) => item.id));
-  const categories = new Set(data.categories.map((item) => item.id));
+  // Each node's own resource rules, run against what this editor loaded. Reusing the
+  // descriptors keeps the canvas and the server's save-time check from drifting apart.
+  const resolved: ResolvedResources = {
+    postTemplates: new Set(data.templates.map((item) => item.id)),
+    listingTemplates: new Set(data.listingTemplates.map((item) => item.id)),
+    eventTemplates: new Set(data.eventTemplates.map((item) => item.id)),
+    newsletterTemplates: new Set(data.newsletterTemplates.map((item) => item.id)),
+    categories: new Set(data.categories.map((item) => item.id)),
+  };
   for (const node of graph.nodes) {
+    const descriptor = getNodeDescriptor(node.kind);
     if (
-      (node.kind === "agent" ||
-        node.kind === "router" ||
-        node.kind === "listing" ||
-        node.kind === "event") &&
+      descriptor.providerRequirement === "required" &&
+      "provider" in node.config &&
       !providers.has(node.config.provider)
     )
       errors.push({
@@ -795,65 +803,9 @@ function clientResourceErrors(
         message: `${node.name} uses an AI provider that is not configured.`,
         nodeId: node.id,
       });
-    if (
-      node.kind === "listing" &&
-      node.config.templateId &&
-      !listingTemplates.has(node.config.templateId)
-    )
-      errors.push({
-        code: "listing-template-missing",
-        message: "The selected Listing template is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "listing" &&
-      node.config.categoryId &&
-      !categories.has(node.config.categoryId)
-    )
-      errors.push({
-        code: "listing-category-missing",
-        message: "The selected Listing category is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "event" &&
-      node.config.templateId &&
-      !eventTemplates.has(node.config.templateId)
-    )
-      errors.push({
-        code: "event-template-missing",
-        message: "The selected Event template is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "event" &&
-      node.config.categoryId &&
-      !categories.has(node.config.categoryId)
-    )
-      errors.push({
-        code: "event-category-missing",
-        message: "The selected Event category is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "post" &&
-      node.config.templateId &&
-      !templates.has(node.config.templateId)
-    )
-      errors.push({
-        code: "post-template-missing",
-        message: "The selected Post template is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "post" &&
-      node.config.categoryIds.some((id) => !categories.has(id))
-    )
-      errors.push({
-        code: "post-category-missing",
-        message: "One or more selected Post categories are unavailable.",
-        nodeId: node.id,
-      });
+    descriptor.validateResources?.(node, resolved, (code, message) =>
+      errors.push({ code, message, nodeId: node.id }),
+    );
   }
   return errors;
 }

@@ -1,5 +1,10 @@
 import { boundedString, finiteNumber, isRecord, requiredString } from './parse-utils'
-import { getNodeDescriptor, isAutomationNodeKind, nodeOutputPorts } from './node-registry'
+import {
+  getNodeDescriptor,
+  isAutomationNodeKind,
+  nodeOutputPorts,
+  terminalActionNodeNames,
+} from './node-registry'
 import type {
   AutomationEdge,
   AutomationGraph,
@@ -34,6 +39,7 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
   const errors: AutomationValidationError[] = []
   const nodeById = new Map<string, AutomationNode>()
   const edgeIds = new Set<string>()
+  const actionNames = terminalActionNodeNames()
 
   for (const node of graph.nodes) {
     if (nodeById.has(node.id)) errors.push(error('duplicate-node', 'Node IDs must be unique.', node.id))
@@ -43,7 +49,7 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
 
   const timeNodes = graph.nodes.filter((node) => node.kind === 'time')
   if (timeNodes.length !== 1) errors.push(error('time-count', 'Add exactly one Time node.'))
-  if (!graph.nodes.some(isTerminalActionNode)) errors.push(error('post-required', 'Add at least one Post, Listing, or Event node.'))
+  if (!graph.nodes.some(isTerminalActionNode)) errors.push(error('post-required', `Add at least one ${actionNames} node.`))
 
   const incoming = new Map<string, AutomationEdge[]>()
   const outgoing = new Map<string, AutomationEdge[]>()
@@ -103,7 +109,7 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
     for (const id of walkGraph(action.id, reverse, (edge) => edge.from)) reachesAction.add(id)
   }
   for (const node of graph.nodes) {
-    if (!reachesAction.has(node.id)) errors.push(error('no-post-path', `${node.name} does not lead to a Post, Listing, or Event node.`, node.id))
+    if (!reachesAction.has(node.id)) errors.push(error('no-post-path', `${node.name} does not lead to a ${actionNames} node.`, node.id))
   }
 
   return dedupeErrors(errors)

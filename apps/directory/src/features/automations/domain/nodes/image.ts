@@ -31,5 +31,5 @@ export const imageNode = defineNode({
   validate: (node, push) => {
     if (!node.config.prompt.trim()) push('image-prompt', 'Add an image prompt.')
   },
-  allowedTargets: (port) => (port === 'article' ? ['approval', 'post'] : []),
+  allowedTargets: (port) => (port === 'article' ? ['approval', 'post', 'newsletter'] : []),
 })

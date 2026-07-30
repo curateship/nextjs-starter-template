@@ -22,6 +22,22 @@ interface NewsletterRenderOptions {
 
 export const DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR = '#fafafa'
 
+export const DEFAULT_NEWSLETTER_MAX_WIDTH = 600
+
+export const NEWSLETTER_RICH_TEXT_BLOCK_TYPE = 'newsletter-rich-text'
+
+/**
+ * A Rich Text block's starting content. Lives here so the builder's block palette
+ * and the automation Newsletter node create identical blocks.
+ */
+export const DEFAULT_NEWSLETTER_RICH_TEXT_CONTENT = {
+  htmlContent: '',
+  backgroundColor: '#ffffff',
+  padding: 20,
+  imageBorderSize: 0,
+  imageBorderColor: DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR,
+} as const
+
 export function normalizeNewsletterRichTextHtml(htmlContent: string): string {
   return htmlContent
     .replace(/<p(?:\s[^>]*)?>\s*(?:&nbsp;|\u00a0|<br[^>]*>)?\s*<\/p>/gi, '')
@@ -43,7 +59,7 @@ function normalizeNewsletterImageBorderSize(value: unknown): number {
   return Math.max(0, Math.min(48, Math.round(parsedValue)))
 }
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
@@ -118,6 +134,13 @@ function renderSponsorEmbeds(html: string, options?: NewsletterRenderOptions): s
       return sponsor ? renderSponsorEmailHtml(sponsor) : ''
     })
     .join('')
+}
+
+/** A newsletter's stored content blocks, in the order the builder shows them. */
+export function sortNewsletterBlocks(contentBlocks: Record<string, any> | null | undefined): NewsletterRenderBlock[] {
+  return Object.values(contentBlocks || {})
+    .filter((block: any) => block?.id && block?.type)
+    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)) as NewsletterRenderBlock[]
 }
 
 export function extractNewsletterSponsorIds(blocks: NewsletterRenderBlock[]) {
@@ -204,7 +227,11 @@ export function renderNewsletterBlockHtml(block: NewsletterRenderBlock, options?
   }
 }
 
-export function generateEmailHtml(blocks: NewsletterRenderBlock[], maxWidth: number = 600, options?: NewsletterRenderOptions): string {
+export function generateEmailHtml(
+  blocks: NewsletterRenderBlock[],
+  maxWidth: number = DEFAULT_NEWSLETTER_MAX_WIDTH,
+  options?: NewsletterRenderOptions
+): string {
   const wrappedBlocks = blocks
     .map((block) => renderNewsletterBlockHtml(block, options))
     .map((blockHtml) => `<tr><td>${blockHtml}</td></tr>`)
