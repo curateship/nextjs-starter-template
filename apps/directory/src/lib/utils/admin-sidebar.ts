@@ -154,6 +154,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
           item("item-forms", "Forms", "/admin/forms", "clipboard"),
           item("item-events", "Events", "/admin/events", "events", [
             child("child-event-registrations", "Registrations", "/admin/events/registrations", "users"),
+            child("child-event-check-in", "Check-in", "/admin/events/check-in", "clipboard"),
             child("child-event-templates", "Templates", "/admin/events/templates", "file"),
             child("child-event-submissions", "Submissions", "/admin/events/submissions", "clipboard"),
           ], ["/admin/events/builder"]),
@@ -439,7 +440,7 @@ function resolveDefault<T>(map: Map<string, T>, id: string) {
 const INJECTED_DEFAULT_CHILDREN: Record<string, string[]> = {
   "item-directory": ["child-directory-saved", "child-directory-submissions", "child-directory-outreach", "child-directory-monetization"],
   "item-categories": ["child-category-templates"],
-  "item-events": ["child-event-templates", "child-event-submissions"],
+  "item-events": ["child-event-templates", "child-event-submissions", "child-event-check-in"],
 }
 
 function hydrateSiteIdPlaceholder(href: string, siteId: string | null) {

@@ -17,6 +17,7 @@ import {
 } from '@/lib/actions/email/system-email'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { buildEventLocation, formatEventWhen } from '@/lib/utils/calendar'
+import { buildTicketQrUrl, buildTicketUrl } from './event-check-in-core'
 
 export type EventRegistrationEmailKey = Extract<
   SystemEmailTemplateKey,
@@ -33,7 +34,12 @@ export interface EventEmailContext {
 }
 
 export interface EventRegistrationMailer {
-  send(attendeeName: string, attendeeEmail: string): Promise<{ sent: boolean; error: string | null }>
+  /** `checkInCode` is this attendee's ticket, and the only per-recipient token besides their name. */
+  send(
+    attendeeName: string,
+    attendeeEmail: string,
+    checkInCode: string,
+  ): Promise<{ sent: boolean; error: string | null }>
 }
 
 /**
@@ -60,7 +66,8 @@ export async function createEventRegistrationMailer(params: {
     return { mailer: null, error: 'This email template is turned off' }
   }
 
-  // Every token except the attendee's name is the same for the whole list.
+  // Every token except the attendee's name and their ticket links is the same
+  // for the whole list.
   const eventTokens = await buildSystemEmailTokens({
     siteId: params.siteId,
     eventName: params.event.title,
@@ -74,10 +81,19 @@ export async function createEventRegistrationMailer(params: {
   const provider = getEmailProvider(config.apiKey, config.providerType)
   const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
 
+  const siteUrl = eventTokens.site_url
+
   return {
     mailer: {
-      async send(attendeeName: string, attendeeEmail: string) {
-        const tokens = { ...eventTokens, attendee_name: attendeeName }
+      async send(attendeeName: string, attendeeEmail: string, checkInCode: string) {
+        const tokens = {
+          ...eventTokens,
+          attendee_name: attendeeName,
+          // Empty when the site has no resolvable URL: an email with a broken
+          // image and a dead link is worse than one with neither.
+          ticket_url: siteUrl ? buildTicketUrl(siteUrl, checkInCode) : '',
+          ticket_qr_url: siteUrl ? buildTicketQrUrl(siteUrl, checkInCode) : '',
+        }
         const result = await provider.send({
           from,
           to: attendeeEmail,
@@ -102,8 +118,9 @@ export async function sendEventRegistrationEmail(params: {
   event: EventEmailContext
   attendeeName: string
   attendeeEmail: string
+  checkInCode: string
 }): Promise<{ sent: boolean; error: string | null }> {
   const { mailer, error } = await createEventRegistrationMailer(params)
   if (!mailer) return { sent: false, error }
-  return mailer.send(params.attendeeName, params.attendeeEmail)
+  return mailer.send(params.attendeeName, params.attendeeEmail, params.checkInCode)
 }

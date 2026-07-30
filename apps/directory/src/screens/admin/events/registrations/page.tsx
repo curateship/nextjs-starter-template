@@ -64,11 +64,13 @@ function ticketLabel(row: EventRegistrationListItem) {
   return formatCentsAmount(row.amount_total, row.currency) || "Free"
 }
 
-/** "12 of 30 seats taken" / "12 seats taken" when the event has no limit. */
+/** "12 of 30 seats taken · 8 checked in" — the two numbers an organizer wants. */
 function seatSummary(summary: EventRegistrationEventSummary) {
   const taken = summary.confirmed_count
-  const seats = summary.capacity === null ? `${taken} signed up` : `${taken} of ${summary.capacity} seats taken`
-  return summary.pending_count > 0 ? `${seats} · ${summary.pending_count} awaiting payment` : seats
+  const parts = [summary.capacity === null ? `${taken} signed up` : `${taken} of ${summary.capacity} seats taken`]
+  if (summary.pending_count > 0) parts.push(`${summary.pending_count} awaiting payment`)
+  parts.push(`${summary.checked_in_count} of ${taken} checked in`)
+  return parts.join(" · ")
 }
 
 export default function EventRegistrationsPage() {
@@ -360,7 +362,14 @@ export default function EventRegistrationsPage() {
                         <TableCell column="meta">
                           <span className="text-sm">{ticketLabel(row)}</span>
                         </TableCell>
-                        <TableCell column="meta">{statusBadge(row.status)}</TableCell>
+                        <TableCell column="meta">
+                          {statusBadge(row.status)}
+                          {row.checked_in_at ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Checked in {formatDate(row.checked_in_at)}
+                            </div>
+                          ) : null}
+                        </TableCell>
                         <TableCell column="meta">
                           <div className="text-sm text-muted-foreground">{formatDate(row.created_at)}</div>
                           {row.reminder_sent_at ? (
