@@ -106,14 +106,14 @@ type FeedbackModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   targetFeedbackId?: string | null
-  onCreated?: (feedback: FeedbackItem) => void
+  onMutated?: () => void
 }
 
 export function FeedbackModal({
   open,
   onOpenChange,
   targetFeedbackId,
-  onCreated,
+  onMutated,
 }: FeedbackModalProps) {
   const [feedbackType, setFeedbackType] =
     React.useState<FeedbackType>("suggestion")
@@ -253,7 +253,7 @@ export function FeedbackModal({
       setFeedback((current) => [created, ...current])
       setMessage("")
       setFeedbackType("suggestion")
-      onCreated?.(created)
+      onMutated?.()
     } catch (submitError) {
       setError(getFeedbackErrorMessage(submitError))
     } finally {
@@ -271,6 +271,7 @@ export function FeedbackModal({
           currentItem.id === updated.id ? updated : currentItem
         )
       )
+      onMutated?.()
     } catch (voteError) {
       setError(getFeedbackErrorMessage(voteError))
     } finally {
@@ -342,6 +343,7 @@ export function FeedbackModal({
             : item
         )
       )
+      onMutated?.()
     } catch (submitError) {
       setError(getFeedbackErrorMessage(submitError))
     } finally {
@@ -376,6 +378,7 @@ export function FeedbackModal({
       }))
       setEditingCommentId(null)
       setEditingCommentMessage("")
+      onMutated?.()
     } catch (updateError) {
       setError(getFeedbackErrorMessage(updateError))
     } finally {
@@ -401,6 +404,7 @@ export function FeedbackModal({
             : item
         )
       )
+      onMutated?.()
     } catch (deleteError) {
       setError(getFeedbackErrorMessage(deleteError))
     } finally {

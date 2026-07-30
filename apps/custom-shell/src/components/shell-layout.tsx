@@ -355,7 +355,7 @@ export function ShellLayout({
           open={feedbackOpen}
           onOpenChange={handleFeedbackOpenChange}
           targetFeedbackId={targetFeedbackId}
-          onCreated={() => setFeedbackRefreshToken((current) => current + 1)}
+          onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
         />
         <AccountDialog
           tab={accountTab ?? null}
