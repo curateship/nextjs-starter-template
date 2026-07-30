@@ -16,3 +16,13 @@ export function formatDate(value: string | Date | null) {
     dateStyle: "medium",
   }).format(date)
 }
+
+/** Same date, plus the clock time — for logs where the order of events matters. */
+export function formatDateTime(value: string | Date | null) {
+  if (!value) return "—"
+  const date = typeof value === "string" ? new Date(value) : value
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date)
+}

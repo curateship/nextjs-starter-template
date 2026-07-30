@@ -6,6 +6,7 @@ import {
   normalizeStyling,
   type IconKey,
   type ShellChildItem,
+  type ShellItem,
   type ShellSection,
   type ShellStyling,
   type ShellTopRightNavigationItem,
@@ -40,6 +41,17 @@ const MEDIA_CHILD_LINKS: ShellChildItem[] = [
     icon: "unlink",
   },
 ]
+
+/** The read-only admin activity feed, added after the first workspaces existed. */
+const AUDIT_LINK: ShellItem = {
+  type: "item",
+  id: "item-admin-audit",
+  label: "Activity log",
+  href: "/admin/audit",
+  icon: "scroll-text",
+  visible: true,
+  roles: ["admin"],
+}
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -358,7 +370,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
       sections: Array.isArray(settings.sections)
-        ? withMediaChildLinks(settings.sections)
+        ? withAuditLink(withMediaChildLinks(settings.sections))
         : fallback.sections,
       // Default fills rows saved before this field existed.
       sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
@@ -389,6 +401,41 @@ function withMediaChildLinks(sections: ShellSection[]): ShellSection[] {
         : entry
     ),
   }))
+}
+
+/**
+ * Same story as the media child links: the activity log arrived after most
+ * workspaces were created and a deploy never rewrites saved navigation, so it
+ * would only appear in brand new workspaces. Add it beside the other admin
+ * links when nothing points at it yet. To take it out of the sidebar, switch
+ * the entry to hidden in Settings → Sidebar — deleting it brings it back, the
+ * same as any default link.
+ */
+function withAuditLink(sections: ShellSection[]): ShellSection[] {
+  const alreadyLinked = sections.some((section) =>
+    (section.entries ?? []).some(
+      (entry) => entry.type === "item" && entry.href === AUDIT_LINK.href
+    )
+  )
+  if (alreadyLinked) return sections
+
+  // It belongs with the admin links; without that section there is nowhere
+  // sensible to put it, so leave the user's sidebar alone.
+  let placed = false
+  return sections.map((section) => {
+    const entries = section.entries ?? []
+    if (
+      placed ||
+      !entries.some(
+        (entry) => entry.type === "item" && entry.href === "/admin/users"
+      )
+    ) {
+      return section
+    }
+
+    placed = true
+    return { ...section, entries: [...entries, { ...AUDIT_LINK }] }
+  })
 }
 
 function cleanWorkspaceSettings(
@@ -462,6 +509,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           visible: true,
           roles: ["admin"],
         },
+        { ...AUDIT_LINK },
       ],
     },
     {
