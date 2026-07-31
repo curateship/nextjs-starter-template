@@ -9,7 +9,7 @@ import { headers } from "@/lib/request-headers";
 import { isHubPlatformHost } from "@/lib/utils/platform-host";
 import { getPublicCampaignsForSite } from "@/lib/actions/campaigns/campaign-actions.server";
 import { CampaignGate } from "@/components/frontend/campaigns/CampaignGate";
-import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions";
+import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions.server";
 import { getSiteCardStyleVars } from "@/lib/utils/admin-styling";
 import { clampToastSeconds } from "@/lib/toast-seconds";
 

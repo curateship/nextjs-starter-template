@@ -129,14 +129,14 @@ export function AutomationsDashboard() {
       return
     }
     setLoading(true)
-    const result = await getAutomationsBySite(currentSite.id, {
+    const result = await getAutomationsBySite({ data: { siteId: currentSite.id, options: {
       page,
       pageSize,
       search,
       status,
       sortColumn: sort.sortColumn,
       sortDirection: sort.sortDirection,
-    })
+    } } })
     if (requestId !== loadRequestRef.current) return
     if (result.error) showActionError(result.error)
     setItems(result.data)
@@ -152,7 +152,7 @@ export function AutomationsDashboard() {
   async function handleCreate() {
     if (!currentSite?.id || !createName.trim()) return
     setCreating(true)
-    const result = await createAutomation({ siteId: currentSite.id, name: createName })
+    const result = await createAutomation({ data: { siteId: currentSite.id, name: createName } })
     setCreating(false)
     if (result.error || !result.data) return showActionError(result.error || "Failed to create automation")
     setCreateOpen(false)
@@ -163,7 +163,7 @@ export function AutomationsDashboard() {
   async function handleDelete() {
     if (!deleteIds.length) return
     setDeleting(true)
-    const result = await deleteAutomations(deleteIds)
+    const result = await deleteAutomations({ data: { automationIds: deleteIds } })
     setDeleting(false)
     if (result.error || !result.success) return showActionError(result.error || "Failed to delete automation")
     setDeleteIds([])
@@ -174,7 +174,7 @@ export function AutomationsDashboard() {
 
   async function handleStatus(item: AutomationListItem) {
     setWorkingId(item.id)
-    const result = await setAutomationStatus(item.id, item.status === "active" ? "paused" : "active")
+    const result = await setAutomationStatus({ data: { automationId: item.id, status: item.status === "active" ? "paused" : "active" } })
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
     await load()
@@ -182,7 +182,7 @@ export function AutomationsDashboard() {
 
   async function handleRun(item: AutomationListItem) {
     setWorkingId(item.id)
-    const result = await runAutomationNow(item.id)
+    const result = await runAutomationNow({ data: { automationId: item.id } })
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
     showActionSuccess(
@@ -195,7 +195,7 @@ export function AutomationsDashboard() {
 
   async function handleDuplicate(item: AutomationListItem) {
     setWorkingId(item.id)
-    const result = await duplicateAutomation(item.id)
+    const result = await duplicateAutomation({ data: { automationId: item.id } })
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
     showActionSuccess("Automation duplicated.")

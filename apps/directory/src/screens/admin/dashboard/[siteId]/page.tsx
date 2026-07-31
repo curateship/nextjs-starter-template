@@ -6,9 +6,9 @@ import {
   type DashboardRange,
   type MultiSiteDashboardData,
 } from "@/lib/actions/analytics/analytics-actions"
-import { getRecentAutomationRunsForSite } from "@/lib/actions/automations/automation-actions"
+import { getRecentAutomationRunsForSiteImpl } from "@/lib/actions/automations/automation-actions.server"
 import { listHubNotificationPageImpl } from "@/lib/actions/notifications/notification-actions.server"
-import { getAllSitesAction, getSiteByIdAction } from "@/lib/actions/sites/site-actions"
+import { getAllSitesActionImpl, getSiteByIdActionImpl } from "@/lib/actions/sites/site-actions.server"
 import { redirect } from "@/lib/navigation-server"
 
 interface PageProps {
@@ -45,18 +45,18 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
 
   // Resolve the URL param (a site id) to the owning site first, since every scoped query below
   // keys off it. An unknown or non-owned id falls back to the all-sites view.
-  const { data: site } = await getSiteByIdAction(siteId)
+  const { data: site } = await getSiteByIdActionImpl(siteId)
   if (!site) redirect("/admin/dashboard")
 
   const [sitesResult, metrics, notifications, automationRuns] = await Promise.all([
-    getAllSitesAction(),
+    getAllSitesActionImpl(),
     getMultiSiteDashboardData(range, site.id).catch(() => emptyMetrics(range)),
     listHubNotificationPageImpl({ siteId: site.id, limit: 8 }).catch(() => ({
       notifications: [],
       next_cursor: null,
       unread_count: 0,
     })),
-    getRecentAutomationRunsForSite(site.id, 8).catch(() => ({ data: [], error: null })),
+    getRecentAutomationRunsForSiteImpl(site.id, 8).catch(() => ({ data: [], error: null })),
   ])
 
   return (

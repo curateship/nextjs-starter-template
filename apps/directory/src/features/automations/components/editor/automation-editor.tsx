@@ -131,7 +131,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    void getAutomationEditorData(automationId).then((result) => {
+    void getAutomationEditorData({ data: { automationId } }).then((result) => {
       if (cancelled) return;
       if (result.error || !result.data) {
         setLoadError(result.error || "Automation not found");
@@ -364,7 +364,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
   async function handleSave(showToast = true) {
     if (!graph || !data) return { saved: false, valid: false };
     setSaving(true);
-    const result = await saveAutomation({ automationId, name, graph });
+    const result = await saveAutomation({ data: { automationId, name, graph } });
     setSaving(false);
     if (result.error || !result.data) {
       showActionError(result.error || "Failed to save automation");
@@ -401,7 +401,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
       );
       return;
     }
-    const result = await runAutomationNow(automationId);
+    const result = await runAutomationNow({ data: { automationId } });
     setRunning(false);
     if (result.error || !result.data)
       return showActionError(result.error || "Automation run failed");
@@ -435,7 +435,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     decision: "approve" | "reject",
   ) {
     setDeciding({ approvalId, decision });
-    const result = await decideAutomationApproval(approvalId, decision);
+    const result = await decideAutomationApproval({ data: { approvalId, decision } });
     setDeciding(null);
     if (result.error || !result.data)
       return showActionError(result.error || "Failed to record the approval");
@@ -475,7 +475,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     }
     const nextStatus =
       data.automation.status === "active" ? "paused" : "active";
-    const result = await setAutomationStatus(automationId, nextStatus);
+    const result = await setAutomationStatus({ data: { automationId, status: nextStatus } });
     setChangingStatus(false);
     if (result.error || !result.data) {
       setServerErrors(result.validationErrors);

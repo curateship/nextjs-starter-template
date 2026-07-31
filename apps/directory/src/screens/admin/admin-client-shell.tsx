@@ -148,7 +148,7 @@ export function AdminClientShell({
     setSidebarWidth(nextWidth)
 
     const request = sidebarWidthSaveQueueRef.current.then(async () => {
-      const result = await updateAdminSettingsAction({ sidebar_width: nextWidth })
+      const result = await updateAdminSettingsAction({ data: { sidebar_width: nextWidth } })
       if (result.error) throw new Error(result.error)
     })
     sidebarWidthSaveQueueRef.current = request.catch(() => undefined)

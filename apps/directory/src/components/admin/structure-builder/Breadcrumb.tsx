@@ -84,7 +84,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
         setLoading(true)
         setError(null)
 
-        const result = await getSiteByIdAction(siteId)
+        const result = await getSiteByIdAction({ data: { siteId } })
 
         if (cancelled) return
 
@@ -137,9 +137,9 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
         }
       }
 
-      const { data, error: updateError } = await updateSiteAction(siteId, {
+      const { data, error: updateError } = await updateSiteAction({ data: { siteId, updates: {
         settings: nextSettings
-      })
+      } } })
 
       if (updateError) {
         setError(updateError)
