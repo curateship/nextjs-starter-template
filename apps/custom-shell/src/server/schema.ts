@@ -27,7 +27,12 @@ export const customShellUsers = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     role: varchar("role", { length: 50 }).notNull(),
     status: varchar("status", { length: 20 }).notNull().default("active"),
-    passwordHash: text("password_hash").notNull(),
+    /**
+     * Null for an account that has no password — one created by signing in
+     * with Google. Every password check treats null as "no password will ever
+     * match", and Account → Security offers to set one.
+     */
+    passwordHash: text("password_hash"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -361,6 +366,36 @@ export const customShellAuthTokens = pgTable(
     ),
     index("ix_auth_tokens_user_purpose").on(table.userId, table.purpose),
     index("ix_auth_tokens_expires_at").on(table.expiresAt),
+  ]
+)
+
+/**
+ * One sign-in provider account linked to one account here.
+ *
+ * Keyed on the provider's own permanent id for the person rather than their
+ * email, so changing the address on the Google account still comes back here.
+ */
+export const customShellOauthAccounts = pgTable(
+  "oauth_accounts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 20 }).notNull(),
+    /** Google's `sub` — the permanent id for that Google account. */
+    providerAccountId: varchar("provider_account_id", {
+      length: 255,
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("oauth_accounts_provider_check", sql`${table.provider} in ('google')`),
+    unique("oauth_accounts_provider_account_unique").on(
+      table.provider,
+      table.providerAccountId
+    ),
+    index("ix_oauth_accounts_user_id").on(table.userId),
   ]
 )
 

@@ -54,6 +54,32 @@ site `1x00000000000000000000AA` with secret `1x0000000000000000000000000000000AA
 always passes; `2x00000000000000000000AB` with `2x0000000000000000000000000000000AA`
 always fails; site `3x00000000000000000000FF` always shows the puzzle.
 
+## Sign in with Google
+
+The sign-in and sign-up pages offer "Continue with Google" beside the password
+form. A first sign-in creates a confirmed account with no password; an address
+that already has an account here is attached to it instead, so the same person
+never ends up with two.
+
+```bash
+CUSTOM_SHELL_GOOGLE_CLIENT_ID=""
+CUSTOM_SHELL_GOOGLE_CLIENT_SECRET=""
+```
+
+**With either key empty the button never appears** and the two endpoints refuse,
+so nothing is offered that this server cannot finish. The client secret is
+server-only: never expose it with a `VITE_` prefix.
+
+To set it up, create an OAuth client of type **Web application** in the Google
+Cloud console and add one authorised redirect URI: `CUSTOM_SHELL_APP_URL` plus
+`/api/auth/google/callback`. It has to match exactly, host and all — locally
+that means signing in on the same hostname the app URL uses, or Google sends the
+browser back to an address that is not carrying the handshake cookie.
+
+An account created this way has no password. Account → Security offers to set
+one, and asks for the account's own email address rather than a password when
+it is time to delete the account.
+
 ## Adding components
 
 To add components to your app, run the following command:

@@ -3,6 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { GoogleSignIn } from "@/components/shell/google-sign-in"
 import {
   HumanCheck,
   type HumanCheckHandle,
@@ -16,7 +17,7 @@ import {
   getAuthErrorMessage,
   HUMAN_CHECK_MESSAGE,
   loadCurrentUser,
-  loadHumanCheckSiteKey,
+  loadSignInOptions,
   PASSWORD_RULE_HINT,
   register,
 } from "@/lib/api/auth"
@@ -24,20 +25,20 @@ import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/register")({
   loader: async () => {
-    const [user, humanCheck] = await Promise.all([
+    const [user, options] = await Promise.all([
       loadCurrentUser(),
-      loadHumanCheckSiteKey(),
+      loadSignInOptions(),
     ])
     if (user) {
       throw redirect({ to: "/" })
     }
-    return humanCheck
+    return options
   },
   component: RegisterRoute,
 })
 
 function RegisterRoute() {
-  const { siteKey } = Route.useLoaderData()
+  const { siteKey, google } = Route.useLoaderData()
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -163,6 +164,7 @@ function RegisterRoute() {
           "Create account"
         )}
       </Button>
+      {google ? <GoogleSignIn label="Continue with Google" /> : null}
     </AuthShell>
   )
 }
