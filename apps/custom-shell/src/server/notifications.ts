@@ -13,6 +13,7 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
+  customShellChangelogEntries,
   customShellFeedback,
   customShellNotifications,
   customShellUsers,
@@ -65,6 +66,29 @@ export async function listAdminNotificationPage({
     includeAll: true,
     database: db,
   })
+}
+
+/**
+ * How many notices this person has not read. The shell asks on every bootstrap
+ * so the bell can carry its dot on arrival — without it the tray only knows its
+ * own count after you have already opened it, which is too late to tell you
+ * anything.
+ */
+export async function countUnreadNotifications(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<number> {
+  const [row] = await database
+    .select({ count: sql<number>`count(*)::int` })
+    .from(customShellNotifications)
+    .where(
+      and(
+        eq(customShellNotifications.recipientUserId, userId),
+        isNull(customShellNotifications.readAt)
+      )
+    )
+
+  return row?.count ?? 0
 }
 
 export async function markCurrentUserNotificationRead(notificationId: string) {
@@ -248,31 +272,74 @@ async function serializeNotificationRows(
     return []
   }
 
+  // A changelog notice has no actor and no feedback, and a feedback notice has
+  // no changelog entry, so each lookup only asks about the rows that have one.
   const userIds = Array.from(
-    new Set(rows.flatMap((row) => [row.actorUserId, row.recipientUserId]))
+    new Set(
+      rows.flatMap((row) =>
+        row.actorUserId
+          ? [row.actorUserId, row.recipientUserId]
+          : [row.recipientUserId]
+      )
+    )
   )
-  const feedbackIds = Array.from(new Set(rows.map((row) => row.feedbackId)))
-  const userRows = await database
-    .select({ id: customShellUsers.id, name: customShellUsers.name })
-    .from(customShellUsers)
-    .where(inArray(customShellUsers.id, userIds))
-  const feedbackRows = await database
-    .select({ id: customShellFeedback.id, message: customShellFeedback.message })
-    .from(customShellFeedback)
-    .where(inArray(customShellFeedback.id, feedbackIds))
+  const feedbackIds = Array.from(
+    new Set(rows.flatMap((row) => (row.feedbackId ? [row.feedbackId] : [])))
+  )
+  const changelogIds = Array.from(
+    new Set(
+      rows.flatMap((row) => (row.changelogEntryId ? [row.changelogEntryId] : []))
+    )
+  )
+
+  const [userRows, feedbackRows, changelogRows] = await Promise.all([
+    database
+      .select({ id: customShellUsers.id, name: customShellUsers.name })
+      .from(customShellUsers)
+      .where(inArray(customShellUsers.id, userIds)),
+    feedbackIds.length
+      ? database
+          .select({
+            id: customShellFeedback.id,
+            message: customShellFeedback.message,
+          })
+          .from(customShellFeedback)
+          .where(inArray(customShellFeedback.id, feedbackIds))
+      : [],
+    changelogIds.length
+      ? database
+          .select({
+            id: customShellChangelogEntries.id,
+            title: customShellChangelogEntries.title,
+          })
+          .from(customShellChangelogEntries)
+          .where(inArray(customShellChangelogEntries.id, changelogIds))
+      : [],
+  ])
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
   const feedbackMessages = new Map(
     feedbackRows.map((row) => [row.id, row.message])
   )
+  const changelogTitles = new Map(
+    changelogRows.map((row) => [row.id, row.title])
+  )
 
   return rows.map((row) => ({
     id: row.id,
     type: row.type as NotificationItem["type"],
-    actor_name: userNames.get(row.actorUserId) ?? "Unknown",
+    actor_name: row.actorUserId
+      ? (userNames.get(row.actorUserId) ?? "Unknown")
+      : null,
     recipient_name: userNames.get(row.recipientUserId) ?? "Unknown",
     feedback_id: row.feedbackId,
-    feedback_message: feedbackMessages.get(row.feedbackId) ?? "Deleted feedback",
+    feedback_message: row.feedbackId
+      ? (feedbackMessages.get(row.feedbackId) ?? "Deleted feedback")
+      : null,
+    changelog_entry_id: row.changelogEntryId,
+    changelog_title: row.changelogEntryId
+      ? (changelogTitles.get(row.changelogEntryId) ?? "Deleted update")
+      : null,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
   }))

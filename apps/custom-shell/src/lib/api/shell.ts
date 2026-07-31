@@ -10,6 +10,8 @@ export type ShellBootstrap = {
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
   plan: PlanSummary
+  /** Unread notices, so the bell carries its dot before the tray is opened. */
+  unreadNotifications: number
 }
 
 /**
@@ -29,21 +31,29 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         settings: null,
         workspaces: { workspaces: [] },
         plan: { planSlug: "free", planName: "Free", isPaid: false },
+        unreadNotifications: 0,
       }
     }
 
-    const [{ readShellSettings }, { readWorkspaceList }, { loadEntitlements }] =
-      await Promise.all([
-        import("@/server/shell-settings"),
-        import("@/server/workspaces"),
-        import("@/server/entitlements"),
-      ])
-
-    const [settings, workspaces, { entitlements }] = await Promise.all([
-      readShellSettings(user.id),
-      readWorkspaceList(user.id),
-      loadEntitlements(user.id),
+    const [
+      { readShellSettings },
+      { readWorkspaceList },
+      { loadEntitlements },
+      { countUnreadNotifications },
+    ] = await Promise.all([
+      import("@/server/shell-settings"),
+      import("@/server/workspaces"),
+      import("@/server/entitlements"),
+      import("@/server/notifications"),
     ])
+
+    const [settings, workspaces, { entitlements }, unreadNotifications] =
+      await Promise.all([
+        readShellSettings(user.id),
+        readWorkspaceList(user.id),
+        loadEntitlements(user.id),
+        countUnreadNotifications(user.id),
+      ])
 
     return {
       user: {
@@ -61,6 +71,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         planName: entitlements.planName,
         isPaid: entitlements.isPaid,
       },
+      unreadNotifications,
     }
   }
 )

@@ -19,6 +19,7 @@ import {
   validateMediaFile,
 } from "@/server/media"
 import {
+  customShellChangelogEntries,
   customShellMedia,
   customShellFeedback,
   customShellFeedbackComments,
@@ -31,6 +32,12 @@ import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
+import {
+  createChangelogEntry,
+  deleteChangelogEntries,
+  listPublishedChangelogEntries,
+  updateChangelogEntry,
+} from "@/server/changelog"
 import {
   canViewAllNotifications,
   getNotificationPage,
@@ -873,5 +880,211 @@ describe("custom shell media helpers", () => {
         },
       ],
     })
+  })
+})
+
+describe("custom shell changelog", () => {
+  async function seedReader(email = "reader@internal.dev") {
+    const userId = uuid()
+    const createdAt = now()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email,
+      name: "Reader",
+      role: "member",
+      passwordHash: await hash("password123"),
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    return userId
+  }
+
+  async function countNotices(changelogEntryId: string) {
+    const rows = await database
+      .select({ id: customShellNotifications.id })
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.changelogEntryId, changelogEntryId))
+
+    return rows.length
+  }
+
+  it("keeps drafts out of the panel and lists published entries newest first", async () => {
+    const db = database as unknown as CustomShellDb
+
+    const older = await createChangelogEntry(
+      { title: "Older", body: "Shipped a while ago", published: true },
+      db
+    )
+    await createChangelogEntry(
+      { title: "Draft", body: "Not ready", published: false },
+      db
+    )
+    const newer = await createChangelogEntry(
+      { title: "Newer", body: "Shipped just now", published: true },
+      db
+    )
+    // Two entries created in the same test can share a timestamp, so space them
+    // out rather than asserting on an order the database never promised.
+    await database
+      .update(customShellChangelogEntries)
+      .set({ publishedAt: new Date(Date.now() - 60_000) })
+      .where(eq(customShellChangelogEntries.id, older.id))
+
+    const published = await listPublishedChangelogEntries(20, db)
+
+    expect(published.map((entry) => entry.title)).toEqual(["Newer", "Older"])
+    expect(newer.publishedAt).not.toBeNull()
+  })
+
+  it("drops a notice in every person's tray when an update is published", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedReader()
+    const otherId = await seedReader("second@internal.dev")
+
+    const entry = await createChangelogEntry(
+      { title: "First", body: "Something shipped", published: true },
+      db
+    )
+
+    const notices = await database
+      .select()
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.changelogEntryId, entry.id))
+
+    expect(notices).toHaveLength(2)
+    expect(notices.map((row) => row.recipientUserId).sort()).toEqual(
+      [readerId, otherId].sort()
+    )
+    // A changelog notice is about nobody and about no feedback, and starts
+    // unread so the tray's own dot does the announcing.
+    expect(notices.every((row) => row.actorUserId === null)).toBe(true)
+    expect(notices.every((row) => row.feedbackId === null)).toBe(true)
+    expect(notices.every((row) => row.readAt === null)).toBe(true)
+  })
+
+  it("says nothing when a draft is saved, and announces it when published", async () => {
+    const db = database as unknown as CustomShellDb
+    await seedReader()
+
+    const entry = await createChangelogEntry(
+      { title: "Draft", body: "Not ready", published: false },
+      db
+    )
+    await expect(countNotices(entry.id)).resolves.toBe(0)
+
+    await updateChangelogEntry(
+      entry.id,
+      { title: "Draft", body: "Now it is ready", published: true },
+      db
+    )
+    await expect(countNotices(entry.id)).resolves.toBe(1)
+  })
+
+  it("does not announce an edit to an update that is already out", async () => {
+    const db = database as unknown as CustomShellDb
+    await seedReader()
+
+    const entry = await createChangelogEntry(
+      { title: "Typo", body: "Teh feature shipped", published: true },
+      db
+    )
+    await updateChangelogEntry(
+      entry.id,
+      { title: "Typo", body: "The feature shipped", published: true },
+      db
+    )
+
+    await expect(countNotices(entry.id)).resolves.toBe(1)
+  })
+
+  it("takes the notices back when an update is pulled", async () => {
+    const db = database as unknown as CustomShellDb
+    await seedReader()
+
+    const entry = await createChangelogEntry(
+      { title: "Too early", body: "Not shipped after all", published: true },
+      db
+    )
+    await expect(countNotices(entry.id)).resolves.toBe(1)
+
+    await updateChangelogEntry(
+      entry.id,
+      { title: "Too early", body: "Not shipped after all", published: false },
+      db
+    )
+    await expect(countNotices(entry.id)).resolves.toBe(0)
+  })
+
+  it("clears the notices when the update itself is deleted", async () => {
+    const db = database as unknown as CustomShellDb
+    await seedReader()
+
+    const entry = await createChangelogEntry(
+      { title: "Gone", body: "Deleted later", published: true },
+      db
+    )
+    await expect(countNotices(entry.id)).resolves.toBe(1)
+
+    await deleteChangelogEntries([entry.id], db)
+    await expect(countNotices(entry.id)).resolves.toBe(0)
+  })
+
+  it("keeps the original date when a published entry is edited", async () => {
+    const db = database as unknown as CustomShellDb
+
+    const entry = await createChangelogEntry(
+      { title: "Typo", body: "Teh feature shipped", published: true },
+      db
+    )
+    const firstPublishedAt = entry.publishedAt
+
+    const fixed = await updateChangelogEntry(
+      entry.id,
+      { title: "Typo", body: "The feature shipped", published: true },
+      db
+    )
+
+    expect(fixed.publishedAt?.toISOString()).toBe(
+      firstPublishedAt?.toISOString()
+    )
+  })
+
+  it("clears the date when an entry goes back to a draft", async () => {
+    const db = database as unknown as CustomShellDb
+
+    const entry = await createChangelogEntry(
+      { title: "Too early", body: "Not shipped after all", published: true },
+      db
+    )
+
+    const pulled = await updateChangelogEntry(
+      entry.id,
+      { title: "Too early", body: "Not shipped after all", published: false },
+      db
+    )
+
+    expect(pulled.publishedAt).toBeNull()
+    await expect(listPublishedChangelogEntries(20, db)).resolves.toEqual([])
+  })
+
+  it("refuses an entry with no title or no details", async () => {
+    const db = database as unknown as CustomShellDb
+
+    await expect(
+      createChangelogEntry({ title: "  ", body: "Body", published: true }, db)
+    ).rejects.toThrow("CHANGELOG_TITLE_REQUIRED")
+    await expect(
+      createChangelogEntry({ title: "Title", body: "  ", published: true }, db)
+    ).rejects.toThrow("CHANGELOG_BODY_REQUIRED")
+  })
+
+  it("reports a delete that matched nothing instead of passing silently", async () => {
+    const db = database as unknown as CustomShellDb
+
+    await expect(deleteChangelogEntries([uuid()], db)).rejects.toThrow(
+      "CHANGELOG_ENTRY_NOT_FOUND"
+    )
   })
 })

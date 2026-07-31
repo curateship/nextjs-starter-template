@@ -45,12 +45,14 @@ function ThemeToggle() {
 
 type StickyHeaderRightNavProps = {
   items?: ShellTopRightNavigationItem[]
+  unreadNotifications?: number
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
 
 export function StickyHeaderRightNav({
   items,
+  unreadNotifications,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderRightNavProps) {
@@ -85,6 +87,7 @@ export function StickyHeaderRightNav({
         return (
           <NotificationCenter
             key={item.id}
+            initialUnreadCount={unreadNotifications ?? 0}
             onOpenFeedback={onOpenFeedbackThread}
           />
         )

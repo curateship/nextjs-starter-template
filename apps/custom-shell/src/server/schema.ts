@@ -160,12 +160,16 @@ export const customShellNotifications = pgTable(
     recipientUserId: varchar("recipient_user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    actorUserId: varchar("actor_user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    feedbackId: varchar("feedback_id", { length: 36 })
-      .notNull()
-      .references(() => customShellFeedback.id, { onDelete: "cascade" }),
+    /** Null on a changelog notice: an update is posted by the product, not a person. */
+    actorUserId: varchar("actor_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    /** Null on a changelog notice, which is not about a piece of feedback. */
+    feedbackId: varchar("feedback_id", { length: 36 }).references(
+      () => customShellFeedback.id,
+      { onDelete: "cascade" }
+    ),
     type: varchar("type", { length: 50 }).notNull(),
     feedbackVoteId: varchar("feedback_vote_id", { length: 36 }).references(
       () => customShellFeedbackVotes.id,
@@ -176,13 +180,18 @@ export const customShellNotifications = pgTable(
     }).references(() => customShellFeedbackComments.id, {
       onDelete: "cascade",
     }),
+    /** Set on a changelog notice; deleting the update clears the notices too. */
+    changelogEntryId: varchar("changelog_entry_id", { length: 36 }).references(
+      () => customShellChangelogEntries.id,
+      { onDelete: "cascade" }
+    ),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'changelog')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -193,6 +202,7 @@ export const customShellNotifications = pgTable(
     index("ix_notifications_comment_id").on(
       table.feedbackCommentId
     ),
+    index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
   ]
 )
 
@@ -391,7 +401,25 @@ export const customShellAutomations = pgTable(
   ]
 )
 
+export const customShellChangelogEntries = pgTable(
+  "changelog_entries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    /** Null while the entry is a draft. Only published entries reach members. */
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_changelog_entries_published_at").on(table.publishedAt),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
+export type CustomShellChangelogEntry =
+  typeof customShellChangelogEntries.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect
 export type CustomShellSubscription =
   typeof customShellSubscriptions.$inferSelect

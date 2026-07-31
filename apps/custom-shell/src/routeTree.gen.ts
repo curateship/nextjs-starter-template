@@ -19,8 +19,11 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
+import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
@@ -88,11 +91,28 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedChangelogIndexRoute =
+  AuthenticatedChangelogIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedChangelogRoute,
+  } as any)
+const AuthenticatedChangelogWhatsNewRoute =
+  AuthenticatedChangelogWhatsNewRouteImport.update({
+    id: '/whats-new',
+    path: '/whats-new',
+    getParentRoute: () => AuthenticatedChangelogRoute,
+  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -205,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -217,6 +238,8 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/changelog/': typeof AuthenticatedChangelogIndexRoute
+  '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -246,6 +269,8 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/changelog': typeof AuthenticatedChangelogIndexRoute
+  '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -265,6 +290,7 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
@@ -278,6 +304,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
+  '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -298,6 +326,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/account'
     | '/admin'
+    | '/changelog'
     | '/workspaces'
     | '/admin/audit'
     | '/admin/automations'
@@ -310,6 +339,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/webhooks/stripe'
     | '/admin/'
+    | '/changelog/'
+    | '/changelog/whats-new'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/feedback/comments'
@@ -339,6 +370,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/webhooks/stripe'
     | '/admin'
+    | '/changelog'
+    | '/changelog/whats-new'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
     | '/admin/feedback/comments'
@@ -357,6 +390,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/_authenticated/account'
     | '/_authenticated/admin'
+    | '/_authenticated/changelog'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/audit'
@@ -370,6 +404,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
+    | '/_authenticated/changelog/'
+    | '/_authenticated/changelog/whats-new'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
     | '/_authenticated/admin/feedback/comments'
@@ -462,6 +498,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin'
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/changelog': {
+      id: '/_authenticated/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof AuthenticatedChangelogRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/changelog/': {
+      id: '/_authenticated/changelog/'
+      path: '/'
+      fullPath: '/changelog/'
+      preLoaderRoute: typeof AuthenticatedChangelogIndexRouteImport
+      parentRoute: typeof AuthenticatedChangelogRoute
+    }
+    '/_authenticated/changelog/whats-new': {
+      id: '/_authenticated/changelog/whats-new'
+      path: '/whats-new'
+      fullPath: '/changelog/whats-new'
+      preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
+      parentRoute: typeof AuthenticatedChangelogRoute
     }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
@@ -676,9 +733,26 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
+interface AuthenticatedChangelogRouteChildren {
+  AuthenticatedChangelogIndexRoute: typeof AuthenticatedChangelogIndexRoute
+  AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
+}
+
+const AuthenticatedChangelogRouteChildren: AuthenticatedChangelogRouteChildren =
+  {
+    AuthenticatedChangelogIndexRoute: AuthenticatedChangelogIndexRoute,
+    AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
+  }
+
+const AuthenticatedChangelogRouteWithChildren =
+  AuthenticatedChangelogRoute._addFileChildren(
+    AuthenticatedChangelogRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRouteWithChildren
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
@@ -686,6 +760,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRouteWithChildren,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }

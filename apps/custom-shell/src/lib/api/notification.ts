@@ -1,15 +1,23 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-export type NotificationType = "feedback_vote" | "feedback_comment"
+export type NotificationType =
+  | "feedback_vote"
+  | "feedback_comment"
+  | "changelog"
 
 export type NotificationItem = {
   id: string
   type: NotificationType
-  actor_name: string
+  /** Null on a changelog notice: an update is posted by the product, not a person. */
+  actor_name: string | null
   recipient_name: string
-  feedback_id: string
-  feedback_message: string
+  /** Both null unless the notice is about a piece of feedback. */
+  feedback_id: string | null
+  feedback_message: string | null
+  /** Both null unless the notice is about a published update. */
+  changelog_entry_id: string | null
+  changelog_title: string | null
   read_at: string | null
   created_at: string
 }
