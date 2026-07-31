@@ -168,6 +168,22 @@ export async function deleteFromR2(fileName: string): Promise<void> {
 }
 
 /**
+ * Normalize a getFromR2 Body (SDK stream or local Buffer) into a Response body
+ */
+export function toBodyInit(body: NonNullable<Awaited<ReturnType<typeof getFromR2>>['Body']>): BodyInit {
+  if (
+    typeof body === 'object'
+    && body !== null
+    && 'transformToWebStream' in body
+    && typeof body.transformToWebStream === 'function'
+  ) {
+    return body.transformToWebStream()
+  }
+
+  return body as BodyInit
+}
+
+/**
  * Get object from R2 (for proxying)
  */
 export async function getFromR2(fileName: string, range?: string | null) {

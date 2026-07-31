@@ -24,6 +24,7 @@ import { Route as CdnSplatRouteImport } from './routes/cdn/$'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps/$chunk'
 import { Route as EmbedListingDirectoryIdRouteImport } from './routes/embed/listing/$directoryId'
 import { Route as EventsSlugCalendarDoticsRouteImport } from './routes/events/$slug/calendar[.]ics'
+import { Route as ShareImageTypeItemIdRouteImport } from './routes/share-image/$type/$itemId'
 import { Route as SponsorReportsTokenExportRouteImport } from './routes/sponsor-reports/$token/export'
 
 const IndexRoute = IndexRouteImport.update({
@@ -102,6 +103,11 @@ const EventsSlugCalendarDoticsRoute =
     path: '/events/$slug/calendar.ics',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ShareImageTypeItemIdRoute = ShareImageTypeItemIdRouteImport.update({
+  id: '/share-image/$type/$itemId',
+  path: '/share-image/$type/$itemId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SponsorReportsTokenExportRoute =
   SponsorReportsTokenExportRouteImport.update({
     id: '/sponsor-reports/$token/export',
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
   '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
+  '/share-image/$type/$itemId': typeof ShareImageTypeItemIdRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesByTo {
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
   '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
+  '/share-image/$type/$itemId': typeof ShareImageTypeItemIdRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRoutesById {
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/embed/listing/$directoryId': typeof EmbedListingDirectoryIdRoute
   '/events/$slug/calendar.ics': typeof EventsSlugCalendarDoticsRoute
+  '/share-image/$type/$itemId': typeof ShareImageTypeItemIdRoute
   '/sponsor-reports/$token/export': typeof SponsorReportsTokenExportRoute
 }
 export interface FileRouteTypes {
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/embed/listing/$directoryId'
     | '/events/$slug/calendar.ics'
+    | '/share-image/$type/$itemId'
     | '/sponsor-reports/$token/export'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -198,6 +208,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/embed/listing/$directoryId'
     | '/events/$slug/calendar.ics'
+    | '/share-image/$type/$itemId'
     | '/sponsor-reports/$token/export'
   id:
     | '__root__'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/embed/listing/$directoryId'
     | '/events/$slug/calendar.ics'
+    | '/share-image/$type/$itemId'
     | '/sponsor-reports/$token/export'
   fileRoutesById: FileRoutesById
 }
@@ -233,6 +245,7 @@ export interface RootRouteChildren {
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   EmbedListingDirectoryIdRoute: typeof EmbedListingDirectoryIdRoute
   EventsSlugCalendarDoticsRoute: typeof EventsSlugCalendarDoticsRoute
+  ShareImageTypeItemIdRoute: typeof ShareImageTypeItemIdRoute
   SponsorReportsTokenExportRoute: typeof SponsorReportsTokenExportRoute
 }
 
@@ -343,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsSlugCalendarDoticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share-image/$type/$itemId': {
+      id: '/share-image/$type/$itemId'
+      path: '/share-image/$type/$itemId'
+      fullPath: '/share-image/$type/$itemId'
+      preLoaderRoute: typeof ShareImageTypeItemIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sponsor-reports/$token/export': {
       id: '/sponsor-reports/$token/export'
       path: '/sponsor-reports/$token/export'
@@ -379,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   EmbedListingDirectoryIdRoute: EmbedListingDirectoryIdRoute,
   EventsSlugCalendarDoticsRoute: EventsSlugCalendarDoticsRoute,
+  ShareImageTypeItemIdRoute: ShareImageTypeItemIdRoute,
   SponsorReportsTokenExportRoute: SponsorReportsTokenExportRoute,
 }
 export const routeTree = rootRouteImport
