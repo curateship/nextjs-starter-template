@@ -16,6 +16,7 @@ import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
@@ -77,6 +78,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInLinkRoute = SignInLinkRouteImport.update({
+  id: '/sign-in-link',
+  path: '/sign-in-link',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
@@ -243,6 +249,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sign-in-link': typeof SignInLinkRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -278,6 +285,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sign-in-link': typeof SignInLinkRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -314,6 +322,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sign-in-link': typeof SignInLinkRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -353,6 +362,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/register'
     | '/reset-password'
+    | '/sign-in-link'
     | '/verify-email'
     | '/account'
     | '/admin'
@@ -388,6 +398,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/register'
     | '/reset-password'
+    | '/sign-in-link'
     | '/verify-email'
     | '/account'
     | '/workspaces'
@@ -423,6 +434,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/register'
     | '/reset-password'
+    | '/sign-in-link'
     | '/verify-email'
     | '/_authenticated/account'
     | '/_authenticated/admin'
@@ -461,6 +473,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SignInLinkRoute: typeof SignInLinkRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
@@ -515,6 +528,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in-link': {
+      id: '/sign-in-link'
+      path: '/sign-in-link'
+      fullPath: '/sign-in-link'
+      preLoaderRoute: typeof SignInLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-email': {
@@ -828,6 +848,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SignInLinkRoute: SignInLinkRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,

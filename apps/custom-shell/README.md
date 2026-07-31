@@ -30,17 +30,18 @@ The credentials are server-only secrets. Do not expose them with a `VITE_` prefi
 
 ## Bot Protection on Sign-Up
 
-The sign-up and forgotten-password forms carry a Cloudflare Turnstile check.
+The three forms that send mail to a typed-in address — sign-up,
+forgotten-password, and the sign-in link — carry a Cloudflare Turnstile check.
 Almost nobody sees it: it only draws a puzzle when Cloudflare decides it needs
 to ask something. The server confirms the widget's answer with Cloudflare before
-it creates an account or sends a reset email.
+it creates an account or sends an email.
 
 ```bash
 CUSTOM_SHELL_TURNSTILE_SITE_KEY=""
 CUSTOM_SHELL_TURNSTILE_SECRET_KEY=""
 ```
 
-**With either key empty the check is switched off completely and both forms
+**With either key empty the check is switched off completely and all three forms
 behave exactly as they did before it existed.** That is deliberate, so local
 development stays frictionless — and it means a production server missing a key
 is a production server anyone can script against. Set both in production.

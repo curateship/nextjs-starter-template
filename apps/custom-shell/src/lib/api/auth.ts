@@ -4,34 +4,36 @@ import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { describeDevice } from "@/lib/device-label"
+import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
 import { sendAuthEmail } from "@/server/email"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
 import { customShellSessions, customShellUsers } from "@/server/schema"
+import { consumeSignInLink, createSignInLinkToken } from "@/server/sign-in-link"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/turnstile"
 import {
   clearSessionCookie,
   consumeAuthToken,
   createAuthToken,
-  createSessionExpiresAt,
-  createSessionToken,
+  createUserSession,
   deleteOtherSessions,
   deleteUserSession,
   findCurrentUser,
+  findUserByEmail,
   getSessionToken,
   hashPassword,
   hashSessionToken,
   listUserSessions,
   now,
-  pruneRefusedSessions,
   requireSessionOwner,
   signOutOtherDevices,
   requireUser,
   setSessionCookie,
   uuid,
   verifyPassword,
+  type SessionOrigin,
 } from "@/server/security"
 import { requireAppOrigin } from "@/server/origin"
 
@@ -256,28 +258,8 @@ const loginFn = createServerFn({ method: "POST" })
 
     await clearRateLimit(rateLimitKey)
 
-    // Clear this account's dead sessions before adding another. Nothing sweeps
-    // them up otherwise: a session only disappears when somebody signs out or
-    // when its own browser comes back and is turned away. Left alone the
-    // Security tab fills with browsers that nobody could get in with.
-    await pruneRefusedSessions(user.id)
-
-    const token = createSessionToken()
-    const sessionCreatedAt = now()
-    await db.insert(customShellSessions).values({
-      id: uuid(),
-      userId: user.id,
-      tokenHash: hashSessionToken(token),
-      expiresAt: createSessionExpiresAt(),
-      createdAt: sessionCreatedAt,
-      lastSeenAt: sessionCreatedAt,
-      // Recorded once, at sign-in, and never touched again. This is what the
-      // Security tab shows so somebody can tell their own browsers apart.
-      ...describeRequestOrigin(),
-    })
-
-    const { getOrCreateCurrentWorkspace } = await import("@/server/workspaces")
-    await getOrCreateCurrentWorkspace(user.id)
+    const token = await createUserSession(user.id, describeRequestOrigin())
+    await startWorkspaceFor(user.id)
 
     setSessionCookie(token)
     return serializeUser(user)
@@ -295,6 +277,73 @@ const logoutFn = createServerFn({ method: "POST" }).handler(async () => {
 
   clearSessionCookie()
 })
+
+const requestSignInLinkFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({ email: emailSchema, humanCheckToken: humanCheckTokenSchema })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    // The counter comes first for the same reason it does on registration: it
+    // is one local write, where the human check is a call out to Cloudflare.
+    await enforceRateLimit(`sign-in-link:${requestIp()}`, {
+      maxAttempts: 5,
+      windowSeconds: 60 * 60,
+    })
+    // Before the lookup and the email, so a bot cannot spray sign-in links at
+    // other people's inboxes.
+    await enforceHumanCheck(data.humanCheckToken)
+
+    const link = await createSignInLinkToken(data.email)
+    // Always reports success so this cannot be used to discover which emails
+    // have accounts.
+    if (link) {
+      await sendAuthEmail({
+        to: link.email,
+        subject: "Your sign-in link",
+        heading: "Sign in",
+        message: `This link signs you in once and expires in ${SIGN_IN_LINK_MINUTES} minutes.`,
+        action: "Sign in",
+        actionUrl: appUrlFor(
+          `/sign-in-link?token=${encodeURIComponent(link.token)}`
+        ),
+      })
+    }
+
+    return { ok: true }
+  })
+
+const consumeSignInLinkFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ token: tokenSchema }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    // A link is spent by this call, not by opening its address, so a mail
+    // scanner following the link cannot burn it. That also means the limit
+    // below only ever counts real attempts to sign in.
+    //
+    // The key is the address alone, because a link is all somebody presents —
+    // there is no account name to count against until it has been checked. That
+    // makes it the whole office behind one address sharing a budget, which is
+    // why a success clears it below: otherwise ten people signing in this way
+    // would lock out the eleventh for an hour. What is left is what the limit
+    // is actually for — refused attempts, ten an hour, from anyone hammering
+    // the endpoint with made-up links.
+    const rateLimitKey = `sign-in-link-use:${requestIp()}`
+    await enforceRateLimit(rateLimitKey, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    const { user, sessionToken } = await consumeSignInLink(
+      data.token,
+      describeRequestOrigin()
+    )
+    await clearRateLimit(rateLimitKey)
+    await startWorkspaceFor(user.id)
+
+    setSessionCookie(sessionToken)
+    return serializeUser(user)
+  })
 
 const requestPasswordResetFn = createServerFn({ method: "POST" })
   .inputValidator(
@@ -504,6 +553,14 @@ export function logout() {
   return logoutFn()
 }
 
+export function requestSignInLink(email: string, humanCheckToken?: string) {
+  return requestSignInLinkFn({ data: { email, humanCheckToken } })
+}
+
+export function signInWithLink(token: string) {
+  return consumeSignInLinkFn({ data: { token } })
+}
+
 export function requestPasswordReset(email: string, humanCheckToken?: string) {
   return requestPasswordResetFn({ data: { email, humanCheckToken } })
 }
@@ -554,14 +611,16 @@ function serializeUser(user: {
   }
 }
 
-async function findUserByEmail(email: string) {
-  const [user] = await db
-    .select()
-    .from(customShellUsers)
-    .where(sql`lower(${customShellUsers.email}) = ${email}`)
-    .limit(1)
-
-  return user ?? null
+/**
+ * Makes sure a freshly signed-in account has a workspace to land in.
+ *
+ * The import stays dynamic, as it was before both sign-in paths shared this:
+ * workspaces.ts is a thousand lines of navigation defaults that only these two
+ * handlers in this module ever need.
+ */
+async function startWorkspaceFor(userId: string) {
+  const { getOrCreateCurrentWorkspace } = await import("@/server/workspaces")
+  await getOrCreateCurrentWorkspace(userId)
 }
 
 function sendVerificationEmail(email: string, token: string) {
@@ -580,15 +639,13 @@ function requestIp() {
 }
 
 /**
- * What to remember about the browser starting a session. Null rather than a
- * stand-in when either is missing, so the Security tab can say it does not know
- * instead of showing everyone the same made-up value.
+ * Reads this request's browser and address for the session about to be started.
  *
  * The user agent is capped because it is a header the caller writes: a huge one
  * would otherwise be stored whole, once per sign-in. 512 characters is roughly
  * double the longest real browser sends.
  */
-function describeRequestOrigin() {
+function describeRequestOrigin(): SessionOrigin {
   return {
     userAgent: getRequestHeader("user-agent")?.slice(0, 512) ?? null,
     ipAddress: getRequestIP({ xForwardedFor: true }) ?? null,

@@ -103,6 +103,11 @@ function LoginRoute() {
       footer={
         <>
           <p>
+            <Link to="/sign-in-link" className={authLinkClassName}>
+              Email me a sign-in link
+            </Link>
+          </p>
+          <p>
             <Link to="/forgot-password" className={authLinkClassName}>
               Forgot your password?
             </Link>

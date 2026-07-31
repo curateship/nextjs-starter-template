@@ -2,9 +2,10 @@ import { createHash, randomBytes, randomUUID } from "node:crypto"
 
 import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/server"
 import { hash, verify } from "argon2"
-import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or } from "drizzle-orm"
+import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
 
 import { normalizeSessionPolicy } from "@/lib/custom-shell"
+import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAuthTokens,
@@ -30,7 +31,8 @@ export function uuid() {
   return randomUUID()
 }
 
-export function createSessionToken() {
+/** Private: sessions are only ever started through `createUserSession`. */
+function createSessionToken() {
   return randomUUID() + randomUUID()
 }
 
@@ -73,6 +75,9 @@ export async function verifyPassword(passwordHash: string, password: string) {
 export const AUTH_TOKEN_TTL_MS = {
   verify_email: 24 * 60 * 60 * 1000,
   reset_password: 60 * 60 * 1000,
+  // A sign-in link is the shortest-lived of the three: it hands over an account
+  // outright, where the other two still ask for something afterwards.
+  login: SIGN_IN_LINK_MINUTES * 60 * 1000,
 } as const
 
 export type AuthTokenPurpose = keyof typeof AUTH_TOKEN_TTL_MS
@@ -177,6 +182,29 @@ export async function findCurrentUser(database: CustomShellDb = db) {
   return (await findSessionContext(database))?.user ?? null
 }
 
+/**
+ * The account for an email address. The one lookup for every path that starts
+ * from a typed-in email — signing in, asking for a reset link, asking for a
+ * sign-in link — so none of them can disagree about whose account an address
+ * belongs to.
+ *
+ * The address must already be lowercased; every caller gets that from the
+ * form's own `emailSchema`. The comparison lowercases the stored side only, so
+ * a capital letter left in the argument matches nothing at all.
+ */
+export async function findUserByEmail(
+  email: string,
+  database: CustomShellDb = db
+) {
+  const [user] = await database
+    .select()
+    .from(customShellUsers)
+    .where(sql`lower(${customShellUsers.email}) = ${email}`)
+    .limit(1)
+
+  return user ?? null
+}
+
 /** The one signed-in check. Server functions and loaders both go through it. */
 export async function requireUser(database: CustomShellDb = db) {
   const user = await findCurrentUser(database)
@@ -213,6 +241,54 @@ export async function requireAdmin(database: CustomShellDb = db) {
 
 export function isAdmin(user: Pick<CustomShellUser, "role">) {
   return user.role === "admin"
+}
+
+/**
+ * What to remember about the browser a session was started from. Null rather
+ * than a stand-in when either is missing, so the Security tab can say it does
+ * not know instead of showing everyone the same made-up value.
+ */
+export type SessionOrigin = {
+  userAgent: string | null
+  ipAddress: string | null
+}
+
+/**
+ * Starts a signed-in session for an account and hands back its raw token. The
+ * caller puts that token in the cookie; only its hash is ever stored.
+ *
+ * Every way into the app goes through here — the password form and the sign-in
+ * link both — so a session started by one is indistinguishable from a session
+ * started by the other, right down to the tidy-up below.
+ *
+ * That tidy-up first: this account's dead sessions are cleared before another is
+ * added. Nothing sweeps them up otherwise, since a session only disappears when
+ * somebody signs out or when its own browser comes back and is turned away.
+ * Left alone the Security tab fills with browsers that nobody could get in with.
+ */
+export async function createUserSession(
+  userId: string,
+  origin: SessionOrigin,
+  database: CustomShellDb = db
+) {
+  await pruneRefusedSessions(userId, database)
+
+  const token = createSessionToken()
+  const createdAt = now()
+
+  await database.insert(customShellSessions).values({
+    id: uuid(),
+    userId,
+    tokenHash: hashSessionToken(token),
+    expiresAt: createSessionExpiresAt(),
+    createdAt,
+    lastSeenAt: createdAt,
+    // Recorded once, at sign-in, and never touched again. This is what the
+    // Security tab shows so somebody can tell their own browsers apart.
+    ...origin,
+  })
+
+  return token
 }
 
 /** Signs out every other device by dropping their sessions. */

@@ -34,7 +34,8 @@ Drizzle definitions in `src/server/schema.ts`.
 Accounts that predate the migration are marked verified so nobody is locked out.
 
 **`auth_tokens`** — one-time links. Stores only a SHA-256 hash of the token,
-its `purpose` (`verify_email` or `reset_password`), an expiry, and `used_at`.
+its `purpose` (`verify_email`, `reset_password` or `login`), an expiry, and
+`used_at`. A `login` token is a magic-link sign-in and lives 15 minutes.
 
 **`rate_limits`** — one row per throttle key, with the window start and a
 `blocked_until`. In the database rather than memory so a restart does not hand

@@ -12,16 +12,22 @@ in `docs/saas-foundation.md`.
 - Sign-in refuses accounts that are unverified or suspended. Suspending someone
   deletes their sessions, and a suspended account is treated as signed out even
   on a session that has not expired.
-- Verification and password-reset links are single-use, expiring tokens; only
-  their hash is stored. Completing a reset signs out every session.
+- Verification, password-reset and sign-in links are single-use, expiring
+  tokens; only their hash is stored. Completing a reset signs out every session.
+- A sign-in link lasts 15 minutes, the shortest of the three, because it hands
+  over the account outright. Opening one proves the address works, so it also
+  verifies an account that had never confirmed its email. Suspended accounts are
+  sent no link and are refused if they present one issued earlier.
+- A link is spent by the request that signs the browser in, not by opening its
+  address, so a mail scanner following the link cannot burn it.
 - Changing a password keeps the current session and drops all the others.
 
 ## Abuse limits
 
-Sign-in, registration, password reset, and verification resends are limited per
-IP in the `rate_limits` table, so limits survive a restart. Password reset and
-verification resend always report success, so neither can be used to discover
-which email addresses have accounts.
+Sign-in, registration, password reset, sign-in links, and verification resends
+are limited per IP in the `rate_limits` table, so limits survive a restart.
+Password reset, sign-in links, and verification resend always report success, so
+none of them can be used to discover which email addresses have accounts.
 
 ## Authorization
 
