@@ -14,8 +14,8 @@ import {
 import { formatCentsAmount } from "@/lib/actions/directories/directory-featured-helpers"
 import { EXPIRING_SOON_DAYS } from "@/lib/actions/directories/directory-revenue-summary"
 import { formatShortDate } from "@/components/admin/layout/list"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -196,13 +196,8 @@ export function MonetizationRevenueSummary({ siteId, siteLoading }: {
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-          <p className="text-sm text-red-600">{error}</p>
-          <Button variant="outline" size="sm" onClick={loadSummary}>
-            Try Again
-          </Button>
-        </CardContent>
+      <Card className="overflow-hidden">
+        <ErrorBanner message={error} onRetry={loadSummary} />
       </Card>
     )
   }

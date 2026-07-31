@@ -11,6 +11,7 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import { Button } from "@/components/ui/button";
 import { CardSection } from "@/components/shared/card-sections";
 import { Badge } from "@/components/ui/badge";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import {
   TableCell,
   TableRow,
@@ -65,6 +66,7 @@ export function AdminTableShell({
   className,
   controls,
   count,
+  error,
   footer,
   icon,
   loading = false,
@@ -79,6 +81,7 @@ export function AdminTableShell({
   className?: string;
   controls?: ReactNode;
   count: number;
+  error?: { message: string; onRetry?: () => void } | null;
   footer?: ReactNode;
   icon?: ReactNode;
   loading?: boolean;
@@ -119,6 +122,7 @@ export function AdminTableShell({
         </div>
         {controls}
       </div>
+      {error ? <ErrorBanner message={error.message} onRetry={error.onRetry} /> : null}
       {children}
       {footer}
     </TableSurface>

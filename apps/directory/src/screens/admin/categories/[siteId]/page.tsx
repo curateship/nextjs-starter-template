@@ -301,6 +301,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => setReloadNonce((nonce) => nonce + 1) } : null}
             title={categoryTitle}
             icon={<Tag className="text-muted-foreground" />}
             count={filteredCategories.length}
@@ -418,15 +419,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                 <TableBody>
                   {loading && sortedCategories.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => setReloadNonce((nonce) => nonce + 1)} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : categories.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

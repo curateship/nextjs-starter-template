@@ -8,6 +8,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -86,12 +87,7 @@ export default function EmailHealthPage() {
               ))}
             </div>
           ) : error ? (
-            <div className="p-8 text-center">
-              <p className="text-red-600 mb-4">{error}</p>
-              <Button onClick={loadReport} variant="outline">
-                Try Again
-              </Button>
-            </div>
+            <ErrorBanner message={error} onRetry={loadReport} />
           ) : report ? (
             <div className="pb-8">
               {selectedSender && (

@@ -305,6 +305,7 @@ export default function DirectoryMonetizationPage() {
             <MonetizationRevenueSummary siteId={currentSite?.id ?? null} siteLoading={siteLoading} />
 
             <AdminTableShell
+              error={error ? { message: error, onRetry: loadRows } : null}
               title={activeView === "plans" ? "Featured Plans" : "Featured Listings"}
               icon={activeView === "plans"
                 ? <BadgeDollarSign className="text-muted-foreground" />
@@ -373,15 +374,6 @@ export default function DirectoryMonetizationPage() {
                   <TableBody>
                     {loading && activeRowsCount === 0 ? (
                       <AdminListPending />
-                    ) : error ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-32 text-center">
-                          <p className="mb-4 text-red-600">{error}</p>
-                          <Button onClick={loadRows} variant="outline" size="sm">
-                            Try Again
-                          </Button>
-                        </TableCell>
-                      </TableRow>
                     ) : activeRowsCount === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="h-32 text-center">

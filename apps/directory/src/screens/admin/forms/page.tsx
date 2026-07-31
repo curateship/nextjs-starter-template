@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
-import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
 import Archive from "lucide-react/dist/esm/icons/archive.js"
 import ClipboardList from "lucide-react/dist/esm/icons/clipboard-list.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
@@ -39,6 +38,7 @@ import {
   useAdminSort,
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
@@ -340,15 +340,6 @@ function getFormSearchText(form: GuidedForm) {
   return `${form.name} ${form.slug} ${form.headline}`.toLowerCase()
 }
 
-function ErrorBanner({ message }: { message: string }) {
-  if (!message) return null
-  return (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {message}
-    </div>
-  )
-}
-
 function CreateFormModal({
   onCancel,
   onSuccess,
@@ -398,7 +389,7 @@ function CreateFormModal({
           </>
         }
       >
-        <ErrorBanner message={error} />
+        {error ? <ErrorBanner message={error} /> : null}
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -649,7 +640,7 @@ function FormSettingsModalContent({
       footerClassName="sm:justify-between"
       className="max-w-[1040px]"
     >
-      <ErrorBanner message={error} />
+      {error ? <ErrorBanner message={error} /> : null}
 
       {activeTab === "settings" ? (
         <CardGroup className="grid">
@@ -891,6 +882,7 @@ export default function AdminGuidedFormsPage() {
         <DashboardSubheader items={[{ label: "Forms" }]} />
 
         <AdminTableShell
+          error={error ? { message: error, onRetry: loadForms } : null}
           title="Forms"
           icon={<ClipboardList className="text-muted-foreground" />}
           count={total}
@@ -975,14 +967,6 @@ export default function AdminGuidedFormsPage() {
               <TableBody>
                 {loading && visibleForms.length === 0 ? (
                   <AdminListPending />
-                ) : error ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center">
-                      <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
-                      <h3 className="mt-4 text-lg font-semibold">Error Loading Forms</h3>
-                      <p className="text-muted-foreground">{error}</p>
-                    </TableCell>
-                  </TableRow>
                 ) : visibleForms.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center">

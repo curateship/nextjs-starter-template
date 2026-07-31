@@ -186,6 +186,7 @@ export default function NewsletterContactTagsPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadTags() } : null}
             title="Tags"
             icon={<Tag className="text-muted-foreground" />}
             count={tags.length}
@@ -287,15 +288,6 @@ export default function NewsletterContactTagsPage() {
                 <TableBody>
                   {loading && sortedTags.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadTags()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : tags.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

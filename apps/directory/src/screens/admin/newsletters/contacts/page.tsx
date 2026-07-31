@@ -378,6 +378,7 @@ export default function ContactsPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadContacts() } : null}
             title="Contacts"
             icon={<Users className="text-muted-foreground" />}
             count={total}
@@ -565,15 +566,6 @@ export default function ContactsPage() {
                 <TableBody>
                   {loading && sortedContacts.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadContacts()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : contacts.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-32 text-center">

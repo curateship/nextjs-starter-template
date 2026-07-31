@@ -99,11 +99,6 @@ export default function SitesPage() {
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const siteSort = useAdminSort<SiteSortColumn>()
 
-  const reportError = useCallback((message: string) => {
-    setError(message)
-    showActionError(message)
-  }, [])
-
   const reportDuplicateError = (message: string) => {
     setDuplicateError(message)
     showActionError(message)
@@ -125,7 +120,7 @@ export default function SitesPage() {
       const { data, error } = await getAllSitesAction()
 
       if (error) {
-        reportError(error)
+        setError(error)
         return
       }
 
@@ -133,11 +128,11 @@ export default function SitesPage() {
         setSites(data)
       }
     } catch (err) {
-      reportError("Failed to load sites")
+      setError("Failed to load sites")
     } finally {
       setLoading(false)
     }
-  }, [reportError])
+  }, [])
 
   useEffect(() => {
     loadSites()
@@ -149,7 +144,7 @@ export default function SitesPage() {
       const { success, error } = await deleteSiteAction(siteId)
 
       if (error) {
-        reportError(error)
+        showActionError(error)
         return
       }
 
@@ -159,7 +154,7 @@ export default function SitesPage() {
         setDeleteConfirm(null)
       }
     } catch (err) {
-      reportError("Failed to delete site")
+      showActionError("Failed to delete site")
     } finally {
       setDeleting(null)
     }
@@ -278,6 +273,7 @@ export default function SitesPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadSites } : null}
             title="Sites"
             icon={<Globe className="text-muted-foreground" />}
             count={filteredSites.length}
@@ -359,15 +355,6 @@ export default function SitesPage() {
                 <TableBody>
                   {loading && sortedSites.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadSites} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : filteredSites.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
@@ -628,12 +615,12 @@ function CreateSiteModal({
     event.preventDefault()
 
     if (!siteName.trim()) {
-      reportError("Site name is required")
+      showActionError("Site name is required")
       return
     }
 
     if (!subdomain.trim()) {
-      reportError("Subdomain is required")
+      showActionError("Subdomain is required")
       return
     }
 
@@ -660,14 +647,14 @@ function CreateSiteModal({
       })
 
       if (createError || !data) {
-        reportError(createError || "Failed to create site")
+        showActionError(createError || "Failed to create site")
         return
       }
 
       if (hasTemplate) {
         const { error: themeError } = await applyThemeToSiteAction({ data: { siteId: data.id, templateId: selectedTemplateId } })
         if (themeError) {
-          reportError(`Site created but failed to apply template: ${themeError}`)
+          showActionError(`Site created but failed to apply template: ${themeError}`)
           return
         }
       }
@@ -713,7 +700,7 @@ function CreateSiteModal({
 
       onCreated(createdSite)
     } catch {
-      reportError("Failed to create site. Please try again.")
+      showActionError("Failed to create site. Please try again.")
     } finally {
       setIsSubmitting(false)
     }

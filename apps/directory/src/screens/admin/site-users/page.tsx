@@ -518,6 +518,7 @@ export default function SiteUsersPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadUsers() } : null}
             title="Site Users"
             icon={<Users className="text-muted-foreground" />}
             count={total}
@@ -661,15 +662,6 @@ export default function SiteUsersPage() {
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">Select a site to view scoped users.</p>
-                      </TableCell>
-                    </TableRow>
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadUsers()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (

@@ -257,6 +257,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
           <DashboardSubheader items={[breadcrumbParent, { label: "Templates" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadTemplates() } : null}
             title="Templates"
             icon={<FileText className="text-muted-foreground" />}
             count={templates.length}
@@ -332,15 +333,6 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                 <TableBody>
                   {loading && sortedTemplates.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadTemplates()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : templates.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

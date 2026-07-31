@@ -292,6 +292,7 @@ export function ContentListPage<TItem extends ContentListItem>({
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: reloadItems } : null}
             title={listLabel}
             icon={<EmptyIcon className="text-muted-foreground" />}
             count={usesCursorPagination || showTotalCount ? total : filteredItems.length}
@@ -382,14 +383,6 @@ export function ContentListPage<TItem extends ContentListItem>({
                 <TableBody>
                   {loading && sortedItems.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={tableColumnCount} className="h-32 text-center">
-                        <AlertCircle className="mx-auto h-10 w-10 text-red-500" />
-                        <h3 className="mt-4 text-lg font-semibold text-red-900">Error Loading {itemLabelPlural}</h3>
-                        <p className="text-red-700">{error}</p>
-                      </TableCell>
-                    </TableRow>
                   ) : filteredItems.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={tableColumnCount} className="h-32 text-center">

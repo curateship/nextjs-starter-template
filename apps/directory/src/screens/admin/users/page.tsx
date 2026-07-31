@@ -445,6 +445,7 @@ export default function UsersPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadUsers() } : null}
             title="Users"
             icon={<User className="text-muted-foreground" />}
             count={filteredUsers.length}
@@ -571,12 +572,6 @@ export default function UsersPage() {
                 <TableBody>
                   {loading && sortedUsers.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="text-red-500">Error loading users: {error}</p>
-                      </TableCell>
-                    </TableRow>
                   ) : filteredUsers.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
