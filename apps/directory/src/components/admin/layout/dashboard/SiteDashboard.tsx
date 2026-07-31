@@ -14,6 +14,7 @@ import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actio
 import { CacheSettingsCard } from "@/components/admin/layout/settings/CacheSettingsCard"
 import { SearchIndexSettingsCard } from "@/components/admin/layout/settings/SearchIndexSettingsCard"
 import { ListingWidgetsSettingsCard } from "@/components/admin/layout/settings/ListingWidgetsSettingsCard"
+import { CheckoutRecoverySettingsCard } from "@/components/admin/layout/settings/CheckoutRecoverySettingsCard"
 import { TrackingSettingsCard } from "@/components/admin/layout/settings/TrackingSettingsCard"
 import { Switch } from "@/components/ui/switch"
 
@@ -26,6 +27,7 @@ interface SiteDashboardProps {
   trackingScripts?: string
   customAnalyticsEnabled?: boolean
   listingWidgetsEnabled?: boolean
+  checkoutRecoveryEnabled?: boolean
   /** Only set in edit mode, where the maintenance cards need a site to act on. */
   siteId?: string
   isEditMode?: boolean
@@ -51,6 +53,7 @@ interface SiteDashboardProps {
   onTrackingScriptsChange?: (value: string) => void
   onCustomAnalyticsEnabledChange?: (value: boolean) => void
   onListingWidgetsEnabledChange?: (value: boolean) => void
+  onCheckoutRecoveryEnabledChange?: (value: boolean) => void
   onMaintenanceChange?: (value: boolean) => void
   /**
    * Lets the cache and search-index cards mirror their failures into the
@@ -69,6 +72,7 @@ export function SiteDashboard({
   trackingScripts = "",
   customAnalyticsEnabled = false,
   listingWidgetsEnabled = true,
+  checkoutRecoveryEnabled = true,
   siteId = "",
   isEditMode = false,
   maintenanceEnabled = false,
@@ -85,6 +89,7 @@ export function SiteDashboard({
   onTrackingScriptsChange,
   onCustomAnalyticsEnabledChange,
   onListingWidgetsEnabledChange,
+  onCheckoutRecoveryEnabledChange,
   onMaintenanceChange,
   onSaveStatus
 }: SiteDashboardProps) {
@@ -408,6 +413,13 @@ export function SiteDashboard({
         <ListingWidgetsSettingsCard
           listingWidgetsEnabled={listingWidgetsEnabled}
           onListingWidgetsEnabledChange={onListingWidgetsEnabledChange}
+        />
+      )}
+
+      {onCheckoutRecoveryEnabledChange && (
+        <CheckoutRecoverySettingsCard
+          checkoutRecoveryEnabled={checkoutRecoveryEnabled}
+          onCheckoutRecoveryEnabledChange={onCheckoutRecoveryEnabledChange}
         />
       )}
 

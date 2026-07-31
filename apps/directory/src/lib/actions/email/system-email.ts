@@ -16,6 +16,7 @@ export type SystemEmailTemplateKey =
   | 'featured_listing_renewal_reminder'
   | 'event_registration_confirmation'
   | 'event_reminder'
+  | 'abandoned_checkout_recovery'
 
 export interface SystemEmailTemplateRecord {
   id: string | null
@@ -67,6 +68,7 @@ const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'featured_listing_renewal_reminder',
   'event_registration_confirmation',
   'event_reminder',
+  'abandoned_checkout_recovery',
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
@@ -206,6 +208,17 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
     }
   }
 
+  if (templateKey === 'abandoned_checkout_recovery') {
+    return {
+      name: 'Abandoned Checkout Recovery',
+      description: 'Sent once when someone starts a paid checkout and does not finish it.',
+      scopeLabel: 'Current Site',
+      subject: 'You left {{product_name}} behind',
+      bodyHtml: '<p>You started checking out <strong>{{product_name}}</strong> on {{site_name}} but didn’t finish.</p><p>If you still want it, you can pick up right where you left off:</p><p><a href="{{checkout_url}}">Finish your purchase</a></p><p>If you’ve changed your mind, just ignore this email — we won’t send another one.</p><p><a href="{{unsubscribe_url}}">Unsubscribe</a> from emails like this.</p>',
+      tokens: ['{{product_name}}', '{{checkout_url}}', '{{unsubscribe_url}}', '{{site_name}}', '{{site_url}}', '{{product_url}}'],
+    }
+  }
+
   return {
     name: 'Paid Purchase Delivery',
     description: 'Sent after a paid product checkout succeeds.',
@@ -307,6 +320,7 @@ export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
     getSystemEmailTemplate('featured_listing_renewal_reminder', siteId),
     getSystemEmailTemplate('event_registration_confirmation', siteId),
     getSystemEmailTemplate('event_reminder', siteId),
+    getSystemEmailTemplate('abandoned_checkout_recovery', siteId),
   ])
 
   return templates.map((template) => {
@@ -439,6 +453,10 @@ export async function buildSystemEmailTokens(params: {
     // event-registration-email.ts); everything else renders them empty.
     ticket_url: '',
     ticket_qr_url: '',
+    // Per-recipient, so only the checkout-recovery cron fills these in (see
+    // api/cron/checkout-recovery); everything else renders them empty.
+    checkout_url: '',
+    unsubscribe_url: '',
   }
 
   if (params.siteId) {
