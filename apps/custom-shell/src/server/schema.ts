@@ -51,6 +51,15 @@ export const customShellSessions = pgTable(
     tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    /**
+     * Set while an admin is looking at the app as this member. `userId` above
+     * stays the admin who signed in, so the real owner is never lost and
+     * exiting is one column write. See `@/server/view-as`.
+     */
+    viewingAsUserId: varchar("viewing_as_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
   },
   (table) => [
     index("ix_sessions_user_id").on(table.userId),

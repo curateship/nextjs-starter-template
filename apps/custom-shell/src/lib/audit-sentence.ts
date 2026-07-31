@@ -19,6 +19,8 @@ const actionLabels: Record<string, string> = {
   revoke_plan: "Removed plan",
   maintenance_on: "Turned on maintenance mode",
   maintenance_off: "Turned off maintenance mode",
+  view_as: "Viewed the app as",
+  stop_view_as: "Stopped viewing the app as",
 }
 
 const resourceLabels: Record<string, string> = {
@@ -95,6 +97,15 @@ export function activitySentence(entry: AuditLogRow) {
       return `${who} granted ${subjectLabel(entry)} ${detail ? `the ${detail} plan` : "a plan"}`
     case "revoke_plan":
       return `${who} removed ${possessiveLabel(entry)} granted plan`
+    // The email is saved on the entry because the account may be gone by the
+    // time anybody reads this, and "viewed the app as a deleted account" tells
+    // you nothing.
+    case "view_as":
+      return `${who} started viewing the app as ${subjectLabel(entry)}${
+        detail && !targetName(entry) ? ` — ${detail}` : ""
+      }`
+    case "stop_view_as":
+      return `${who} stopped viewing the app as ${subjectLabel(entry)}`
     // Maintenance mode is about the whole app, not a record, so it reads as a
     // plain sentence with the message that was showing rather than a name.
     case "maintenance_on":

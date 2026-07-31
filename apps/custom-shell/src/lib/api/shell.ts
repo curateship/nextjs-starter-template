@@ -15,6 +15,11 @@ export type ShellBootstrap = {
   unreadNotifications: number
   /** Live admin broadcasts this person has not closed yet. */
   announcements: UserAnnouncement[]
+  /**
+   * Set only while an admin is looking at the app as this member — it names the
+   * admin, so the banner can say whose screen this really is.
+   */
+  viewedBy: { id: string; name: string; email: string } | null
 }
 
 /**
@@ -25,10 +30,10 @@ export type ShellBootstrap = {
  */
 const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<ShellBootstrap> => {
-    const { findCurrentUser } = await import("@/server/security")
-    const user = await findCurrentUser()
+    const { findSessionContext } = await import("@/server/security")
+    const session = await findSessionContext()
 
-    if (!user) {
+    if (!session) {
       return {
         user: null,
         settings: null,
@@ -36,8 +41,14 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         plan: { planSlug: "free", planName: "Free", isPaid: false },
         unreadNotifications: 0,
         announcements: [],
+        viewedBy: null,
       }
     }
+
+    // Everything below reads as this person. While an admin is viewing the app
+    // as a member that IS the member — same sidebar, same plan, same notices —
+    // which is the whole point.
+    const { user, viewedBy } = session
 
     const [
       { readShellSettings },
@@ -89,6 +100,9 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
       },
       unreadNotifications,
       announcements: announcements.banners,
+      viewedBy: viewedBy
+        ? { id: viewedBy.id, name: viewedBy.name, email: viewedBy.email }
+        : null,
     }
   }
 )

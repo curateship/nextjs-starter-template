@@ -29,6 +29,7 @@ import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
@@ -148,6 +149,12 @@ const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
   path: '/media',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminMembershipRoute =
+  AuthenticatedAdminMembershipRouteImport.update({
+    id: '/membership',
+    path: '/membership',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminNotificationsRoute =
   AuthenticatedAdminNotificationsRouteImport.update({
     id: '/notifications',
@@ -254,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -288,6 +296,7 @@ export interface FileRoutesByTo {
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -326,6 +335,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -364,6 +374,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/feedback'
     | '/admin/media'
+    | '/admin/membership'
     | '/admin/notifications'
     | '/admin/plans'
     | '/admin/settings'
@@ -398,6 +409,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/feedback'
     | '/admin/media'
+    | '/admin/membership'
     | '/admin/notifications'
     | '/admin/plans'
     | '/admin/settings'
@@ -435,6 +447,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
+    | '/_authenticated/admin/membership'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/settings'
@@ -608,6 +621,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/membership': {
+      id: '/_authenticated/admin/membership'
+      path: '/membership'
+      fullPath: '/admin/membership'
+      preLoaderRoute: typeof AuthenticatedAdminMembershipRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/notifications': {
       id: '/_authenticated/admin/notifications'
       path: '/notifications'
@@ -764,6 +784,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
+  AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -782,6 +803,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
+  AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
