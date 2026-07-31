@@ -6,6 +6,7 @@ import {
   useRouterState,
   useSearch,
 } from "@tanstack/react-router"
+import { toast } from "sonner"
 
 import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
 import { DashboardContent } from "@/components/shell/dashboard-content"
@@ -24,12 +25,14 @@ import {
   isShellEntryNamed,
   isShellItem,
   MODAL_STYLE_VAR_NAMES,
+  normalizeMaintenance,
   normalizeStyling,
   normalizeTopRightNavigation,
   renderShellIcon,
   resolveBackground,
   type ShellConfig,
   type ShellItem,
+  type ShellMaintenance,
   type ShellModalStyling,
   type ShellSection,
 } from "@/lib/custom-shell"
@@ -37,6 +40,10 @@ import { resolveAppName } from "@/lib/app-name"
 import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
+import {
+  getMaintenanceErrorMessage,
+  saveMaintenance,
+} from "@/lib/api/maintenance"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
@@ -55,8 +62,12 @@ type ShellRuntime = {
   config: ShellConfig
   saveStatus: SaveStatus
   feedbackRefreshToken: number
+  /** True while the maintenance switch is being written. */
+  maintenanceBusy: boolean
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
+  /** Writes the maintenance switch on its own; never via the settings save. */
+  onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
   onOpenFeedback: () => void
   onOpenFeedbackThread: (feedbackId: string) => void
 }
@@ -112,6 +123,7 @@ export function ShellLayout({
     null
   )
   const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
+  const [maintenanceBusy, setMaintenanceBusy] = React.useState(false)
   const lastSettingsRef = React.useRef(settings)
 
   useShellDocumentTitle(config.appName)
@@ -240,6 +252,36 @@ export function ShellLayout({
       })
   }, [])
 
+  // Maintenance mode has its own write — it is confirmed, audit-logged, and
+  // must not ride along with a settings save that could carry a stale copy of
+  // the switch. Nothing is scheduled here afterwards: the value is already
+  // saved, so the local config is just brought in line with it.
+  const handleMaintenanceChange = React.useCallback(
+    async (maintenance: ShellMaintenance) => {
+      setMaintenanceBusy(true)
+      try {
+        const saved = await saveMaintenance(maintenance)
+        setConfig((current) => ({ ...current, maintenance: saved }))
+        latestConfigRef.current = {
+          ...latestConfigRef.current,
+          maintenance: saved,
+        }
+        toast.success(
+          saved.enabled
+            ? "Maintenance mode is on. Only admins can use the app."
+            : "Maintenance mode is off. Everyone can use the app again."
+        )
+        return true
+      } catch (error) {
+        showErrorToast(getMaintenanceErrorMessage(error))
+        return false
+      } finally {
+        setMaintenanceBusy(false)
+      }
+    },
+    []
+  )
+
   // The sidebar link-editor dialog's "Done" button flushes any pending
   // debounced save immediately, so closing it never leaves an unsaved edit.
   const handleSaveConfig = React.useCallback(
@@ -301,8 +343,10 @@ export function ShellLayout({
       config,
       saveStatus,
       feedbackRefreshToken,
+      maintenanceBusy,
       onConfigChange: handleConfigChange,
       onSaveConfig: handleSaveConfig,
+      onMaintenanceChange: handleMaintenanceChange,
       onOpenFeedback: () => openFeedback(),
       onOpenFeedbackThread: openFeedback,
     }),
@@ -310,7 +354,9 @@ export function ShellLayout({
       config,
       feedbackRefreshToken,
       handleConfigChange,
+      handleMaintenanceChange,
       handleSaveConfig,
+      maintenanceBusy,
       openFeedback,
       saveStatus,
     ]
@@ -355,6 +401,16 @@ export function ShellLayout({
               rightNavItems={config.topRightNavigation}
               unreadNotifications={unreadNotifications}
               saveStatus={saveStatus}
+              maintenanceOn={
+                user.role === "admin" && config.maintenance.enabled
+              }
+              maintenanceBusy={maintenanceBusy}
+              onTurnOffMaintenance={() =>
+                void handleMaintenanceChange({
+                  ...config.maintenance,
+                  enabled: false,
+                })
+              }
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
@@ -416,6 +472,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     sections: stripRetiredAccountEntries(
       Array.isArray(settings.sections) ? settings.sections : fallback.sections
     ),
+    maintenance: normalizeMaintenance(settings.maintenance),
     styling: normalizeStyling(settings.styling),
   }
 }

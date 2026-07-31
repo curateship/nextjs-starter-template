@@ -2,6 +2,8 @@ import * as React from "react"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { CardGroup } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -15,7 +17,10 @@ import {
 import { DEFAULT_APP_NAME } from "@/lib/app-name"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  DEFAULT_MAINTENANCE_MESSAGE,
+  MAX_MAINTENANCE_MESSAGE_LENGTH,
   type ShellConfig,
+  type ShellMaintenance,
 } from "@/lib/custom-shell"
 import { showErrorToast } from "@/lib/error-toast"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
@@ -25,10 +30,17 @@ type GeneralSettingsProps = {
   onConfigChange: (config: ShellConfig) => void
 }
 
+type MaintenanceProps = {
+  onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
+  maintenanceBusy: boolean
+}
+
 export function GeneralSettings({
   config,
   onConfigChange,
-}: GeneralSettingsProps) {
+  onMaintenanceChange,
+  maintenanceBusy,
+}: GeneralSettingsProps & MaintenanceProps) {
   // The auto-save refuses a blank workspace name (saveConfigNow in
   // shell-layout.tsx), so say so on blur rather than letting the edit sit on
   // screen looking saved.
@@ -155,7 +167,97 @@ export function GeneralSettings({
           className="max-w-20"
         />
       </CollapsibleSettingsCard>
+
+      <MaintenanceSettingsCard
+        config={config}
+        onConfigChange={onConfigChange}
+        onMaintenanceChange={onMaintenanceChange}
+        maintenanceBusy={maintenanceBusy}
+      />
     </CardGroup>
+  )
+}
+
+/**
+ * The app-wide "back soon" switch. Turning it on asks first, because it shuts
+ * the app for everybody who is not an admin the moment it is saved.
+ *
+ * The switch saves on its own (confirmed and written to the activity trail);
+ * the message rides along with the page's normal auto-save like every other
+ * field here. Keeping the switch out of that save is deliberate — see
+ * lib/api/shell-settings.ts.
+ */
+function MaintenanceSettingsCard({
+  config,
+  onConfigChange,
+  onMaintenanceChange,
+  maintenanceBusy,
+}: GeneralSettingsProps & MaintenanceProps) {
+  const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const { maintenance } = config
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="maintenance"
+      title="Maintenance mode"
+      description="Close the app to everyone but admins while you work on it."
+      contentClassName="space-y-6"
+    >
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="maintenance-enabled"
+          checked={maintenance.enabled}
+          disabled={maintenanceBusy}
+          onCheckedChange={(value) => {
+            if (value === true) {
+              setConfirmOpen(true)
+              return
+            }
+            void onMaintenanceChange({ ...maintenance, enabled: false })
+          }}
+        />
+        <Label htmlFor="maintenance-enabled" className="font-normal">
+          Close the app to members
+        </Label>
+      </div>
+
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="maintenance-message"
+          hint={`What members read while the app is closed. Leave it empty to show "${DEFAULT_MAINTENANCE_MESSAGE}".`}
+        >
+          Message
+        </FieldLabel>
+        <Input
+          id="maintenance-message"
+          value={maintenance.message}
+          maxLength={MAX_MAINTENANCE_MESSAGE_LENGTH}
+          onChange={(event) =>
+            onConfigChange({
+              ...config,
+              maintenance: { ...maintenance, message: event.target.value },
+            })
+          }
+          placeholder={DEFAULT_MAINTENANCE_MESSAGE}
+        />
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Turn on maintenance mode?"
+        description="Everyone except admins sees your maintenance page instead of the app, starting now and lasting until you turn this back off. You keep working, with a reminder in the header."
+        confirmLabel="Turn on"
+        loading={maintenanceBusy}
+        onConfirm={() => {
+          void onMaintenanceChange({ ...maintenance, enabled: true }).then(
+            (saved) => {
+              if (saved) setConfirmOpen(false)
+            }
+          )
+        }}
+      />
+    </CollapsibleSettingsCard>
   )
 }
 

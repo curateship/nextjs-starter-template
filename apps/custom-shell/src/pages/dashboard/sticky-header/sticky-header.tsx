@@ -1,7 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, PanelLeftIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  CheckIcon,
+  Loader2Icon,
+  PanelLeftIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -23,6 +28,10 @@ type StickyHeaderProps = {
   rightNavItems?: ShellTopRightNavigationItem[]
   unreadNotifications?: number
   saveStatus?: SaveStatus
+  /** Admins only: the app is closed to members and this is the reminder. */
+  maintenanceOn?: boolean
+  maintenanceBusy?: boolean
+  onTurnOffMaintenance?: () => void
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
@@ -34,6 +43,9 @@ export function StickyHeader({
   rightNavItems,
   unreadNotifications,
   saveStatus,
+  maintenanceOn,
+  maintenanceBusy,
+  onTurnOffMaintenance,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderProps) {
@@ -69,6 +81,12 @@ export function StickyHeader({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {maintenanceOn && onTurnOffMaintenance ? (
+            <MaintenanceBadge
+              busy={Boolean(maintenanceBusy)}
+              onTurnOff={onTurnOffMaintenance}
+            />
+          ) : null}
           <SaveStatusIndicator status={saveStatus} />
           <StickyHeaderRightNav
             items={rightNavItems}
@@ -79,6 +97,63 @@ export function StickyHeader({
         </div>
       </div>
     </header>
+  )
+}
+
+/**
+ * The reminder that the app is shut to everyone but admins. It sits in the
+ * header on every page rather than on the settings page, because the whole
+ * point is that an admin who has moved on still cannot miss it — and it turns
+ * itself off from right here, with no hunting for the switch.
+ *
+ * A phone header has room for one control, not two, so below `sm` the words and
+ * the button collapse into a single red warning button that does the same job.
+ */
+function MaintenanceBadge({
+  busy,
+  onTurnOff,
+}: {
+  busy: boolean
+  onTurnOff: () => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {/* The announcement is the words, not the buttons beside them — a live
+          region wrapped around a control re-reads the control every time. */}
+      <span
+        role="status"
+        className="hidden items-center gap-1.5 rounded-md bg-destructive/10 px-2 py-1 text-sm font-medium text-destructive sm:inline-flex"
+      >
+        <TriangleAlertIcon className="h-4 w-4 shrink-0" aria-hidden />
+        Maintenance mode is on
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        className="hidden sm:inline-flex"
+        disabled={busy}
+        onClick={onTurnOff}
+      >
+        {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        Turn off
+      </Button>
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon"
+        className="sm:hidden"
+        title="Maintenance mode is on — turn it off"
+        aria-label="Maintenance mode is on — turn it off"
+        disabled={busy}
+        onClick={onTurnOff}
+      >
+        {busy ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
+          <TriangleAlertIcon className="size-4" />
+        )}
+      </Button>
+    </div>
   )
 }
 

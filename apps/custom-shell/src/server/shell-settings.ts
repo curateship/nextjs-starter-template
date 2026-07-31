@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import {
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  normalizeMaintenance,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { clampToastSeconds } from "@/lib/toast-seconds"
@@ -16,7 +17,7 @@ import {
 export const DEFAULT_SETTINGS_KEY = "default"
 
 /** The app-wide globals row, already parsed and defaulted. */
-async function readShellGlobals(database: CustomShellDb) {
+export async function readShellGlobals(database: CustomShellDb) {
   const [row] = await database
     .select()
     .from(customShellSettings)
@@ -103,6 +104,7 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.adminRoute === "string"
         ? settings.adminRoute
         : fallback.adminRoute,
+    maintenance: normalizeMaintenance(settings.maintenance),
   }
 }
 
@@ -114,5 +116,6 @@ export function pickShellGlobals(settings: ShellConfig) {
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     adminRoute: settings.adminRoute,
+    maintenance: settings.maintenance,
   }
 }

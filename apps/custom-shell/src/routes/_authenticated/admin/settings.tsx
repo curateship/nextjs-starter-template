@@ -22,6 +22,8 @@ function SettingsRoute() {
       config={runtime.config}
       onConfigChange={runtime.onConfigChange}
       onSaveConfig={runtime.onSaveConfig}
+      onMaintenanceChange={runtime.onMaintenanceChange}
+      maintenanceBusy={runtime.maintenanceBusy}
     />
   )
 }

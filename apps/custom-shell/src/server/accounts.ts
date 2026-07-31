@@ -384,7 +384,9 @@ export async function recordAdminAudit(
   resource: string,
   recordIds: string[],
   detail: string | null = null,
-  database: CustomShellDb = db
+  // Narrowed to `insert` so an entry can be written inside a transaction as
+  // well as against the pool.
+  database: Pick<CustomShellDb, "insert"> = db
 ) {
   await database.insert(customShellAdminAuditLogs).values({
     id: uuid(),

@@ -19,6 +19,7 @@ import {
   validateMediaFile,
 } from "@/server/media"
 import {
+  customShellAdminAuditLogs,
   customShellChangelogEntries,
   customShellMedia,
   customShellFeedback,
@@ -26,6 +27,7 @@ import {
   customShellFeedbackVotes,
   customShellNotifications,
   customShellSessions,
+  customShellSettings,
   customShellUsers,
 } from "@/server/schema"
 import {
@@ -38,6 +40,9 @@ import {
   listPublishedChangelogEntries,
   updateChangelogEntry,
 } from "@/server/changelog"
+import { normalizeMaintenance, resolveMaintenanceMessage } from "@/lib/custom-shell"
+import { readMaintenance, setMaintenance } from "@/server/maintenance"
+import { readShellGlobals } from "@/server/shell-settings"
 import {
   canViewAllNotifications,
   getNotificationPage,
@@ -1086,5 +1091,126 @@ describe("custom shell changelog", () => {
     await expect(deleteChangelogEntries([uuid()], db)).rejects.toThrow(
       "CHANGELOG_ENTRY_NOT_FOUND"
     )
+  })
+})
+
+
+describe("custom shell maintenance mode", () => {
+  async function seedAdmin() {
+    const userId = uuid()
+    const createdAt = now()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "admin@internal.dev",
+      name: "Admin",
+      role: "admin",
+      passwordHash: await hash("password123"),
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    return userId
+  }
+
+  async function auditActions() {
+    const rows = await database
+      .select({ action: customShellAdminAuditLogs.action, detail: customShellAdminAuditLogs.detail })
+      .from(customShellAdminAuditLogs)
+
+    return rows
+  }
+
+  it("reads as off when the settings row has never been written", async () => {
+    const db = database as unknown as CustomShellDb
+
+    expect(await readMaintenance(db)).toEqual({ enabled: false, message: "" })
+  })
+
+  it("turns the app off and back on, keeping the message either way", async () => {
+    const db = database as unknown as CustomShellDb
+    const adminId = await seedAdmin()
+
+    await setMaintenance(
+      adminId,
+      { enabled: true, message: "  Upgrading the database.  " },
+      db
+    )
+    expect(await readMaintenance(db)).toEqual({
+      enabled: true,
+      message: "Upgrading the database.",
+    })
+
+    await setMaintenance(
+      adminId,
+      { enabled: false, message: "Upgrading the database." },
+      db
+    )
+    expect(await readMaintenance(db)).toEqual({
+      enabled: false,
+      message: "Upgrading the database.",
+    })
+  })
+
+  it("leaves the other app-wide settings alone", async () => {
+    const db = database as unknown as CustomShellDb
+    const adminId = await seedAdmin()
+    const createdAt = now()
+
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: { appName: "Bookshelf", adminRoute: "/admin/media" },
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await setMaintenance(adminId, { enabled: true, message: "" }, db)
+
+    const globals = await readShellGlobals(db)
+    expect(globals.appName).toBe("Bookshelf")
+    expect(globals.adminRoute).toBe("/admin/media")
+    expect(globals.maintenance.enabled).toBe(true)
+  })
+
+  it("writes both flips to the activity trail, with the reason on the way in", async () => {
+    const db = database as unknown as CustomShellDb
+    const adminId = await seedAdmin()
+
+    await setMaintenance(adminId, { enabled: true, message: "Migrating" }, db)
+    await setMaintenance(adminId, { enabled: false, message: "Migrating" }, db)
+
+    // Both entries land in the same millisecond, so there is no order to assert
+    // on — what matters is that each flip is there and only the way in carries
+    // the reason.
+    const entries = await auditActions()
+    expect(entries).toHaveLength(2)
+    expect(entries).toContainEqual({
+      action: "maintenance_on",
+      detail: "Migrating",
+    })
+    expect(entries).toContainEqual({
+      action: "maintenance_off",
+      detail: null,
+    })
+  })
+
+  it("treats a missing or hand-edited value as off", () => {
+    expect(normalizeMaintenance(undefined)).toEqual({
+      enabled: false,
+      message: "",
+    })
+    expect(normalizeMaintenance({ enabled: "yes", message: 7 })).toEqual({
+      enabled: false,
+      message: "",
+    })
+    expect(normalizeMaintenance({ enabled: true, message: "Back soon" })).toEqual({
+      enabled: true,
+      message: "Back soon",
+    })
+  })
+
+  it("falls back to the default wording when no message was written", () => {
+    expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
+    expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
   })
 })

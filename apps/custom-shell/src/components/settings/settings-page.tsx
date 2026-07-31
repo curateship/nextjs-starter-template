@@ -4,7 +4,7 @@ import { GeneralSettings } from "@/components/settings/general-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { cn } from "@/lib/utils"
-import type { ShellConfig } from "@/lib/custom-shell"
+import type { ShellConfig, ShellMaintenance } from "@/lib/custom-shell"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
@@ -26,11 +26,15 @@ export function SettingsPage({
   config,
   onConfigChange,
   onSaveConfig,
+  onMaintenanceChange,
+  maintenanceBusy,
 }: {
   activeTab: SettingsTabId
   config: ShellConfig
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
+  onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
+  maintenanceBusy: boolean
 }) {
   return (
     <div
@@ -59,7 +63,12 @@ export function SettingsPage({
 
         <div className="min-w-0 flex-1">
           {activeTab === "general" ? (
-            <GeneralSettings config={config} onConfigChange={onConfigChange} />
+            <GeneralSettings
+              config={config}
+              onConfigChange={onConfigChange}
+              onMaintenanceChange={onMaintenanceChange}
+              maintenanceBusy={maintenanceBusy}
+            />
           ) : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
