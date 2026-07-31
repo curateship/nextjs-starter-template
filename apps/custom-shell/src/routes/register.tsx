@@ -8,7 +8,12 @@ import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
-import { getAuthErrorMessage, loadCurrentUser, register } from "@/lib/api/auth"
+import {
+  getAuthErrorMessage,
+  loadCurrentUser,
+  PASSWORD_RULE_HINT,
+  register,
+} from "@/lib/api/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/register")({
@@ -104,7 +109,7 @@ function RegisterRoute() {
         />
       </div>
       <div className="grid gap-2">
-        <FieldLabel htmlFor="password" hint="At least 8 characters.">
+        <FieldLabel htmlFor="password" hint={PASSWORD_RULE_HINT}>
           Password
         </FieldLabel>
         <PasswordInput

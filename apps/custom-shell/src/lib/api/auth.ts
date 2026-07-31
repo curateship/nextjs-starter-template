@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { appUrlFor } from "@/server/app-url"
+import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
 import { sendAuthEmail } from "@/server/email"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
@@ -38,6 +39,14 @@ export type AuthUser = {
 
 const emailSchema = z.string().trim().toLowerCase().min(3).max(255).email()
 const passwordSchema = z.string().min(8).max(128)
+
+/**
+ * The password rules, in the words the three forms show. Kept beside the rules
+ * themselves so the two cannot drift apart.
+ */
+export const PASSWORD_RULE_HINT =
+  "At least 8 characters. Passwords found in known data breaches are refused."
+
 const nameSchema = z.string().trim().min(1).max(255)
 const tokenSchema = z.string().trim().min(32).max(200)
 
@@ -76,6 +85,8 @@ const authErrorMessages: Record<string, string> = {
   EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
   EMAIL_DELIVERY_FAILED: "We could not send that email. Please try again.",
   LAST_ADMIN: "There has to be at least one other admin first.",
+  PASSWORD_BREACHED:
+    "This password has shown up in a known data breach. Please pick a different one.",
 }
 
 export function getAuthErrorMessage(error: unknown) {
@@ -114,6 +125,8 @@ const registerFn = createServerFn({ method: "POST" })
     if (existing) {
       throw new Error("ACCOUNT_EXISTS")
     }
+
+    await enforcePasswordNotBreached(data.password)
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
@@ -266,6 +279,17 @@ const resetPasswordFn = createServerFn({ method: "POST" })
   .inputValidator(resetPasswordSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
+    // Everything below runs before the reset link has been checked, so without
+    // a limit anyone could call this endpoint with any password and no link at
+    // all — spending an argon2 hash and an outside lookup every time.
+    await enforceRateLimit(`reset-password:${requestIp()}`, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    // Before the token is spent, so a refused password leaves the reset link
+    // still usable for a second try.
+    await enforcePasswordNotBreached(data.password)
 
     const timestamp = now()
     const passwordHash = await hashPassword(data.password)
@@ -322,6 +346,8 @@ const changePasswordFn = createServerFn({ method: "POST" })
     if (!(await verifyPassword(user.passwordHash, data.currentPassword))) {
       throw new Error("INVALID_CREDENTIALS")
     }
+
+    await enforcePasswordNotBreached(data.newPassword)
 
     const passwordHash = await hashPassword(data.newPassword)
     await db

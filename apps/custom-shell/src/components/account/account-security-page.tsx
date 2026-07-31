@@ -16,6 +16,7 @@ import {
   changePassword,
   deleteAccount,
   getAuthErrorMessage,
+  PASSWORD_RULE_HINT,
   signOutOtherSessions,
 } from "@/lib/api/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
@@ -89,7 +90,7 @@ function ChangePasswordCard() {
             />
           </div>
           <div className="grid gap-2">
-            <FieldLabel htmlFor="new-password" hint="At least 8 characters.">
+            <FieldLabel htmlFor="new-password" hint={PASSWORD_RULE_HINT}>
               New password
             </FieldLabel>
             <Input

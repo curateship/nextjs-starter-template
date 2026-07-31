@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises"
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
@@ -16,6 +16,7 @@ import {
   updateUserRole,
 } from "@/server/accounts"
 import { applyStripeEvent } from "@/server/billing"
+import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import {
   hasFeature,
   loadEntitlements,
@@ -160,6 +161,76 @@ describe("passwords and link tokens", () => {
     await expect(
       consumeAuthToken(token, "reset_password", database)
     ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+  })
+})
+
+describe("breached passwords", () => {
+  // SHA-1 of "password123". The range API is asked for the first five
+  // characters and answers with the rest of every hash it knows.
+  const LEAKED_PREFIX = "CBFDA"
+  const LEAKED_SUFFIX = "C6008F9CAB4083784CBD1874F76618D2A97"
+
+  function respondWith(body: string, init: ResponseInit = {}) {
+    const calls: string[] = []
+    vi.stubGlobal("fetch", (url: string) => {
+      calls.push(url)
+      return Promise.resolve(new Response(body, init))
+    })
+    return calls
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("refuses a password the outside list has seen", async () => {
+    respondWith(`${LEAKED_SUFFIX}:37359195\r\n`)
+
+    await expect(enforcePasswordNotBreached("password123")).rejects.toThrow(
+      "PASSWORD_BREACHED"
+    )
+  })
+
+  it("sends only the first five characters of the hash", async () => {
+    const calls = respondWith(`${LEAKED_SUFFIX}:37359195\r\n`)
+
+    await expect(
+      enforcePasswordNotBreached("password123")
+    ).rejects.toThrow()
+
+    expect(calls).toEqual([
+      `https://api.pwnedpasswords.com/range/${LEAKED_PREFIX}`,
+    ])
+    expect(calls[0]).not.toContain(LEAKED_SUFFIX)
+    expect(calls[0]).not.toContain("password123")
+  })
+
+  it("accepts a password that only appears as a padding decoy", async () => {
+    // The padding option bulks the answer out with hashes the list has never
+    // actually seen, marked by a count of zero. SHA-1 of this password is one
+    // of them here, so a check that ignored the count would wrongly refuse it.
+    respondWith(
+      [
+        "0000000000000000000000000000000000A:12",
+        "5079EA88C5F9E63014E389638BC5365D519:0",
+      ].join("\r\n")
+    )
+
+    await expect(
+      enforcePasswordNotBreached("7Kq!vz2Lm@9rTx#4wNpd")
+    ).resolves.toBeUndefined()
+  })
+
+  it("accepts the password when the outside service is unreachable or unhappy", async () => {
+    vi.stubGlobal("fetch", () => Promise.reject(new Error("network down")))
+    await expect(
+      enforcePasswordNotBreached("password123")
+    ).resolves.toBeUndefined()
+
+    respondWith("", { status: 503 })
+    await expect(
+      enforcePasswordNotBreached("password123")
+    ).resolves.toBeUndefined()
   })
 })
 
