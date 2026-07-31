@@ -250,12 +250,14 @@ const loginFn = createServerFn({ method: "POST" })
     await clearRateLimit(rateLimitKey)
 
     const token = createSessionToken()
+    const sessionCreatedAt = now()
     await db.insert(customShellSessions).values({
       id: uuid(),
       userId: user.id,
       tokenHash: hashSessionToken(token),
       expiresAt: createSessionExpiresAt(),
-      createdAt: now(),
+      createdAt: sessionCreatedAt,
+      lastSeenAt: sessionCreatedAt,
     })
 
     const { getOrCreateCurrentWorkspace } = await import("@/server/workspaces")

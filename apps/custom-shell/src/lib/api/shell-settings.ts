@@ -15,9 +15,9 @@ import { requireAppOrigin } from "@/server/origin"
 import {
   customShellSettings,
   customShellWorkspaces,
+  DEFAULT_SETTINGS_KEY,
 } from "@/server/schema"
 import {
-  DEFAULT_SETTINGS_KEY,
   parseShellGlobals,
   pickShellGlobals,
   readShellSettings,
@@ -119,6 +119,11 @@ const shellConfigSchema = z.object({
     enabled: z.boolean(),
     message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
   }),
+  // Carried in the config for display only; the save below never writes it.
+  sessionPolicy: z.object({
+    maxAgeDays: z.number().int().min(0),
+    idleMinutes: z.number().int().min(0),
+  }),
   styling: shellStylingSchema,
 })
 
@@ -184,17 +189,20 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         // back what they read and one would lose its changes.
         .for("update")
 
-      // The maintenance switch is only ever flipped by its own confirmed,
-      // audit-logged action (lib/api/maintenance.ts). An admin whose settings
-      // page loaded before somebody turned it on must not switch it back off
-      // by renaming the app, so the switch keeps whatever the row already
-      // says; only its message comes from this save.
+      // The maintenance switch is only ever flipped by its own confirmed
+      // action (lib/api/maintenance.ts). An admin whose settings page loaded
+      // before somebody turned it on must not switch it back off by renaming
+      // the app, so the switch keeps whatever the row already says; only its
+      // message comes from this save. The session policy is kept whole for
+      // the same reason — its one writer is lib/api/session-policy.ts.
+      const existingGlobals = parseShellGlobals(existing?.settings)
       const globalSettings = {
         ...pickShellGlobals(data),
         maintenance: {
-          enabled: parseShellGlobals(existing?.settings).maintenance.enabled,
+          enabled: existingGlobals.maintenance.enabled,
           message: data.maintenance.message,
         },
+        sessionPolicy: existingGlobals.sessionPolicy,
       }
 
       if (existing) {

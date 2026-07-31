@@ -5,10 +5,9 @@ import {
   type ShellMaintenance,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellSettings } from "@/server/schema"
+import { customShellSettings, DEFAULT_SETTINGS_KEY } from "@/server/schema"
 import { now } from "@/server/security"
 import {
-  DEFAULT_SETTINGS_KEY,
   parseShellGlobals,
   readShellGlobals,
 } from "@/server/shell-settings"

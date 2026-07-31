@@ -58,6 +58,7 @@ import {
   createDefaultShellConfig,
   isActiveShellHref,
   normalizeMaintenance,
+  normalizeSessionPolicy,
   resolveMaintenanceMessage,
   type ShellItem,
   type ShellSection,
@@ -67,6 +68,7 @@ import { startViewingAs, stopViewingAs } from "@/server/view-as"
 import { loadAccountDetail } from "@/server/account-detail"
 import { grantManualPlan } from "@/server/accounts"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
+import { setSessionPolicy } from "@/server/session-policy"
 import {
   parseShellGlobals,
   pickShellGlobals,
@@ -2640,6 +2642,170 @@ describe("custom shell maintenance mode", () => {
   it("falls back to the default wording when no message was written", () => {
     expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
     expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
+  })
+})
+
+describe("custom shell session policy", () => {
+  const daysAgo = (days: number) =>
+    new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  const minutesAgo = (minutes: number) =>
+    new Date(Date.now() - minutes * 60 * 1000)
+
+  /** One person with one session whose two clocks are set to order. */
+  async function seedSession(createdAt: Date, lastSeenAt: Date) {
+    const userId = uuid()
+    const token = `session-${userId}`
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: `${userId}@internal.dev`,
+      name: "Session Owner",
+      role: "member",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellSessions).values({
+      id: uuid(),
+      userId,
+      tokenHash: hashSessionToken(token),
+      expiresAt: createSessionExpiresAt(),
+      createdAt,
+      lastSeenAt,
+    })
+
+    return token
+  }
+
+  it("leaves even ancient sessions alone while both limits are off", async () => {
+    const db = database as unknown as CustomShellDb
+    const token = await seedSession(daysAgo(400), daysAgo(30))
+
+    await expect(findUserBySessionToken(token, db)).resolves.toMatchObject({
+      name: "Session Owner",
+    })
+  })
+
+  it("signs out a sign-in older than the limit, for good", async () => {
+    const db = database as unknown as CustomShellDb
+    await setSessionPolicy({ maxAgeDays: 7, idleMinutes: 0 }, db)
+    const token = await seedSession(daysAgo(8), minutesAgo(1))
+
+    await expect(findUserBySessionToken(token, db)).resolves.toBeNull()
+
+    // The session was deleted, not just refused — so loosening the policy
+    // afterwards cannot bring it back to life.
+    expect(await database.select().from(customShellSessions)).toEqual([])
+    await setSessionPolicy({ maxAgeDays: 0, idleMinutes: 0 }, db)
+    await expect(findUserBySessionToken(token, db)).resolves.toBeNull()
+  })
+
+  it("signs out someone who has been away past the idle limit", async () => {
+    const db = database as unknown as CustomShellDb
+    await setSessionPolicy({ maxAgeDays: 0, idleMinutes: 60 }, db)
+    const token = await seedSession(minutesAgo(120), minutesAgo(120))
+
+    await expect(findUserBySessionToken(token, db)).resolves.toBeNull()
+    expect(await database.select().from(customShellSessions)).toEqual([])
+  })
+
+  it("keeps an active person signed in and moves their idle clock forward", async () => {
+    const db = database as unknown as CustomShellDb
+    await setSessionPolicy({ maxAgeDays: 30, idleMinutes: 60 }, db)
+    const lastSeenAt = minutesAgo(30)
+    const token = await seedSession(daysAgo(1), lastSeenAt)
+
+    await expect(findUserBySessionToken(token, db)).resolves.toMatchObject({
+      name: "Session Owner",
+    })
+
+    const [session] = await database.select().from(customShellSessions)
+    expect(session.lastSeenAt.getTime()).toBeGreaterThan(lastSeenAt.getTime())
+  })
+
+  it("does not rewrite the idle clock on every request", async () => {
+    const db = database as unknown as CustomShellDb
+    const lastSeenAt = new Date(Date.now() - 10 * 1000)
+    const token = await seedSession(daysAgo(1), lastSeenAt)
+
+    await expect(findUserBySessionToken(token, db)).resolves.toMatchObject({
+      name: "Session Owner",
+    })
+
+    const [session] = await database.select().from(customShellSessions)
+    expect(session.lastSeenAt.getTime()).toBe(lastSeenAt.getTime())
+  })
+
+  it("saves the policy without touching the other app-wide settings", async () => {
+    const db = database as unknown as CustomShellDb
+    const createdAt = now()
+
+    await database.insert(customShellSettings).values({
+      key: "default",
+      settings: { appName: "Bookshelf" },
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await setSessionPolicy({ maxAgeDays: 30, idleMinutes: 60 }, db)
+
+    const globals = await readShellGlobals(db)
+    expect(globals.appName).toBe("Bookshelf")
+    expect(globals.sessionPolicy).toEqual({ maxAgeDays: 30, idleMinutes: 60 })
+  })
+
+  it("creates the settings row when the policy is saved on a fresh install", async () => {
+    const db = database as unknown as CustomShellDb
+
+    await setSessionPolicy({ maxAgeDays: 90, idleMinutes: 0 }, db)
+
+    expect((await readShellGlobals(db)).sessionPolicy).toEqual({
+      maxAgeDays: 90,
+      idleMinutes: 0,
+    })
+  })
+
+  it("treats a missing or hand-edited saved value as off", () => {
+    const off = { maxAgeDays: 0, idleMinutes: 0 }
+
+    expect(normalizeSessionPolicy(undefined)).toEqual(off)
+    expect(normalizeSessionPolicy("7 days")).toEqual(off)
+    expect(
+      normalizeSessionPolicy({ maxAgeDays: "7", idleMinutes: -5 })
+    ).toEqual(off)
+    expect(
+      normalizeSessionPolicy({ maxAgeDays: 2.5, idleMinutes: 30 })
+    ).toEqual({ maxAgeDays: 0, idleMinutes: 30 })
+    expect(
+      normalizeSessionPolicy({ maxAgeDays: 7, idleMinutes: 30 })
+    ).toEqual({ maxAgeDays: 7, idleMinutes: 30 })
+  })
+
+  it("never lets the idle limit drop below the idle clock's accuracy", async () => {
+    // The idle clock is only written once a minute, so a shorter limit would
+    // sign out people who are actively here. Off stays off.
+    expect(normalizeSessionPolicy({ maxAgeDays: 0, idleMinutes: 1 })).toEqual({
+      maxAgeDays: 0,
+      idleMinutes: 15,
+    })
+    expect(normalizeSessionPolicy({ maxAgeDays: 0, idleMinutes: 14 })).toEqual({
+      maxAgeDays: 0,
+      idleMinutes: 15,
+    })
+    expect(normalizeSessionPolicy({ maxAgeDays: 0, idleMinutes: 0 })).toEqual({
+      maxAgeDays: 0,
+      idleMinutes: 0,
+    })
+
+    // The floor holds at the write, not just in the dropdown.
+    const db = database as unknown as CustomShellDb
+    await expect(
+      setSessionPolicy({ maxAgeDays: 0, idleMinutes: 5 }, db)
+    ).resolves.toEqual({ maxAgeDays: 0, idleMinutes: 15 })
+    expect((await readShellGlobals(db)).sessionPolicy).toEqual({
+      maxAgeDays: 0,
+      idleMinutes: 15,
+    })
   })
 })
 

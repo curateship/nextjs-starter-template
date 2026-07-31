@@ -23,6 +23,8 @@ function SettingsTabRoute() {
       onSaveConfig={runtime.onSaveConfig}
       onMaintenanceChange={runtime.onMaintenanceChange}
       maintenanceBusy={runtime.maintenanceBusy}
+      onSessionPolicyChange={runtime.onSessionPolicyChange}
+      sessionPolicyBusy={runtime.sessionPolicyBusy}
     />
   )
 }
