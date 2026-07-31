@@ -73,6 +73,7 @@ import PencilLine from "lucide-react/dist/esm/icons/pencil-line.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { showErrorToast } from "@/lib/error-toast"
 
 interface PageProps {
@@ -120,7 +121,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [editingTriggerIndex, setEditingTriggerIndex] = useState<number | null>(null)
   const [draftTriggerType, setDraftTriggerType] = useState<AutomationTriggerType>("none")
   const [draftSegmentIds, setDraftSegmentIds] = useState<string[]>([])
+  // A trigger or checkpoint saved with nothing chosen marks the picker it is
+  // about, and the mark clears itself the moment something is chosen.
+  const [pickerMissing, setPickerMissing] = useState<"segment" | "product" | "checkpoint" | null>(null)
+  const segmentPickerInvalid = pickerMissing === "segment" && !draftSegmentIds.length
   const [draftProductId, setDraftProductId] = useState("")
+  const productPickerInvalid = pickerMissing === "product" && !draftProductId
   const [savingTrigger, setSavingTrigger] = useState(false)
   const [addAfterIndex, setAddAfterIndex] = useState<number | null>(null)
   const [editingDelay, setEditingDelay] = useState<AutomationStep | null>(null)
@@ -131,6 +137,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayDate, setDelayDate] = useState("")
   const [editingEndRules, setEditingEndRules] = useState<AutomationStep | null>(null)
   const [checkpointAction, setCheckpointAction] = useState<CheckpointAction | "">("")
+  const checkpointPickerInvalid = pickerMissing === "checkpoint" && !checkpointAction
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
@@ -439,7 +446,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const saveEndRulesNode = async () => {
-    if (!editingEndRules || !checkpointAction) return
+    if (!editingEndRules) return
+    if (!checkpointAction) {
+      setPickerMissing("checkpoint")
+      showErrorToast("Choose an action for this checkpoint.")
+      return
+    }
+
+    setPickerMissing(null)
 
     setSavingNode(true)
     const node_config = {
@@ -531,14 +545,20 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const saveTrigger = async () => {
+    // These report through the toast that draws above the modal, not the page
+    // error strip behind it, which the open modal would hide.
     if (draftTriggerType === "segment_added" && !draftSegmentIds.length) {
-      setError("Choose at least one segment before saving this trigger.")
+      setPickerMissing("segment")
+      showErrorToast("Choose at least one segment before saving this trigger.")
       return
     }
     if (draftTriggerType === "paid_purchase" && !draftProductId) {
-      setError("Choose a product before saving this trigger.")
+      setPickerMissing("product")
+      showErrorToast("Choose a product before saving this trigger.")
       return
     }
+
+    setPickerMissing(null)
 
     setSavingTrigger(true)
 
@@ -1304,6 +1324,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         >
           <DashboardModalContent
+            busy={savingTrigger}
             title="Trigger"
             description="Choose what event enrolls a contact into this automation."
             footer={
@@ -1321,23 +1342,26 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   Cancel
                 </Button>
                 {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
-                  <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
+                  <Button type="button" variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
                     Remove
                   </Button>
                 )}
-                <Button
-                  onClick={saveTrigger}
-                  disabled={
-                    savingTrigger ||
-                    (draftTriggerType === "segment_added" && (!draftSegmentIds.length || segments.length === 0)) ||
-                    (draftTriggerType === "paid_purchase" && (!draftProductId || productTriggerOptions.length === 0))
-                  }
-                >
-                  {savingTrigger ? "Saving..." : "Save"}
+                <Button form="automation-trigger-form" type="submit" disabled={savingTrigger}>
+                  {savingTrigger ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </DashboardModalFooterActions>
             }
           >
+            <form
+              noValidate
+              id="automation-trigger-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveTrigger()
+              }}
+            >
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -1392,6 +1416,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                                     )
                                   })}
                                   <ComboboxChipsInput
+                                    aria-invalid={segmentPickerInvalid || undefined}
                                     placeholder={
                                       values.length
                                         ? ""
@@ -1437,7 +1462,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <Field>
                         <FieldLabel>{productTriggerLabel}</FieldLabel>
                         <Select value={draftProductId} onValueChange={setDraftProductId}>
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full" aria-invalid={productPickerInvalid || undefined}>
                             <SelectValue
                               placeholder={
                                 loadingProducts ? "Loading products..." : `Choose a ${productTriggerLabel.toLowerCase()}`
@@ -1463,6 +1488,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
         </Dialog>
 
@@ -1473,19 +1499,30 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         >
           <DashboardModalContent
+            busy={savingNode}
             title="Checkpoint"
             description="Choose what happens when a contact reaches this point."
             footer={
               <>
-                <Button variant="outline" onClick={() => setEditingEndRules(null)}>
+                <Button type="button" variant="outline" onClick={() => setEditingEndRules(null)}>
                   Cancel
                 </Button>
-                <Button onClick={saveEndRulesNode} disabled={savingNode || !checkpointAction}>
-                  {savingNode ? "Saving..." : "Save"}
+                <Button form="automation-checkpoint-form" type="submit" disabled={savingNode}>
+                  {savingNode ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </>
             }
           >
+            <form
+              noValidate
+              id="automation-checkpoint-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveEndRulesNode()
+              }}
+            >
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -1495,7 +1532,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   <Field>
                     <FieldLabel>Action</FieldLabel>
                     <Select value={checkpointAction} onValueChange={(value) => setCheckpointAction(value as CheckpointAction)}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full" aria-invalid={checkpointPickerInvalid || undefined}>
                         <SelectValue placeholder="Select action" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1507,6 +1544,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
         </Dialog>
 
@@ -1517,19 +1555,30 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         >
           <DashboardModalContent
+            busy={savingNode}
             title="Time Delay"
             description="Set how long the automation should wait before the next step runs."
             footer={
               <>
-                <Button variant="outline" onClick={() => setEditingDelay(null)}>
+                <Button type="button" variant="outline" onClick={() => setEditingDelay(null)}>
                   Cancel
                 </Button>
-                <Button onClick={saveDelayNode} disabled={savingNode}>
-                  {savingNode ? "Saving..." : "Save"}
+                <Button form="automation-delay-form" type="submit" disabled={savingNode}>
+                  {savingNode ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </>
             }
           >
+            <form
+              noValidate
+              id="automation-delay-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveDelayNode()
+              }}
+            >
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -1606,6 +1655,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
         </Dialog>
       </AdminLayout>

@@ -183,15 +183,20 @@ export function ShellIconPickerField({
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80">
                 <div className="mb-3 text-sm font-medium">Add Lucide Icon</div>
-                <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
+                <form
+                  noValidate className="space-y-3" onSubmit={handleCustomIconSubmit}>
                   <Input
                     autoFocus
                     value={customIconName}
                     onChange={(event) => setCustomIconName(event.target.value)}
                     placeholder="octagon-x"
+                    aria-invalid={Boolean(customIconError) || undefined}
                   />
+                  {/* The pair below is a live lookup result, not a save failure:
+                      "found" and "not found" are the same message in two states,
+                      so neither is styled as an error. A failed submit toasts. */}
                   {customIconError ? (
-                    <p className="text-xs text-destructive">{customIconError}</p>
+                    <p className="text-xs text-muted-foreground">{customIconError}</p>
                   ) : customLucideIcon ? (
                     <p className="text-xs text-muted-foreground">
                       Found {getQuickLinkIconLabel(customLucideIcon)}.

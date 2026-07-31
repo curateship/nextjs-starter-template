@@ -38,6 +38,7 @@ export const DESTRUCTIVE_ACTION_POLICIES = {
   "remove-event-registration": { level: 1, consequence: "The person is taken off the attendee list and their seat is freed. A paid ticket is not refunded automatically." },
   "remove-saved-listing": { level: 1, consequence: "The listing is removed from this saved folder." },
   "reset-admin-sidebar": { level: 1, consequence: "Every sidebar section and link goes back to the default layout. Custom links and renames are lost. This saves automatically." },
+  "revoke-featured-placement": { level: 1, consequence: "The listing immediately loses its Featured badge and priority placement. Refunds are handled manually in Stripe." },
   "remove-segment-contact": { level: 1, consequence: "The contact is removed from this segment but remains in the audience." },
 } as const satisfies Record<string, DestructiveActionPolicy>
 

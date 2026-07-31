@@ -16,6 +16,7 @@ import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker
 import CalendarIcon from "lucide-react/dist/esm/icons/calendar.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
@@ -95,6 +96,10 @@ export function ProductSettingsModal({
   const [featuredImage, setFeaturedImage] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
+  const [titleMissing, setTitleMissing] = useState(false)
+  // Marked until the box has something in it, so it is still flagged once the
+  // toast has been dismissed and clears itself as soon as the user types.
+  const titleInvalid = titleMissing && !formData.title?.trim()
   // Failures report through the one shared error toast, never inside the modal
   // body — see workspace/docs/admin-action-feedback.md.
   const setError = (message: string | null) => {
@@ -104,6 +109,9 @@ export function ProductSettingsModal({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [createdDateInput, setCreatedDateInput] = useState('')
+  const [createdDateBad, setCreatedDateBad] = useState(false)
+  // Clears itself once the box holds a real date, so the ring never outlives the fault.
+  const createdDateInvalid = createdDateBad && !isValidDateInputValue(createdDateInput)
   const [createdDateOpen, setCreatedDateOpen] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryInfo[]>([])
@@ -183,6 +191,7 @@ export function ProductSettingsModal({
 
   const handleSaveDraft = async () => {
     if (!formData.title?.trim()) {
+      setTitleMissing(true)
       setError('Product title is required')
       return
     }
@@ -191,9 +200,12 @@ export function ProductSettingsModal({
       return
     }
     if (!isValidDateInputValue(createdDateInput) || !formData.created_at || Number.isNaN(new Date(formData.created_at).getTime())) {
+      setCreatedDateBad(true)
       setError('Enter a valid created date')
       return
     }
+
+    setCreatedDateBad(false)
 
     try {
       setSavingAction("draft")
@@ -252,9 +264,12 @@ export function ProductSettingsModal({
       return
     }
     if (!isValidDateInputValue(createdDateInput) || !formData.created_at || Number.isNaN(new Date(formData.created_at).getTime())) {
+      setCreatedDateBad(true)
       setError('Enter a valid created date')
       return
     }
+
+    setCreatedDateBad(false)
 
     try {
       setSavingAction("publish")
@@ -313,6 +328,7 @@ export function ProductSettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DashboardModalContent
+        busy={saving}
         title={(
           <div className="flex min-w-0 items-center gap-3">
             <span className="truncate" title={product.title}>{product.title}</span>
@@ -343,20 +359,23 @@ export function ProductSettingsModal({
                 variant="outline"
                 disabled={saving}
               >
-                {savingAction === "draft" ? "Saving..." : "Save as Draft"}
+                {savingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button
                 type="button"
                 onClick={handlePublish}
                 disabled={saving}
               >
-                {savingAction === "publish" ? "Saving..." : product?.is_published ? "Save" : "Publish"}
+                {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                {product?.is_published ? "Save" : "Publish"}
               </Button>
             </DashboardModalFooterActions>
           </>
         )}
       >
         <form
+          noValidate
           id="product-settings-form"
           onSubmit={handleSubmit}
           className="contents"
@@ -375,7 +394,7 @@ export function ProductSettingsModal({
                     value={formData.title || ''}
                     onChange={(e) => handleTitleChange(e.target.value)}
                     placeholder="Enter product title"
-                    required
+                    aria-invalid={titleInvalid || undefined}
                   />
                 </Field>
 
@@ -410,7 +429,7 @@ export function ProductSettingsModal({
                         }))
                       }}
                       placeholder="YYYY-MM-DD"
-                      required
+                      aria-invalid={createdDateInvalid || undefined}
                     />
                     <Popover open={createdDateOpen} onOpenChange={setCreatedDateOpen}>
                       <PopoverTrigger asChild>

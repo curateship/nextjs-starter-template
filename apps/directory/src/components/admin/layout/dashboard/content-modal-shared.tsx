@@ -125,6 +125,12 @@ export function useCreateContent<TResult>({
 }: UseCreateContentOptions<TResult>) {
   const [loading, setLoading] = useState(false)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
+  const [titleMissing, setTitleMissing] = useState(false)
+
+  // The red ring stays on the title box until there is something in it, so the
+  // field is still marked after the toast has been dismissed and clears itself
+  // the moment the user types — no separate "clear the error" wiring per modal.
+  const titleInvalid = titleMissing && !title.trim()
 
   // Failures report through the one shared error toast, never inside the modal
   // body — see workspace/docs/admin-action-feedback.md. Passing null clears it,
@@ -136,9 +142,12 @@ export function useCreateContent<TResult>({
 
   const submit = async (action: string, publish: boolean, onDone: (created: TResult) => void) => {
     if (!title.trim()) {
+      setTitleMissing(true)
       setError(titleRequiredMessage ?? `${entityLabel.charAt(0).toUpperCase()}${entityLabel.slice(1)} title is required`)
       return
     }
+
+    setTitleMissing(false)
 
     const fallback = failureMessage?.(action, publish) ?? `Failed to create ${entityLabel}`
 
@@ -176,7 +185,7 @@ export function useCreateContent<TResult>({
     }
   }
 
-  return { loading, loadingAction, setError, submit }
+  return { loading, loadingAction, setError, submit, titleInvalid }
 }
 
 // ---- presentational pieces ----
@@ -197,6 +206,8 @@ interface TitleSlugFieldsProps {
   slugAutoDescription?: string | null
   /** DOM id prefix — settings modals use "modal-" to avoid clashing with create modals */
   idPrefix?: string
+  /** Mark the title box after a submit found it empty (`useCreateContent`'s `titleInvalid`) */
+  titleInvalid?: boolean
 }
 
 /** The title + URL slug field pair every Create modal starts with */
@@ -213,17 +224,21 @@ export function TitleSlugFields({
   urlPreview,
   slugAutoDescription,
   idPrefix = "",
+  titleInvalid = false,
 }: TitleSlugFieldsProps) {
   return (
     <>
       <Field>
         <FieldLabel htmlFor={`${idPrefix}title`}>{titleLabel}</FieldLabel>
+        {/* No browser `required`: it refuses the submit with its own bubble, which
+            never appears when the field sits on a tab panel that is switched away.
+            The handler validates instead and answers with the error toast. */}
         <Input
           id={`${idPrefix}title`}
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder={titlePlaceholder}
-          required
+          aria-invalid={titleInvalid || undefined}
         />
       </Field>
 

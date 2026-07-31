@@ -10,6 +10,7 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Send from "lucide-react/dist/esm/icons/send.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   DndContext,
   KeyboardSensor,
@@ -39,7 +40,6 @@ import {
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
@@ -354,21 +354,25 @@ function CreateFormModal({
 }) {
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
+  const [nameMissing, setNameMissing] = useState(false)
+  // Stays marked after the toast is dismissed; clears itself once typed in.
+  const nameInvalid = nameMissing && !name.trim()
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!name.trim()) {
-      setError("Form name is required")
+      setNameMissing(true)
+      showErrorToast("Form name is required")
       return
     }
 
+    setNameMissing(false)
     setSaving(true)
-    setError("")
+    dismissErrorToast()
     const result = await createGuidedForm({ siteId, name })
     setSaving(false)
     if (result.error || !result.data) {
-      setError(result.error || "Failed to create form")
+      showErrorToast(result.error || "Failed to create form")
       return
     }
     showActionSuccess("Form created.")
@@ -376,8 +380,8 @@ function CreateFormModal({
   }
 
   return (
-    <form id="create-guided-form" onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
+          <DashboardModalContent
+        busy={saving}
         title="Create Form"
         description="Create a post-signup question flow. You can configure questions, outcomes, and publishing after creation."
         footer={
@@ -387,13 +391,15 @@ function CreateFormModal({
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-guided-form" type="submit" disabled={saving}>
-                {saving ? "Creating..." : "Create"}
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Create
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        {error ? <ErrorBanner message={error} /> : null}
+        <form
+          noValidate id="create-guided-form" onSubmit={handleSubmit} className="contents">
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -407,13 +413,15 @@ function CreateFormModal({
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="Signup follow-up"
+                  aria-invalid={nameInvalid || undefined}
                 />
               </div>
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
-    </form>
+
   )
 }
 
@@ -454,7 +462,6 @@ function FormSettingsModalContent({
   const clearModalTabs = tabs?.clearTabs
   const [saving, setSaving] = useState(false)
   const [savingAction, setSavingAction] = useState<"save" | "publish" | null>(null)
-  const [error, setError] = useState("")
   const [draft, setDraft] = useState({
     name: form.name,
     slug: form.slug,
@@ -491,7 +498,7 @@ function FormSettingsModalContent({
       steps: form.draft_steps,
       outcomesJson: prettyJson(form.draft_outcomes),
     })
-    setError("")
+    dismissErrorToast()
   }, [form])
 
   async function saveDraft() {
@@ -516,14 +523,14 @@ function FormSettingsModalContent({
   async function handleSave() {
     setSaving(true)
     setSavingAction("save")
-    setError("")
+    dismissErrorToast()
     try {
       const updated = await saveDraft()
       onSuccess(updated)
       onOpenChange(false)
       showActionSuccess("Form updated.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save form")
+      showErrorToast(err instanceof Error ? err.message : "Failed to save form")
     }
     setSaving(false)
     setSavingAction(null)
@@ -532,7 +539,7 @@ function FormSettingsModalContent({
   async function handlePublish() {
     setSaving(true)
     setSavingAction("publish")
-    setError("")
+    dismissErrorToast()
     try {
       const updated = await saveDraft()
       const result = await publishGuidedForm(form.id)
@@ -541,7 +548,7 @@ function FormSettingsModalContent({
       onOpenChange(false)
       showActionSuccess("Form published.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to publish form")
+      showErrorToast(err instanceof Error ? err.message : "Failed to publish form")
     }
     setSaving(false)
     setSavingAction(null)
@@ -620,6 +627,7 @@ function FormSettingsModalContent({
 
   return (
     <DashboardModalContent
+      busy={saving}
       title={
         <span className="flex min-w-0 items-center gap-3">
           <span className="truncate" title={`Configure &quot;${form.name}&quot;`}>Configure &quot;{form.name}&quot;</span>
@@ -634,11 +642,13 @@ function FormSettingsModalContent({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" variant="outline" onClick={handleSave} disabled={saving}>
-              {savingAction === "save" ? "Saving..." : "Save"}
+            <Button form="form-settings-form" type="submit" variant="outline" disabled={saving}>
+              {savingAction === "save" ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
             <Button type="button" onClick={handlePublish} disabled={saving || form.status === "archived"}>
-              {savingAction === "publish" ? "Publishing..." : "Publish"}
+              {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+              Publish
             </Button>
           </DashboardModalFooterActions>
         </>
@@ -646,8 +656,15 @@ function FormSettingsModalContent({
       footerClassName="sm:justify-between"
       className="max-w-[1040px]"
     >
-      {error ? <ErrorBanner message={error} /> : null}
-
+      <form
+        noValidate
+        id="form-settings-form"
+        className="contents"
+        onSubmit={(event) => {
+          event.preventDefault()
+          handleSave()
+        }}
+      >
       {activeTab === "settings" ? (
         <CardGroup className="grid">
           <Card>
@@ -738,7 +755,7 @@ function FormSettingsModalContent({
           </Card>
         </CardGroup>
       ) : null}
-
+      </form>
     </DashboardModalContent>
   )
 }

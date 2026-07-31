@@ -31,6 +31,7 @@ import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -377,8 +378,8 @@ export default function NewsletterContactTagsPage() {
       </AdminLayout>
 
       <Dialog open={renamingTag !== null} onOpenChange={(open) => { if (!open) setRenamingTag(null) }}>
-        <form id="rename-tag-form" onSubmit={handleRename} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={renaming}
             title="Rename Tag"
             description={
               renamingTag ? (
@@ -391,11 +392,14 @@ export default function NewsletterContactTagsPage() {
                   Cancel
                 </Button>
                 <Button type="submit" form="rename-tag-form" disabled={renaming}>
-                  {renaming ? "Renaming..." : "Rename Tag"}
+                  {renaming ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Rename Tag
                 </Button>
               </>
             }
           >
+            <form
+              noValidate id="rename-tag-form" onSubmit={handleRename} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -419,8 +423,9 @@ export default function NewsletterContactTagsPage() {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
 
       <ConfirmDestructive

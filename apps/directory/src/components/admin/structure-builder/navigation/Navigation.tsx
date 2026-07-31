@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type ComponentProps, type CSSProperties, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -56,6 +56,7 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import UserRound from "lucide-react/dist/esm/icons/user-round.js"
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { NAVIGATION_STYLES } from "@/components/admin/structure-builder/navigation"
 import { ActionRow, SortableActionRow } from "@/components/admin/structure-builder/ActionRow"
 import { LogoPickerPreview } from "@/components/admin/structure-builder/LogoPickerPreview"
@@ -1317,6 +1318,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
         }}
       >
         <DashboardModalContent
+          busy={modalSaving}
           title="Navigation Link Settings"
           description="Update the label, destination URL, and optional icon for this link."
           footer={
@@ -1332,12 +1334,22 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               >
                 Remove Icon
               </Button>
-              <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
-                {modalSaving ? "Saving..." : "Save"}
+              <Button form="nav-link-editor-form" type="submit" disabled={modalSaving}>
+                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="nav-link-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveLinkEditor()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
@@ -1380,6 +1392,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
 
@@ -1392,6 +1405,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
         }}
       >
         <DashboardModalContent
+          busy={modalSaving}
           title="Action Button Settings"
           description="Update the label, destination URL, style, visibility, and optional icon."
           footer={
@@ -1407,12 +1421,22 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               >
                 Remove Icon
               </Button>
-              <Button type="button" disabled={modalSaving} onClick={saveButtonEditor}>
-                {modalSaving ? "Saving..." : "Save"}
+              <Button form="nav-button-editor-form" type="submit" disabled={modalSaving}>
+                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="nav-button-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveButtonEditor()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
@@ -1508,6 +1532,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
 
@@ -1520,6 +1545,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
         }}
       >
         <DashboardModalContent
+          busy={modalSaving}
           className={cn(editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID && "sm:max-w-3xl")}
           title={editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? "User Panel Settings" : "Dark Mode Settings"}
           description={
@@ -1532,12 +1558,22 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               <Button type="button" variant="outline" onClick={() => setEditingBuiltInActionItem(null)}>
                 Cancel
               </Button>
-              <Button type="button" disabled={modalSaving} onClick={saveBuiltInActionItemEditor}>
-                {modalSaving ? "Saving..." : "Save"}
+              <Button form="nav-built-in-action-editor-form" type="submit" disabled={modalSaving}>
+                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="nav-built-in-action-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveBuiltInActionItemEditor()
+            }}
+          >
           <CardGroup className="grid">
             {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? (
               <>
@@ -1661,6 +1697,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               </Card>
             )}
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
     </>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
@@ -74,7 +75,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftPostTitle, setDraftPostTitle] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
   const currentPost = {
     slug: selectedPost,
     name: currentPostData?.title || selectedPost,
@@ -95,7 +95,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     if (!selectedBlock) {
       setDraftContent({})
       setDraftPostTitle("")
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -105,7 +105,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         : {}
     )
     setDraftPostTitle(currentPostData?.title || "")
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, currentPostData?.title])
 
   // Handle post updates
@@ -148,14 +148,14 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const handleCloseBlockEditor = () => {
     if (isSavingBlock) return
     builderState.setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   const handleSaveBlockEditor = async () => {
     if (!selectedBlock || !currentPostId) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const updatedBlock = normalizePostBuilderBlock({
@@ -176,7 +176,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
       ) {
         const { data, error } = await updatePostAction({ data: { postId: currentPostId, updates: { title: draftPostTitle.trim() } } })
         if (error || !data) {
-          setBlockSaveError(error || "Failed to save post title")
+          showErrorToast(error || "Failed to save post title")
           return
         }
         handlePostUpdated(data)
@@ -184,14 +184,14 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
 
       const { success, error } = await updatePostBlocksAction({ data: { postId: currentPostId, blocks: postBlocksToValueJson(Object.values(nextBlocks)) } })
       if (!success) {
-        setBlockSaveError(error || "Failed to save block")
+        showErrorToast(error || "Failed to save block")
         return
       }
 
       setLocalBlocks(nextBlocks)
       builderState.setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -283,7 +283,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
         />
 
         {blockListOpen && (

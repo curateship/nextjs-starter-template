@@ -7,6 +7,7 @@ import BadgeDollarSign from "lucide-react/dist/esm/icons/badge-dollar-sign.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Star from "lucide-react/dist/esm/icons/star.js"
@@ -38,8 +39,12 @@ import { AdminSortButton, AdminTableShell, AdminListPending, AdminListFooter, fo
 import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
+import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -119,7 +124,7 @@ export default function DirectoryMonetizationPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null)
-  const [planError, setPlanError] = useState<string | null>(null)
+  const [planFieldMissing, setPlanFieldMissing] = useState<"name" | "stripePriceId" | null>(null)
   const [savingPlan, setSavingPlan] = useState(false)
   const [archivingPlanId, setArchivingPlanId] = useState<string | null>(null)
   const [selectedEntitlement, setSelectedEntitlement] = useState<DirectoryFeaturedEntitlementListItem | null>(null)
@@ -235,10 +240,20 @@ export default function DirectoryMonetizationPage() {
   const handleSavePlan = async () => {
     if (!currentSite?.id || !planDraft) return
 
+    // Answer the click instead of greying the button out: name the empty box and
+    // ring it, so the message points at something the user can see and fix.
+    const firstEmpty = !planDraft.name.trim() ? "name" : !planDraft.stripePriceId.trim() ? "stripePriceId" : null
+    if (firstEmpty) {
+      setPlanFieldMissing(firstEmpty)
+      showErrorToast(firstEmpty === "name" ? "Plan Name is required" : "Stripe Price ID is required")
+      return
+    }
+
+    setPlanFieldMissing(null)
     const isNewPlan = !planDraft.planId
 
     setSavingPlan(true)
-    setPlanError(null)
+    dismissErrorToast()
     const result = await saveDirectoryFeaturedPlanAction({ data: { input: {
       siteId: currentSite.id,
       planId: planDraft.planId,
@@ -252,7 +267,7 @@ export default function DirectoryMonetizationPage() {
     setSavingPlan(false)
 
     if (result.error) {
-      setPlanError(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -273,7 +288,7 @@ export default function DirectoryMonetizationPage() {
     setArchivingPlanId(null)
 
     if (result.error) {
-      setError(result.error)
+      showErrorToast(result.error)
       return
     }
     await loadRows()
@@ -292,7 +307,7 @@ export default function DirectoryMonetizationPage() {
     setRevoking(false)
 
     if (result.error) {
-      setError(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -300,6 +315,11 @@ export default function DirectoryMonetizationPage() {
     await loadRows()
     showActionSuccess("Placement revoked.")
   }
+
+  // The ring stays until the box has something in it, so it still marks the
+  // field after the toast has been dismissed.
+  const planNameInvalid = planFieldMissing === "name" && !planDraft?.name.trim()
+  const planPriceInvalid = planFieldMissing === "stripePriceId" && !planDraft?.stripePriceId.trim()
 
   const activeRowsCount = activeView === "plans" ? filteredPlans.length : filteredEntitlements.length
 
@@ -404,7 +424,7 @@ export default function DirectoryMonetizationPage() {
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
-                  <Button type="button" size="sm" onClick={() => { setPlanError(null); setPlanDraft(EMPTY_PLAN_DRAFT) }}>
+                  <Button type="button" size="sm" onClick={() => { setPlanFieldMissing(null); dismissErrorToast(); setPlanDraft(EMPTY_PLAN_DRAFT) }}>
                     <Plus className="mr-1 h-4 w-4" />
                     New Plan
                   </Button>
@@ -478,7 +498,7 @@ export default function DirectoryMonetizationPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0"
-                                onClick={() => { setPlanError(null); setPlanDraft(planToDraft(plan)) }}
+                                onClick={() => { setPlanFieldMissing(null); dismissErrorToast(); setPlanDraft(planToDraft(plan)) }}
                                 title="Plan settings"
                               >
                                 <Settings className="h-4 w-4" />
@@ -565,140 +585,146 @@ export default function DirectoryMonetizationPage() {
       </AdminLayout>
 
       <Dialog open={!!planDraft} onOpenChange={(open) => !open && setPlanDraft(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{planDraft?.planId ? "Edit Featured Plan" : "New Featured Plan"}</DialogTitle>
-            <DialogDescription>
-              Owners buy this one-time upgrade from My Listings. Payment uses the Stripe price you reference here.
-            </DialogDescription>
-          </DialogHeader>
-
-          {planDraft ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="plan-name">Plan Name</Label>
-                <Input
-                  id="plan-name"
-                  value={planDraft.name}
-                  onChange={(event) => setPlanDraft({ ...planDraft, name: event.target.value })}
-                  placeholder="Featured 30 days"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="plan-description">Description</Label>
-                <Textarea
-                  id="plan-description"
-                  value={planDraft.description}
-                  onChange={(event) => setPlanDraft({ ...planDraft, description: event.target.value })}
-                  rows={2}
-                  placeholder="Shown to listing owners on the upgrade options"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="plan-price">Stripe Price ID</Label>
-                <Input
-                  id="plan-price"
-                  value={planDraft.stripePriceId}
-                  onChange={(event) => setPlanDraft({ ...planDraft, stripePriceId: event.target.value })}
-                  placeholder="price_..."
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="plan-duration">Duration (days)</Label>
-                  <Input
-                    id="plan-duration"
-                    type="number"
-                    min={1}
-                    value={planDraft.durationDays}
-                    onChange={(event) => setPlanDraft({ ...planDraft, durationDays: event.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="plan-priority">Priority</Label>
-                  <Input
-                    id="plan-priority"
-                    type="number"
-                    min={0}
-                    value={planDraft.priority}
-                    onChange={(event) => setPlanDraft({ ...planDraft, priority: event.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="plan-order">Display Order</Label>
-                  <Input
-                    id="plan-order"
-                    type="number"
-                    min={0}
-                    value={planDraft.displayOrder}
-                    onChange={(event) => setPlanDraft({ ...planDraft, displayOrder: event.target.value })}
-                  />
-                </div>
-              </div>
-
-              {planError ? <p className="text-sm text-destructive">{planError}</p> : null}
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setPlanDraft(null)} disabled={savingPlan}>
+        {planDraft ? (
+          <DashboardModalContent
+            busy={savingPlan}
+            className="sm:max-w-lg"
+            title={planDraft.planId ? "Edit Featured Plan" : "New Featured Plan"}
+            description="Owners buy this one-time upgrade from My Listings. Payment uses the Stripe price you reference here."
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={() => setPlanDraft(null)} disabled={savingPlan}>
                   Cancel
                 </Button>
-                <Button onClick={handleSavePlan} disabled={savingPlan}>
+                <Button form="featured-plan-form" type="submit" disabled={savingPlan}>
+                  {savingPlan ? <Loader2 className="size-4 animate-spin" /> : null}
                   {planDraft.planId ? "Save Plan" : "Create Plan"}
                 </Button>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
+              </>
+            }
+          >
+            <form
+              noValidate
+              id="featured-plan-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                handleSavePlan()
+              }}
+            >
+              <CardGroup className="grid">
+                <Card>
+                  <CardHeader>
+                    <DashboardModalCardTitle>Plan details</DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="plan-name">Plan Name</FieldLabel>
+                      <Input
+                        id="plan-name"
+                        value={planDraft.name}
+                        onChange={(event) => setPlanDraft({ ...planDraft, name: event.target.value })}
+                        placeholder="Featured 30 days"
+                        aria-invalid={planNameInvalid || undefined}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="plan-description">Description</FieldLabel>
+                      <Textarea
+                        id="plan-description"
+                        value={planDraft.description}
+                        onChange={(event) => setPlanDraft({ ...planDraft, description: event.target.value })}
+                        rows={1}
+                        placeholder="Shown to listing owners on the upgrade options"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="plan-price">Stripe Price ID</FieldLabel>
+                      <Input
+                        id="plan-price"
+                        value={planDraft.stripePriceId}
+                        onChange={(event) => setPlanDraft({ ...planDraft, stripePriceId: event.target.value })}
+                        placeholder="price_..."
+                        aria-invalid={planPriceInvalid || undefined}
+                      />
+                    </Field>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <Field>
+                        <FieldLabel htmlFor="plan-duration">Duration (days)</FieldLabel>
+                        <Input
+                          id="plan-duration"
+                          type="number"
+                          min={1}
+                          value={planDraft.durationDays}
+                          onChange={(event) => setPlanDraft({ ...planDraft, durationDays: event.target.value })}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="plan-priority">Priority</FieldLabel>
+                        <Input
+                          id="plan-priority"
+                          type="number"
+                          min={0}
+                          value={planDraft.priority}
+                          onChange={(event) => setPlanDraft({ ...planDraft, priority: event.target.value })}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="plan-order">Display Order</FieldLabel>
+                        <Input
+                          id="plan-order"
+                          type="number"
+                          min={0}
+                          value={planDraft.displayOrder}
+                          onChange={(event) => setPlanDraft({ ...planDraft, displayOrder: event.target.value })}
+                        />
+                      </Field>
+                    </div>
+                  </CardContent>
+                </Card>
+              </CardGroup>
+            </form>
+          </DashboardModalContent>
+        ) : null}
       </Dialog>
 
-      <Dialog open={!!selectedEntitlement} onOpenChange={(open) => !open && setSelectedEntitlement(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Revoke Featured Placement</DialogTitle>
-            <DialogDescription>
-              The listing immediately loses its Featured badge and priority placement. Refunds are handled manually in Stripe.
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedEntitlement ? (
-            <div className="space-y-4">
-              <div className="grid gap-4 rounded-lg border p-4 text-sm sm:grid-cols-2">
-                <div>
-                  <div className="text-xs text-muted-foreground">Listing</div>
-                  <div className="font-medium">{selectedEntitlement.directory_title}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Owner</div>
-                  <div>{selectedEntitlement.owner_email}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Plan</div>
-                  <div>{selectedEntitlement.plan_name}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Expires</div>
-                  <div>{formatDate(selectedEntitlement.ends_at)}</div>
-                </div>
+      <ConfirmDestructive
+        action="revoke-featured-placement"
+        confirmLabel="Revoke"
+        disabled={revoking}
+        onCancel={() => setSelectedEntitlement(null)}
+        onConfirm={handleRevoke}
+        open={Boolean(selectedEntitlement)}
+        title="Revoke Featured Placement"
+      >
+        {selectedEntitlement ? (
+          <>
+            <div className="grid gap-4 rounded-lg border p-4 text-sm sm:grid-cols-2">
+              <div>
+                <div className="text-xs text-muted-foreground">Listing</div>
+                <div className="font-medium">{selectedEntitlement.directory_title}</div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="revoke-note">Revoke Note</Label>
-                <Textarea id="revoke-note" value={revokeNote} onChange={(event) => setRevokeNote(event.target.value)} rows={3} />
+              <div>
+                <div className="text-xs text-muted-foreground">Owner</div>
+                <div>{selectedEntitlement.owner_email}</div>
               </div>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setSelectedEntitlement(null)} disabled={revoking}>
-                  Cancel
-                </Button>
-                <Button variant="destructive" onClick={handleRevoke} disabled={revoking}>
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Revoke
-                </Button>
+              <div>
+                <div className="text-xs text-muted-foreground">Plan</div>
+                <div>{selectedEntitlement.plan_name}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Expires</div>
+                <div>{formatDate(selectedEntitlement.ends_at)}</div>
               </div>
             </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+
+            <div className="space-y-2">
+              <Label htmlFor="revoke-note">Revoke Note</Label>
+              <Textarea id="revoke-note" value={revokeNote} onChange={(event) => setRevokeNote(event.target.value)} rows={1} />
+            </div>
+          </>
+        ) : null}
+      </ConfirmDestructive>
     </>
   )
 }

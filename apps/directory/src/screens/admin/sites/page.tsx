@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Dialog } from "@/components/ui/dialog"
 import {
+  DashboardModalCardTitle,
   DashboardModalContent,
   DashboardModalFooterActions
 } from "@/components/admin/layout/dashboard/modals"
@@ -38,6 +40,7 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Globe from "lucide-react/dist/esm/icons/globe.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Copy from "lucide-react/dist/esm/icons/copy.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -63,6 +66,7 @@ import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 type FilterStatus = "all" | "active" | "inactive" | "draft"
 type TagFilter = "all-tags" | "untagged" | string
@@ -97,14 +101,13 @@ export default function SitesPage() {
   const [duplicateSettings, setDuplicateSettings] = useState(true)
   const [duplicatePages, setDuplicatePages] = useState(true)
   const [duplicating, setDuplicating] = useState(false)
-  const [duplicateError, setDuplicateError] = useState<string | null>(null)
+  const [duplicateNameMissing, setDuplicateNameMissing] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const siteSort = useAdminSort<SiteSortColumn>()
 
-  const reportDuplicateError = (message: string) => {
-    setDuplicateError(message)
-    showActionError(message)
-  }
+  // The red ring on the name box lasts until there is a name in it, so the field
+  // is still marked once the toast has been dismissed.
+  const duplicateNameInvalid = duplicateNameMissing && !duplicateName.trim()
 
   useEffect(() => {
     if (searchParams.get("create") === "1") {
@@ -177,7 +180,8 @@ export default function SitesPage() {
     setDuplicateName(`${site.name} Copy`)
     setDuplicateSettings(true)
     setDuplicatePages(true)
-    setDuplicateError(null)
+    setDuplicateNameMissing(false)
+    dismissErrorToast()
   }
 
   // Keep the modal locked while the server action is creating the clone.
@@ -185,7 +189,8 @@ export default function SitesPage() {
     if (duplicating) return
     setDuplicateConfirm(null)
     setDuplicateName("")
-    setDuplicateError(null)
+    setDuplicateNameMissing(false)
+    dismissErrorToast()
   }
 
   const handleDuplicate = async () => {
@@ -193,13 +198,16 @@ export default function SitesPage() {
 
     const name = duplicateName.trim()
     if (!name) {
-      reportDuplicateError("Site name is required")
+      setDuplicateNameMissing(true)
+      showErrorToast("Site name is required")
       return
     }
 
+    setDuplicateNameMissing(false)
+
     try {
       setDuplicating(true)
-      setDuplicateError(null)
+      dismissErrorToast()
 
       // The server action owns the transaction and decides exactly what can be copied.
       const { data, error } = await cloneSiteAction(duplicateConfirm.id, {
@@ -209,7 +217,7 @@ export default function SitesPage() {
       })
 
       if (error || !data) {
-        reportDuplicateError(error || "Failed to duplicate site")
+        showErrorToast(error || "Failed to duplicate site")
         return
       }
 
@@ -219,7 +227,7 @@ export default function SitesPage() {
       setDuplicateName("")
       showActionSuccess("Site duplicated.")
     } catch {
-      reportDuplicateError("Failed to duplicate site")
+      showErrorToast("Failed to duplicate site")
     } finally {
       setDuplicating(false)
     }
@@ -493,77 +501,99 @@ export default function SitesPage() {
         )}
 
         {/* Site clones are draft-only and intentionally exclude business/runtime data. */}
-        {duplicateConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/50" onClick={closeDuplicateDialog} />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Duplicate Site</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Create a draft copy of <strong>{duplicateConfirm.name}</strong>. Contacts, orders, events, newsletter
-                activity, domains, and integrations are not copied.
-              </p>
+        <Dialog
+          open={Boolean(duplicateConfirm)}
+          onOpenChange={(open) => {
+            if (!open) closeDuplicateDialog()
+          }}
+        >
+          {duplicateConfirm ? (
+            <DashboardModalContent
+              busy={duplicating}
+              className="sm:max-w-lg"
+              title="Duplicate Site"
+              description={
+                <>
+                  Create a draft copy of <strong>{duplicateConfirm.name}</strong>. Contacts, orders, events,
+                  newsletter activity, domains, and integrations are not copied.
+                </>
+              }
+              footer={
+                <>
+                  <Button type="button" onClick={closeDuplicateDialog} variant="outline" disabled={duplicating}>
+                    Cancel
+                  </Button>
+                  <Button form="duplicate-site-form" type="submit" disabled={duplicating}>
+                    {duplicating ? <Loader2 className="size-4 animate-spin" /> : null}
+                    Duplicate Site
+                  </Button>
+                </>
+              }
+            >
+              <form
+                noValidate
+                id="duplicate-site-form"
+                className="contents"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  handleDuplicate()
+                }}
+              >
+                <CardGroup className="grid">
+                  <Card>
+                    <CardHeader>
+                      <DashboardModalCardTitle>New site</DashboardModalCardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      <Field>
+                        <FieldLabel htmlFor="duplicate-site-name">New site name</FieldLabel>
+                        <Input
+                          id="duplicate-site-name"
+                          value={duplicateName}
+                          onChange={(event) => setDuplicateName(event.target.value)}
+                          aria-invalid={duplicateNameInvalid || undefined}
+                        />
+                      </Field>
 
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="duplicate-site-name">New site name</Label>
-                  <Input
-                    id="duplicate-site-name"
-                    value={duplicateName}
-                    onChange={(event) => setDuplicateName(event.target.value)}
-                    disabled={duplicating}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Copy</Label>
-                  <div className="flex items-start gap-3 rounded-md border p-3 text-sm">
-                    <Checkbox
-                      id="duplicate-site-settings"
-                      checked={duplicateSettings}
-                      onCheckedChange={(checked) => setDuplicateSettings(checked === true)}
-                      disabled={duplicating}
-                    />
-                    <span>
-                      <Label htmlFor="duplicate-site-settings" className="block font-medium">
-                        Site settings
-                      </Label>
-                      <span className="block text-muted-foreground">
-                        Branding, layout, typography, and public site settings.
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-3 rounded-md border p-3 text-sm">
-                    <Checkbox
-                      id="duplicate-site-pages"
-                      checked={duplicatePages}
-                      onCheckedChange={(checked) => setDuplicatePages(checked === true)}
-                      disabled={duplicating}
-                    />
-                    <span>
-                      <Label htmlFor="duplicate-site-pages" className="block font-medium">
-                        Pages
-                      </Label>
-                      <span className="block text-muted-foreground">
-                        Page titles, slugs, metadata, order, and content blocks.
-                      </span>
-                    </span>
-                  </div>
-                </div>
-
-                {duplicateError && <p className="text-sm text-destructive">{duplicateError}</p>}
-              </div>
-
-              <div className="flex justify-end gap-2 mt-6">
-                <Button onClick={closeDuplicateDialog} variant="outline" disabled={duplicating}>
-                  Cancel
-                </Button>
-                <Button onClick={handleDuplicate} disabled={duplicating}>
-                  {duplicating ? "Duplicating..." : "Duplicate Site"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+                      <div className="grid gap-2">
+                        <div className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                          <Checkbox
+                            id="duplicate-site-settings"
+                            checked={duplicateSettings}
+                            onCheckedChange={(checked) => setDuplicateSettings(checked === true)}
+                          />
+                          <span>
+                            <Label htmlFor="duplicate-site-settings" className="block font-medium">
+                              Site settings
+                            </Label>
+                            <span className="block text-muted-foreground">
+                              Branding, layout, typography, and public site settings.
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                          <Checkbox
+                            id="duplicate-site-pages"
+                            checked={duplicatePages}
+                            onCheckedChange={(checked) => setDuplicatePages(checked === true)}
+                          />
+                          <span>
+                            <Label htmlFor="duplicate-site-pages" className="block font-medium">
+                              Pages
+                            </Label>
+                            <span className="block text-muted-foreground">
+                              Page titles, slugs, metadata, order, and content blocks.
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </CardGroup>
+              </form>
+            </DashboardModalContent>
+          ) : null}
+        </Dialog>
       </AdminLayout>
     </>
   )
@@ -589,14 +619,12 @@ function CreateSiteModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
   const [templates, setTemplates] = useState<SiteWithTheme[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [fieldMissing, setFieldMissing] = useState<"siteName" | "subdomain" | null>(null)
+  // Marked until the box has something in it, so the field is still flagged
+  // once the toast has been dismissed.
+  const siteNameInvalid = fieldMissing === "siteName" && !siteName.trim()
+  const subdomainInvalid = fieldMissing === "subdomain" && !subdomain.trim()
   const hasTemplate = selectedTemplateId && selectedTemplateId !== "none"
-  const isCustomDomainVerificationError = /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
-
-  const reportError = (message: string) => {
-    setError(message)
-    showActionError(message)
-  }
 
   useEffect(() => {
     getTemplateSitesAction().then(({ data }) => {
@@ -625,18 +653,21 @@ function CreateSiteModal({
     event.preventDefault()
 
     if (!siteName.trim()) {
+      setFieldMissing("siteName")
       showActionError("Site name is required")
       return
     }
 
     if (!subdomain.trim()) {
+      setFieldMissing("subdomain")
       showActionError("Subdomain is required")
       return
     }
 
+    setFieldMissing(null)
+
     try {
       setIsSubmitting(true)
-      setError(null)
 
       const { data, error: createError } = await createSiteAction({
         name: siteName.trim(),
@@ -717,8 +748,8 @@ function CreateSiteModal({
   }
 
   return (
-    <form id="create-site-form" onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
+          <DashboardModalContent
+        busy={isSubmitting}
         title="Create Site"
         description="Create a new site and choose its initial settings."
         footer={
@@ -728,25 +759,23 @@ function CreateSiteModal({
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-site-form" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Site"}
+                {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+                Create Site
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        {error && !isCustomDomainVerificationError && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
+        <form
+          noValidate id="create-site-form" onSubmit={handleSubmit} className="contents">
         <SiteDashboard
           siteName={siteName}
           subdomain={subdomain}
           customDomain={customDomain}
           status={status}
           siteTag={siteTag}
-          customDomainError={error}
+          siteNameInvalid={siteNameInvalid}
+          subdomainInvalid={subdomainInvalid}
           onSiteNameChange={setSiteName}
           onSubdomainChange={setSubdomain}
           onCustomDomainChange={setCustomDomain}
@@ -790,7 +819,8 @@ function CreateSiteModal({
             onDefaultThemeChange={setDefaultTheme}
           />
         )}
+        </form>
       </DashboardModalContent>
-    </form>
+
   )
 }

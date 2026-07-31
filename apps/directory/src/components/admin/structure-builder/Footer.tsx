@@ -27,6 +27,7 @@ import {
 } from "@dnd-kit/sortable"
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   createFooterItemId,
   SOCIAL_PLATFORM_OPTIONS,
@@ -495,6 +496,7 @@ export function Footer({
         }}
       >
         <DashboardModalContent
+          busy={modalSaving}
           title="Footer Link Settings"
           description="Update the label and destination URL for this footer link."
           footer={
@@ -502,12 +504,22 @@ export function Footer({
               <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
                 Cancel
               </Button>
-              <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
-                {modalSaving ? "Saving..." : "Save"}
+              <Button form="footer-link-editor-form" type="submit" disabled={modalSaving}>
+                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="footer-link-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveLinkEditor()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
@@ -545,6 +557,7 @@ export function Footer({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
 
@@ -558,6 +571,7 @@ export function Footer({
         }}
       >
         <DashboardModalContent
+          busy={modalSaving}
           title="Social Link Settings"
           description="Update the platform and destination URL for this social link."
           footer={
@@ -565,12 +579,22 @@ export function Footer({
               <Button type="button" variant="outline" onClick={() => setEditingSocialLinkIndex(null)}>
                 Cancel
               </Button>
-              <Button type="button" disabled={modalSaving} onClick={saveSocialLinkEditor}>
-                {modalSaving ? "Saving..." : "Save"}
+              <Button form="footer-social-link-editor-form" type="submit" disabled={modalSaving}>
+                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="footer-social-link-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveSocialLinkEditor()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
@@ -612,6 +636,7 @@ export function Footer({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
     </>

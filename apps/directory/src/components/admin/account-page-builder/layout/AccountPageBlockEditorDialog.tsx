@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
@@ -33,6 +34,7 @@ export function AccountPageBlockEditorDialog({
     <Dialog open={!!selectedBlock} onOpenChange={onOpenChange}>
       <ModalTabsProvider>
         <DashboardModalContent
+          busy={isSaving}
           title={`Edit ${selectedBlock.title || getBlockName(selectedBlock.type)}`}
           titleAccessory={<ModalTabs />}
           className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
@@ -41,12 +43,22 @@ export function AccountPageBlockEditorDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="button" onClick={onSave} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save"}
+              <Button form="account-page-block-editor-form" type="submit" disabled={isSaving}>
+                {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="account-page-block-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              onSave()
+            }}
+          >
           {selectedBlock.type === "account-core" && (
             <AccountCoreBlock
               content={draftContent}
@@ -65,6 +77,7 @@ export function AccountPageBlockEditorDialog({
               onContentChange={onContentChange}
             />
           )}
+          </form>
         </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>

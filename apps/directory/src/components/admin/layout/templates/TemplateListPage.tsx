@@ -8,6 +8,7 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Star from "lucide-react/dist/esm/icons/star.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -441,19 +442,30 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
 
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <DashboardModalContent
+          busy={creating}
           className="max-w-xl"
           title="Create Template"
           footer={
             <>
-              <Button variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
+              <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
                 Cancel
               </Button>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating ? "Creating..." : "Create Template"}
+              <Button form="create-template-form" type="submit" disabled={creating}>
+                {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+                Create Template
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="create-template-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleCreate()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -482,6 +494,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
 

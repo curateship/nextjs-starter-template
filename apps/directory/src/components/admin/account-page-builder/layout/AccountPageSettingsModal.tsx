@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
@@ -39,7 +40,7 @@ export function AccountPageSettingsModal({
   const [isDefault, setIsDefault] = useState(false)
   const isProfileTemplate = isPublicProfileTemplateSlug(slug)
 
-  const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<AccountPage>({
+  const { loading: saving, loadingAction: savingAction, setError, submit, titleInvalid } = useCreateContent<AccountPage>({
     entityLabel: "account page",
     title,
     titleRequiredMessage: "Page title is required",
@@ -92,8 +93,8 @@ export function AccountPageSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <form id="account-page-settings-form" onSubmit={handleSubmit} className="contents">
-        <DashboardModalContent
+              <DashboardModalContent
+          busy={saving}
           title={
             <span className="flex items-center gap-3">
               Configure settings for &quot;{page.title}&quot;
@@ -111,16 +112,20 @@ export function AccountPageSettingsModal({
                   Cancel
                 </Button>
                 <Button form="account-page-settings-form" type="submit" variant="outline" disabled={saving}>
-                  {savingAction === "draft" ? "Saving..." : "Save as Draft"}
+                  {savingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save as Draft
                 </Button>
                 <Button type="button" onClick={() => handleSave(true)} disabled={saving}>
-                  {savingAction === "publish" ? (page.is_published ? "Saving..." : "Publishing...") : page.is_published ? "Save" : "Publish"}
+                  {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                  {page.is_published ? "Save" : "Publish"}
                 </Button>
               </DashboardModalFooterActions>
             </>
           }
           footerClassName="sm:justify-between"
         >
+          <form
+            noValidate id="account-page-settings-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -148,6 +153,7 @@ export function AccountPageSettingsModal({
                       Page URL: {getAccountPageDisplayPath(slug)}
                     </FieldDescription>
                   ) : null}
+                  titleInvalid={titleInvalid}
                 />
                 <Field>
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -185,8 +191,9 @@ export function AccountPageSettingsModal({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
-      </form>
+
     </Dialog>
   )
 }

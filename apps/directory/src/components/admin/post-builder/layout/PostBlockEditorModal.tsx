@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useMemo } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
 import type { ModalTabItem } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { PostBlockEditor } from "./PostBlockEditor"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { getBlockName } from "@/components/admin/post-builder/config/post-block-types"
@@ -24,7 +25,6 @@ interface PostBlockEditorModalProps {
   onClose: () => void
   onSave: () => void
   saving?: boolean
-  error?: string | null
   mode?: "post" | "template"
 }
 
@@ -39,7 +39,6 @@ export function PostBlockEditorModal({
   onClose,
   onSave,
   saving = false,
-  error,
   mode = "post",
 }: PostBlockEditorModalProps) {
   if (!block) return null
@@ -63,7 +62,6 @@ export function PostBlockEditorModal({
           onClose={onClose}
           onSave={onSave}
           saving={saving}
-          error={error}
           mode={mode}
         />
       </ModalTabsProvider>
@@ -82,7 +80,6 @@ function PostBlockEditorModalContent({
   onClose,
   onSave,
   saving = false,
-  error,
   mode = "post",
 }: PostBlockEditorModalProps & { block: PostBlock }) {
   const dock = useModalTabsDock()
@@ -129,23 +126,30 @@ function PostBlockEditorModalContent({
 
   return (
     <DashboardModalContent
+      busy={saving}
       title={`Edit ${getBlockName(block.type)}`}
       titleAccessory={<ModalTabs />}
-      footerClassName="sm:justify-between"
       footer={
         <>
-          {error ? <p className="text-sm text-destructive">{error}</p> : <div />}
-          <DashboardModalFooterActions>
-            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={onSave} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </DashboardModalFooterActions>
+        <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
+        <Button form="post-block-editor-form" type="submit" disabled={saving}>
+          {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+          Save
+        </Button>
         </>
       }
     >
+      <form
+        noValidate
+        id="post-block-editor-form"
+        className="contents"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onSave()
+        }}
+      >
       <PostBlockEditor
         block={block}
         content={content}
@@ -159,6 +163,7 @@ function PostBlockEditorModalContent({
         tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
         mode={mode}
       />
+      </form>
     </DashboardModalContent>
   )
 }

@@ -16,6 +16,7 @@ import {
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { getTemplatesBySite, type NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { DripSettingsFields, useDripSettings } from "../layout/DripSettingsFields"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
@@ -172,8 +173,8 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
-      <form id="create-automation-email-form" onSubmit={handleSubmit} className="contents">
-        <DashboardModalContent
+              <DashboardModalContent
+          busy={loading}
           title="Create Email"
           titleAccessory={
             <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
@@ -187,14 +188,18 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
           footer={
             <>
               <Button type="button" variant="outline" onClick={() => handleCreate(false)} disabled={loading}>
-                {loadingAction === "save" ? "Saving..." : "Save"}
+                {loadingAction === "save" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
               <Button form="create-automation-email-form" type="submit" disabled={loading}>
-                {loadingAction === "continue" ? "Creating..." : "Continue to Editor"}
+                {loadingAction === "continue" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Continue to Editor
               </Button>
             </>
           }
         >
+          <form
+            noValidate id="create-automation-email-form" onSubmit={handleSubmit} className="contents">
         <TabsContent value="content" className="mt-0 min-h-[320px]">
           <CardGroup className="grid">
             <Card>
@@ -263,8 +268,9 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
             </Card>
           </CardGroup>
         </TabsContent>
+          </form>
         </DashboardModalContent>
-      </form>
+
     </Tabs>
   )
 }

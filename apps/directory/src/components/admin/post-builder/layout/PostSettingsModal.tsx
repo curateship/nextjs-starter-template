@@ -11,6 +11,7 @@ import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getPostTemplatesBySite, type PostTemplate } from "@/lib/actions/posts/post-template-actions"
 import {
@@ -55,8 +56,11 @@ export function PostSettingsModal({
   const [templates, setTemplates] = useState<PostTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [templateMissing, setTemplateMissing] = useState(false)
+  // Cleared as soon as a template is chosen, so the ring never outlives the fault.
+  const templateInvalid = templateMissing && !selectedTemplateId
 
-  const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<Post>({
+  const { loading: saving, loadingAction: savingAction, setError, submit, titleInvalid } = useCreateContent<Post>({
     entityLabel: "post",
     title,
     titleRequiredMessage: "Post title is required",
@@ -149,9 +153,12 @@ export function PostSettingsModal({
       return
     }
     if (!selectedTemplateId) {
+      setTemplateMissing(true)
       setError('Template is required')
       return
     }
+
+      setTemplateMissing(false)
     await submit(publish ? "publish" : "draft", publish, (updated) => {
       onSuccess?.(updated)
       onOpenChange(false)
@@ -171,6 +178,7 @@ export function PostSettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DashboardModalContent
+        busy={saving}
         title={(
           <div className="flex min-w-0 items-center gap-3">
             <span className="truncate" title={post.title}>{post.title}</span>
@@ -203,20 +211,23 @@ export function PostSettingsModal({
                 variant="outline"
                 disabled={saving}
               >
-                {savingAction === "draft" ? "Saving..." : "Save as Draft"}
+                {savingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(true)}
                 disabled={saving}
               >
-                {savingAction === "publish" ? (post?.is_published ? "Saving..." : "Publishing...") : (post?.is_published ? "Save" : "Publish")}
+                {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                {post?.is_published ? "Save" : "Publish"}
               </Button>
             </DashboardModalFooterActions>
           </>
         )}
       >
-        <form id="post-settings-form" onSubmit={handleSubmit} className="contents">
+        <form
+          noValidate id="post-settings-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -232,7 +243,7 @@ export function PostSettingsModal({
                     </div>
                   ) : (
                     <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                      <SelectTrigger id="modal-post-template">
+                      <SelectTrigger id="modal-post-template" aria-invalid={templateInvalid || undefined}>
                         <SelectValue placeholder="Select template" />
                       </SelectTrigger>
                       <SelectContent className="z-60">
@@ -258,6 +269,7 @@ export function PostSettingsModal({
                   onTitleChange={handleTitleChange}
                   onSlugChange={handleSlugChange}
                   slugAutoDescription={null}
+                  titleInvalid={titleInvalid}
                 />
 
                 <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />

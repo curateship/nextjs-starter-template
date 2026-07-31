@@ -28,6 +28,7 @@ import MinusIcon from "lucide-react/dist/esm/icons/minus.js"
 import PlusIcon from "lucide-react/dist/esm/icons/plus.js"
 import RotateCcwIcon from "lucide-react/dist/esm/icons/rotate-ccw.js"
 import Trash2Icon from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
@@ -379,7 +380,8 @@ function SortableSidebarItem({
 
           <DialogFooter>
             <Button type="button" onClick={handleSaveAndClose} disabled={savingDialog}>
-              {savingDialog ? "Saving..." : "Save"}
+              {savingDialog ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

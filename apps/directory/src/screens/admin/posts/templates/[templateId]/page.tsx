@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useRouter } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,7 +62,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftPostTitle, setDraftPostTitle] = useState("Preview Post")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   const loadTemplate = useCallback(async () => {
     setLoading(true)
@@ -97,7 +97,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
     if (!selectedBlock) {
       setDraftContent({})
       setDraftPostTitle(previewTitle)
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -107,7 +107,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
         : {}
     )
     setDraftPostTitle(previewTitle)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, previewTitle])
 
   function handleDeleteBlock(block: PostBlock) {
@@ -132,14 +132,14 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
   function handleCloseBlockEditor() {
     if (isSavingBlock) return
     setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   async function handleSaveBlockEditor() {
     if (!template || !selectedBlock) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       setPreviewTitle(draftPostTitle.trim() || "Preview Post")
@@ -159,7 +159,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
       } } })
 
       if (saveError || !data) {
-        setBlockSaveError(saveError || "Failed to save block")
+        showErrorToast(saveError || "Failed to save block")
         return
       }
 
@@ -168,7 +168,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
       markBlocksSaved(orderedBlocks)
       setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -398,7 +398,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
           mode="template"
         />
 

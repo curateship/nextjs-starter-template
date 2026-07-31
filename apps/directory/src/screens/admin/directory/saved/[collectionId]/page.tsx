@@ -7,6 +7,7 @@ import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import FolderOpen from "lucide-react/dist/esm/icons/folder-open.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -336,7 +337,8 @@ export default function DirectorySavedFolderPage({
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameOpen(false)} disabled={savingRename}>Cancel</Button>
             <Button onClick={saveRename} disabled={savingRename}>
-              {savingRename ? "Saving..." : "Save"}
+              {savingRename ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

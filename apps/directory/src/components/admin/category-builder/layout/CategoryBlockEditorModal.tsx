@@ -1,9 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { CategoryBlockEditor, type CategoryBlockEditorMode } from "./CategoryBlockEditor"
 
 interface CategoryBlock {
@@ -21,7 +22,6 @@ interface CategoryBlockEditorModalProps {
   onClose: () => void
   onSave: () => void
   saving?: boolean
-  error?: string | null
   mode?: CategoryBlockEditorMode
   // Core block only: title/featured image write through to the category row
   categoryTitle?: string
@@ -38,7 +38,6 @@ export function CategoryBlockEditorModal({
   onClose,
   onSave,
   saving = false,
-  error,
   mode = "listing",
   categoryTitle,
   categoryFeaturedImage,
@@ -56,24 +55,31 @@ export function CategoryBlockEditorModal({
     >
       <ModalTabsProvider>
         <DashboardModalContent
+          busy={saving}
           title={`${mode === "template" ? "Configure" : "Edit"} ${block.title}`}
           titleAccessory={<ModalTabs />}
           className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
           footer={
             <>
-              {error ? <p className="text-sm text-destructive">{error}</p> : <div />}
-              <DashboardModalFooterActions>
-                <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={onSave} disabled={saving}>
-                  {saving ? "Saving..." : "Save"}
-                </Button>
-              </DashboardModalFooterActions>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button form="category-block-editor-form" type="submit" disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
+            </Button>
             </>
           }
-          footerClassName="sm:justify-between"
         >
+          <form
+            noValidate
+            id="category-block-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              onSave()
+            }}
+          >
           <CategoryBlockEditor
             block={block}
             content={content}
@@ -85,6 +91,7 @@ export function CategoryBlockEditorModal({
             onCategoryTitleChange={onCategoryTitleChange}
             onCategoryFeaturedImageChange={onCategoryFeaturedImageChange}
           />
+          </form>
         </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>

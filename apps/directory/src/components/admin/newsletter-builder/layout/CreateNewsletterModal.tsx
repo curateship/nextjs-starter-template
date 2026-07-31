@@ -25,6 +25,7 @@ import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-acti
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { DripSettingsFields, useDripSettings } from "./DripSettingsFields"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
@@ -183,8 +184,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
   return (
     <Tabs value={createActiveTab} onValueChange={setCreateActiveTab}>
-      <form id="create-newsletter-form" onSubmit={handleSubmit} className="contents">
-        <DashboardModalContent
+              <DashboardModalContent
+          busy={loading}
           title="Create New Newsletter"
           titleAccessory={
             <TabsList className="h-9 shrink-0">
@@ -198,11 +199,14 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                 Cancel
               </Button>
               <Button form="create-newsletter-form" type="submit" disabled={loading}>
-                {loading ? 'Creating...' : 'Continue'}
+                {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+                Continue
               </Button>
             </>
           }
         >
+          <form
+            noValidate id="create-newsletter-form" onSubmit={handleSubmit} className="contents">
 
           <TabsContent value="general" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
@@ -308,8 +312,9 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               <DripSettingsFields form={drip} idPrefix="create-newsletter" variant="cards" />
             </CardGroup>
           </TabsContent>
+          </form>
         </DashboardModalContent>
-      </form>
+
     </Tabs>
   )
 }

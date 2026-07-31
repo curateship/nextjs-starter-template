@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useRouter } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,6 +44,7 @@ import { ProductListingViewBlock } from "@/components/admin/product-builder/bloc
 import Check from "lucide-react/dist/esm/icons/check.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 interface PageProps {
   params: Promise<{ templateId: string }>
@@ -70,7 +72,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   const previewFeaturedImage = ""
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   const loadTemplate = useCallback(async () => {
     setLoading(true)
@@ -105,7 +106,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   useEffect(() => {
     if (!selectedBlock) {
       setDraftContent({})
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -114,7 +115,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
         ? JSON.parse(JSON.stringify(selectedBlock.content))
         : {}
     )
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock])
 
   function handleDeleteBlock(block: ProductBuilderBlock) {
@@ -160,14 +161,14 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   function handleCloseBlockEditor() {
     if (isSavingBlock) return
     setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   async function handleSaveBlockEditor() {
     if (!template || !selectedBlock) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const previousBlocks = blocks
@@ -187,7 +188,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
 
       if (saveError || !data) {
         setBlocks(previousBlocks)
-        setBlockSaveError(saveError || "Failed to save block")
+        showErrorToast(saveError || "Failed to save block")
         return
       }
 
@@ -197,7 +198,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
       markBlocksSaved(savedBlocks)
       setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -422,26 +423,31 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
           >
             <ModalTabsProvider>
               <DashboardModalContent
+                busy={isSavingBlock}
                 title={`Edit ${selectedBlock.title}`}
                 titleAccessory={<ModalTabs />}
                 className="max-w-[960px]"
-                footerClassName={blockSaveError ? "sm:justify-between" : undefined}
                 footer={(
                   <>
-                    {blockSaveError ? (
-                      <div className="text-sm text-destructive">{blockSaveError}</div>
-                    ) : null}
-                    <DashboardModalFooterActions>
-                      <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                        Cancel
-                      </Button>
-                      <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                        {isSavingBlock ? "Saving..." : "Save"}
-                      </Button>
-                    </DashboardModalFooterActions>
+                    <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                      Cancel
+                    </Button>
+                    <Button form="product-template-block-editor-form" type="submit" disabled={isSavingBlock}>
+                      {isSavingBlock ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Save
+                    </Button>
                   </>
                 )}
               >
+                <form
+                  noValidate
+                  id="product-template-block-editor-form"
+                  className="contents"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleSaveBlockEditor()
+                  }}
+                >
                 {selectedBlock.type === "product-hero" && (
                         <ProductHeroBlock
                           content={draftContent}
@@ -620,6 +626,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                           onVisibilityChange={(v) => handleDraftChange("visibility", v)}
                         />
                       )}
+                </form>
               </DashboardModalContent>
             </ModalTabsProvider>
           </Dialog>

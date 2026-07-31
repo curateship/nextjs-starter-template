@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
@@ -127,19 +128,30 @@ export function SegmentFormModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DashboardModalContent
+        busy={saving}
         title={segment ? "Edit Segment" : "Create Segment"}
         description="Set the segment name, description, and membership rules."
         footer={
           <>
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : segment ? "Update Segment" : "Create Segment"}
+            <Button form="segment-form" type="submit" disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              {segment ? "Update Segment" : "Create Segment"}
             </Button>
           </>
         }
       >
+        <form
+          noValidate
+          id="segment-form"
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleSave()
+          }}
+        >
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -233,6 +245,7 @@ export function SegmentFormModal({
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
     </Dialog>
   )

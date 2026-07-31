@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import {
   DESTRUCTIVE_ACTION_POLICIES,
@@ -33,6 +34,7 @@ import {
 export function ConfirmDestructive({
   action,
   cancelLabel = "Cancel",
+  children,
   confirmationName,
   confirmLabel = "Delete",
   description,
@@ -46,6 +48,8 @@ export function ConfirmDestructive({
 }: {
   action: DestructiveAction
   cancelLabel?: string
+  /** Extra fields this action needs — e.g. the note recorded against a revoke */
+  children?: ReactNode
   confirmationName?: string
   confirmLabel?: string
   description?: ReactNode
@@ -137,6 +141,7 @@ export function ConfirmDestructive({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
       <DialogContent
+        busy={confirming}
         showCloseButton={false}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
@@ -159,6 +164,8 @@ export function ConfirmDestructive({
               ))}
             </ul>
           ) : null}
+
+          {children}
 
           {requiresName && confirmationName ? (
             <div className="space-y-2">
@@ -184,7 +191,8 @@ export function ConfirmDestructive({
             variant={action === "archive-form" ? "default" : "destructive"}
             disabled={confirmDisabled}
           >
-            {confirming ? "Working..." : confirmLabel}
+            {confirming ? <Loader2 className="size-4 animate-spin" /> : null}
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

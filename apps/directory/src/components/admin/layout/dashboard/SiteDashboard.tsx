@@ -32,6 +32,10 @@ interface SiteDashboardProps {
   maintenanceEnabled?: boolean
   loading?: boolean
   customDomainError?: string | null
+  /** Mark the name box after a submit found it empty */
+  siteNameInvalid?: boolean
+  /** Mark the URL box after a submit found it empty */
+  subdomainInvalid?: boolean
   /**
    * Fired when one of the address fields loses focus. Those two are the only
    * fields here that must not be written mid-keystroke — a half-typed subdomain
@@ -70,6 +74,8 @@ export function SiteDashboard({
   maintenanceEnabled = false,
   loading = false,
   customDomainError = null,
+  siteNameInvalid = false,
+  subdomainInvalid = false,
   onAddressFieldCommit,
   onSiteNameChange,
   onStatusChange,
@@ -202,7 +208,7 @@ export function SiteDashboard({
                 value={siteName}
                 onChange={(e) => handleSiteNameChange(e.target.value)}
                 placeholder="Enter site name (e.g., mysite)"
-                required
+                aria-invalid={siteNameInvalid || undefined}
                 className={
                   subdomainStatus.available === false
                     ? "pr-10 border-destructive/30 focus:border-destructive"
@@ -257,6 +263,7 @@ export function SiteDashboard({
                   onChange={(e) => handleSubdomainChange(e.target.value)}
                   onBlur={onAddressFieldCommit}
                   placeholder="site-url"
+                  aria-invalid={subdomainInvalid || undefined}
                   className={
                     subdomainStatus.available === false
                       ? "pr-10 border-destructive/30 focus:border-destructive"

@@ -63,6 +63,7 @@ import Paintbrush from "lucide-react/dist/esm/icons/paintbrush.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 export default function ThemesPage() {
   const router = useRouter();
@@ -447,7 +448,8 @@ export default function ThemesPage() {
                   onClick={handleCreateTheme}
                   disabled={creating}
                 >
-                  {creating ? "Creating..." : "Create"}
+                  {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Create
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -501,7 +503,8 @@ export default function ThemesPage() {
                     renameName.trim() === renameDialog.currentName
                   }
                 >
-                  {renaming ? "Saving..." : "Save"}
+                  {renaming ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </DialogFooter>
             </DialogContent>
