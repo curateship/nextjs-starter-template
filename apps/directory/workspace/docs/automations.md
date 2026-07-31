@@ -2,7 +2,7 @@
 
 Hub automations are site-scoped node graphs managed at `/admin/automations`. They are separate from newsletter email automations.
 
-The editor follows Trading's workspace interaction: the left palette has Fav and All nodes tabs, a bottom search field, click-to-preview, a separate add button, and drag-to-place. Favorites are selected from the node inspector and remembered in the browser. Run now executes one immediate manual run; Activate enables future scheduled runs.
+The editor follows the monorepo's shared automation-workspace interaction: the left palette has Fav and All nodes tabs, a bottom search field, click-to-preview, a separate add button, and drag-to-place. Favorites are selected from the node inspector and remembered in the browser. Run now executes one immediate manual run; Activate enables future scheduled runs.
 
 ## Code Layout
 
