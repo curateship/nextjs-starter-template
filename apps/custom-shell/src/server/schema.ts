@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm"
 
+import type { AutomationCompiledConfig } from "@/lib/automations/compile"
+import type { AutomationGraph } from "@/lib/automations/graph"
 import type { PlanFeatures } from "@/lib/plan-features"
 import {
   bigint,
@@ -364,6 +366,31 @@ export const customShellAdminAuditLogs = pgTable(
   ]
 )
 
+export const customShellAutomations = pgTable(
+  "automations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    /** The editor's draft: nodes, edges, viewport — saved as the user drew it. */
+    graph: jsonb("graph").$type<AutomationGraph>().notNull(),
+    /**
+     * The compile-on-save result, null whenever the draft has validation
+     * errors. Only a fresh server-side compile may write this column; the run
+     * engine (a later task) reads exclusively from it, never from `graph`.
+     */
+    compiledConfig: jsonb("compiled_config").$type<AutomationCompiledConfig>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("automations_user_name_unique").on(table.userId, table.name),
+    index("ix_automations_user_updated").on(table.userId, table.updatedAt),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect
 export type CustomShellSubscription =
@@ -375,3 +402,4 @@ export type CustomShellFeedbackComment =
   typeof customShellFeedbackComments.$inferSelect
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
+export type CustomShellAutomation = typeof customShellAutomations.$inferSelect

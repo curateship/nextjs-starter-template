@@ -164,14 +164,33 @@
     );
 }
 
+/*
+ * Workspace panels get the same adjustable border as a REAL border, not a
+ * box-shadow: they sit flush inside resizable-panel containers that clip
+ * anything drawn outside the box, and their children fill them edge-to-edge
+ * with opaque backgrounds that would paint over an inset shadow. A true border
+ * is part of the panel's frame, so neither can erase it.
+ */
+[data-content-styling] [data-slot="workspace-panel"] {
+  border-width: calc(var(--shell-card-border-width, 1) * 1px);
+  border-color: var(
+    --shell-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+}
+
 /* gutter = 0 → flat mode: no card chrome. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {
   box-shadow: none;
 }
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"] {
+  border-width: 0;
+}
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot^="card"],
-[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+[data-content-styling][data-flat="true"] [data-slot="table-surface"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"] {
   border-radius: 0;
 }
 [data-content-styling][data-flat="true"] [data-slot="card"] img {
