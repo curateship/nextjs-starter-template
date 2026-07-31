@@ -12,9 +12,6 @@ import { ContentAuditTab } from './ContentAuditTab'
 import { InternalLinksTab } from './InternalLinksTab'
 import { SeoSettingsFormTab } from './SeoSettingsFormTab'
 
-const SEO_METADATA_FORM_ID = 'seo-metadata-form'
-const SEO_TECHNICAL_FORM_ID = 'seo-technical-form'
-
 const SEO_TABS = [
   { id: 'metadata', label: 'Metadata', searchPlaceholder: undefined },
   { id: 'site-audit', label: 'Site Audit', searchPlaceholder: 'Search issues' },
@@ -63,11 +60,6 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
   const activeSettingsStatus = isMetadataTab ? metadataStatus : technicalStatus
   const showSettingsSave = isMetadataTab || isTechnicalTab
 
-  function handleSave() {
-    const form = document.getElementById(isMetadataTab ? SEO_METADATA_FORM_ID : SEO_TECHNICAL_FORM_ID) as HTMLFormElement | null
-    form?.requestSubmit()
-  }
-
   return (
     <>
       <StickyHeader />
@@ -80,12 +72,6 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
             ]}
             search={search}
             saveStatus={showSettingsSave ? activeSettingsStatus.saveStatus : null}
-            isSaving={activeSettingsStatus.saving}
-            onSave={showSettingsSave ? handleSave : undefined}
-            saveDisabled={activeSettingsStatus.loading}
-            saveLabel="Save"
-            savingLabel="Saving..."
-            saveVariant="default"
           />
 
           <div className="flex items-start gap-6">
@@ -112,7 +98,6 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
                 <SeoSettingsFormTab
                   siteId={siteId}
                   mode="metadata"
-                  formId={SEO_METADATA_FORM_ID}
                   onStatusChange={setMetadataStatus}
                 />
               )}
@@ -123,7 +108,6 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
                 <SeoSettingsFormTab
                   siteId={siteId}
                   mode="technical"
-                  formId={SEO_TECHNICAL_FORM_ID}
                   onStatusChange={setTechnicalStatus}
                 />
               )}

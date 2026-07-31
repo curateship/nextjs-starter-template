@@ -9,6 +9,7 @@ import PanelRight from "lucide-react/dist/esm/icons/panel-right.js"
 import PanelRightClose from "lucide-react/dist/esm/icons/panel-right-close.js"
 import CheckCircle from "lucide-react/dist/esm/icons/circle-check-big.js"
 import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
+import TriangleAlert from "lucide-react/dist/esm/icons/triangle-alert.js"
 import LoaderCircle from "lucide-react/dist/esm/icons/loader-circle.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
@@ -65,6 +66,14 @@ const SAVE_STATUS_BADGE_STYLES: Record<VisibleSaveStatusState, {
     iconClassName: "text-red-600",
     textClassName: "text-red-800",
   },
+  // Auto-save refused the change. Stays up until the reason is fixed, so it
+  // carries the reason as its label rather than a generic word.
+  blocked: {
+    icon: TriangleAlert,
+    container: "max-w-64 border-destructive/30 bg-destructive/10",
+    iconClassName: "text-destructive",
+    textClassName: "text-destructive",
+  },
 }
 
 interface StickybarFilterMenuItem {
@@ -120,8 +129,8 @@ function SaveStatusBadge({ status, compact = false }: SaveStatusBadgeProps) {
 
   return (
     <div
-      role={status.state === "error" ? "alert" : "status"}
-      aria-live={status.state === "error" ? "assertive" : "polite"}
+      role={status.state === "error" || status.state === "blocked" ? "alert" : "status"}
+      aria-live={status.state === "error" || status.state === "blocked" ? "assertive" : "polite"}
       title={status.message || label}
       className={cn(
         "flex items-center gap-2 rounded-md border",

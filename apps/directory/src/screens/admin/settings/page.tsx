@@ -5,7 +5,9 @@ import { useSearchParams } from "@/lib/navigation-client"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { IDLE_SAVE_STATUS, useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { IDLE_SAVE_STATUS, type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
+import { showErrorToast } from "@/lib/error-toast"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -47,11 +49,13 @@ interface IntegrationCardProps {
   entry: IntegrationRegistryEntry
   integration: SiteIntegration | null
   formValues: Record<string, string>
-  onFormChange: (type: string, key: string, value: string) => void
+  onFormChange: (type: string, key: string, value: string, deferSave?: boolean) => void
+  /** Keys and passwords are written when the box is left, not per keystroke. */
+  onSecretCommit: (type: string) => void
   siteId: string
 }
 
-function IntegrationCard({ entry, integration, formValues, onFormChange, siteId }: IntegrationCardProps) {
+function IntegrationCard({ entry, integration, formValues, onFormChange, onSecretCommit, siteId }: IntegrationCardProps) {
   const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
   const [webhookBaseUrl, setWebhookBaseUrl] = useState("")
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false)
@@ -183,7 +187,8 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
                       : field.placeholder
                   }
                   value={formValues[field.key] || ""}
-                  onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
+                  onChange={(e) => onFormChange(entry.type, field.key, e.target.value, field.type === "password")}
+                  onBlur={field.type === "password" ? () => onSecretCommit(entry.type) : undefined}
                   className={
                     field.type === "password"
                       ? formValues[field.key]
@@ -245,18 +250,65 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
 interface IntegrationTabProps {
   siteId: string
   category: IntegrationCategory
-  saveTrigger: number
-  onSuccess?: (message: string) => void
+  onStatusChange?: (status: { loading: boolean; saving: boolean; saveStatus: SaveStatus }) => void
+  onSaved?: () => void
   onError?: (message: string) => void
 }
 
-function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: IntegrationTabProps) {
+function IntegrationTab({ siteId, category, onStatusChange, onSaved, onError }: IntegrationTabProps) {
   const [integrations, setIntegrations] = useState<SiteIntegration[]>([])
   const [loading, setLoading] = useState(true)
   // Form state lives here — keyed by integration type, then field key
   const [allFormValues, setAllFormValues] = useState<Record<string, Record<string, string>>>({})
 
   const entries = INTEGRATION_REGISTRY.filter((e) => e.category === category)
+  const integrationsRef = useRef(integrations)
+  integrationsRef.current = integrations
+  const allFormValuesRef = useRef(allFormValues)
+  allFormValuesRef.current = allFormValues
+  // What the server already has, per integration, so tabbing through a field
+  // without changing it doesn't write anything.
+  const lastSavedValuesRef = useRef<Record<string, string>>({})
+  const hasUnsavedValues = (type: string) =>
+    JSON.stringify(allFormValuesRef.current[type] || {}) !== lastSavedValuesRef.current[type]
+
+  // One integration is written at a time — the one that was edited.
+  const { saveStatus, isSaving, scheduleSave, saveNow, markSaved } = useAutoSave<string>({
+    save: async (type) => {
+      const entry = INTEGRATION_REGISTRY.find((candidate) => candidate.type === type)
+      if (!entry) return { saved: true }
+
+      const formValues = allFormValuesRef.current[type] || {}
+      const existing = integrationsRef.current.find((integration) => integration.integrationType === type)
+      // Sensitive values come back from the server stripped, not masked, so
+      // spreading the saved config can never write a placeholder over a real key.
+      const config: Record<string, any> = { ...(existing?.config || {}) }
+      // An integration nobody has filled in yet is left alone — otherwise
+      // clicking through the boxes would turn "Not configured" into a
+      // configured integration holding nothing.
+      let hasValues = !!existing
+      for (const field of entry.fields) {
+        if (formValues[field.key]) {
+          config[field.key] = formValues[field.key]
+          hasValues = true
+        }
+      }
+      if (!hasValues) return { saved: true }
+
+      const saved = await createOrUpdateIntegration({ data: { siteId: siteId, integrationType: type, config: config } })
+      lastSavedValuesRef.current[type] = JSON.stringify(formValues)
+      setIntegrations((prev) => {
+        const next = prev.filter((integration) => integration.integrationType !== type)
+        return [...next, saved]
+      })
+      onSaved?.()
+      return { saved: true }
+    }
+  })
+
+  useEffect(() => {
+    onStatusChange?.({ loading, saving: isSaving, saveStatus })
+  }, [isSaving, loading, onStatusChange, saveStatus])
 
   const loadIntegrations = useCallback(async () => {
     try {
@@ -273,64 +325,52 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
         }
       }
       setAllFormValues(values)
+      lastSavedValuesRef.current = Object.fromEntries(
+        Object.entries(values).map(([type, fields]) => [type, JSON.stringify(fields)])
+      )
+      markSaved()
     } catch (err) {
       console.error("Error loading integrations:", err)
       onError?.("Failed to load integrations")
     } finally {
       setLoading(false)
     }
-  }, [siteId, category, onError])
+  }, [siteId, category, markSaved, onError])
 
   useEffect(() => {
     loadIntegrations()
   }, [loadIntegrations])
 
-  // Keep a ref to always-current form values (effects can't rely on state closures)
-  const allFormValuesRef = useRef(allFormValues)
-  allFormValuesRef.current = allFormValues
+  const pendingTypeRef = useRef<string | null>(null)
 
-  // Save when saveTrigger increments
-  useEffect(() => {
-    if (saveTrigger === 0) return
-
-    const doSave = async () => {
-      let saved = 0
-      const currentValues = allFormValuesRef.current
-      for (const entry of entries) {
-        const formValues = currentValues[entry.type] || {}
-        const existingIntegration = integrations.find((integration) => integration.integrationType === entry.type)
-        const config: Record<string, any> = {
-          ...(existingIntegration?.config || {})
-        }
-        let hasValues = !!existingIntegration
-        for (const field of entry.fields) {
-          if (formValues[field.key]) {
-            config[field.key] = formValues[field.key]
-            hasValues = true
-          }
-        }
-        if (hasValues) {
-          await createOrUpdateIntegration({ data: { siteId: siteId, integrationType: entry.type, config: config } })
-          saved++
-        }
+  const handleFormChange = useCallback(
+    (type: string, key: string, value: string, deferSave?: boolean) => {
+      setAllFormValues((prev) => ({
+        ...prev,
+        [type]: { ...prev[type], [key]: value }
+      }))
+      // Keys and passwords wait for the box to be left (handleSecretCommit) —
+      // a half-typed key is a broken integration on a live site.
+      if (deferSave) return
+      // Only one card can be waiting to save at a time, so moving to a
+      // different one writes the first before it is forgotten.
+      if (pendingTypeRef.current && pendingTypeRef.current !== type) {
+        void saveNow()
       }
-      await loadIntegrations()
-      if (saved > 0) {
-        onSuccess?.("Integration settings saved")
-      } else if (category !== "email") {
-        onSuccess?.("No changes to save")
-      }
-    }
+      pendingTypeRef.current = type
+      scheduleSave(type)
+    },
+    [saveNow, scheduleSave]
+  )
 
-    doSave()
-  }, [saveTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleFormChange = useCallback((type: string, key: string, value: string) => {
-    setAllFormValues((prev) => ({
-      ...prev,
-      [type]: { ...prev[type], [key]: value }
-    }))
-  }, [])
+  const handleSecretCommit = useCallback(
+    (type: string) => {
+      // Leaving a key box that was never touched must not write anything.
+      if (!hasUnsavedValues(type)) return
+      void saveNow(type)
+    },
+    [saveNow]
+  )
 
   const getIntegration = (type: string): SiteIntegration | null => {
     return integrations.find((i) => i.integrationType === type) ?? null
@@ -382,6 +422,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
           integration={getIntegration(entry.type)}
           formValues={allFormValues[entry.type] || {}}
           onFormChange={handleFormChange}
+          onSecretCommit={handleSecretCommit}
           siteId={siteId}
         />
       ))}
@@ -484,6 +525,63 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"]
 
+/** Everything the General and Style tabs write, captured at the moment of the edit. */
+interface SiteDraft {
+  siteId: string
+  siteName: string
+  subdomain: string
+  customDomain: string
+  status: string
+  siteTag: string
+  fontFamily: string
+  secondaryFontFamily: string
+  favicon: string
+  trackingScripts: string
+  customAnalyticsEnabled: boolean
+  listingWidgetsEnabled: boolean
+  siteWidth: "full" | "custom"
+  customWidth: number | undefined
+  defaultTheme: "system" | "light" | "dark"
+  maintenanceEnabled: boolean
+}
+
+/** The same values, read straight off a site record. */
+function buildSiteDraft(source: any, siteId: string): SiteDraft {
+  return {
+    siteId,
+    siteName: source?.name || "",
+    subdomain: source?.subdomain || "",
+    customDomain: source?.custom_domain || "",
+    status: source?.status || "draft",
+    siteTag: source?.settings?.site_tag || "",
+    fontFamily: source?.settings?.font_family || "playfair-display",
+    secondaryFontFamily: source?.settings?.secondary_font_family || "inter",
+    favicon: source?.settings?.favicon || "",
+    trackingScripts: source?.settings?.tracking_scripts || "",
+    customAnalyticsEnabled: !!source?.settings?.custom_analytics_enabled,
+    listingWidgetsEnabled: source?.settings?.listing_widgets_enabled !== false,
+    siteWidth: source?.settings?.site_width || "custom",
+    customWidth: source?.settings?.custom_width,
+    defaultTheme: source?.settings?.default_theme || "system",
+    maintenanceEnabled: !!source?.settings?.maintenance?.enabled
+  }
+}
+
+/**
+ * What the auto-save watches. The two address fields are left out on purpose:
+ * a half-typed site URL is a live web address and a half-typed domain fails its
+ * DNS check, so those wait for the box to be left instead.
+ */
+function watchedSiteKey(draft: SiteDraft) {
+  return JSON.stringify({ ...draft, subdomain: null, customDomain: null })
+}
+
+interface NewsletterDraft {
+  siteId: string
+  dripConfig: Record<string, any>
+  coldThresholdEmails: string
+}
+
 function isTabId(value: string | null): value is TabId {
   return TABS.some((tab) => tab.id === value)
 }
@@ -526,18 +624,28 @@ export default function SiteEditPage() {
   const [coldThresholdEmails, setColdThresholdEmails] = useState(
     String(normalizeContactColdEmailThreshold(contextSite?.settings?.newsletter_cold_threshold_emails))
   )
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [adminSettingsStatus, setAdminSettingsStatus] = useState({
     loading: true,
     saving: false,
     saveStatus: IDLE_SAVE_STATUS
   })
+  const [integrationStatus, setIntegrationStatus] = useState({
+    loading: true,
+    saving: false,
+    saveStatus: IDLE_SAVE_STATUS
+  })
 
-  const [integrationSaveTrigger, setIntegrationSaveTrigger] = useState(0)
   const [domainHealthRefreshSignal, setDomainHealthRefreshSignal] = useState(0)
+
+  // Auto-save bookkeeping. `pendingSiteEditsRef` stops a save's own round trip
+  // from re-filling boxes that have been typed in since; the `last…` refs hold
+  // what the server already has, so nothing is written twice.
+  const pendingSiteEditsRef = useRef<string | null>(null)
+  const lastWatchedSiteJsonRef = useRef<string | null>(null)
+  const lastAddressRef = useRef<string | null>(null)
+  const lastWatchedNewsletterJsonRef = useRef<string | null>(null)
   const [cronJobsLoading, setCronJobsLoading] = useState(true)
   const [cronJobsRefreshSignal, setCronJobsRefreshSignal] = useState(0)
   const isAdminSettingsTab = activeTab === "sidebar"
@@ -546,10 +654,10 @@ export default function SiteEditPage() {
   // settings status (shared state — only one tab is mounted at a time).
   const usesAdminSettingsStatus = isAdminSettingsTab || isStylingTab
   const isCronJobsTab = activeTab === "cron-jobs"
+  const isIntegrationTab =
+    activeTab === "payments" || activeTab === "email" || activeTab === "integrations" || activeTab === "ai"
+  const isNewslettersTab = activeTab === "newsletters"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
-  const headerSaveStatus = usesAdminSettingsStatus ? adminSettingsStatus.saveStatus : saveStatus
-  const isCustomDomainVerificationError =
-    activeTab === "general" && /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
 
   useEffect(() => {
     if (!contextSite) {
@@ -558,21 +666,34 @@ export default function SiteEditPage() {
     }
 
     setSite(contextSite as Site)
-    setSiteName(contextSite.name || "")
-    setSubdomain(contextSite.subdomain || "")
-    setCustomDomain(contextSite.custom_domain || "")
-    setStatus(contextSite.status || "draft")
-    setSiteTag(contextSite.settings?.site_tag || "")
-    setFontFamily(contextSite.settings?.font_family || "playfair-display")
-    setSecondaryFontFamily(contextSite.settings?.secondary_font_family || "inter")
-    setFavicon(contextSite.settings?.favicon || "")
-    setTrackingScripts(contextSite.settings?.tracking_scripts || "")
-    setCustomAnalyticsEnabled(!!contextSite.settings?.custom_analytics_enabled)
-    setListingWidgetsEnabled(contextSite.settings?.listing_widgets_enabled !== false)
-    setSiteWidth(contextSite.settings?.site_width || "custom")
-    setCustomWidth(contextSite.settings?.custom_width)
-    setDefaultTheme(contextSite.settings?.default_theme || "system")
-    setMaintenanceEnabled(!!contextSite.settings?.maintenance?.enabled)
+
+    // An auto-save pushes the saved site back into the switcher, which lands
+    // here. Re-filling the boxes from it would undo whatever was typed in the
+    // meantime, so anything still waiting to be written wins — but only for the
+    // site it was typed on. Switching sites always re-fills, or a failed save
+    // would leave one site's values sitting in another site's boxes.
+    if (pendingSiteEditsRef.current === contextSite.id) return
+
+    // Record what is being loaded as already-saved before filling the boxes,
+    // so switching sites never looks like an edit and writes it straight back.
+    const loaded = buildSiteDraft(contextSite, contextSite.id)
+    lastWatchedSiteJsonRef.current = watchedSiteKey(loaded)
+    lastAddressRef.current = `${loaded.subdomain}|${loaded.customDomain}`
+    setSiteName(loaded.siteName)
+    setSubdomain(loaded.subdomain)
+    setCustomDomain(loaded.customDomain)
+    setStatus(loaded.status)
+    setSiteTag(loaded.siteTag)
+    setFontFamily(loaded.fontFamily)
+    setSecondaryFontFamily(loaded.secondaryFontFamily)
+    setFavicon(loaded.favicon)
+    setTrackingScripts(loaded.trackingScripts)
+    setCustomAnalyticsEnabled(loaded.customAnalyticsEnabled)
+    setListingWidgetsEnabled(loaded.listingWidgetsEnabled)
+    setSiteWidth(loaded.siteWidth)
+    setCustomWidth(loaded.customWidth)
+    setDefaultTheme(loaded.defaultTheme)
+    setMaintenanceEnabled(loaded.maintenanceEnabled)
   }, [contextSite])
 
   useEffect(() => {
@@ -585,130 +706,202 @@ export default function SiteEditPage() {
     setColdThresholdEmails(String(normalizeContactColdEmailThreshold(site?.settings?.newsletter_cold_threshold_emails)))
   }, [site?.settings?.newsletter_cold_threshold_emails])
 
-  const showSuccess = useCallback((message: string) => {
-    setSaveStatus("saved", message)
-  }, [setSaveStatus])
-
   const showError = useCallback((message: string) => {
-    setError(message)
-    setSaveStatus("error", message)
-  }, [setSaveStatus])
+    showErrorToast(message)
+  }, [])
 
-  const handleEmailIntegrationSuccess = useCallback(
-    (message: string) => {
-      showSuccess(message)
-      setDomainHealthRefreshSignal((current) => current + 1)
-    },
-    [showSuccess]
-  )
+  const handleEmailIntegrationSaved = useCallback(() => {
+    setDomainHealthRefreshSignal((current) => current + 1)
+  }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    await handleSaveClick()
+  // --- Auto-save: the site's own fields (General and Style share them) ---
+
+  const siteDraft: SiteDraft = {
+    siteId,
+    siteName,
+    subdomain,
+    customDomain,
+    status,
+    siteTag,
+    fontFamily,
+    secondaryFontFamily,
+    favicon,
+    trackingScripts,
+    customAnalyticsEnabled,
+    listingWidgetsEnabled,
+    siteWidth,
+    customWidth,
+    defaultTheme,
+    maintenanceEnabled
   }
+  const watchedSiteJson = watchedSiteKey(siteDraft)
+  const siteDraftRef = useRef(siteDraft)
+  siteDraftRef.current = siteDraft
+  const siteSettingsRef = useRef(site?.settings)
+  siteSettingsRef.current = site?.settings
+  const currentSiteRef = useRef(currentSite)
+  currentSiteRef.current = currentSite
 
-  const handleSaveClick = async () => {
-    try {
-      setIsSubmitting(true)
+  const {
+    saveStatus: siteSaveStatus,
+    scheduleSave: scheduleSiteSave,
+    saveNow: saveSiteNow
+  } = useAutoSave<SiteDraft>({
+    blockedReason: (draft) => (draft.siteName.trim() ? null : "Not saved — add a site name"),
+    save: async (draft) => {
       setError(null)
-      setSaveStatus("saving")
 
-      if (activeTab === "general" || activeTab === "style") {
-        if (!siteName.trim()) {
-          showError("Site name is required")
-          return
+      const { data, error: saveError } = await updateSiteAction(draft.siteId, {
+        name: draft.siteName.trim(),
+        subdomain: draft.subdomain.trim(),
+        custom_domain: draft.customDomain.trim() || null,
+        status: draft.status as "active" | "inactive" | "draft",
+        settings: {
+          ...siteSettingsRef.current,
+          site_title: siteSettingsRef.current?.site_title || draft.siteName.trim(),
+          analytics_enabled: false,
+          seo_enabled: true,
+          site_tag: draft.siteTag.trim() || undefined,
+          maintenance: { enabled: draft.maintenanceEnabled },
+          font_family: draft.fontFamily,
+          secondary_font_family: draft.secondaryFontFamily,
+          favicon: draft.favicon === "" ? "" : draft.favicon || undefined,
+          tracking_scripts: draft.trackingScripts,
+          custom_analytics_enabled: draft.customAnalyticsEnabled,
+          listing_widgets_enabled: draft.listingWidgetsEnabled,
+          site_width: draft.siteWidth,
+          custom_width: draft.customWidth,
+          default_theme: draft.defaultTheme
         }
+      })
 
-        const { data, error } = await updateSiteAction(siteId, {
-          name: siteName.trim(),
-          subdomain: subdomain.trim(),
-          custom_domain: customDomain.trim() || null,
-          status: status as "active" | "inactive" | "draft",
-          settings: {
-            ...site?.settings,
-            site_title: site?.settings?.site_title || siteName.trim(),
-            analytics_enabled: false,
-            seo_enabled: true,
-            site_tag: siteTag.trim() || undefined,
-            maintenance: { enabled: maintenanceEnabled },
-            font_family: fontFamily,
-            secondary_font_family: secondaryFontFamily,
-            favicon: favicon === "" ? "" : favicon || undefined,
-            tracking_scripts: trackingScripts,
-            custom_analytics_enabled: customAnalyticsEnabled,
-            listing_widgets_enabled: listingWidgetsEnabled,
-            site_width: siteWidth,
-            custom_width: customWidth,
-            default_theme: defaultTheme
-          }
-        })
-
-        if (error) {
-          showError(error)
-          return
-        }
-
-        if (data) {
-          setSite((prev) => (prev ? { ...prev, ...data } : null))
-          setCustomDomain(data.custom_domain || "")
-          if (currentSite?.id === siteId) {
-            setCurrentSite({ ...currentSite, ...data })
-          }
-          showSuccess("Settings saved successfully")
-        }
-      } else if (activeTab === "newsletters") {
-        const dripError = newsletterDripDefaults.validate()
-        if (dripError) {
-          showError(dripError)
-          return
-        }
-        const coldThreshold = normalizeContactColdEmailThreshold(coldThresholdEmails)
-
-        const { data, error } = await updateSiteAction(siteId, {
-          settings: {
-            ...site?.settings,
-            newsletter_drip_defaults: newsletterDripDefaults.buildConfig(),
-            newsletter_cold_threshold_emails: coldThreshold
-          }
-        })
-
-        if (error) {
-          showError(error)
-          return
-        }
-
-        if (data) {
-          setSite((prev) => (prev ? { ...prev, ...data } : null))
-          if (currentSite?.id === siteId) {
-            setCurrentSite({ ...currentSite, ...data })
-          }
-          showSuccess("Newsletter settings saved")
-        }
-      } else if (activeTab === "email") {
-        setIntegrationSaveTrigger((prev) => prev + 1)
-      } else {
-        setIntegrationSaveTrigger((prev) => prev + 1)
+      if (saveError) {
+        // Kept in state as well as the toast: a domain that needs a TXT record
+        // shows the record to copy underneath the field.
+        setError(saveError)
+        return { saved: false, reason: saveError }
       }
-    } catch (err) {
-      console.error("Error saving:", err)
-      showError("Failed to save. Please try again.")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
 
-  const handleHeaderSave = () => {
-    if (isAdminSettingsTab || isStylingTab) {
-      const formId = isStylingTab ? "admin-styling-settings-form" : "site-admin-settings-form"
-      const form = document.getElementById(formId) as HTMLFormElement | null
-      form?.requestSubmit()
+      if (data) {
+        setSite((prev) => (prev ? { ...prev, ...data } : null))
+        setCustomDomain(data.custom_domain || "")
+        lastAddressRef.current = `${draft.subdomain}|${data.custom_domain || ""}`
+        const cachedSite = currentSiteRef.current
+        if (cachedSite?.id === draft.siteId) {
+          setCurrentSite({ ...cachedSite, ...data })
+        }
+      }
+
+      // Nothing typed while this was in flight, so the boxes may follow the
+      // server again.
+      if (JSON.stringify(siteDraftRef.current) === JSON.stringify(draft)) {
+        pendingSiteEditsRef.current = null
+      }
+      return { saved: true }
+    }
+  })
+
+  useEffect(() => {
+    if (!site) return
+    if (lastWatchedSiteJsonRef.current === null) {
+      lastWatchedSiteJsonRef.current = watchedSiteJson
       return
     }
+    if (lastWatchedSiteJsonRef.current === watchedSiteJson) return
 
-    if (!isSubmitting) {
-      void handleSaveClick()
+    lastWatchedSiteJsonRef.current = watchedSiteJson
+    pendingSiteEditsRef.current = siteDraftRef.current.siteId
+    scheduleSiteSave(siteDraftRef.current)
+  }, [scheduleSiteSave, site, watchedSiteJson])
+
+  const handleAddressCommit = useCallback(() => {
+    const draft = siteDraftRef.current
+    const address = `${draft.subdomain}|${draft.customDomain}`
+    if (lastAddressRef.current === null) {
+      lastAddressRef.current = address
+      return
     }
+    if (lastAddressRef.current === address) return
+
+    lastAddressRef.current = address
+    pendingSiteEditsRef.current = draft.siteId
+    void saveSiteNow(draft)
+  }, [saveSiteNow])
+
+  // --- Auto-save: the Newsletters tab ---
+
+  const newsletterDripConfig = newsletterDripDefaults.buildConfig()
+  const newsletterDraft: NewsletterDraft = {
+    siteId,
+    dripConfig: newsletterDripConfig,
+    coldThresholdEmails
   }
+  const newsletterDraftRef = useRef(newsletterDraft)
+  newsletterDraftRef.current = newsletterDraft
+  const validateDripRef = useRef(newsletterDripDefaults.validate)
+  validateDripRef.current = newsletterDripDefaults.validate
+
+  const { saveStatus: newsletterSaveStatus, scheduleSave: scheduleNewsletterSave } =
+    useAutoSave<NewsletterDraft>({
+      blockedReason: () => {
+        const reason = validateDripRef.current()
+        return reason ? `Not saved — ${reason.toLowerCase()}` : null
+      },
+      save: async (draft) => {
+        // Loading a site fills these fields in, which looks like an edit. Only
+        // a real difference from what the site already holds is written.
+        const savedSettings = siteSettingsRef.current
+        const unchanged =
+          JSON.stringify(savedSettings?.newsletter_drip_defaults ?? null) ===
+            JSON.stringify(draft.dripConfig) &&
+          (savedSettings?.newsletter_cold_threshold_emails ?? null) ===
+            normalizeContactColdEmailThreshold(draft.coldThresholdEmails)
+        if (unchanged) return { saved: true }
+
+        const { data, error: saveError } = await updateSiteAction(draft.siteId, {
+          settings: {
+            ...siteSettingsRef.current,
+            newsletter_drip_defaults: draft.dripConfig,
+            newsletter_cold_threshold_emails: normalizeContactColdEmailThreshold(draft.coldThresholdEmails)
+          }
+        })
+
+        if (saveError) return { saved: false, reason: saveError }
+
+        if (data) {
+          setSite((prev) => (prev ? { ...prev, ...data } : null))
+          const cachedSite = currentSiteRef.current
+          if (cachedSite?.id === draft.siteId) {
+            setCurrentSite({ ...cachedSite, ...data })
+          }
+        }
+        return { saved: true }
+      }
+    })
+
+  // The drip fields write straight into their own hook, so the save watches
+  // the values rather than sitting on every change handler.
+  const watchedNewsletterJson = JSON.stringify({ drip: newsletterDripConfig, cold: coldThresholdEmails })
+
+  useEffect(() => {
+    if (!site) return
+    if (lastWatchedNewsletterJsonRef.current === null) {
+      lastWatchedNewsletterJsonRef.current = watchedNewsletterJson
+      return
+    }
+    if (lastWatchedNewsletterJsonRef.current === watchedNewsletterJson) return
+
+    lastWatchedNewsletterJsonRef.current = watchedNewsletterJson
+    scheduleNewsletterSave(newsletterDraftRef.current)
+  }, [scheduleNewsletterSave, site, watchedNewsletterJson])
+
+  const headerSaveStatus = usesAdminSettingsStatus
+    ? adminSettingsStatus.saveStatus
+    : isIntegrationTab
+      ? integrationStatus.saveStatus
+      : isNewslettersTab
+        ? newsletterSaveStatus
+        : siteSaveStatus
 
   if (!siteId || !site) {
     return (
@@ -739,12 +932,6 @@ export default function SiteEditPage() {
               { label: activeTabConfig.label }
             ]}
             saveStatus={!isCronJobsTab ? headerSaveStatus : null}
-            isSaving={usesAdminSettingsStatus ? adminSettingsStatus.saving : isSubmitting}
-            onSave={!isCronJobsTab ? handleHeaderSave : undefined}
-            saveDisabled={usesAdminSettingsStatus ? adminSettingsStatus.loading : false}
-            saveLabel="Save"
-            savingLabel="Saving..."
-            saveVariant="default"
             actions={isCronJobsTab ? (
               <div className="flex items-center gap-2">
                 <Button
@@ -759,12 +946,6 @@ export default function SiteEditPage() {
               </div>
             ) : undefined}
           />
-
-          {error && !isCustomDomainVerificationError && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 text-sm">{error}</p>
-            </div>
-          )}
 
           <CardGroup className="flex items-start">
             {/* Vertical tab list */}
@@ -790,7 +971,7 @@ export default function SiteEditPage() {
             {/* Tab content */}
             <div className="flex-1 min-w-0">
               {activeTab === "general" && (
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={(event) => event.preventDefault()}>
                   <SiteDashboard
                     siteId={siteId}
                     siteName={siteName}
@@ -805,6 +986,7 @@ export default function SiteEditPage() {
                     customDomainError={error}
                     isEditMode={true}
                     loading={loading}
+                    onAddressFieldCommit={handleAddressCommit}
                     onSiteNameChange={setSiteName}
                     onSubdomainChange={setSubdomain}
                     onCustomDomainChange={setCustomDomain}
@@ -841,8 +1023,7 @@ export default function SiteEditPage() {
                 <IntegrationTab
                   siteId={siteId}
                   category="payments"
-                  saveTrigger={integrationSaveTrigger}
-                  onSuccess={showSuccess}
+                  onStatusChange={setIntegrationStatus}
                   onError={showError}
                 />
               )}
@@ -890,8 +1071,8 @@ export default function SiteEditPage() {
                   <IntegrationTab
                     siteId={siteId}
                     category="email"
-                    saveTrigger={integrationSaveTrigger}
-                    onSuccess={handleEmailIntegrationSuccess}
+                    onStatusChange={setIntegrationStatus}
+                    onSaved={handleEmailIntegrationSaved}
                     onError={showError}
                   />
                   <EmailDomainHealthCard siteId={siteId} refreshSignal={domainHealthRefreshSignal} />
@@ -902,8 +1083,7 @@ export default function SiteEditPage() {
                 <IntegrationTab
                   siteId={siteId}
                   category="integrations"
-                  saveTrigger={integrationSaveTrigger}
-                  onSuccess={showSuccess}
+                  onStatusChange={setIntegrationStatus}
                   onError={showError}
                 />
               )}
@@ -916,8 +1096,7 @@ export default function SiteEditPage() {
                 <IntegrationTab
                   siteId={siteId}
                   category="ai"
-                  saveTrigger={integrationSaveTrigger}
-                  onSuccess={showSuccess}
+                  onStatusChange={setIntegrationStatus}
                   onError={showError}
                 />
               )}

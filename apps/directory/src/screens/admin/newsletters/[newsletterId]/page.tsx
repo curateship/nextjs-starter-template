@@ -128,11 +128,10 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         emailWidth={newsletter?.metadata?.maxWidth || 600}
         saveStatus={builder.saveStatus}
         isSaving={builder.isSaving}
-        onSave={builder.handleSave}
         topNotice={dripNotice}
         onPublish={newsletter && newsletter.status !== "sent" && newsletter.status !== "sending" && newsletter.status !== "paused"
           ? async () => {
-              await builder.handleSave()
+              await builder.saveNow()
               setPublishModalOpen(true)
             }
           : undefined}

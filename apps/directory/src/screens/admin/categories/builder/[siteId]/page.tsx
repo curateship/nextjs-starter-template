@@ -244,7 +244,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentCategoryData?.is_published)}

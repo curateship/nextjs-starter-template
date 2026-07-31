@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { updatePageBlocksAction, type Page } from "@/lib/actions/pages/page-actions"
 import { convertBlocksToJson, generateBlockId } from "@/lib/utils/block-utils"
 import { getBlockTypeDefinition } from "./page-block-types"
 import { normalizePageBlock, normalizePageBlockContent } from "./page-block-utils"
 import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
 
 interface BlockSelection {
   type: string
@@ -243,6 +244,31 @@ export function usePageBuilder({
       await persistBlocks(normalizedBlocks)
     }
   }
+
+  // Auto-save: block edits only mark things unsaved, so write them once the
+  // typing stops. Same wait as everywhere else — see use-auto-save.ts.
+  const saveAllBlocksRef = useRef(handleSaveAllBlocks)
+  saveAllBlocksRef.current = handleSaveAllBlocks
+  const saveStatusRef = useRef(saveStatus)
+  saveStatusRef.current = saveStatus
+
+  useEffect(() => {
+    if (saveStatus.state !== "dirty") return
+
+    const timer = setTimeout(() => {
+      void saveAllBlocksRef.current()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [saveStatus])
+
+  // Leaving the screen inside that wait must not lose the edit.
+  useEffect(() => {
+    return () => {
+      if (saveStatusRef.current.state === "dirty") {
+        void saveAllBlocksRef.current()
+      }
+    }
+  }, [])
 
   return {
     selectedBlock,

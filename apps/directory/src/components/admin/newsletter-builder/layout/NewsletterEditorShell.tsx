@@ -33,7 +33,6 @@ interface NewsletterEditorShellProps {
   onErrorBack: () => void
   isSaving?: boolean
   saveStatus?: SaveStatus | null
-  onSave: () => void | Promise<void>
   subject?: string
   onSubjectChange?: (value: string) => void
   emailWidth?: number
@@ -158,7 +157,6 @@ export function NewsletterEditorShell({
   onErrorBack,
   isSaving = false,
   saveStatus,
-  onSave,
   subject,
   onSubjectChange,
   emailWidth = 600,
@@ -245,7 +243,6 @@ export function NewsletterEditorShell({
             )}
             saveStatus={saveStatus}
             isSaving={isSaving}
-            onSave={onSave}
             onPublish={onPublish}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}

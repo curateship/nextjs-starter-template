@@ -210,7 +210,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentProductData?.is_published)}

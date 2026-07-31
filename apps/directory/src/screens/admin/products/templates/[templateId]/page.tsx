@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { BuilderSkeleton } from "@/components/admin/layout/skeletons"
-import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
@@ -62,8 +62,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   const [selectedBlock, setSelectedBlock] = useState<ProductBuilderBlock | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -193,9 +191,10 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
         return
       }
 
-      setBlocks(parseProductBlocksFromJson(data.content_blocks || {}))
+      const savedBlocks = parseProductBlocksFromJson(data.content_blocks || {})
+      setBlocks(savedBlocks)
       setTemplate(data)
-      setSaveStatus("saved")
+      markBlocksSaved(savedBlocks)
       setSelectedBlock(null)
     } catch (error) {
       setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
@@ -226,31 +225,55 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
     setBlocks((prev) => [...prev, ...newBlocks])
   }
 
-  async function handleSave() {
-    if (!template) return
+  // Auto-save: a change to the blocks is written once the edits stop.
+  const blocksRef = useRef(blocks)
+  blocksRef.current = blocks
+  const templateRef = useRef(template)
+  templateRef.current = template
+  const lastSavedBlocksJsonRef = useRef<string | null>(null)
 
-    setIsSaving(true)
-    setSaveStatus("saving")
+  const { saveStatus, setSaveStatus, scheduleSave } = useAutoSave<typeof blocks>({
+    save: async (nextBlocks) => {
+      const currentTemplate = templateRef.current
+      if (!currentTemplate) return { saved: true }
 
-    try {
-      const contentBlocks = productBlocksToJson(blocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateProductTemplate({ data: { templateId: template.id, updates: {
+      const contentBlocks = productBlocksToJson(nextBlocks, currentTemplate.content_blocks || {})
+      const { data, error: saveError } = await updateProductTemplate({ data: { templateId: currentTemplate.id, updates: {
         content_blocks: contentBlocks,
       } } })
 
-      if (saveError) {
-        setSaveStatus("error", saveError)
-      } else if (data) {
-        setTemplate(data)
-        setBlocks(parseProductBlocksFromJson(data.content_blocks || {}))
-        setSaveStatus("saved")
-      }
-    } catch (err) {
-      setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setIsSaving(false)
+      if (saveError) return { saved: false, reason: saveError }
+      // What is on screen is deliberately not replaced with the round trip:
+      // re-reading it would look like another edit and save again, forever.
+      if (data) setTemplate(data)
+      return { saved: true }
     }
+  })
+
+  // A write that happened somewhere else (the block editor, the settings
+  // dialog) has already stored these blocks — recording them here stops the
+  // watcher below writing the same thing again a moment later.
+  function markBlocksSaved(savedBlocks: typeof blocks) {
+    lastSavedBlocksJsonRef.current = JSON.stringify(savedBlocks)
+    setSaveStatus("saved")
   }
+
+  const blocksJson = JSON.stringify(blocks)
+
+  useEffect(() => {
+    if (loading) {
+      lastSavedBlocksJsonRef.current = null
+      return
+    }
+    if (lastSavedBlocksJsonRef.current === null) {
+      lastSavedBlocksJsonRef.current = blocksJson
+      return
+    }
+    if (lastSavedBlocksJsonRef.current === blocksJson) return
+
+    lastSavedBlocksJsonRef.current = blocksJson
+    scheduleSave(blocksRef.current)
+  }, [blocksJson, loading, scheduleSave])
 
   async function handleSaveName() {
     if (!template || !nameInput.trim()) return
@@ -347,8 +370,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
               </div>
             )}
             saveStatus={saveStatus}
-            isSaving={isSaving}
-            onSave={handleSave}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
           />

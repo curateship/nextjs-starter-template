@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "@/lib/navigation-client"
 import Check from "lucide-react/dist/esm/icons/check.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
@@ -9,7 +9,7 @@ import X from "lucide-react/dist/esm/icons/x.js"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { NewsletterEditorShell } from "@/components/admin/newsletter-builder/layout/NewsletterEditorShell"
-import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "@/components/admin/newsletter-builder/config/useBlockEditor"
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
@@ -27,8 +27,6 @@ export default function TemplateEditorPage({ params }: PageProps) {
   const [template, setTemplate] = useState<NewsletterTemplate | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
 
@@ -53,38 +51,44 @@ export default function TemplateEditorPage({ params }: PageProps) {
     loadTemplate()
   }, [loadTemplate])
 
-  async function handleSave() {
-    if (!template) return
-    await persistTemplate(blockEditor.blocks)
-  }
+  // Auto-save: a change to the blocks is written once the edits stop.
+  const templateRef = useRef(template)
+  templateRef.current = template
+  const blocksRef = useRef(blockEditor.blocks)
+  blocksRef.current = blockEditor.blocks
+  const lastSavedBlocksJsonRef = useRef<string | null>(null)
 
-  async function persistTemplate(nextBlocks: ReturnType<typeof useBlockEditor>["blocks"]) {
-    if (!template) return false
-    setIsSaving(true)
-    setSaveStatus("saving")
+  const { saveStatus, isSaving, scheduleSave, saveNow } = useAutoSave<typeof blockEditor.blocks>({
+    save: async (nextBlocks) => {
+      const currentTemplate = templateRef.current
+      if (!currentTemplate) return { saved: true }
 
-    try {
-      const { data, error: saveError } = await updateTemplate({ data: { templateId: template.id, updates: {
+      const { data, error: saveError } = await updateTemplate({ data: { templateId: currentTemplate.id, updates: {
         content_blocks: blocksToJson(nextBlocks),
       } } })
-      if (saveError) {
-        setSaveStatus("error", saveError)
-        return false
-      }
 
-      if (data) {
-        setTemplate(data)
-        setSaveStatus("saved")
-        return true
-      }
-    } catch (err) {
-      setSaveStatus("error", err instanceof Error ? err.message : "Failed to save")
-    } finally {
-      setIsSaving(false)
+      if (saveError) return { saved: false, reason: saveError }
+      if (data) setTemplate(data)
+      return { saved: true }
     }
+  })
 
-    return false
-  }
+  const blocksJson = JSON.stringify(blockEditor.blocks)
+
+  useEffect(() => {
+    if (loading) {
+      lastSavedBlocksJsonRef.current = null
+      return
+    }
+    if (lastSavedBlocksJsonRef.current === null) {
+      lastSavedBlocksJsonRef.current = blocksJson
+      return
+    }
+    if (lastSavedBlocksJsonRef.current === blocksJson) return
+
+    lastSavedBlocksJsonRef.current = blocksJson
+    scheduleSave(blocksRef.current)
+  }, [blocksJson, loading, scheduleSave])
 
   async function handleSaveName() {
     if (!template || !nameInput.trim()) return
@@ -156,12 +160,14 @@ export default function TemplateEditorPage({ params }: PageProps) {
       onSaveSelectedBlock={async (content) => {
         const updatedBlocks = blockEditor.replaceSelectedBlockContent(content)
         if (!updatedBlocks) return false
-        return persistTemplate(updatedBlocks)
+        // The dialog closes on this, so it writes now rather than leaving the
+        // edit sitting in the debounce.
+        lastSavedBlocksJsonRef.current = JSON.stringify(updatedBlocks)
+        return saveNow(updatedBlocks)
       }}
       siteId={currentSite?.id || ""}
       saveStatus={saveStatus}
       isSaving={isSaving}
-      onSave={handleSave}
       headerActions={renameActions}
     />
   )

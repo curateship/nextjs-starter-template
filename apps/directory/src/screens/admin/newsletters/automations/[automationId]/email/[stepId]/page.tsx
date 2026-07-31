@@ -40,7 +40,6 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
       onSubjectChange={builder.setSubject}
       saveStatus={builder.saveStatus}
       isSaving={builder.isSaving}
-      onSave={builder.handleSave}
       settingsDisabled={!builder.step}
       renderSettingsModal={(show, setShow) => (
         <AutomationEmailSettingsModal

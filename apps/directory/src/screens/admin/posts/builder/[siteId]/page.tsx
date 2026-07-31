@@ -209,7 +209,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentPostData?.is_published)}

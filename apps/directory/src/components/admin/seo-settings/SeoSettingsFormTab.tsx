@@ -1,13 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { getSiteForAudit, saveSiteAuditSettings } from "@/lib/actions/seo/site-audit/site-audit-actions"
 import { buildCanonicalUrl, getHomeSeoDescription, getHomeSeoTitle } from "@/lib/utils/seo-helpers"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -15,7 +17,6 @@ import { toCdnUrl } from "@/lib/utils/cdn"
 interface SeoSettingsFormTabProps {
   siteId: string
   mode: "metadata" | "technical"
-  formId: string
   onStatusChange?: (status: { loading: boolean; saving: boolean; saveStatus: SaveStatus }) => void
 }
 
@@ -162,9 +163,8 @@ function HomePageSocialCard({
   )
 }
 
-export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: SeoSettingsFormTabProps) {
+export function SeoSettingsFormTab({ siteId, mode, onStatusChange }: SeoSettingsFormTabProps) {
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [site, setSite] = useState<any>(null)
   const [homeTitle, setHomeTitle] = useState("")
   const [homeDescription, setHomeDescription] = useState("")
@@ -178,7 +178,16 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
   const [orgLogo, setOrgLogo] = useState("")
   const [socialLinks, setSocialLinks] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
+
+  const { saveStatus, isSaving, scheduleSave, markSaved } = useAutoSave<Record<string, any>>({
+    save: async (seoSettings) => {
+      const result = await saveSiteAuditSettings({ data: { siteId: siteId, seoSettings: seoSettings as any } })
+      if (!result.success) {
+        return { saved: false, reason: result.error || "Failed to save SEO settings" }
+      }
+      return { saved: true }
+    }
+  })
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -205,21 +214,22 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
         setOrgName(settings.seo_org_name || "")
         setOrgLogo(settings.seo_org_logo || "")
         setSocialLinks((settings.seo_org_social_links || []).join("\n"))
+        markSaved()
       }
     } catch (err) {
       console.error("Error loading SEO settings:", err)
       setError("Failed to load SEO settings")
     }
     setLoading(false)
-  }, [siteId])
+  }, [markSaved, siteId])
 
   useEffect(() => {
     loadData()
   }, [loadData])
 
   useEffect(() => {
-    onStatusChange?.({ loading, saving, saveStatus })
-  }, [loading, onStatusChange, saveStatus, saving])
+    onStatusChange?.({ loading, saving: isSaving, saveStatus })
+  }, [isSaving, loading, onStatusChange, saveStatus])
 
   const canonicalPreview = useMemo(() => {
     if (!site) return ""
@@ -243,44 +253,46 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
     }
   }, [homeDescription, homeTitle, ogImage, site])
 
-  const handleSave = async () => {
-    if (saving) return
+  // Everything this tab writes, rebuilt on every render. The save watches this
+  // rather than sitting on two dozen change handlers.
+  const seoSettings: Record<string, any> =
+    mode === "metadata"
+      ? {
+          seo_home_title: homeTitle.trim() || undefined,
+          seo_home_description: homeDescription.trim() || undefined,
+          ...getContentTemplateSettings(contentTemplates),
+          seo_default_og_image: ogImage.trim() || undefined,
+          seo_twitter_card_type: twitterCardType || undefined,
+          seo_twitter_handle: twitterHandle.trim() || undefined
+        }
+      : {
+          seo_google_verification: googleVerification.trim() || undefined,
+          seo_canonical_domain: canonicalDomain || undefined,
+          seo_org_name: orgName.trim() || undefined,
+          seo_org_logo: orgLogo.trim() || undefined,
+          seo_org_social_links: socialLinks
+            ? socialLinks
+                .split("\n")
+                .map((link) => link.trim())
+                .filter(Boolean)
+            : undefined
+        }
+  const seoSettingsRef = useRef(seoSettings)
+  seoSettingsRef.current = seoSettings
+  const watchedSeoJson = JSON.stringify(seoSettings)
+  const lastWatchedSeoJsonRef = useRef<string | null>(null)
 
-    setSaving(true)
-    setError(null)
-    setSaveStatus("saving")
-
-    const result = await saveSiteAuditSettings({ data: { siteId: siteId, seoSettings: mode === "metadata"
-        ? {
-            seo_home_title: homeTitle.trim() || undefined,
-            seo_home_description: homeDescription.trim() || undefined,
-            ...getContentTemplateSettings(contentTemplates),
-            seo_default_og_image: ogImage.trim() || undefined,
-            seo_twitter_card_type: (twitterCardType as any) || undefined,
-            seo_twitter_handle: twitterHandle.trim() || undefined
-          }
-        : {
-            seo_google_verification: googleVerification.trim() || undefined,
-            seo_canonical_domain: (canonicalDomain as any) || undefined,
-            seo_org_name: orgName.trim() || undefined,
-            seo_org_logo: orgLogo.trim() || undefined,
-            seo_org_social_links: socialLinks
-              ? socialLinks
-                  .split("\n")
-                  .map((link) => link.trim())
-                  .filter(Boolean)
-              : undefined
-          } } })
-
-    setSaving(false)
-    if (result.success) {
-      setSaveStatus("saved", "SEO settings saved")
-    } else {
-      const message = result.error || "Failed to save SEO settings"
-      setError(message)
-      setSaveStatus("error", message)
+  useEffect(() => {
+    if (loading) return
+    if (lastWatchedSeoJsonRef.current === null) {
+      lastWatchedSeoJsonRef.current = watchedSeoJson
+      return
     }
-  }
+    if (lastWatchedSeoJsonRef.current === watchedSeoJson) return
+
+    lastWatchedSeoJsonRef.current = watchedSeoJson
+    scheduleSave(seoSettingsRef.current)
+  }, [loading, scheduleSave, watchedSeoJson])
 
   const updateContentTemplate = (
     key: ContentSeoCardKey,
@@ -316,20 +328,8 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
   }
 
   return (
-    <form
-      id={formId}
-      className="contents"
-      onSubmit={(event) => {
-        event.preventDefault()
-        handleSave()
-      }}
-    >
-      <CardGroup className="grid">
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
+    <CardGroup className="grid">
+      {error ? <ErrorBanner message={error} onRetry={() => void loadData()} /> : null}
       {mode === "metadata" ? (
         <>
           {homePreview && (
@@ -548,7 +548,6 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
           </Card>
         </>
       )}
-      </CardGroup>
-    </form>
+    </CardGroup>
   )
 }

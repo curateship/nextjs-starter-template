@@ -241,7 +241,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentEventData?.is_published)}

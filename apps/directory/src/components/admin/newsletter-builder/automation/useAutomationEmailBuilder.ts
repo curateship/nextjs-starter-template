@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { getStepById, updateStep, getAutomationById } from "@/lib/actions/newsletters/automation-actions"
-import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "../config/useBlockEditor"
 import type { AutomationStep, EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 
@@ -13,8 +13,6 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
   const [step, setStep] = useState<AutomationStep | null>(null)
   const [automation, setAutomation] = useState<EmailAutomation | null>(null)
   const [subject, setSubject] = useState("")
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,30 +48,50 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
     loadStep()
   }, [loadStep])
 
-  const handleSave = async () => {
-    if (!step) return
-    setIsSaving(true)
-    setSaveStatus("saving")
+  const stepRef = useRef(step)
+  stepRef.current = step
+  const subjectRef = useRef(subject)
+  subjectRef.current = subject
+  const blocksRef = useRef(blockEditor.blocks)
+  blocksRef.current = blockEditor.blocks
+  const lastSavedJsonRef = useRef<string | null>(null)
 
-    const contentBlocks = blocksToJson(blockEditor.blocks)
+  // Auto-save: the subject line and the blocks are written once the edits stop.
+  const { saveStatus, isSaving, scheduleSave, saveNow } = useAutoSave<{
+    blocks: ReturnType<typeof useBlockEditor>['blocks']
+    subject: string
+  }>({
+    save: async (draft) => {
+      const currentStep = stepRef.current
+      if (!currentStep) return { saved: true }
 
-    try {
-      const { data, error: saveError } = await updateStep({ data: { stepId: step.id, updates: {
-        subject,
-        content_blocks: contentBlocks,
+      const { data, error: saveError } = await updateStep({ data: { stepId: currentStep.id, updates: {
+        subject: draft.subject,
+        content_blocks: blocksToJson(draft.blocks),
       } } })
-      if (saveError) {
-        setSaveStatus("error", saveError)
-      } else if (data) {
-        setStep(data)
-        setSaveStatus("saved")
-      }
-    } catch (err) {
-      setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setIsSaving(false)
+
+      if (saveError) return { saved: false, reason: saveError }
+      if (data) setStep(data)
+      return { saved: true }
     }
-  }
+  })
+
+  const watchedJson = JSON.stringify({ blocks: blockEditor.blocks, subject })
+
+  useEffect(() => {
+    if (loading) {
+      lastSavedJsonRef.current = null
+      return
+    }
+    if (lastSavedJsonRef.current === null) {
+      lastSavedJsonRef.current = watchedJson
+      return
+    }
+    if (lastSavedJsonRef.current === watchedJson) return
+
+    lastSavedJsonRef.current = watchedJson
+    scheduleSave({ blocks: blocksRef.current, subject: subjectRef.current })
+  }, [loading, scheduleSave, watchedJson])
 
   return {
     step,
@@ -95,42 +113,20 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
     applyStepUpdate: (updatedStep: AutomationStep) => {
       setStep(updatedStep)
       setSubject(updatedStep.subject || "")
+      lastSavedJsonRef.current = null
     },
-    handleSave,
+    saveNow: () => saveNow({ blocks: blocksRef.current, subject: subjectRef.current }),
     saveSelectedBlockContent: async (content: Record<string, any>, nextSubject = subject) => {
-      if (!step) return false
-
       const updatedBlocks = blockEditor.replaceSelectedBlockContent(content)
       if (!updatedBlocks) {
         return false
       }
 
-      setIsSaving(true)
-      setSaveStatus("saving")
-
-      try {
-        const { data, error: saveError } = await updateStep({ data: { stepId: step.id, updates: {
-          subject: nextSubject,
-          content_blocks: blocksToJson(updatedBlocks),
-        } } })
-        if (saveError) {
-          setSaveStatus("error", saveError)
-          return false
-        }
-
-        if (data) {
-          setStep(data)
-          setSubject(nextSubject)
-          setSaveStatus("saved")
-          return true
-        }
-      } catch (err) {
-        setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
-      } finally {
-        setIsSaving(false)
-      }
-
-      return false
+      // The block dialog closes on this, so it writes now rather than leaving
+      // the edit sitting in the debounce.
+      setSubject(nextSubject)
+      lastSavedJsonRef.current = JSON.stringify({ blocks: updatedBlocks, subject: nextSubject })
+      return saveNow({ blocks: updatedBlocks, subject: nextSubject })
     },
   }
 }

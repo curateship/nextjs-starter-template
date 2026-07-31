@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, use } from "react"
+import { useEffect, useRef, useState, use } from "react"
 import { useRouter } from "@/lib/navigation-client"
 import Monitor from "lucide-react/dist/esm/icons/monitor.js"
 import Smartphone from "lucide-react/dist/esm/icons/smartphone.js"
@@ -8,7 +8,7 @@ import Tablet from "lucide-react/dist/esm/icons/tablet.js"
 import { Button } from "@/components/ui/button"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
@@ -49,8 +49,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftSubject, setDraftSubject] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
@@ -98,43 +96,51 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     setDraftSubject(template?.subject || "")
   }, [selectedBlock, template?.subject])
 
-  async function handleSave() {
-    if (!template) return
+  const templateRef = useRef(template)
+  templateRef.current = template
+  const blocksRef = useRef(blockEditor.blocks)
+  blocksRef.current = blockEditor.blocks
+  const lastSavedJsonRef = useRef<string | null>(null)
 
-    await persistTemplate(blockEditor.blocks, template.subject)
-  }
+  // Auto-save: the subject line and the blocks are written once the edits stop.
+  const { saveStatus, isSaving, scheduleSave, saveNow } = useAutoSave<{
+    blocks: ReturnType<typeof useBlockEditor>["blocks"]
+    subject: string
+  }>({
+    save: async (draft) => {
+      const current = templateRef.current
+      if (!current) return { saved: true }
 
-  async function persistTemplate(nextBlocks: ReturnType<typeof useBlockEditor>["blocks"], nextSubject: string) {
-    if (!template) return false
+      const result = await saveSystemEmailTemplateAction({ data: { input: {
+        templateKey: current.template_key,
+        siteId: current.site_id,
+        subject: draft.subject,
+        contentBlocks: blocksToJson(draft.blocks),
+        fromName: current.from_name,
+        replyTo: current.reply_to,
+      } } })
 
-    setIsSaving(true)
-    setSaveStatus('saving')
-
-    const result = await saveSystemEmailTemplateAction({ data: { input: {
-      templateKey: template.template_key,
-      siteId: template.site_id,
-      subject: nextSubject,
-      contentBlocks: blocksToJson(nextBlocks),
-      fromName: template.from_name,
-      replyTo: template.reply_to,
-    } } })
-
-    if (!result.success) {
-      setSaveStatus('error', result.error || 'Failed to save')
-      setIsSaving(false)
-      return false
+      if (!result.success) return { saved: false, reason: result.error || "Failed to save" }
+      return { saved: true }
     }
+  })
 
-    const refreshed = await getSystemEmailEditorAction({ data: { templateKeyInput: template.template_key, siteId: template.site_id } })
-    if (refreshed.success && refreshed.data) {
-      setTemplate(refreshed.data.template)
-      blockEditor.setBlocks(parseBlocksFromJson(refreshed.data.template.content_blocks || {}))
+  const watchedJson = JSON.stringify({ blocks: blockEditor.blocks, subject: template?.subject || "" })
+
+  useEffect(() => {
+    if (loading || !template) {
+      lastSavedJsonRef.current = null
+      return
     }
+    if (lastSavedJsonRef.current === null) {
+      lastSavedJsonRef.current = watchedJson
+      return
+    }
+    if (lastSavedJsonRef.current === watchedJson) return
 
-    setSaveStatus('saved')
-    setIsSaving(false)
-    return true
-  }
+    lastSavedJsonRef.current = watchedJson
+    scheduleSave({ blocks: blocksRef.current, subject: templateRef.current?.subject || "" })
+  }, [loading, scheduleSave, template, watchedJson])
 
   function handleCloseBlockEditor() {
     if (!selectedBlock) return
@@ -149,7 +155,11 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     if (!updatedBlocks) return
 
     setIsSavingBlock(true)
-    const saved = await persistTemplate(updatedBlocks, draftSubject)
+    setTemplate((current) => (current ? { ...current, subject: draftSubject } : current))
+    // The dialog closes on this, so it writes now rather than leaving the edit
+    // sitting in the debounce.
+    lastSavedJsonRef.current = JSON.stringify({ blocks: updatedBlocks, subject: draftSubject })
+    const saved = await saveNow({ blocks: updatedBlocks, subject: draftSubject })
     setIsSavingBlock(false)
 
     if (saved) {
@@ -246,7 +256,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
             )}
             saveStatus={saveStatus}
             isSaving={isSaving}
-            onSave={handleSave}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
           />

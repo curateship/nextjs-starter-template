@@ -253,7 +253,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             preActions={siteError ? <span className="text-xs text-red-600">{siteError}</span> : null}
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={currentDirectoryRecord?.status === "published"}
