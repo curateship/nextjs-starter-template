@@ -302,7 +302,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
     setMarkingRead(true)
     try {
       const { readAt } = scope.kind === "site"
-        ? await markAllHubNotificationsRead(scope.siteId)
+        ? await markAllHubNotificationsRead({ data: { siteId: scope.siteId } })
         : await markAllHubNotificationsReadForUser()
       setReadAllAt(readAt)
     } catch {

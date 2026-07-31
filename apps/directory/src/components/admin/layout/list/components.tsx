@@ -305,7 +305,7 @@ export function AdminListFooter({
     onPageChange(1);
 
     setIsSavingPageSize(true);
-    const result = await updateAdminSettingsAction({ dashboard_page_size: nextPageSize });
+    const result = await updateAdminSettingsAction({ data: { dashboard_page_size: nextPageSize } });
     setIsSavingPageSize(false);
 
     if (result.error) {

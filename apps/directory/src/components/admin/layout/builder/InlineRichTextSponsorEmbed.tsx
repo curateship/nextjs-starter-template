@@ -46,7 +46,7 @@ function SponsorEmbedNodeView(props: any) {
       }
 
       setLoading(true)
-      const sponsorsById = await getActiveSponsorsByIdsAction(siteId, [sponsorId])
+      const sponsorsById = await getActiveSponsorsByIdsAction({ data: { siteId, sponsorIds: [sponsorId] } })
 
       if (!cancelled) {
         setSponsor(sponsorsById[sponsorId] || null)

@@ -29,7 +29,7 @@ export function AdminStylingSettingsTab({ onStatusChange }: AdminStylingSettings
 
   const { saveStatus, isSaving, scheduleSave } = useAutoSave<AdminStyling>({
     save: async (next) => {
-      const result = await updateAdminSettingsAction({ styling: next })
+      const result = await updateAdminSettingsAction({ data: { styling: next } })
       if (!result.success) {
         return { saved: false, reason: result.error || "Failed to save styling settings" }
       }

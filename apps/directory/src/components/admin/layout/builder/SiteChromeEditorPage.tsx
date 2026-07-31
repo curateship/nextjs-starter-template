@@ -97,7 +97,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       try {
         setLoading(true)
         setError(null)
-        const result = await getSiteByIdAction(siteId)
+        const result = await getSiteByIdAction({ data: { siteId } })
 
         if (cancelled) return
         if (!result.data) {
@@ -150,8 +150,8 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       const nextFooterContent = sanitizeFooterSettings(footerContent) || DEFAULT_FOOTER
       const result =
         mode === "navigation"
-          ? await updateSiteNavigationAction(site.id, nextNavigationContent)
-          : await updateSiteFooterAction(site.id, nextFooterContent)
+          ? await updateSiteNavigationAction({ data: { siteId: site.id, navigationData: nextNavigationContent } })
+          : await updateSiteFooterAction({ data: { siteId: site.id, footerData: nextFooterContent } })
 
       if (!result.success) {
         const message = result.error || "Failed to save changes"
@@ -237,7 +237,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
         sanitizeNavigationSettings(nextNavigationContent, {
           publicAuthPagePath
         }) || defaultNavigation
-      const result = await updateSiteNavigationAction(site.id, sanitizedNavigation)
+      const result = await updateSiteNavigationAction({ data: { siteId: site.id, navigationData: sanitizedNavigation } })
 
       if (!result.success) {
         const message = result.error || "Failed to save changes"
@@ -278,7 +278,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       setSaveStatus("saving")
 
       const sanitizedFooter = sanitizeFooterSettings(nextFooterContent) || DEFAULT_FOOTER
-      const result = await updateSiteFooterAction(site.id, sanitizedFooter)
+      const result = await updateSiteFooterAction({ data: { siteId: site.id, footerData: sanitizedFooter } })
 
       if (!result.success) {
         const message = result.error || "Failed to save changes"

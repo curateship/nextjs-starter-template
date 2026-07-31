@@ -30,7 +30,7 @@ export function SponsorPickerDialog({ open, onOpenChange, siteId, onSelectSponso
       if (!open || !siteId) return
 
       setLoading(true)
-      const { data } = await getActiveSponsorsForPickerAction(siteId)
+      const { data } = await getActiveSponsorsForPickerAction({ data: { siteId } })
 
       if (!cancelled) {
         setSponsors(data)

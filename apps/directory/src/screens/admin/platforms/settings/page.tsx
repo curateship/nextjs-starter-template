@@ -105,11 +105,11 @@ export default function PlatformSettingsPage() {
 
   const { saveStatus, scheduleSave, markSaved } = useAutoSave<PlatformSettingsDraft>({
     save: async (draft) => {
-      const result = await updateAdminSettingsAction({
+      const result = await updateAdminSettingsAction({ data: {
         dashboard_page_size: draft.dashboardPageSize,
         home_route: draft.homeRoute.trim(),
         toast_seconds: draft.toastSeconds
-      })
+      } })
       if (result.error) {
         return { saved: false, reason: result.error }
       }

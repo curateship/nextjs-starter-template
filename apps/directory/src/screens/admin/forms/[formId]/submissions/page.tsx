@@ -77,8 +77,8 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
     setError("")
 
     Promise.all([
-      getGuidedFormById(formId),
-      getGuidedFormSubmissions(formId, { pageSize: 100 }),
+      getGuidedFormById({ data: { formId } }),
+      getGuidedFormSubmissions({ data: { formId, options: { pageSize: 100 } } }),
     ]).then(([formResult, submissionResult]) => {
       if (cancelled) return
       setLoading(false)

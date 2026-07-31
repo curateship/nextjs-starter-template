@@ -146,7 +146,7 @@ export default function SitesPage() {
   const handleDelete = async (siteId: string) => {
     try {
       setDeleting(siteId)
-      const { success, error } = await deleteSiteAction(siteId)
+      const { success, error } = await deleteSiteAction({ data: { siteId } })
 
       if (error) {
         showActionError(error)
@@ -210,11 +210,11 @@ export default function SitesPage() {
       dismissErrorToast()
 
       // The server action owns the transaction and decides exactly what can be copied.
-      const { data, error } = await cloneSiteAction(duplicateConfirm.id, {
+      const { data, error } = await cloneSiteAction({ data: { sourceSiteId: duplicateConfirm.id, cloneData: {
         name,
         clone_settings: duplicateSettings,
         clone_pages: duplicatePages
-      })
+      } } })
 
       if (error || !data) {
         showErrorToast(error || "Failed to duplicate site")
@@ -669,7 +669,7 @@ function CreateSiteModal({
     try {
       setIsSubmitting(true)
 
-      const { data, error: createError } = await createSiteAction({
+      const { data, error: createError } = await createSiteAction({ data: { siteData: {
         name: siteName.trim(),
         subdomain: subdomain.trim(),
         custom_domain: customDomain.trim() || undefined,
@@ -685,7 +685,7 @@ function CreateSiteModal({
           seo_enabled: true,
           site_tag: siteTag.trim() || undefined
         }
-      })
+      } } })
 
       if (createError || !data) {
         showActionError(createError || "Failed to create site")
@@ -721,12 +721,12 @@ function CreateSiteModal({
             throw new Error(uploadResult.error || "Favicon upload failed")
           }
 
-          const { data: updatedSite, error: updateError } = await updateSiteAction(data.id, {
+          const { data: updatedSite, error: updateError } = await updateSiteAction({ data: { siteId: data.id, updates: {
             settings: {
               ...(data.settings || {}),
               favicon: uploadedFavicon
             }
-          })
+          } } })
 
           if (updateError || !updatedSite) {
             throw new Error(updateError || "Favicon could not be saved")

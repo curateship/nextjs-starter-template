@@ -160,11 +160,11 @@ export function NotificationCenter() {
     setError(null)
 
     try {
-      const data = await listHubNotificationPage({
+      const data = await listHubNotificationPage({ data: {
         siteId: currentSite.id,
         cursor,
         limit: NOTIFICATION_PAGE_SIZE,
-      })
+      } })
       setNotifications((current) =>
         cursor ? [...current, ...data.notifications] : data.notifications
       )
@@ -214,7 +214,7 @@ export function NotificationCenter() {
     try {
       if (!currentSite?.id) return
 
-      const result = await markAllHubNotificationsRead(currentSite.id)
+      const result = await markAllHubNotificationsRead({ data: { siteId: currentSite.id } })
       const readIds = new Set(result.notificationIds)
       setNotifications((current) =>
         current.map((item) =>
@@ -232,7 +232,7 @@ export function NotificationCenter() {
 
     if (!item.read_at) {
       try {
-        const result = await markHubNotificationRead(item.id, item.site_id)
+        const result = await markHubNotificationRead({ data: { notificationId: item.id, siteId: item.site_id } })
         setNotifications((current) =>
           current.map((currentItem) =>
             currentItem.id === result.notificationId

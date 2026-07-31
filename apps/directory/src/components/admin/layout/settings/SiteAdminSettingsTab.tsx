@@ -43,12 +43,12 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
       const currentSite = siteRef.current
       if (!currentSite) return { saved: false, reason: "Site not loaded" }
 
-      const { data, error: updateError } = await updateSiteAction(siteId, {
+      const { data, error: updateError } = await updateSiteAction({ data: { siteId, updates: {
         settings: {
           ...currentSite.settings,
           admin_sidebar: serializeAdminSidebarSettings(nextSidebar)
         }
-      })
+      } } })
 
       if (updateError) return { saved: false, reason: updateError }
       if (!data) return { saved: false, reason: "Failed to save settings" }
@@ -86,7 +86,7 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
         setLoading(true)
         setError(null)
 
-        const result = await getSiteByIdAction(siteId)
+        const result = await getSiteByIdAction({ data: { siteId } })
 
         if (cancelled) return
 

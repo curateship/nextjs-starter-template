@@ -1,4 +1,4 @@
-import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
+import { getActiveSponsorsByIdsActionImpl } from '@/lib/actions/sponsors/sponsor-actions.server'
 import {
   DEFAULT_NEWSLETTER_MAX_WIDTH,
   extractNewsletterSponsorIds,
@@ -19,7 +19,7 @@ export async function renderNewsletterEmailHtml(
 ): Promise<string> {
   const sponsorIds = extractNewsletterSponsorIds(blocks)
   const sponsorsById = sponsorIds.length > 0
-    ? await getActiveSponsorsByIdsAction(siteId, sponsorIds)
+    ? await getActiveSponsorsByIdsActionImpl(siteId, sponsorIds)
     : {}
 
   return generateEmailHtml(blocks, maxWidth, { sponsorsById })

@@ -97,14 +97,14 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
       const limit = isPaginated ? itemsPerPage : itemsToShow
       const offset = isPaginated ? (currentPage - 1) * itemsPerPage : 0
 
-      const result = await getListingViewsData({
+      const result = await getListingViewsData({ data: {
         site_id: siteId,
         contentType,
         sortBy,
         sortOrder,
         limit,
         offset
-      })
+      } })
 
       if (result.success && result.data) {
         setData(result.data)

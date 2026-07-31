@@ -11,6 +11,10 @@ export type AutomationApprovalStatus = 'pending' | 'approved' | 'rejected' | 'ex
 
 export type AutomationImageSize = 'square' | 'landscape' | 'portrait'
 
+// The concrete shape of a JSON column. Server functions must return provably
+// serializable data, which `unknown` is not.
+export type AutomationJsonValue = string | number | boolean | null | AutomationJsonValue[] | { [key: string]: AutomationJsonValue }
+
 export type AutomationSchedule =
   | { frequency: 'once'; runAt: string; timezone: string }
   | { frequency: 'daily'; time: string; timezone: string }
@@ -195,8 +199,8 @@ export interface AutomationRunStepItem {
   nodeName: string
   status: AutomationStepStatus
   attemptCount: number
-  inputSummary: Record<string, unknown>
-  outputSummary: Record<string, unknown>
+  inputSummary: Record<string, AutomationJsonValue>
+  outputSummary: Record<string, AutomationJsonValue>
   error: string | null
   startedAt: string | null
   completedAt: string | null

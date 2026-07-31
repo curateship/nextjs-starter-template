@@ -722,7 +722,7 @@ export default function SiteEditPage() {
     save: async (draft) => {
       setError(null)
 
-      const { data, error: saveError } = await updateSiteAction(draft.siteId, {
+      const { data, error: saveError } = await updateSiteAction({ data: { siteId: draft.siteId, updates: {
         name: draft.siteName.trim(),
         subdomain: draft.subdomain.trim(),
         custom_domain: draft.customDomain.trim() || null,
@@ -745,7 +745,7 @@ export default function SiteEditPage() {
           custom_width: draft.customWidth,
           default_theme: draft.defaultTheme
         }
-      })
+      } } })
 
       if (saveError) {
         // Kept in state as well as the toast: a domain that needs a TXT record
@@ -830,13 +830,13 @@ export default function SiteEditPage() {
             normalizeContactColdEmailThreshold(draft.coldThresholdEmails)
         if (unchanged) return { saved: true }
 
-        const { data, error: saveError } = await updateSiteAction(draft.siteId, {
+        const { data, error: saveError } = await updateSiteAction({ data: { siteId: draft.siteId, updates: {
           settings: {
             ...siteSettingsRef.current,
             newsletter_drip_defaults: draft.dripConfig,
             newsletter_cold_threshold_emails: normalizeContactColdEmailThreshold(draft.coldThresholdEmails)
           }
-        })
+        } } })
 
         if (saveError) return { saved: false, reason: saveError }
 

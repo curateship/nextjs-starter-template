@@ -141,10 +141,10 @@ export default function ThemesPage() {
 
     try {
       setCreating(true);
-      const { data, error: createError } = await createSiteAction({
+      const { data, error: createError } = await createSiteAction({ data: { siteData: {
         name: trimmed,
         is_template: true,
-      });
+      } } });
       if (createError) {
         setError(`Failed to create theme: ${createError}`);
         return;
@@ -168,8 +168,7 @@ export default function ThemesPage() {
     try {
       setRenaming(true);
       const { error: renameError } = await updateSiteAction(
-        renameDialog.templateId,
-        { name: trimmed },
+        { data: { siteId: renameDialog.templateId, updates: { name: trimmed } } },
       );
       if (renameError) {
         setError(`Failed to rename theme: ${renameError}`);

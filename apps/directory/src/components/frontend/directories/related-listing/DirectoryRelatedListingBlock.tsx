@@ -104,12 +104,12 @@ export function DirectoryRelatedListingBlock({
 
     let cancelled = false
     setLoading(true)
-    getDirectoryRelatedListingsAction({
+    getDirectoryRelatedListingsAction({ data: {
       siteId,
       directoryId: directory.id,
       parentCategoryId,
       limit: itemsToShow,
-    })
+    } })
       .then((result) => {
         if (cancelled) return
         setItems(result.success ? result.data : [])

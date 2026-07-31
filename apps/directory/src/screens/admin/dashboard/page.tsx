@@ -6,9 +6,9 @@ import {
   type DashboardRange,
   type MultiSiteDashboardData,
 } from "@/lib/actions/analytics/analytics-actions"
-import { getRecentAutomationRunsForUser } from "@/lib/actions/automations/automation-actions"
-import { listHubNotificationsForUser } from "@/lib/actions/notifications/notification-actions"
-import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
+import { getRecentAutomationRunsForUserImpl } from "@/lib/actions/automations/automation-actions.server"
+import { listHubNotificationsForUserImpl } from "@/lib/actions/notifications/notification-actions.server"
+import { getAllSitesActionImpl } from "@/lib/actions/sites/site-actions.server"
 
 interface PageProps {
   searchParams: Promise<{
@@ -36,14 +36,14 @@ export default async function AdminDashboard({ searchParams }: PageProps) {
   const range = normalizeDashboardRange(rawRange)
 
   const [sitesResult, metrics, notifications, automationRuns] = await Promise.all([
-    getAllSitesAction(),
+    getAllSitesActionImpl(),
     getMultiSiteDashboardData(range).catch(() => emptyMetrics(range)),
-    listHubNotificationsForUser({ limit: 8 }).catch(() => ({
+    listHubNotificationsForUserImpl({ limit: 8 }).catch(() => ({
       notifications: [],
       next_cursor: null,
       unread_count: 0,
     })),
-    getRecentAutomationRunsForUser(8).catch(() => ({ data: [], error: null })),
+    getRecentAutomationRunsForUserImpl(8).catch(() => ({ data: [], error: null })),
   ])
 
   return (

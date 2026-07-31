@@ -2,6 +2,7 @@ import type {
   AutomationApprovalStatus,
   AutomationApprovalSummary,
   AutomationGraph,
+  AutomationJsonValue,
   AutomationListItem,
   AutomationRunApprovalItem,
   AutomationRunItem,
@@ -92,8 +93,8 @@ function automationStepRowToItem(row: typeof siteAutomationRunSteps.$inferSelect
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+function asRecord(value: unknown): Record<string, AutomationJsonValue> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? value as Record<string, AutomationJsonValue>
     : {}
 }

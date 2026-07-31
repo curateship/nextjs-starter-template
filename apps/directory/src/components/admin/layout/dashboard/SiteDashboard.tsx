@@ -159,7 +159,7 @@ export function SiteDashboard({
 
     try {
       setSubdomainStatus({ checking: true, available: null })
-      const { available, suggestion } = await checkSubdomainAvailabilityAction(subdomainToCheck)
+      const { available, suggestion } = await checkSubdomainAvailabilityAction({ data: { subdomain: subdomainToCheck } })
       setSubdomainStatus({
         checking: false,
         available,

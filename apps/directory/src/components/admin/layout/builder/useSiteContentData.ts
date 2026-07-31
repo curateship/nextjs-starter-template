@@ -62,7 +62,7 @@ export function useSiteContentData<TItem, TBlock>({
       const [siteResult, itemsResult] = await Promise.all([
         usesContextSite
           ? Promise.resolve({ data: contextSite ?? null, error: null as string | null })
-          : getSiteByIdAction(siteId),
+          : getSiteByIdAction({ data: { siteId } }),
         fetchItems(siteId, { selectedSlug }),
       ])
 
@@ -96,7 +96,7 @@ export function useSiteContentData<TItem, TBlock>({
       usesContextSite
         ? Promise.resolve({ data: contextSite ?? null, error: null as string | null })
         : reloadSite
-          ? getSiteByIdAction(siteId)
+          ? getSiteByIdAction({ data: { siteId } })
           : Promise.resolve({ data: null, error: null as string | null }),
       fetchItems(siteId, { selectedSlug }),
     ])
