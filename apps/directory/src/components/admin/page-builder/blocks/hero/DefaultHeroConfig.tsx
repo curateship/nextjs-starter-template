@@ -2,6 +2,7 @@
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -496,20 +497,13 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
         )}
 
         {backgroundColor === 'custom' && (
-          <div className="flex max-w-xs items-center gap-2">
-            <Input
-              type="color"
-              value={backgroundCustomColor}
-              onChange={(event) => onConfigChange('backgroundCustomColor', event.target.value)}
-              className="h-9 w-12 p-1"
-              aria-label="Custom background color"
-            />
-            <Input
-              value={config.backgroundCustomColor || ''}
-              onChange={(event) => onConfigChange('backgroundCustomColor', event.target.value)}
-              placeholder="#ffffff"
-            />
-          </div>
+          <HexColorInput
+            className="max-w-xs"
+            inputClassName="flex-1"
+            value={config.backgroundCustomColor || ''}
+            onColorChange={(color) => onConfigChange('backgroundCustomColor', color)}
+            swatchAriaLabel="Custom background color"
+          />
         )}
 
         <div className="flex items-center gap-2">

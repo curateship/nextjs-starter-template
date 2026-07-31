@@ -18,6 +18,7 @@ import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
   getContactById,
@@ -345,8 +346,8 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                     </Button>
                   </DialogTrigger>
                   {contact && (
-                    <form id="contact-settings-form" onSubmit={handleSave} className="contents">
-                      <DashboardModalContent
+                                          <DashboardModalContent
+                        busy={saving}
                         title="Settings"
                         description="Update this contact's name, status, and tags."
                         footer={
@@ -360,11 +361,14 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                               Cancel
                             </Button>
                             <Button form="contact-settings-form" type="submit" disabled={saving}>
-                              {saving ? "Saving..." : "Save Changes"}
+                              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                              Save Changes
                             </Button>
                           </>
                         }
                       >
+                        <form
+                          noValidate id="contact-settings-form" onSubmit={handleSave} className="contents">
                         <CardGroup className="grid">
                           <Card>
                             <CardHeader>
@@ -432,8 +436,9 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                             </CardContent>
                           </Card>
                         </CardGroup>
+                        </form>
                       </DashboardModalContent>
-                    </form>
+
                   )}
                 </Dialog>
                 <Button
@@ -446,7 +451,8 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                   disabled={deleting || loading}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  {deleting ? "Deleting..." : "Delete"}
+                  {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Delete
                 </Button>
               </div>
             }

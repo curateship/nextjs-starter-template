@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
@@ -137,8 +138,8 @@ export function ContactFormModal({
   return (
     <>
       <Dialog open={addOpen} onOpenChange={onAddOpenChange}>
-        <form id="add-contact-form" onSubmit={handleAddContact} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={adding}
             title="Add Contact"
             description="Add a single contact to this site and optionally tag them."
             footer={
@@ -147,11 +148,14 @@ export function ContactFormModal({
                   Cancel
                 </Button>
                 <Button type="submit" form="add-contact-form" disabled={adding}>
-                  {adding ? "Adding..." : "Add Contact"}
+                  {adding ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Add Contact
                 </Button>
               </>
             }
           >
+            <form
+              noValidate id="add-contact-form" onSubmit={handleAddContact} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -205,13 +209,14 @@ export function ContactFormModal({
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
 
       <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) onEditClose() }}>
-        <form id="edit-contact-form" onSubmit={handleEditContact} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={saving}
             title="Edit Contact"
             description={
               editContact ? (
@@ -224,11 +229,14 @@ export function ContactFormModal({
                   Cancel
                 </Button>
                 <Button type="submit" form="edit-contact-form" disabled={saving}>
-                  {saving ? "Saving..." : "Save"}
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </>
             }
           >
+            <form
+              noValidate id="edit-contact-form" onSubmit={handleEditContact} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -284,8 +292,9 @@ export function ContactFormModal({
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
     </>
   )

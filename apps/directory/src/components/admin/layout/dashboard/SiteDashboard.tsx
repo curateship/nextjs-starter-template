@@ -32,6 +32,10 @@ interface SiteDashboardProps {
   maintenanceEnabled?: boolean
   loading?: boolean
   customDomainError?: string | null
+  /** Mark the name box after a submit found it empty */
+  siteNameInvalid?: boolean
+  /** Mark the URL box after a submit found it empty */
+  subdomainInvalid?: boolean
   /**
    * Fired when one of the address fields loses focus. Those two are the only
    * fields here that must not be written mid-keystroke — a half-typed subdomain
@@ -48,6 +52,12 @@ interface SiteDashboardProps {
   onCustomAnalyticsEnabledChange?: (value: boolean) => void
   onListingWidgetsEnabledChange?: (value: boolean) => void
   onMaintenanceChange?: (value: boolean) => void
+  /**
+   * Lets the cache and search-index cards mirror their failures into the
+   * settings header's save-status badge, so a failed action never lives only
+   * in a card-local message.
+   */
+  onSaveStatus?: (state: "error" | "idle", message?: string) => void
 }
 
 export function SiteDashboard({
@@ -64,6 +74,8 @@ export function SiteDashboard({
   maintenanceEnabled = false,
   loading = false,
   customDomainError = null,
+  siteNameInvalid = false,
+  subdomainInvalid = false,
   onAddressFieldCommit,
   onSiteNameChange,
   onStatusChange,
@@ -73,7 +85,8 @@ export function SiteDashboard({
   onTrackingScriptsChange,
   onCustomAnalyticsEnabledChange,
   onListingWidgetsEnabledChange,
-  onMaintenanceChange
+  onMaintenanceChange,
+  onSaveStatus
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [copiedDnsField, setCopiedDnsField] = useState<"name" | "value" | null>(null)
@@ -195,7 +208,7 @@ export function SiteDashboard({
                 value={siteName}
                 onChange={(e) => handleSiteNameChange(e.target.value)}
                 placeholder="Enter site name (e.g., mysite)"
-                required
+                aria-invalid={siteNameInvalid || undefined}
                 className={
                   subdomainStatus.available === false
                     ? "pr-10 border-destructive/30 focus:border-destructive"
@@ -250,6 +263,7 @@ export function SiteDashboard({
                   onChange={(e) => handleSubdomainChange(e.target.value)}
                   onBlur={onAddressFieldCommit}
                   placeholder="site-url"
+                  aria-invalid={subdomainInvalid || undefined}
                   className={
                     subdomainStatus.available === false
                       ? "pr-10 border-destructive/30 focus:border-destructive"
@@ -398,8 +412,8 @@ export function SiteDashboard({
       )}
 
       {/* Maintenance cards - Only show in edit mode */}
-      {isEditMode && siteId && <SearchIndexSettingsCard siteId={siteId} />}
-      {isEditMode && <CacheSettingsCard />}
+      {isEditMode && siteId && <SearchIndexSettingsCard siteId={siteId} onSaveStatus={onSaveStatus} />}
+      {isEditMode && <CacheSettingsCard onSaveStatus={onSaveStatus} />}
     </CardGroup>
   )
 }

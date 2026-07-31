@@ -142,13 +142,16 @@ export function useAutoSave<T>({
     (snapshot: T) => {
       editSeqRef.current += 1
       pendingRef.current = { snapshot }
+      // A fresh edit means "Saved" (or a stale failure) no longer describes
+      // what's on screen — say "Unsaved changes" until the write lands.
+      setSaveStatus("dirty")
       cancelPendingTimer()
       timerRef.current = setTimeout(() => {
         timerRef.current = null
         void saveNow()
       }, debounceMs)
     },
-    [cancelPendingTimer, debounceMs, saveNow]
+    [cancelPendingTimer, debounceMs, saveNow, setSaveStatus]
   )
 
   const markSaved = useCallback(() => {

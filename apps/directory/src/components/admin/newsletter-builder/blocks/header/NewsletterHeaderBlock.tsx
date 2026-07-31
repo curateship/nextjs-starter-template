@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import AlignLeft from "lucide-react/dist/esm/icons/align-left.js"
@@ -166,20 +167,14 @@ export function NewsletterHeaderBlock({ content, onContentChange, onBack, siteId
 
                   <div>
                     <Label htmlFor="header-bg-color">Background Color</Label>
-                    <div className="mt-1 flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={content.backgroundColor || "#ffffff"}
-                        onChange={(e) => onContentChange("backgroundColor", e.target.value)}
-                        className="h-10 w-10 cursor-pointer rounded border"
-                      />
-                      <Input
-                        id="header-bg-color"
-                        value={content.backgroundColor || "#ffffff"}
-                        onChange={(e) => onContentChange("backgroundColor", e.target.value)}
-                        className="flex-1"
-                      />
-                    </div>
+                    <HexColorInput
+                      id="header-bg-color"
+                      className="mt-1"
+                      inputClassName="flex-1"
+                      value={content.backgroundColor || "#ffffff"}
+                      onColorChange={(color) => onContentChange("backgroundColor", color)}
+                      swatchAriaLabel="Pick a background color"
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

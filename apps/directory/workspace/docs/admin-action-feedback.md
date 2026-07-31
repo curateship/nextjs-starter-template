@@ -1,5 +1,7 @@
 # Admin action feedback
 
+This document is descriptive, not aspirational: every rule below matches shipped behavior after the Jul 2026 custom-shell parity sweep, and a screen that diverges from it is a bug.
+
 Admin mutations return `AdminActionResult`: `{ ok: true, data }` on success or `{ ok: false, message }` on failure.
 
 - State expected failures plainly: name the conflict, invalid field, or missing prerequisite and what to do next.
@@ -12,7 +14,10 @@ Admin mutations return `AdminActionResult`: `{ ok: true, data }` on success or `
 - Field validation reports on blur or submit with `aria-invalid` on the input — never per keystroke, and never a disabled button with no message.
 - **A submit button is never greyed out because a field is empty** — only while the save is actually in flight (`disabled={saving}`), which means "busy", not "you're wrong". A button greyed for a validation reason is a dead end: it says no without saying why. Let the click happen and answer it with the error toast plus `aria-invalid`. This matches custom-shell, where every dialog button is disabled on the in-flight flag alone.
 - **A modal never reports through a parent callback that feeds page state.** An `onError` prop wired to a page's `setError` paints the *load* banner on the surface behind the modal. Modals call `showErrorToast` themselves.
-- **Do not rely on the browser's built-in `required` inside a tabbed modal.** Tab panels unmount when you switch away, so the browser refuses the submit with nothing on screen and the button looks dead. Validate in the handler, report through the error toast, set `aria-invalid` on the field, and switch back to the tab that holds it so the message points at something visible.
+- **Never use the browser's built-in `required` in a modal.** The browser refuses the submit and shows its own bubble, which never appears when the field sits on a tab panel that has been switched away — so the button just looks dead. There is no `required` left in the admin: validate in the handler, report through the error toast, set `aria-invalid` on the field, and switch back to the tab that holds it so the message points at something visible.
+- **The `<form>` must be inside `DashboardModalContent`, never wrapped around it.** The modal portals to `<body>`, so a form wrapped outside it does not contain its own fields once rendered and Enter does nothing — the footer's `form="…"` button still submits, which is why this looks like it works. Put the form inside the modal and give the footer button `form` + `type="submit"`.
+- **A save in flight shuts every way out.** Pass `busy={saving}` to `DashboardModalContent` (or `DialogContent` for a raw admin dialog): the X, the backdrop and Escape are all refused until the save lands, so a half-written record cannot be abandoned and the failure toast always has a modal to appear in front of. The primary button shows a `Loader2Icon animate-spin` beside its unchanged label — never swap the label for "Saving…".
+- **The shared `Button` defaults to `type="button"`.** Only a Save button opts into `type="submit"`. Without that default, every "Add row" or "Choose image" button inside a modal form would submit it.
 - Never expose stack traces, SQL, raw provider responses, or secrets.
 
 ## Auto-save

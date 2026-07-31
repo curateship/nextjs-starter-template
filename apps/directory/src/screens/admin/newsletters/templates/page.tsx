@@ -33,6 +33,7 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Star from "lucide-react/dist/esm/icons/star.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getTemplatesBySite,
@@ -414,15 +415,8 @@ export default function TemplatesPage() {
 
       {/* Create Template Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <form
-          id="create-template-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            handleCreate()
-          }}
-          className="contents"
-        >
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={creating}
             title="Create Template"
             description="Name the template before opening it in the newsletter builder."
             footer={
@@ -431,11 +425,21 @@ export default function TemplatesPage() {
                   Cancel
                 </Button>
                 <Button form="create-template-form" type="submit" disabled={creating}>
-                  {creating ? "Creating..." : "Create Template"}
+                  {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Create Template
                 </Button>
               </>
             }
           >
+            <form
+              noValidate
+            id="create-template-form"
+            onSubmit={(event) => {
+            event.preventDefault()
+            handleCreate()
+            }}
+            className="contents"
+            >
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -458,8 +462,9 @@ export default function TemplatesPage() {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
 
       <ConfirmDestructive

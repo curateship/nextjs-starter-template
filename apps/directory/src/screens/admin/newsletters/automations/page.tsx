@@ -36,6 +36,7 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
 import Mail from "lucide-react/dist/esm/icons/mail.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   getAutomationsBySite,
   createAutomation,
@@ -478,8 +479,8 @@ export default function EmailAutomationsPage() {
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <form id="create-automation-form" onSubmit={handleCreate} className="contents">
-              <DashboardModalContent
+                          <DashboardModalContent
+                busy={creating}
                 title="Create Email Automation"
                 description="Create the automation shell, then configure triggers and steps in the builder."
                 footer={
@@ -488,11 +489,14 @@ export default function EmailAutomationsPage() {
                       Cancel
                     </Button>
                     <Button form="create-automation-form" type="submit" disabled={creating}>
-                      {creating ? "Creating..." : "Create Automation"}
+                      {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Create Automation
                     </Button>
                   </>
                 }
               >
+                <form
+                  noValidate id="create-automation-form" onSubmit={handleCreate} className="contents">
                 <CardGroup className="grid">
                   <Card>
                     <CardHeader>
@@ -517,13 +521,14 @@ export default function EmailAutomationsPage() {
                     </CardContent>
                   </Card>
                 </CardGroup>
+                </form>
               </DashboardModalContent>
-            </form>
+
           </Dialog>
 
           <Dialog open={settingsAutomation !== null} onOpenChange={(open) => !open && setSettingsAutomation(null)}>
-            <form id="automation-settings-form" onSubmit={handleSaveSettings} className="contents">
-              <DashboardModalContent
+                          <DashboardModalContent
+                busy={savingSettings}
                 title="Automation Settings"
                 description="Update the automation title."
                 footer={
@@ -536,11 +541,14 @@ export default function EmailAutomationsPage() {
                       type="submit"
                       disabled={savingSettings}
                     >
-                      {savingSettings ? "Saving..." : "Save Settings"}
+                      {savingSettings ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Save Settings
                     </Button>
                   </>
                 }
               >
+                <form
+                  noValidate id="automation-settings-form" onSubmit={handleSaveSettings} className="contents">
                 <CardGroup className="grid">
                   <Card>
                     <CardHeader>
@@ -562,8 +570,9 @@ export default function EmailAutomationsPage() {
                     </CardContent>
                   </Card>
                 </CardGroup>
+                </form>
               </DashboardModalContent>
-            </form>
+
           </Dialog>
 
           <ConfirmDestructive

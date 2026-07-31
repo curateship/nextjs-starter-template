@@ -12,6 +12,7 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { createSponsorAction, updateSponsorAction, type Sponsor } from "@/lib/actions/sponsors/sponsor-actions"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -32,6 +33,11 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
   const [url, setUrl] = useState("")
   const [isActive, setIsActive] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [fieldMissing, setFieldMissing] = useState<"title" | "url" | null>(null)
+  // The ring lasts until the box has something in it, so the field stays marked
+  // once the toast has been dismissed and clears itself as soon as it is typed in.
+  const titleInvalid = fieldMissing === "title" && !title.trim()
+  const urlInvalid = fieldMissing === "url" && !url.trim()
   // Failures report through the one shared error toast, never inside the modal
   // body — see workspace/docs/admin-action-feedback.md.
   const setError = (message: string | null) => {
@@ -57,6 +63,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
     setImageUrl(sponsor?.image_url || "")
     setUrl(sponsor?.url || "")
     setIsActive(sponsor?.is_active ?? true)
+    setFieldMissing(null)
     setError(null)
   }, [open, sponsor])
 
@@ -64,15 +71,18 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
     event.preventDefault()
 
     if (!title.trim()) {
+      setFieldMissing("title")
       setError("Sponsor title is required")
       return
     }
 
     if (!url.trim()) {
+      setFieldMissing("url")
       setError("Sponsor URL is required")
       return
     }
 
+    setFieldMissing(null)
     setSaving(true)
     setError(null)
 
@@ -105,8 +115,8 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <form id="sponsor-form" onSubmit={handleSave} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={saving}
             title={sponsor ? "Edit Sponsor" : "Create Sponsor"}
             description="Add the sponsor details used by post embeds."
             footer={
@@ -115,11 +125,14 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                   Cancel
                 </Button>
                 <Button form="sponsor-form" type="submit" disabled={saving}>
-                  {saving ? "Saving..." : "Save Sponsor"}
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save Sponsor
                 </Button>
               </>
             }
           >
+            <form
+              noValidate id="sponsor-form" onSubmit={handleSave} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -134,6 +147,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                         value={title}
                         onChange={(event) => setTitle(event.target.value)}
                         placeholder="Acme"
+                        aria-invalid={titleInvalid || undefined}
                       />
                     </Field>
                     <Field>
@@ -143,6 +157,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                         value={url}
                         onChange={(event) => setUrl(event.target.value)}
                         placeholder="https://example.com"
+                        aria-invalid={urlInvalid || undefined}
                       />
                     </Field>
                   </div>
@@ -222,8 +237,9 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
 
       <MediaPicker

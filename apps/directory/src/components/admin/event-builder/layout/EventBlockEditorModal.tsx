@@ -1,9 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { EventBlockEditor, type EventBlockEditorMode } from "./EventBlockEditor"
 
 interface EventBlock {
@@ -24,7 +25,6 @@ interface EventBlockEditorModalProps {
   onClose: () => void
   onSave: () => void
   saving?: boolean
-  error?: string | null
 }
 
 export function EventBlockEditorModal({
@@ -38,7 +38,6 @@ export function EventBlockEditorModal({
   onClose,
   onSave,
   saving = false,
-  error,
 }: EventBlockEditorModalProps) {
   if (!block) return null
 
@@ -51,24 +50,31 @@ export function EventBlockEditorModal({
     >
       <ModalTabsProvider>
         <DashboardModalContent
+          busy={saving}
           title={`${mode === "template" ? "Configure" : "Edit"} ${block.title}`}
           titleAccessory={<ModalTabs />}
           className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
           footer={
             <>
-              {error ? <p className="text-sm text-destructive">{error}</p> : <div />}
-              <DashboardModalFooterActions>
-                <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={onSave} disabled={saving}>
-                  {saving ? "Saving..." : "Save"}
-                </Button>
-              </DashboardModalFooterActions>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button form="event-block-editor-form" type="submit" disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
+            </Button>
             </>
           }
-          footerClassName="sm:justify-between"
         >
+          <form
+            noValidate
+            id="event-block-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              onSave()
+            }}
+          >
           <EventBlockEditor
             block={block}
             content={content}
@@ -78,6 +84,7 @@ export function EventBlockEditorModal({
             eventTitle={eventTitle}
             onEventTitleChange={onEventTitleChange}
           />
+          </form>
         </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,7 +28,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
   const [metaDescription, setMetaDescription] = useState("")
   const [isHomepage, setIsHomepage] = useState(false)
 
-  const { loading, loadingAction, submit } = useCreateContent<Page>({
+  const { loading, loadingAction, submit, titleInvalid } = useCreateContent<Page>({
     entityLabel: "page",
     title,
     titleRequiredMessage: "Page title is required",
@@ -47,8 +48,8 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
   }
 
   return (
-    <form id="create-page-form" onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
+          <DashboardModalContent
+        busy={loading}
         title="Create New Page"
         description="Add a new page to your site. You can customize the content after creation."
         footer={
@@ -58,15 +59,19 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-page-form" type="submit" variant="outline" disabled={loading}>
-                {loadingAction === "draft" ? "Saving..." : "Save as Draft"}
+                {loadingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button type="button" onClick={() => submit("publish", true, onSuccess)} disabled={loading}>
-                {loadingAction === "publish" ? "Publishing..." : "Publish"}
+                {loadingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Publish
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
+        <form
+          noValidate id="create-page-form" onSubmit={handleSubmit} className="contents">
 
         <CardGroup className="grid">
           <Card>
@@ -87,6 +92,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
                 urlPreview={slug ? (
                   <p className="text-xs text-blue-600">Page URL: <strong>/{slug}</strong></p>
                 ) : null}
+                titleInvalid={titleInvalid}
               />
 
               <Field>
@@ -115,7 +121,8 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
-    </form>
+
   )
 }

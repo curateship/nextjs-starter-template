@@ -207,9 +207,19 @@ export function ContactImportModal({
 
       <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) closeImportModal() }}>
         <DashboardModalContent
+          busy={importing}
           title={importResult ? "Import Complete" : "Import Contacts"}
           description="Map CSV columns to contact fields before importing."
         >
+          <form
+            noValidate
+            id="import-contacts-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleImport()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
@@ -295,7 +305,7 @@ export function ContactImportModal({
                   <Button variant="ghost" onClick={closeImportModal}>
                     Back
                   </Button>
-                  <Button onClick={handleImport} disabled={importing}>
+                  <Button form="import-contacts-form" type="submit" disabled={importing}>
                     {importing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -311,6 +321,7 @@ export function ContactImportModal({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
     </>

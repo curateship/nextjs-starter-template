@@ -26,6 +26,7 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import X from "lucide-react/dist/esm/icons/x.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
   getSegmentById,
@@ -373,7 +374,8 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                   disabled={deleting || loading}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  {deleting ? "Deleting..." : "Delete"}
+                  {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Delete
                 </Button>
               </div>
             }
@@ -564,7 +566,8 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                                         disabled={addingContact === result.id}
                                       >
                                         <Plus className="h-3.5 w-3.5 mr-1" />
-                                        {addingContact === result.id ? "..." : "Add"}
+                                        {addingContact === result.id ? <Loader2 className="size-4 animate-spin" /> : null}
+                                        Add
                                       </Button>
                                     </div>
                                   ))}
@@ -660,8 +663,8 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <form id="segment-settings-form" onSubmit={handleSave} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={saving}
             title="Segment Settings"
             description="Update the segment name, description, and membership rules."
             footer={
@@ -670,11 +673,14 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                   Cancel
                 </Button>
                 <Button form="segment-settings-form" type="submit" disabled={saving}>
-                  {saving ? "Saving..." : "Save Changes"}
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save Changes
                 </Button>
               </>
             }
           >
+            <form
+              noValidate id="segment-settings-form" onSubmit={handleSave} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -773,8 +779,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
       <ConfirmDestructive
         action="delete-segment"

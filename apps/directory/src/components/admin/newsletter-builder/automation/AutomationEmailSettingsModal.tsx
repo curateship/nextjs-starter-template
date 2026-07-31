@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
@@ -29,6 +30,9 @@ export function AutomationEmailSettingsModal({
 }: AutomationEmailSettingsModalProps) {
   const [activeTab, setActiveTab] = useState("content")
   const [subject, setSubject] = useState("")
+  const [subjectMissing, setSubjectMissing] = useState(false)
+  // Clears itself the moment there is a subject, so the ring never outlives the fault.
+  const subjectInvalid = subjectMissing && !subject.trim()
   const [body, setBody] = useState("")
   const [saving, setSaving] = useState(false)
   // Failures report through the one shared error toast, never inside the modal
@@ -57,9 +61,12 @@ export function AutomationEmailSettingsModal({
   const handleSave = async () => {
     if (!step) return
     if (!subject.trim()) {
+      setSubjectMissing(true)
       setError("Subject line is required")
       return
     }
+
+    setSubjectMissing(false)
 
     const dripError = drip.validate()
     if (dripError) {
@@ -117,6 +124,7 @@ export function AutomationEmailSettingsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <DashboardModalContent
+          busy={saving}
           title="Email Settings"
           titleAccessory={
             <TabsList className="h-9 shrink-0">
@@ -126,21 +134,32 @@ export function AutomationEmailSettingsModal({
           }
           footer={
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Close
               </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
+              <Button form="automation-email-settings-form" type="submit" disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
+          <form
+            noValidate
+            id="automation-email-settings-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleSave()
+            }}
+          >
           <TabsContent value="content" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
               <Card>
                 <CardContent>
                   <Input
                     id="automation-email-settings-subject"
+                    aria-invalid={subjectInvalid || undefined}
                     aria-label="Subject line"
                     value={subject}
                     onChange={event => setSubject(event.target.value)}
@@ -170,6 +189,7 @@ export function AutomationEmailSettingsModal({
               <DripSettingsFields form={drip} idPrefix="automation-settings" variant="cards" />
             </CardGroup>
           </TabsContent>
+          </form>
         </DashboardModalContent>
       </Tabs>
     </Dialog>

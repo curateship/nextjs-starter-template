@@ -27,6 +27,7 @@ export const DESTRUCTIVE_ACTION_POLICIES = {
   "delete-product": { level: 2, consequence: "The product and its order records are permanently deleted." },
   "delete-saved-collection": { level: 2, consequence: "The folder and every saved listing in it are permanently removed." },
   "delete-segment": { level: 2, consequence: "The segment and its contact memberships are permanently deleted." },
+  "delete-sidebar-section": { level: 1, consequence: "The section and every link in it disappear from the admin sidebar. This saves automatically." },
   "delete-site": { level: 3, consequence: "The site and all site-owned content, audiences, orders, media, and settings are permanently deleted." },
   "delete-site-user": { level: 1, consequence: "The user loses access to this site; their platform account remains." },
   "delete-sponsor": { level: 2, consequence: "The sponsor is permanently deleted and existing embeds stop rendering." },
@@ -36,6 +37,8 @@ export const DESTRUCTIVE_ACTION_POLICIES = {
   "delete-user": { level: 3, consequence: "The platform account, authentication records, and owned sites and media are permanently deleted." },
   "remove-event-registration": { level: 1, consequence: "The person is taken off the attendee list and their seat is freed. A paid ticket is not refunded automatically." },
   "remove-saved-listing": { level: 1, consequence: "The listing is removed from this saved folder." },
+  "reset-admin-sidebar": { level: 1, consequence: "Every sidebar section and link goes back to the default layout. Custom links and renames are lost. This saves automatically." },
+  "revoke-featured-placement": { level: 1, consequence: "The listing immediately loses its Featured badge and priority placement. Refunds are handled manually in Stripe." },
   "remove-segment-contact": { level: 1, consequence: "The contact is removed from this segment but remains in the audience." },
 } as const satisfies Record<string, DestructiveActionPolicy>
 

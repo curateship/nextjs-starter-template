@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { useEventData } from "@/components/admin/event-builder/config/useEventData"
@@ -78,7 +79,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftEventTitle, setDraftEventTitle] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   // Current event data
   const currentEventData = events.find(d => d.slug === selectedEvent)
@@ -93,7 +93,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     if (!selectedBlock) {
       setDraftContent({})
       setDraftEventTitle("")
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -103,7 +103,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         : {}
     )
     setDraftEventTitle(currentEventData?.title || selectedEvent)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, currentEventData?.title, selectedEvent])
 
   // Handle event updates (also remaps local blocks + URL when the slug changes)
@@ -165,7 +165,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const handleCloseBlockEditor = () => {
     if (isSavingBlock) return
     builderState.setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   // Save the selected block's value edits (template-owned keys are pruned server-side)
@@ -173,7 +173,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     if (!selectedBlock || !currentEventData?.id) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const currentBlocks = localBlocks[selectedEvent] || []
@@ -189,7 +189,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         if (nextTitle !== currentEventData.title) {
           const { data, error } = await updateEventAction({ data: { eventId: currentEventData.id, data: { title: nextTitle } } })
           if (error || !data) {
-            setBlockSaveError(error || "Failed to save event details")
+            showErrorToast(error || "Failed to save event details")
             return
           }
           handleEventUpdated(data)
@@ -199,7 +199,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       const contentBlocks = eventBlocksToValueJson(nextBlocks)
       const result = await updateEventBlocksAction({ data: { eventId: currentEventData.id, contentBlocks: contentBlocks } })
       if (!result.success) {
-        setBlockSaveError(result.error || "Failed to save block")
+        showErrorToast(result.error || "Failed to save block")
         return
       }
 
@@ -209,7 +209,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       }))
       builderState.setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -297,7 +297,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
         />
 
         {blockListOpen && (

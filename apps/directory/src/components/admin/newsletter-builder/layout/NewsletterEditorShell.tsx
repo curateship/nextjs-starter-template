@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
@@ -216,6 +217,7 @@ export function NewsletterEditorShell({
         >
           <ModalTabsProvider>
               <DashboardModalContent
+                busy={isSavingBlock}
                 title={`Edit ${selectedBlock.title}`}
                 titleAccessory={<ModalTabs />}
                 className="max-w-[960px]"
@@ -224,11 +226,21 @@ export function NewsletterEditorShell({
                   <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
                     Cancel
                   </Button>
-                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                    {isSavingBlock ? "Saving..." : "Save"}
+                  <Button form="newsletter-block-editor-form" type="submit" disabled={isSavingBlock}>
+                    {isSavingBlock ? <Loader2 className="size-4 animate-spin" /> : null}
+                    Save
                   </Button>
                 </>
                 }
+              >
+              <form
+                noValidate
+                id="newsletter-block-editor-form"
+                className="contents"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  handleSaveBlockEditor()
+                }}
               >
                 <NewsletterBlockEditor
                   block={selectedBlock}
@@ -238,6 +250,7 @@ export function NewsletterEditorShell({
                   subject={draftSubject}
                   onSubjectChange={setDraftSubject}
                 />
+              </form>
             </DashboardModalContent>
           </ModalTabsProvider>
         </Dialog>

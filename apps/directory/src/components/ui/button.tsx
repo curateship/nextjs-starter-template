@@ -58,6 +58,11 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
+      // A plain <button> inside a form submits it. Now that modal bodies are real
+      // forms, an unlabelled "Add row" or "Choose image" button in the middle of
+      // one would otherwise save and close the modal. Submitting is opt-in:
+      // every Save button says type="submit" for itself.
+      type={asChild ? undefined : "button"}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

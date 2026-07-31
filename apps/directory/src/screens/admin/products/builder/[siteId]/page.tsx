@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
@@ -280,6 +281,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           >
             <ModalTabsProvider>
               <DashboardModalContent
+                busy={isSavingBlock}
                 title={`Edit ${selectedBlock.title}`}
                 titleAccessory={<ModalTabs />}
                 className="max-w-[960px]"
@@ -288,12 +290,22 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                     <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
                       Cancel
                     </Button>
-                    <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                      {isSavingBlock ? "Saving..." : "Save"}
+                    <Button form="product-block-editor-form" type="submit" disabled={isSavingBlock}>
+                      {isSavingBlock ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Save
                     </Button>
                   </>
                 )}
               >
+                <form
+                  noValidate
+                  id="product-block-editor-form"
+                  className="contents"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleSaveBlockEditor()
+                  }}
+                >
                 {selectedBlock.type === "product-hero" && (
                         <ProductHeroBlock
                           content={draftContent}
@@ -472,6 +484,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                           onVisibilityChange={(v) => handleDraftChange("visibility", v)}
                         />
                       )}
+                </form>
               </DashboardModalContent>
             </ModalTabsProvider>
           </Dialog>

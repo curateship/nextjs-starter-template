@@ -8,6 +8,7 @@ import SlidersHorizontal from "lucide-react/dist/esm/icons/sliders-horizontal.js
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -53,6 +54,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   createSiteUser,
@@ -195,6 +197,7 @@ export default function SiteUsersPage() {
   })
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [createFieldMissing, setCreateFieldMissing] = useState<"email" | "password" | null>(null)
 
   const loadUsers = useCallback(async () => {
     const requestId = ++requestIdRef.current
@@ -463,15 +466,26 @@ export default function SiteUsersPage() {
       role: user.role === "admin" ? "admin" : "member",
       status: user.status
     })
-    setErrorMessage(null)
+    dismissErrorToast()
   }
 
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
     if (!currentSite?.id) return
 
+    // Named here rather than left to the browser's own bubble, which never
+    // shows for a field on a tab panel that has been switched away.
+    const firstEmpty = !createForm.email.trim() ? "email" : !createForm.password ? "password" : null
+    if (firstEmpty) {
+      setCreateFieldMissing(firstEmpty)
+      showErrorToast(firstEmpty === "email" ? "Email is required" : "Password is required")
+      return
+    }
+
+    setCreateFieldMissing(null)
+
     setCreating(true)
-    setErrorMessage(null)
+    dismissErrorToast()
     const result = await createSiteUser({ data: { input: {
       siteId: currentSite.id,
       email: createForm.email,
@@ -482,7 +496,7 @@ export default function SiteUsersPage() {
     } } })
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       setCreating(false)
       return
     }
@@ -505,7 +519,7 @@ export default function SiteUsersPage() {
     if (!currentSite?.id || !editUser) return
 
     setSaving(true)
-    setErrorMessage(null)
+    dismissErrorToast()
     const result = await updateSiteUser({ data: { input: {
       membershipId: editUser.id,
       siteId: currentSite.id,
@@ -515,7 +529,7 @@ export default function SiteUsersPage() {
     } } })
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       setSaving(false)
       return
     }
@@ -976,22 +990,22 @@ export default function SiteUsersPage() {
         </Dialog>
 
         <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-          <DialogContent variant="admin">
+          <DialogContent variant="admin" busy={creating}>
             <DialogHeader>
               <DialogTitle>Add Site User</DialogTitle>
             </DialogHeader>
             <form
+              noValidate
               onSubmit={handleCreateUser}
               className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
             >
               <DialogBody>
-              {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
               <div>
                 <Label htmlFor="site-user-email">Email *</Label>
                 <Input
                   id="site-user-email"
                   type="email"
-                  required
+                  aria-invalid={(createFieldMissing === "email" && !createForm.email.trim()) || undefined}
                   value={createForm.email}
                   onChange={(e) =>
                     setCreateForm((prev) => ({
@@ -1019,7 +1033,7 @@ export default function SiteUsersPage() {
                 <Input
                   id="site-user-password"
                   type="password"
-                  required
+                  aria-invalid={(createFieldMissing === "password" && !createForm.password) || undefined}
                   value={createForm.password}
                   onChange={(e) =>
                     setCreateForm((prev) => ({
@@ -1076,7 +1090,8 @@ export default function SiteUsersPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={creating}>
-                  {creating ? "Creating..." : "Create User"}
+                  {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Create User
                 </Button>
               </DialogFooter>
             </form>
@@ -1089,16 +1104,16 @@ export default function SiteUsersPage() {
             if (!open) setEditUser(null)
           }}
         >
-          <DialogContent variant="admin">
+          <DialogContent variant="admin" busy={saving}>
             <DialogHeader>
               <DialogTitle>Edit Site User</DialogTitle>
             </DialogHeader>
             <form
+              noValidate
               onSubmit={handleUpdateUser}
               className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
             >
               <DialogBody>
-              {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
               <div>
                 <Label>Email</Label>
                 <Input value={editUser?.email || ""} disabled />
@@ -1165,7 +1180,8 @@ export default function SiteUsersPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={saving}>
-                  {saving ? "Saving..." : "Save Changes"}
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save Changes
                 </Button>
               </DialogFooter>
             </form>

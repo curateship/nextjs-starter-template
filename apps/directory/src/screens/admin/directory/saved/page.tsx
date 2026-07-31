@@ -7,6 +7,7 @@ import FolderOpen from "lucide-react/dist/esm/icons/folder-open.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -457,7 +458,8 @@ export default function DirectorySavedPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDefaultsOpen(false)} disabled={savingDefaults}>Cancel</Button>
             <Button onClick={saveDefaults} disabled={savingDefaults}>
-              {savingDefaults ? "Saving..." : "Save"}
+              {savingDefaults ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -481,7 +483,8 @@ export default function DirectorySavedPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setFolderToRename(null)} disabled={savingRename}>Cancel</Button>
             <Button onClick={saveRename} disabled={savingRename}>
-              {savingRename ? "Saving..." : "Save"}
+              {savingRename ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -18,6 +18,7 @@ import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getProductTemplatesBySite } from "@/lib/actions/products/product-template-actions"
@@ -58,6 +59,10 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
+  const [titleMissing, setTitleMissing] = useState(false)
+  // Marked until the box has something in it, so it is still flagged once the
+  // toast has been dismissed and clears itself as soon as the user types.
+  const titleInvalid = titleMissing && !formData.title?.trim()
   // Failures report through the one shared error toast, never inside the modal
   // body — see workspace/docs/admin-action-feedback.md.
   const setError = (message: string | null) => {
@@ -154,6 +159,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   // Handle saving as draft, optionally signaling redirect to builder
   const handleSave = async (continueToBuilder = false, publishNow = false) => {
     if (!formData.title.trim()) {
+      setTitleMissing(true)
       setError('Product title is required')
       return
     }
@@ -164,6 +170,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     }
 
     try {
+      setTitleMissing(false)
       setLoading(true)
       setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
       setError(null)
@@ -234,8 +241,9 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   }
 
   return (
-    <form id="create-product-form" onSubmit={handleSubmit} className="contents">
+    <>
       <DashboardModalContent
+        busy={loading}
         title="Create New Product"
         description="Add a new product to your catalog. You can customize the content after creation."
         footer={
@@ -250,26 +258,31 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                 variant="outline"
                 disabled={loading}
               >
-                {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+                {loadingAction === 'draft' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(true)}
                 disabled={loading}
               >
-                {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+                {loadingAction === 'continue' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Continue
               </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(false, true)}
                 disabled={loading}
               >
-                {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
+                {loadingAction === 'publish' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Publish
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
+        <form
+          noValidate id="create-product-form" onSubmit={handleSubmit} className="contents">
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -306,7 +319,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                   value={formData.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   placeholder="Enter product title"
-                  required
+                  aria-invalid={titleInvalid || undefined}
                 />
               </Field>
 
@@ -449,6 +462,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
       <MediaPicker
         open={showImagePicker}
@@ -459,6 +473,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         }}
         currentMediaUrl={featuredImage || ''}
       />
-    </form>
+    </>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useRouter } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -53,7 +54,6 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   const loadTemplate = useCallback(async () => {
     setLoading(true)
@@ -89,7 +89,7 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
   useEffect(() => {
     if (!selectedBlock) {
       setDraftContent({})
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -98,7 +98,7 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
         ? JSON.parse(JSON.stringify(selectedBlock.content))
         : {}
     )
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock])
 
   function handleDeleteBlock(block: EventEditorBlock) {
@@ -123,14 +123,14 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
   function handleCloseBlockEditor() {
     if (isSavingBlock) return
     setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   async function handleSaveBlockEditor() {
     if (!template || !selectedBlock) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const nextBlocks = blocks.map((block) =>
@@ -144,7 +144,7 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
       } } })
 
       if (saveError || !data) {
-        setBlockSaveError(saveError || "Failed to save block")
+        showErrorToast(saveError || "Failed to save block")
         return
       }
 
@@ -154,7 +154,7 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
       markBlocksSaved(savedBlocks)
       setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -331,7 +331,6 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
           mode="template"
         />
 

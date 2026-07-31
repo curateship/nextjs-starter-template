@@ -556,6 +556,13 @@ export function serializeAdminSidebarSettings(settings: AdminSidebarSettings): A
   }
 }
 
+// A link nobody has named yet is still being built. It stays visible in the
+// editor (as "Name this link"), but every place the saved config becomes the
+// rendered nav filters on this so a half-built link never ships.
+export function isAdminSidebarEntryNamed(entry: { label: string }) {
+  return entry.label.trim().length > 0
+}
+
 export function isExternalAdminSidebarHref(href: string) {
   return /^https?:\/\//i.test(href.trim())
 }
@@ -596,9 +603,11 @@ export function getAdminSidebarStickyNavLinks(
   const settings = resolveAdminSidebarSettings(value, context)
   const candidates = settings.sections.flatMap((section) =>
     section.entries.flatMap((entry) => {
-      if (!entry.visible) return []
+      if (!entry.visible || !isAdminSidebarEntryNamed(entry)) return []
 
-      const children = (entry.children ?? []).filter((childItem) => childItem.visible !== false)
+      const children = (entry.children ?? []).filter(
+        (childItem) => childItem.visible !== false && isAdminSidebarEntryNamed(childItem)
+      )
       const activeChild = getActiveChild(context.pathname, children)
       const parentMatches = isItemActive(context.pathname, entry)
       if (!parentMatches && !activeChild) return []
@@ -613,7 +622,9 @@ export function getAdminSidebarStickyNavLinks(
 
   const active = candidates.sort((a, b) => b.matchLength - a.matchLength)[0]
   if (!active) return []
-  const visibleChildren = (active.entry.children ?? []).filter((childItem) => childItem.visible !== false)
+  const visibleChildren = (active.entry.children ?? []).filter(
+    (childItem) => childItem.visible !== false && isAdminSidebarEntryNamed(childItem)
+  )
 
   return [
     {

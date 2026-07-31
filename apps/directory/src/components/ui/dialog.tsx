@@ -64,15 +64,23 @@ function isToastInteraction(event: { target: EventTarget | null }) {
 }
 
 function DialogContent({
+  busy = false,
   className,
   children,
   variant = "default",
   showCloseButton = true,
+  onEscapeKeyDown,
   onPointerDownOutside,
   onInteractOutside,
   onFocusOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  /**
+   * A save is in flight. Every way out is shut — the X, the backdrop and
+   * Escape — so a half-written record cannot be abandoned mid-write and the
+   * failure message always has a modal to appear in front of.
+   */
+  busy?: boolean
   variant?: DialogContentVariant
   showCloseButton?: boolean
 }) {
@@ -82,9 +90,13 @@ function DialogContent({
           ignores the first click after a Select inside the dialog was used (an
           upstream DismissableLayer bug), so clicking the backdrop closes here
           directly and reliably. */}
-      <DialogPrimitive.Close asChild>
+      {busy ? (
         <DialogOverlay />
-      </DialogPrimitive.Close>
+      ) : (
+        <DialogPrimitive.Close asChild>
+          <DialogOverlay />
+        </DialogPrimitive.Close>
+      )}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-variant={variant}
@@ -96,17 +108,21 @@ function DialogContent({
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 !pointer-events-auto outline-none max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!ring-0 max-sm:overflow-y-auto sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-4rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:overflow-hidden data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className
         )}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event)
+          if (busy) event.preventDefault()
+        }}
         onPointerDownOutside={(event) => {
           onPointerDownOutside?.(event)
-          if (isToastInteraction(event)) event.preventDefault()
+          if (busy || isToastInteraction(event)) event.preventDefault()
         }}
         onInteractOutside={(event) => {
           onInteractOutside?.(event)
-          if (isToastInteraction(event)) event.preventDefault()
+          if (busy || isToastInteraction(event)) event.preventDefault()
         }}
         onFocusOutside={(event) => {
           onFocusOutside?.(event)
-          if (isToastInteraction(event)) event.preventDefault()
+          if (busy || isToastInteraction(event)) event.preventDefault()
         }}
         {...props}
       >
@@ -118,6 +134,9 @@ function DialogContent({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
+                // Disabled rather than removed while busy: taking the button out
+                // would shift the header for the length of the save.
+                disabled={busy}
                 className={cn(
                   "absolute top-4 right-5",
                   variant === "admin" && "top-5"
