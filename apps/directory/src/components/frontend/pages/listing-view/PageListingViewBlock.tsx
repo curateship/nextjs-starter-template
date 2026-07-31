@@ -300,7 +300,7 @@ export function ListingViewsBlock({
       const limit = isMapMode ? DIRECTORY_MAP_LISTING_LIMIT : isPaginated ? itemsPerPage : itemsToShow
       const offset = isMapMode || !isPaginated ? 0 : (currentPage - 1) * itemsPerPage
 
-      const result = await getListingViewsData({
+      const result = await getListingViewsData({ data: {
         site_id: siteId,
         contentType,
         categoryIds: categoryIdsKey ? categoryIdsKey.split("|") : [],
@@ -312,7 +312,7 @@ export function ListingViewsBlock({
         offset,
         includeCategories: contentType === "directory" && categoryChipParentIdsKey.length > 0,
         near: nearFilter ?? undefined
-      })
+      } })
 
       if (result.success && result.data) {
         setData(result.data)
@@ -342,7 +342,7 @@ export function ListingViewsBlock({
   useEffect(() => {
     if (!isMapMode || preloadedMapApiKey !== undefined) return
     let active = true
-    getDirectoryMapConfigAction(siteId)
+    getDirectoryMapConfigAction({ data: { siteId } })
       .then((config) => {
         if (active) setMapConfig(config)
       })

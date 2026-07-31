@@ -48,13 +48,13 @@ export function RelatedPostsBlock({ content, siteId, currentPostId, preloadedDat
 
     async function loadData() {
       setLoading(true)
-      const result = await getRelatedPostsData({
+      const result = await getRelatedPostsData({ data: {
         siteId,
         excludePostId: currentPostId,
         sortBy,
         sortOrder,
         limit: itemsToShow,
-      })
+      } })
 
       if (result.success && result.data) {
         setData(result.data)

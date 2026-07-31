@@ -1,95 +1,16 @@
-'use server'
+import { createServerFn } from "@tanstack/react-start"
+import { getRelatedPostsDataImpl } from "./related-posts-actions.server"
 
-import { eq, and, ne, asc, desc } from 'drizzle-orm'
-import { unstable_cache } from '@/lib/cache'
-import { db } from '@/lib/db'
-import { posts } from '@/lib/db/schema'
-import { UUID_REGEX } from '@/lib/utils/validation'
+// Types stay importable from this path. `export type` is erased at runtime,
+// so no server code reaches the client through it.
+export type * from "./related-posts-actions.server"
 
-export interface RelatedPostsData {
-  posts: Array<{
-    id: string
-    title: string
-    slug: string
-    featured_image: string | null
-    excerpt: string | null
-    created_at: string
-  }>
-  totalCount: number
-}
-
-const getCachedRelatedPosts = unstable_cache(
-  async (siteId: string, excludePostId: string, sortBy: string, sortOrder: string, limit: number) => {
-    const orderByColumn = sortBy === 'title' ? posts.title : posts.createdAt
-    const orderByDir = sortOrder === 'asc' ? asc(orderByColumn) : desc(orderByColumn)
-
-    const data = await db
-      .select({
-        id: posts.id,
-        title: posts.title,
-        slug: posts.slug,
-        featuredImage: posts.featuredImage,
-        excerpt: posts.excerpt,
-        createdAt: posts.createdAt,
-      })
-      .from(posts)
-      .where(
-        and(
-          eq(posts.siteId, siteId),
-          eq(posts.isPublished, true),
-          ne(posts.id, excludePostId)
-        )
-      )
-      .orderBy(orderByDir)
-      .limit(limit)
-
-    const mapped = data.map(row => ({
-      id: row.id,
-      title: row.title,
-      slug: row.slug,
-      featured_image: row.featuredImage,
-      excerpt: row.excerpt,
-      created_at: row.createdAt.toISOString(),
-    }))
-
-    return {
-      posts: mapped,
-      totalCount: mapped.length
-    }
-  },
-  ['related-posts-data'],
-  {
-    revalidate: 3600,
-    tags: ['related-posts', 'all']
-  }
-)
-
-export async function getRelatedPostsData(params: {
-  siteId: string
-  excludePostId: string
-  sortBy: 'date' | 'title'
-  sortOrder: 'asc' | 'desc'
-  limit?: number
-}): Promise<{
-  success: boolean
-  data?: RelatedPostsData
-  error?: string
-}> {
-  try {
-    const { siteId, excludePostId } = params
-    const sortBy = params.sortBy === 'title' ? 'title' : 'date'
-    const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc'
-    const limit = Number.isFinite(params.limit) ? Math.min(24, Math.max(1, Math.floor(params.limit!))) : 3
-
-    if (!UUID_REGEX.test(siteId) || !UUID_REGEX.test(excludePostId)) {
-      return { success: false, error: 'Valid site and post IDs are required' }
-    }
-
-    const data = await getCachedRelatedPosts(siteId, excludePostId, sortBy, sortOrder, limit)
-
-    return { success: true, data }
-  } catch (error) {
-    console.error('Error loading related posts:', error)
-    return { success: false, error: 'Failed to load related posts' }
-  }
-}
+export const getRelatedPostsData = createServerFn({ method: "POST" })
+  .inputValidator((data: {
+    siteId: string
+    excludePostId: string
+    sortBy: 'date' | 'title'
+    sortOrder: 'asc' | 'desc'
+    limit?: number
+  }) => data)
+  .handler(async ({ data }) => getRelatedPostsDataImpl(data))

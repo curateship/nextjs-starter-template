@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { unstable_cache } from "@/lib/cache"
 import { notFound } from "@/lib/navigation-server"
-import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
+import { getRelatedPostsDataImpl } from "@/lib/actions/posts/related-posts-actions.server"
 import { mergePostTemplateBlocks } from "@/lib/actions/posts/post-template-inheritance"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
@@ -150,7 +150,7 @@ export default async function PostPage({ params }: PostPageProps) {
   const relatedPostsBlock = blocks.find((b: any) => b.type === 'related-posts')
   if (relatedPostsBlock) {
     const rpContent = relatedPostsBlock.content || {}
-    const result = await getRelatedPostsData({
+    const result = await getRelatedPostsDataImpl({
       siteId: site.id,
       excludePostId: post.id,
       sortBy: rpContent.sortBy || 'date',
