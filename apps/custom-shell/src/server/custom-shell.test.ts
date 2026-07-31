@@ -30,7 +30,9 @@ import {
   customShellPlans,
   customShellSessions,
   customShellSettings,
+  customShellSubscriptions,
   customShellUsers,
+  customShellWorkspaces,
 } from "@/server/schema"
 import {
   canManageFeedbackComment,
@@ -56,7 +58,11 @@ import {
   isActiveShellHref,
   normalizeMaintenance,
   resolveMaintenanceMessage,
+  type ShellItem,
+  type ShellSection,
 } from "@/lib/custom-shell"
+import { loadMembershipSummary } from "@/server/membership"
+import { startViewingAs, stopViewingAs } from "@/server/view-as"
 import { loadAccountDetail } from "@/server/account-detail"
 import { grantManualPlan, recordAdminAudit } from "@/server/accounts"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
@@ -67,6 +73,7 @@ import {
 } from "@/server/notifications"
 import {
   createSessionExpiresAt,
+  findSessionContextByToken,
   findUserBySessionToken,
   hashSessionToken,
   now,
@@ -77,7 +84,9 @@ import {
   createUserWorkspace,
   deleteUserWorkspace,
   getOrCreateCurrentWorkspace,
+  groupMembershipLinks,
   listUserWorkspaces,
+  NAVIGATION_VERSION,
   parseWorkspaceSettings,
   switchUserWorkspace,
   updateUserWorkspace,
@@ -438,6 +447,440 @@ describe("custom shell workspaces", () => {
     expect(hrefs).toContain("/admin/audit")
     expect(hrefs).toContain("/admin/automations")
     expect(hrefs).toContain("/changelog")
+  })
+})
+
+describe("membership section", () => {
+  /** Users, Plans and Revenue exactly as an older workspace saved them. */
+  function savedAdminSection(
+    overrides: Partial<Record<string, boolean>> = {}
+  ): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-users",
+            label: "People",
+            href: "/admin/users",
+            icon: "users",
+            visible: overrides["item-admin-users"] ?? true,
+            roles: ["admin"],
+          },
+          {
+            type: "item",
+            id: "item-admin-plans",
+            label: "Plans",
+            href: "/admin/plans",
+            icon: "package",
+            visible: overrides["item-admin-plans"] ?? true,
+            roles: ["admin"],
+          },
+          {
+            type: "item",
+            id: "item-admin-revenue",
+            label: "Revenue",
+            href: "/admin/billing",
+            icon: "barChart3",
+            visible: overrides["item-admin-revenue"] ?? true,
+            roles: ["admin"],
+          },
+          {
+            type: "item",
+            id: "item-admin-audit",
+            label: "Activity log",
+            href: "/admin/audit",
+            icon: "scroll-text",
+            visible: true,
+            roles: ["admin"],
+          },
+        ],
+      },
+    ]
+  }
+
+  it("moves the three saved links under one Membership parent, keeping their names", () => {
+    const [section] = groupMembershipLinks(savedAdminSection())
+
+    expect(section.entries.map((entry) => entry.id)).toEqual([
+      "item-admin-membership",
+      "item-admin-audit",
+    ])
+    const membership = section.entries[0] as ShellItem
+    expect(membership.href).toBe("/admin/membership")
+    // The admin renamed Users to "People" — that has to survive the move.
+    expect(membership.children).toEqual([
+      {
+        id: "item-admin-users",
+        label: "People",
+        href: "/admin/users",
+        icon: "users",
+        roles: ["admin"],
+      },
+      {
+        id: "item-admin-plans",
+        label: "Plans",
+        href: "/admin/plans",
+        icon: "package",
+        roles: ["admin"],
+      },
+      {
+        id: "item-admin-revenue",
+        label: "Revenue",
+        href: "/admin/billing",
+        icon: "barChart3",
+        roles: ["admin"],
+      },
+    ])
+  })
+
+  it("leaves a switched-off link where it is", () => {
+    const [section] = groupMembershipLinks(
+      savedAdminSection({ "item-admin-revenue": false })
+    )
+
+    const membership = section.entries[0] as ShellItem
+    expect(membership.children?.map((child) => child.id)).toEqual([
+      "item-admin-users",
+      "item-admin-plans",
+    ])
+    // A child link has no "hidden", so the hidden one stays a top-level entry
+    // rather than being put back on screen.
+    expect(section.entries.map((entry) => entry.id)).toContain(
+      "item-admin-revenue"
+    )
+  })
+
+  it("changes nothing when Membership is already there or all three are gone", () => {
+    const alreadyGrouped = groupMembershipLinks(savedAdminSection())
+    expect(groupMembershipLinks(alreadyGrouped)).toBe(alreadyGrouped)
+
+    const noneLeft: ShellSection[] = [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-audit",
+            label: "Activity log",
+            href: "/admin/audit",
+            icon: "scroll-text",
+            visible: true,
+            roles: ["admin"],
+          },
+        ],
+      },
+    ]
+    expect(groupMembershipLinks(noneLeft)).toBe(noneLeft)
+  })
+
+  it("brings an existing workspace forward once, and never again", async () => {
+    const createdAt = now()
+    const userId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "old-workspace@internal.dev",
+      name: "Old Workspace",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellWorkspaces).values({
+      id: uuid(),
+      userId,
+      name: "Before Membership",
+      // Saved before Membership existed: no navVersion at all.
+      settings: { sections: savedAdminSection() },
+      isDefault: true,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const upgraded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-membership",
+      "item-admin-audit",
+    ])
+
+    // Delete it the way Settings → Sidebar would, then load again. Reading must
+    // never hand it back.
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...upgraded,
+          sections: [
+            {
+              ...upgraded.sections[0],
+              entries: upgraded.sections[0].entries.filter(
+                (entry) => entry.id !== "item-admin-membership"
+              ),
+            },
+          ],
+        },
+      })
+      .where(eq(customShellWorkspaces.userId, userId))
+
+    const reloaded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-audit",
+    ])
+  })
+
+  it("counts everybody once, free plan included", async () => {
+    const createdAt = now()
+    // Free ($0, the default) and Pro ($19 a month, $190 a year) are seeded by
+    // the migrations, the same as a real install.
+    const seeded = await database.select().from(customShellPlans)
+    const proPlanId = seeded.find((plan) => plan.slug === "pro")!.id
+
+    await database.insert(customShellPlans).values({
+      id: uuid(),
+      slug: "retired",
+      name: "Retired",
+      priceMonthlyCents: 900,
+      active: false,
+      sortOrder: 2,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const people = ["admin", "payer", "yearly", "freeloader"] as const
+    const ids = new Map<string, string>()
+    for (const who of people) {
+      const id = uuid()
+      ids.set(who, id)
+      await database.insert(customShellUsers).values({
+        id,
+        email: `${who}@internal.dev`,
+        name: who,
+        role: who === "admin" ? "admin" : "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      })
+    }
+
+    await database.insert(customShellSubscriptions).values([
+      {
+        id: uuid(),
+        userId: ids.get("payer")!,
+        planId: proPlanId,
+        status: "active",
+        interval: "monthly",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: uuid(),
+        userId: ids.get("yearly")!,
+        planId: proPlanId,
+        status: "active",
+        interval: "yearly",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const summary = await loadMembershipSummary(
+      database as unknown as CustomShellDb
+    )
+
+    expect(summary.admins).toBe(1)
+    expect(summary.members).toBe(3)
+    // Only plans people can still join.
+    expect(summary.livePlans).toBe(2)
+    expect(summary.paidPlans).toBe(1)
+
+    // $19 a month, plus a $190 year counted as a twelfth of itself.
+    expect(summary.revenue.monthlyRecurringCents).toBe(
+      1900 + Math.round(19_000 / 12)
+    )
+
+    const perPlan = Object.fromEntries(
+      summary.planMembership.map((row) => [row.planName, row.people])
+    )
+    // Two paying, and everybody else — including the admin — on free.
+    expect(perPlan).toEqual({ Free: 2, Pro: 2 })
+    expect(
+      summary.planMembership.reduce((total, row) => total + row.people, 0)
+    ).toBe(summary.revenue.totalUsers)
+  })
+})
+
+describe("view as member", () => {
+  async function seedAdminAndMember() {
+    const createdAt = now()
+    const adminId = uuid()
+    const memberId = uuid()
+    const token = "admin-session-token"
+
+    await database.insert(customShellUsers).values([
+      {
+        id: adminId,
+        email: "boss@internal.dev",
+        name: "Boss",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: memberId,
+        email: "member@internal.dev",
+        name: "Member",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+    await database.insert(customShellSessions).values({
+      id: uuid(),
+      userId: adminId,
+      tokenHash: hashSessionToken(token),
+      expiresAt: createSessionExpiresAt(),
+      createdAt,
+    })
+
+    return { adminId, memberId, token }
+  }
+
+  it("swaps who the session acts as, and puts it back on exit", async () => {
+    const { adminId, memberId, token } = await seedAdminAndMember()
+    const testDb = database as unknown as CustomShellDb
+
+    await startViewingAs(adminId, token, memberId, testDb)
+
+    const viewing = await findSessionContextByToken(token, testDb)
+    expect(viewing?.user.id).toBe(memberId)
+    // The admin behind it is never lost — that is what makes exiting safe.
+    expect(viewing?.viewedBy?.id).toBe(adminId)
+
+    await stopViewingAs(token, testDb)
+
+    const back = await findSessionContextByToken(token, testDb)
+    expect(back?.user.id).toBe(adminId)
+    expect(back?.viewedBy).toBeNull()
+
+    // Both ends of it are in the activity log, in order.
+    const entries = await database
+      .select()
+      .from(customShellAdminAuditLogs)
+      .orderBy(customShellAdminAuditLogs.createdAt)
+    expect(entries.map((entry) => entry.action)).toEqual([
+      "view_as",
+      "stop_view_as",
+    ])
+    expect(entries.every((entry) => entry.actorUserId === adminId)).toBe(true)
+    // The email is saved because the account may be gone by the time anyone
+    // reads the log.
+    expect(entries[0].detail).toBe("member@internal.dev")
+  })
+
+  it("refuses another admin, a suspended account, yourself, and a stranger's session", async () => {
+    const { adminId, memberId, token } = await seedAdminAndMember()
+    const testDb = database as unknown as CustomShellDb
+    const otherAdminId = uuid()
+    const createdAt = now()
+
+    await database.insert(customShellUsers).values({
+      id: otherAdminId,
+      email: "other-boss@internal.dev",
+      name: "Other Boss",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await expect(
+      startViewingAs(adminId, token, otherAdminId, testDb)
+    ).rejects.toThrow("VIEW_AS_ADMIN")
+    await expect(
+      startViewingAs(adminId, token, adminId, testDb)
+    ).rejects.toThrow("VIEW_AS_SELF")
+    await expect(
+      startViewingAs(adminId, token, uuid(), testDb)
+    ).rejects.toThrow("USER_NOT_FOUND")
+
+    // A session this admin does not own cannot be pointed at anybody.
+    await expect(
+      startViewingAs(adminId, "not-my-session", memberId, testDb)
+    ).rejects.toThrow("AUTH_REQUIRED")
+
+    await database
+      .update(customShellUsers)
+      .set({ status: "suspended" })
+      .where(eq(customShellUsers.id, memberId))
+    await expect(
+      startViewingAs(adminId, token, memberId, testDb)
+    ).rejects.toThrow("VIEW_AS_SUSPENDED")
+
+    // Nothing above wrote a log entry, because nothing above happened.
+    const entries = await database.select().from(customShellAdminAuditLogs)
+    expect(entries).toEqual([])
+  })
+
+  it("ends the view on its own if the member is suspended or promoted", async () => {
+    const { adminId, memberId, token } = await seedAdminAndMember()
+    const testDb = database as unknown as CustomShellDb
+
+    await startViewingAs(adminId, token, memberId, testDb)
+    await database
+      .update(customShellUsers)
+      .set({ role: "admin" })
+      .where(eq(customShellUsers.id, memberId))
+
+    // Promoting the person being viewed must not hand the admin a second set of
+    // admin powers through the back door.
+    const context = await findSessionContextByToken(token, testDb)
+    expect(context?.user.id).toBe(adminId)
+    expect(context?.viewedBy).toBeNull()
+
+    // And it has to be over for good, not ignored for this one request. Left
+    // set, demoting them again would silently put the admin back inside their
+    // account days later, having done nothing.
+    const [session] = await database
+      .select({ viewingAsUserId: customShellSessions.viewingAsUserId })
+      .from(customShellSessions)
+    expect(session.viewingAsUserId).toBeNull()
+
+    await database
+      .update(customShellUsers)
+      .set({ role: "member" })
+      .where(eq(customShellUsers.id, memberId))
+    const afterDemotion = await findSessionContextByToken(token, testDb)
+    expect(afterDemotion?.user.id).toBe(adminId)
+    expect(afterDemotion?.viewedBy).toBeNull()
+  })
+
+  it("refuses to exit a view that is not running", async () => {
+    const { token } = await seedAdminAndMember()
+
+    await expect(
+      stopViewingAs(token, database as unknown as CustomShellDb)
+    ).rejects.toThrow("VIEW_AS_NOT_ACTIVE")
   })
 })
 

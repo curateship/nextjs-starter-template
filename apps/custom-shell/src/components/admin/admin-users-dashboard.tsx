@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
+import { EyeIcon, SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +37,10 @@ import {
   type AccountRow,
   type AssignablePlan,
 } from "@/lib/api/admin-users"
+import {
+  getViewAsErrorMessage,
+  startViewingAsMember,
+} from "@/lib/api/view-as"
 import { formatDate } from "@/lib/money"
 
 type SortColumn = "name" | "email" | "role" | "plan" | "created"
@@ -73,6 +77,8 @@ export function AdminUsersDashboard({
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
+  const [viewAsTarget, setViewAsTarget] = React.useState<AccountRow | null>(null)
+  const [startingViewAs, setStartingViewAs] = React.useState(false)
 
   const refresh = React.useCallback(async () => {
     setLoading(true)
@@ -385,6 +391,27 @@ export function AdminUsersDashboard({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  // Members only, and only ones who can actually sign in. The
+                  // server refuses the rest again; this just says so first.
+                  disabled={
+                    account.role === "admin" || account.status !== "active"
+                  }
+                  onClick={() => setViewAsTarget(account)}
+                  title={
+                    account.role === "admin"
+                      ? "You cannot view the app as another admin"
+                      : account.status !== "active"
+                        ? "This account is suspended"
+                        : "View the app as this member"
+                  }
+                  aria-label={`View the app as ${account.name}`}
+                >
+                  <EyeIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setEditing(account)}
                   title="Account settings"
                   aria-label={`Account settings for ${account.name}`}
@@ -442,6 +469,36 @@ export function AdminUsersDashboard({
           )
           setDeleting(false)
           if (ok) setDeleteTarget(null)
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(viewAsTarget)}
+        onOpenChange={(open) => {
+          if (!open) setViewAsTarget(null)
+        }}
+        title="View the app as this member?"
+        description={
+          viewAsTarget
+            ? `You will see exactly what ${viewAsTarget.name} sees, and anything you do will be done as them. You lose your admin pages until you stop. Starting and stopping are both recorded in the activity log.`
+            : null
+        }
+        confirmLabel="View as member"
+        destructive={false}
+        loading={startingViewAs}
+        onConfirm={async () => {
+          const target = viewAsTarget
+          if (!target) return
+          setStartingViewAs(true)
+          try {
+            await startViewingAsMember(target.id)
+            // A full load, not a router refresh: every loader on this page was
+            // fetched as an admin and none of it is theirs to see now.
+            window.location.href = "/"
+          } catch (startError) {
+            setStartingViewAs(false)
+            showErrorToast(getViewAsErrorMessage(startError))
+          }
         }}
       />
 

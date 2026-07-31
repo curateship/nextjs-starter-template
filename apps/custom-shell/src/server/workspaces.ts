@@ -3,6 +3,7 @@ import { and, asc, eq } from "drizzle-orm"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  isShellItem,
   normalizeStyling,
   type IconKey,
   type ShellChildItem,
@@ -42,6 +43,59 @@ const MEDIA_CHILD_LINKS: ShellChildItem[] = [
     icon: "unlink",
   },
 ]
+
+/**
+ * Everything about members and money hangs off one parent. The three pages
+ * already existed on their own; this is the section they now live under.
+ */
+const MEMBERSHIP_LINK_ID = "item-admin-membership"
+
+function membershipLink(children: ShellChildItem[]): ShellItem {
+  return {
+    type: "item",
+    id: MEMBERSHIP_LINK_ID,
+    label: "Membership",
+    href: "/admin/membership",
+    icon: "id-card",
+    visible: true,
+    roles: ["admin"],
+    children,
+  }
+}
+
+function membershipChildLinks(): ShellChildItem[] {
+  return [
+    {
+      id: "item-admin-users",
+      label: "Users",
+      href: "/admin/users",
+      icon: "users",
+      roles: ["admin"],
+    },
+    {
+      id: "item-admin-plans",
+      label: "Plans",
+      href: "/admin/plans",
+      icon: "package",
+      roles: ["admin"],
+    },
+    {
+      id: "item-admin-revenue",
+      label: "Revenue",
+      href: "/admin/billing",
+      icon: "barChart3",
+      roles: ["admin"],
+    },
+  ]
+}
+
+/**
+ * The ids the upgrade below looks for, in the order they belong under
+ * Membership — read off the links themselves so the two can never disagree.
+ */
+const MEMBERSHIP_CHILD_IDS: readonly string[] = membershipChildLinks().map(
+  (child) => child.id
+)
 
 /** The read-only admin activity feed. */
 const AUDIT_LINK: ShellItem = {
@@ -105,11 +159,20 @@ const AUTOMATIONS_LINK: ShellItem = {
   roles: ["admin"],
 }
 
+/**
+ * Bumped when the default sidebar is restructured in a way an existing
+ * workspace should pick up. A workspace is brought up to this number once, ever
+ * — see `applyNavigationUpgrade`.
+ */
+export const NAVIGATION_VERSION = 1
+
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  /** How far this workspace's saved sidebar has been brought forward. */
+  navVersion: number
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
   // Visual styling (spacing, card border, backgrounds), saved per-workspace.
@@ -123,7 +186,7 @@ export async function getOrCreateCurrentWorkspace(
   database: CustomShellDb = db
 ) {
   const current = await findCurrentWorkspace(userId, database)
-  if (current) return current
+  if (current) return applyNavigationUpgrade(current, database)
 
   return database.transaction(async (tx) => {
     const [existingWorkspace] = await tx
@@ -134,7 +197,10 @@ export async function getOrCreateCurrentWorkspace(
       .limit(1)
 
     if (existingWorkspace) {
-      return setDefaultWorkspace(userId, existingWorkspace.id, tx)
+      return applyNavigationUpgrade(
+        await setDefaultWorkspace(userId, existingWorkspace.id, tx),
+        tx
+      )
     }
 
     const createdAt = now()
@@ -335,6 +401,105 @@ export async function deleteUserWorkspace(
   })
 }
 
+/**
+ * Brings one workspace's saved sidebar forward, once. Reading never adds a link
+ * back — that rule stands — so this is a write, and the version it stamps is
+ * what stops it running a second time. Delete Membership afterwards and it stays
+ * deleted.
+ */
+async function applyNavigationUpgrade(
+  workspace: CustomShellWorkspace,
+  database: Pick<CustomShellDb, "update">
+): Promise<CustomShellWorkspace> {
+  const settings = parseWorkspaceSettings(workspace.settings)
+  if (settings.navVersion >= NAVIGATION_VERSION) {
+    return workspace
+  }
+
+  const [updated] = await database
+    .update(customShellWorkspaces)
+    .set({
+      settings: {
+        ...settings,
+        sections: groupMembershipLinks(settings.sections),
+        navVersion: NAVIGATION_VERSION,
+      },
+      updatedAt: now(),
+    })
+    .where(eq(customShellWorkspaces.id, workspace.id))
+    .returning()
+
+  return updated ?? workspace
+}
+
+/**
+ * Moves a saved Users, Plans and Revenue link under one Membership parent,
+ * keeping whatever the admin renamed them to and leaving the parent where the
+ * first of them already sat.
+ *
+ * Three things it deliberately will not do: touch a workspace that already has
+ * a Membership entry, add the parent when all three links have been deleted, or
+ * move a link that is switched off — a child link has no "hidden", so pulling a
+ * hidden one in would put it back on screen.
+ */
+export function groupMembershipLinks(sections: ShellSection[]): ShellSection[] {
+  const alreadyGrouped = sections.some((section) =>
+    section.entries.some((entry) => entry.id === MEMBERSHIP_LINK_ID)
+  )
+  if (alreadyGrouped) {
+    return sections
+  }
+
+  const moved: ShellChildItem[] = []
+  let anchorSection = -1
+  let anchorIndex = -1
+
+  const remaining = sections.map((section, sectionIndex) => ({
+    ...section,
+    entries: section.entries.filter((entry, entryIndex) => {
+      if (!isShellItem(entry) || !entry.visible) return true
+      if (!MEMBERSHIP_CHILD_IDS.includes(entry.id)) return true
+
+      if (anchorSection < 0) {
+        anchorSection = sectionIndex
+        // Nothing before the first match is removed, so its position in the
+        // filtered list is the same one it has here.
+        anchorIndex = entryIndex
+      }
+      moved.push({
+        id: entry.id,
+        label: entry.label,
+        href: entry.href,
+        icon: entry.icon,
+        ...(entry.roles ? { roles: entry.roles } : {}),
+      })
+      return false
+    }),
+  }))
+
+  if (!moved.length) {
+    return sections
+  }
+
+  moved.sort(
+    (a, b) =>
+      MEMBERSHIP_CHILD_IDS.indexOf(a.id) - MEMBERSHIP_CHILD_IDS.indexOf(b.id)
+  )
+
+  return remaining.map((section, sectionIndex) =>
+    sectionIndex === anchorSection
+      ? {
+          ...section,
+          entries: [
+            ...section.entries.slice(0, anchorIndex),
+            membershipLink(moved),
+            ...section.entries.slice(anchorIndex),
+          ],
+        }
+      : section
+  )
+}
+
 async function findCurrentWorkspace(userId: string, database: CustomShellDb) {
   const [row] = await database
     .select()
@@ -429,6 +594,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      // Saved before this existed means never upgraded. Anything already
+      // written carries its own number, so a workspace is only ever restructured
+      // once and a link deleted afterwards stays deleted.
+      navVersion:
+        typeof settings.navVersion === "number" ? settings.navVersion : 0,
       // Default fills rows saved before this field existed.
       sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
         ? settings.sidebarWidth
@@ -459,6 +629,10 @@ function cleanWorkspaceSettings(
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    navVersion:
+      typeof settings.navVersion === "number"
+        ? settings.navVersion
+        : fallback.navVersion,
     sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
       ? settings.sidebarWidth
       : fallback.sidebarWidth,
@@ -493,6 +667,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    // The defaults above are already the current shape, so a new workspace has
+    // nothing to be brought forward.
+    navVersion: NAVIGATION_VERSION,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     styling: normalizeStyling(undefined),
     automationFavoriteNodeKeys: [],
@@ -508,36 +685,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       // /admin route guard refuses them again server-side.
       id: "section-administration",
       title: "Administration",
-      entries: [
-        {
-          type: "item",
-          id: "item-admin-users",
-          label: "Users",
-          href: "/admin/users",
-          icon: "users",
-          visible: true,
-          roles: ["admin"],
-        },
-        {
-          type: "item",
-          id: "item-admin-plans",
-          label: "Plans",
-          href: "/admin/plans",
-          icon: "package",
-          visible: true,
-          roles: ["admin"],
-        },
-        {
-          type: "item",
-          id: "item-admin-revenue",
-          label: "Revenue",
-          href: "/admin/billing",
-          icon: "barChart3",
-          visible: true,
-          roles: ["admin"],
-        },
-        { ...AUDIT_LINK },
-      ],
+      entries: [membershipLink(membershipChildLinks()), { ...AUDIT_LINK }],
     },
     {
       id: "section-platform-settings",

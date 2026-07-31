@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto"
 
 import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/server"
 import { hash, verify } from "argon2"
-import { eq, and, gt, isNull, ne } from "drizzle-orm"
+import { eq, and, gt, inArray, isNull, ne } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -152,9 +152,26 @@ export function clearSessionCookie() {
   })
 }
 
-export async function findCurrentUser(database: CustomShellDb = db) {
+/**
+ * Who the app should treat this browser as, and — while an admin is viewing the
+ * app as a member — who is really behind it.
+ */
+export type SessionContext = {
+  /** The person every query and guard should act as. */
+  user: CustomShellUser
+  /** The admin looking through their eyes, or null in the normal case. */
+  viewedBy: CustomShellUser | null
+}
+
+export async function findSessionContext(
+  database: CustomShellDb = db
+): Promise<SessionContext | null> {
   const token = getCookie(SESSION_COOKIE_NAME)
-  return token ? findUserBySessionToken(token, database) : null
+  return token ? findSessionContextByToken(token, database) : null
+}
+
+export async function findCurrentUser(database: CustomShellDb = db) {
+  return (await findSessionContext(database))?.user ?? null
 }
 
 /** The one signed-in check. Server functions and loaders both go through it. */
@@ -207,6 +224,13 @@ export async function findUserBySessionToken(
   token: string,
   database: CustomShellDb = db
 ): Promise<CustomShellUser | null> {
+  return (await findSessionContextByToken(token, database))?.user ?? null
+}
+
+export async function findSessionContextByToken(
+  token: string,
+  database: CustomShellDb = db
+): Promise<SessionContext | null> {
   const [session] = await database
     .select()
     .from(customShellSessions)
@@ -222,17 +246,46 @@ export async function findUserBySessionToken(
     return null
   }
 
-  const [user] = await database
+  // One query for both people, so viewing as somebody costs no extra round trip.
+  const ids = session.viewingAsUserId
+    ? [session.userId, session.viewingAsUserId]
+    : [session.userId]
+  const rows = await database
     .select()
     .from(customShellUsers)
-    .where(eq(customShellUsers.id, session.userId))
-    .limit(1)
+    .where(inArray(customShellUsers.id, ids))
+
+  const owner = rows.find((row) => row.id === session.userId)
 
   // A suspended account is treated as signed out, so suspending someone takes
   // effect immediately even on a session that is still inside its lifetime.
-  if (!user || user.status === "suspended") {
+  if (!owner || owner.status === "suspended") {
     return null
   }
 
-  return user
+  if (!session.viewingAsUserId) {
+    return { user: owner, viewedBy: null }
+  }
+
+  const target = rows.find((row) => row.id === session.viewingAsUserId)
+
+  // The rules that let it start are checked again here, every request. If the
+  // member has since been suspended or made an admin — or the admin driving it
+  // lost their own role — the view ends and they are back to being themselves,
+  // rather than being signed out or handed admin powers.
+  const canView =
+    target && isAdmin(owner) && target.status === "active" && !isAdmin(target)
+
+  if (!canView) {
+    // Ended for good, not just ignored for this request. Left set, the view
+    // would spring back to life the moment the member was unsuspended or
+    // demoted — days later, with the admin having done nothing.
+    await database
+      .update(customShellSessions)
+      .set({ viewingAsUserId: null })
+      .where(eq(customShellSessions.id, session.id))
+    return { user: owner, viewedBy: null }
+  }
+
+  return { user: target, viewedBy: owner }
 }
