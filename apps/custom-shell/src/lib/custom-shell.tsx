@@ -302,12 +302,59 @@ export type ShellConfig = {
   favicon: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  /** App-wide lockout: members see the maintenance page, admins keep working. */
+  maintenance: ShellMaintenance
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
 }
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
 export const DEFAULT_DASHBOARD_ROWS_PER_PAGE = 10
+
+// ---------------------------------------------------------------------------
+// Maintenance mode (Settings → General). App-wide, not per-workspace: it is the
+// front door for everybody, so it lives in the global settings row.
+
+export type ShellMaintenance = {
+  enabled: boolean
+  /** Shown on the maintenance page. Empty falls back to the default below. */
+  message: string
+}
+
+export const DEFAULT_MAINTENANCE_MESSAGE =
+  "We are making some improvements and will be back shortly."
+
+/** How long a message may be — it is one line on a card, not an essay. */
+export const MAX_MAINTENANCE_MESSAGE_LENGTH = 300
+
+export function createDefaultMaintenance(): ShellMaintenance {
+  return { enabled: false, message: "" }
+}
+
+/**
+ * A saved value can predate this setting or have been hand-edited in the
+ * database, and the maintenance page is the one screen a locked-out member can
+ * reach — so anything that is not clearly a flag and a string reads as "off".
+ */
+export function normalizeMaintenance(value: unknown): ShellMaintenance {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return createDefaultMaintenance()
+  }
+
+  const maintenance = value as Partial<ShellMaintenance>
+  return {
+    enabled: maintenance.enabled === true,
+    message:
+      typeof maintenance.message === "string"
+        ? maintenance.message.slice(0, MAX_MAINTENANCE_MESSAGE_LENGTH)
+        : "",
+  }
+}
+
+/** The message to show, falling back to the default when none was written. */
+export function resolveMaintenanceMessage(message: string) {
+  return message.trim() || DEFAULT_MAINTENANCE_MESSAGE
+}
 
 
 // ---------------------------------------------------------------------------
@@ -599,6 +646,7 @@ export function createDefaultShellConfig(): ShellConfig {
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
+    maintenance: createDefaultMaintenance(),
     styling: createDefaultStyling(),
   }
 }

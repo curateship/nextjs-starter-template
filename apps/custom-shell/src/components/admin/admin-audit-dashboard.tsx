@@ -58,11 +58,14 @@ const actionLabels: Record<string, string> = {
   update_status: "Changed status",
   grant_plan: "Granted plan",
   revoke_plan: "Removed plan",
+  maintenance_on: "Turned on maintenance mode",
+  maintenance_off: "Turned off maintenance mode",
 }
 
 const resourceLabels: Record<string, string> = {
   user: "Account",
   plan: "Plan",
+  app: "App",
 }
 
 /**
@@ -133,6 +136,12 @@ function activitySentence(entry: AuditLogRow) {
       return `${who} granted ${subjectLabel(entry)} ${detail ? `the ${detail} plan` : "a plan"}`
     case "revoke_plan":
       return `${who} removed ${possessiveLabel(entry)} granted plan`
+    // Maintenance mode is about the whole app, not a record, so it reads as a
+    // plain sentence with the message that was showing rather than a name.
+    case "maintenance_on":
+      return `${who} turned maintenance mode on${detail ? ` — "${detail}"` : ""}`
+    case "maintenance_off":
+      return `${who} turned maintenance mode off`
     case "delete":
       return `${who} deleted ${deletedLabel(entry, detail)}`
     case "update":

@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  MAX_MAINTENANCE_MESSAGE_LENGTH,
   SHELL_ROLES,
   type ShellConfig,
 } from "@/lib/custom-shell"
@@ -17,6 +18,7 @@ import {
 } from "@/server/schema"
 import {
   DEFAULT_SETTINGS_KEY,
+  parseShellGlobals,
   pickShellGlobals,
   readShellSettings,
 } from "@/server/shell-settings"
@@ -111,6 +113,10 @@ const shellConfigSchema = z.object({
       entries: z.array(shellEntrySchema),
     })
   ),
+  maintenance: z.object({
+    enabled: z.boolean(),
+    message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
+  }),
   styling: shellStylingSchema,
 })
 
@@ -141,7 +147,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       throw new Error("Workspace name is required")
     }
 
-    const globalSettings = pickShellGlobals(data)
     await db.transaction(async (tx) => {
       await tx
         .update(customShellWorkspaces)
@@ -165,10 +170,30 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         )
 
       const [existing] = await tx
-        .select({ key: customShellSettings.key })
+        .select({
+          key: customShellSettings.key,
+          settings: customShellSettings.settings,
+        })
         .from(customShellSettings)
         .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
         .limit(1)
+        // Locked because the maintenance switch writes this same row (see
+        // server/maintenance.ts); without it the two saves could each write
+        // back what they read and one would lose its changes.
+        .for("update")
+
+      // The maintenance switch is only ever flipped by its own confirmed,
+      // audit-logged action (lib/api/maintenance.ts). An admin whose settings
+      // page loaded before somebody turned it on must not switch it back off
+      // by renaming the app, so the switch keeps whatever the row already
+      // says; only its message comes from this save.
+      const globalSettings = {
+        ...pickShellGlobals(data),
+        maintenance: {
+          enabled: parseShellGlobals(existing?.settings).maintenance.enabled,
+          message: data.maintenance.message,
+        },
+      }
 
       if (existing) {
         await tx
