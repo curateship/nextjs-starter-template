@@ -21,6 +21,7 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 ## Sidebar
 
 - A resizable desktop sidebar must support both click-to-collapse and drag-to-resize. Keep its expanded width between 144px and 420px, save it in the current workspace's database settings, and let a focused resize edge move in 8px steps with the arrow keys.
+- Sidebar editor safety: every Reset and Delete Section goes through `ConfirmDestructive` with a policy key, and the copy counts the damage ("**Administration** and its 3 links will be removed."). A reset that restores all defaults is labeled "Reset all to defaults", never a bare "Reset". New links start with an empty label and address, and a link whose label is blank never renders in the live nav (`isAdminSidebarEntryNamed` in `src/lib/utils/admin-sidebar.ts`) — the editor shows it as muted "Name this link" and focuses the Label field on open.
 
 ## Control Sizes
 
