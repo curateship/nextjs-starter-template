@@ -329,6 +329,8 @@ export type ShellConfig = {
   memberSections: ShellSection[]
   /** App-wide lockout: members see the maintenance page, admins keep working. */
   maintenance: ShellMaintenance
+  /** App-wide limits on how long a sign-in lasts. See ShellSessionPolicy. */
+  sessionPolicy: ShellSessionPolicy
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
 }
@@ -379,6 +381,67 @@ export function normalizeMaintenance(value: unknown): ShellMaintenance {
 /** The message to show, falling back to the default when none was written. */
 export function resolveMaintenanceMessage(message: string) {
   return message.trim() || DEFAULT_MAINTENANCE_MESSAGE
+}
+
+
+// ---------------------------------------------------------------------------
+// Session policy (Settings → Security). App-wide like maintenance mode, and
+// written only by its own confirmed save (server/session-policy.ts) — never by
+// the settings page's auto-save, so a stale page cannot quietly loosen it.
+
+export type ShellSessionPolicy = {
+  /** Longest a sign-in can last, in days. 0 = no limit. */
+  maxAgeDays: number
+  /** How long someone can be away before they are signed out, in minutes. 0 = never. */
+  idleMinutes: number
+}
+
+/** The choices the Security tab offers for how long a sign-in lasts. */
+export const SESSION_MAX_AGE_DAY_OPTIONS = [0, 1, 7, 30, 90, 365] as const
+
+/** The choices for how long someone can be away before being signed out. */
+export const SESSION_IDLE_MINUTE_OPTIONS = [
+  0, 15, 30, 60, 240, 480, 1440, 10080,
+] as const
+
+/**
+ * The shortest idle limit allowed anywhere, not just in the dropdown. The
+ * idle clock is only written once a minute (see server/security.ts), so a
+ * shorter limit would sign out people who are actively clicking around. A
+ * hand-edited row or crafted save below it is raised to it.
+ */
+export const MIN_SESSION_IDLE_MINUTES = 15
+
+/** Both limits off — exactly how the app behaved before this setting existed. */
+export function createDefaultSessionPolicy(): ShellSessionPolicy {
+  return { maxAgeDays: 0, idleMinutes: 0 }
+}
+
+/**
+ * A saved value can predate this setting or have been hand-edited in the
+ * database. Anything that is not a whole non-negative number reads as "off",
+ * because a junk value must never sign the whole app out.
+ */
+export function normalizeSessionPolicy(value: unknown): ShellSessionPolicy {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return createDefaultSessionPolicy()
+  }
+
+  const policy = value as Partial<ShellSessionPolicy>
+  const idleMinutes = normalizePolicyNumber(policy.idleMinutes)
+  return {
+    maxAgeDays: normalizePolicyNumber(policy.maxAgeDays),
+    idleMinutes:
+      idleMinutes === 0
+        ? 0
+        : Math.max(idleMinutes, MIN_SESSION_IDLE_MINUTES),
+  }
+}
+
+function normalizePolicyNumber(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : 0
 }
 
 
@@ -676,6 +739,7 @@ export function createDefaultShellConfig(): ShellConfig {
     // from, and members would otherwise open the app to nothing at all.
     memberSections: createDefaultMemberSections(),
     maintenance: createDefaultMaintenance(),
+    sessionPolicy: createDefaultSessionPolicy(),
     styling: createDefaultStyling(),
   }
 }

@@ -5,18 +5,21 @@ import {
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   normalizeMaintenance,
+  normalizeSessionPolicy,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { clampToastSeconds } from "@/lib/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellSettings, type CustomShellUser } from "@/server/schema"
+import {
+  customShellSettings,
+  DEFAULT_SETTINGS_KEY,
+  type CustomShellUser,
+} from "@/server/schema"
 import { isAdmin } from "@/server/security"
 import {
   getOrCreateCurrentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/workspaces"
-
-export const DEFAULT_SETTINGS_KEY = "default"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb) {
@@ -118,6 +121,7 @@ export function parseShellGlobals(value: unknown) {
       ? settings.memberSections
       : createDefaultMemberSections(),
     maintenance: normalizeMaintenance(settings.maintenance),
+    sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
   }
 }
 
@@ -131,5 +135,6 @@ export function pickShellGlobals(settings: ShellConfig) {
     adminRoute: settings.adminRoute,
     memberSections: settings.memberSections,
     maintenance: settings.maintenance,
+    sessionPolicy: settings.sessionPolicy,
   }
 }

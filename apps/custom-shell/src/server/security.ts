@@ -4,11 +4,14 @@ import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/
 import { hash, verify } from "argon2"
 import { eq, and, gt, inArray, isNull, ne } from "drizzle-orm"
 
+import { normalizeSessionPolicy } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAuthTokens,
   customShellSessions,
+  customShellSettings,
   customShellUsers,
+  DEFAULT_SETTINGS_KEY,
   type CustomShellUser,
 } from "@/server/schema"
 
@@ -227,23 +230,85 @@ export async function findUserBySessionToken(
   return (await findSessionContextByToken(token, database))?.user ?? null
 }
 
+const MINUTE_MS = 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The idle clock is refreshed at most once a minute, so this read path does
+ * not pay for a write on every request. Safe because an idle limit is never
+ * shorter than MIN_SESSION_IDLE_MINUTES — normalizeSessionPolicy raises
+ * anything lower — so a clock up to a minute behind cannot misjudge anyone.
+ */
+const LAST_SEEN_REFRESH_MS = MINUTE_MS
+
+/**
+ * The app-wide session limits (Settings → Security), read fresh on every
+ * request so tightening the policy reaches sessions that already exist.
+ *
+ * Read here with its own narrow query rather than through shell-settings.ts,
+ * because that module imports this one and the sign-in check must not sit on
+ * an import cycle.
+ */
+async function readSessionPolicyRow(database: CustomShellDb) {
+  const [row] = await database
+    .select({ settings: customShellSettings.settings })
+    .from(customShellSettings)
+    .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+    .limit(1)
+
+  const settings = row?.settings as { sessionPolicy?: unknown } | undefined
+  return normalizeSessionPolicy(settings?.sessionPolicy)
+}
+
 export async function findSessionContextByToken(
   token: string,
   database: CustomShellDb = db
 ): Promise<SessionContext | null> {
-  const [session] = await database
-    .select()
-    .from(customShellSessions)
-    .where(
-      and(
-        eq(customShellSessions.tokenHash, hashSessionToken(token)),
-        gt(customShellSessions.expiresAt, now())
+  // Fetched together so the policy costs no extra round trip.
+  const [policy, [session]] = await Promise.all([
+    readSessionPolicyRow(database),
+    database
+      .select()
+      .from(customShellSessions)
+      .where(
+        and(
+          eq(customShellSessions.tokenHash, hashSessionToken(token)),
+          gt(customShellSessions.expiresAt, now())
+        )
       )
-    )
-    .limit(1)
+      .limit(1),
+  ])
 
   if (!session) {
     return null
+  }
+
+  const timestamp = now()
+  const ageLimitMs = policy.maxAgeDays * DAY_MS
+  const idleLimitMs = policy.idleMinutes * MINUTE_MS
+  const tooOld =
+    ageLimitMs > 0 &&
+    timestamp.getTime() - session.createdAt.getTime() >= ageLimitMs
+  const tooIdle =
+    idleLimitMs > 0 &&
+    timestamp.getTime() - session.lastSeenAt.getTime() >= idleLimitMs
+
+  if (tooOld || tooIdle) {
+    // Deleted, not just refused: loosening the policy later must not bring
+    // sessions that already ran out back to life.
+    await database
+      .delete(customShellSessions)
+      .where(eq(customShellSessions.id, session.id))
+    return null
+  }
+
+  // Keep the idle clock current even while no idle limit is set — switching
+  // one on later has to judge people by when they really were last here.
+  if (timestamp.getTime() - session.lastSeenAt.getTime() >= LAST_SEEN_REFRESH_MS) {
+    await database
+      .update(customShellSessions)
+      .set({ lastSeenAt: timestamp })
+      .where(eq(customShellSessions.id, session.id))
   }
 
   // One query for both people, so viewing as somebody costs no extra round trip.

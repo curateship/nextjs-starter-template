@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
+import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { cn } from "@/lib/utils"
@@ -14,6 +15,7 @@ import {
   createDefaultShellConfig,
   type ShellConfig,
   type ShellMaintenance,
+  type ShellSessionPolicy,
 } from "@/lib/custom-shell"
 
 /** Settings that are about the app, and about the admin's own shell. */
@@ -21,6 +23,7 @@ const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
   { id: "styling", label: "Styling" },
+  { id: "security", label: "Security" },
 ] as const
 
 /**
@@ -53,6 +56,8 @@ export function SettingsPage({
   onSaveConfig,
   onMaintenanceChange,
   maintenanceBusy,
+  onSessionPolicyChange,
+  sessionPolicyBusy,
 }: {
   activeTab: SettingsTabId
   config: ShellConfig
@@ -60,6 +65,8 @@ export function SettingsPage({
   onSaveConfig: () => Promise<boolean>
   onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
   maintenanceBusy: boolean
+  onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
+  sessionPolicyBusy: boolean
 }) {
   return (
     <div
@@ -145,6 +152,13 @@ export function SettingsPage({
           ) : null}
           {activeTab === "styling" ? (
             <StylingSettings config={config} onConfigChange={onConfigChange} />
+          ) : null}
+          {activeTab === "security" ? (
+            <SecuritySettings
+              config={config}
+              onSessionPolicyChange={onSessionPolicyChange}
+              sessionPolicyBusy={sessionPolicyBusy}
+            />
           ) : null}
         </div>
       </div>

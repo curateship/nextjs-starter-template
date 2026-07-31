@@ -29,6 +29,7 @@ import {
   isShellItem,
   MODAL_STYLE_VAR_NAMES,
   normalizeMaintenance,
+  normalizeSessionPolicy,
   normalizeStyling,
   normalizeTopRightNavigation,
   renderShellIcon,
@@ -38,6 +39,7 @@ import {
   type ShellMaintenance,
   type ShellModalStyling,
   type ShellSection,
+  type ShellSessionPolicy,
 } from "@/lib/custom-shell"
 import { resolveAppName } from "@/lib/app-name"
 import type { UserAnnouncement } from "@/lib/announcement"
@@ -48,6 +50,10 @@ import {
   getMaintenanceErrorMessage,
   saveMaintenance,
 } from "@/lib/api/maintenance"
+import {
+  getSessionPolicyErrorMessage,
+  saveSessionPolicy,
+} from "@/lib/api/session-policy"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
@@ -68,10 +74,14 @@ type ShellRuntime = {
   feedbackRefreshToken: number
   /** True while the maintenance switch is being written. */
   maintenanceBusy: boolean
+  /** True while the session policy is being written. */
+  sessionPolicyBusy: boolean
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
   /** Writes the maintenance switch on its own; never via the settings save. */
   onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
+  /** Writes the session policy on its own; never via the settings save. */
+  onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   onOpenFeedback: () => void
   onOpenFeedbackThread: (feedbackId: string) => void
 }
@@ -132,6 +142,7 @@ export function ShellLayout({
   )
   const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
   const [maintenanceBusy, setMaintenanceBusy] = React.useState(false)
+  const [sessionPolicyBusy, setSessionPolicyBusy] = React.useState(false)
   const lastSettingsRef = React.useRef(settings)
 
   useShellDocumentTitle(config.appName)
@@ -290,6 +301,32 @@ export function ShellLayout({
     []
   )
 
+  // The session policy writes on its own for the same reason maintenance does:
+  // it must never ride along with a settings save that could carry a stale
+  // copy of it. The value is already saved when this resolves; the local
+  // config is just brought in line with it.
+  const handleSessionPolicyChange = React.useCallback(
+    async (policy: ShellSessionPolicy) => {
+      setSessionPolicyBusy(true)
+      try {
+        const saved = await saveSessionPolicy(policy)
+        setConfig((current) => ({ ...current, sessionPolicy: saved }))
+        latestConfigRef.current = {
+          ...latestConfigRef.current,
+          sessionPolicy: saved,
+        }
+        toast.success("Session security saved.")
+        return true
+      } catch (error) {
+        showErrorToast(getSessionPolicyErrorMessage(error))
+        return false
+      } finally {
+        setSessionPolicyBusy(false)
+      }
+    },
+    []
+  )
+
   // The sidebar link-editor dialog's "Done" button flushes any pending
   // debounced save immediately, so closing it never leaves an unsaved edit.
   const handleSaveConfig = React.useCallback(
@@ -352,9 +389,11 @@ export function ShellLayout({
       saveStatus,
       feedbackRefreshToken,
       maintenanceBusy,
+      sessionPolicyBusy,
       onConfigChange: handleConfigChange,
       onSaveConfig: handleSaveConfig,
       onMaintenanceChange: handleMaintenanceChange,
+      onSessionPolicyChange: handleSessionPolicyChange,
       onOpenFeedback: () => openFeedback(),
       onOpenFeedbackThread: openFeedback,
     }),
@@ -364,9 +403,11 @@ export function ShellLayout({
       handleConfigChange,
       handleMaintenanceChange,
       handleSaveConfig,
+      handleSessionPolicyChange,
       maintenanceBusy,
       openFeedback,
       saveStatus,
+      sessionPolicyBusy,
     ]
   )
 
@@ -499,6 +540,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
       ? settings.memberSections
       : fallback.memberSections,
     maintenance: normalizeMaintenance(settings.maintenance),
+    sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
     styling: normalizeStyling(settings.styling),
   }
 }

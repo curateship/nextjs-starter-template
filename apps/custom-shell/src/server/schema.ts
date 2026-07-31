@@ -52,6 +52,13 @@ export const customShellSessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     /**
+     * When this session last made a request, refreshed at most once a minute.
+     * The idle limit in the session policy is judged against it.
+     */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /**
      * Set while an admin is looking at the app as this member. `userId` above
      * stays the admin who signed in, so the real owner is never lost and
      * exiting is one column write. See `@/server/view-as`.
@@ -67,6 +74,9 @@ export const customShellSessions = pgTable(
     index("ix_sessions_expires_at").on(table.expiresAt),
   ]
 )
+
+/** The one row the settings table may hold — enforced by the check below. */
+export const DEFAULT_SETTINGS_KEY = "default"
 
 export const customShellSettings = pgTable(
   "settings",
