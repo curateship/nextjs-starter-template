@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -79,7 +78,6 @@ export function SettingsPage({
           <Card size="sm">
             <CardHeader>
               <CardTitle>Platform</CardTitle>
-              <CardDescription>The app, and your own shell.</CardDescription>
             </CardHeader>
             <CardContent className="px-2">
               <nav className="flex flex-col gap-1">
@@ -98,7 +96,6 @@ export function SettingsPage({
           <Card size="sm">
             <CardHeader>
               <CardTitle>Members</CardTitle>
-              <CardDescription>What everyone else sees.</CardDescription>
             </CardHeader>
             <CardContent className="px-2">
               <nav className="flex flex-col gap-1">
