@@ -68,3 +68,18 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
 export function loadShellBootstrap() {
   return loadShellBootstrapFn()
 }
+
+/**
+ * The app name on its own, with no session required — the root route needs it
+ * for the browser tab title and the signed-out pages that show it.
+ */
+const loadAppNameFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ appName: string }> => {
+    const { readAppName } = await import("@/server/shell-settings")
+    return { appName: await readAppName() }
+  }
+)
+
+export function loadAppName() {
+  return loadAppNameFn()
+}

@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DEFAULT_APP_NAME } from "@/lib/app-name"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
@@ -38,9 +39,29 @@ export function GeneralSettings({
       <CollapsibleSettingsCard
         storageId="general"
         title="General Settings"
-        description="Set the workspace name and favicon used by the shell."
+        description="Set the app and workspace names and the favicon used by the shell."
         contentClassName="space-y-6"
       >
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="app-name"
+            hint={`The product's own name — it shows in the browser tab and on the signed-out pages. Everyone sees the same one. Leave it empty to fall back to "${DEFAULT_APP_NAME}".`}
+          >
+            App name
+          </FieldLabel>
+          <Input
+            id="app-name"
+            value={config.appName}
+            onChange={(event) =>
+              onConfigChange({
+                ...config,
+                appName: event.target.value,
+              })
+            }
+            placeholder={DEFAULT_APP_NAME}
+          />
+        </div>
+
         <div className="grid gap-2">
           <Label htmlFor="workspace-name">Workspace name</Label>
           <Input

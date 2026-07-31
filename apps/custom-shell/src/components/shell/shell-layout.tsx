@@ -33,6 +33,7 @@ import {
   type ShellModalStyling,
   type ShellSection,
 } from "@/lib/custom-shell"
+import { resolveAppName } from "@/lib/app-name"
 import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
@@ -111,6 +112,7 @@ export function ShellLayout({
   const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
   const lastSettingsRef = React.useRef(settings)
 
+  useShellDocumentTitle(config.appName)
   useShellFavicon(config.favicon)
   useModalStyleVars(config.styling.modal)
 
@@ -449,6 +451,16 @@ function useModalStyleVars(modal: ShellModalStyling) {
       }
     }
   }, [modal])
+}
+
+// The root route puts the saved app name in the tab title when the page loads.
+// Editing the name on the settings page does not reload the page, so follow the
+// live config here too — same as the favicon below — and the tab renames itself
+// as you type instead of waiting for the next full load.
+function useShellDocumentTitle(appName: string) {
+  React.useEffect(() => {
+    document.title = resolveAppName(appName)
+  }, [appName])
 }
 
 function useShellFavicon(favicon: string) {
