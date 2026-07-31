@@ -11,6 +11,7 @@ import { getPublicCampaignsForSite } from "@/lib/actions/campaigns/campaign-acti
 import { CampaignGate } from "@/components/frontend/campaigns/CampaignGate";
 import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions";
 import { getSiteCardStyleVars } from "@/lib/utils/admin-styling";
+import { clampToastSeconds } from "@/lib/toast-seconds";
 
 export async function generateMetadata(): Promise<Metadata> {
   const defaultMetadata: Metadata = { icons: { icon: "/globe.svg" } }
@@ -92,6 +93,9 @@ export default async function RootLayout({
   // been saved; otherwise styles.css applies the default hairline.
   const adminSettings = await getCachedAdminSettings()
   const siteCardStyleVars = getSiteCardStyleVars(adminSettings?.settings?.styling)
+  // One saved number drives every non-error toast, on admin and public pages
+  // alike. Unset falls back to the default inside the store.
+  const toastSeconds = clampToastSeconds(adminSettings?.settings?.toast_seconds)
   const rootStyle = fonts || siteCardStyleVars
     ? {
         ...(fonts ? {
@@ -138,7 +142,7 @@ export default async function RootLayout({
           {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
           {campaigns.length > 0 && <CampaignGate campaigns={campaigns} />}
           {children}
-          <DeferredScripts />
+          <DeferredScripts toastSeconds={toastSeconds} />
         </SiteAuthProvider>
     </div>
   );

@@ -23,6 +23,7 @@ Admin mutations return `AdminActionResult`: `{ ok: true, data }` on success or `
 - **One signal per action.** Toast at the layer that owns the server call, and nowhere else — if a modal toasts, its parent's `onSuccess` callback must not. Do not leave an inline "Saved!" label or green chip behind as a second confirmation.
 - Shared controllers cover their whole family: `useContentListMutations` toasts create / update / duplicate / delete for posts, products, pages, events, listings and account pages using `itemLabel` / `itemLabelPlural`, so those screens must not toast again themselves.
 - Bulk action buttons read `Verb (n)` — the shared `AdminBulkDeleteButton` reads `Delete (n)`; hand-rolled variants name their own verb (`Archive (n)`, `Remove (n)`).
+- **How long a toast stays up is a setting, not a number in code.** Platform Settings → General has "Toast message duration (seconds)" (1–60, default 5, saved as `toast_seconds` in `admin_settings`). The root layout publishes it through `setToastSeconds` (`src/lib/toast-duration.ts`) and the Toaster subscribes with `useToastDurationMs`, so one number covers the admin and the public site. Never pass a `duration` to `toast.success` — `showActionSuccess` deliberately passes none. Failures are exempt: `showErrorToast` pins them with `duration: Infinity`.
 - Error messages must never reveal another user's data (site names, emails, domains they own).
 
 `runAction` accepts only `AdminActionResult`; callers must convert older result shapes at their action boundary.
