@@ -17,12 +17,13 @@ import {
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   TableRightActions,
+  TableRightActionsSearch,
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
 import Link from "@/components/app-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 type ReviewStatus = Exclude<DirectorySubmissionStatus, "pending_email">
@@ -56,7 +58,7 @@ function statusBadge(status: DirectorySubmissionStatus) {
 }
 
 export default function DirectorySubmissionsPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [activeStatus, setActiveStatus] = useState<ReviewStatus>("pending_review")
   const [submissions, setSubmissions] = useState<DirectorySubmissionListItem[]>([])
   const [counts, setCounts] = useState<Record<DirectorySubmissionStatus, number>>({
@@ -70,6 +72,8 @@ export default function DirectorySubmissionsPage() {
   const [selected, setSelected] = useState<DirectorySubmissionListItem | null>(null)
   const [reviewNote, setReviewNote] = useState("")
   const [savingStatus, setSavingStatus] = useState<"approved" | "rejected" | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -102,10 +106,36 @@ export default function DirectorySubmissionsPage() {
     setReviewNote(selected?.review_note || "")
   }, [selected])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+
   const emptyText = useMemo(() => {
+    if (normalizedSearchQuery) return "No submissions found matching your search."
     const tab = STATUS_FILTERS.find((item) => item.value === activeStatus)
     return `No ${tab?.label.toLowerCase() || "listing"} submissions.`
-  }, [activeStatus])
+  }, [activeStatus, normalizedSearchQuery])
+
+  const filteredSubmissions = useMemo(() => {
+    if (!normalizedSearchQuery) return submissions
+    return submissions.filter((submission) => [
+      submission.business_name,
+      submission.description,
+      submission.contact_email,
+      submission.category_title,
+      submission.address
+    ].join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [normalizedSearchQuery, submissions])
+
+  // Searching or switching status from a later page would otherwise land you
+  // past the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${activeStatus}|${normalizedSearchQuery}`
+  )
+
+  const pagedSubmissions = useMemo(
+    () => filteredSubmissions.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredSubmissions, pageSize]
+  )
 
   const handleReview = async (status: "approved" | "rejected") => {
     if (!selected) return
@@ -139,10 +169,15 @@ export default function DirectorySubmissionsPage() {
             error={error ? { message: error, onRetry: loadRows } : null}
             title="Listing Submissions"
             icon={<Store className="text-muted-foreground" />}
-            count={submissions.length}
+            count={filteredSubmissions.length}
             loading={loading}
             controls={
               <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search submissions"
+                />
                 <Select value={activeStatus} onValueChange={(value) => setActiveStatus(value as ReviewStatus)}>
                   <TableRightActionsSelectTrigger aria-label="Submission status filter">
                     <SelectValue />
@@ -157,7 +192,7 @@ export default function DirectorySubmissionsPage() {
                 </Select>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={submissions.length} label="submissions" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredSubmissions.length} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
@@ -171,9 +206,9 @@ export default function DirectorySubmissionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading && submissions.length === 0 ? (
+                  {loading && filteredSubmissions.length === 0 ? (
                     <AdminListPending />
-                  ) : submissions.length === 0 ? (
+                  ) : filteredSubmissions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <Store className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
@@ -181,7 +216,7 @@ export default function DirectorySubmissionsPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    submissions.map((submission) => (
+                    pagedSubmissions.map((submission) => (
                       <TableRow key={submission.id} className="group">
                         <TableCell column="main">
                           <button

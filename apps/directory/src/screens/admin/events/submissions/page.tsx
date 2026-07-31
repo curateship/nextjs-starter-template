@@ -16,12 +16,13 @@ import {
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   TableRightActions,
+  TableRightActionsSearch,
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
 import Link from "@/components/app-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const STATUS_FILTERS = [
@@ -51,7 +53,7 @@ function statusBadge(status: EventSubmissionStatus) {
 }
 
 export default function EventSubmissionsPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [activeStatus, setActiveStatus] = useState<EventSubmissionStatus>("pending")
   const [submissions, setSubmissions] = useState<EventSubmissionListItem[]>([])
   const [counts, setCounts] = useState<Record<EventSubmissionStatus, number>>({
@@ -64,6 +66,8 @@ export default function EventSubmissionsPage() {
   const [selected, setSelected] = useState<EventSubmissionListItem | null>(null)
   const [reviewNote, setReviewNote] = useState("")
   const [savingStatus, setSavingStatus] = useState<"approved" | "rejected" | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -96,10 +100,36 @@ export default function EventSubmissionsPage() {
     setReviewNote(selected?.review_note || "")
   }, [selected])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+
   const emptyText = useMemo(() => {
+    if (normalizedSearchQuery) return "No submissions found matching your search."
     const tab = STATUS_FILTERS.find((item) => item.value === activeStatus)
     return `No ${tab?.label.toLowerCase() || "event"} submissions.`
-  }, [activeStatus])
+  }, [activeStatus, normalizedSearchQuery])
+
+  const filteredSubmissions = useMemo(() => {
+    if (!normalizedSearchQuery) return submissions
+    return submissions.filter((submission) => [
+      submission.event_name,
+      submission.description,
+      submission.submitter_email,
+      submission.date_time_text,
+      submission.location
+    ].join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [normalizedSearchQuery, submissions])
+
+  // Searching or switching status from a later page would otherwise land you
+  // past the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${activeStatus}|${normalizedSearchQuery}`
+  )
+
+  const pagedSubmissions = useMemo(
+    () => filteredSubmissions.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredSubmissions, pageSize]
+  )
 
   const handleReview = async (status: "approved" | "rejected") => {
     if (!selected) return
@@ -133,10 +163,15 @@ export default function EventSubmissionsPage() {
             error={error ? { message: error, onRetry: loadRows } : null}
             title="Event Submissions"
             icon={<CalendarPlus className="text-muted-foreground" />}
-            count={submissions.length}
+            count={filteredSubmissions.length}
             loading={loading}
             controls={
               <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search submissions"
+                />
                 <Select value={activeStatus} onValueChange={(value) => setActiveStatus(value as EventSubmissionStatus)}>
                   <TableRightActionsSelectTrigger aria-label="Submission status filter">
                     <SelectValue />
@@ -151,7 +186,7 @@ export default function EventSubmissionsPage() {
                 </Select>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={submissions.length} label="submissions" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredSubmissions.length} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
@@ -165,9 +200,9 @@ export default function EventSubmissionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading && submissions.length === 0 ? (
+                  {loading && filteredSubmissions.length === 0 ? (
                     <AdminListPending />
-                  ) : submissions.length === 0 ? (
+                  ) : filteredSubmissions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <CalendarPlus className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
@@ -175,7 +210,7 @@ export default function EventSubmissionsPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    submissions.map((submission) => (
+                    pagedSubmissions.map((submission) => (
                       <TableRow key={submission.id} className="group">
                         <TableCell column="main">
                           <button

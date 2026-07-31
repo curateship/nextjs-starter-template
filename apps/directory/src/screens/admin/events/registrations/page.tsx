@@ -20,9 +20,11 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
+  AdminListFooter,
   AdminListPending,
   AdminSortButton,
   AdminTableShell,
@@ -75,7 +77,7 @@ function seatSummary(summary: EventRegistrationEventSummary) {
 }
 
 export default function EventRegistrationsPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [rows, setRows] = useState<EventRegistrationListItem[]>([])
   const [eventSummaries, setEventSummaries] = useState<EventRegistrationEventSummary[]>([])
   const [eventFilter, setEventFilter] = useState<string>(ALL_EVENTS)
@@ -85,14 +87,18 @@ export default function EventRegistrationsPage() {
   const [truncated, setTruncated] = useState(false)
   const [removeTargets, setRemoveTargets] = useState<string[] | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>("registered", "desc")
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    selection,
-    `${currentSite?.id}|${eventFilter}|${query}|${sort.sortColumn}|${sort.sortDirection}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${eventFilter}|${query}|${sort.sortColumn}|${sort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise land
+  // you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Remove (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   const loadRows = useCallback(async () => {
@@ -163,7 +169,13 @@ export default function EventRegistrationsPage() {
     })
   }, [filtered, sort.sortColumn, sort.sortDirection])
 
-  const visibleIds = sorted.map((row) => row.id)
+  const pagedRows = useMemo(
+    () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sorted]
+  )
+
+  // Select-all ticks the page in front of you, never the whole filtered list.
+  const visibleIds = pagedRows.map((row) => row.id)
   const removableSelected = sorted.filter(
     (row) => selection.selectedIds.has(row.id) && row.status !== "cancelled",
   )
@@ -208,9 +220,16 @@ export default function EventRegistrationsPage() {
             icon={<Users className="text-muted-foreground" />}
             count={filtered.length}
             loading={loading}
-            titleMeta={selectedSummary ? (
-              <span className="text-xs text-muted-foreground sm:text-sm">{seatSummary(selectedSummary)}</span>
-            ) : null}
+            titleMeta={
+              <>
+                {selectedSummary ? (
+                  <span className="text-xs text-muted-foreground sm:text-sm">{seatSummary(selectedSummary)}</span>
+                ) : null}
+                {truncated ? (
+                  <span className="text-xs text-muted-foreground">Showing the 500 most recent</span>
+                ) : null}
+              </>
+            }
             selectedCount={selection.selectedCount}
             onClearSelection={selection.clearSelection}
             titleActions={removableSelected.length ? (
@@ -226,18 +245,12 @@ export default function EventRegistrationsPage() {
               <TableRightActions>
                 <TableRightActionsSearch
                   value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value)
-                    selection.clearSelection()
-                  }}
+                  onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search name, email or event"
                 />
                 <Select
                   value={eventFilter}
-                  onValueChange={(value) => {
-                    setEventFilter(value)
-                    selection.clearSelection()
-                  }}
+                  onValueChange={setEventFilter}
                 >
                   <TableRightActionsSelectTrigger aria-label="Event filter">
                     <SelectValue />
@@ -255,11 +268,12 @@ export default function EventRegistrationsPage() {
               </TableRightActions>
             }
             footer={!loading ? (
-              <div className="bg-muted/50 p-4 text-xs text-muted-foreground sm:text-sm">
-                {filtered.length} {filtered.length === 1 ? "registration" : "registrations"}
-                {selectedSummary ? ` · ${seatSummary(selectedSummary)}` : ""}
-                {truncated ? " · showing the 500 most recent" : ""}
-              </div>
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={filtered.length}
+                onPageChange={setCurrentPage}
+              />
             ) : null}
           >
             <ScrollArea className="w-full">
@@ -329,13 +343,19 @@ export default function EventRegistrationsPage() {
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          No registrations yet. Turn on sign-ups in an event&apos;s Registration settings to
-                          start collecting them.
+                          {query.trim() || eventFilter !== ALL_EVENTS ? (
+                            "No registrations found matching your search."
+                          ) : (
+                            <>
+                              No registrations yet. Turn on sign-ups in an event&apos;s Registration settings to
+                              start collecting them.
+                            </>
+                          )}
                         </p>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sorted.map((row) => (
+                    pagedRows.map((row) => (
                       <TableRow key={row.id} className="group">
                         <TableCell column="select">
                           <Checkbox

@@ -57,6 +57,7 @@ import Pause from "lucide-react/dist/esm/icons/pause.js"
 import Play from "lucide-react/dist/esm/icons/play.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useRouter } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
@@ -174,11 +175,15 @@ export default function NewslettersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    newsletterSelection,
-    `${currentSite?.id}|${filterStatus}|${searchQuery}|${newsletterSort.sortColumn}|${newsletterSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${filterStatus}|${searchQuery}|${newsletterSort.sortColumn}|${newsletterSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(newsletterSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
   const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === "sending")
 
@@ -347,7 +352,6 @@ export default function NewslettersPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value as "all" | "draft" | "sent")
-    setCurrentPage(1)
   }
 
   const openStatusEvents = (newsletterId: string) => {
@@ -470,14 +474,16 @@ export default function NewslettersPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Mail className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">
-                          {newsletters.length === 0
-                            ? "No newsletters found"
-                            : `No ${filterStatus === "all" ? "" : filterStatus} newsletters found`}
-                        </p>
-                        <Button onClick={() => setShowCreateDialog(true)} variant="outline">
-                          Create Your First Newsletter
-                        </Button>
+                        {searchQuery.trim() || filterStatus !== "all" ? (
+                          <p className="text-muted-foreground">No newsletters found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">No newsletters found</p>
+                            <Button onClick={() => setShowCreateDialog(true)} variant="outline">
+                              Create Your First Newsletter
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (

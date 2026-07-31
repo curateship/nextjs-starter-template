@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
+
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { AdminSortDirection } from "@/components/admin/layout/list"
 import type {
@@ -62,9 +64,15 @@ export function useContentListData<TItem extends ContentListItem>({
 
   useEffect(() => {
     setTablePageSize(contextPageSize)
-    setCurrentPage(1)
   }, [contextPageSize])
 
+  // Searching or filtering from a later page would otherwise land you past the
+  // end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, `${effectiveSiteId}|${searchQuery}|${filterStatus}|${pageSize}`)
+
+  // A cursor points at a row, so it means nothing once the page holds a
+  // different number of rows — changing rows-per-page starts again from the top,
+  // exactly as it does on a numbered list.
   useEffect(() => {
     if (!usesCursorPagination) return
     setActiveCursor(null)
@@ -75,6 +83,7 @@ export function useContentListData<TItem extends ContentListItem>({
     cursorSortColumn,
     cursorSortDirection,
     cursorStatus,
+    pageSize,
     usesCursorPagination,
   ])
 
@@ -231,12 +240,10 @@ export function useContentListData<TItem extends ContentListItem>({
 
   function handleFilterStatusChange(nextStatus: ContentStatusFilter) {
     setFilterStatus(nextStatus)
-    setCurrentPage(1)
   }
 
   function handlePageSizeChange(nextPageSize: number) {
     setTablePageSize(nextPageSize)
-    setCurrentPage(1)
   }
 
   function handleNextPage() {

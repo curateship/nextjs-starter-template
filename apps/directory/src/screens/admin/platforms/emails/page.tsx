@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "@/components/app-link";
 import { AdminLayout } from "@/components/admin/layout/admin-layout";
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
@@ -8,7 +8,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
   AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
+  AdminListFooter,
   formatShortDate,
 } from "@/components/admin/layout/list";
 import {
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { getSystemEmailDashboardAction } from "@/lib/actions/email/system-email-actions";
 import type { SystemEmailListItem } from "@/lib/actions/email/system-email";
+import { useResetPageOnListChange } from "@/lib/use-reset-page";
 import Mail from "lucide-react/dist/esm/icons/mail.js"
 
 interface DashboardData {
@@ -35,7 +36,7 @@ interface DashboardData {
 }
 
 export default function PlatformEmailsPage() {
-  const { currentSite } = useSiteSwitcher();
+  const { currentSite, pageSize } = useSiteSwitcher();
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -43,6 +44,7 @@ export default function PlatformEmailsPage() {
   } | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
@@ -89,6 +91,15 @@ export default function PlatformEmailsPage() {
       })
     : templates;
 
+  // Searching from a later page would otherwise land you past the end of the
+  // shorter result.
+  useResetPageOnListChange(setCurrentPage, `${currentSite?.id}|${normalizedSearchQuery}`);
+
+  const pagedTemplates = useMemo(
+    () => filteredTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredTemplates, pageSize]
+  );
+
   if (!currentSite) {
     return (
       <AdminLayout>
@@ -128,7 +139,7 @@ export default function PlatformEmailsPage() {
                 />
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="email templates" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredTemplates.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
@@ -151,12 +162,12 @@ export default function PlatformEmailsPage() {
                         className="h-32 text-center text-sm text-muted-foreground"
                       >
                         {normalizedSearchQuery
-                          ? "No email templates match your search."
+                          ? "No email templates found matching your search."
                           : "No email templates found."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTemplates.map((template) => (
+                    pagedTemplates.map((template) => (
                       <TableRow key={template.template_key} className="group">
                         <TableCell column="main">
                           <div className="flex items-center gap-2">

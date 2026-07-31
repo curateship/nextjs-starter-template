@@ -45,6 +45,7 @@ import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterAct
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   TableRightActions,
@@ -761,11 +762,15 @@ export default function AdminGuidedFormsPage() {
   const [pageSize, setPageSize] = useState(contextPageSize)
   const formSelection = useAdminBulkSelection()
   const formSort = useAdminSort<FormsSortColumn>("modified", "desc")
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    formSelection,
-    `${currentSite?.id}|${searchQuery}|${filterStatus}|${formSort.sortColumn}|${formSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${searchQuery}|${filterStatus}|${formSort.sortColumn}|${formSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(formSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   const loadForms = useCallback(async () => {
@@ -921,18 +926,12 @@ export default function AdminGuidedFormsPage() {
             <TableRightActions>
               <TableRightActionsSearch
                 value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                  setCurrentPage(1)
-                }}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search forms"
               />
               <Select
                 value={filterStatus}
-                onValueChange={(value) => {
-                  setFilterStatus(value as FormStatusFilter)
-                  setCurrentPage(1)
-                }}
+                onValueChange={(value) => setFilterStatus(value as FormStatusFilter)}
               >
                 <TableRightActionsSelectTrigger aria-label="Form status filter">
                   <SelectValue />
@@ -985,11 +984,17 @@ export default function AdminGuidedFormsPage() {
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center">
                       <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-semibold">No forms found</h3>
-                      <p className="mt-2 text-muted-foreground">Create a guided form to capture submissions.</p>
-                      <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline" disabled={!currentSite?.id}>
-                        Create Form
-                      </Button>
+                      {searchQuery.trim() || filterStatus !== "all" ? (
+                        <h3 className="mt-4 text-lg font-semibold">No forms found matching your search.</h3>
+                      ) : (
+                        <>
+                          <h3 className="mt-4 text-lg font-semibold">No forms found</h3>
+                          <p className="mt-2 text-muted-foreground">Create a guided form to capture submissions.</p>
+                          <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline" disabled={!currentSite?.id}>
+                            Create Form
+                          </Button>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : visibleForms.map((form) => (

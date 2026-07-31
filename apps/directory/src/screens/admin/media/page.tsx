@@ -40,6 +40,7 @@ import { resolveMediaPlaybackUrl } from "@/lib/utils/media-url"
 import { resizeImageForUpload } from "@/lib/utils/image-resize"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -72,11 +73,15 @@ export default function ImagesPage() {
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
   const mediaSort = useAdminSort<MediaSortColumn>()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    mediaSelection,
-    `${currentSiteId}|${filterType}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSiteId}|${filterType}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(mediaSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
@@ -117,14 +122,8 @@ export default function ImagesPage() {
     loadImages()
   }, [siteLoading, loadImages])
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [currentSiteId])
-
-  // Reset to first page when filter changes
   const handleFilterChange = (newFilter: "all" | "image" | "video" | "svg") => {
     setFilterType(newFilter)
-    setCurrentPage(1)
   }
 
   // Handle page change
@@ -413,10 +412,16 @@ export default function ImagesPage() {
               isLoading && sortedImages.length === 0 ? null : sortedImages.length === 0 ? (
                 <div className="p-8 text-center">
                   <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                  <p className="mb-4 text-muted-foreground">No media found. Upload your first file to get started.</p>
-                  <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
-                    Upload Your First Media File
-                  </Button>
+                  {normalizedSearchQuery || filterType !== "all" ? (
+                    <p className="text-muted-foreground">No media found matching your search.</p>
+                  ) : (
+                    <>
+                      <p className="mb-4 text-muted-foreground">No media found. Upload your first file to get started.</p>
+                      <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
+                        Upload Your First Media File
+                      </Button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="px-5 pb-5">
@@ -559,12 +564,18 @@ export default function ImagesPage() {
                       <TableRow>
                         <TableCell colSpan={6} className="h-32 text-center">
                           <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                          <p className="mb-4 text-muted-foreground">
-                            No media found. Upload your first file to get started.
-                          </p>
-                          <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
-                            Upload Your First Media File
-                          </Button>
+                          {normalizedSearchQuery || filterType !== "all" ? (
+                            <p className="text-muted-foreground">No media found matching your search.</p>
+                          ) : (
+                            <>
+                              <p className="mb-4 text-muted-foreground">
+                                No media found. Upload your first file to get started.
+                              </p>
+                              <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
+                                Upload Your First Media File
+                              </Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ) : (

@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getOrdersWithProducts,
@@ -95,17 +96,20 @@ export default function OrdersPage() {
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    orderSelection,
-    `${currentSite?.id}|${activeTab}|${selectedProduct}|${searchQuery}|${orderSort.sortColumn}|${orderSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${activeTab}|${selectedProduct}|${searchQuery}|${orderSort.sortColumn}|${orderSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(orderSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   useEffect(() => {
     const nextTab = typeParam === "lead_magnet" || typeParam === "paid_purchase" ? typeParam : "all"
     setActiveTab(nextTab)
-    setCurrentPage(1)
   }, [typeParam])
 
   useEffect(() => {
@@ -275,11 +279,7 @@ export default function OrdersPage() {
                 />
                 <Select
                   value={activeTab}
-                  onValueChange={(v) => {
-                    setActiveTab(v as "all" | OrderType)
-                    setCurrentPage(1)
-                    clearOrderSelection()
-                  }}
+                  onValueChange={(v) => setActiveTab(v as "all" | OrderType)}
                 >
                   <TableRightActionsSelectTrigger aria-label="Order type filter">
                     <SelectValue />
@@ -293,11 +293,7 @@ export default function OrdersPage() {
                 {loading ? null : Object.keys(productMap).length > 0 ? (
                   <Select
                     value={selectedProduct}
-                    onValueChange={(v) => {
-                      setSelectedProduct(v)
-                      setCurrentPage(1)
-                      clearOrderSelection()
-                    }}
+                    onValueChange={setSelectedProduct}
                   >
                     <TableRightActionsSelectTrigger aria-label="Product filter" className="max-w-[180px]">
                       <SelectValue placeholder="All Products" />
@@ -388,9 +384,9 @@ export default function OrdersPage() {
                       <TableCell colSpan={8} className="h-32 text-center">
                         <ShoppingCart className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          {orders.length === 0
-                            ? "No orders found"
-                            : `No ${activeTab === "lead_magnet" ? "lead magnet" : activeTab === "paid_purchase" ? "paid" : ""} orders found`}
+                          {searchQuery.trim() || activeTab !== "all" || selectedProduct !== "all"
+                            ? "No orders found matching your search."
+                            : "No orders found"}
                         </p>
                       </TableCell>
                     </TableRow>

@@ -15,6 +15,8 @@ import {
   formatRelativeDate,
 } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
@@ -60,13 +62,13 @@ function getAnswerRows(form: GuidedForm | null, submission: GuidedFormSubmission
 
 export default function GuidedFormSubmissionsPage({ params }: { params: Promise<{ formId: string }> }) {
   const { formId } = use(params)
+  const { pageSize } = useSiteSwitcher()
   const [form, setForm] = useState<GuidedForm | null>(null)
   const [submissions, setSubmissions] = useState<GuidedFormSubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [selectedSubmission, setSelectedSubmission] = useState<GuidedFormSubmission | null>(null)
 
   useEffect(() => {
@@ -115,6 +117,10 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
     ))
   }, [searchQuery, submissions])
 
+  // Searching from a later page would otherwise land you past the end of the
+  // shorter result.
+  useResetPageOnListChange(setCurrentPage, searchQuery.trim().toLowerCase())
+
   const total = filteredSubmissions.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -147,10 +153,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
             <TableRightActions>
               <TableRightActionsSearch
                 value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                  setCurrentPage(1)
-                }}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search submissions"
               />
             </TableRightActions>
@@ -161,7 +164,6 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
               pageSize={pageSize}
               total={total}
               onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
             />
           ) : null}
         >
@@ -190,8 +192,14 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
                   <TableRow>
                     <TableCell colSpan={4} className="h-32 text-center">
                       <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-semibold">No submissions found</h3>
-                      <p className="mt-2 text-muted-foreground">Submissions for this form will appear here.</p>
+                      {searchQuery.trim() ? (
+                        <h3 className="mt-4 text-lg font-semibold">No submissions found matching your search.</h3>
+                      ) : (
+                        <>
+                          <h3 className="mt-4 text-lg font-semibold">No submissions found</h3>
+                          <p className="mt-2 text-muted-foreground">Submissions for this form will appear here.</p>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : visibleSubmissions.map((submission) => {

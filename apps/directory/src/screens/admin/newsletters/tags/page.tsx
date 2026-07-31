@@ -32,6 +32,7 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   deleteNewsletterContactTags,
@@ -74,11 +75,15 @@ export default function NewsletterContactTagsPage() {
   const tagSelection = useAdminBulkSelection()
   const clearTagSelection = tagSelection.clearSelection
   const tagSort = useAdminSort<TagSortColumn>("tag", "asc")
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    tagSelection,
-    `${currentSite?.id}|${deferredSearchQuery}|${tagFilter}|${tagSort.sortColumn}|${tagSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${deferredSearchQuery}|${tagFilter}|${tagSort.sortColumn}|${tagSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(tagSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   useEffect(() => {
@@ -307,9 +312,9 @@ export default function NewsletterContactTagsPage() {
                       <TableCell colSpan={5} className="h-32 text-center">
                         <Tag className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="mb-4 text-muted-foreground">
-                          {tagFilter === "empty"
-                            ? hasSearchQuery ? "No empty tags match this search" : "No empty tags"
-                            : hasSearchQuery ? "No tags match this search" : "No contact tags yet"}
+                          {hasSearchQuery
+                            ? "No tags found matching your search."
+                            : tagFilter === "empty" ? "No empty tags" : "No contact tags yet"}
                         </p>
                       </TableCell>
                     </TableRow>

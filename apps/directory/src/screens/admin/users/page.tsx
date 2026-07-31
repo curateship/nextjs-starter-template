@@ -9,7 +9,7 @@ import {
   ConfirmDestructive,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
+  AdminListFooter,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -22,6 +22,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -100,6 +102,7 @@ function isValueRule(rule: FilterRule): rule is Extract<FilterRule, { type: "rol
 }
 
 export default function UsersPage() {
+  const { pageSize } = useSiteSwitcher()
   const [users, setUsers] = useState<UserListItem[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -112,13 +115,17 @@ export default function UsersPage() {
   const [filters, setFilters] = useState<FilterGroup>(emptyFilterGroup)
   const [pendingFilters, setPendingFilters] = useState<FilterGroup>(emptyFilterGroup)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const userSelection = useAdminBulkSelection()
   const userSort = useAdminSort<SortColumn>()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    userSelection,
-    `${searchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${searchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise land
+  // you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Delete (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(userSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   async function loadUsers() {
@@ -423,9 +430,6 @@ export default function UsersPage() {
 
     return filters.match === "all" ? matches.every(Boolean) : matches.some(Boolean)
   })
-  const deletableUserIds = filteredUsers
-    .filter((user) => user.id !== currentUserId)
-    .map((user) => user.id)
   const sortedUsers = [...filteredUsers].sort((a, b) => {
     if (!userSort.sortColumn) return 0
 
@@ -445,6 +449,13 @@ export default function UsersPage() {
     const bActive = b.last_sign_in_at ? new Date(b.last_sign_in_at).getTime() : 0
     return (aActive - bActive) * dir
   })
+
+  const pagedUsers = sortedUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  // Select-all ticks the page in front of you, minus your own account, which
+  // cannot be deleted.
+  const deletableUserIds = pagedUsers
+    .filter((user) => user.id !== currentUserId)
+    .map((user) => user.id)
 
   return (
     <>
@@ -518,7 +529,7 @@ export default function UsersPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredUsers.length} label="users" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredUsers.length} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
@@ -586,11 +597,11 @@ export default function UsersPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <User className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="text-muted-foreground">No users found</p>
+                        <p className="text-muted-foreground">{normalizedSearchQuery || filters.rules.length > 0 ? "No users found matching your search." : "No users found"}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedUsers.map((user) => (
+                    pagedUsers.map((user) => (
                       <TableRow
                         key={user.id}
                         data-state={userSelection.selectedIds.has(user.id) ? "selected" : undefined}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { SponsorFormModal } from "@/components/admin/sponsors/SponsorFormModal"
@@ -18,7 +19,7 @@ import {
   ConfirmDestructive,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
+  AdminListFooter,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -60,7 +61,7 @@ type SponsorFilter = "all" | "active" | "inactive"
 type SortColumn = "title" | "status" | "url" | "modified"
 
 export default function SponsorsPage() {
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, pageSize } = useSiteSwitcher()
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,13 +74,17 @@ export default function SponsorsPage() {
   const [deleting, setDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const sponsorSelection = useAdminBulkSelection()
   const sponsorSort = useAdminSort<SortColumn>("modified", "desc")
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    sponsorSelection,
-    `${currentSite?.id}|${searchQuery}|${filter}|${sponsorSort.sortColumn}|${sponsorSort.sortDirection}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${searchQuery}|${filter}|${sponsorSort.sortColumn}|${sponsorSort.sortDirection}`
+  // Searching or filtering from a later page would otherwise land you past the
+  // end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Delete (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(sponsorSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   useEffect(() => {
@@ -148,7 +153,13 @@ export default function SponsorsPage() {
     })
   }, [filteredSponsors, sponsorSort.sortColumn, sponsorSort.sortDirection])
 
-  const visibleSponsorIds = sortedSponsors.map((sponsor) => sponsor.id)
+  const pagedSponsors = useMemo(
+    () => sortedSponsors.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedSponsors]
+  )
+
+  // Select-all ticks the page in front of you, never the whole filtered list.
+  const visibleSponsorIds = pagedSponsors.map((sponsor) => sponsor.id)
 
   const counts = {
     all: sponsors.length,
@@ -262,7 +273,7 @@ export default function SponsorsPage() {
             </TableRightActionsButton>
             </TableRightActions>
           }
-          footer={!loading ? <AdminTableSummaryFooter count={filteredSponsors.length} label="sponsors" /> : null}
+          footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredSponsors.length} onPageChange={setCurrentPage} /> : null}
         >
 
           <ScrollArea className="w-full">
@@ -330,7 +341,7 @@ export default function SponsorsPage() {
                     <TableCell colSpan={7} className="h-32 text-center">
                       <Handshake className="mx-auto h-10 w-10 text-muted-foreground" />
                       <p className="mt-4 text-sm text-muted-foreground">
-                        {sponsors.length === 0 ? "No sponsors yet." : "No sponsors match your filters."}
+                        {searchQuery.trim() || filter !== "all" ? "No sponsors found matching your search." : "No sponsors yet."}
                       </p>
                       <Button onClick={openCreate} variant="outline" className="mt-4" disabled={!currentSite?.id}>
                         Create Sponsor
@@ -338,7 +349,7 @@ export default function SponsorsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedSponsors.map((sponsor) => {
+                  pagedSponsors.map((sponsor) => {
                     const imageSrc = sanitizeUrl(sponsor.image_url, "")
                     const sponsorHref = sanitizeUrl(sponsor.url, "#")
 

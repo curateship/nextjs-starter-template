@@ -28,12 +28,14 @@ import { MonetizationRevenueSummary } from "@/screens/admin/directory/monetizati
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   TableRightActions,
+  TableRightActionsSearch,
   TableRightActionsSelectTrigger
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminSortButton, AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate, useAdminSort } from "@/components/admin/layout/list"
+import { AdminSortButton, AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate, useAdminSort } from "@/components/admin/layout/list"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
@@ -104,7 +106,7 @@ function planToDraft(plan: DirectoryFeaturedPlanItem): PlanDraft {
 }
 
 export default function DirectoryMonetizationPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [activeView, setActiveView] = useState<"plans" | "featured">("plans")
   const [entitlementStatus, setEntitlementStatus] = useState<DirectoryFeaturedEntitlementStatus>("active")
   const [plans, setPlans] = useState<DirectoryFeaturedPlanItem[]>([])
@@ -123,6 +125,8 @@ export default function DirectoryMonetizationPage() {
   const [selectedEntitlement, setSelectedEntitlement] = useState<DirectoryFeaturedEntitlementListItem | null>(null)
   const [revokeNote, setRevokeNote] = useState("")
   const [revoking, setRevoking] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
   const planSort = useAdminSort<PlanSortColumn>()
   const entitlementSort = useAdminSort<EntitlementSortColumn>()
 
@@ -169,30 +173,53 @@ export default function DirectoryMonetizationPage() {
     setRevokeNote("")
   }, [selectedEntitlement])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+
   const emptyText = useMemo(() => {
+    if (normalizedSearchQuery) {
+      return activeView === "plans"
+        ? "No plans found matching your search."
+        : "No featured listings found matching your search."
+    }
     if (activeView === "plans") return "No featured plans yet. Create one to start selling upgrades."
     const tab = ENTITLEMENT_FILTERS.find((item) => item.value === entitlementStatus)
     return `No ${tab?.label.toLowerCase() || ""} featured listings.`
-  }, [activeView, entitlementStatus])
+  }, [activeView, entitlementStatus, normalizedSearchQuery])
+
+  const filteredPlans = useMemo(() => {
+    if (!normalizedSearchQuery) return plans
+    return plans.filter((plan) => [plan.name, plan.description, plan.stripe_price_id]
+      .join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [normalizedSearchQuery, plans])
+
+  const filteredEntitlements = useMemo(() => {
+    if (!normalizedSearchQuery) return entitlements
+    return entitlements.filter((entitlement) => [
+      entitlement.directory_title,
+      entitlement.owner_name,
+      entitlement.owner_email,
+      entitlement.plan_name
+    ].join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [entitlements, normalizedSearchQuery])
 
   const sortedPlans = useMemo(() => {
     const column = planSort.sortColumn
-    if (!column) return plans
+    if (!column) return filteredPlans
     const direction = planSort.sortDirection === "asc" ? 1 : -1
-    return [...plans].sort((a, b) => {
+    return [...filteredPlans].sort((a, b) => {
       if (column === "name") return a.name.localeCompare(b.name) * direction
       if (column === "price") return a.stripe_price_id.localeCompare(b.stripe_price_id) * direction
       if (column === "duration") return (a.duration_days - b.duration_days) * direction
       if (column === "priority") return (a.priority - b.priority) * direction
       return (Number(a.is_active) - Number(b.is_active)) * direction
     })
-  }, [plans, planSort.sortColumn, planSort.sortDirection])
+  }, [filteredPlans, planSort.sortColumn, planSort.sortDirection])
 
   const sortedEntitlements = useMemo(() => {
     const column = entitlementSort.sortColumn
-    if (!column) return entitlements
+    if (!column) return filteredEntitlements
     const direction = entitlementSort.sortDirection === "asc" ? 1 : -1
-    return [...entitlements].sort((a, b) => {
+    return [...filteredEntitlements].sort((a, b) => {
       if (column === "listing") return a.directory_title.localeCompare(b.directory_title) * direction
       if (column === "owner") {
         return (a.owner_name || a.owner_email).localeCompare(b.owner_name || b.owner_email) * direction
@@ -203,7 +230,7 @@ export default function DirectoryMonetizationPage() {
       }
       return (new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime()) * direction
     })
-  }, [entitlements, entitlementSort.sortColumn, entitlementSort.sortDirection])
+  }, [filteredEntitlements, entitlementSort.sortColumn, entitlementSort.sortDirection])
 
   const handleSavePlan = async () => {
     if (!currentSite?.id || !planDraft) return
@@ -274,7 +301,33 @@ export default function DirectoryMonetizationPage() {
     showActionSuccess("Placement revoked.")
   }
 
-  const activeRowsCount = activeView === "plans" ? plans.length : entitlements.length
+  const activeRowsCount = activeView === "plans" ? filteredPlans.length : filteredEntitlements.length
+
+  // One page counter serves both views because switching view is itself a list
+  // change, which sends you back to page 1.
+  useResetPageOnListChange(
+    setCurrentPage,
+    [
+      currentSite?.id,
+      activeView,
+      entitlementStatus,
+      normalizedSearchQuery,
+      planSort.sortColumn,
+      planSort.sortDirection,
+      entitlementSort.sortColumn,
+      entitlementSort.sortDirection
+    ].join("|")
+  )
+
+  const pageStart = (currentPage - 1) * pageSize
+  const pagedPlans = useMemo(
+    () => sortedPlans.slice(pageStart, pageStart + pageSize),
+    [pageSize, pageStart, sortedPlans]
+  )
+  const pagedEntitlements = useMemo(
+    () => sortedEntitlements.slice(pageStart, pageStart + pageSize),
+    [pageSize, pageStart, sortedEntitlements]
+  )
 
   function renderPlanSortHeader(column: PlanSortColumn, label: string) {
     return (
@@ -321,6 +374,11 @@ export default function DirectoryMonetizationPage() {
               loading={loading}
               controls={
                 <TableRightActions>
+                  <TableRightActionsSearch
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={activeView === "plans" ? "Search plans" : "Search featured listings"}
+                  />
                   {activeView === "featured" ? (
                     <Select value={entitlementStatus} onValueChange={(value) => setEntitlementStatus(value as DirectoryFeaturedEntitlementStatus)}>
                       <TableRightActionsSelectTrigger aria-label="Featured listing status filter">
@@ -352,7 +410,7 @@ export default function DirectoryMonetizationPage() {
                   </Button>
                 </TableRightActions>
               }
-              footer={!loading ? <AdminTableSummaryFooter count={activeRowsCount} label={activeView === "plans" ? "plans" : "featured listings"} /> : null}
+              footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={activeRowsCount} onPageChange={setCurrentPage} /> : null}
             >
               <ScrollArea className="w-full">
                 <Table>
@@ -391,7 +449,7 @@ export default function DirectoryMonetizationPage() {
                         </TableCell>
                       </TableRow>
                     ) : activeView === "plans" ? (
-                      sortedPlans.map((plan) => (
+                      pagedPlans.map((plan) => (
                         <TableRow key={plan.id} className="group">
                           <TableCell column="main">
                             <h4 className="truncate font-medium" title={plan.name}>{plan.name}</h4>
@@ -442,7 +500,7 @@ export default function DirectoryMonetizationPage() {
                         </TableRow>
                       ))
                     ) : (
-                      sortedEntitlements.map((entitlement) => (
+                      pagedEntitlements.map((entitlement) => (
                         <TableRow key={entitlement.id} className="group">
                           <TableCell column="main">
                             <Link href={`/directory/${entitlement.directory_slug}`} className="block hover:opacity-80">

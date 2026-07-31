@@ -11,6 +11,7 @@ import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid.js"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { showErrorToast } from "@/lib/error-toast"
 import { setToastSeconds } from "@/lib/toast-duration"
@@ -95,6 +96,7 @@ interface PlatformSettingsDraft {
 }
 
 export default function PlatformSettingsPage() {
+  const { setPageSize: publishPageSize } = useSiteSwitcher()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [dashboardPageSize, setDashboardPageSize] = useState(50)
@@ -112,9 +114,13 @@ export default function PlatformSettingsPage() {
         return { saved: false, reason: result.error }
       }
 
-      // The root layout published the old value on page load, so hand the
-      // Toaster the new one rather than waiting for a full reload.
+      // The root layout published the old values on page load, so hand the new
+      // ones straight to the parts that already hold them rather than making
+      // the user reload. Without this, every list keeps its old rows-per-page
+      // until a full refresh, while the same number changed from a list footer
+      // applies at once — the same setting behaving two different ways.
       setToastSeconds(draft.toastSeconds)
+      publishPageSize(draft.dashboardPageSize)
       return { saved: true }
     }
   })

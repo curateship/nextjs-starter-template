@@ -30,6 +30,7 @@ import {
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
@@ -106,11 +107,15 @@ export function AutomationsDashboard() {
   const loadRequestRef = useRef(0)
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    selection,
-    `${currentSite?.id}|${search}|${status}|${sort.sortColumn}|${sort.sortDirection}|${page}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${search}|${status}|${sort.sortColumn}|${sort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${page}|${pageSize}`)
 
 
   const load = useCallback(async () => {
@@ -268,7 +273,7 @@ export function AutomationsDashboard() {
               {loading && items.length === 0 ? (
                 <AdminListPending />
               ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">No automations found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">{search.trim() || status !== "all" ? "No automations found matching your search." : "No automations found."}</TableCell></TableRow>
               ) : items.map((item) => {
                 const working = workingId === item.id
                 return (
