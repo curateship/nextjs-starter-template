@@ -48,7 +48,7 @@ export default function CampaignsPage() {
     async function load() {
       if (!currentSite?.id) { setCampaigns([]); setLoading(false); return }
       setLoading(true)
-      const result = await getSiteCampaignsAction(currentSite.id)
+      const result = await getSiteCampaignsAction({ data: { siteId: currentSite.id } })
       if (cancelled) return
       if (result.ok) setCampaigns(result.data)
       else { setCampaigns([]); showActionError(result.message) }
@@ -87,7 +87,7 @@ export default function CampaignsPage() {
   }
 
   const toggleStatus = async (campaign: CampaignRecord) => {
-    const result = await setCampaignStatusAction(campaign.id, campaign.status === "active" ? "draft" : "active")
+    const result = await setCampaignStatusAction({ data: { campaignId: campaign.id, status: campaign.status === "active" ? "draft" : "active" } })
     if (!result.ok) {
       return showActionError(result.message)
     }
@@ -98,7 +98,7 @@ export default function CampaignsPage() {
   const remove = async () => {
     if (!deleteTarget) return
     setDeleting(true)
-    const result = await deleteCampaignAction(deleteTarget.id)
+    const result = await deleteCampaignAction({ data: { campaignId: deleteTarget.id } })
     setDeleting(false)
     if (!result.ok) {
       setDeleteError(result.message)

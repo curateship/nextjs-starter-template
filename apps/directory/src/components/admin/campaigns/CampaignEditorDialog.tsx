@@ -168,7 +168,7 @@ export function CampaignEditorDialog({
     }
 
     setSaving(true)
-    const result = await saveCampaignAction(input, campaign?.id)
+    const result = await saveCampaignAction({ data: { input, campaignId: campaign?.id } })
     setSaving(false)
     if (!result.ok) {
       showActionError(result.message)
