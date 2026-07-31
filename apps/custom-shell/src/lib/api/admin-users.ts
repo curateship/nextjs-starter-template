@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { loadAccountDetail, type AccountDetail } from "@/server/account-detail"
 import {
   deleteUserAccount,
   deleteUserAccounts,
@@ -17,7 +18,10 @@ import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin } from "@/server/security"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
-export type { AccountRow, RevenueSummary }
+export type { AccountDetail, AccountRow, RevenueSummary }
+
+/** Plans an admin can hand out by hand, as the account modal lists them. */
+export type AssignablePlan = { id: string; name: string; slug: string }
 
 const listQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
@@ -76,14 +80,29 @@ const loadAdminUsersPageFn = createServerFn({ method: "GET" })
     ])
     const accounts = await listAccounts({ ...data, pageSize })
 
-    return {
-      accounts,
-      pageSize,
-      plans: plans
-        .filter((plan) => plan.active && !plan.isDefault)
-        .map((plan) => ({ id: plan.id, name: plan.name, slug: plan.slug })),
-    }
+    return { accounts, pageSize, plans: toAssignablePlans(plans) }
   })
+
+/**
+ * One account's page in one request: the person, their plan, their storage,
+ * their feedback and what admins have done to them, plus the plans so the
+ * account modal opens from here too.
+ */
+const loadAccountDetailFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    const detail = await loadAccountDetail(data.userId)
+    return { detail, plans: toAssignablePlans(await listPlans()) }
+  })
+
+function toAssignablePlans(
+  plans: Awaited<ReturnType<typeof listPlans>>
+): AssignablePlan[] {
+  return plans
+    .filter((plan) => plan.active && !plan.isDefault)
+    .map((plan) => ({ id: plan.id, name: plan.name, slug: plan.slug }))
+}
 
 const updateRoleFn = createServerFn({ method: "POST" })
   .inputValidator(
@@ -157,6 +176,10 @@ export function loadAdminUsersPage(
   query: Omit<AccountListQueryInput, "pageSize">
 ) {
   return loadAdminUsersPageFn({ data: query })
+}
+
+export function loadAdminAccountDetail(userId: string) {
+  return loadAccountDetailFn({ data: { userId } })
 }
 
 export function listAdminAccounts(query: AccountListQueryInput) {

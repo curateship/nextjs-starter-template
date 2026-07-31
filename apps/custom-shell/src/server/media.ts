@@ -532,6 +532,30 @@ async function tryScanMediaOrphans(database: CustomShellDb) {
   }
 }
 
+export type AccountStorage = { files: number; bytes: number }
+
+/**
+ * One person's files and the space they take, straight from the media table.
+ *
+ * Deliberately no orphan numbers: finding orphans means listing the whole
+ * bucket, which is the storage page's job once, not something to repeat every
+ * time an admin opens somebody's account.
+ */
+export async function loadAccountStorage(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<AccountStorage> {
+  const [row] = await database
+    .select({
+      files: count(),
+      bytes: sql<number>`coalesce(sum(${customShellMedia.fileSize}), 0)::bigint`,
+    })
+    .from(customShellMedia)
+    .where(eq(customShellMedia.userId, userId))
+
+  return { files: row?.files ?? 0, bytes: Number(row?.bytes ?? 0) }
+}
+
 /**
  * Who is storing what, with their orphans folded in. Someone can hold orphans
  * without holding any live media, so the two sources are merged rather than

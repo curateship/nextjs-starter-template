@@ -26,6 +26,7 @@ import {
   customShellFeedbackComments,
   customShellFeedbackVotes,
   customShellNotifications,
+  customShellPlans,
   customShellSessions,
   customShellSettings,
   customShellUsers,
@@ -41,6 +42,8 @@ import {
   updateChangelogEntry,
 } from "@/server/changelog"
 import { normalizeMaintenance, resolveMaintenanceMessage } from "@/lib/custom-shell"
+import { loadAccountDetail } from "@/server/account-detail"
+import { grantManualPlan, recordAdminAudit } from "@/server/accounts"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
 import { readShellGlobals } from "@/server/shell-settings"
 import {
@@ -1212,5 +1215,191 @@ describe("custom shell maintenance mode", () => {
   it("falls back to the default wording when no message was written", () => {
     expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
     expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
+  })
+})
+
+describe("custom shell account detail", () => {
+  async function seedPerson(
+    email: string,
+    values: Partial<{ role: string; name: string }> = {}
+  ) {
+    const userId = uuid()
+    const createdAt = now()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email,
+      name: values.name ?? email,
+      role: values.role ?? "member",
+      passwordHash: await hash("password123"),
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    return userId
+  }
+
+  /** Free and Pro are seeded by the migrations, the same as a real database. */
+  async function findPlanId(slug: string) {
+    const [plan] = await database
+      .select({ id: customShellPlans.id })
+      .from(customShellPlans)
+      .where(eq(customShellPlans.slug, slug))
+
+    return plan.id
+  }
+
+  it("reads a brand-new account as free, empty and untouched", async () => {
+    const db = database as unknown as CustomShellDb
+    const userId = await seedPerson("new@internal.dev")
+
+    const detail = await loadAccountDetail(userId, db)
+
+    expect(detail.profile.email).toBe("new@internal.dev")
+    expect(detail.profile.emailVerifiedAt).toBeNull()
+    expect(detail.subscription).toMatchObject({
+      planName: "Free",
+      isPaid: false,
+      source: null,
+      currentPeriodEnd: null,
+      trialEndsAt: null,
+    })
+    expect(detail.storage).toEqual({ files: 0, bytes: 0 })
+    expect(detail.feedback).toEqual([])
+    expect(detail.activity).toEqual([])
+    expect(detail.feedbackTruncated).toBe(false)
+    expect(detail.activityTruncated).toBe(false)
+  })
+
+  it("says so instead of guessing when the account is gone", async () => {
+    const db = database as unknown as CustomShellDb
+
+    await expect(loadAccountDetail(uuid(), db)).rejects.toThrow(
+      "USER_NOT_FOUND"
+    )
+  })
+
+  it("adds up storage and feedback from the same rows the dashboards read", async () => {
+    const db = database as unknown as CustomShellDb
+    const userId = await seedPerson("busy@internal.dev")
+    const voterId = await seedPerson("voter@internal.dev")
+    const timestamp = now()
+
+    await database.insert(customShellMedia).values([
+      {
+        id: uuid(),
+        userId,
+        filename: "one.png",
+        originalName: "one.png",
+        fileSize: 400,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: "media/one.png",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      {
+        id: uuid(),
+        userId,
+        filename: "two.png",
+        originalName: "two.png",
+        fileSize: 600,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: "media/two.png",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+      // Somebody else's file must not land on this person's total.
+      {
+        id: uuid(),
+        userId: voterId,
+        filename: "other.png",
+        originalName: "other.png",
+        fileSize: 9000,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: "media/other.png",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ])
+
+    const feedbackId = uuid()
+    await database.insert(customShellFeedback).values({
+      id: feedbackId,
+      userId,
+      type: "bug_report",
+      message: "The export button does nothing",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await database.insert(customShellFeedbackVotes).values([
+      { id: uuid(), feedbackId, userId, createdAt: timestamp },
+      { id: uuid(), feedbackId, userId: voterId, createdAt: timestamp },
+    ])
+    await database.insert(customShellFeedbackComments).values({
+      id: uuid(),
+      feedbackId,
+      userId: voterId,
+      message: "Same here",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    const detail = await loadAccountDetail(userId, db)
+
+    expect(detail.storage).toEqual({ files: 2, bytes: 1000 })
+    expect(detail.feedback).toHaveLength(1)
+    // Two votes and one reply, counted once each — the two joins fan the row
+    // out, so a plain count would report four of everything.
+    expect(detail.feedback[0]).toMatchObject({
+      type: "bug_report",
+      message: "The export button does nothing",
+      votes: 2,
+      comments: 1,
+    })
+  })
+
+  it("shows only the activity about this person", async () => {
+    const db = database as unknown as CustomShellDb
+    const adminId = await seedPerson("boss@internal.dev", { role: "admin", name: "Boss" })
+    const userId = await seedPerson("watched@internal.dev", { name: "Watched" })
+    const otherId = await seedPerson("ignored@internal.dev", { name: "Ignored" })
+
+    await recordAdminAudit(adminId, "update_role", "user", [userId], "member", db)
+    await recordAdminAudit(adminId, "update_status", "user", [otherId], "suspended", db)
+
+    const detail = await loadAccountDetail(userId, db)
+
+    expect(detail.activity).toHaveLength(1)
+    expect(detail.activity[0]).toMatchObject({
+      action: "update_role",
+      actorName: "Boss",
+      detail: "member",
+    })
+    // The id resolves to a name so the page can say whose role changed.
+    expect(detail.activity[0].records).toEqual([{ id: userId, name: "Watched" }])
+  })
+
+  it("counts a granted plan as paid, with the date it runs out", async () => {
+    const db = database as unknown as CustomShellDb
+    const adminId = await seedPerson("boss@internal.dev", { role: "admin" })
+    const userId = await seedPerson("comped@internal.dev")
+    const endsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+    await grantManualPlan(adminId, userId, await findPlanId("pro"), endsAt, db)
+
+    const detail = await loadAccountDetail(userId, db)
+
+    expect(detail.subscription).toMatchObject({
+      planName: "Pro",
+      planSlug: "pro",
+      isPaid: true,
+      status: "active",
+      source: "manual",
+      cancelAtPeriodEnd: false,
+    })
+    expect(detail.subscription.currentPeriodEnd).toBe(endsAt.toISOString())
   })
 })

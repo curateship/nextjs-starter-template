@@ -1,7 +1,7 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
-import { format } from "date-fns"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,33 +12,14 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { DatePicker } from "@/components/ui/date-picker"
-import { FieldLabel } from "@/components/ui/field-label"
-import { Label } from "@/components/ui/label"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
+import { showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import {
@@ -52,15 +33,12 @@ import {
   deleteAccountAsAdmin,
   deleteAccountsAsAdmin,
   getAdminUserErrorMessage,
-  grantAccountPlan,
   listAdminAccounts,
-  updateAccountRole,
-  updateAccountStatus,
   type AccountRow,
+  type AssignablePlan,
 } from "@/lib/api/admin-users"
 import { formatDate } from "@/lib/money"
 
-type AssignablePlan = { id: string; name: string; slug: string }
 type SortColumn = "name" | "email" | "role" | "plan" | "created"
 
 export function AdminUsersDashboard({
@@ -360,13 +338,13 @@ export function AdminUsersDashboard({
               />
             </TableCell>
             <TableCell column="main">
-              <button
-                type="button"
-                className="text-left text-sm font-medium group-hover:underline"
-                onClick={() => setEditing(account)}
+              <Link
+                to="/admin/users/$userId"
+                params={{ userId: account.id }}
+                className="text-sm font-medium group-hover:underline"
               >
                 {account.name}
-              </button>
+              </Link>
               {account.status === "suspended" ? (
                 <span className="ml-2 text-xs text-destructive">Suspended</span>
               ) : account.emailVerified ? null : (
@@ -488,198 +466,5 @@ export function AdminUsersDashboard({
         }}
       />
     </div>
-  )
-}
-
-/** Role, status and a granted plan live here, not as controls inside the table. */
-function EditAccountDialog({
-  account,
-  plans,
-  onClose,
-  onSaved,
-}: {
-  account: AccountRow | null
-  plans: AssignablePlan[]
-  onClose: () => void
-  onSaved: () => Promise<void>
-}) {
-  const grantedPlanId =
-    account?.subscriptionSource === "manual"
-      ? (plans.find((plan) => plan.slug === account.planSlug)?.id ?? "none")
-      : "none"
-  const grantedEndsOn =
-    account?.subscriptionSource === "manual" && account.currentPeriodEnd
-      ? account.currentPeriodEnd.slice(0, 10)
-      : ""
-
-  const [role, setRole] = React.useState<"admin" | "member">(
-    account?.role === "admin" ? "admin" : "member"
-  )
-  const [status, setStatus] = React.useState<"active" | "suspended">(
-    account?.status === "suspended" ? "suspended" : "active"
-  )
-  const [planId, setPlanId] = React.useState(grantedPlanId)
-  const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
-  const [saving, setSaving] = React.useState(false)
-
-  const initial = React.useRef({
-    role: account?.role === "admin" ? "admin" : "member",
-    status: account?.status === "suspended" ? "suspended" : "active",
-    planId: grantedPlanId,
-    endsOn: grantedEndsOn,
-  })
-
-  const handleSave = React.useCallback(async () => {
-    if (!account) return
-
-    dismissErrorToast()
-    setSaving(true)
-    try {
-      // Only send what changed, so a no-op save writes no audit rows.
-      if (role !== initial.current.role) {
-        await updateAccountRole(account.id, role)
-      }
-      if (status !== initial.current.status) {
-        await updateAccountStatus(account.id, status)
-      }
-      if (
-        planId !== initial.current.planId ||
-        endsOn !== initial.current.endsOn
-      ) {
-        await grantAccountPlan(
-          account.id,
-          planId === "none" ? null : planId,
-          endsOn ? new Date(`${endsOn}T23:59:59`).toISOString() : null
-        )
-      }
-
-      toast.success("Account updated.")
-      await onSaved()
-    } catch (saveError) {
-      showErrorToast(getAdminUserErrorMessage(saveError))
-    } finally {
-      setSaving(false)
-    }
-  }, [account, endsOn, onSaved, planId, role, status])
-
-  return (
-    <Dialog
-      open={Boolean(account)}
-      onOpenChange={(open) => {
-        if (!open && !saving) onClose()
-      }}
-    >
-      <DialogContent variant="admin" className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{account?.name ?? "Account"}</DialogTitle>
-          <DialogDescription>
-            {account?.email ?? "Change what this person can do and pays for."}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Access</CardTitle>
-              <CardDescription>
-                Admins reach the whole back office. Suspending someone signs them
-                out everywhere.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
-                <div className="grid gap-2">
-                  <Label htmlFor="account-role">Role</Label>
-                  <Select
-                    value={role}
-                    onValueChange={(value) =>
-                      setRole(value as "admin" | "member")
-                    }
-                  >
-                    <SelectTrigger id="account-role" className="w-full sm:w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="account-status">Status</Label>
-                  <Select
-                    value={status}
-                    onValueChange={(value) =>
-                      setStatus(value as "active" | "suspended")
-                    }
-                  >
-                    <SelectTrigger id="account-status" className="w-full sm:w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="suspended">Suspended</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Granted plan</CardTitle>
-              <CardDescription>
-                Puts this person on a paid plan without charging them. Plans paid
-                through Stripe are not affected.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                <div className="grid gap-2">
-                  <Label htmlFor="account-plan">Plan</Label>
-                  <Select value={planId} onValueChange={setPlanId}>
-                    <SelectTrigger id="account-plan" className="w-full sm:w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No granted plan</SelectItem>
-                      {plans.map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id}>
-                          {plan.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2 sm:flex-1">
-                  <FieldLabel
-                    htmlFor="account-ends-on"
-                    hint="Leave empty to keep the plan until you remove it."
-                  >
-                    Ends on
-                  </FieldLabel>
-                  <DatePicker
-                    id="account-ends-on"
-                    value={endsOn ? new Date(`${endsOn}T00:00:00`) : undefined}
-                    disabled={planId === "none"}
-                    onChange={(date) =>
-                      setEndsOn(date ? format(date, "yyyy-MM-dd") : "")
-                    }
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            Save changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

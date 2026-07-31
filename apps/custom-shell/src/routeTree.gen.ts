@@ -37,6 +37,7 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
+import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users_.$userId'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminMediaOrphansRouteImport } from './routes/_authenticated/admin/media_.orphans'
 import { Route as AuthenticatedAdminMediaStorageRouteImport } from './routes/_authenticated/admin/media_.storage'
@@ -191,6 +192,12 @@ const AuthenticatedAdminAutomationsAutomationIdRoute =
     path: '/automations/$automationId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminUsersUserIdRoute =
+  AuthenticatedAdminUsersUserIdRouteImport.update({
+    id: '/users_/$userId',
+    path: '/users/$userId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminFeedbackCommentsRoute =
   AuthenticatedAdminFeedbackCommentsRouteImport.update({
     id: '/comments',
@@ -249,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
@@ -281,6 +289,7 @@ export interface FileRoutesByTo {
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
@@ -317,6 +326,7 @@ export interface FileRoutesById {
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/_authenticated/admin/users_/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/media_/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/_authenticated/admin/media_/storage': typeof AuthenticatedAdminMediaStorageRoute
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
     | '/changelog/whats-new'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
+    | '/admin/users/$userId'
     | '/admin/feedback/comments'
     | '/admin/media/orphans'
     | '/admin/media/storage'
@@ -385,6 +396,7 @@ export interface FileRouteTypes {
     | '/changelog/whats-new'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
+    | '/admin/users/$userId'
     | '/admin/feedback/comments'
     | '/admin/media/orphans'
     | '/admin/media/storage'
@@ -420,6 +432,7 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog/whats-new'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
+    | '/_authenticated/admin/users_/$userId'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/media_/orphans'
     | '/_authenticated/admin/media_/storage'
@@ -638,6 +651,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/users_/$userId': {
+      id: '/_authenticated/admin/users_/$userId'
+      path: '/users/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/feedback/comments': {
       id: '/_authenticated/admin/feedback/comments'
       path: '/comments'
@@ -729,6 +749,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
   AuthenticatedAdminMediaOrphansRoute: typeof AuthenticatedAdminMediaOrphansRoute
   AuthenticatedAdminMediaStorageRoute: typeof AuthenticatedAdminMediaStorageRoute
 }
@@ -746,6 +767,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
+  AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
   AuthenticatedAdminMediaOrphansRoute: AuthenticatedAdminMediaOrphansRoute,
   AuthenticatedAdminMediaStorageRoute: AuthenticatedAdminMediaStorageRoute,
 }
