@@ -21,13 +21,13 @@ import {
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
@@ -70,7 +70,6 @@ export default function EmailAutomationsPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState("")
@@ -100,8 +99,7 @@ export default function EmailAutomationsPage() {
       pageSize
     } } })
     if (error) {
-      setErrorMessage(error)
-      setErrorDialogOpen(true)
+      showErrorToast(error)
     }
     setAutomations(data ?? [])
     setTotal(t)
@@ -147,6 +145,7 @@ export default function EmailAutomationsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentSite?.id || !createName.trim()) return
+    dismissErrorToast()
     setCreating(true)
     const { data, error } = await createAutomation({ data: { input: {
       siteId: currentSite.id,
@@ -154,8 +153,7 @@ export default function EmailAutomationsPage() {
       triggerType: "none"
     } } })
     if (error) {
-      setErrorMessage(error)
-      setErrorDialogOpen(true)
+      showErrorToast(error)
     }
     if (data) {
       setCreateOpen(false)
@@ -174,13 +172,13 @@ export default function EmailAutomationsPage() {
     e.preventDefault()
     if (!settingsAutomation || !settingsName.trim()) return
 
+    dismissErrorToast()
     setSavingSettings(true)
     const { data, error } = await updateAutomation({ data: { automationId: settingsAutomation.id, updates: {
       name: settingsName.trim()
     } } })
     if (error) {
-      setErrorMessage(error)
-      setErrorDialogOpen(true)
+      showErrorToast(error)
     }
     if (data) {
       setAutomations((current) => current.map((automation) => automation.id === data.id ? data : automation))
@@ -551,7 +549,6 @@ export default function EmailAutomationsPage() {
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
-          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
     </>

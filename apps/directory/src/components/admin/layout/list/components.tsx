@@ -19,14 +19,6 @@ import {
 } from "@/components/ui/table";
 import { TableRightActionsButton } from "@/components/admin/layout/content/table-right-actions";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -380,30 +372,6 @@ export function AdminTableSummaryFooter({
     <div className="bg-muted/50 p-4 text-xs text-muted-foreground sm:text-sm">
       {count} {label}
     </div>
-  );
-}
-
-export function AdminErrorDialog({
-  message,
-  onOpenChange,
-  open,
-}: {
-  message: string;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>Error</DialogTitle>
-          <DialogDescription>{message}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button onClick={() => onOpenChange(false)}>OK</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

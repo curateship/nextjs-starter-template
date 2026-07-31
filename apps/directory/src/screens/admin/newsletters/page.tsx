@@ -16,7 +16,6 @@ import {
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -25,6 +24,7 @@ import {
   useAdminSort
 } from "@/components/admin/layout/list"
 import dynamic from "@/lib/dynamic"
+import { showErrorToast } from "@/lib/error-toast"
 
 const CreateNewsletterModal = dynamic(
   () =>
@@ -165,7 +165,6 @@ export default function NewslettersPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const newsletterSelection = useAdminBulkSelection()
   const newsletterSort = useAdminSort<NewsletterSortColumn>()
@@ -174,11 +173,6 @@ export default function NewslettersPage() {
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
   const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === "sending")
-
-  const showError = useCallback((message: string) => {
-    setErrorMessage(message)
-    setErrorDialogOpen(true)
-  }, [])
 
   const loadNewsletters = useCallback(
     async (showSkeleton = true) => {
@@ -199,8 +193,7 @@ export default function NewslettersPage() {
           pageSize
         } } })
         if (error) {
-          setErrorMessage(error)
-          setErrorDialogOpen(true)
+          showErrorToast(error)
           setLoading(false)
           return
         }
@@ -663,7 +656,7 @@ export default function NewslettersPage() {
           <NewsletterStatusEventsModal
             open={statusNewsletterId !== null}
             newsletterId={statusNewsletterId}
-            onError={showError}
+            onError={showErrorToast}
             onOpenChange={(open) => {
               if (!open) setStatusNewsletterId(null)
             }}
@@ -690,8 +683,6 @@ export default function NewslettersPage() {
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
-
-          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
     </>

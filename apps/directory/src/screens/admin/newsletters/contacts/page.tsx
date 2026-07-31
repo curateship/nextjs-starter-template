@@ -16,7 +16,6 @@ import {
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -24,6 +23,7 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
@@ -72,7 +72,6 @@ export default function ContactsPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
@@ -226,13 +225,13 @@ export default function ContactsPage() {
 
   const handleAddToSegment = async () => {
     if (!selectedSegmentId || !contactSelection.selectedCount) return
+    dismissErrorToast()
     setAddingToSegment(true)
     try {
       const segName = segments.find((s) => s.id === selectedSegmentId)?.name || "segment"
       const { added, error } = await addContactsToSegment({ data: { contactIds: Array.from(contactSelection.selectedIds), segmentId: selectedSegmentId } })
       if (error) {
-        setErrorMessage(error)
-        setErrorDialogOpen(true)
+        showErrorToast(error)
       } else {
         setSuccessMessage(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}`)
         setTimeout(() => setSuccessMessage(null), 5000)
@@ -241,16 +240,10 @@ export default function ContactsPage() {
         loadContacts()
       }
     } catch {
-      setErrorMessage("Failed to add contacts to segment")
-      setErrorDialogOpen(true)
+      showErrorToast("Failed to add contacts to segment")
     } finally {
       setAddingToSegment(false)
     }
-  }
-
-  const showError = (message: string) => {
-    setErrorMessage(message)
-    setErrorDialogOpen(true)
   }
 
   const handleContactCreated = (contact: CrmContact) => {
@@ -699,7 +692,7 @@ export default function ContactsPage() {
           <ContactImportModal
             open={importModalOpen}
             fileInputRef={fileInputRef}
-            onError={showError}
+            onError={showErrorToast}
             onImported={loadContacts}
             onOpenChange={setImportModalOpen}
             siteId={currentSite?.id}
@@ -711,7 +704,7 @@ export default function ContactsPage() {
             onAddOpenChange={setAddModalOpen}
             onCreated={handleContactCreated}
             onEditClose={() => setEditContact(null)}
-            onError={showError}
+            onError={showErrorToast}
             onUpdated={handleContactUpdated}
             siteId={currentSite?.id}
           />
@@ -737,8 +730,6 @@ export default function ContactsPage() {
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
-
-          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
     </>

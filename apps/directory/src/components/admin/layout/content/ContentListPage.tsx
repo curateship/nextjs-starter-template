@@ -12,7 +12,6 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   AdminBulkDeleteButton,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -586,14 +585,6 @@ export function ContentListPage<TItem extends ContentListItem>({
             : undefined}
           onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage(null) }}
           onConfirm={confirmMassDelete}
-        />
-
-        <AdminErrorDialog
-          open={errorMessage !== null}
-          message={errorMessage ?? ""}
-          onOpenChange={(open) => {
-            if (!open) setErrorMessage(null)
-          }}
         />
       </AdminLayout>
     </>

@@ -31,7 +31,6 @@ import { CSS } from "@dnd-kit/utilities"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -39,6 +38,7 @@ import {
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
@@ -751,7 +751,6 @@ export default function AdminGuidedFormsPage() {
   const [forms, setForms] = useState<GuidedForm[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [settingsForm, setSettingsForm] = useState<GuidedForm | null>(null)
   const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null)
@@ -779,7 +778,6 @@ export default function AdminGuidedFormsPage() {
     setLoading(false)
     if (result.error) {
       setError(result.error)
-      setErrorDialogOpen(true)
       return
     }
     setForms(result.data ?? [])
@@ -827,21 +825,17 @@ export default function AdminGuidedFormsPage() {
   const visibleFormIds = visibleForms.map((form) => form.id)
   const publicSiteUrl = currentSite ? getSiteUrl(currentSite) : ""
 
-  function showError(message: string) {
-    setError(message)
-    setErrorDialogOpen(true)
-  }
-
   function handleFormUpdated(updated: GuidedForm) {
     setForms((current) => current.map((form) => form.id === updated.id ? { ...form, ...updated } : form))
   }
 
   async function handlePublish(form: GuidedForm) {
+    dismissErrorToast()
     setPublishingId(form.id)
     const result = await publishGuidedForm(form.id)
     setPublishingId(null)
     if (result.error) {
-      showError(result.error)
+      showErrorToast(result.error)
       return
     }
     setForms((current) => current.map((item) => item.id === form.id ? { ...item, status: "published" } : item))
@@ -1126,15 +1120,6 @@ export default function AdminGuidedFormsPage() {
             : undefined}
           onCancel={() => { setBulkArchiveConfirmOpen(false); setArchiveError(null) }}
           onConfirm={handleBulkArchive}
-        />
-
-        <AdminErrorDialog
-          open={errorDialogOpen}
-          message={error}
-          onOpenChange={(open) => {
-            setErrorDialogOpen(open)
-            if (!open) setError("")
-          }}
         />
       </AdminLayout>
     </>
