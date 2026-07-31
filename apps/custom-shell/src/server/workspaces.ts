@@ -43,7 +43,7 @@ const MEDIA_CHILD_LINKS: ShellChildItem[] = [
   },
 ]
 
-/** The read-only admin activity feed, added after the first workspaces existed. */
+/** The read-only admin activity feed. */
 const AUDIT_LINK: ShellItem = {
   type: "item",
   id: "item-admin-audit",
@@ -55,10 +55,9 @@ const AUDIT_LINK: ShellItem = {
 }
 
 /**
- * The changelog area, added after the first workspaces existed. Neither entry is
- * role-gated: What's new is the page a changelog notice opens and everyone gets
- * those notices, and the parent sends anyone who cannot write updates straight
- * to it.
+ * The changelog area. Neither entry is role-gated: What's new is the page a
+ * changelog notice opens and everyone gets those notices, and the parent sends
+ * anyone who cannot write updates straight to it.
  */
 const CHANGELOG_CHILD_LINKS: ShellChildItem[] = [
   {
@@ -84,7 +83,7 @@ function changelogLink(): ShellItem {
   }
 }
 
-/** The automation canvas, added after the first workspaces existed. */
+/** The automation canvas. */
 const AUTOMATIONS_LINK: ShellItem = {
   type: "item",
   id: "item-automations",
@@ -413,16 +412,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
+      // Saved navigation is returned exactly as saved. The default links below
+      // are handed out once, when the workspace is created — reading must never
+      // add one back, or deleting it in Settings → Sidebar would not stick.
       sections: Array.isArray(settings.sections)
-        ? withLinkAfter(
-            withLinkAfter(
-              withAuditLink(withMediaChildLinks(settings.sections)),
-              AUTOMATIONS_LINK,
-              "/admin/media"
-            ),
-            changelogLink(),
-            "/admin/notifications"
-          )
+        ? settings.sections
         : fallback.sections,
       // Default fills rows saved before this field existed.
       sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
@@ -436,102 +430,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
   }
 
   return fallback
-}
-
-/**
- * The storage and orphan pages arrived after most workspaces were created, and
- * saved navigation is never rewritten by a deploy — so their links would only
- * ever show up in brand new workspaces. Fill them in for a media entry that has
- * no children at all. Once the entry has any child, the sidebar is the user's
- * again: removing one of the two links keeps it removed.
- */
-function withMediaChildLinks(sections: ShellSection[]): ShellSection[] {
-  return sections.map((section) => ({
-    ...section,
-    entries: (section.entries ?? []).map((entry) =>
-      entry.type === "item" &&
-      entry.href === "/admin/media" &&
-      !entry.children?.length
-        ? { ...entry, children: MEDIA_CHILD_LINKS.map((child) => ({ ...child })) }
-        : entry
-    ),
-  }))
-}
-
-/**
- * Same story as the media child links: the activity log arrived after most
- * workspaces were created and a deploy never rewrites saved navigation, so it
- * would only appear in brand new workspaces. Add it beside the other admin
- * links when nothing points at it yet. To take it out of the sidebar, switch
- * the entry to hidden in Settings → Sidebar — deleting it brings it back, the
- * same as any default link.
- */
-function withAuditLink(sections: ShellSection[]): ShellSection[] {
-  const alreadyLinked = sections.some((section) =>
-    (section.entries ?? []).some(
-      (entry) => entry.type === "item" && entry.href === AUDIT_LINK.href
-    )
-  )
-  if (alreadyLinked) return sections
-
-  // It belongs with the admin links; without that section there is nowhere
-  // sensible to put it, so leave the user's sidebar alone.
-  let placed = false
-  return sections.map((section) => {
-    const entries = section.entries ?? []
-    if (
-      placed ||
-      !entries.some(
-        (entry) => entry.type === "item" && entry.href === "/admin/users"
-      )
-    ) {
-      return section
-    }
-
-    placed = true
-    return { ...section, entries: [...entries, { ...AUDIT_LINK }] }
-  })
-}
-
-/**
- * Same story again, for links that belong next to an existing one: the entry
- * goes in right after the link it names as its anchor, and only when nothing
- * points at it yet. Without that anchor there is nowhere sensible to put it, so
- * the user's sidebar is left alone. To take one out, switch the entry to hidden
- * in Settings → Sidebar — deleting it brings it back, like any default link.
- */
-function withLinkAfter(
-  sections: ShellSection[],
-  link: ShellItem,
-  anchorHref: string
-): ShellSection[] {
-  const alreadyLinked = sections.some((section) =>
-    (section.entries ?? []).some(
-      (entry) => entry.type === "item" && entry.href === link.href
-    )
-  )
-  if (alreadyLinked) return sections
-
-  let placed = false
-  return sections.map((section) => {
-    const entries = section.entries ?? []
-    const anchorIndex = entries.findIndex(
-      (entry) => entry.type === "item" && entry.href === anchorHref
-    )
-    if (placed || anchorIndex === -1) {
-      return section
-    }
-
-    placed = true
-    return {
-      ...section,
-      entries: [
-        ...entries.slice(0, anchorIndex + 1),
-        { ...link },
-        ...entries.slice(anchorIndex + 1),
-      ],
-    }
-  })
 }
 
 function cleanWorkspaceSettings(
