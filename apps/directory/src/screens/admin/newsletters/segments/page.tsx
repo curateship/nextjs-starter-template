@@ -30,6 +30,7 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import { getSegmentsWithCounts, deleteSegments, refreshDynamicSegmentsForSite } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { formatSegmentDynamicRule } from "@/lib/actions/newsletters/segment-rules"
 import { SegmentFormModal } from "@/components/admin/newsletter-builder/segments/SegmentFormModal"
@@ -63,6 +64,12 @@ export default function SegmentsPage() {
 
   // Sort state
   const segmentSort = useAdminSort<SegmentSortColumn>()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    segmentSelection,
+    `${currentSite?.id}|${searchQuery}|${segmentSort.sortColumn}|${segmentSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   // Create/Edit modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -223,10 +230,7 @@ export default function SegmentsPage() {
                   currentPage={currentPage}
                   pageSize={pageSize}
                   total={total}
-                  onPageChange={(page) => {
-                    setCurrentPage(page)
-                    segmentSelection.clearSelection()
-                  }}
+                  onPageChange={setCurrentPage}
                 />
               ) : null
             }
@@ -308,18 +312,19 @@ export default function SegmentsPage() {
                             className="block min-w-0 transition-opacity hover:opacity-80"
                           >
                             <div className="flex items-center gap-2">
-                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                {segment.name}
-                              </h4>
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={segment.name}>{segment.name}</h4>
                               <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
                                 {segment.segment_type}
                               </Badge>
                             </div>
                             {segment.description && (
-                              <p className="truncate text-xs text-muted-foreground">{segment.description}</p>
+                              <p className="truncate text-xs text-muted-foreground" title={segment.description}>{segment.description}</p>
                             )}
                             {segment.segment_type === "dynamic" && segment.dynamic_rule && (
-                              <p className="truncate text-xs text-muted-foreground">
+                              <p
+                                className="truncate text-xs text-muted-foreground"
+                                title={formatSegmentDynamicRule(segment.dynamic_rule, { maxTags: 3 })}
+                              >
                                 {formatSegmentDynamicRule(segment.dynamic_rule, { maxTags: 3 })}
                               </p>
                             )}

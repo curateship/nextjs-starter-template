@@ -31,6 +31,7 @@ import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   deleteNewsletterContactTags,
@@ -73,6 +74,12 @@ export default function NewsletterContactTagsPage() {
   const tagSelection = useAdminBulkSelection()
   const clearTagSelection = tagSelection.clearSelection
   const tagSort = useAdminSort<TagSortColumn>("tag", "asc")
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    tagSelection,
+    `${currentSite?.id}|${deferredSearchQuery}|${tagFilter}|${tagSort.sortColumn}|${tagSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   useEffect(() => {
     clearTagSelection()
@@ -219,7 +226,6 @@ export default function NewsletterContactTagsPage() {
                   onChange={(event) => {
                     setSearchQuery(event.target.value)
                     setCurrentPage(1)
-                    tagSelection.clearSelection()
                   }}
                   placeholder="Search tags"
                 />
@@ -228,7 +234,6 @@ export default function NewsletterContactTagsPage() {
                   onValueChange={(value) => {
                     setTagFilter(value as NewsletterContactTagFilter)
                     setCurrentPage(1)
-                    tagSelection.clearSelection()
                   }}
                 >
                   <TableRightActionsSelectTrigger aria-label="Tag filter">
@@ -247,10 +252,7 @@ export default function NewsletterContactTagsPage() {
                   currentPage={currentPage}
                   pageSize={pageSize}
                   total={total}
-                  onPageChange={(page) => {
-                    setCurrentPage(page)
-                    tagSelection.clearSelection()
-                  }}
+                  onPageChange={setCurrentPage}
                 />
               ) : null
             }
@@ -326,7 +328,7 @@ export default function NewsletterContactTagsPage() {
                           />
                         </TableCell>
                         <TableCell column="main">
-                          <h4 className="truncate text-sm font-medium sm:text-base">{tag.tag}</h4>
+                          <h4 className="truncate text-sm font-medium sm:text-base" title={tag.tag}>{tag.tag}</h4>
                         </TableCell>
                         <TableCell column="mutedMeta">{tag.contact_count.toLocaleString()}</TableCell>
                         <TableCell column="mutedMeta">{formatDate(tag.last_used_at)}</TableCell>

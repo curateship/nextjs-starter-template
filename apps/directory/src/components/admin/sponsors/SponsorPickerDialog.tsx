@@ -105,11 +105,11 @@ export function SponsorPickerDialog({ open, onOpenChange, siteId, onSelectSponso
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{sponsor.title}</span>
+                      <span className="block truncate text-sm font-medium" title={sponsor.title}>{sponsor.title}</span>
                       {sponsor.description && (
-                        <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">{sponsor.description}</span>
+                        <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground" title={sponsor.description}>{sponsor.description}</span>
                       )}
-                      <span className="mt-1 block truncate text-xs text-muted-foreground">{sponsor.url}</span>
+                      <span className="mt-1 block truncate text-xs text-muted-foreground" title={sponsor.url}>{sponsor.url}</span>
                     </span>
                   </button>
                 )

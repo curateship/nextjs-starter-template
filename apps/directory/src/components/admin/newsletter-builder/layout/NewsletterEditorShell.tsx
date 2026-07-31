@@ -38,82 +38,15 @@ interface NewsletterEditorShellProps {
   emailWidth?: number
   headerActions?: ReactNode
   topNotice?: ReactNode
-  loadingActionCount?: number
-  loadingSidebarRows?: number
-  loadingContentRows?: number
-  loadingShowHeader?: boolean
   onPublish?: () => void | Promise<void>
   renderSettingsModal?: (show: boolean, setShow: (show: boolean) => void) => ReactNode
   settingsDisabled?: boolean
 }
 
-function NewsletterEditorLoading({
-  actionCount,
-  contentRows,
-  sidebarRows,
-  showHeader,
-}: {
-  actionCount: number
-  contentRows: number
-  sidebarRows: number
-  showHeader: boolean
-}) {
+function NewsletterEditorLoading() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <DashboardStickyHeader
-        rightActions={(
-          <StickybarTopRightActions
-            rightActions={(
-              <div className="flex items-center gap-2">
-                {Array.from({ length: actionCount }).map((_, index) => (
-                  <div
-                    key={index}
-                    className={`h-8 rounded bg-muted animate-pulse ${index === 1 ? "w-8" : index === 2 ? "w-20" : "w-24"}`}
-                  />
-                ))}
-              </div>
-            )}
-          />
-        )}
-      />
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-hidden border-r bg-background">
-          <div className="h-full flex-1 overflow-y-auto bg-muted/30 p-8">
-            <div className="mx-auto rounded-sm bg-white shadow-sm" style={{ maxWidth: 600 }}>
-              {showHeader && (
-                <div className="flex flex-col items-center p-5">
-                  <div className="mb-3 h-16 w-16 animate-pulse rounded-lg bg-muted" />
-                  <div className="h-6 w-40 animate-pulse rounded bg-muted" />
-                </div>
-              )}
-              <div className="space-y-3 p-5">
-                {Array.from({ length: contentRows }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="h-4 animate-pulse rounded bg-muted"
-                    style={{ width: `${100 - Math.min(index, 4) * 12}%` }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="w-[250px] p-2.5">
-          <div className="mb-4 flex items-center justify-between px-5">
-            <div className="h-6 w-16 animate-pulse rounded bg-muted" />
-          </div>
-          <div className="space-y-1">
-            {Array.from({ length: sidebarRows }).map((_, index) => (
-              <div key={index} className="p-3">
-                <div className="flex items-center space-x-2">
-                  <div className="h-7 w-7 animate-pulse rounded bg-muted" />
-                  <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <DashboardStickyHeader />
     </div>
   )
 }
@@ -132,7 +65,7 @@ function NewsletterEditorError({
       <DashboardStickyHeader />
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <p className="mb-4 text-red-600">{message}</p>
+          <p className="mb-4 text-destructive">{message}</p>
           <Button onClick={onBack} variant="outline">{backLabel}</Button>
         </div>
       </div>
@@ -162,10 +95,6 @@ export function NewsletterEditorShell({
   emailWidth = 600,
   headerActions,
   topNotice,
-  loadingActionCount = 3,
-  loadingSidebarRows = 4,
-  loadingContentRows = 3,
-  loadingShowHeader = false,
   onPublish,
   renderSettingsModal,
   settingsDisabled,
@@ -212,12 +141,7 @@ export function NewsletterEditorShell({
 
   if (loading) {
     return (
-      <NewsletterEditorLoading
-        actionCount={loadingActionCount}
-        contentRows={loadingContentRows}
-        sidebarRows={loadingSidebarRows}
-        showHeader={loadingShowHeader}
-      />
+      <NewsletterEditorLoading />
     )
   }
 

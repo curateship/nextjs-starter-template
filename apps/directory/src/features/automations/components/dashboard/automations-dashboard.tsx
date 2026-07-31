@@ -29,6 +29,7 @@ import {
   TableRightActionsSearch,
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
@@ -105,6 +106,12 @@ export function AutomationsDashboard() {
   const loadRequestRef = useRef(0)
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    selection,
+    `${currentSite?.id}|${search}|${status}|${sort.sortColumn}|${sort.sortDirection}|${page}|${pageSize}`
+  )
+
 
   const load = useCallback(async () => {
     if (siteLoading) return

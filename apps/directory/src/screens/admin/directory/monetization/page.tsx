@@ -394,13 +394,13 @@ export default function DirectoryMonetizationPage() {
                       sortedPlans.map((plan) => (
                         <TableRow key={plan.id} className="group">
                           <TableCell column="main">
-                            <h4 className="truncate font-medium">{plan.name}</h4>
+                            <h4 className="truncate font-medium" title={plan.name}>{plan.name}</h4>
                             {plan.description ? (
-                              <p className="truncate text-sm text-muted-foreground">{plan.description}</p>
+                              <p className="truncate text-sm text-muted-foreground" title={plan.description}>{plan.description}</p>
                             ) : null}
                           </TableCell>
                           <TableCell column="content">
-                            <span className="truncate font-mono text-sm">{plan.stripe_price_id}</span>
+                            <span className="truncate font-mono text-sm" title={plan.stripe_price_id}>{plan.stripe_price_id}</span>
                           </TableCell>
                           <TableCell column="content">
                             <span className="text-sm">{plan.duration_days} days</span>
@@ -446,17 +446,17 @@ export default function DirectoryMonetizationPage() {
                         <TableRow key={entitlement.id} className="group">
                           <TableCell column="main">
                             <Link href={`/directory/${entitlement.directory_slug}`} className="block hover:opacity-80">
-                              <h4 className="truncate font-medium hover:underline">{entitlement.directory_title}</h4>
-                              <p className="truncate text-sm text-muted-foreground">/directory/{entitlement.directory_slug}</p>
+                              <h4 className="truncate font-medium hover:underline" title={entitlement.directory_title}>{entitlement.directory_title}</h4>
+                              <p className="truncate text-sm text-muted-foreground" title={`/directory/${entitlement.directory_slug}`}>/directory/{entitlement.directory_slug}</p>
                             </Link>
                           </TableCell>
                           <TableCell column="content">
-                            <div className="truncate text-sm">{entitlement.owner_name || "Unknown"}</div>
-                            <div className="truncate text-sm text-muted-foreground">{entitlement.owner_email}</div>
+                            <div className="truncate text-sm" title={entitlement.owner_name || "Unknown"}>{entitlement.owner_name || "Unknown"}</div>
+                            <div className="truncate text-sm text-muted-foreground" title={entitlement.owner_email}>{entitlement.owner_email}</div>
                           </TableCell>
                           <TableCell column="content">
-                            <div className="truncate text-sm">{entitlement.plan_name}</div>
-                            <div className="truncate text-sm text-muted-foreground">{formatAmount(entitlement.amount_total, entitlement.currency)}</div>
+                            <div className="truncate text-sm" title={entitlement.plan_name}>{entitlement.plan_name}</div>
+                            <div className="truncate text-sm text-muted-foreground" title={formatAmount(entitlement.amount_total, entitlement.currency)}>{formatAmount(entitlement.amount_total, entitlement.currency)}</div>
                           </TableCell>
                           <TableCell column="meta">
                             <div className="text-sm text-muted-foreground">{formatDate(entitlement.starts_at)}</div>
@@ -578,7 +578,7 @@ export default function DirectoryMonetizationPage() {
                 </div>
               </div>
 
-              {planError ? <p className="text-sm text-red-600">{planError}</p> : null}
+              {planError ? <p className="text-sm text-destructive">{planError}</p> : null}
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setPlanDraft(null)} disabled={savingPlan}>

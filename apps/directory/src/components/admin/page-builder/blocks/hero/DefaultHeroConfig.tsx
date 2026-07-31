@@ -326,7 +326,7 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
                   e.stopPropagation();
                   onConfigChange('heroImage', '');
                 }}
-                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-sm transition-colors"
+                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground flex items-center justify-center shadow-sm transition-colors"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

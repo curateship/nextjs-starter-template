@@ -56,15 +56,15 @@ const SAVE_STATUS_BADGE_STYLES: Record<VisibleSaveStatusState, {
   },
   saved: {
     icon: CheckCircle,
-    container: "border-green-200 bg-green-50",
-    iconClassName: "text-green-600",
-    textClassName: "text-green-700",
+    container: "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/50",
+    iconClassName: "text-green-600 dark:text-green-400",
+    textClassName: "text-green-700 dark:text-green-300",
   },
   error: {
     icon: AlertCircle,
-    container: "border-red-200 bg-red-50",
-    iconClassName: "text-red-600",
-    textClassName: "text-red-800",
+    container: "border-destructive/30 bg-destructive/10",
+    iconClassName: "text-destructive",
+    textClassName: "text-destructive",
   },
   // Auto-save refused the change. Stays up until the reason is fixed, so it
   // carries the reason as its label rather than a generic word.

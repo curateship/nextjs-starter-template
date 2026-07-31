@@ -17,6 +17,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AdminBulkDeleteButton,
@@ -166,6 +167,12 @@ export default function SiteUsersPage() {
   const [pendingFilters, setPendingFilters] = useState<SiteUserFilterGroup>(emptySiteUserFilterGroup)
   const [pendingFilteredTotal, setPendingFilteredTotal] = useState(0)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    userSelection,
+    `${currentSite?.id}|${deferredSearchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [createForm, setCreateForm] = useState({
     email: "",
@@ -709,8 +716,8 @@ export default function SiteUsersPage() {
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium sm:text-base">{user.display_name || user.email}</h4>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                              <h4 className="truncate text-sm font-medium sm:text-base" title={user.display_name || user.email}>{user.display_name || user.email}</h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={user.email}>{user.email}</p>
                             </div>
                           </div>
                         </TableCell>
@@ -977,7 +984,7 @@ export default function SiteUsersPage() {
               className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
             >
               <DialogBody>
-              {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+              {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
               <div>
                 <Label htmlFor="site-user-email">Email *</Label>
                 <Input
@@ -1090,7 +1097,7 @@ export default function SiteUsersPage() {
               className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
             >
               <DialogBody>
-              {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+              {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
               <div>
                 <Label>Email</Label>
                 <Input value={editUser?.email || ""} disabled />

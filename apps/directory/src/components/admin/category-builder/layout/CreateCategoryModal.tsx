@@ -8,7 +8,6 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Dialog } from "@/components/ui/dialog"
-import { Skeleton } from "@/components/ui/skeleton"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import {
   Select,
@@ -172,7 +171,6 @@ export function CreateCategoryModal({
                   <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                   {templatesLoading ? (
                     <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap">
-                      <Skeleton className="h-4 w-24 rounded-sm" />
                       <ChevronDown className="size-4 opacity-50" />
                     </div>
                   ) : (

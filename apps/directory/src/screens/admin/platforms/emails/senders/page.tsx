@@ -175,12 +175,8 @@ export default function PlatformSenderEmailsPage() {
                             href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}
                             className="block hover:underline"
                           >
-                            <p className="truncate text-sm font-medium sm:text-base">
-                              {sender.name}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                              {sender.email}
-                            </p>
+                            <p className="truncate text-sm font-medium sm:text-base" title={sender.name}>{sender.name}</p>
+                            <p className="truncate text-xs text-muted-foreground sm:text-sm" title={sender.email}>{sender.email}</p>
                           </Link>
                         </TableCell>
                         <TableCell column="meta">{sender.provider}</TableCell>

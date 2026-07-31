@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils/tailwind"
 import { deleteMediaItemsAction, scanUnusedMediaAction } from "@/lib/actions/media/media-actions"
 import type { MediaData } from "@/lib/actions/media/media-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import ImageOff from "lucide-react/dist/esm/icons/image-off.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
@@ -58,12 +59,17 @@ export default function UnusedMediaPage() {
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
   const mediaSort = useAdminSort<SortColumn>()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    mediaSelection,
+    `${currentSiteId}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}`
+  )
+
 
   useEffect(() => {
     setMediaItems(null)
-    clearMediaSelection()
     setScannedAt(null)
-  }, [currentSiteId, clearMediaSelection])
+  }, [currentSiteId])
 
   async function handleScan() {
     if (!currentSiteId) return
@@ -293,9 +299,9 @@ export default function UnusedMediaPage() {
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <h4 className="truncate text-sm font-medium sm:text-base">{media.original_name}</h4>
+                                <h4 className="truncate text-sm font-medium sm:text-base" title={media.original_name}>{media.original_name}</h4>
                                 {media.alt_text ? (
-                                  <p className="truncate text-xs text-muted-foreground sm:text-sm">{media.alt_text}</p>
+                                  <p className="truncate text-xs text-muted-foreground sm:text-sm" title={media.alt_text}>{media.alt_text}</p>
                                 ) : null}
                               </div>
                             </div>

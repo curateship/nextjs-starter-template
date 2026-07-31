@@ -5,7 +5,6 @@ import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { type SaveStatus } from "@/components/admin/layout/builder/save-status"
@@ -119,9 +118,9 @@ function HomePageSearchResultCard({ title, description, url }: { title: string; 
         <CardTitle className="text-base">Home Page Search Result</CardTitle>
       </CardHeader>
       <CardContent className="max-w-2xl space-y-1">
-        <p className="truncate text-sm text-green-700">{url}</p>
+        <p className="truncate text-sm text-green-700 dark:text-green-300" title={url}>{url}</p>
         <h3 className="text-xl text-blue-700">{title}</h3>
-        <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{description}</p>
+        <p className="line-clamp-2 text-sm leading-6 text-muted-foreground" title={description}>{description}</p>
       </CardContent>
     </Card>
   )
@@ -153,9 +152,9 @@ function HomePageSocialCard({
             </div>
           )}
           <div className="space-y-1 p-4">
-            <p className="truncate text-xs uppercase text-muted-foreground">{new URL(url).host}</p>
+            <p className="truncate text-xs uppercase text-muted-foreground" title={new URL(url).host}>{new URL(url).host}</p>
             <h3 className="font-medium">{title}</h3>
-            <p className="line-clamp-2 text-sm text-muted-foreground">{description}</p>
+            <p className="line-clamp-2 text-sm text-muted-foreground" title={description}>{description}</p>
           </div>
         </div>
       </CardContent>
@@ -314,12 +313,8 @@ export function SeoSettingsFormTab({ siteId, mode, onStatusChange }: SeoSettings
         {[1, 2, 3].map((item) => (
           <Card key={item}>
             <CardHeader>
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-4 w-64" />
             </CardHeader>
             <CardContent className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-2/3" />
             </CardContent>
           </Card>
         ))}

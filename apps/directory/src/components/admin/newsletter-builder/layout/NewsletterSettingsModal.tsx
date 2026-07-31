@@ -210,7 +210,7 @@ export function NewsletterSettingsModal({
                   <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center space-x-2">
-                  <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
                   <span className="text-sm font-medium">
                     {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                   </span>
@@ -230,8 +230,8 @@ export function NewsletterSettingsModal({
           >
             {successMsg && (
               <div className="px-6 pb-2">
-                <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                  <p className="text-sm text-green-800">{successMsg}</p>
+                <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/50 p-3">
+                  <p className="text-sm text-green-800 dark:text-green-300">{successMsg}</p>
                 </div>
               </div>
             )}

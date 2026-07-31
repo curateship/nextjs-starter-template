@@ -205,15 +205,12 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
             <StickybarTopRightActions
               rightActions={(
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-24 animate-pulse rounded bg-muted" />
-                  <div className="h-8 w-24 animate-pulse rounded bg-muted" />
                 </div>
               )}
             />
           )}
         />
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex-1 animate-pulse bg-muted/30" />
         </div>
       </div>
     )
@@ -225,7 +222,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
         <StickyHeader />
         <div className="flex flex-1 items-center justify-center">
           <div className="space-y-4 text-center">
-            <p className="text-red-600">{error}</p>
+            <p className="text-destructive">{error}</p>
             <Button asChild variant="outline">
               <Link href="/admin/directory/custom-blocks">Back to Custom Blocks</Link>
             </Button>

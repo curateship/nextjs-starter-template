@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
@@ -216,7 +215,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                     <FieldLabel htmlFor="newsletter-template">Start from template</FieldLabel>
                     {templatesLoading ? (
                       <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                        <Skeleton className="h-4 w-24 rounded-sm" />
                         <ChevronDown className="size-4 opacity-50" />
                       </div>
                     ) : (

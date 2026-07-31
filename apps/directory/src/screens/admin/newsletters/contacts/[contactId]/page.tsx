@@ -254,7 +254,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
         return <Badge variant="outline">Lead Magnet</Badge>
       case "paid_purchase":
         return (
-          <Badge variant="outline" className="border-green-200 text-green-700">
+          <Badge variant="outline" className="border-green-200 dark:border-green-900 text-green-700 dark:text-green-300">
             Purchase
           </Badge>
         )
@@ -331,9 +331,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Contacts", href: "/admin/newsletters/contacts" },
               {
-                label: loading ? (
-                  <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" />
-                ) : (
+                label: loading ? null : (
                   displayName
                 )
               }
@@ -455,16 +453,12 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
           />
 
           <CardGroup className="grid">
-            {/* Loading skeleton */}
             {loading && (
               <>
                 <Card>
                   <CardContent>
                     <div className="flex items-center gap-4">
-                      <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                       <div className="space-y-2">
-                        <div className="h-5 w-48 bg-muted rounded animate-pulse" />
-                        <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
                       </div>
                     </div>
                   </CardContent>
@@ -473,8 +467,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                   {[1, 2, 3, 4].map((i) => (
                     <Card key={i}>
                       <CardContent>
-                        <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
-                        <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                       </CardContent>
                     </Card>
                   ))}
@@ -486,7 +478,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
             {error && !loading && (
               <Card>
                 <CardContent className="text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
+                  <p className="text-destructive mb-4">{error}</p>
                   <Link href="/admin/newsletters/contacts">
                     <Button variant="outline">Back to Contacts</Button>
                   </Link>
@@ -506,8 +498,8 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                         {getInitials()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h1 className="text-lg font-semibold truncate">{displayName}</h1>
-                        <p className="text-sm text-muted-foreground truncate">{contact.email}</p>
+                        <h1 className="text-lg font-semibold truncate" title={displayName}>{displayName}</h1>
+                        <p className="text-sm text-muted-foreground truncate" title={contact.email}>{contact.email}</p>
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
                         {getStatusBadge(contact.status)}
@@ -635,7 +627,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                               <div className="flex items-start gap-2">
                                 <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                                 <div className="min-w-0">
-                                  <p className="text-sm truncate">{link.linkUrl || "Unknown URL"}</p>
+                                  <p className="text-sm truncate" title={link.linkUrl || "Unknown URL"}>{link.linkUrl || "Unknown URL"}</p>
                                   <p className="text-xs text-muted-foreground">
                                     {link.newsletterSubject && <span>{link.newsletterSubject} · </span>}
                                     {formatDate(link.createdAt)}

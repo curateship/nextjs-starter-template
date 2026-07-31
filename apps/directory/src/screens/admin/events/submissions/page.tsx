@@ -183,18 +183,18 @@ export default function EventSubmissionsPage() {
                             onClick={() => setSelected(submission)}
                             className="block text-left hover:opacity-80"
                           >
-                            <h4 className="truncate font-medium hover:underline">{submission.event_name}</h4>
+                            <h4 className="truncate font-medium hover:underline" title={submission.event_name}>{submission.event_name}</h4>
                             {submission.description ? (
-                              <p className="truncate text-sm text-muted-foreground">{submission.description}</p>
+                              <p className="truncate text-sm text-muted-foreground" title={submission.description}>{submission.description}</p>
                             ) : null}
                           </button>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{submission.submitter_email}</div>
+                          <div className="truncate text-sm" title={submission.submitter_email}>{submission.submitter_email}</div>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{submission.date_time_text || "—"}</div>
-                          <div className="truncate text-sm text-muted-foreground">{submission.location || "—"}</div>
+                          <div className="truncate text-sm" title={submission.date_time_text || "—"}>{submission.date_time_text || "—"}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={submission.location || "—"}>{submission.location || "—"}</div>
                         </TableCell>
                         <TableCell column="meta">
                           <div className="space-y-2">

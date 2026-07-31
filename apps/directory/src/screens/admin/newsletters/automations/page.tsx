@@ -43,6 +43,7 @@ import {
   deleteAutomations
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AUTOMATION_TRIGGER_SHORT_LABELS,
@@ -85,6 +86,12 @@ export default function EmailAutomationsPage() {
   const pageSize = contextPageSize
   const automationSelection = useAdminBulkSelection()
   const automationSort = useAdminSort<AutomationSortColumn>()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    automationSelection,
+    `${currentSite?.id}|${filterStatus}|${searchQuery}|${automationSort.sortColumn}|${automationSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   const loadAutomations = useCallback(async () => {
     if (!currentSite?.id) {
@@ -243,7 +250,6 @@ export default function EmailAutomationsPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value)
-    automationSelection.clearSelection()
     setCurrentPage(1)
   }
 
@@ -414,9 +420,9 @@ export default function EmailAutomationsPage() {
                               href={`/admin/newsletters/automations/${automation.id}`}
                               className="min-w-0 transition-opacity hover:opacity-80"
                             >
-                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{automation.name}</h4>
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={automation.name}>{automation.name}</h4>
                               {automation.description && (
-                                <p className="truncate text-xs text-muted-foreground">{automation.description}</p>
+                                <p className="truncate text-xs text-muted-foreground" title={automation.description}>{automation.description}</p>
                               )}
                             </Link>
                           </div>

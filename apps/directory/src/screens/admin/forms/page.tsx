@@ -44,6 +44,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   TableRightActions,
@@ -164,7 +165,7 @@ function SortableFieldEditor({
               <GripVertical className="h-4 w-4" />
               <span className="sr-only">Drag to reorder question</span>
             </button>
-            <span className="truncate text-sm font-medium">Question {fieldIndex + 1}</span>
+            <span className="truncate text-sm font-medium" title={`Question${fieldIndex + 1}`}>Question {fieldIndex + 1}</span>
           </div>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeField(stepIndex, fieldIndex)} title="Remove question">
             <Trash2 className="h-3.5 w-3.5" />
@@ -276,7 +277,7 @@ function SortableStepEditor({
               <GripVertical className="h-4 w-4" />
               <span className="sr-only">Drag to reorder step</span>
             </button>
-            <span className="truncate text-sm font-medium">Step {stepIndex + 1}</span>
+            <span className="truncate text-sm font-medium" title={`Step${stepIndex + 1}`}>Step {stepIndex + 1}</span>
             <span className="text-xs text-muted-foreground">{step.fields.length} question{step.fields.length === 1 ? "" : "s"}</span>
           </div>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeStep(stepIndex)} title="Remove step">
@@ -620,7 +621,7 @@ function FormSettingsModalContent({
     <DashboardModalContent
       title={
         <span className="flex min-w-0 items-center gap-3">
-          <span className="truncate">Configure &quot;{form.name}&quot;</span>
+          <span className="truncate" title={`Configure &quot;${form.name}&quot;`}>Configure &quot;{form.name}&quot;</span>
           {getStatusBadge(form)}
         </span>
       }
@@ -760,6 +761,12 @@ export default function AdminGuidedFormsPage() {
   const [pageSize, setPageSize] = useState(contextPageSize)
   const formSelection = useAdminBulkSelection()
   const formSort = useAdminSort<FormsSortColumn>("modified", "desc")
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    formSelection,
+    `${currentSite?.id}|${searchQuery}|${filterStatus}|${formSort.sortColumn}|${formSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   const loadForms = useCallback(async () => {
     if (!currentSite?.id) {
@@ -1007,8 +1014,8 @@ export default function AdminGuidedFormsPage() {
                           <ClipboardList className="h-5 w-5 text-muted-foreground" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium hover:underline sm:text-base">{form.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground sm:text-sm">/forms/{form.slug}</span>
+                          <span className="block truncate text-sm font-medium hover:underline sm:text-base" title={form.name}>{form.name}</span>
+                          <span className="block truncate text-xs text-muted-foreground sm:text-sm" title={`/forms/${form.slug}`}>/forms/{form.slug}</span>
                         </span>
                       </Link>
                     </TableCell>

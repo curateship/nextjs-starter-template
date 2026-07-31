@@ -217,9 +217,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
                 id="event-date"
                 className="w-52 justify-between font-normal"
               >
-                <span className="truncate">
-                  {selectedDate ? format(selectedDate, "PPP") : "Select date"}
-                </span>
+                <span className="truncate" title={selectedDate ? format(selectedDate, "PPP") : "Select date"}>{selectedDate ? format(selectedDate, "PPP") : "Select date"}</span>
                 <ChevronDownIcon className="size-4" />
               </Button>
             </PopoverTrigger>

@@ -56,6 +56,7 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Pause from "lucide-react/dist/esm/icons/pause.js"
 import Play from "lucide-react/dist/esm/icons/play.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useRouter } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
@@ -173,6 +174,12 @@ export default function NewslettersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    newsletterSelection,
+    `${currentSite?.id}|${filterStatus}|${searchQuery}|${newsletterSort.sortColumn}|${newsletterSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
   const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === "sending")
 
   const loadNewsletters = useCallback(
@@ -340,7 +347,6 @@ export default function NewslettersPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value as "all" | "draft" | "sent")
-    newsletterSelection.clearSelection()
     setCurrentPage(1)
   }
 
@@ -498,9 +504,7 @@ export default function NewslettersPage() {
                                 href={`/admin/newsletters/${newsletter.id}`}
                                 className="transition-opacity hover:opacity-80"
                               >
-                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                  {newsletter.subject}
-                                </h4>
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={newsletter.subject}>{newsletter.subject}</h4>
                               </Link>
                               <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
                                 {(newsletter.status === "sending" || newsletter.status === "paused") &&
@@ -508,7 +512,7 @@ export default function NewslettersPage() {
                                     <>
                                       <button
                                         type="button"
-                                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:bg-orange-900/40" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-900/40"}`}
+                                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:bg-orange-900/40" : "border-green-200 bg-green-50 text-green-700 dark:text-green-300 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-900/40"}`}
                                         title={newsletter.status === "sending" ? "Pause" : "Resume"}
                                         onClick={async (e) => {
                                           e.stopPropagation()

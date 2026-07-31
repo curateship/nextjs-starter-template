@@ -145,7 +145,7 @@ function SortableBlockItem({
               title="Delete block"
             >
               {deleting === block.id ? (
-                <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
+                <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-destructive"></div>
               ) : (
                 <Trash2 className="w-3.5 h-3.5" />
               )}
@@ -159,7 +159,7 @@ function SortableBlockItem({
 
 /**
  * Shared BlockListPanel used by all builders.
- * Shows a sortable list of blocks with drag-and-drop, delete confirmation, loading skeletons, and empty state.
+ * Shows a sortable list of blocks with drag-and-drop, delete confirmation, loading and empty states.
  */
 export function BlockListPanel({
   blocks,
@@ -216,7 +216,6 @@ export function BlockListPanel({
         {/* Header */}
         {blocksLoading ? (
           <div className="mb-4 px-5">
-            <div className="h-7 bg-muted rounded motion-safe:animate-pulse w-1/2"></div>
           </div>
         ) : (
           <div className="flex items-center justify-between mb-4 px-5">
@@ -239,13 +238,9 @@ export function BlockListPanel({
               <div key={i} className="p-3 rounded-lg opacity-60">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 bg-muted rounded motion-safe:animate-pulse"></div>
                     <div className="flex items-center space-x-2">
-                      <div className="w-3.5 h-3.5 bg-muted rounded-sm motion-safe:animate-pulse"></div>
-                      <div className="h-4 w-24 bg-muted rounded motion-safe:animate-pulse"></div>
                     </div>
                   </div>
-                  <div className="w-5 h-5 bg-muted rounded motion-safe:animate-pulse"></div>
                 </div>
               </div>
             ))}
@@ -282,9 +277,7 @@ export function BlockListPanel({
         {/* Add Block button */}
         {onAddBlock && (
           <div className="px-5 mt-3">
-            {blocksLoading ? (
-              <div className="h-9 w-28 bg-muted rounded motion-safe:animate-pulse"></div>
-            ) : (
+            {blocksLoading ? null : (
               <Button variant="outline" size="sm" onClick={onAddBlock}>
                 <Plus className="w-4 h-4 mr-1" />
                 {addButtonLabel}

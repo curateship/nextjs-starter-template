@@ -145,16 +145,14 @@ export function CategoryTree({
               )}
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{category.title}</h4>
+                  <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={category.title}>{category.title}</h4>
                   {childCount > 0 ? (
                     <Badge variant="secondary" className="hidden sm:inline-flex">
                       {childCount} {childCount === 1 ? "child" : "children"}
                     </Badge>
                   ) : null}
                 </div>
-                <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                  {category.meta_description || 'No meta description'}
-                </p>
+                <p className="truncate text-xs text-muted-foreground sm:text-sm" title={category.meta_description || 'No meta description'}>{category.meta_description || 'No meta description'}</p>
               </div>
             </Link>
           </TableCell>
@@ -164,7 +162,7 @@ export function CategoryTree({
                 {parentPath.map((parent, index) => (
                   <span key={parent.id} className="inline-flex min-w-0 items-center gap-1">
                     {index > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
-                    <span className="truncate">{parent.title}</span>
+                    <span className="truncate" title={parent.title}>{parent.title}</span>
                   </span>
                 ))}
               </div>
@@ -174,7 +172,7 @@ export function CategoryTree({
           </TableCell>
           <TableCell column="meta">
             {category.is_published ? (
-              <span className="inline-flex items-center gap-1 rounded bg-green-50 px-2 py-1 text-xs text-green-600">
+              <span className="inline-flex items-center gap-1 rounded bg-green-50 dark:bg-green-950/50 px-2 py-1 text-xs text-green-600 dark:text-green-400">
                 <Eye className="h-3 w-3" />
                 Published
               </span>

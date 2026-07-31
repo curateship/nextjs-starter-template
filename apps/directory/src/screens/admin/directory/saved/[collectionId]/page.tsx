@@ -15,6 +15,7 @@ import {
   TableRightActionsSearch
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
@@ -68,6 +69,12 @@ export default function DirectorySavedFolderPage({
   const [renameValue, setRenameValue] = useState("")
   const [savingRename, setSavingRename] = useState(false)
   const selection = useAdminBulkSelection()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    selection,
+    `${currentSite?.id}|${collectionId}|${query}|${currentPage}|${pageSize}`
+  )
+
 
   const loadItems = useCallback(async () => {
     if (!currentSite?.id) {
@@ -194,7 +201,6 @@ export default function DirectorySavedFolderPage({
                   onChange={(event) => {
                     setQuery(event.target.value)
                     setCurrentPage(1)
-                    selection.clearSelection()
                   }}
                   placeholder="Search saved listings"
                 />
@@ -267,8 +273,8 @@ export default function DirectorySavedFolderPage({
                               </span>
                             )}
                             <span className="min-w-0">
-                              <span className="block truncate font-medium hover:underline">{item.directory_title}</span>
-                              <span className="block truncate text-sm text-muted-foreground">/directory/{item.directory_slug}</span>
+                              <span className="block truncate font-medium hover:underline" title={item.directory_title}>{item.directory_title}</span>
+                              <span className="block truncate text-sm text-muted-foreground" title={`/directory/${item.directory_slug}`}>/directory/{item.directory_slug}</span>
                             </span>
                           </Link>
                         </TableCell>

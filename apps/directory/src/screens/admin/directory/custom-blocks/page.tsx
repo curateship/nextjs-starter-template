@@ -164,7 +164,7 @@ export default function DirectoryCustomBlocksPage() {
                               </Link>
                               {template.used_in_count ? <Badge variant="secondary">Active</Badge> : null}
                             </div>
-                            <p className="truncate text-xs text-muted-foreground">/custom-blocks/{template.slug}</p>
+                            <p className="truncate text-xs text-muted-foreground" title={`/custom-blocks/${template.slug}`}>/custom-blocks/{template.slug}</p>
                           </div>
                         </TableCell>
                         <TableCell column="mutedMeta">{LAYOUT_LABELS[template.layout]}</TableCell>
@@ -206,7 +206,7 @@ export default function DirectoryCustomBlocksPage() {
             </ScrollArea>
           </AdminTableShell>
 
-          {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
           <ConfirmDestructive
             action="delete-directory-custom-block"
             open={templateToDelete !== null}

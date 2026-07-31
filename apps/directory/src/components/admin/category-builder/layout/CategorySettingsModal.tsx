@@ -170,7 +170,7 @@ export function CategorySettingsModal({
           <span className="flex items-center gap-3">
             Configure settings for &quot;{category.title}&quot;
             <span className="flex items-center space-x-2">
-              <span className={`w-2 h-2 rounded-full ${category?.is_published ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <span className={`w-2 h-2 rounded-full ${category?.is_published ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">{category?.is_published ? 'Published' : 'Draft'}</span>
             </span>
           </span>

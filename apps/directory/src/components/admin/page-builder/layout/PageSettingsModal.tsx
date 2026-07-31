@@ -95,7 +95,7 @@ export function PageSettingsModal({
             <span className="flex items-center gap-3">
               Configure settings for &quot;{page.title}&quot;
               <span className="flex items-center space-x-2">
-                <span className={`h-2 w-2 rounded-full ${page.is_published ? "bg-green-500" : "bg-gray-400"}`} />
+                <span className={`h-2 w-2 rounded-full ${page.is_published ? "bg-green-500 dark:bg-green-600" : "bg-gray-400"}`} />
                 <span className="text-sm font-medium">{page.is_published ? "Published" : "Draft"}</span>
               </span>
             </span>

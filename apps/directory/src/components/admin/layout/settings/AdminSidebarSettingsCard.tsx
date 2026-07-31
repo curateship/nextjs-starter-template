@@ -240,7 +240,7 @@ function SortableSidebarItem({
             <ShellIconPreview icon={item.icon} className="h-4 w-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">{item.label || "Untitled link"}</span>
+            <span className="block truncate text-sm font-medium" title={item.label || "Untitled link"}>{item.label || "Untitled link"}</span>
           </span>
           {children.length ? (
             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">

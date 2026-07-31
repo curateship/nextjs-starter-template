@@ -27,6 +27,7 @@ import {
   TableRightActionsButton
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -157,6 +158,12 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   useEffect(() => {
     loadTemplates()
   }, [loadTemplates])
+
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    templateSelection,
+    `${currentSite?.id}|${templateSort.sortColumn}|${templateSort.sortDirection}|${currentPage}|${pageSize}`
+  )
 
   async function handleCreate() {
     if (!currentSite?.id) return

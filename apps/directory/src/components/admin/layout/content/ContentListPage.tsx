@@ -22,6 +22,7 @@ import {
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   TableRightActions,
@@ -124,7 +125,6 @@ export function ContentListPage<TItem extends ContentListItem>({
     ...sortableColumns,
   }
   const contentData = useContentListData({
-    clearSelection: itemSelection.clearSelection,
     contextPageSize,
     effectiveSiteId,
     getCursorItems,
@@ -166,6 +166,12 @@ export function ContentListPage<TItem extends ContentListItem>({
     total,
     usesCursorPagination,
   } = contentData
+
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    itemSelection,
+    `${effectiveSiteId}|${searchQuery}|${filterStatus}|${itemSort.sortColumn}|${itemSort.sortDirection}|${currentPage}|${cursorHistory.length}|${pageSize}`
+  )
   const contentMutations = useContentListMutations({
     appendItem,
     builderPath,
@@ -445,8 +451,11 @@ export function ContentListPage<TItem extends ContentListItem>({
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{item.title}</h4>
-                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={item.title}>{item.title}</h4>
+                                <p
+                                  className="truncate text-xs text-muted-foreground sm:text-sm"
+                                  title={getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
+                                >
                                   {getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
                                 </p>
                               </div>

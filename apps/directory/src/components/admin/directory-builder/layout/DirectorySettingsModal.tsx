@@ -51,7 +51,6 @@ export function DirectorySettingsModal({
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [loadingCategories, setLoadingCategories] = useState(false)
 
   const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<Directory>({
     entityLabel: "listing",
@@ -91,7 +90,6 @@ export function DirectorySettingsModal({
 
     setSelectedCategoryIds([])
     setPrimaryCategoryId(null)
-    setLoadingCategories(true)
     setTemplatesLoading(true)
 
     getDirectoryTemplatesBySite({ data: { siteId: directory.site_id } }).then(({ data }) => {
@@ -110,10 +108,6 @@ export function DirectorySettingsModal({
       if (!cancelled) {
         setSelectedCategoryIds(data ? data.map((c) => c.id) : [])
         setPrimaryCategoryId(data?.find((c) => c.is_primary)?.id || data?.[0]?.id || null)
-      }
-    }).finally(() => {
-      if (!cancelled) {
-        setLoadingCategories(false)
       }
     })
 
@@ -147,9 +141,9 @@ export function DirectorySettingsModal({
       <DashboardModalContent
         title={(
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate">{directory.title}</span>
+            <span className="truncate" title={directory.title}>{directory.title}</span>
             <div className="flex shrink-0 items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${directory?.status === 'published' ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${directory?.status === 'published' ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">
                 {directory?.status === 'published' ? 'Published' : 'Draft'}
               </span>
@@ -232,7 +226,6 @@ export function DirectorySettingsModal({
                       onSelectionChange={setSelectedCategoryIds}
                       primaryCategoryId={primaryCategoryId}
                       onPrimaryCategoryChange={setPrimaryCategoryId}
-                      loadingSelectedCategories={loadingCategories}
                       variant="combobox"
                     />
                   </Field>

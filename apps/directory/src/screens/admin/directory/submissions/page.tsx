@@ -189,7 +189,10 @@ export default function DirectorySubmissionsPage() {
                             onClick={() => setSelected(submission)}
                             className="block text-left hover:opacity-80"
                           >
-                            <h4 className="flex items-center gap-2 truncate font-medium hover:underline">
+                            <h4
+                              className="flex items-center gap-2 truncate font-medium hover:underline"
+                              title={submission.business_name}
+                            >
                               {submission.business_name}
                               {submission.possible_duplicate ? (
                                 <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
@@ -199,16 +202,16 @@ export default function DirectorySubmissionsPage() {
                               ) : null}
                             </h4>
                             {submission.description ? (
-                              <p className="truncate text-sm text-muted-foreground">{submission.description}</p>
+                              <p className="truncate text-sm text-muted-foreground" title={submission.description}>{submission.description}</p>
                             ) : null}
                           </button>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{submission.contact_email}</div>
+                          <div className="truncate text-sm" title={submission.contact_email ?? undefined}>{submission.contact_email}</div>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{submission.category_title || "—"}</div>
-                          <div className="truncate text-sm text-muted-foreground">{submission.address || "—"}</div>
+                          <div className="truncate text-sm" title={submission.category_title || "—"}>{submission.category_title || "—"}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={submission.address || "—"}>{submission.address || "—"}</div>
                         </TableCell>
                         <TableCell column="meta">
                           <div className="space-y-2">

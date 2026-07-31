@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
+import { AdminLoading } from "@/components/admin/layout/loading"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid.js"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -20,23 +20,6 @@ import {
   MAX_TOAST_SECONDS,
   MIN_TOAST_SECONDS
 } from "@/lib/toast-seconds"
-
-function PlatformSettingsSkeleton() {
-  return (
-    <div className="space-y-6 p-6" aria-label="Loading platform settings">
-      <div className="flex items-center gap-3">
-        <Skeleton className="size-5 rounded-full" />
-        <Skeleton className="h-6 w-40" />
-      </div>
-      <Skeleton className="h-4 w-80 max-w-full" />
-      <div className="max-w-xs space-y-2">
-        <Skeleton className="h-4 w-48" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-3 w-72 max-w-full" />
-      </div>
-    </div>
-  )
-}
 
 /**
  * Seconds a success message stays on screen. Keeps its own draft string so a
@@ -193,7 +176,7 @@ export default function PlatformSettingsPage() {
 
           <AdminCard>
             {loading ? (
-              <PlatformSettingsSkeleton />
+              <AdminLoading className="min-h-48" />
             ) : (
               <div className="p-6">
                 <div className="mb-6 flex items-center gap-3">

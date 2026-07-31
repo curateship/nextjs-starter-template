@@ -20,6 +20,7 @@ import {
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
@@ -101,6 +102,12 @@ export default function DirectoryOutreachPage() {
 
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>("status", "asc")
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    selection,
+    `${currentSite?.id}|${query}|${statusFilter}|${sort.sortColumn}|${sort.sortDirection}`
+  )
+
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -200,7 +207,6 @@ export default function DirectoryOutreachPage() {
       }
 
       setSendTargets(null)
-      selection.clearSelection()
 
       const parts = [`Sent ${result.sent}`]
       if (result.skipped) parts.push(`skipped ${result.skipped}`)
@@ -259,7 +265,6 @@ export default function DirectoryOutreachPage() {
                   value={query}
                   onChange={(event) => {
                     setQuery(event.target.value)
-                    selection.clearSelection()
                   }}
                   placeholder="Search listing or email"
                 />
@@ -267,7 +272,6 @@ export default function DirectoryOutreachPage() {
                   value={statusFilter}
                   onValueChange={(value) => {
                     setStatusFilter(value as StatusFilter)
-                    selection.clearSelection()
                   }}
                 >
                   <TableRightActionsSelectTrigger aria-label="Outreach status filter">
@@ -374,12 +378,12 @@ export default function DirectoryOutreachPage() {
                               href={`/directory/${row.slug}`}
                               className="flex min-w-0 items-center gap-1.5 font-medium hover:underline"
                             >
-                              <span className="truncate">{row.title}</span>
+                              <span className="truncate" title={row.title}>{row.title}</span>
                               <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                             </Link>
                           </TableCell>
                           <TableCell column="content">
-                            <div className="truncate text-sm">{row.contact_email}</div>
+                            <div className="truncate text-sm" title={row.contact_email}>{row.contact_email}</div>
                           </TableCell>
                           <TableCell column="meta">
                             <div className="flex flex-col items-start gap-1">

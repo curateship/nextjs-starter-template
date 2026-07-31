@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { BlockEditorSection, BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
-import { Skeleton } from "@/components/ui/skeleton"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { getCategoriesForSiteAction, type Category } from "@/lib/actions/categories/category-actions"
 
@@ -129,9 +128,7 @@ export function PageCategoriesListingBlock({
                     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
                       <div className="space-y-2">
                         <Label>Parent Category</Label>
-                        {loading ? (
-                          <Skeleton className="h-10 w-full" />
-                        ) : (
+                        {loading ? null : (
                           <Combobox
                             options={categoryOptions}
                             value={parentCategoryId}

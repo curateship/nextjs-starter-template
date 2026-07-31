@@ -48,6 +48,7 @@ import { getContactsWithStats, deleteContacts } from "@/lib/actions/newsletters/
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   emptyContactFilterGroup,
@@ -93,6 +94,12 @@ export default function ContactsPage() {
   // Filter state
   const [filters, setFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    contactSelection,
+    `${currentSite?.id}|${deferredSearchQuery}|${JSON.stringify(filters)}|${contactSort.sortColumn}|${contactSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   useEffect(() => {
     if (currentSite?.id) {
@@ -301,7 +308,7 @@ export default function ContactsPage() {
         return <Badge variant="outline">Lead Magnet</Badge>
       case "paid_purchase":
         return (
-          <Badge variant="outline" className="border-green-200 text-green-700">
+          <Badge variant="outline" className="border-green-200 dark:border-green-900 text-green-700 dark:text-green-300">
             Purchase
           </Badge>
         )
@@ -347,9 +354,10 @@ export default function ContactsPage() {
 
   const activeFilterCount = filters.rules.length
   const hasSearchQuery = deferredSearchQuery.trim().length > 0
+  // Ticks are cleared by useClearSelectionOnListChange; changing what is shown
+  // only has to send you back to the first page.
   function resetSelectionForFilteredView() {
     setCurrentPage(1)
-    contactSelection.clearSelection()
   }
 
   function openFilterModal() {
@@ -417,7 +425,7 @@ export default function ContactsPage() {
                     </Select>
                     <TableRightActionsButton
                       variant={selectedSegmentId ? "default" : "outline"}
-                      className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
+                      className={selectedSegmentId ? "bg-green-600 dark:bg-green-500 hover:bg-green-700" : ""}
                       onClick={handleAddToSegment}
                       disabled={addingToSegment}
                     >
@@ -431,7 +439,6 @@ export default function ContactsPage() {
                   onChange={(event) => {
                     setSearchQuery(event.target.value)
                     setCurrentPage(1)
-                    contactSelection.clearSelection()
                   }}
                   placeholder="Search contacts"
                 />
@@ -460,10 +467,7 @@ export default function ContactsPage() {
                   currentPage={currentPage}
                   pageSize={pageSize}
                   total={total}
-                  onPageChange={(page) => {
-                    setCurrentPage(page)
-                    contactSelection.clearSelection()
-                  }}
+                  onPageChange={setCurrentPage}
                 />
               ) : null
             }
@@ -606,13 +610,20 @@ export default function ContactsPage() {
                             href={`/admin/newsletters/contacts/${contact.id}`}
                             className="block min-w-0 transition-opacity hover:opacity-80"
                           >
-                            <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                            <h4
+                              className="truncate text-sm font-medium hover:underline sm:text-base"
+                              title={
+                                contact.metadata?.first_name || contact.metadata?.last_name
+                                  ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
+                                  : contact.email
+                              }
+                            >
                               {contact.metadata?.first_name || contact.metadata?.last_name
                                 ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
                                 : contact.email}
                             </h4>
                             {(contact.metadata?.first_name || contact.metadata?.last_name) && (
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{contact.email}</p>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={contact.email}>{contact.email}</p>
                             )}
                           </Link>
                         </TableCell>

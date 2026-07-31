@@ -340,16 +340,16 @@ export default function DirectoryClaimsPage() {
                       <TableRow key={request.id} className="group">
                         <TableCell column="main">
                           <Link href={`/directory/${request.directory_slug}`} className="block hover:opacity-80">
-                            <h4 className="truncate font-medium hover:underline">{request.directory_title}</h4>
-                            <p className="truncate text-sm text-muted-foreground">/directory/{request.directory_slug}</p>
+                            <h4 className="truncate font-medium hover:underline" title={request.directory_title}>{request.directory_title}</h4>
+                            <p className="truncate text-sm text-muted-foreground" title={`/directory/${request.directory_slug}`}>/directory/{request.directory_slug}</p>
                           </Link>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{request.claimant_display_name || "Unknown"}</div>
-                          <div className="truncate text-sm text-muted-foreground">{request.claimant_account_email}</div>
+                          <div className="truncate text-sm" title={request.claimant_display_name || "Unknown"}>{request.claimant_display_name || "Unknown"}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={request.claimant_account_email}>{request.claimant_account_email}</div>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="line-clamp-2 text-sm text-muted-foreground">{describeOwnerEdit(request)}</div>
+                          <div className="line-clamp-2 text-sm text-muted-foreground" title={describeOwnerEdit(request)}>{describeOwnerEdit(request)}</div>
                         </TableCell>
                         <TableCell column="meta">
                           <div className="space-y-2">
@@ -372,16 +372,16 @@ export default function DirectoryClaimsPage() {
                       <TableRow key={claim.id} className="group">
                         <TableCell column="main">
                           <Link href={`/directory/${claim.directory_slug}`} className="block hover:opacity-80">
-                            <h4 className="truncate font-medium hover:underline">{claim.directory_title}</h4>
-                            <p className="truncate text-sm text-muted-foreground">/directory/{claim.directory_slug}</p>
+                            <h4 className="truncate font-medium hover:underline" title={claim.directory_title}>{claim.directory_title}</h4>
+                            <p className="truncate text-sm text-muted-foreground" title={`/directory/${claim.directory_slug}`}>/directory/{claim.directory_slug}</p>
                           </Link>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{claim.claimant_name || claim.claimant_display_name || "Unknown"}</div>
-                          <div className="truncate text-sm text-muted-foreground">{claim.claimant_account_email}</div>
+                          <div className="truncate text-sm" title={claim.claimant_name || claim.claimant_display_name || "Unknown"}>{claim.claimant_name || claim.claimant_display_name || "Unknown"}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={claim.claimant_account_email}>{claim.claimant_account_email}</div>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{claim.business_email}</div>
+                          <div className="truncate text-sm" title={claim.business_email}>{claim.business_email}</div>
                           <div className="mt-1">
                             {claim.domain_matches ? (
                               <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Domain Match</Badge>

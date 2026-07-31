@@ -190,8 +190,8 @@ export function PublishNewsletterModal({
       >
         {successMsg && (
           <div className="px-6 pb-2">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-              <p className="text-sm text-green-800">{successMsg}</p>
+            <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/50 p-3">
+              <p className="text-sm text-green-800 dark:text-green-300">{successMsg}</p>
             </div>
           </div>
         )}
@@ -271,7 +271,7 @@ export function PublishNewsletterModal({
                       </div>
                     ) : cronStatus ? (
                       cronStatus.isRunning ? (
-                        <div className="flex items-center justify-end gap-1.5 text-xs text-green-700">
+                        <div className="flex items-center justify-end gap-1.5 text-xs text-green-700 dark:text-green-300">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           <span>{cronStatus.enabledCount} cron{cronStatus.enabledCount !== 1 ? 's' : ''} running</span>
                         </div>

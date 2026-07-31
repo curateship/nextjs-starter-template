@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { AdminLoading } from "@/components/admin/layout/loading"
 import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import { getBlockName, getBlockTypeDefinition } from "@/components/admin/category-builder/config/category-block-types"
@@ -46,21 +47,6 @@ function CategoryBlockItem({
   )
 }
 
-function CategoryBlockListSkeleton() {
-  return (
-    <div className="space-y-0">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="p-3 rounded-lg opacity-60">
-          <div className="flex items-center space-x-2">
-            <div className="w-3.5 h-3.5 bg-muted rounded-sm motion-safe:animate-pulse"></div>
-            <div className="h-4 w-24 bg-muted rounded motion-safe:animate-pulse"></div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 export function CategoryBlockListPanel({
   blocks,
   selectedBlock,
@@ -72,7 +58,6 @@ export function CategoryBlockListPanel({
     <div className="w-[250px] sticky top-0 self-start max-h-screen overflow-y-auto px-2.5 pb-2.5 pt-5">
       {blocksLoading ? (
         <div className="mb-4 px-5">
-          <div className="h-7 bg-muted rounded motion-safe:animate-pulse w-1/2"></div>
         </div>
       ) : (
         <div className="flex items-center justify-between mb-4 px-5">
@@ -89,7 +74,7 @@ export function CategoryBlockListPanel({
       )}
 
       {blocksLoading ? (
-        <CategoryBlockListSkeleton />
+        <AdminLoading className="min-h-64" />
       ) : blocks.length > 0 ? (
         <div className="space-y-0">
           {blocks.map((block) => (

@@ -39,6 +39,7 @@ import Image from "@/components/app-image"
 import { resolveMediaPlaybackUrl } from "@/lib/utils/media-url"
 import { resizeImageForUpload } from "@/lib/utils/image-resize"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -71,6 +72,12 @@ export default function ImagesPage() {
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
   const mediaSort = useAdminSort<MediaSortColumn>()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    mediaSelection,
+    `${currentSiteId}|${filterType}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
   const [isDeleting, setIsDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<MediaData | null>(null)
@@ -112,23 +119,17 @@ export default function ImagesPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-    clearMediaSelection()
-  }, [currentSiteId, clearMediaSelection])
+  }, [currentSiteId])
 
   // Reset to first page when filter changes
   const handleFilterChange = (newFilter: "all" | "image" | "video" | "svg") => {
     setFilterType(newFilter)
     setCurrentPage(1)
-    clearMediaSelection()
   }
 
   // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
-  }
-
-  const handlePageSizeChange = () => {
-    clearMediaSelection()
   }
 
   const handleDeleteImage = async (image: MediaData) => {
@@ -401,7 +402,6 @@ export default function ImagesPage() {
                 <AdminListFooter
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
-                  onPageSizeChange={handlePageSizeChange}
                   pageSize={pageSize}
                   total={paginatedData?.total ?? 0}
                 />
@@ -605,9 +605,9 @@ export default function ImagesPage() {
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <h4 className="truncate text-sm font-medium sm:text-base">{media.original_name}</h4>
+                                  <h4 className="truncate text-sm font-medium sm:text-base" title={media.original_name}>{media.original_name}</h4>
                                   {media.alt_text && (
-                                    <p className="truncate text-xs text-muted-foreground sm:text-sm">{media.alt_text}</p>
+                                    <p className="truncate text-xs text-muted-foreground sm:text-sm" title={media.alt_text}>{media.alt_text}</p>
                                   )}
                                 </div>
                               </div>

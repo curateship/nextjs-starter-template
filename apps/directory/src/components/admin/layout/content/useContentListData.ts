@@ -13,7 +13,6 @@ import type {
 } from "@/components/admin/layout/content/contentListTypes"
 
 interface UseContentListDataParams<TItem extends ContentListItem> {
-  clearSelection: () => void
   contextPageSize: number
   effectiveSiteId: string | undefined
   getCursorItems: ContentListPageProps<TItem>["getCursorItems"]
@@ -28,7 +27,6 @@ interface UseContentListDataParams<TItem extends ContentListItem> {
 }
 
 export function useContentListData<TItem extends ContentListItem>({
-  clearSelection,
   contextPageSize,
   effectiveSiteId,
   getCursorItems,
@@ -71,9 +69,7 @@ export function useContentListData<TItem extends ContentListItem>({
     if (!usesCursorPagination) return
     setActiveCursor(null)
     setCursorHistory([])
-    clearSelection()
   }, [
-    clearSelection,
     effectiveSiteId,
     cursorSearch,
     cursorSortColumn,
@@ -235,21 +231,18 @@ export function useContentListData<TItem extends ContentListItem>({
 
   function handleFilterStatusChange(nextStatus: ContentStatusFilter) {
     setFilterStatus(nextStatus)
-    clearSelection()
     setCurrentPage(1)
   }
 
   function handlePageSizeChange(nextPageSize: number) {
     setTablePageSize(nextPageSize)
     setCurrentPage(1)
-    clearSelection()
   }
 
   function handleNextPage() {
     if (!nextCursor) return
     setCursorHistory((current) => [...current, activeCursor])
     setActiveCursor(nextCursor)
-    clearSelection()
   }
 
   function handlePreviousPage() {
@@ -259,7 +252,6 @@ export function useContentListData<TItem extends ContentListItem>({
       const nextHistory = [...current]
       const previousCursor = nextHistory.pop() ?? null
       setActiveCursor(previousCursor)
-      clearSelection()
       return nextHistory
     })
   }

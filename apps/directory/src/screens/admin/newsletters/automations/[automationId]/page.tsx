@@ -841,8 +841,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             <StickybarTopRightActions
               rightActions={
                 <>
-                  <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
-                  <div className="h-8 w-20 animate-pulse rounded bg-muted" />
                 </>
               }
             />
@@ -862,20 +860,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <CardContent>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 flex-1 items-center gap-3">
-                            <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
                             <div className="min-w-0 flex-1">
-                              <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                              <div className="mt-2 h-3 w-48 animate-pulse rounded bg-muted/70" />
-                              <div className="mt-3 h-6 w-24 animate-pulse rounded-md bg-muted/70" />
                             </div>
                           </div>
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
                         </div>
                       </CardContent>
                     </Card>
                     {index === 1 && (
                       <div className="my-6 flex justify-center">
-                        <div className="h-9 w-28 animate-pulse rounded-md bg-muted" style={centerAxisStyle} />
                       </div>
                     )}
                   </div>
@@ -883,7 +875,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
                 <div className="my-6 flex justify-center">
                   <div
-                    className="h-6 w-6 animate-pulse rounded-full bg-muted"
+                    className="h-6 w-6 rounded-full bg-muted"
                     style={centerAxisStyle}
                   />
                 </div>
@@ -894,27 +886,19 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <CardContent>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 flex-1 items-center gap-3">
-                            <div className="h-[52px] w-[52px] animate-pulse rounded-lg bg-muted" />
                             <div className="min-w-0 flex-1">
-                              <div className="h-4 w-44 animate-pulse rounded bg-muted" />
                               <div className="mt-2 flex flex-wrap gap-1.5">
-                                <div className="h-6 w-16 animate-pulse rounded bg-muted/70" />
-                                <div className="h-6 w-14 animate-pulse rounded bg-muted/70" />
-                                <div className="h-6 w-20 animate-pulse rounded bg-muted/70" />
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
-                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
-                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
-                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
                           </div>
                         </div>
                       </CardContent>
                     </Card>
                     <div className="my-6 flex justify-center">
                       <div
-                        className="h-6 w-6 animate-pulse rounded-full bg-muted"
+                        className="h-6 w-6 rounded-full bg-muted"
                         style={centerAxisStyle}
                       />
                     </div>
@@ -934,7 +918,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         <DashboardStickyHeader />
         <AdminLayout>
           <div className="w-full p-8 text-center">
-            <p className="mb-4 text-red-600">{error}</p>
+            <p className="mb-4 text-destructive">{error}</p>
             <Button onClick={() => router.push("/admin/newsletters/automations")} variant="outline">
               Back
             </Button>
@@ -978,8 +962,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       <AdminLayout>
         <div className="mx-auto w-full max-w-2xl px-6 py-8">
           {error && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
@@ -1133,8 +1117,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         <div className="flex items-center gap-3">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-green-50">
-                                <CheckCircle2 className="h-5 w-5 text-green-700" />
+                              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-green-50 dark:bg-green-950/50">
+                                <CheckCircle2 className="h-5 w-5 text-green-700 dark:text-green-300" />
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top">Checkpoint</TooltipContent>

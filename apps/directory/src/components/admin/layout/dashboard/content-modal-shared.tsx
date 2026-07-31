@@ -305,7 +305,7 @@ export function FeaturedImageField({
           <button
             type="button"
             onClick={() => onChange("")}
-            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+            className="absolute top-2 right-2 p-1 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/90 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>

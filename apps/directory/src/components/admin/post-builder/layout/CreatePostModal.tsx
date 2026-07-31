@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
@@ -154,7 +153,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
                   <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                    <Skeleton className="h-4 w-24 rounded-sm" />
                     <ChevronDown className="size-4 opacity-50" />
                   </div>
                 ) : (

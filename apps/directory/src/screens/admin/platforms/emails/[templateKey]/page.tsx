@@ -176,9 +176,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
             <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
               <div className="mx-auto bg-white shadow-sm rounded-sm" style={{ maxWidth: 600 }}>
                 <div className="p-5 space-y-3">
-                  <div className="h-4 bg-muted rounded animate-pulse w-full" />
-                  <div className="h-4 bg-muted rounded animate-pulse w-5/6" />
-                  <div className="h-4 bg-muted rounded animate-pulse w-4/6" />
                 </div>
               </div>
             </div>
@@ -188,8 +185,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
               {[1, 2, 3].map((index) => (
                 <div key={index} className="p-3">
                   <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 bg-muted rounded animate-pulse" />
-                    <div className="h-4 w-20 bg-muted rounded animate-pulse" />
                   </div>
                 </div>
               ))}
@@ -206,7 +201,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
         <DashboardStickyHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-red-600 mb-4">{error || 'Template not found'}</p>
+            <p className="text-destructive mb-4">{error || 'Template not found'}</p>
             <Button onClick={() => router.push('/admin/platforms/emails')} variant="outline">
               Back to Platform Emails
             </Button>

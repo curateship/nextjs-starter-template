@@ -15,6 +15,7 @@ import { formatCentsAmount } from "@/lib/actions/directories/directory-featured-
 import { EXPIRING_SOON_DAYS } from "@/lib/actions/directories/directory-revenue-summary"
 import { formatShortDate } from "@/components/admin/layout/list"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
+import { AdminLoading } from "@/components/admin/layout/loading"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -87,49 +88,6 @@ function StatCard({ icon: Icon, label, value, caption }: {
   )
 }
 
-function SummarySkeleton() {
-  return (
-    <CardGroup className="grid min-w-0" aria-busy>
-      <CardGroup className="grid sm:grid-cols-3">
-        {[...Array(3)].map((_, index) => (
-          <Card key={index}>
-            <CardHeader>
-              <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="h-7 w-24 animate-pulse rounded bg-muted" />
-              <div className="h-3 w-32 animate-pulse rounded bg-muted" />
-            </CardContent>
-          </Card>
-        ))}
-      </CardGroup>
-      <CardGroup className="grid min-w-0 lg:grid-cols-3">
-        <Card className="min-w-0 lg:col-span-2">
-          <CardHeader>
-            <div className="h-4 w-36 animate-pulse rounded bg-muted" />
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px] w-full animate-pulse rounded bg-muted" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[...Array(4)].map((_, index) => (
-              <div key={index} className="flex items-center justify-between gap-4">
-                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                <div className="h-4 w-16 animate-pulse rounded bg-muted" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </CardGroup>
-    </CardGroup>
-  )
-}
-
 export function MonetizationRevenueSummary({ siteId, siteLoading }: {
   siteId: string | null
   siteLoading: boolean
@@ -190,9 +148,9 @@ export function MonetizationRevenueSummary({ siteId, siteLoading }: {
   const chartDisplayData = isMobile ? chartData.slice(-6) : chartData
 
   if (!siteId) {
-    return siteLoading ? <SummarySkeleton /> : null
+    return siteLoading ? <AdminLoading className="min-h-64" /> : null
   }
-  if (loading) return <SummarySkeleton />
+  if (loading) return <AdminLoading className="min-h-64" />
 
   if (error) {
     return (
@@ -346,10 +304,14 @@ export function MonetizationRevenueSummary({ siteId, siteLoading }: {
                         <Link
                           href={`/directory/${item.directory_slug}`}
                           className="block truncate text-sm font-medium hover:underline"
+                          title={item.directory_title}
                         >
                           {item.directory_title}
                         </Link>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={`${item.plan_name}${amount ? ` · ${amount}` : ""}`}
+                        >
                           {item.plan_name}
                           {amount ? ` · ${amount}` : ""}
                           {item.owner_email ? ` · ${item.owner_email}` : ""}

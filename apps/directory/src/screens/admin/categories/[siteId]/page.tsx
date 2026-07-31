@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useBuilderRouteSiteSync } from "@/components/admin/layout/builder/useBuilderRouteState"
 import {
@@ -83,6 +84,12 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    categorySelection,
+    `${siteId}|${searchQuery}|${filterStatus}|${categorySort.sortColumn}|${categorySort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
   const parentSlug = searchParams.get("parent") || ""
   const currentParent = parentPath[parentPath.length - 1] || null
   const currentParentId = currentParent?.id || null
@@ -280,11 +287,12 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           <span key={parent.id} className="inline-flex min-w-0 items-center gap-1.5">
             <ChevronRight className="size-3 text-muted-foreground" />
             {isLast ? (
-              <span className="truncate">{parent.title}</span>
+              <span className="truncate" title={parent.title}>{parent.title}</span>
             ) : (
               <Link
                 href={`/admin/categories/${siteId}?parent=${encodeURIComponent(parent.slug)}`}
                 className="truncate text-muted-foreground hover:text-foreground"
+                title={parent.title}
               >
                 {parent.title}
               </Link>
@@ -330,7 +338,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                   value={filterStatus}
                   onValueChange={(value) => {
                     setFilterStatus(value as "all" | "published" | "draft")
-                    categorySelection.clearSelection()
                     setCurrentPage(1)
                   }}
                 >

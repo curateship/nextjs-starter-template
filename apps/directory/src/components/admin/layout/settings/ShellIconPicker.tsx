@@ -259,7 +259,7 @@ export function ShellIconPickerField({
                     >
                       {isSelected ? <ShellIconSelectedMark /> : null}
                       <Icon className="h-5 w-5" />
-                      <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
+                      <span className="line-clamp-2 text-[11px] leading-tight" title={option.label}>{option.label}</span>
                     </button>
                   )
                 })}

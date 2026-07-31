@@ -76,7 +76,7 @@ export function RelatedPostsBlock({ content, siteId, currentPostId, preloadedDat
         {subtitle && <p className="text-lg text-muted-foreground mb-8">{subtitle}</p>}
         <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
           {Array.from({ length: itemsToShow }, (_, i) => (
-            <div key={i} className="animate-pulse">
+            <div key={i}>
               {showImage && <div className="bg-muted rounded-md aspect-video mb-4"></div>}
               {showTitle && <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>}
               {showExcerpt && <div className="h-4 bg-muted rounded w-full"></div>}

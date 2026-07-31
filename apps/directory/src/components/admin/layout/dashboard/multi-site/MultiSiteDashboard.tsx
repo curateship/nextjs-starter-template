@@ -121,10 +121,10 @@ function siteAvatarColor(siteId: string) {
 
 // Status pill (colored dot + label) from the design.
 const STATUS_DISPLAY: Record<string, { label: string; dotClass: string }> = {
-  active: { label: "Live", dotClass: "bg-green-500" },
+  active: { label: "Live", dotClass: "bg-green-500 dark:bg-green-600" },
   draft: { label: "Draft", dotClass: "bg-amber-500" },
-  inactive: { label: "Inactive", dotClass: "bg-red-500" },
-  suspended: { label: "Suspended", dotClass: "bg-red-500" },
+  inactive: { label: "Inactive", dotClass: "bg-destructive" },
+  suspended: { label: "Suspended", dotClass: "bg-destructive" },
 }
 
 const RUN_STATUS_META: Record<DashboardAutomationRun["status"], {
@@ -133,13 +133,13 @@ const RUN_STATUS_META: Record<DashboardAutomationRun["status"], {
   iconClass: string
   labelClass: string
 }> = {
-  success: { label: "Success", icon: Check, iconClass: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400", labelClass: "text-green-600" },
+  success: { label: "Success", icon: Check, iconClass: "bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/50 dark:text-green-400", labelClass: "text-green-600" },
   running: { label: "Running", icon: RefreshCw, iconClass: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400", labelClass: "text-blue-600" },
-  failed: { label: "Failed", icon: TriangleAlert, iconClass: "bg-destructive/10 text-destructive", labelClass: "text-red-600" },
+  failed: { label: "Failed", icon: TriangleAlert, iconClass: "bg-destructive/10 text-destructive", labelClass: "text-destructive" },
   partial: { label: "Partial", icon: TriangleAlert, iconClass: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400", labelClass: "text-amber-600" },
   noop: { label: "Skipped", icon: Minus, iconClass: "bg-muted text-muted-foreground", labelClass: "text-muted-foreground" },
   waiting: { label: "Needs approval", icon: UserCheck, iconClass: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400", labelClass: "text-amber-600" },
-  rejected: { label: "Rejected", icon: TriangleAlert, iconClass: "bg-destructive/10 text-destructive", labelClass: "text-red-600" },
+  rejected: { label: "Rejected", icon: TriangleAlert, iconClass: "bg-destructive/10 text-destructive", labelClass: "text-destructive" },
   expired: { label: "Expired", icon: TimerOff, iconClass: "bg-muted text-muted-foreground", labelClass: "text-muted-foreground" },
 }
 
@@ -364,7 +364,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
                       <StatusIcon className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{run.name}</span>
+                      <span className="block truncate text-sm font-medium" title={run.name}>{run.name}</span>
                       <span className="block text-xs text-muted-foreground">{run.message}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {run.siteName} · {TRIGGER_LABELS[run.triggerType] ?? run.triggerType} · {relativeTime(run.startedAt)}
@@ -424,7 +424,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
                     onClick={() => router.push(item.target_href)}
                   >
                     <span
-                      className={`mt-3.5 size-2 shrink-0 rounded-full ${item.read_at ? "bg-transparent" : "bg-red-500"}`}
+                      className={`mt-3.5 size-2 shrink-0 rounded-full ${item.read_at ? "bg-transparent" : "bg-destructive"}`}
                       aria-hidden="true"
                     />
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -584,14 +584,12 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
                         </div>
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
-                            <h4 className="truncate text-sm font-semibold hover:underline">
-                              {row.site.name}
-                            </h4>
+                            <h4 className="truncate text-sm font-semibold hover:underline" title={row.site.name}>{row.site.name}</h4>
                             {row.tag && <Badge variant="secondary">{row.tag}</Badge>}
                           </div>
                           <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
                             <Globe className="size-3 shrink-0" />
-                            <span className="truncate">{row.site.custom_domain || row.site.subdomain}</span>
+                            <span className="truncate" title={row.site.custom_domain || row.site.subdomain}>{row.site.custom_domain || row.site.subdomain}</span>
                           </p>
                         </div>
                       </Link>
