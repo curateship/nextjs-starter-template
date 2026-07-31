@@ -48,7 +48,6 @@ interface PostBlockListPanelProps {
   onAddBlock?: () => void
   deleting: string | null
   blocksLoading?: boolean
-  editableStructure?: boolean
 }
 
 function getColumnTransferLaneId(column: PostLayoutColumn) {
@@ -285,7 +284,6 @@ export function PostBlockListPanel({
   onAddBlock,
   deleting,
   blocksLoading = false,
-  editableStructure = true,
 }: PostBlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<PostBlock | null>(null)
@@ -303,7 +301,7 @@ export function PostBlockListPanel({
     ? orderedBlocks.find((block) => block.id === activeBlockId) ?? null
     : null
   const activeColumn = activeBlock ? getPostLayoutColumn(activeBlock) : null
-  const canEditStructure = editableStructure && Boolean(onDeleteBlock && onReorderBlocks)
+  const canEditStructure = Boolean(onDeleteBlock && onReorderBlocks)
 
   const collisionDetection: CollisionDetection = (args) => {
     const currentActiveId = String(args.active.id)

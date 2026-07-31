@@ -15,12 +15,10 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
 import { BlockPropertiesPanel } from "@/components/admin/category-builder/layout/BlockPropertiesPanel"
-import { CategoryBlockListPanel } from "@/components/admin/category-builder/layout/CategoryBlockListPanel"
 import { CategoryBlockEditorModal } from "@/components/admin/category-builder/layout/CategoryBlockEditorModal"
 import { CATEGORY_CORE_BLOCK_TYPE, categoryBlocksToValueJson } from "@/lib/actions/categories/category-template-inheritance"
 import { getCategoriesForSiteAction, updateCategoryAction, updateCategoryBlockValuesAction } from "@/lib/actions/categories/category-actions"
 import type { Category } from "@/lib/actions/categories/category-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 export default function CategoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -32,7 +30,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const urlCategory = searchParams.get('category') || ''
 
   const [selectedCategory, setSelectedCategory] = useState(urlCategory)
-  const [blockListOpen, setBlockListOpen] = useState(false)
 
   useBuilderRouteSiteSync({
     builderPath: "/admin/categories/builder",
@@ -233,10 +230,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     ? draftCategoryFeaturedImage.trim() || null
     : currentCategoryData?.featured_image
 
-  const viewPageHref = site && currentCategoryData
-    ? `${getSiteUrl(site)}/categories/${currentCategoryData.slug}`
-    : null
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
@@ -247,8 +240,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentCategoryData?.is_published)}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentCategoryData}
             renderSettingsModal={(show, setShow) => (
               <CategorySettingsModal
@@ -302,16 +293,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           onCategoryTitleChange={setDraftCategoryTitle}
           onCategoryFeaturedImageChange={setDraftCategoryFeaturedImage}
         />
-
-        {blockListOpen && (
-          <CategoryBlockListPanel
-            blocks={currentCategory.blocks}
-            selectedBlock={selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            viewPageHref={viewPageHref}
-            blocksLoading={blocksLoading}
-          />
-        )}
       </div>
     </div>
   )

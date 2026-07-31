@@ -18,12 +18,10 @@ import { orderDirectoryEditorBlocks } from "@/components/admin/directory-builder
 import { updateDirectoryAction, updateDirectoryBlockValuesAction } from "@/lib/actions/directories/directory-actions"
 import { directoryBlocksToValueJson } from "@/lib/actions/directories/directory-template-inheritance"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
 import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
-import { DirectoryBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryBlockListPanel"
 
 export default function DirectoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -36,7 +34,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     queryValue: directoryFromUrl,
     siteId,
   })
-  const [blockListOpen, setBlockListOpen] = useState(false)
   const selectedDirectory = directoryFromUrl || ''
 
   // Custom hooks for data and state management
@@ -241,9 +238,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const previewDirectoryFeaturedImage = selectedBlockIsCore
     ? draftDirectoryFeaturedImage.trim() || null
     : currentDirectoryRecord?.featured_image || null
-  const viewPageHref = site && currentDirectoryRecord
-    ? `${getSiteUrl(site)}/directory/${currentDirectoryRecord.slug}`
-    : null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -256,8 +250,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={currentDirectoryRecord?.status === "published"}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentDirectoryRecord}
             renderSettingsModal={(show, setShow) => (
               show ? (
@@ -334,16 +326,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           saving={isSavingBlock}
           mode="listing"
         />
-
-        {blockListOpen && (
-          <DirectoryBlockListPanel
-            blocks={currentDirectory.blocks}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            viewPageHref={viewPageHref}
-            blocksLoading={blocksLoading}
-          />
-        )}
 
       </div>
     </div>

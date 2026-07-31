@@ -11,7 +11,6 @@ import CheckCircle from "lucide-react/dist/esm/icons/circle-check-big.js"
 import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
 import TriangleAlert from "lucide-react/dist/esm/icons/triangle-alert.js"
 import LoaderCircle from "lucide-react/dist/esm/icons/loader-circle.js"
-import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 import ListFilter from "lucide-react/dist/esm/icons/list-filter.js"
@@ -158,7 +157,6 @@ interface StickybarTopRightActionsProps {
   preActions?: React.ReactNode
   filterMenu?: StickybarFilterMenuConfig
   rightActions?: React.ReactNode
-  viewPageHref?: string | null
   saveStatus?: SaveStatus | null
   isSaving?: boolean
   onSave?: () => void
@@ -184,7 +182,6 @@ export function StickybarTopRightActions({
   preActions,
   filterMenu,
   rightActions,
-  viewPageHref,
   saveStatus,
   isSaving = false,
   onSave,
@@ -207,7 +204,7 @@ export function StickybarTopRightActions({
   const openedDesktopBlockList = useRef(false)
   const activeItem = filterMenu?.items.find((item) => item.value === filterMenu.value) ?? filterMenu?.items[0]
   const { mobileOverflowSlot } = useDashboardHeaderActionsSlot()
-  const hasMobileOverflow = Boolean(search || preActions || filterMenu || rightActions || viewPageHref || renderSettingsModal || (onPublish && !isPublished) || onToggleBlockList)
+  const hasMobileOverflow = Boolean(search || preActions || filterMenu || rightActions || renderSettingsModal || (onPublish && !isPublished) || onToggleBlockList)
   const mobileMenuItemClassName = "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
 
   useEffect(() => {
@@ -288,15 +285,6 @@ export function StickybarTopRightActions({
         ) : null}
 
         {rightActions}
-
-        {viewPageHref ? (
-          <Button variant="outline" size="sm" asChild>
-            <a href={viewPageHref} target="_blank" rel="noopener noreferrer" aria-label="View Page" title="View Page">
-              <ExternalLink className="h-4 w-4" />
-              <span className="hidden sm:inline">View Page</span>
-            </a>
-          </Button>
-        ) : null}
 
         {renderSettingsModal ? (
           <Button
@@ -412,18 +400,6 @@ export function StickybarTopRightActions({
           ) : null}
 
           {rightActions ? <div className="px-1 py-1 **:data-[slot=button]:h-8">{rightActions}</div> : null}
-
-          {viewPageHref ? (
-            <a
-              href={viewPageHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={mobileMenuItemClassName}
-            >
-              <ExternalLink className="h-4 w-4" />
-              View Page
-            </a>
-          ) : null}
 
           {renderSettingsModal ? (
             <button
