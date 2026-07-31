@@ -7,7 +7,7 @@ import {
   type MultiSiteDashboardData,
 } from "@/lib/actions/analytics/analytics-actions"
 import { getRecentAutomationRunsForSite } from "@/lib/actions/automations/automation-actions"
-import { listHubNotificationPage } from "@/lib/actions/notifications/notification-actions"
+import { listHubNotificationPageImpl } from "@/lib/actions/notifications/notification-actions.server"
 import { getAllSitesAction, getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 import { redirect } from "@/lib/navigation-server"
 
@@ -51,7 +51,7 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
   const [sitesResult, metrics, notifications, automationRuns] = await Promise.all([
     getAllSitesAction(),
     getMultiSiteDashboardData(range, site.id).catch(() => emptyMetrics(range)),
-    listHubNotificationPage({ siteId: site.id, limit: 8 }).catch(() => ({
+    listHubNotificationPageImpl({ siteId: site.id, limit: 8 }).catch(() => ({
       notifications: [],
       next_cursor: null,
       unread_count: 0,
