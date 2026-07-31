@@ -433,28 +433,6 @@ export const customShellBillingEvents = pgTable("billing_events", {
   processedAt: timestamp("processed_at", { withTimezone: true }).notNull(),
 })
 
-export const customShellAdminAuditLogs = pgTable(
-  "admin_audit_logs",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    actorUserId: varchar("actor_user_id", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "set null" }
-    ),
-    action: varchar("action", { length: 50 }).notNull(),
-    resource: varchar("resource", { length: 30 }).notNull(),
-    recordIds: jsonb("record_ids").$type<string[]>().notNull().default([]),
-    detail: text("detail"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    index("ix_admin_audit_logs_actor_created").on(
-      table.actorUserId,
-      table.createdAt
-    ),
-  ]
-)
-
 export const customShellAutomations = pgTable(
   "automations",
   {

@@ -47,8 +47,8 @@ const setMaintenanceFn = createServerFn({ method: "POST" })
     const { setMaintenance } = await import("@/server/maintenance")
 
     requireAppOrigin()
-    const admin = await requireAdmin()
-    return setMaintenance(admin.id, data)
+    await requireAdmin()
+    return setMaintenance(data)
   })
 
 export function loadMaintenance() {

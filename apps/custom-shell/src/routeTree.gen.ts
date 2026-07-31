@@ -24,10 +24,10 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
-import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminFeedsRouteImport } from './routes/_authenticated/admin/feeds'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
@@ -39,7 +39,6 @@ import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_au
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
-import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminMediaOrphansRouteImport } from './routes/_authenticated/admin/media_.orphans'
 import { Route as AuthenticatedAdminMediaStorageRouteImport } from './routes/_authenticated/admin/media_.storage'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
@@ -121,11 +120,6 @@ const AuthenticatedAdminAnnouncementsRoute =
     path: '/announcements',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminAuditRoute = AuthenticatedAdminAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminAutomationsRoute =
   AuthenticatedAdminAutomationsRouteImport.update({
     id: '/automations',
@@ -144,6 +138,11 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminFeedsRoute = AuthenticatedAdminFeedsRouteImport.update({
+  id: '/feeds',
+  path: '/feeds',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -206,12 +205,6 @@ const AuthenticatedAdminAutomationsAutomationIdRoute =
     path: '/automations/$automationId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminFeedbackCommentsRoute =
-  AuthenticatedAdminFeedbackCommentsRouteImport.update({
-    id: '/comments',
-    path: '/comments',
-    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
-  } as any)
 const AuthenticatedAdminMediaOrphansRoute =
   AuthenticatedAdminMediaOrphansRouteImport.update({
     id: '/media_/orphans',
@@ -256,10 +249,10 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
-  '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/feeds': typeof AuthenticatedAdminFeedsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
@@ -272,7 +265,6 @@ export interface FileRoutesByFullPath {
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -291,10 +283,10 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
-  '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/feeds': typeof AuthenticatedAdminFeedsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
@@ -307,7 +299,6 @@ export interface FileRoutesByTo {
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -330,10 +321,10 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
-  '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
+  '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/_authenticated/admin/feeds': typeof AuthenticatedAdminFeedsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
@@ -346,7 +337,6 @@ export interface FileRoutesById {
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/media_/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/_authenticated/admin/media_/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -369,10 +359,10 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/workspaces'
     | '/admin/announcements'
-    | '/admin/audit'
     | '/admin/automations'
     | '/admin/billing'
     | '/admin/feedback'
+    | '/admin/feeds'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/notifications'
@@ -385,7 +375,6 @@ export interface FileRouteTypes {
     | '/changelog/'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
-    | '/admin/feedback/comments'
     | '/admin/media/orphans'
     | '/admin/media/storage'
     | '/admin/settings/$tab'
@@ -404,10 +393,10 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/'
     | '/admin/announcements'
-    | '/admin/audit'
     | '/admin/automations'
     | '/admin/billing'
     | '/admin/feedback'
+    | '/admin/feeds'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/notifications'
@@ -420,7 +409,6 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
-    | '/admin/feedback/comments'
     | '/admin/media/orphans'
     | '/admin/media/storage'
     | '/admin/settings/$tab'
@@ -442,10 +430,10 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/announcements'
-    | '/_authenticated/admin/audit'
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/feedback'
+    | '/_authenticated/admin/feeds'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
     | '/_authenticated/admin/notifications'
@@ -458,7 +446,6 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
-    | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/media_/orphans'
     | '/_authenticated/admin/media_/storage'
     | '/_authenticated/admin/settings/$tab'
@@ -586,13 +573,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/audit': {
-      id: '/_authenticated/admin/audit'
-      path: '/audit'
-      fullPath: '/admin/audit'
-      preLoaderRoute: typeof AuthenticatedAdminAuditRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/automations': {
       id: '/_authenticated/admin/automations'
       path: '/automations'
@@ -612,6 +592,13 @@ declare module '@tanstack/react-router' {
       path: '/feedback'
       fullPath: '/admin/feedback'
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/feeds': {
+      id: '/_authenticated/admin/feeds'
+      path: '/feeds'
+      fullPath: '/admin/feeds'
+      preLoaderRoute: typeof AuthenticatedAdminFeedsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/media': {
@@ -691,13 +678,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/feedback/comments': {
-      id: '/_authenticated/admin/feedback/comments'
-      path: '/comments'
-      fullPath: '/admin/feedback/comments'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
-      parentRoute: typeof AuthenticatedAdminFeedbackRoute
-    }
     '/_authenticated/admin/media_/orphans': {
       id: '/_authenticated/admin/media_/orphans'
       path: '/media/orphans'
@@ -748,21 +728,6 @@ const AuthenticatedAccountRouteChildren: AuthenticatedAccountRouteChildren = {
 const AuthenticatedAccountRouteWithChildren =
   AuthenticatedAccountRoute._addFileChildren(AuthenticatedAccountRouteChildren)
 
-interface AuthenticatedAdminFeedbackRouteChildren {
-  AuthenticatedAdminFeedbackCommentsRoute: typeof AuthenticatedAdminFeedbackCommentsRoute
-}
-
-const AuthenticatedAdminFeedbackRouteChildren: AuthenticatedAdminFeedbackRouteChildren =
-  {
-    AuthenticatedAdminFeedbackCommentsRoute:
-      AuthenticatedAdminFeedbackCommentsRoute,
-  }
-
-const AuthenticatedAdminFeedbackRouteWithChildren =
-  AuthenticatedAdminFeedbackRoute._addFileChildren(
-    AuthenticatedAdminFeedbackRouteChildren,
-  )
-
 interface AuthenticatedAdminSettingsRouteChildren {
   AuthenticatedAdminSettingsTabRoute: typeof AuthenticatedAdminSettingsTabRoute
 }
@@ -779,10 +744,10 @@ const AuthenticatedAdminSettingsRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
-  AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
-  AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
+  AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
+  AuthenticatedAdminFeedsRoute: typeof AuthenticatedAdminFeedsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
@@ -798,10 +763,10 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
-  AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
-  AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
+  AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
+  AuthenticatedAdminFeedsRoute: AuthenticatedAdminFeedsRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,

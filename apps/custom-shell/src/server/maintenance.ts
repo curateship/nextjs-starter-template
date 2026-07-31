@@ -4,7 +4,6 @@ import {
   MAX_MAINTENANCE_MESSAGE_LENGTH,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
-import { recordAdminAudit } from "@/server/accounts"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellSettings } from "@/server/schema"
 import { now } from "@/server/security"
@@ -32,7 +31,6 @@ export async function readMaintenance(
 }
 
 export async function setMaintenance(
-  actorId: string,
   input: ShellMaintenance,
   database: CustomShellDb = db
 ): Promise<ShellMaintenance> {
@@ -69,17 +67,6 @@ export async function setMaintenance(
         updatedAt: timestamp,
       })
     }
-
-    // Locking everyone out and letting them back in are both worth a line in
-    // the activity trail, with the message so the reason is on the record.
-    await recordAdminAudit(
-      actorId,
-      maintenance.enabled ? "maintenance_on" : "maintenance_off",
-      "app",
-      [],
-      maintenance.enabled ? maintenance.message || null : null,
-      tx
-    )
   })
 
   return maintenance

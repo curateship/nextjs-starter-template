@@ -113,8 +113,8 @@ const updateRoleFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     requireAppOrigin()
-    const actor = await requireAdmin()
-    return updateUserRole(actor.id, data.userId, data.role)
+    await requireAdmin()
+    return updateUserRole(data.userId, data.role)
   })
 
 const updateStatusFn = createServerFn({ method: "POST" })
@@ -126,8 +126,8 @@ const updateStatusFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     requireAppOrigin()
-    const actor = await requireAdmin()
-    return setUserStatus(actor.id, data.userId, data.status)
+    await requireAdmin()
+    return setUserStatus(data.userId, data.status)
   })
 
 const grantPlanFn = createServerFn({ method: "POST" })
@@ -140,9 +140,8 @@ const grantPlanFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     requireAppOrigin()
-    const actor = await requireAdmin()
+    await requireAdmin()
     return grantManualPlan(
-      actor.id,
       data.userId,
       data.planId,
       data.expiresAt ? new Date(data.expiresAt) : null

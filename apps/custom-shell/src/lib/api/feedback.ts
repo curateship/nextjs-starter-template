@@ -101,10 +101,6 @@ const feedbackCommentIdSchema = z.object({
   commentId: z.string().min(1),
 })
 
-const feedbackCommentIdsSchema = z.object({
-  commentIds: z.array(z.string().min(1)).min(1),
-})
-
 export function getFeedbackErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Feedback request failed."
 }
@@ -296,18 +292,6 @@ const listFeedbackCommentsFn = createServerFn({ method: "GET" })
     return { comments: await serializeFeedbackCommentRows(rows, user) }
   })
 
-const listFeedbackCommentDashboardFn = createServerFn({
-  method: "GET",
-}).handler(async (): Promise<FeedbackCommentListResponse> => {
-  const user = await requireAdminUser()
-  const rows = await db
-    .select()
-    .from(customShellFeedbackComments)
-    .orderBy(desc(customShellFeedbackComments.createdAt))
-
-  return { comments: await serializeFeedbackCommentRows(rows, user) }
-})
-
 const createFeedbackCommentFn = createServerFn({ method: "POST" })
   .inputValidator(createFeedbackCommentSchema)
   .handler(async ({ data }): Promise<FeedbackCommentItem> => {
@@ -414,20 +398,6 @@ const deleteFeedbackCommentFn = createServerFn({ method: "POST" })
     }
   )
 
-const deleteFeedbackCommentsManyFn = createServerFn({ method: "POST" })
-  .inputValidator(feedbackCommentIdsSchema)
-  .handler(async ({ data }): Promise<{ commentIds: string[] }> => {
-    requireAppOrigin()
-    await requireAdminUser()
-
-    const rows = await db
-      .delete(customShellFeedbackComments)
-      .where(inArray(customShellFeedbackComments.id, data.commentIds))
-      .returning({ id: customShellFeedbackComments.id })
-
-    return { commentIds: rows.map((row) => row.id) }
-  })
-
 export function listFeedback() {
   return listFeedbackFn()
 }
@@ -456,10 +426,6 @@ export function listFeedbackComments(feedbackId: string) {
   return listFeedbackCommentsFn({ data: { feedbackId } })
 }
 
-export function listFeedbackCommentDashboard() {
-  return listFeedbackCommentDashboardFn()
-}
-
 export function createFeedbackComment(payload: FeedbackCommentCreatePayload) {
   return createFeedbackCommentFn({ data: payload })
 }
@@ -470,10 +436,6 @@ export function updateFeedbackComment(payload: FeedbackCommentUpdatePayload) {
 
 export function deleteFeedbackComment(commentId: string) {
   return deleteFeedbackCommentFn({ data: { commentId } })
-}
-
-export function deleteFeedbackCommentsMany(commentIds: string[]) {
-  return deleteFeedbackCommentsManyFn({ data: { commentIds } })
 }
 
 async function requireUser() {

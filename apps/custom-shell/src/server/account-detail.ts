@@ -1,6 +1,5 @@
 import { desc, eq, sql } from "drizzle-orm"
 
-import { listAuditLogsForRecord, type AuditLogRow } from "@/server/audit"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadEntitlements } from "@/server/entitlements"
 import { loadAccountStorage, type AccountStorage } from "@/server/media"
@@ -19,7 +18,6 @@ import {
 
 /** Enough rows to answer a support question without paging a detail page. */
 const ACCOUNT_FEEDBACK_LIMIT = 20
-const ACCOUNT_ACTIVITY_LIMIT = 20
 
 type AccountProfile = {
   id: string
@@ -58,10 +56,8 @@ export type AccountDetail = {
   subscription: AccountSubscription
   storage: AccountStorage
   feedback: AccountFeedbackItem[]
-  /** Capped lists; the flags say a dashboard holds more than is shown here. */
+  /** Capped list; the flag says a dashboard holds more than is shown here. */
   feedbackTruncated: boolean
-  activity: AuditLogRow[]
-  activityTruncated: boolean
 }
 
 export async function loadAccountDetail(
@@ -91,17 +87,13 @@ export async function loadAccountDetail(
   }
 
   // Two waves rather than one, on purpose. Every query below is independent, so
-  // the obvious thing is to fire them together — but that is five connections
-  // for one page view, and the pool has already been exhausted by exactly that
-  // on the activity log. This caps it at three in flight.
+  // the obvious thing is to fire them together — but too many connections for
+  // one page view has exhausted the pool before. This caps it at two in flight.
   const [{ entitlements }, storage] = await Promise.all([
     loadEntitlements(userId, database),
     loadAccountStorage(userId, database),
   ])
-  const [feedback, activity] = await Promise.all([
-    listAccountFeedback(userId, database),
-    listAuditLogsForRecord(userId, ACCOUNT_ACTIVITY_LIMIT + 1, database),
-  ])
+  const feedback = await listAccountFeedback(userId, database)
 
   return {
     profile: {
@@ -128,8 +120,6 @@ export async function loadAccountDetail(
     storage,
     feedback: feedback.slice(0, ACCOUNT_FEEDBACK_LIMIT),
     feedbackTruncated: feedback.length > ACCOUNT_FEEDBACK_LIMIT,
-    activity: activity.slice(0, ACCOUNT_ACTIVITY_LIMIT),
-    activityTruncated: activity.length > ACCOUNT_ACTIVITY_LIMIT,
   }
 }
 

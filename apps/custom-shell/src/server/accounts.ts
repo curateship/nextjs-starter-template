@@ -16,7 +16,6 @@ import { db, type CustomShellDb } from "@/server/db"
 import { subscriptionIsActive } from "@/server/entitlements"
 import { getDefaultPlan, getPlan } from "@/server/plans"
 import {
-  customShellAdminAuditLogs,
   customShellPlans,
   customShellSessions,
   customShellSubscriptions,
@@ -181,7 +180,6 @@ async function requireAnotherAdmin(userId: string, database: CustomShellDb) {
 }
 
 export async function updateUserRole(
-  actorId: string,
   userId: string,
   role: "admin" | "member",
   database: CustomShellDb = db
@@ -200,12 +198,10 @@ export async function updateUserRole(
     throw new Error("USER_NOT_FOUND")
   }
 
-  await recordAdminAudit(actorId, "update_role", "user", [userId], role, database)
   return { id: updated.id, role }
 }
 
 export async function setUserStatus(
-  actorId: string,
   userId: string,
   status: "active" | "suspended",
   database: CustomShellDb = db
@@ -231,14 +227,6 @@ export async function setUserStatus(
       .where(eq(customShellSessions.userId, userId))
   }
 
-  await recordAdminAudit(
-    actorId,
-    "update_status",
-    "user",
-    [userId],
-    status,
-    database
-  )
   return { id: updated.id, status }
 }
 
@@ -261,16 +249,6 @@ export async function deleteUserAccount(
     throw new Error("USER_NOT_FOUND")
   }
 
-  // Keep the email on the entry: the row is gone, so the id can never be looked
-  // up again, and "an account was deleted" is not an audit trail.
-  await recordAdminAudit(
-    actorId,
-    "delete",
-    "user",
-    [userId],
-    deleted.email,
-    database
-  )
   return { id: deleted.id }
 }
 
@@ -292,16 +270,7 @@ export async function deleteUserAccounts(
   const deleted = await database
     .delete(customShellUsers)
     .where(inArray(customShellUsers.id, targets))
-    .returning({ id: customShellUsers.id, email: customShellUsers.email })
-
-  await recordAdminAudit(
-    actorId,
-    "delete",
-    "user",
-    deleted.map((row) => row.id),
-    deleted.map((row) => row.email).join(", ") || null,
-    database
-  )
+    .returning({ id: customShellUsers.id })
 
   return { deleted: deleted.length }
 }
@@ -311,7 +280,6 @@ export async function deleteUserAccounts(
  * progress). Marked `manual` so a later Stripe event replaces it cleanly.
  */
 export async function grantManualPlan(
-  actorId: string,
   userId: string,
   planId: string | null,
   expiresAt: Date | null,
@@ -327,14 +295,6 @@ export async function grantManualPlan(
         )
       )
 
-    await recordAdminAudit(
-      actorId,
-      "revoke_plan",
-      "user",
-      [userId],
-      null,
-      database
-    )
     return { planId: null }
   }
 
@@ -367,36 +327,7 @@ export async function grantManualPlan(
       set: values,
     })
 
-  await recordAdminAudit(
-    actorId,
-    "grant_plan",
-    "user",
-    [userId],
-    plan.slug,
-    database
-  )
   return { planId: plan.id }
-}
-
-export async function recordAdminAudit(
-  actorId: string,
-  action: string,
-  resource: string,
-  recordIds: string[],
-  detail: string | null = null,
-  // Narrowed to `insert` so an entry can be written inside a transaction as
-  // well as against the pool.
-  database: Pick<CustomShellDb, "insert"> = db
-) {
-  await database.insert(customShellAdminAuditLogs).values({
-    id: uuid(),
-    actorUserId: actorId,
-    action,
-    resource,
-    recordIds,
-    detail,
-    createdAt: now(),
-  })
 }
 
 export type RevenueSummary = {

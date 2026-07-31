@@ -3,30 +3,47 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import {
+  HumanCheck,
+  type HumanCheckHandle,
+} from "@/components/shell/human-check"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
-import { getAuthErrorMessage, loadCurrentUser, register } from "@/lib/api/auth"
+import {
+  getAuthErrorMessage,
+  HUMAN_CHECK_MESSAGE,
+  loadCurrentUser,
+  loadHumanCheckSiteKey,
+  PASSWORD_RULE_HINT,
+  register,
+} from "@/lib/api/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/register")({
   loader: async () => {
-    const user = await loadCurrentUser()
+    const [user, humanCheck] = await Promise.all([
+      loadCurrentUser(),
+      loadHumanCheckSiteKey(),
+    ])
     if (user) {
       throw redirect({ to: "/" })
     }
+    return humanCheck
   },
   component: RegisterRoute,
 })
 
 function RegisterRoute() {
+  const { siteKey } = Route.useLoaderData()
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [registered, setRegistered] = React.useState(false)
+  const humanCheckRef = React.useRef<HumanCheckHandle>(null)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -35,15 +52,34 @@ function RegisterRoute() {
       setLoading(true)
 
       try {
-        await register({ name, email, password })
+        // Waits under the button's spinner if the widget has not answered yet,
+        // rather than telling somebody who filled the form quickly that they
+        // are not a person.
+        const humanCheckToken = siteKey
+          ? await humanCheckRef.current?.getToken()
+          : undefined
+        if (siteKey && !humanCheckToken) {
+          showErrorToast(HUMAN_CHECK_MESSAGE)
+          return
+        }
+
+        await register({
+          name,
+          email,
+          password,
+          humanCheckToken: humanCheckToken ?? undefined,
+        })
         setRegistered(true)
       } catch (registerError) {
         showErrorToast(getAuthErrorMessage(registerError))
       } finally {
+        // The answer is spent the moment the server checks it, so a second
+        // attempt needs a fresh one.
+        humanCheckRef.current?.reset()
         setLoading(false)
       }
     },
-    [email, name, password]
+    [email, name, password, siteKey]
   )
 
   if (registered) {
@@ -104,7 +140,7 @@ function RegisterRoute() {
         />
       </div>
       <div className="grid gap-2">
-        <FieldLabel htmlFor="password" hint="At least 8 characters.">
+        <FieldLabel htmlFor="password" hint={PASSWORD_RULE_HINT}>
           Password
         </FieldLabel>
         <PasswordInput
@@ -116,6 +152,7 @@ function RegisterRoute() {
           required
         />
       </div>
+      <HumanCheck ref={humanCheckRef} siteKey={siteKey} />
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? (
           <>

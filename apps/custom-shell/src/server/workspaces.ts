@@ -97,56 +97,86 @@ const MEMBERSHIP_CHILD_IDS: readonly string[] = membershipChildLinks().map(
   (child) => child.id
 )
 
-/** The read-only admin activity feed. */
-const AUDIT_LINK: ShellItem = {
-  type: "item",
-  id: "item-admin-audit",
-  label: "Activity log",
-  href: "/admin/audit",
-  icon: "scroll-text",
-  visible: true,
-  roles: ["admin"],
-}
-
 /**
- * The changelog area. Neither entry is role-gated: What's new is the page a
- * changelog notice opens and everyone gets those notices, and the parent sends
- * anyone who cannot write updates straight to it.
+ * Every running stream of "what happened" hangs off one parent: broadcasts
+ * going out, notices landing in trays, changelog entries, and the admin
+ * activity record. The five pages already existed on their own; this is the
+ * section they now live under.
  */
-const CHANGELOG_CHILD_LINKS: ShellChildItem[] = [
-  {
-    id: "item-changelog-whats-new",
-    label: "What's new",
-    href: "/changelog/whats-new",
-    icon: "sparkles",
-  },
-]
+const FEEDS_LINK_ID = "item-admin-feeds"
 
-function changelogLink(): ShellItem {
+function feedsLink(children: ShellChildItem[]): ShellItem {
   return {
     type: "item",
-    id: "item-changelog",
-    label: "Changelog",
-    href: "/changelog",
-    icon: "sparkles",
+    id: FEEDS_LINK_ID,
+    label: "Feeds",
+    href: "/admin/feeds",
+    icon: "rss",
     visible: true,
-    // Built fresh, like the media entry's children below: a spread of a shared
-    // constant would hand every workspace the same child array to save into its
-    // own settings.
-    children: CHANGELOG_CHILD_LINKS.map((child) => ({ ...child })),
+    roles: ["admin"],
+    children,
   }
 }
 
-/** Where app-wide broadcasts are written. Only an admin has anything to do here. */
-const ANNOUNCEMENTS_LINK: ShellItem = {
-  type: "item",
-  id: "item-admin-announcements",
-  label: "Announcements",
-  href: "/admin/announcements",
-  icon: "megaphone",
-  visible: true,
-  roles: ["admin"],
+/**
+ * Built fresh per call, like `membershipChildLinks`: a shared array would be
+ * handed to every workspace to save into its own settings. The changelog pair
+ * is deliberately not role-gated — What's new is the page a changelog notice
+ * opens and everyone gets those notices, and Changelog sends anyone who cannot
+ * write updates straight to it.
+ */
+function feedsChildLinks(): ShellChildItem[] {
+  return [
+    {
+      id: "item-admin-announcements",
+      label: "Announcements",
+      href: "/admin/announcements",
+      icon: "megaphone",
+      roles: ["admin"],
+    },
+    {
+      id: "item-notifications",
+      label: "Notifications",
+      href: "/admin/notifications",
+      icon: "bell",
+    },
+    {
+      id: "item-changelog",
+      label: "Changelog",
+      href: "/changelog",
+      icon: "sparkles",
+    },
+    {
+      id: "item-feedback",
+      label: "Feedback",
+      href: "/admin/feedback",
+      icon: "messageSquarePlus",
+    },
+  ]
 }
+
+/** The retired Activity log link, which the upgrades below still recognise. */
+const AUDIT_LINK_ID = "item-admin-audit"
+const AUDIT_HREF = "/admin/audit"
+
+/**
+ * The ids and addresses the upgrade below looks for, in the order they belong
+ * under Feeds — read off the links themselves so the two can never disagree.
+ * The address list is there for a link an admin deleted and rebuilt by hand:
+ * it carries a made-up id, but the page it points at still says what it is.
+ *
+ * The retired Activity log link is still on the lists so an old sidebar
+ * groups exactly the way it always did — the removal step below then takes
+ * that link out again.
+ */
+const FEEDS_CHILD_IDS: readonly string[] = [
+  ...feedsChildLinks().map((child) => child.id),
+  AUDIT_LINK_ID,
+]
+const FEEDS_CHILD_HREFS: readonly string[] = [
+  ...feedsChildLinks().map((child) => child.href),
+  AUDIT_HREF,
+]
 
 /** The automation canvas. */
 const AUTOMATIONS_LINK: ShellItem = {
@@ -164,7 +194,7 @@ const AUTOMATIONS_LINK: ShellItem = {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 1
+export const NAVIGATION_VERSION = 5
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -404,8 +434,9 @@ export async function deleteUserWorkspace(
 /**
  * Brings one workspace's saved sidebar forward, once. Reading never adds a link
  * back — that rule stands — so this is a write, and the version it stamps is
- * what stops it running a second time. Delete Membership afterwards and it stays
- * deleted.
+ * what stops it running a second time. Each restructure below runs only for a
+ * sidebar saved before that restructure existed, so deleting Membership or
+ * Feeds afterwards keeps it deleted.
  */
 async function applyNavigationUpgrade(
   workspace: CustomShellWorkspace,
@@ -416,12 +447,29 @@ async function applyNavigationUpgrade(
     return workspace
   }
 
+  let sections = settings.sections
+  if (settings.navVersion < 1) {
+    sections = groupMembershipLinks(sections)
+  }
+  if (settings.navVersion < 2) {
+    sections = groupFeedsLinks(sections)
+  }
+  if (settings.navVersion < 3) {
+    sections = groupFeedbackIntoFeeds(sections)
+  }
+  if (settings.navVersion < 4) {
+    sections = removeWhatsNewLinks(sections)
+  }
+  if (settings.navVersion < 5) {
+    sections = removeAuditLinks(sections)
+  }
+
   const [updated] = await database
     .update(customShellWorkspaces)
     .set({
       settings: {
         ...settings,
-        sections: groupMembershipLinks(settings.sections),
+        sections,
         navVersion: NAVIGATION_VERSION,
       },
       updatedAt: now(),
@@ -498,6 +546,271 @@ export function groupMembershipLinks(sections: ShellSection[]): ShellSection[] {
         }
       : section
   )
+}
+
+/**
+ * Moves the saved Announcements, Notifications, Changelog, What's new and
+ * Activity log links under one Feeds parent, keeping whatever the admin renamed
+ * them to and leaving the parent where the first of them already sat. A link is
+ * recognised by its saved id or, when an admin once deleted the original and
+ * rebuilt it by hand under a made-up id, by the page it points at.
+ *
+ * Same deliberate refusals as `groupMembershipLinks`: it will not touch a
+ * workspace that already has a Feeds entry, not add the parent when all five
+ * links have been deleted, and not move a link that is switched off — a child
+ * link has no "hidden", so pulling a hidden one in would put it back on screen.
+ * A hidden Changelog therefore also keeps its What's new child right where it
+ * is.
+ *
+ * The one new wrinkle: the sidebar only nests one level deep, so a moved link
+ * cannot bring children along. Its children are promoted to siblings instead —
+ * that is how What's new steps out from under Changelog, and how a child the
+ * admin added by hand rides along rather than being dropped.
+ */
+export function groupFeedsLinks(sections: ShellSection[]): ShellSection[] {
+  const alreadyGrouped = sections.some((section) =>
+    section.entries.some((entry) => entry.id === FEEDS_LINK_ID)
+  )
+  if (alreadyGrouped) {
+    return sections
+  }
+
+  // The canonical position of a link, whichever way it was recognised, or -1.
+  const feedsKey = (link: { id: string; href?: string }) => {
+    const idKey = FEEDS_CHILD_IDS.indexOf(link.id)
+    if (idKey >= 0) return idKey
+    return link.href ? FEEDS_CHILD_HREFS.indexOf(link.href) : -1
+  }
+
+  const moved: ShellChildItem[] = []
+  const sortKeys = new Map<string, number>()
+  const pushMoved = (link: ShellChildItem, sortKey: number) => {
+    // One link per page: a rebuilt copy and the original never both move in.
+    const duplicate = moved.some(
+      (entry) => entry.id === link.id || (link.href && entry.href === link.href)
+    )
+    if (duplicate) return
+    sortKeys.set(link.id, sortKey)
+    moved.push(link)
+  }
+  let anchorSection = -1
+  let anchorIndex = -1
+
+  const remaining = sections.map((section, sectionIndex) => ({
+    ...section,
+    entries: section.entries.filter((entry, entryIndex) => {
+      if (!isShellItem(entry) || !entry.visible) return true
+      const parentKey = feedsKey(entry)
+      if (parentKey < 0) return true
+
+      if (anchorSection < 0) {
+        anchorSection = sectionIndex
+        // Nothing before the first match is removed, so its position in the
+        // filtered list is the same one it has here.
+        anchorIndex = entryIndex
+      }
+      pushMoved(
+        {
+          id: entry.id,
+          label: entry.label,
+          href: entry.href,
+          icon: entry.icon,
+          ...(entry.roles ? { roles: entry.roles } : {}),
+        },
+        parentKey
+      )
+      for (const child of entry.children ?? []) {
+        // A promoted child the upgrade does not know keeps its parent's sort
+        // key; the sort below is stable, so it stays right beside its parent.
+        const childKey = feedsKey(child)
+        pushMoved({ ...child }, childKey >= 0 ? childKey : parentKey)
+      }
+      return false
+    }),
+  }))
+
+  if (!moved.length) {
+    return sections
+  }
+
+  moved.sort(
+    (a, b) => (sortKeys.get(a.id) ?? 0) - (sortKeys.get(b.id) ?? 0)
+  )
+
+  return remaining.map((section, sectionIndex) =>
+    sectionIndex === anchorSection
+      ? {
+          ...section,
+          entries: [
+            ...section.entries.slice(0, anchorIndex),
+            feedsLink(moved),
+            ...section.entries.slice(anchorIndex),
+          ],
+        }
+      : section
+  )
+}
+
+const FEEDBACK_LINK_ID = "item-feedback"
+const FEEDBACK_HREF = "/admin/feedback"
+const FEEDBACK_COMMENTS_ID = "item-feedback-comments"
+const FEEDBACK_COMMENTS_HREF = "/admin/feedback/comments"
+
+/**
+ * Brings a workspace saved before Feedback joined the Feeds section forward:
+ * the saved Feedback link slides in under Feeds ahead of the Activity log, and
+ * every link to the retired comments page is dropped — that page folded into
+ * the feedback dashboard, so a link to it would only show "not found".
+ *
+ * Same refusals as the steps before it: a switched-off Feedback link stays
+ * where it is, and a workspace that deleted its Feeds entry keeps Feedback
+ * where the admin left it rather than growing a new parent. The dead comments
+ * links go regardless — there is no page for them to open.
+ */
+export function groupFeedbackIntoFeeds(
+  sections: ShellSection[]
+): ShellSection[] {
+  let changed = false
+
+  const isCommentsLink = (link: { id: string; href?: string }) =>
+    link.id === FEEDBACK_COMMENTS_ID || link.href === FEEDBACK_COMMENTS_HREF
+  const isFeedbackLink = (link: { id: string; href?: string }) =>
+    link.id === FEEDBACK_LINK_ID || link.href === FEEDBACK_HREF
+
+  // Drop the dead comments links first, wherever they sit.
+  const withoutComments = sections.map((section) => ({
+    ...section,
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isCommentsLink(entry)) {
+        changed = true
+        return []
+      }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isCommentsLink(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      return [{ ...entry, children }]
+    }),
+  }))
+
+  // The move only happens into a Feeds parent that is still there and does not
+  // already hold a feedback link.
+  const feeds = withoutComments
+    .flatMap((section) => section.entries)
+    .find((entry) => entry.id === FEEDS_LINK_ID && isShellItem(entry)) as
+    | ShellItem
+    | undefined
+  const canMove =
+    feeds !== undefined &&
+    !feeds.children?.some((child) => isFeedbackLink(child))
+
+  let movedFeedback: ShellChildItem | null = null
+  let promoted: ShellChildItem[] = []
+
+  const remaining = canMove
+    ? withoutComments.map((section) => ({
+        ...section,
+        entries: section.entries.filter((entry) => {
+          if (!isShellItem(entry) || !entry.visible) return true
+          if (movedFeedback || !isFeedbackLink(entry)) return true
+          movedFeedback = {
+            id: entry.id,
+            label: entry.label,
+            href: entry.href,
+            icon: entry.icon,
+            ...(entry.roles ? { roles: entry.roles } : {}),
+          }
+          // One level of nesting only, so any hand-added children come along
+          // as siblings, the same way the earlier restructures promoted them.
+          promoted = (entry.children ?? []).map((child) => ({ ...child }))
+          changed = true
+          return false
+        }),
+      }))
+    : withoutComments
+
+  if (!changed) {
+    return sections
+  }
+  const moved = movedFeedback as ShellChildItem | null
+  if (!moved) {
+    return remaining
+  }
+
+  return remaining.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) => {
+      if (entry.id !== FEEDS_LINK_ID || !isShellItem(entry)) return entry
+      const children = [...(entry.children ?? [])]
+      const auditIndex = children.findIndex(
+        (child) => child.id === AUDIT_LINK_ID || child.href === AUDIT_HREF
+      )
+      const insertAt = auditIndex >= 0 ? auditIndex : children.length
+      children.splice(insertAt, 0, moved, ...promoted)
+      return { ...entry, children }
+    }),
+  }))
+}
+
+/**
+ * Takes the Activity log link out wherever it sits — the feature is gone from
+ * the app entirely, page and database table both, so a link to it would only
+ * show "not found".
+ */
+export function removeAuditLinks(sections: ShellSection[]): ShellSection[] {
+  let changed = false
+  const isAuditLink = (link: { id: string; href?: string }) =>
+    link.id === AUDIT_LINK_ID || link.href === AUDIT_HREF
+
+  const result = sections.map((section) => ({
+    ...section,
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isAuditLink(entry)) {
+        changed = true
+        return []
+      }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isAuditLink(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      return [{ ...entry, children }]
+    }),
+  }))
+
+  return changed ? result : sections
+}
+
+const WHATS_NEW_ID = "item-changelog-whats-new"
+const WHATS_NEW_HREF = "/changelog/whats-new"
+
+/**
+ * Takes the What's new link out of the admin sidebar. The page itself stays —
+ * it is what a changelog notice opens and what members read — but an admin now
+ * previews an update from the changelog table's eye button, so the extra link
+ * had nothing left to do. Member sidebars are stored elsewhere and keep their
+ * own link.
+ */
+export function removeWhatsNewLinks(sections: ShellSection[]): ShellSection[] {
+  let changed = false
+  const isWhatsNew = (link: { id: string; href?: string }) =>
+    link.id === WHATS_NEW_ID || link.href === WHATS_NEW_HREF
+
+  const result = sections.map((section) => ({
+    ...section,
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isWhatsNew(entry)) {
+        changed = true
+        return []
+      }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isWhatsNew(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      return [{ ...entry, children }]
+    }),
+  }))
+
+  return changed ? result : sections
 }
 
 async function findCurrentWorkspace(userId: string, database: CustomShellDb) {
@@ -685,28 +998,15 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       // /admin route guard refuses them again server-side.
       id: "section-administration",
       title: "Administration",
-      entries: [membershipLink(membershipChildLinks()), { ...AUDIT_LINK }],
+      entries: [
+        membershipLink(membershipChildLinks()),
+        feedsLink(feedsChildLinks()),
+      ],
     },
     {
       id: "section-platform-settings",
       title: "Platform Settings",
       entries: [
-        {
-          type: "item",
-          id: "item-feedback",
-          label: "Feedback",
-          href: "/admin/feedback",
-          icon: "messageSquarePlus",
-          visible: true,
-          children: [
-            {
-              id: "item-feedback-comments",
-              label: "Comments",
-              href: "/admin/feedback/comments",
-              icon: "message-square-text",
-            },
-          ],
-        },
         {
           type: "item",
           id: "item-media",
@@ -717,16 +1017,6 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           children: MEDIA_CHILD_LINKS.map((child) => ({ ...child })),
         },
         { ...AUTOMATIONS_LINK },
-        {
-          type: "item",
-          id: "item-notifications",
-          label: "Notifications",
-          href: "/admin/notifications",
-          icon: "bell",
-          visible: true,
-        },
-        { ...ANNOUNCEMENTS_LINK },
-        changelogLink(),
         {
           type: "item",
           id: "item-settings",

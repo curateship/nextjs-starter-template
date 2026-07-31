@@ -4,10 +4,12 @@ import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { appUrlFor } from "@/server/app-url"
+import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
 import { sendAuthEmail } from "@/server/email"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
 import { customShellSessions, customShellUsers } from "@/server/schema"
+import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/turnstile"
 import {
   clearSessionCookie,
   consumeAuthToken,
@@ -38,13 +40,37 @@ export type AuthUser = {
 
 const emailSchema = z.string().trim().toLowerCase().min(3).max(255).email()
 const passwordSchema = z.string().min(8).max(128)
+
+/**
+ * The password rules, in the words the three forms show. Kept beside the rules
+ * themselves so the two cannot drift apart.
+ */
+export const PASSWORD_RULE_HINT =
+  "At least 8 characters. Passwords found in known data breaches are refused."
+
+/**
+ * Shown both when the server refuses the widget's answer and when the form has
+ * no answer to send, because to the person at the keyboard those are the same
+ * thing.
+ */
+export const HUMAN_CHECK_MESSAGE =
+  "We could not confirm you are a person. Please try again."
+
 const nameSchema = z.string().trim().min(1).max(255)
 const tokenSchema = z.string().trim().min(32).max(200)
+
+/**
+ * The widget's answer. Optional because the check is switched off whenever the
+ * Turnstile keys are unset — the server, not the form, decides whether one is
+ * required.
+ */
+const humanCheckTokenSchema = z.string().max(4096).optional()
 
 const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   name: nameSchema,
+  humanCheckToken: humanCheckTokenSchema,
 })
 const loginSchema = z.object({
   email: emailSchema,
@@ -76,6 +102,9 @@ const authErrorMessages: Record<string, string> = {
   EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
   EMAIL_DELIVERY_FAILED: "We could not send that email. Please try again.",
   LAST_ADMIN: "There has to be at least one other admin first.",
+  PASSWORD_BREACHED:
+    "This password has shown up in a known data breach. Please pick a different one.",
+  HUMAN_CHECK_FAILED: HUMAN_CHECK_MESSAGE,
 }
 
 export function getAuthErrorMessage(error: unknown) {
@@ -96,14 +125,26 @@ const loadCurrentUserFn = createServerFn({ method: "GET" }).handler(
   }
 )
 
+/**
+ * The Turnstile site key for the two forms that carry the widget, or null when
+ * the check is switched off. It is a public value: it ships inside the page.
+ */
+const loadHumanCheckSiteKeyFn = createServerFn({ method: "GET" }).handler(
+  async () => ({ siteKey: getHumanCheckSiteKey() })
+)
+
 const registerFn = createServerFn({ method: "POST" })
   .inputValidator(registerSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
+    // The counter comes first on purpose. It is one local write, where the
+    // human check is a call out to Cloudflare — checking first would let anyone
+    // make this server place unlimited outbound requests.
     await enforceRateLimit(`register:${requestIp()}`, {
       maxAttempts: 5,
       windowSeconds: 60 * 60,
     })
+    await enforceHumanCheck(data.humanCheckToken)
 
     const [existing] = await db
       .select({ id: customShellUsers.id })
@@ -114,6 +155,8 @@ const registerFn = createServerFn({ method: "POST" })
     if (existing) {
       throw new Error("ACCOUNT_EXISTS")
     }
+
+    await enforcePasswordNotBreached(data.password)
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
@@ -236,13 +279,18 @@ const logoutFn = createServerFn({ method: "POST" }).handler(async () => {
 })
 
 const requestPasswordResetFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ email: emailSchema }))
+  .inputValidator(
+    z.object({ email: emailSchema, humanCheckToken: humanCheckTokenSchema })
+  )
   .handler(async ({ data }) => {
     requireAppOrigin()
     await enforceRateLimit(`password-reset:${requestIp()}`, {
       maxAttempts: 5,
       windowSeconds: 60 * 60,
     })
+    // Before the lookup and the email, so a bot cannot spray reset mail at
+    // other people's inboxes.
+    await enforceHumanCheck(data.humanCheckToken)
 
     const user = await findUserByEmail(data.email)
     if (user) {
@@ -266,6 +314,17 @@ const resetPasswordFn = createServerFn({ method: "POST" })
   .inputValidator(resetPasswordSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
+    // Everything below runs before the reset link has been checked, so without
+    // a limit anyone could call this endpoint with any password and no link at
+    // all — spending an argon2 hash and an outside lookup every time.
+    await enforceRateLimit(`reset-password:${requestIp()}`, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    // Before the token is spent, so a refused password leaves the reset link
+    // still usable for a second try.
+    await enforcePasswordNotBreached(data.password)
 
     const timestamp = now()
     const passwordHash = await hashPassword(data.password)
@@ -323,6 +382,8 @@ const changePasswordFn = createServerFn({ method: "POST" })
       throw new Error("INVALID_CREDENTIALS")
     }
 
+    await enforcePasswordNotBreached(data.newPassword)
+
     const passwordHash = await hashPassword(data.newPassword)
     await db
       .update(customShellUsers)
@@ -370,6 +431,10 @@ export function loadCurrentUser() {
   return loadCurrentUserFn()
 }
 
+export function loadHumanCheckSiteKey() {
+  return loadHumanCheckSiteKeyFn()
+}
+
 export function register(data: z.infer<typeof registerSchema>) {
   return registerFn({ data })
 }
@@ -390,8 +455,8 @@ export function logout() {
   return logoutFn()
 }
 
-export function requestPasswordReset(email: string) {
-  return requestPasswordResetFn({ data: { email } })
+export function requestPasswordReset(email: string, humanCheckToken?: string) {
+  return requestPasswordResetFn({ data: { email, humanCheckToken } })
 }
 
 export function resetPassword(token: string, password: string) {

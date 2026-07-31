@@ -11,6 +11,7 @@ import { PasswordInput } from "@/components/ui/password-input"
 import {
   getAuthErrorMessage,
   loadCurrentUser,
+  PASSWORD_RULE_HINT,
   resetPassword,
 } from "@/lib/api/auth"
 
@@ -103,7 +104,7 @@ function ResetPasswordRoute() {
       }
     >
       <div className="grid gap-2">
-        <FieldLabel htmlFor="password" hint="At least 8 characters.">
+        <FieldLabel htmlFor="password" hint={PASSWORD_RULE_HINT}>
           New password
         </FieldLabel>
         <PasswordInput

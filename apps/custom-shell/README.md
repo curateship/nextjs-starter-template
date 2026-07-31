@@ -28,6 +28,31 @@ CUSTOM_SHELL_R2_PUBLIC_URL=""
 
 The credentials are server-only secrets. Do not expose them with a `VITE_` prefix.
 
+## Bot Protection on Sign-Up
+
+The sign-up and forgotten-password forms carry a Cloudflare Turnstile check.
+Almost nobody sees it: it only draws a puzzle when Cloudflare decides it needs
+to ask something. The server confirms the widget's answer with Cloudflare before
+it creates an account or sends a reset email.
+
+```bash
+CUSTOM_SHELL_TURNSTILE_SITE_KEY=""
+CUSTOM_SHELL_TURNSTILE_SECRET_KEY=""
+```
+
+**With either key empty the check is switched off completely and both forms
+behave exactly as they did before it existed.** That is deliberate, so local
+development stays frictionless — and it means a production server missing a key
+is a production server anyone can script against. Set both in production.
+
+The site key is public and ships inside the page. The secret key is server-only:
+never expose it with a `VITE_` prefix.
+
+To try it locally, use Cloudflare's documented test keys and restart the server:
+site `1x00000000000000000000AA` with secret `1x0000000000000000000000000000000AA`
+always passes; `2x00000000000000000000AB` with `2x0000000000000000000000000000000AA`
+always fails; site `3x00000000000000000000FF` always shows the puzzle.
+
 ## Adding components
 
 To add components to your app, run the following command:
