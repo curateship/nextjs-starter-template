@@ -31,6 +31,7 @@ import Users from "lucide-react/dist/esm/icons/users.js"
 import { getSegmentsWithCounts, deleteSegments, refreshDynamicSegmentsForSite } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { formatSegmentDynamicRule } from "@/lib/actions/newsletters/segment-rules"
 import { SegmentFormModal } from "@/components/admin/newsletter-builder/segments/SegmentFormModal"
@@ -64,11 +65,15 @@ export default function SegmentsPage() {
 
   // Sort state
   const segmentSort = useAdminSort<SegmentSortColumn>()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    segmentSelection,
-    `${currentSite?.id}|${searchQuery}|${segmentSort.sortColumn}|${segmentSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${searchQuery}|${segmentSort.sortColumn}|${segmentSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(segmentSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   // Create/Edit modal state
@@ -284,12 +289,18 @@ export default function SegmentsPage() {
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">
-                          No segments yet. Create one to save reusable audience filters.
-                        </p>
-                        <Button onClick={openCreateModal} variant="outline">
-                          Create Segment
-                        </Button>
+                        {normalizedSearchQuery ? (
+                          <p className="text-muted-foreground">No segments found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">
+                              No segments yet. Create one to save reusable audience filters.
+                            </p>
+                            <Button onClick={openCreateModal} variant="outline">
+                              Create Segment
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (

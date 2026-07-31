@@ -35,7 +35,6 @@ import { useContentListMutations } from "@/components/admin/layout/content/useCo
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CursorPagination } from "@/components/ui/cursor-pagination"
 import { Dialog } from "@/components/ui/dialog"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -344,21 +343,19 @@ export function ContentListPage<TItem extends ContentListItem>({
               </TableRightActions>
             }
             footer={
-              !loading && usesCursorPagination ? (
-                <div className="flex items-center justify-between bg-muted/50 p-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {items.length} items from a filtered total of {total}
-                  </div>
-                  <CursorPagination
-                    hasPreviousPage={cursorHistory.length > 0}
-                    hasNextPage={Boolean(nextCursor)}
-                    onPreviousPage={handlePreviousPage}
-                    onNextPage={handleNextPage}
-                  />
-                </div>
-              ) : !loading ? (
+              !loading ? (
                 <AdminListFooter
-                  currentPage={currentPage}
+                  // A cursor list still gets the shared footer — same rows-per-page
+                  // box, same "1-25 of 340", same arrows — rather than its own pair
+                  // of Previous/Next buttons. Only the two jump-to-the-end arrows
+                  // are unavailable, because that query steps one page at a time.
+                  cursor={usesCursorPagination ? {
+                    hasPreviousPage: cursorHistory.length > 0,
+                    hasNextPage: Boolean(nextCursor),
+                    onPreviousPage: handlePreviousPage,
+                    onNextPage: handleNextPage,
+                  } : undefined}
+                  currentPage={usesCursorPagination ? cursorHistory.length + 1 : currentPage}
                   pageSize={pageSize}
                   total={total}
                   onPageChange={setCurrentPage}
@@ -393,14 +390,25 @@ export function ContentListPage<TItem extends ContentListItem>({
                     <TableRow>
                       <TableCell colSpan={tableColumnCount} className="h-32 text-center">
                         <EmptyIcon className="mx-auto h-10 w-10 text-muted-foreground" />
-                        <h3 className="mt-4 text-lg font-semibold">{emptyTitle(items, filterStatus)}</h3>
-                        {emptyDescription && (
-                          <p className="mt-2 text-muted-foreground">{emptyDescription(items, filterStatus)}</p>
-                        )}
-                        {(items.length === 0 || showEmptyButtonWhenFiltered) && (
-                          <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline">
-                            {emptyButtonLabel}
-                          </Button>
+                        {/* A search that found nothing never shows the first-run
+                            "create your first" copy — `emptyTitle` cannot tell
+                            the two apart because it is not given the query. */}
+                        {searchQuery.trim() ? (
+                          <h3 className="mt-4 text-lg font-semibold">
+                            No {itemLabelPlural.toLowerCase()} found matching your search.
+                          </h3>
+                        ) : (
+                          <>
+                            <h3 className="mt-4 text-lg font-semibold">{emptyTitle(items, filterStatus)}</h3>
+                            {emptyDescription && (
+                              <p className="mt-2 text-muted-foreground">{emptyDescription(items, filterStatus)}</p>
+                            )}
+                            {(items.length === 0 || showEmptyButtonWhenFiltered) && (
+                              <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline">
+                                {emptyButtonLabel}
+                              </Button>
+                            )}
+                          </>
                         )}
                       </TableCell>
                     </TableRow>

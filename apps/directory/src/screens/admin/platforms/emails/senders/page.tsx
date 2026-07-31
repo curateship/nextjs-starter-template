@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "@/components/app-link";
 import { AdminLayout } from "@/components/admin/layout/admin-layout";
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
@@ -8,7 +8,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
   AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
+  AdminListFooter,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -29,6 +29,7 @@ import {
   getSiteIntegration,
   type SiteIntegration,
 } from "@/lib/actions/integrations/integration-actions";
+import { useResetPageOnListChange } from "@/lib/use-reset-page";
 import Mail from "lucide-react/dist/esm/icons/mail.js"
 
 interface SenderRow {
@@ -57,11 +58,12 @@ function buildSenderRows(integration: SiteIntegration | null): SenderRow[] {
 }
 
 export default function PlatformSenderEmailsPage() {
-  const { currentSite } = useSiteSwitcher();
+  const { currentSite, pageSize } = useSiteSwitcher();
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [senders, setSenders] = useState<SenderRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
@@ -103,6 +105,15 @@ export default function PlatformSenderEmailsPage() {
       })
     : senders;
 
+  // Searching from a later page would otherwise land you past the end of the
+  // shorter result.
+  useResetPageOnListChange(setCurrentPage, `${currentSite?.id}|${normalizedSearchQuery}`);
+
+  const pagedSenders = useMemo(
+    () => filteredSenders.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredSenders, pageSize]
+  );
+
   if (!currentSite) {
     return (
       <AdminLayout>
@@ -140,7 +151,7 @@ export default function PlatformSenderEmailsPage() {
                 />
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredSenders.length} label="email accounts" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredSenders.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
@@ -163,12 +174,12 @@ export default function PlatformSenderEmailsPage() {
                         className="h-32 text-center text-sm text-muted-foreground"
                       >
                         {normalizedSearchQuery
-                          ? "No email accounts match your search."
+                          ? "No email accounts found matching your search."
                           : "No email accounts found."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredSenders.map((sender) => (
+                    pagedSenders.map((sender) => (
                       <TableRow key={sender.email} className="group">
                         <TableCell column="main">
                           <Link

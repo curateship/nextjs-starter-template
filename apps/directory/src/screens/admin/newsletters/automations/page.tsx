@@ -44,6 +44,7 @@ import {
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AUTOMATION_TRIGGER_SHORT_LABELS,
@@ -86,11 +87,15 @@ export default function EmailAutomationsPage() {
   const pageSize = contextPageSize
   const automationSelection = useAdminBulkSelection()
   const automationSort = useAdminSort<AutomationSortColumn>()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    automationSelection,
-    `${currentSite?.id}|${filterStatus}|${searchQuery}|${automationSort.sortColumn}|${automationSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${filterStatus}|${searchQuery}|${automationSort.sortColumn}|${automationSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(automationSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   const loadAutomations = useCallback(async () => {
@@ -250,7 +255,6 @@ export default function EmailAutomationsPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value)
-    setCurrentPage(1)
   }
 
   const getStatusBadge = (status: string) => {
@@ -391,10 +395,16 @@ export default function EmailAutomationsPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Zap className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">No email automations yet</p>
-                        <Button onClick={() => setCreateOpen(true)} variant="outline">
-                          Create Your First Automation
-                        </Button>
+                        {searchQuery.trim() || filterStatus !== "all" ? (
+                          <p className="text-muted-foreground">No automations found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">No email automations yet</p>
+                            <Button onClick={() => setCreateOpen(true)} variant="outline">
+                              Create Your First Automation
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (

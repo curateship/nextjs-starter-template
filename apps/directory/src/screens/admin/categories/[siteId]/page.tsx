@@ -26,6 +26,7 @@ import {
   TableRow
 } from "@/components/ui/table"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useBuilderRouteSiteSync } from "@/components/admin/layout/builder/useBuilderRouteState"
 import {
@@ -84,13 +85,16 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    categorySelection,
-    `${siteId}|${searchQuery}|${filterStatus}|${categorySort.sortColumn}|${categorySort.sortDirection}|${currentPage}|${pageSize}`
-  )
-
   const parentSlug = searchParams.get("parent") || ""
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${siteId}|${parentSlug}|${searchQuery}|${filterStatus}|${categorySort.sortColumn}|${categorySort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(categorySelection, `${listQueryKey}|${currentPage}|${pageSize}`)
   const currentParent = parentPath[parentPath.length - 1] || null
   const currentParentId = currentParent?.id || null
 
@@ -102,11 +106,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     queryValue: "",
     siteId,
   })
-
-  useEffect(() => {
-    setCurrentPage(1)
-    clearCategorySelection()
-  }, [clearCategorySelection, parentSlug])
 
   // Load categories and assignment counts in a single server action
   const loadedRef = useRef<string | null>(null)
@@ -338,7 +337,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                   value={filterStatus}
                   onValueChange={(value) => {
                     setFilterStatus(value as "all" | "published" | "draft")
-                    setCurrentPage(1)
                   }}
                 >
                   <TableRightActionsSelectTrigger aria-label="Category status filter">
@@ -434,14 +432,20 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Tag className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">No categories found</p>
-                        <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
-                          Create your first category to start organizing content. You can create nested hierarchies like
-                          Country &gt; City.
-                        </p>
-                        <Button onClick={() => setShowCreateModal(true)} variant="outline">
-                          Create First Category
-                        </Button>
+                        {searchQuery.trim() || filterStatus !== "all" ? (
+                          <p className="text-muted-foreground">No categories found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">No categories found</p>
+                            <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
+                              Create your first category to start organizing content. You can create nested hierarchies like
+                              Country &gt; City.
+                            </p>
+                            <Button onClick={() => setShowCreateModal(true)} variant="outline">
+                              Create First Category
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (

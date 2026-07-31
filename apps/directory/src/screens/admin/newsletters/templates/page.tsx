@@ -42,6 +42,7 @@ import {
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -71,11 +72,15 @@ export default function TemplatesPage() {
   const [total, setTotal] = useState(0)
 
   const templateSort = useAdminSort<TemplateSortColumn>()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    templateSelection,
-    `${currentSite?.id}|${searchQuery}|${templateSort.sortColumn}|${templateSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${searchQuery}|${templateSort.sortColumn}|${templateSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(templateSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -311,18 +316,24 @@ export default function TemplatesPage() {
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <FileText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">
-                          No templates yet. Create one to save reusable block layouts.
-                        </p>
-                        <Button
-                          onClick={() => {
-                            setFormName("")
-                            setCreateModalOpen(true)
-                          }}
-                          variant="outline"
-                        >
-                          Create Template
-                        </Button>
+                        {normalizedSearchQuery ? (
+                          <p className="text-muted-foreground">No templates found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">
+                              No templates yet. Create one to save reusable block layouts.
+                            </p>
+                            <Button
+                              onClick={() => {
+                                setFormName("")
+                                setCreateModalOpen(true)
+                              }}
+                              variant="outline"
+                            >
+                              Create Template
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (

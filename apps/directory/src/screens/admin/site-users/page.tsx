@@ -18,6 +18,7 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AdminBulkDeleteButton,
@@ -167,11 +168,15 @@ export default function SiteUsersPage() {
   const [pendingFilters, setPendingFilters] = useState<SiteUserFilterGroup>(emptySiteUserFilterGroup)
   const [pendingFilteredTotal, setPendingFilteredTotal] = useState(0)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    userSelection,
-    `${currentSite?.id}|${deferredSearchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${deferredSearchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(userSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [createForm, setCreateForm] = useState({
@@ -682,13 +687,9 @@ export default function SiteUsersPage() {
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          {hasSearchQuery && activeFilterCount > 0
-                            ? "No users match this search and filter"
-                            : hasSearchQuery
-                              ? "No users match this search"
-                              : activeFilterCount > 0
-                                ? "No users match this filter"
-                                : "No users found for this site"}
+                          {hasSearchQuery || activeFilterCount > 0
+                            ? "No users found matching your search."
+                            : "No users found for this site"}
                         </p>
                       </TableCell>
                     </TableRow>

@@ -12,7 +12,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminListPending, ConfirmDestructive, AdminSortButton, AdminTableShell, AdminTableSummaryFooter, useAdminSort } from "@/components/admin/layout/list"
+import { AdminListPending, ConfirmDestructive, AdminSortButton, AdminTableShell, AdminListFooter, useAdminSort } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsButton, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { deleteCampaignAction, getSiteCampaignsAction, setCampaignStatusAction } from "@/lib/actions/campaigns/campaign-actions"
 import { compareCampaignRecords, type CampaignRecord, type CampaignSortColumn } from "@/lib/campaigns/campaigns"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 function formatSchedule(campaign: CampaignRecord) {
@@ -30,10 +31,11 @@ function formatSchedule(campaign: CampaignRecord) {
 }
 
 export default function CampaignsPage() {
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, pageSize } = useSiteSwitcher()
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<CampaignRecord | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CampaignRecord | null>(null)
@@ -65,6 +67,18 @@ export default function CampaignsPage() {
     if (!campaignSort.sortColumn) return 0
     return compareCampaignRecords(a, b, campaignSort.sortColumn, campaignSort.sortDirection)
   }), [campaignSort.sortColumn, campaignSort.sortDirection, filtered])
+
+  // Searching or re-sorting from page 3 would otherwise leave you on a page the
+  // shorter result no longer has.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${search}|${campaignSort.sortColumn}|${campaignSort.sortDirection}`
+  )
+
+  const pagedCampaigns = useMemo(
+    () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sorted]
+  )
 
   const onSaved = (saved: CampaignRecord) => {
     setCampaigns((current) => current.some((item) => item.id === saved.id)
@@ -109,7 +123,7 @@ export default function CampaignsPage() {
             <TableRightActionsSearch value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns" />
             <TableRightActionsButton onClick={() => { setEditing(null); setEditorOpen(true) }} disabled={!currentSite?.id}><Plus className="size-4" /><span className="hidden sm:inline">New campaign</span></TableRightActionsButton>
           </TableRightActions>}
-          footer={!loading ? <AdminTableSummaryFooter count={filtered.length} label="campaigns" /> : null}
+          footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filtered.length} onPageChange={setCurrentPage} /> : null}
         >
           <ScrollArea className="w-full">
             <Table>
@@ -125,8 +139,8 @@ export default function CampaignsPage() {
               </TableRow></TableHeader>
               <TableBody>
                 {loading && sorted.length === 0 ? <AdminListPending /> : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="h-36 text-center"><Megaphone className="mx-auto size-10 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">{campaigns.length ? "No campaigns match your search." : "No campaigns yet."}</p></TableCell></TableRow>
-                ) : sorted.map((campaign) => (
+                  <TableRow><TableCell colSpan={8} className="h-36 text-center"><Megaphone className="mx-auto size-10 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">{search.trim() ? "No campaigns found matching your search." : "No campaigns yet."}</p></TableCell></TableRow>
+                ) : pagedCampaigns.map((campaign) => (
                   <TableRow key={campaign.id}>
                     <TableCell column="main"><div><p className="font-medium">{campaign.name}</p><p className="text-xs text-muted-foreground">{campaign.dismissals.toLocaleString()} dismissals</p></div></TableCell>
                     <TableCell column="meta" className="capitalize">{campaign.type === "bar" ? "Bar" : "Popup"}</TableCell>

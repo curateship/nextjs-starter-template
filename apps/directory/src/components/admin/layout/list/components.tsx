@@ -258,13 +258,29 @@ export function AdminListPending() {
   );
 }
 
+/**
+ * A list that pages by remembering the last row it showed rather than by
+ * counting how many rows to skip. It can step one page forward or back, but it
+ * cannot jump straight to the last page, so those two arrows stay disabled.
+ * Passing this keeps such a list on the same footer as every other list instead
+ * of giving it its own pair of Previous/Next buttons.
+ */
+type AdminListCursor = {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
+};
+
 export function AdminListFooter({
+  cursor,
   currentPage,
   onPageChange,
   onPageSizeChange,
   pageSize,
   total,
 }: {
+  cursor?: AdminListCursor;
   currentPage: number;
   onPageChange: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
@@ -328,7 +344,7 @@ export function AdminListFooter({
           size="icon"
           className="size-8"
           onClick={() => onPageChange(1)}
-          disabled={safeCurrentPage === 1}
+          disabled={Boolean(cursor) || safeCurrentPage === 1}
           aria-label="Go to first page"
         >
           <ChevronsLeft className="size-4" />
@@ -337,8 +353,10 @@ export function AdminListFooter({
           variant="outline"
           size="icon"
           className="size-8"
-          onClick={() => onPageChange(Math.max(safeCurrentPage - 1, 1))}
-          disabled={safeCurrentPage === 1}
+          onClick={() =>
+            cursor ? cursor.onPreviousPage() : onPageChange(Math.max(safeCurrentPage - 1, 1))
+          }
+          disabled={cursor ? !cursor.hasPreviousPage : safeCurrentPage === 1}
           aria-label="Go to previous page"
         >
           <ChevronLeft className="size-4" />
@@ -347,8 +365,12 @@ export function AdminListFooter({
           variant="outline"
           size="icon"
           className="size-8"
-          onClick={() => onPageChange(Math.min(safeCurrentPage + 1, safeTotalPages))}
-          disabled={safeCurrentPage === safeTotalPages || total === 0}
+          onClick={() =>
+            cursor ? cursor.onNextPage() : onPageChange(Math.min(safeCurrentPage + 1, safeTotalPages))
+          }
+          disabled={
+            cursor ? !cursor.hasNextPage : safeCurrentPage === safeTotalPages || total === 0
+          }
           aria-label="Go to next page"
         >
           <ChevronRight className="size-4" />
@@ -358,7 +380,7 @@ export function AdminListFooter({
           size="icon"
           className="size-8"
           onClick={() => onPageChange(safeTotalPages)}
-          disabled={safeCurrentPage === safeTotalPages || total === 0}
+          disabled={Boolean(cursor) || safeCurrentPage === safeTotalPages || total === 0}
           aria-label="Go to last page"
         >
           <ChevronsRight className="size-4" />

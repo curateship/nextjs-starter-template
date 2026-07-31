@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import { useRouter } from "@/lib/navigation-client"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
@@ -16,13 +16,14 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, ConfirmDestructive } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminListFooter, ConfirmDestructive } from "@/components/admin/layout/list"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { countDirectoryCustomFields } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { deleteDirectoryCustomBlock, getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const LAYOUT_LABELS: Record<DirectoryCustomBlockTemplate["layout"], string> = {
@@ -33,7 +34,7 @@ const LAYOUT_LABELS: Record<DirectoryCustomBlockTemplate["layout"], string> = {
 
 export default function DirectoryCustomBlocksPage() {
   const router = useRouter()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, pageSize } = useSiteSwitcher()
   const [loading, setLoading] = useState(true)
   const [templates, setTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +42,7 @@ export default function DirectoryCustomBlocksPage() {
   const [templateToDelete, setTemplateToDelete] = useState<DirectoryCustomBlockTemplate | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     const siteId = currentSite?.id
@@ -103,6 +105,15 @@ export default function DirectoryCustomBlocksPage() {
       })
     : templates
 
+  // Searching from a later page would otherwise land you past the end of the
+  // shorter result.
+  useResetPageOnListChange(setCurrentPage, `${currentSite?.id}|${normalizedSearchQuery}`)
+
+  const pagedTemplates = useMemo(
+    () => filteredTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredTemplates, pageSize]
+  )
+
   return (
     <>
       <StickyHeader />
@@ -128,7 +139,7 @@ export default function DirectoryCustomBlocksPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="custom blocks" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredTemplates.length} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
@@ -149,12 +160,12 @@ export default function DirectoryCustomBlocksPage() {
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
                         {normalizedSearchQuery
-                          ? "No custom blocks match your search."
+                          ? "No custom blocks found matching your search."
                           : "Create your first custom block to make it available in the directory builder."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTemplates.map((template) => (
+                    pagedTemplates.map((template) => (
                       <TableRow key={template.id} className="group">
                         <TableCell column="main">
                           <div className="min-w-0 space-y-1">

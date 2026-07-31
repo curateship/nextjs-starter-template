@@ -26,7 +26,7 @@ import {
   ConfirmDestructive,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
+  AdminListFooter,
   formatRelativeDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils/tailwind"
 import { deleteMediaItemsAction, scanUnusedMediaAction } from "@/lib/actions/media/media-actions"
 import type { MediaData } from "@/lib/actions/media/media-actions"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import ImageOff from "lucide-react/dist/esm/icons/image-off.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
@@ -46,7 +47,7 @@ import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-fee
 type SortColumn = "name" | "type" | "size" | "added"
 
 export default function UnusedMediaPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const currentSiteId = currentSite?.id
   const [mediaItems, setMediaItems] = useState<MediaData[] | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -56,14 +57,18 @@ export default function UnusedMediaPage() {
   const [mediaToDelete, setMediaToDelete] = useState<MediaData | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [scannedAt, setScannedAt] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
   const mediaSort = useAdminSort<SortColumn>()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    mediaSelection,
-    `${currentSiteId}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSiteId}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}`
+  // Searching or re-sorting from a later page would otherwise land you past the
+  // end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Delete (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(mediaSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   useEffect(() => {
@@ -142,7 +147,13 @@ export default function UnusedMediaPage() {
     })
   }, [filteredMedia, mediaSort.sortColumn, mediaSort.sortDirection])
 
-  const sortedMediaIds = sortedMedia.map((media) => media.id)
+  const pagedMedia = useMemo(
+    () => sortedMedia.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedMedia]
+  )
+
+  // Select-all ticks the page in front of you, never the whole scan result.
+  const pagedMediaIds = pagedMedia.map((media) => media.id)
 
   function formatFileSize(bytes: number) {
     if (bytes === 0) return "0 Bytes"
@@ -188,7 +199,7 @@ export default function UnusedMediaPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={mediaItems ? <AdminTableSummaryFooter count={filteredMedia.length} label="unused media" /> : null}
+            footer={mediaItems ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredMedia.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
@@ -197,8 +208,8 @@ export default function UnusedMediaPage() {
                   <TableRow>
                     <TableHead column="select">
                       <Checkbox
-                        checked={mediaSelection.isPageSelected(sortedMediaIds)}
-                        onCheckedChange={() => mediaSelection.togglePage(sortedMediaIds)}
+                        checked={mediaSelection.isPageSelected(pagedMediaIds)}
+                        onCheckedChange={() => mediaSelection.togglePage(pagedMediaIds)}
                         aria-label="Select all unused media"
                       />
                     </TableHead>
@@ -262,7 +273,7 @@ export default function UnusedMediaPage() {
                       <TableCell colSpan={6} className="h-32 text-center">
                         <ImageOff className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          {mediaItems.length === 0 ? "No unused media found." : "No unused media matches your search."}
+                          {normalizedSearchQuery ? "No unused media found matching your search." : "No unused media found."}
                         </p>
                         {scannedAt ? (
                           <p className="mt-2 text-xs text-muted-foreground">
@@ -272,7 +283,7 @@ export default function UnusedMediaPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedMedia.map((media) => {
+                    pagedMedia.map((media) => {
                       const isSelected = mediaSelection.selectedIds.has(media.id)
                       return (
                         <TableRow key={media.id} data-state={isSelected ? "selected" : undefined} className="group">

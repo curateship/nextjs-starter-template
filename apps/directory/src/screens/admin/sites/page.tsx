@@ -20,7 +20,7 @@ import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingS
 import {
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
+  AdminListFooter,
   formatRelativeDate as formatDate,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -61,6 +61,7 @@ import {
 import { applyThemeToSiteAction, getTemplateSitesAction } from "@/lib/actions/themes/user-theme-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 type FilterStatus = "all" | "active" | "inactive" | "draft"
@@ -74,7 +75,7 @@ function getSiteTag(site: SiteWithTheme) {
 export default function SitesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { refreshSites } = useSiteSwitcher()
+  const { refreshSites, pageSize } = useSiteSwitcher()
   const [sites, setSites] = useState<SiteWithTheme[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -97,6 +98,7 @@ export default function SitesPage() {
   const [duplicatePages, setDuplicatePages] = useState(true)
   const [duplicating, setDuplicating] = useState(false)
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const siteSort = useAdminSort<SiteSortColumn>()
 
   const reportDuplicateError = (message: string) => {
@@ -243,6 +245,15 @@ export default function SitesPage() {
     return 0
   })
 
+  // Searching, filtering or re-sorting from a later page would otherwise land
+  // you past the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${normalizedSearchQuery}|${filter}|${tagFilter}|${siteSort.sortColumn}|${siteSort.sortDirection}`
+  )
+
+  const pagedSites = sortedSites.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   const siteCounts = {
     all: sites.length,
     active: sites.filter((site) => site.status === "active").length,
@@ -317,7 +328,7 @@ export default function SitesPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredSites.length} label="sites" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredSites.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
@@ -363,7 +374,7 @@ export default function SitesPage() {
                       <TableCell colSpan={5} className="h-32 text-center">
                         <Globe className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="mb-4 text-muted-foreground">
-                          {filter === "all" && tagFilter === "all-tags" ? "No sites found" : "No matching sites found"}
+                          {normalizedSearchQuery || filter !== "all" || tagFilter !== "all-tags" ? "No sites found matching your search." : "No sites found"}
                         </p>
                         <Button onClick={() => setShowCreateModal(true)} variant="outline">
                           Create Your First Site
@@ -371,7 +382,7 @@ export default function SitesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedSites.map((site) => (
+                    pagedSites.map((site) => (
                       <TableRow key={site.id} className="group">
                         <TableCell column="main">
                           <Link

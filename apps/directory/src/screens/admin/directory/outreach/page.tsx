@@ -21,9 +21,11 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
+  AdminListFooter,
   AdminListPending,
   AdminSortButton,
   AdminTableShell,
@@ -87,7 +89,7 @@ function statusBadge(item: ClaimOutreachListItem) {
 }
 
 export default function DirectoryOutreachPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [rows, setRows] = useState<ClaimOutreachListItem[]>([])
   const [emailConfigured, setEmailConfigured] = useState(true)
   const [cooldownDays, setCooldownDays] = useState(30)
@@ -99,14 +101,19 @@ export default function DirectoryOutreachPage() {
   const [sendTargets, setSendTargets] = useState<string[] | null>(null)
   const [sending, setSending] = useState(false)
   const [sendStatus, setSendStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>("status", "asc")
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    selection,
-    `${currentSite?.id}|${query}|${statusFilter}|${sort.sortColumn}|${sort.sortDirection}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${query}|${statusFilter}|${sort.sortColumn}|${sort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise land
+  // you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Send invitations (n)" only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   const loadRows = useCallback(async () => {
@@ -179,7 +186,13 @@ export default function DirectoryOutreachPage() {
     })
   }, [filtered, sort.sortColumn, sort.sortDirection])
 
-  const visibleIds = sorted.map((row) => row.directory_id)
+  const pagedRows = useMemo(
+    () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sorted]
+  )
+
+  // Select-all ticks the page in front of you, never the whole filtered list.
+  const visibleIds = pagedRows.map((row) => row.directory_id)
 
   const targetRows = useMemo(() => {
     if (!sendTargets) return []
@@ -247,6 +260,9 @@ export default function DirectoryOutreachPage() {
             count={filtered.length}
             loading={loading}
             status={shellStatus}
+            titleMeta={scannedAtLimit ? (
+              <span className="text-xs text-muted-foreground">Showing the 1,000 most recent unclaimed listings</span>
+            ) : null}
             selectedCount={selection.selectedCount}
             onClearSelection={selection.clearSelection}
             titleActions={selection.selectedCount ? (
@@ -288,10 +304,12 @@ export default function DirectoryOutreachPage() {
               </TableRightActions>
             }
             footer={!loading ? (
-              <div className="bg-muted/50 p-4 text-xs text-muted-foreground sm:text-sm">
-                {filtered.length} {filtered.length === 1 ? "listing" : "listings"}
-                {scannedAtLimit ? " · showing the 1,000 most recent unclaimed listings" : ""}
-              </div>
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={filtered.length}
+                onPageChange={setCurrentPage}
+              />
             ) : null}
           >
             <ScrollArea className="w-full">
@@ -352,12 +370,14 @@ export default function DirectoryOutreachPage() {
                       <TableCell colSpan={6} className="h-32 text-center">
                         <Send className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          No unclaimed listings with a contact email{statusFilter !== "all" || query ? " match this view" : " to invite"}.
+                          {query.trim() || statusFilter !== "all"
+                            ? "No listings found matching your search."
+                            : "No unclaimed listings with a contact email to invite."}
                         </p>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sorted.map((row) => {
+                    pagedRows.map((row) => {
                       const sendable = isSendable(row.status)
                       const reason = row.status === "opted_out"
                         ? "This contact opted out of claim emails."

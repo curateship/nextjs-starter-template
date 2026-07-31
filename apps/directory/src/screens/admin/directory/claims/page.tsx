@@ -24,12 +24,13 @@ import {
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   TableRightActions,
+  TableRightActionsSearch,
   TableRightActionsSelectTrigger
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -38,6 +39,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const CLAIM_FILTERS = [
@@ -107,7 +109,7 @@ function ViewListingButton({ slug }: { slug: string }) {
 }
 
 export default function DirectoryClaimsPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [activeView, setActiveView] = useState<"claims" | "owner_edits">("claims")
   const [activeStatus, setActiveStatus] = useState<DirectoryClaimStatus>("pending_review")
   const [ownerEditStatus, setOwnerEditStatus] = useState<DirectoryOwnerEditRequestStatus>("pending")
@@ -133,6 +135,8 @@ export default function DirectoryClaimsPage() {
   const [ownerEditReviewNote, setOwnerEditReviewNote] = useState("")
   const [savingStatus, setSavingStatus] = useState<DirectoryClaimStatus | null>(null)
   const [savingOwnerEditStatus, setSavingOwnerEditStatus] = useState<DirectoryOwnerEditRequestStatus | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -182,7 +186,15 @@ export default function DirectoryClaimsPage() {
     setOwnerEditReviewNote(selectedOwnerEdit?.review_note || "")
   }, [selectedOwnerEdit])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+
   const emptyText = useMemo(() => {
+    if (normalizedSearchQuery) {
+      return activeView === "owner_edits"
+        ? "No owner edits found matching your search."
+        : "No claims found matching your search."
+    }
+
     if (activeView === "owner_edits") {
       const tab = OWNER_EDIT_FILTERS.find((item) => item.value === ownerEditStatus)
       return `No ${tab?.label.toLowerCase() || "owner edit"} requests.`
@@ -190,7 +202,7 @@ export default function DirectoryClaimsPage() {
 
     const tab = CLAIM_FILTERS.find((item) => item.value === activeStatus)
     return `No ${tab?.label.toLowerCase() || "claim"} requests.`
-  }, [activeStatus, activeView, ownerEditStatus])
+  }, [activeStatus, activeView, normalizedSearchQuery, ownerEditStatus])
 
   const handleReview = async (status: "approved" | "rejected" | "revoked") => {
     if (!selectedClaim) return
@@ -234,7 +246,46 @@ export default function DirectoryClaimsPage() {
     showActionSuccess(status === "approved" ? "Edit request approved." : "Edit request rejected.")
   }
 
-  const activeRowsCount = activeView === "claims" ? claims.length : ownerEdits.length
+  const filteredClaims = useMemo(() => {
+    if (!normalizedSearchQuery) return claims
+    return claims.filter((claim) => [
+      claim.directory_title,
+      claim.directory_slug,
+      claim.claimant_name,
+      claim.claimant_display_name,
+      claim.claimant_account_email,
+      claim.business_email
+    ].join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [claims, normalizedSearchQuery])
+
+  const filteredOwnerEdits = useMemo(() => {
+    if (!normalizedSearchQuery) return ownerEdits
+    return ownerEdits.filter((request) => [
+      request.directory_title,
+      request.directory_slug,
+      request.claimant_display_name,
+      request.claimant_account_email
+    ].join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [normalizedSearchQuery, ownerEdits])
+
+  const activeRowsCount = activeView === "claims" ? filteredClaims.length : filteredOwnerEdits.length
+
+  // One page counter serves both views because switching view is itself a list
+  // change, which sends you back to page 1.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${activeView}|${activeStatus}|${ownerEditStatus}|${normalizedSearchQuery}`
+  )
+
+  const pageStart = (currentPage - 1) * pageSize
+  const pagedClaims = useMemo(
+    () => filteredClaims.slice(pageStart, pageStart + pageSize),
+    [filteredClaims, pageSize, pageStart]
+  )
+  const pagedOwnerEdits = useMemo(
+    () => filteredOwnerEdits.slice(pageStart, pageStart + pageSize),
+    [filteredOwnerEdits, pageSize, pageStart]
+  )
 
   return (
     <>
@@ -254,6 +305,11 @@ export default function DirectoryClaimsPage() {
             loading={loading}
             controls={
               <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={activeView === "claims" ? "Search claims" : "Search owner edits"}
+                />
                 <Button
                   type="button"
                   variant={activeView === "claims" ? "default" : "outline"}
@@ -299,7 +355,7 @@ export default function DirectoryClaimsPage() {
                 )}
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={activeRowsCount} label={activeView === "claims" ? "claims" : "owner edits"} /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={activeRowsCount} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
@@ -336,7 +392,7 @@ export default function DirectoryClaimsPage() {
                       </TableCell>
                     </TableRow>
                   ) : activeView === "owner_edits" ? (
-                    ownerEdits.map((request) => (
+                    pagedOwnerEdits.map((request) => (
                       <TableRow key={request.id} className="group">
                         <TableCell column="main">
                           <Link href={`/directory/${request.directory_slug}`} className="block hover:opacity-80">
@@ -368,7 +424,7 @@ export default function DirectoryClaimsPage() {
                       </TableRow>
                     ))
                   ) : (
-                    claims.map((claim) => (
+                    pagedClaims.map((claim) => (
                       <TableRow key={claim.id} className="group">
                         <TableCell column="main">
                           <Link href={`/directory/${claim.directory_slug}`} className="block hover:opacity-80">

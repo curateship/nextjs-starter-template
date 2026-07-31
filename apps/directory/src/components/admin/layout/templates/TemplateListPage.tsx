@@ -251,7 +251,6 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
 
   function handlePageChange(page: number) {
     setCurrentPage(page)
-    templateSelection.clearSelection()
   }
 
   function handleTogglePageSelection() {

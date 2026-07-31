@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "@/lib/navigation-client";
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -8,11 +8,13 @@ import { showErrorToast } from "@/lib/error-toast"
 import { AdminLayout } from "@/components/admin/layout/admin-layout";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
+import { useResetPageOnListChange } from "@/lib/use-reset-page";
 import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog";
 import {
   ConfirmDestructive,
   AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
+  AdminListFooter,
   formatRelativeDate,
 } from "@/components/admin/layout/list";
 import {
@@ -64,6 +66,7 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
 export default function ThemesPage() {
   const router = useRouter();
+  const { pageSize } = useSiteSwitcher();
   const [templates, setTemplates] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +105,7 @@ export default function ThemesPage() {
     templateName: "",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -218,6 +222,15 @@ export default function ThemesPage() {
       })
     : templates;
 
+  // Searching from a later page would otherwise land you past the end of the
+  // shorter result.
+  useResetPageOnListChange(setCurrentPage, normalizedSearchQuery);
+
+  const pagedTemplates = useMemo(
+    () => filteredTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredTemplates, pageSize]
+  );
+
   return (
     <>
       <StickyHeader />
@@ -254,7 +267,7 @@ export default function ThemesPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="themes" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredTemplates.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
@@ -275,7 +288,7 @@ export default function ThemesPage() {
                         <Paintbrush className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
                         <p className="mb-1 text-muted-foreground">
                           {normalizedSearchQuery
-                            ? "No themes match your search"
+                            ? "No themes found matching your search."
                             : "No themes yet"}
                         </p>
                         <p className="text-sm text-muted-foreground">
@@ -286,7 +299,7 @@ export default function ThemesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTemplates.map((template) => (
+                    pagedTemplates.map((template) => (
                       <TableRow key={template.id} className="group">
                         <TableCell column="main">
                           <Link

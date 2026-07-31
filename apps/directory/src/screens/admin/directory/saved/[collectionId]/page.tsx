@@ -16,6 +16,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
@@ -69,11 +70,15 @@ export default function DirectorySavedFolderPage({
   const [renameValue, setRenameValue] = useState("")
   const [savingRename, setSavingRename] = useState(false)
   const selection = useAdminBulkSelection()
-  // Ticks never survive a change to what the table is showing.
-  useClearSelectionOnListChange(
-    selection,
-    `${currentSite?.id}|${collectionId}|${query}|${currentPage}|${pageSize}`
-  )
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${collectionId}|${query}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
 
   const loadItems = useCallback(async () => {
@@ -245,7 +250,7 @@ export default function DirectorySavedFolderPage({
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <FolderOpen className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="text-muted-foreground">No saved listings found.</p>
+                        <p className="text-muted-foreground">{query.trim() ? "No saved listings found matching your search." : "No saved listings found."}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
