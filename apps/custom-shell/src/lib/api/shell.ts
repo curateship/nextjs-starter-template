@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 
 import type { UserAnnouncement } from "@/lib/announcement"
-import type { AuthUser } from "@/lib/api/auth"
+import { serializeUser, type AuthUser } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
@@ -83,14 +83,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
       : unreadCount
 
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        status: user.status,
-        emailVerified: Boolean(user.emailVerifiedAt),
-      },
+      user: serializeUser(user),
       settings,
       workspaces,
       plan: {

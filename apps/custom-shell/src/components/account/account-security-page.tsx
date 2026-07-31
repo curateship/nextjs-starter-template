@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon, LogOutIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -32,12 +33,14 @@ import {
   PASSWORD_RULE_HINT,
   revokeSession,
   signOutOtherSessions,
+  type AuthUser,
   type SessionList,
 } from "@/lib/api/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatTimeAgo } from "@/lib/money"
 
-export function AccountSecurityPage() {
+export function AccountSecurityPage({ user }: { user: AuthUser }) {
+  const router = useRouter()
   // Changing a password signs out every other device, so the list below it has
   // to be fetched again or it keeps showing devices that are already gone.
   const [devicesChanged, setDevicesChanged] = React.useState(0)
@@ -48,17 +51,30 @@ export function AccountSecurityPage() {
       style={{ gap: "var(--shell-gutter, 1.5rem)" }}
     >
       <ChangePasswordCard
-        onPasswordChanged={() => setDevicesChanged((count) => count + 1)}
+        hasPassword={user.hasPassword}
+        onPasswordChanged={() => {
+          setDevicesChanged((count) => count + 1)
+          // Setting a first password changes what this tab offers, and the
+          // answer comes from the shell's copy of the account.
+          void router.invalidate()
+        }}
       />
       <SessionsCard devicesChanged={devicesChanged} />
-      <DeleteAccountCard />
+      <DeleteAccountCard hasPassword={user.hasPassword} email={user.email} />
     </div>
   )
 }
 
+/**
+ * An account created by signing in with Google has no password. It is offered
+ * one here — the signed-in session is proof enough of who they are — instead of
+ * being asked for a current password that does not exist.
+ */
 function ChangePasswordCard({
+  hasPassword,
   onPasswordChanged,
 }: {
+  hasPassword: boolean
   onPasswordChanged: () => void
 }) {
   const [currentPassword, setCurrentPassword] = React.useState("")
@@ -80,7 +96,10 @@ function ChangePasswordCard({
 
       setSaving(true)
       try {
-        await changePassword(currentPassword, newPassword)
+        await changePassword(
+          hasPassword ? currentPassword : undefined,
+          newPassword
+        )
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
@@ -92,33 +111,43 @@ function ChangePasswordCard({
         setSaving(false)
       }
     },
-    [confirmPassword, currentPassword, newPassword, onPasswordChanged]
+    [
+      confirmPassword,
+      currentPassword,
+      hasPassword,
+      newPassword,
+      onPasswordChanged,
+    ]
   )
 
   return (
     <Card>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <CardHeader>
-          <CardTitle>Password</CardTitle>
+          <CardTitle>{hasPassword ? "Password" : "Set a password"}</CardTitle>
           <CardDescription>
-            Changing your password signs out every other device.
+            {hasPassword
+              ? "Changing your password signs out every other device."
+              : "You sign in with Google and have no password. Adding one lets you sign in either way."}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="current-password">Current password</Label>
-            <Input
-              id="current-password"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              required
-            />
-          </div>
+          {hasPassword ? (
+            <div className="grid gap-2">
+              <Label htmlFor="current-password">Current password</Label>
+              <Input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                required
+              />
+            </div>
+          ) : null}
           <div className="grid gap-2">
             <FieldLabel htmlFor="new-password" hint={PASSWORD_RULE_HINT}>
-              New password
+              {hasPassword ? "New password" : "Password"}
             </FieldLabel>
             <Input
               id="new-password"
@@ -131,7 +160,9 @@ function ChangePasswordCard({
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="confirm-new-password">Confirm new password</Label>
+            <Label htmlFor="confirm-new-password">
+              {hasPassword ? "Confirm new password" : "Confirm password"}
+            </Label>
             <Input
               id="confirm-new-password"
               type="password"
@@ -144,11 +175,13 @@ function ChangePasswordCard({
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={saving}>
-              Update password
+              {hasPassword ? "Update password" : "Set password"}
             </Button>
             {saved ? (
               <span role="status" className="text-sm text-muted-foreground">
-                Password updated. Other devices were signed out.
+                {hasPassword
+                  ? "Password updated. Other devices were signed out."
+                  : "Password set. Other devices were signed out."}
               </span>
             ) : null}
           </div>
@@ -327,9 +360,20 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
   )
 }
 
-function DeleteAccountCard() {
+/**
+ * Deleting asks for something only the owner could type. Normally that is the
+ * password; an account that signs in with Google has none, so it is asked for
+ * its own email address instead.
+ */
+function DeleteAccountCard({
+  hasPassword,
+  email,
+}: {
+  hasPassword: boolean
+  email: string
+}) {
   const [open, setOpen] = React.useState(false)
-  const [password, setPassword] = React.useState("")
+  const [confirmation, setConfirmation] = React.useState("")
   const [deleting, setDeleting] = React.useState(false)
 
   const handleDelete = React.useCallback(async () => {
@@ -337,13 +381,13 @@ function DeleteAccountCard() {
     setDeleting(true)
 
     try {
-      await deleteAccount(password)
+      await deleteAccount(confirmation)
       window.location.href = "/login"
     } catch (deleteError) {
       showErrorToast(getAuthErrorMessage(deleteError))
       setDeleting(false)
     }
-  }, [password])
+  }, [confirmation])
 
   return (
     <Card>
@@ -366,7 +410,7 @@ function DeleteAccountCard() {
         description="Everything you have here is deleted straight away, and any paid plan stops at the end of the period you already paid for."
         confirmLabel="Delete account"
         loading={deleting}
-        disabled={!password}
+        disabled={!confirmation}
         onConfirm={() => void handleDelete()}
       >
         <Card size="sm">
@@ -375,13 +419,22 @@ function DeleteAccountCard() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-2">
-              <Label htmlFor="delete-password">Password</Label>
+              {hasPassword ? (
+                <Label htmlFor="delete-confirmation">Password</Label>
+              ) : (
+                <FieldLabel
+                  htmlFor="delete-confirmation"
+                  hint={`Type ${email} to confirm. You sign in with Google, so there is no password to ask for.`}
+                >
+                  Email address
+                </FieldLabel>
+              )}
               <Input
-                id="delete-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                id="delete-confirmation"
+                type={hasPassword ? "password" : "email"}
+                autoComplete={hasPassword ? "current-password" : "email"}
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
               />
             </div>
           </CardContent>

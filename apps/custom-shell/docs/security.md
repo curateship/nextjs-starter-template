@@ -22,6 +22,30 @@ in `docs/saas-foundation.md`.
   address, so a mail scanner following the link cannot burn it.
 - Changing a password keeps the current session and drops all the others.
 
+## Signing in with Google
+
+- The button only appears when both Google keys are set, so nothing is offered
+  that this server cannot finish.
+- The trip out to Google carries a random `state` and a PKCE secret, both kept
+  in a ten-minute httpOnly cookie. The callback refuses anything whose `state`
+  does not match that cookie, and the cookie is cleared as it is read, so one
+  trip can complete at most one sign-in.
+- The code is traded for tokens by this server over HTTPS, authenticated with
+  the client secret. The id token is read without a signature check because it
+  never touched the browser; its audience is checked all the same.
+- An address Google has not confirmed is refused. Everything else rests on the
+  address being proven.
+- A Google account that has been here before is found by Google's permanent id
+  for it, not the email, so changing the address there does not create a second
+  account. Otherwise the confirmed address decides: it joins the account that
+  already holds it, or a new one is created.
+- Suspended accounts are refused exactly as the password form refuses them, and
+  the callback is rate limited per IP like the other sign-in paths.
+- An account created this way has no password at all — the column is null, not a
+  hash nobody knows. It can set one from Account → Security, where the signed-in
+  session is the proof of identity, and deleting it asks for the account's own
+  email address instead of a password.
+
 ## Abuse limits
 
 Sign-in, registration, password reset, sign-in links, and verification resends

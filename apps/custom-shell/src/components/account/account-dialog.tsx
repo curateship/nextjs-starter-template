@@ -140,7 +140,7 @@ export function AccountDialog({
               <BillingTab />
             </TabsContent>
             <TabsContent value="security">
-              <AccountSecurityPage />
+              <AccountSecurityPage user={user} />
             </TabsContent>
           </DialogBody>
 

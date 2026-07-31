@@ -15,7 +15,7 @@ import {
   getAuthErrorMessage,
   HUMAN_CHECK_MESSAGE,
   loadCurrentUser,
-  loadHumanCheckSiteKey,
+  loadSignInOptions,
   requestSignInLink,
   signInWithLink,
 } from "@/lib/api/auth"
@@ -31,15 +31,15 @@ import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 export const Route = createFileRoute("/sign-in-link")({
   validateSearch: z.object({ token: z.string().optional() }),
   loader: async () => {
-    const [user, humanCheck] = await Promise.all([
+    const [user, options] = await Promise.all([
       loadCurrentUser(),
-      loadHumanCheckSiteKey(),
+      loadSignInOptions(),
     ])
     // Somebody already signed in who opens their link has nothing to do here.
     if (user) {
       throw redirect({ to: "/" })
     }
-    return humanCheck
+    return options
   },
   component: SignInLinkRoute,
 })

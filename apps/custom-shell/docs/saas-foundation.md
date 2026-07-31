@@ -37,6 +37,12 @@ Accounts that predate the migration are marked verified so nobody is locked out.
 its `purpose` (`verify_email`, `reset_password` or `login`), an expiry, and
 `used_at`. A `login` token is a magic-link sign-in and lives 15 minutes.
 
+**`oauth_accounts`** — one linked sign-in provider account per row: the
+`provider`, the provider's own permanent id for the person, and the account here
+it belongs to. Arrives in `drizzle/0013_custom_shell_oauth.sql`, which also
+makes `users.password_hash` nullable — an account created by signing in with
+Google has no password at all.
+
 **`rate_limits`** — one row per throttle key, with the window start and a
 `blocked_until`. In the database rather than memory so a restart does not hand
 an attacker a fresh budget.
@@ -74,6 +80,16 @@ redeemed twice even under concurrent clicks. Verification links last 24 hours.
 **Signing in.** `/login` refuses three ways: wrong credentials, an unverified
 address, and a suspended account. Only the first is ambiguous on purpose. On
 success it writes a session row and sets the cookie.
+
+**Signing in with Google.** `/api/auth/google` sends the browser to Google and
+`/api/auth/google/callback` brings it back, checking the `state` it echoes
+against a ten-minute httpOnly cookie before trading the code for tokens. A
+confirmed address that already has an account here joins it — the link in
+`oauth_accounts` is keyed on Google's permanent id, so a later address change on
+the Google side still finds the same account. Otherwise a confirmed `member` is
+created with no password. The button appears only when both
+`CUSTOM_SHELL_GOOGLE_CLIENT_ID` and `CUSTOM_SHELL_GOOGLE_CLIENT_SECRET` are set.
+Code: `src/server/google-auth.ts`.
 
 **Sessions.** A random token in an httpOnly, SameSite=Lax cookie; only its hash
 is stored. `Secure` is set over HTTPS and left off in plain-http development so
@@ -260,6 +276,8 @@ If you add a data migration, follow the same pattern: guard it on a
 | `CUSTOM_SHELL_BILLING_ENABLED` | `"true"` turns on checkout and the portal. |
 | `CUSTOM_SHELL_STRIPE_SECRET_KEY` | Server-only Stripe key. |
 | `CUSTOM_SHELL_STRIPE_WEBHOOK_SECRET` | Signing secret for the webhook. |
+| `CUSTOM_SHELL_GOOGLE_CLIENT_ID` | Google OAuth client. Absent = no "Continue with Google" button. |
+| `CUSTOM_SHELL_GOOGLE_CLIENT_SECRET` | Server-only half of the same pair. |
 | `CUSTOM_SHELL_RESEND_API_KEY` | Sends auth email. Absent in dev = links logged to the console. |
 | `CUSTOM_SHELL_EMAIL_FROM` | From address for auth email. |
 | `CUSTOM_SHELL_SESSION_TTL_HOURS` | Session lifetime. Defaults to ten years. |
@@ -335,11 +353,12 @@ in `users.role`; change it from `/admin/users`.
 1. Copy `drizzle/0004_custom_shell_saas.sql` and the matching tables in
    `src/server/schema.ts`.
 2. Copy `src/server/`: the `security.ts` additions, `rate-limit.ts`, `email.ts`,
-   `plans.ts`, `entitlements.ts`, `billing.ts`, `accounts.ts`, `app-url.ts`.
+   `plans.ts`, `entitlements.ts`, `billing.ts`, `accounts.ts`, `app-url.ts`,
+   `google-auth.ts`.
 3. Copy `src/lib/api/`: `auth.ts`, `billing.ts`, `admin-plans.ts`,
    `admin-users.ts`.
 4. Copy the auth, account and admin routes plus
-   `src/routes/api/webhooks/stripe.ts`.
+   `src/routes/api/webhooks/stripe.ts` and `src/routes/api/auth/`.
 5. Rename the `CUSTOM_SHELL_*` variables for the new app.
 6. Edit the plan rows for that product. Adding a tier needs no code change.
 

@@ -3,6 +3,7 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { GoogleSignIn } from "@/components/shell/google-sign-in"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -11,34 +12,43 @@ import { PasswordInput } from "@/components/ui/password-input"
 import {
   getAuthErrorMessage,
   loadCurrentUser,
+  loadSignInOptions,
   login,
+  messageForAuthCode,
   resendVerification,
+  SIGN_IN_ERROR_CODES,
 } from "@/lib/api/auth"
 import { useAppName } from "@/lib/app-name"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { safeRedirectPath } from "@/lib/redirect-path"
 
 /**
- * Only same-origin, root-relative paths are honored after login. A
- * protocol-relative ("//evil.com") or absolute ("https://evil.com") value would
- * be an open redirect, so anything that is not a plain "/path" is dropped.
+ * A Google sign-in that failed comes back here as `?error=<code>`, and only a
+ * code on the list is kept — the address bar must not be able to put arbitrary
+ * text on the screen.
  */
-function safeRedirectPath(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined
-  if (!value.startsWith("/")) return undefined
-  if (value.startsWith("//") || value.startsWith("/\\")) return undefined
-  return value
+function signInError(value: unknown) {
+  return SIGN_IN_ERROR_CODES.find((code) => code === value)
 }
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => {
     const redirectTo = safeRedirectPath(search.redirect)
-    return redirectTo ? { redirect: redirectTo } : {}
+    const error = signInError(search.error)
+    return {
+      ...(redirectTo ? { redirect: redirectTo } : {}),
+      ...(error ? { error } : {}),
+    }
   },
   loader: async () => {
-    const user = await loadCurrentUser()
+    const [user, options] = await Promise.all([
+      loadCurrentUser(),
+      loadSignInOptions(),
+    ])
     if (user) {
       throw redirect({ to: "/" })
     }
+    return options
   },
   component: LoginRoute,
 })
@@ -46,13 +56,27 @@ export const Route = createFileRoute("/login")({
 function LoginRoute() {
   const navigate = useNavigate()
   const appName = useAppName()
-  const { redirect: redirectTo } = Route.useSearch()
+  const { google } = Route.useLoaderData()
+  const { redirect: redirectTo, error: signInFailure } = Route.useSearch()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [notice, setNotice] = React.useState<string | null>(null)
   const [unverified, setUnverified] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [resending, setResending] = React.useState(false)
+
+  // Why a Google sign-in did not finish. It arrives as a redirect from the
+  // callback rather than a thrown error, so the toast is fired here.
+  //
+  // Checked against the list again rather than trusting the search param: a
+  // value `validateSearch` dropped can still reach this component, which is why
+  // the redirect below is re-checked at the navigation too.
+  React.useEffect(() => {
+    const code = signInError(signInFailure)
+    if (code) {
+      showErrorToast(messageForAuthCode(code))
+    }
+  }, [signInFailure])
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -173,6 +197,12 @@ function LoginRoute() {
           "Sign in"
         )}
       </Button>
+      {google ? (
+        <GoogleSignIn
+          label="Continue with Google"
+          redirectTo={safeRedirectPath(redirectTo)}
+        />
+      ) : null}
     </AuthShell>
   )
 }

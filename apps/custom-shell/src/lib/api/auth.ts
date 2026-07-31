@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server"
+import { getRequestIP } from "@tanstack/react-start/server"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
@@ -10,6 +10,7 @@ import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
 import { sendAuthEmail } from "@/server/email"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
+import { googleSignInEnabled } from "@/server/google-auth"
 import { customShellSessions, customShellUsers } from "@/server/schema"
 import { consumeSignInLink, createSignInLinkToken } from "@/server/sign-in-link"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/turnstile"
@@ -20,6 +21,7 @@ import {
   createUserSession,
   deleteOtherSessions,
   deleteUserSession,
+  describeRequestOrigin,
   findCurrentUser,
   findUserByEmail,
   getSessionToken,
@@ -33,7 +35,6 @@ import {
   setSessionCookie,
   uuid,
   verifyPassword,
-  type SessionOrigin,
 } from "@/server/security"
 import { requireAppOrigin } from "@/server/origin"
 
@@ -44,6 +45,12 @@ export type AuthUser = {
   role: string
   status: string
   emailVerified: boolean
+  /**
+   * False for an account created by signing in with Google, which has no
+   * password at all. Account → Security offers to set one instead of asking
+   * for a current password nobody has.
+   */
+  hasPassword: boolean
 }
 
 const emailSchema = z.string().trim().toLowerCase().min(3).max(255).email()
@@ -86,7 +93,11 @@ const loginSchema = z.object({
 })
 const profileSchema = z.object({ name: nameSchema })
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1).max(128),
+  /**
+   * Absent only for an account that has no password yet, which is how an
+   * account created by signing in with Google starts life.
+   */
+  currentPassword: z.string().min(1).max(128).optional(),
   newPassword: passwordSchema,
 })
 const resetPasswordSchema = z.object({
@@ -94,7 +105,8 @@ const resetPasswordSchema = z.object({
   password: passwordSchema,
 })
 const deleteAccountSchema = z.object({
-  password: z.string().min(1).max(128),
+  /** The account's password, or its email address when it has no password. */
+  confirmation: z.string().min(1).max(255),
 })
 
 const authErrorMessages: Record<string, string> = {
@@ -114,12 +126,35 @@ const authErrorMessages: Record<string, string> = {
   PASSWORD_BREACHED:
     "This password has shown up in a known data breach. Please pick a different one.",
   HUMAN_CHECK_FAILED: HUMAN_CHECK_MESSAGE,
+  GOOGLE_SIGN_IN_FAILED:
+    "We could not sign you in with Google. Please try again.",
+  PROVIDER_EMAIL_UNVERIFIED:
+    "Google has not confirmed the email address on that account, so we cannot use it to sign you in.",
 }
 
+/**
+ * The codes the Google callback may hand the sign-in page on `?error=`. The
+ * page shows the message for anything on this list and ignores everything else,
+ * so the address bar cannot be used to put arbitrary text on the screen.
+ */
+export const SIGN_IN_ERROR_CODES = [
+  "GOOGLE_SIGN_IN_FAILED",
+  "PROVIDER_EMAIL_UNVERIFIED",
+  "ACCOUNT_SUSPENDED",
+  "RATE_LIMITED",
+] as const
+
 export function getAuthErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(authErrorMessages).find((code) =>
-    message.includes(code)
+  return messageForAuthCode(error instanceof Error ? error.message : "")
+}
+
+/**
+ * The message for a bare code, for the one caller that has no error to hand:
+ * the sign-in page reading the code the Google callback redirected it with.
+ */
+export function messageForAuthCode(code: string) {
+  const matched = Object.keys(authErrorMessages).find((known) =>
+    code.includes(known)
   )
 
   return matched
@@ -135,11 +170,18 @@ const loadCurrentUserFn = createServerFn({ method: "GET" }).handler(
 )
 
 /**
- * The Turnstile site key for the two forms that carry the widget, or null when
- * the check is switched off. It is a public value: it ships inside the page.
+ * What the signed-out pages need to know before they draw themselves: the
+ * Turnstile site key for the forms that carry the widget (null when the check
+ * is switched off), and whether to offer "Continue with Google".
+ *
+ * Both are public values that ship inside the page, and both are decided by the
+ * server so a button is never shown that this server cannot finish.
  */
-const loadHumanCheckSiteKeyFn = createServerFn({ method: "GET" }).handler(
-  async () => ({ siteKey: getHumanCheckSiteKey() })
+const loadSignInOptionsFn = createServerFn({ method: "GET" }).handler(
+  async () => ({
+    siteKey: getHumanCheckSiteKey(),
+    google: googleSignInEnabled(),
+  })
 )
 
 const registerFn = createServerFn({ method: "POST" })
@@ -445,8 +487,16 @@ const changePasswordFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const user = await requireUser()
 
-    if (!(await verifyPassword(user.passwordHash, data.currentPassword))) {
-      throw new Error("INVALID_CREDENTIALS")
+    // An account with no password is setting its first one, and the signed-in
+    // session is the proof it is them. Insisting on a current password there
+    // would leave a Google account unable to ever have one.
+    if (user.passwordHash) {
+      if (
+        !data.currentPassword ||
+        !(await verifyPassword(user.passwordHash, data.currentPassword))
+      ) {
+        throw new Error("INVALID_CREDENTIALS")
+      }
     }
 
     await enforcePasswordNotBreached(data.newPassword)
@@ -508,7 +558,7 @@ const deleteAccountFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const user = await requireUser()
 
-    if (!(await verifyPassword(user.passwordHash, data.password))) {
+    if (!(await confirmsDeletion(user, data.confirmation))) {
       throw new Error("INVALID_CREDENTIALS")
     }
 
@@ -529,8 +579,8 @@ export function loadCurrentUser() {
   return loadCurrentUserFn()
 }
 
-export function loadHumanCheckSiteKey() {
-  return loadHumanCheckSiteKeyFn()
+export function loadSignInOptions() {
+  return loadSignInOptionsFn()
 }
 
 export function register(data: z.infer<typeof registerSchema>) {
@@ -573,7 +623,10 @@ export function updateProfile(name: string) {
   return updateProfileFn({ data: { name } })
 }
 
-export function changePassword(currentPassword: string, newPassword: string) {
+export function changePassword(
+  currentPassword: string | undefined,
+  newPassword: string
+) {
   return changePasswordFn({ data: { currentPassword, newPassword } })
 }
 
@@ -589,17 +642,35 @@ export function signOutOtherSessions() {
   return signOutOtherSessionsFn()
 }
 
-export function deleteAccount(password: string) {
-  return deleteAccountFn({ data: { password } })
+export function deleteAccount(confirmation: string) {
+  return deleteAccountFn({ data: { confirmation } })
 }
 
-function serializeUser(user: {
+/**
+ * Deleting an account asks for something only its owner could type: the
+ * password when there is one, and the account's own email address when there is
+ * not, because an account that signs in with Google has no password to give.
+ */
+function confirmsDeletion(
+  user: { passwordHash: string | null; email: string },
+  confirmation: string
+) {
+  return user.passwordHash
+    ? verifyPassword(user.passwordHash, confirmation)
+    : Promise.resolve(
+        confirmation.trim().toLowerCase() === user.email.toLowerCase()
+      )
+}
+
+/** The one place an account is turned into what the browser is told about it. */
+export function serializeUser(user: {
   id: string
   email: string
   name: string
   role: string
   status: string
   emailVerifiedAt: Date | null
+  passwordHash: string | null
 }): AuthUser {
   return {
     id: user.id,
@@ -608,17 +679,19 @@ function serializeUser(user: {
     role: user.role,
     status: user.status,
     emailVerified: Boolean(user.emailVerifiedAt),
+    // The hash itself never leaves the server; only whether there is one.
+    hasPassword: Boolean(user.passwordHash),
   }
 }
 
 /**
- * Makes sure a freshly signed-in account has a workspace to land in.
+ * Makes sure a freshly signed-in account has a workspace to land in. Every way
+ * in calls it — the password form, the sign-in link, and the Google callback.
  *
- * The import stays dynamic, as it was before both sign-in paths shared this:
- * workspaces.ts is a thousand lines of navigation defaults that only these two
- * handlers in this module ever need.
+ * The import stays dynamic: workspaces.ts is a thousand lines of navigation
+ * defaults that only the sign-in handlers ever need.
  */
-async function startWorkspaceFor(userId: string) {
+export async function startWorkspaceFor(userId: string) {
   const { getOrCreateCurrentWorkspace } = await import("@/server/workspaces")
   await getOrCreateCurrentWorkspace(userId)
 }
@@ -636,18 +709,4 @@ function sendVerificationEmail(email: string, token: string) {
 
 function requestIp() {
   return getRequestIP({ xForwardedFor: true }) || "unknown"
-}
-
-/**
- * Reads this request's browser and address for the session about to be started.
- *
- * The user agent is capped because it is a header the caller writes: a huge one
- * would otherwise be stored whole, once per sign-in. 512 characters is roughly
- * double the longest real browser sends.
- */
-function describeRequestOrigin(): SessionOrigin {
-  return {
-    userAgent: getRequestHeader("user-agent")?.slice(0, 512) ?? null,
-    ipAddress: getRequestIP({ xForwardedFor: true }) ?? null,
-  }
 }

@@ -14,21 +14,21 @@ import {
   getAuthErrorMessage,
   HUMAN_CHECK_MESSAGE,
   loadCurrentUser,
-  loadHumanCheckSiteKey,
+  loadSignInOptions,
   requestPasswordReset,
 } from "@/lib/api/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/forgot-password")({
   loader: async () => {
-    const [user, humanCheck] = await Promise.all([
+    const [user, options] = await Promise.all([
       loadCurrentUser(),
-      loadHumanCheckSiteKey(),
+      loadSignInOptions(),
     ])
     if (user) {
       throw redirect({ to: "/" })
     }
-    return humanCheck
+    return options
   },
   component: ForgotPasswordRoute,
 })

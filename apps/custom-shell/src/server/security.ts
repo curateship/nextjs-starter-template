@@ -1,6 +1,12 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto"
 
-import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/server"
+import {
+  getCookie,
+  getRequestHeader,
+  getRequestIP,
+  getRequestProtocol,
+  setCookie,
+} from "@tanstack/react-start/server"
 import { hash, verify } from "argon2"
 import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
 
@@ -64,7 +70,19 @@ export function hashPassword(password: string) {
   })
 }
 
-export async function verifyPassword(passwordHash: string, password: string) {
+/**
+ * A null hash is an account with no password — one created by signing in with
+ * Google. Nothing typed can match it, and answering that here means no caller
+ * has to remember the case.
+ */
+export async function verifyPassword(
+  passwordHash: string | null,
+  password: string
+) {
+  if (!passwordHash) {
+    return false
+  }
+
   try {
     return await verify(passwordHash, password)
   } catch {
@@ -251,6 +269,21 @@ export function isAdmin(user: Pick<CustomShellUser, "role">) {
 export type SessionOrigin = {
   userAgent: string | null
   ipAddress: string | null
+}
+
+/**
+ * Reads this request's browser and address for the session about to be started.
+ * Every way in uses it, so one sign-in is described exactly like another.
+ *
+ * The user agent is capped because it is a header the caller writes: a huge one
+ * would otherwise be stored whole, once per sign-in. 512 characters is roughly
+ * double the longest real browser sends.
+ */
+export function describeRequestOrigin(): SessionOrigin {
+  return {
+    userAgent: getRequestHeader("user-agent")?.slice(0, 512) ?? null,
+    ipAddress: getRequestIP({ xForwardedFor: true }) ?? null,
+  }
 }
 
 /**

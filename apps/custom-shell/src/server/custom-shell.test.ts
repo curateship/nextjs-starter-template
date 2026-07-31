@@ -27,6 +27,7 @@ import {
   customShellFeedbackComments,
   customShellFeedbackVotes,
   customShellNotifications,
+  customShellOauthAccounts,
   customShellPlans,
   customShellSessions,
   customShellSettings,
@@ -96,6 +97,7 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/security"
+import { signInWithGoogle } from "@/server/google-auth"
 import {
   consumeSignInLink,
   createSignInLinkToken,
@@ -174,6 +176,15 @@ describe("custom shell auth helpers", () => {
 
     await expect(verifyPassword(passwordHash, "password123")).resolves.toBe(true)
     await expect(verifyPassword(passwordHash, "wrong")).resolves.toBe(false)
+  })
+
+  it("refuses every password for an account that has none", async () => {
+    // An account created by signing in with Google stores no hash at all.
+    // Nothing typed may match it — including the empty string, which is what a
+    // form submitted with the field left alone would send.
+    for (const attempt of ["", " ", "password123", "null", "undefined"]) {
+      await expect(verifyPassword(null, attempt)).resolves.toBe(false)
+    }
   })
 
   it("looks up valid sessions and rejects expired or deleted sessions", async () => {
@@ -432,6 +443,177 @@ describe("magic-link sign-in", () => {
     const sessions = await database.select().from(customShellSessions)
     expect(sessions).toHaveLength(1)
     expect(sessions[0].tokenHash).toBe(hashSessionToken(sessionToken))
+  })
+})
+
+describe("google sign-in", () => {
+  const NO_BROWSER = { userAgent: null, ipAddress: null }
+  const SUBJECT = "google-subject-1"
+
+  function googleIdentity(
+    extra: Partial<{
+      subject: string
+      email: string
+      emailVerified: boolean
+      name: string | null
+    }> = {}
+  ) {
+    return {
+      subject: SUBJECT,
+      email: "ada@internal.dev",
+      emailVerified: true,
+      name: "Ada Lovelace",
+      ...extra,
+    }
+  }
+
+  async function seedAccount(
+    email: string,
+    extra: { status?: string; emailVerifiedAt?: Date | null } = {}
+  ) {
+    const createdAt = now()
+    const userId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email,
+      name: "Existing User",
+      role: "member",
+      status: extra.status ?? "active",
+      passwordHash: await hash("password123"),
+      emailVerifiedAt:
+        extra.emailVerifiedAt === undefined ? createdAt : extra.emailVerifiedAt,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    return userId
+  }
+
+  it("creates a confirmed member with no password on a first sign-in", async () => {
+    const { user, sessionToken } = await signInWithGoogle(
+      googleIdentity(),
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    expect(user.email).toBe("ada@internal.dev")
+    expect(user.name).toBe("Ada Lovelace")
+    expect(user.role).toBe("member")
+    // Google confirmed the address, so nobody is sent an email to click.
+    expect(user.emailVerifiedAt).not.toBeNull()
+    // No password at all, rather than one nobody knows.
+    expect(user.passwordHash).toBeNull()
+
+    await expect(
+      findUserBySessionToken(sessionToken, database as unknown as CustomShellDb)
+    ).resolves.toMatchObject({ id: user.id })
+
+    const links = await database.select().from(customShellOauthAccounts)
+    expect(links).toHaveLength(1)
+    expect(links[0]).toMatchObject({
+      userId: user.id,
+      provider: "google",
+      providerAccountId: SUBJECT,
+    })
+  })
+
+  it("attaches Google to the account that already holds the address, leaving the password working", async () => {
+    const userId = await seedAccount("ada@internal.dev")
+
+    const { user } = await signInWithGoogle(
+      googleIdentity(),
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    expect(user.id).toBe(userId)
+    // Linked, not duplicated: one account, reachable both ways.
+    expect(await database.select().from(customShellUsers)).toHaveLength(1)
+    expect(user.name).toBe("Existing User")
+    await expect(verifyPassword(user.passwordHash, "password123")).resolves.toBe(
+      true
+    )
+  })
+
+  it("confirms an account that had never confirmed its email", async () => {
+    const userId = await seedAccount("ada@internal.dev", {
+      emailVerifiedAt: null,
+    })
+
+    await signInWithGoogle(
+      googleIdentity(),
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    const [stored] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+    expect(stored.emailVerifiedAt).not.toBeNull()
+  })
+
+  it("comes back to the same account after the address on the Google account changes", async () => {
+    const first = await signInWithGoogle(
+      googleIdentity(),
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    const second = await signInWithGoogle(
+      googleIdentity({ email: "ada.lovelace@internal.dev" }),
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    expect(second.user.id).toBe(first.user.id)
+    expect(await database.select().from(customShellUsers)).toHaveLength(1)
+    // The link is what found them, so nothing here rewrites their address.
+    expect(second.user.email).toBe("ada@internal.dev")
+    expect(await database.select().from(customShellOauthAccounts)).toHaveLength(
+      1
+    )
+  })
+
+  it("refuses an address Google has not confirmed, and creates nothing", async () => {
+    await expect(
+      signInWithGoogle(
+        googleIdentity({ emailVerified: false }),
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("PROVIDER_EMAIL_UNVERIFIED")
+
+    expect(await database.select().from(customShellUsers)).toHaveLength(0)
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+  })
+
+  it("refuses a suspended account, exactly as the password form does", async () => {
+    await seedAccount("ada@internal.dev", { status: "suspended" })
+
+    await expect(
+      signInWithGoogle(
+        googleIdentity(),
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("ACCOUNT_SUSPENDED")
+
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+    expect(await database.select().from(customShellOauthAccounts)).toHaveLength(
+      0
+    )
+  })
+
+  it("falls back to the address when Google sends no name", async () => {
+    const { user } = await signInWithGoogle(
+      googleIdentity({ name: null }),
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    expect(user.name).toBe("ada")
   })
 })
 
