@@ -34,8 +34,12 @@ Drizzle definitions in `src/server/schema.ts`.
 Accounts that predate the migration are marked verified so nobody is locked out.
 
 **`auth_tokens`** — one-time links. Stores only a SHA-256 hash of the token,
-its `purpose` (`verify_email`, `reset_password` or `login`), an expiry, and
-`used_at`. A `login` token is a magic-link sign-in and lives 15 minutes.
+its `purpose` (`verify_email`, `reset_password`, `login` or `change_email`), an
+expiry, and `used_at`. A `login` token is a magic-link sign-in and lives 15
+minutes. A `change_email` token also carries `new_email`, the address opening it
+would move the account to; a check constraint pairs the two both ways, so a
+change link cannot exist without a destination and no other kind carries one.
+Arrives in `drizzle/0014_custom_shell_email_change.sql`.
 
 **`oauth_accounts`** — one linked sign-in provider account per row: the
 `provider`, the provider's own permanent id for the person, and the account here
@@ -105,6 +109,25 @@ every session for that user.
 `/account/security` also offers "sign out other devices" and account deletion,
 both requiring the current password.
 
+**Changing an email address.** Account → Profile asks for the new address and
+the current password (skipped for an account that has none), then mails a
+`change_email` link there. Nothing about the account moves until that link is
+opened at `/change-email?token=…`, which is why the tab shows the address it is
+waiting on and offers to cancel. Asking again replaces the outstanding link, so
+only one can ever be live. Uniqueness is checked when the link is issued *and*
+inside the transaction that spends it — the second check is the one that matters,
+since the address can be taken while the link sits in an inbox, and a clash rolls
+the whole thing back and leaves the link usable. Confirming marks the account
+verified and leaves every session alone. If the confirmation mail cannot be
+delivered the token is dropped again, so the tab never claims a link is on its
+way when none went out. Code: `src/server/email-change.ts`.
+
+One thing it does **not** move: the address on the Stripe customer. Checkout
+creates that customer with whatever address the person had at the time
+(`customer_email` in `createCheckoutSession`) and this app never calls
+`customers.update`, so Stripe receipts keep going to the old address. Sync it
+there if that matters for your product.
+
 **Suspension** deletes the person's sessions immediately, and
 `findUserBySessionToken` treats a suspended account as signed out — so
 suspending someone takes effect on an open tab, not whenever their cookie
@@ -118,6 +141,8 @@ happens to expire.
 | Register | 5 per hour |
 | Password reset request | 5 per hour |
 | Resend verification | 5 per hour |
+| Email change request | 5 per hour, per account |
+| Email change confirm | 10 per hour |
 
 A successful sign-in clears its bucket. Note the registration limit is strict
 enough that a shared office IP could hit it; raise it in `src/lib/api/auth.ts`
@@ -230,9 +255,9 @@ them cleanly.
 ## 8. Screens
 
 **Public:** `/login`, `/register`, `/verify-email`, `/forgot-password`,
-`/reset-password`, `/pricing`.
+`/reset-password`, `/sign-in-link`, `/change-email`, `/pricing`.
 
-**Member:** `/account` (profile and plan), `/account/security` (password,
+**Member:** `/account` (profile, email address and plan), `/account/security` (password,
 devices, delete account), `/account/billing` (plan, renewal or cancellation
 state, upgrade, Stripe portal, invoices), `/account/billing/success`.
 
@@ -354,7 +379,7 @@ in `users.role`; change it from `/admin/users`.
    `src/server/schema.ts`.
 2. Copy `src/server/`: the `security.ts` additions, `rate-limit.ts`, `email.ts`,
    `plans.ts`, `entitlements.ts`, `billing.ts`, `accounts.ts`, `app-url.ts`,
-   `google-auth.ts`.
+   `google-auth.ts`, `sign-in-link.ts`, `email-change.ts`.
 3. Copy `src/lib/api/`: `auth.ts`, `billing.ts`, `admin-plans.ts`,
    `admin-users.ts`.
 4. Copy the auth, account and admin routes plus
@@ -365,5 +390,5 @@ in `users.role`; change it from `/admin/users`.
 ## 15. Not included
 
 Teams or organisations (billing is per user), seats and invites, usage-based
-metering, coupons and promotion codes, tax handling, dunning email beyond
-Stripe's own, and self-serve email address changes.
+metering, coupons and promotion codes, tax handling, and dunning email beyond
+Stripe's own.

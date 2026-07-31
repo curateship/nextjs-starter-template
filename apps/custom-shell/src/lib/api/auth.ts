@@ -4,10 +4,18 @@ import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { describeDevice } from "@/lib/device-label"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
+import {
+  cancelEmailChange,
+  consumeEmailChange,
+  createEmailChangeToken,
+  findPendingEmailChange,
+  type PendingEmailChange,
+} from "@/server/email-change"
 import { sendAuthEmail } from "@/server/email"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
 import { googleSignInEnabled } from "@/server/google-auth"
@@ -23,6 +31,7 @@ import {
   deleteUserSession,
   describeRequestOrigin,
   findCurrentUser,
+  findSessionContext,
   findUserByEmail,
   getSessionToken,
   hashPassword,
@@ -104,6 +113,14 @@ const resetPasswordSchema = z.object({
   token: tokenSchema,
   password: passwordSchema,
 })
+const changeEmailSchema = z.object({
+  newEmail: emailSchema,
+  /**
+   * Absent only for an account that has no password, which is how an account
+   * created by signing in with Google starts life.
+   */
+  currentPassword: z.string().min(1).max(128).optional(),
+})
 const deleteAccountSchema = z.object({
   /** The account's password, or its email address when it has no password. */
   confirmation: z.string().min(1).max(255),
@@ -130,6 +147,10 @@ const authErrorMessages: Record<string, string> = {
     "We could not sign you in with Google. Please try again.",
   PROVIDER_EMAIL_UNVERIFIED:
     "Google has not confirmed the email address on that account, so we cannot use it to sign you in.",
+  EMAIL_TAKEN: "That email address is already in use.",
+  EMAIL_UNCHANGED: "That is already the email address on your account.",
+  VIEW_AS_ACTIVE:
+    "You are looking at the app as someone else. Leave that view first.",
 }
 
 /**
@@ -512,6 +533,118 @@ const changePasswordFn = createServerFn({ method: "POST" })
     return { ok: true }
   })
 
+/** The address this account is waiting on, or nulls when it is waiting on none. */
+export type EmailChangeState = {
+  pendingEmail: string | null
+  expiresAt: string | null
+}
+
+function describePendingChange(
+  pending: PendingEmailChange | null
+): EmailChangeState {
+  return {
+    pendingEmail: pending?.newEmail ?? null,
+    expiresAt: pending?.expiresAt.toISOString() ?? null,
+  }
+}
+
+/**
+ * The change this account is waiting on, for the Profile tab. Nothing pending
+ * is the ordinary case.
+ */
+const loadEmailChangeFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<EmailChangeState> => {
+    const user = await requireUser()
+    return describePendingChange(await findPendingEmailChange(user.id))
+  }
+)
+
+/**
+ * Asks to move the account to another address. Nothing changes here — a
+ * confirmation link goes to the new address, and opening it is what moves it.
+ *
+ * The current password is required whenever there is one. A stolen session
+ * would otherwise be enough to take an account over outright: change the
+ * address, then ask that address for a password reset.
+ */
+const requestEmailChangeFn = createServerFn({ method: "POST" })
+  .inputValidator(changeEmailSchema)
+  .handler(async ({ data }): Promise<EmailChangeState> => {
+    requireAppOrigin()
+    const user = await requireOwnAccount()
+
+    // Keyed on the account rather than the address: what this endpoint can be
+    // abused for is mailing strangers, and the account is who would be doing it.
+    await enforceRateLimit(`email-change:${user.id}`, {
+      maxAttempts: 5,
+      windowSeconds: 60 * 60,
+    })
+
+    if (
+      user.passwordHash &&
+      !(await verifyPassword(user.passwordHash, data.currentPassword ?? ""))
+    ) {
+      throw new Error("INVALID_CREDENTIALS")
+    }
+
+    const token = await createEmailChangeToken(user, data.newEmail)
+
+    try {
+      await sendAuthEmail({
+        to: data.newEmail,
+        subject: "Confirm your new email address",
+        heading: "Confirm your new email address",
+        message: `Opening this link moves the account at ${user.email} to this address. It expires in ${EMAIL_CHANGE_HOURS} hours.`,
+        action: "Confirm email address",
+        actionUrl: appUrlFor(`/change-email?token=${encodeURIComponent(token)}`),
+      })
+    } catch (deliveryError) {
+      // The token is dropped rather than left behind. This is the one link
+      // whose existence is shown to the person who asked for it, so a mail that
+      // never went out must not leave the tab saying one is on its way — they
+      // would sit waiting for a link that cannot arrive.
+      await cancelEmailChange(user.id)
+      throw deliveryError
+    }
+
+    // Read back rather than assembled here, so the tab shows the row the
+    // server actually holds — including its exact expiry.
+    return describePendingChange(await findPendingEmailChange(user.id))
+  })
+
+const cancelEmailChangeFn = createServerFn({ method: "POST" }).handler(
+  async () => {
+    requireAppOrigin()
+    const user = await requireOwnAccount()
+    await cancelEmailChange(user.id)
+    return { ok: true }
+  }
+)
+
+/**
+ * Spends a confirmation link. Deliberately open to a signed-out browser: the
+ * link is mailed to the new address and may well be opened somewhere the person
+ * has never signed in. The single-use token is the whole proof.
+ */
+const confirmEmailChangeFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ token: tokenSchema }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    // Nothing above has been checked yet, so without a limit anyone could call
+    // this endpoint with made-up links all day. A success clears it, because
+    // the refused attempts are the only ones worth counting.
+    const rateLimitKey = `email-change-confirm:${requestIp()}`
+    await enforceRateLimit(rateLimitKey, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    const { user } = await consumeEmailChange(data.token)
+    await clearRateLimit(rateLimitKey)
+
+    return { email: user.email }
+  })
+
 /** The devices signed in to this account, for the Security tab's list. */
 const loadSessionsFn = createServerFn({ method: "GET" }).handler(async () => {
   const owner = await requireSessionOwner()
@@ -630,6 +763,25 @@ export function changePassword(
   return changePasswordFn({ data: { currentPassword, newPassword } })
 }
 
+export function loadEmailChange() {
+  return loadEmailChangeFn()
+}
+
+export function requestEmailChange(
+  newEmail: string,
+  currentPassword: string | undefined
+) {
+  return requestEmailChangeFn({ data: { newEmail, currentPassword } })
+}
+
+export function cancelPendingEmailChange() {
+  return cancelEmailChangeFn()
+}
+
+export function confirmEmailChange(token: string) {
+  return confirmEmailChangeFn({ data: { token } })
+}
+
 export function loadSessions() {
   return loadSessionsFn()
 }
@@ -644,6 +796,25 @@ export function signOutOtherSessions() {
 
 export function deleteAccount(confirmation: string) {
   return deleteAccountFn({ data: { confirmation } })
+}
+
+/**
+ * The signed-in account, and only when the browser really is that person.
+ *
+ * `requireUser` answers with the member an admin is *looking at the app as*,
+ * which is right for reading their screen and wrong for changing the address
+ * their account is reached at. This refuses instead, so an admin has to leave
+ * the view — and be themselves — before either account can be moved.
+ */
+async function requireOwnAccount() {
+  const context = await findSessionContext()
+  if (!context) {
+    throw new Error("AUTH_REQUIRED")
+  }
+  if (context.viewedBy) {
+    throw new Error("VIEW_AS_ACTIVE")
+  }
+  return context.user
 }
 
 /**

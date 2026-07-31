@@ -355,6 +355,12 @@ export const customShellAuthTokens = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
     purpose: varchar("purpose", { length: 20 }).notNull(),
+    /**
+     * Only on a `change_email` link: the address opening it would move the
+     * account to. Held here rather than on `users` so nothing about the account
+     * changes until the link is actually opened.
+     */
+    newEmail: varchar("new_email", { length: 255 }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -362,7 +368,11 @@ export const customShellAuthTokens = pgTable(
   (table) => [
     check(
       "auth_tokens_purpose_check",
-      sql`${table.purpose} in ('verify_email', 'reset_password', 'login')`
+      sql`${table.purpose} in ('verify_email', 'reset_password', 'login', 'change_email')`
+    ),
+    check(
+      "auth_tokens_new_email_check",
+      sql`(${table.purpose} = 'change_email') = (${table.newEmail} is not null)`
     ),
     index("ix_auth_tokens_user_purpose").on(table.userId, table.purpose),
     index("ix_auth_tokens_expires_at").on(table.expiresAt),
