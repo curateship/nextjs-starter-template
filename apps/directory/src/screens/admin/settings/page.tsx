@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
 import { AdminStylingSettingsTab } from "@/components/admin/layout/settings/AdminStylingSettingsTab"
+import { NotificationPreferencesTab } from "@/components/admin/layout/settings/NotificationPreferencesTab"
 import { checkDomainHealth, type DomainHealth } from "@/lib/actions/newsletters/deliverability-actions"
 import { normalizeContactColdEmailThreshold } from "@/lib/actions/newsletters/contact-filters"
 import { SiteHealthTab } from "@/components/admin/seo-settings/SiteHealthTab"
@@ -481,6 +482,7 @@ const TABS = [
   { id: "email", label: "Email" },
   { id: "integrations", label: "Integrations" },
   { id: "cron-jobs", label: "Cron Jobs" },
+  { id: "notifications", label: "Notifications" },
   { id: "ai", label: "AI Providers" },
   { id: "sidebar", label: "Sidebar" },
   { id: "styling", label: "Styling" }
@@ -604,6 +606,11 @@ export default function SiteEditPage() {
     saving: false,
     saveStatus: IDLE_SAVE_STATUS
   })
+  const [notificationStatus, setNotificationStatus] = useState({
+    loading: true,
+    saving: false,
+    saveStatus: IDLE_SAVE_STATUS
+  })
 
   const [domainHealthRefreshSignal, setDomainHealthRefreshSignal] = useState(0)
 
@@ -625,6 +632,7 @@ export default function SiteEditPage() {
   const isIntegrationTab =
     activeTab === "payments" || activeTab === "email" || activeTab === "integrations" || activeTab === "ai"
   const isNewslettersTab = activeTab === "newsletters"
+  const isNotificationsTab = activeTab === "notifications"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
 
   useEffect(() => {
@@ -873,7 +881,9 @@ export default function SiteEditPage() {
       ? integrationStatus.saveStatus
       : isNewslettersTab
         ? newsletterSaveStatus
-        : siteSaveStatus
+        : isNotificationsTab
+          ? notificationStatus.saveStatus
+          : siteSaveStatus
 
   if (!siteId || !site) {
     return (
@@ -1065,6 +1075,10 @@ export default function SiteEditPage() {
 
               {activeTab === "cron-jobs" && (
                 <SiteHealthTab refreshSignal={cronJobsRefreshSignal} onLoadingChange={setCronJobsLoading} />
+              )}
+
+              {activeTab === "notifications" && (
+                <NotificationPreferencesTab siteId={siteId} onStatusChange={setNotificationStatus} />
               )}
 
               {activeTab === "ai" && (
