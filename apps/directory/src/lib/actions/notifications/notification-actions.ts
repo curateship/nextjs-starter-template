@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import {
   listHubNotificationPageImpl,
-  listHubNotificationsForUserImpl,
   markAllHubNotificationsReadForUserImpl,
   markAllHubNotificationsReadImpl,
   markHubNotificationReadImpl,
@@ -15,9 +14,9 @@ export const listHubNotificationPage = createServerFn({ method: "POST" })
   .inputValidator((data: { siteId: string; cursor?: string | null; limit?: number | null }) => data)
   .handler(async ({ data }) => listHubNotificationPageImpl(data))
 
-export const listHubNotificationsForUser = createServerFn({ method: "POST" })
-  .inputValidator((data: { limit?: number | null }) => data)
-  .handler(async ({ data }) => listHubNotificationsForUserImpl(data))
+// listHubNotificationsForUser is only called while the server renders the
+// multi-site dashboard, so it lives in notification-actions.server.ts with
+// no wrapper.
 
 export const markAllHubNotificationsReadForUser = createServerFn({ method: "POST" })
   .handler(async () => markAllHubNotificationsReadForUserImpl())

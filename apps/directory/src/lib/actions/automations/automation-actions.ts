@@ -5,8 +5,6 @@ import {
   duplicateAutomationImpl,
   getAutomationEditorDataImpl,
   getAutomationsBySiteImpl,
-  getRecentAutomationRunsForSiteImpl,
-  getRecentAutomationRunsForUserImpl,
   runAutomationNowImpl,
   saveAutomationImpl,
   setAutomationStatusImpl,
@@ -21,13 +19,9 @@ export const getAutomationsBySite = createServerFn({ method: "POST" })
   .inputValidator((data: { siteId: string; options?: ListOptions }) => data)
   .handler(async ({ data }) => getAutomationsBySiteImpl(data.siteId, data.options))
 
-export const getRecentAutomationRunsForUser = createServerFn({ method: "POST" })
-  .inputValidator((data: { limit?: number }) => data)
-  .handler(async ({ data }) => getRecentAutomationRunsForUserImpl(data.limit))
-
-export const getRecentAutomationRunsForSite = createServerFn({ method: "POST" })
-  .inputValidator((data: { siteId: string; limit?: number }) => data)
-  .handler(async ({ data }) => getRecentAutomationRunsForSiteImpl(data.siteId, data.limit))
+// getRecentAutomationRunsForUser / getRecentAutomationRunsForSite are only
+// called while the server renders the dashboards, so they live in
+// automation-actions.server.ts with no wrapper.
 
 export const getAutomationEditorData = createServerFn({ method: "POST" })
   .inputValidator((data: { automationId: string }) => data)
