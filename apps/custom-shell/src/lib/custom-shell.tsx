@@ -318,7 +318,15 @@ export type ShellConfig = {
   adminRoute: string
   favicon: string
   topRightNavigation: ShellTopRightNavigationItem[]
+  /** The signed-in admin's own sidebar, saved on their workspace. */
   sections: ShellSection[]
+  /**
+   * The sidebar every member sees, built by an admin and saved app-wide rather
+   * than per person. Members used to get a private copy of the starter links
+   * the first time they signed in, which nobody — not even an admin — could
+   * then edit.
+   */
+  memberSections: ShellSection[]
   /** App-wide lockout: members see the maintenance page, admins keep working. */
   maintenance: ShellMaintenance
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
@@ -663,9 +671,47 @@ export function createDefaultShellConfig(): ShellConfig {
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
+    // Unlike `sections`, which a workspace fills in when it is created, this is
+    // the real starting point — a fresh install has no settings row to read it
+    // from, and members would otherwise open the app to nothing at all.
+    memberSections: createDefaultMemberSections(),
     maintenance: createDefaultMaintenance(),
     styling: createDefaultStyling(),
   }
+}
+
+/**
+ * What a brand-new install offers members before an admin has built anything.
+ *
+ * Deliberately short: the changelog is the only place in this app a member can
+ * actually go. It is a starting point, not a rule — an admin can rename it,
+ * reorder it or empty it out entirely, and an empty list stays empty.
+ */
+export function createDefaultMemberSections(): ShellSection[] {
+  return [
+    {
+      id: "section-member-updates",
+      title: "Updates",
+      entries: [
+        {
+          type: "item",
+          id: "item-member-changelog",
+          label: "Changelog",
+          href: "/changelog",
+          icon: "sparkles",
+          visible: true,
+          children: [
+            {
+              id: "item-member-whats-new",
+              label: "What's new",
+              href: "/changelog/whats-new",
+              icon: "sparkles",
+            },
+          ],
+        },
+      ],
+    },
+  ]
 }
 
 export function normalizeTopRightNavigation(

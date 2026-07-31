@@ -66,7 +66,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
 
     const [settings, workspaces, { entitlements }, unreadCount, announcements] =
       await Promise.all([
-        readShellSettings(user.id),
+        readShellSettings(user),
         readWorkspaceList(user.id),
         loadEntitlements(user.id),
         countUnreadNotifications(user.id),

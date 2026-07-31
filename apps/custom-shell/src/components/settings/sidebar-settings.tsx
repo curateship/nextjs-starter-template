@@ -52,22 +52,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { FieldLabel } from "@/components/ui/field-label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import {
-  createDefaultShellConfig,
   isShellEntryNamed,
   isShellItem,
   renderShellIcon,
   type ShellChildItem,
-  type ShellConfig,
   type ShellEntry,
   type ShellItem,
   type ShellSection,
@@ -86,9 +76,12 @@ function getSectionIdFromDropId(id: string) {
 }
 
 type SidebarSettingsProps = {
-  config: ShellConfig
-  onConfigChange: (config: ShellConfig) => void
+  /** The list being edited — the admin's own, or the one members get. */
+  sections: ShellSection[]
+  onSectionsChange: (sections: ShellSection[]) => void
   onSaveConfig: () => Promise<boolean>
+  /** What the Reset button does, and what it warns it will do. */
+  reset: { label: string; description: string; onReset: () => void }
 }
 
 type SortableItemProps = {
@@ -128,6 +121,7 @@ type SortableSectionProps = {
   onSectionTitleChange: (sectionId: string, title: string) => void
   onSectionDelete: (sectionId: string) => void
   onReset: () => void
+  resetLabel: string
   onItemAdd: (sectionId: string) => void
   onItemChange: (
     sectionId: string,
@@ -160,16 +154,13 @@ function createShellId(prefix: string) {
 }
 
 function updateSection(
-  config: ShellConfig,
+  sections: ShellSection[],
   sectionId: string,
   update: (section: ShellSection) => ShellSection
 ) {
-  return {
-    ...config,
-    sections: config.sections.map((section) =>
-      section.id === sectionId ? update(section) : section
-    ),
-  }
+  return sections.map((section) =>
+    section.id === sectionId ? update(section) : section
+  )
 }
 
 function DividerPreview({ entry }: { entry: ShellEntry }) {
@@ -421,33 +412,6 @@ function SortableSidebarItem({
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor={`item-roles-${item.id}`}
-                    hint="Links to /admin pages are always hidden from members, whatever this says."
-                  >
-                    Visible to
-                  </FieldLabel>
-                  <Select
-                    value={item.roles?.includes("admin") ? "admin" : "everyone"}
-                    onValueChange={(value) =>
-                      onItemChange(sectionId, item.id, {
-                        roles: value === "admin" ? ["admin"] : undefined,
-                      })
-                    }
-                  >
-                    <SelectTrigger
-                      id={`item-roles-${item.id}`}
-                      className="w-full sm:w-fit"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="everyone">Everyone</SelectItem>
-                      <SelectItem value="admin">Admins only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </CardContent>
             </Card>
 
@@ -531,6 +495,7 @@ function SortableSectionCard({
   onSectionTitleChange,
   onSectionDelete,
   onReset,
+  resetLabel,
   onItemAdd,
   onItemChange,
   onItemDelete,
@@ -587,11 +552,11 @@ function SortableSectionCard({
             />
           </div>
           <div className="flex items-center gap-2">
-            {/* Not a per-section reset — this throws away the whole shell
-                config, so the label has to say so. */}
+            {/* Not a per-section reset — it throws away every section on this
+                sidebar, so the label has to say which sidebar that is. */}
             <Button type="button" variant="outline" size="sm" onClick={onReset}>
               <RotateCcwIcon className="h-4 w-4" />
-              Reset all to defaults
+              {resetLabel}
             </Button>
             <Button
               type="button"
@@ -665,9 +630,10 @@ function SortableSectionCard({
 }
 
 export function SidebarSettings({
-  config,
-  onConfigChange,
+  sections,
+  onSectionsChange,
   onSaveConfig,
+  reset,
 }: SidebarSettingsProps) {
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
   const [resetOpen, setResetOpen] = React.useState(false)
@@ -679,26 +645,26 @@ export function SidebarSettings({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
   const sectionIds = React.useMemo(
-    () => new Set(config.sections.map((section) => section.id)),
-    [config.sections]
+    () => new Set(sections.map((section) => section.id)),
+    [sections]
   )
   const emptySectionIds = React.useMemo(
     () =>
       new Set(
-        config.sections
+        sections
           .filter((section) => !section.entries.some(isShellItem))
           .map((section) => section.id)
       ),
-    [config.sections]
+    [sections]
   )
   const itemIds = React.useMemo(
     () =>
       new Set(
-        config.sections.flatMap((section) =>
+        sections.flatMap((section) =>
           section.entries.filter(isShellItem).map((entry) => entry.id)
         )
       ),
-    [config.sections]
+    [sections]
   )
   const collisionDetection = React.useCallback<CollisionDetection>(
     (args) => {
@@ -755,8 +721,8 @@ export function SidebarSettings({
       visible: true,
     }
 
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         entries: [...section.entries, item],
       }))
@@ -764,22 +730,19 @@ export function SidebarSettings({
   }
 
   const handleAddSection = () => {
-    onConfigChange({
-      ...config,
-      sections: [
-        ...config.sections,
-        {
-          id: createShellId("section"),
-          title: "New Section",
-          entries: [],
-        },
-      ],
-    })
+    onSectionsChange([
+      ...sections,
+      {
+        id: createShellId("section"),
+        title: "New Section",
+        entries: [],
+      },
+    ])
   }
 
   const handleSectionTitleChange = (sectionId: string, title: string) => {
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         title,
       }))
@@ -787,10 +750,7 @@ export function SidebarSettings({
   }
 
   const handleSectionDelete = (sectionId: string) => {
-    onConfigChange({
-      ...config,
-      sections: config.sections.filter((section) => section.id !== sectionId),
-    })
+    onSectionsChange(sections.filter((section) => section.id !== sectionId))
   }
 
   const handleItemChange = (
@@ -798,8 +758,8 @@ export function SidebarSettings({
     itemId: string,
     patch: Partial<ShellItem>
   ) => {
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         entries: section.entries.map((entry) =>
           isShellItem(entry) && entry.id === itemId
@@ -811,8 +771,8 @@ export function SidebarSettings({
   }
 
   const handleItemDelete = (sectionId: string, itemId: string) => {
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         entries: section.entries.filter((entry) => entry.id !== itemId),
       }))
@@ -823,23 +783,20 @@ export function SidebarSettings({
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const oldIndex = config.sections.findIndex(
+    const oldIndex = sections.findIndex(
       (section) => section.id === active.id
     )
-    const newIndex = config.sections.findIndex(
+    const newIndex = sections.findIndex(
       (section) => section.id === over.id
     )
 
     if (oldIndex === -1 || newIndex === -1) return
 
-    onConfigChange({
-      ...config,
-      sections: arrayMove(config.sections, oldIndex, newIndex),
-    })
+    onSectionsChange(arrayMove(sections, oldIndex, newIndex))
   }
 
   const findItemLocation = (itemId: string) => {
-    for (const section of config.sections) {
+    for (const section of sections) {
       const itemIndex = section.entries.findIndex(
         (entry) => isShellItem(entry) && entry.id === itemId
       )
@@ -861,7 +818,7 @@ export function SidebarSettings({
     const dropSectionId = getSectionIdFromDropId(overId)
     const overSection =
       overLocation?.section ??
-      config.sections.find(
+      sections.find(
         (section) => section.id === (dropSectionId ?? overId)
       )
 
@@ -871,8 +828,8 @@ export function SidebarSettings({
     if (!isShellItem(activeItem)) return
 
     if (activeLocation.section.id === overSection.id && overLocation) {
-      onConfigChange(
-        updateSection(config, activeLocation.section.id, (section) => ({
+      onSectionsChange(
+        updateSection(sections, activeLocation.section.id, (section) => ({
           ...section,
           entries: arrayMove(
             section.entries,
@@ -884,7 +841,7 @@ export function SidebarSettings({
       return
     }
 
-    const nextSections = config.sections.map((section) => {
+    const nextSections = sections.map((section) => {
       const entries =
         section.id === activeLocation.section.id
           ? section.entries.filter((entry) => entry.id !== activeId)
@@ -906,7 +863,7 @@ export function SidebarSettings({
       }
     })
 
-    onConfigChange({ ...config, sections: nextSections })
+    onSectionsChange(nextSections)
   }
 
   const handleItemDragOver = (event: DragOverEvent) => {
@@ -920,7 +877,7 @@ export function SidebarSettings({
     const dropSectionId = getSectionIdFromDropId(overId)
     const overSection =
       overLocation?.section ??
-      config.sections.find(
+      sections.find(
         (section) => section.id === (dropSectionId ?? overId)
       )
 
@@ -937,7 +894,7 @@ export function SidebarSettings({
     const activeItem = activeLocation.section.entries[activeLocation.itemIndex]
     if (!isShellItem(activeItem)) return
 
-    const nextSections = config.sections.map((section) => {
+    const nextSections = sections.map((section) => {
       const entries =
         section.id === activeLocation.section.id
           ? section.entries.filter((entry) => entry.id !== activeId)
@@ -957,7 +914,7 @@ export function SidebarSettings({
       }
     })
 
-    onConfigChange({ ...config, sections: nextSections })
+    onSectionsChange(nextSections)
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -973,7 +930,7 @@ export function SidebarSettings({
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragId(null)
 
-    if (config.sections.some((section) => section.id === event.active.id)) {
+    if (sections.some((section) => section.id === event.active.id)) {
       handleSectionDragEnd(event)
       return
     }
@@ -994,8 +951,8 @@ export function SidebarSettings({
       href: "",
     }
 
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         entries: section.entries.map((entry) =>
           isShellItem(entry) && entry.id === itemId
@@ -1012,8 +969,8 @@ export function SidebarSettings({
     childId: string,
     patch: Partial<ShellChildItem>
   ) => {
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         entries: section.entries.map((entry) =>
           isShellItem(entry) && entry.id === itemId
@@ -1034,8 +991,8 @@ export function SidebarSettings({
     itemId: string,
     childId: string
   ) => {
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         entries: section.entries.map((entry) =>
           isShellItem(entry) && entry.id === itemId
@@ -1059,8 +1016,8 @@ export function SidebarSettings({
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    onConfigChange(
-      updateSection(config, sectionId, (section) => ({
+    onSectionsChange(
+      updateSection(sections, sectionId, (section) => ({
         ...section,
         entries: section.entries.map((entry) => {
           if (!isShellItem(entry) || entry.id !== itemId) return entry
@@ -1082,7 +1039,7 @@ export function SidebarSettings({
 
   const isDraggingItem = activeDragId ? itemIds.has(activeDragId) : false
   const pendingDeleteSection =
-    config.sections.find((section) => section.id === pendingDeleteSectionId) ??
+    sections.find((section) => section.id === pendingDeleteSectionId) ??
     null
 
   return (
@@ -1097,11 +1054,11 @@ export function SidebarSettings({
         onDragCancel={handleDragCancel}
       >
         <SortableContext
-          items={config.sections.map((section) => section.id)}
+          items={sections.map((section) => section.id)}
           strategy={verticalListSortingStrategy}
         >
           <CardGroup>
-            {config.sections.map((section) => (
+            {sections.map((section) => (
               <SortableSectionCard
                 key={section.id}
                 section={section}
@@ -1111,6 +1068,7 @@ export function SidebarSettings({
                   setPendingDeleteSectionId(sectionId)
                 }
                 onReset={() => setResetOpen(true)}
+                resetLabel={reset.label}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={handleItemDelete}
@@ -1138,12 +1096,12 @@ export function SidebarSettings({
       <ConfirmDialog
         open={resetOpen}
         onOpenChange={setResetOpen}
-        title="Reset All Settings"
-        description="Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone."
-        confirmLabel="Reset everything"
+        title="Reset this sidebar"
+        description={reset.description}
+        confirmLabel="Reset"
         onConfirm={() => {
           setResetOpen(false)
-          onConfigChange(createDefaultShellConfig())
+          reset.onReset()
         }}
       />
 

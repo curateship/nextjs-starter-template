@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 
 import {
+  createDefaultMemberSections,
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   normalizeMaintenance,
@@ -8,7 +9,8 @@ import {
 } from "@/lib/custom-shell"
 import { clampToastSeconds } from "@/lib/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellSettings } from "@/server/schema"
+import { customShellSettings, type CustomShellUser } from "@/server/schema"
+import { isAdmin } from "@/server/security"
 import {
   getOrCreateCurrentWorkspace,
   parseWorkspaceSettings,
@@ -52,14 +54,19 @@ export async function readAppName(
 
 /**
  * The shell config for one person: app-wide globals from the settings row,
- * merged with their current workspace's own navigation and styling.
+ * merged with their current workspace's own styling.
+ *
+ * Which sidebar they get depends on who they are. An admin edits and sees their
+ * own, saved on their workspace. Everybody else gets the one an admin built for
+ * them, saved app-wide — one list in one place, rather than the private frozen
+ * copy every member used to be handed on their first sign-in.
  */
 export async function readShellSettings(
-  userId: string,
+  user: Pick<CustomShellUser, "id" | "role">,
   database: CustomShellDb = db
 ): Promise<ShellConfig> {
   const globals = await readShellGlobals(database)
-  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  const workspace = await getOrCreateCurrentWorkspace(user.id, database)
   const workspaceSettings = parseWorkspaceSettings(workspace.settings)
 
   return {
@@ -68,7 +75,7 @@ export async function readShellSettings(
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
     topRightNavigation: workspaceSettings.topRightNavigation,
-    sections: workspaceSettings.sections,
+    sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
     styling: workspaceSettings.styling,
   }
 }
@@ -104,6 +111,12 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.adminRoute === "string"
         ? settings.adminRoute
         : fallback.adminRoute,
+    // Saved is saved, empty included: an admin who deletes every member link
+    // means it, and handing the starter set back on read would undo that. The
+    // starter only fills in a row that has never had a member sidebar at all.
+    memberSections: Array.isArray(settings.memberSections)
+      ? settings.memberSections
+      : createDefaultMemberSections(),
     maintenance: normalizeMaintenance(settings.maintenance),
   }
 }
@@ -116,6 +129,7 @@ export function pickShellGlobals(settings: ShellConfig) {
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     adminRoute: settings.adminRoute,
+    memberSections: settings.memberSections,
     maintenance: settings.maintenance,
   }
 }
