@@ -207,80 +207,84 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
         </CardContent>
       </Card>
 
-      <FieldGroup className="flex-row flex-nowrap items-start gap-3">
-        <Field className="w-52 shrink-0">
-          <FieldLabel htmlFor="event-date">Date</FieldLabel>
-          <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                id="event-date"
-                className="w-52 justify-between font-normal"
-              >
-                <span className="truncate" title={selectedDate ? format(selectedDate, "PPP") : "Select date"}>{selectedDate ? format(selectedDate, "PPP") : "Select date"}</span>
-                <ChevronDownIcon className="size-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto overflow-hidden p-3" align="start">
-              <Calendar
-                mode="single"
-                className="p-0"
-                selected={selectedDate}
-                captionLayout="dropdown"
-                defaultMonth={selectedDate}
-                onSelect={(date) => {
-                  handleDateSelect(date)
-                  setIsDatePickerOpen(false)
-                }}
+      <Card>
+        <CardContent className="grid gap-4">
+          <FieldGroup className="flex-row flex-nowrap items-start gap-3">
+            <Field className="w-52 shrink-0">
+              <FieldLabel htmlFor="event-date">Date</FieldLabel>
+              <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    id="event-date"
+                    className="w-52 justify-between font-normal"
+                  >
+                    <span className="truncate" title={selectedDate ? format(selectedDate, "PPP") : "Select date"}>{selectedDate ? format(selectedDate, "PPP") : "Select date"}</span>
+                    <ChevronDownIcon className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto overflow-hidden p-3" align="start">
+                  <Calendar
+                    mode="single"
+                    className="p-0"
+                    selected={selectedDate}
+                    captionLayout="dropdown"
+                    defaultMonth={selectedDate}
+                    onSelect={(date) => {
+                      handleDateSelect(date)
+                      setIsDatePickerOpen(false)
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </Field>
+            <Field className="w-32 shrink-0">
+              <FieldLabel htmlFor="event-time">Time</FieldLabel>
+              <Input
+                className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                id="event-time"
+                onChange={handleTimeChange}
+                type="time"
+                value={selectedTime}
               />
-            </PopoverContent>
-          </Popover>
-        </Field>
-        <Field className="w-32 shrink-0">
-          <FieldLabel htmlFor="event-time">Time</FieldLabel>
-          <Input
-            className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-            id="event-time"
-            onChange={handleTimeChange}
-            type="time"
-            value={selectedTime}
-          />
-        </Field>
+            </Field>
 
-        <Field className="min-w-0 flex-1">
-          <FieldLabel htmlFor="event-external-cta-url">RSVP URL</FieldLabel>
-          <Input
-            id="event-external-cta-url"
-            inputMode="url"
-            onChange={(event) => onContentChange('externalCtaUrl', event.target.value)}
-            placeholder="https://tickets.example.com"
-            type="url"
-            value={typeof content.externalCtaUrl === "string" ? content.externalCtaUrl : ""}
-          />
-        </Field>
-      </FieldGroup>
+            <Field className="min-w-0 flex-1">
+              <FieldLabel htmlFor="event-external-cta-url">RSVP URL</FieldLabel>
+              <Input
+                id="event-external-cta-url"
+                inputMode="url"
+                onChange={(event) => onContentChange('externalCtaUrl', event.target.value)}
+                placeholder="https://tickets.example.com"
+                type="url"
+                value={typeof content.externalCtaUrl === "string" ? content.externalCtaUrl : ""}
+              />
+            </Field>
+          </FieldGroup>
 
-      <FieldGroup className="grid gap-3 md:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor="event-venue-name">Venue</FieldLabel>
-          <Input
-            id="event-venue-name"
-            onChange={(event) => onContentChange('venueName', event.target.value)}
-            placeholder="Venue name"
-            value={typeof content.venueName === "string" ? content.venueName : ""}
-          />
-        </Field>
+          <FieldGroup className="grid gap-3 md:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="event-venue-name">Venue</FieldLabel>
+              <Input
+                id="event-venue-name"
+                onChange={(event) => onContentChange('venueName', event.target.value)}
+                placeholder="Venue name"
+                value={typeof content.venueName === "string" ? content.venueName : ""}
+              />
+            </Field>
 
-        <Field>
-          <FieldLabel htmlFor="event-venue-address">Address</FieldLabel>
-          <Input
-            id="event-venue-address"
-            onChange={(event) => onContentChange('venueAddress', event.target.value)}
-            placeholder="Street address, city"
-            value={typeof content.venueAddress === "string" ? content.venueAddress : ""}
-          />
-        </Field>
-      </FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="event-venue-address">Address</FieldLabel>
+              <Input
+                id="event-venue-address"
+                onChange={(event) => onContentChange('venueAddress', event.target.value)}
+                placeholder="Street address, city"
+                value={typeof content.venueAddress === "string" ? content.venueAddress : ""}
+              />
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
