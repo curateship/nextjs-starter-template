@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start"
-import { getRequestIP } from "@tanstack/react-start/server"
+import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
+import { describeDevice } from "@/lib/device-label"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
@@ -17,11 +18,16 @@ import {
   createSessionExpiresAt,
   createSessionToken,
   deleteOtherSessions,
+  deleteUserSession,
   findCurrentUser,
   getSessionToken,
   hashPassword,
   hashSessionToken,
+  listUserSessions,
   now,
+  pruneRefusedSessions,
+  requireSessionOwner,
+  signOutOtherDevices,
   requireUser,
   setSessionCookie,
   uuid,
@@ -102,6 +108,7 @@ const authErrorMessages: Record<string, string> = {
   EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
   EMAIL_DELIVERY_FAILED: "We could not send that email. Please try again.",
   LAST_ADMIN: "There has to be at least one other admin first.",
+  SESSION_NOT_FOUND: "That device is already signed out.",
   PASSWORD_BREACHED:
     "This password has shown up in a known data breach. Please pick a different one.",
   HUMAN_CHECK_FAILED: HUMAN_CHECK_MESSAGE,
@@ -249,6 +256,12 @@ const loginFn = createServerFn({ method: "POST" })
 
     await clearRateLimit(rateLimitKey)
 
+    // Clear this account's dead sessions before adding another. Nothing sweeps
+    // them up otherwise: a session only disappears when somebody signs out or
+    // when its own browser comes back and is turned away. Left alone the
+    // Security tab fills with browsers that nobody could get in with.
+    await pruneRefusedSessions(user.id)
+
     const token = createSessionToken()
     const sessionCreatedAt = now()
     await db.insert(customShellSessions).values({
@@ -258,6 +271,9 @@ const loginFn = createServerFn({ method: "POST" })
       expiresAt: createSessionExpiresAt(),
       createdAt: sessionCreatedAt,
       lastSeenAt: sessionCreatedAt,
+      // Recorded once, at sign-in, and never touched again. This is what the
+      // Security tab shows so somebody can tell their own browsers apart.
+      ...describeRequestOrigin(),
     })
 
     const { getOrCreateCurrentWorkspace } = await import("@/server/workspaces")
@@ -397,11 +413,42 @@ const changePasswordFn = createServerFn({ method: "POST" })
     return { ok: true }
   })
 
+/** The devices signed in to this account, for the Security tab's list. */
+const loadSessionsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const owner = await requireSessionOwner()
+  const { sessions, total } = await listUserSessions(owner.id, getSessionToken())
+
+  return {
+    total,
+    sessions: sessions.map((session) => ({
+      id: session.id,
+      device: describeDevice(session.userAgent),
+      ipAddress: session.ipAddress,
+      signedInAt: session.createdAt.toISOString(),
+      lastSeenAt: session.lastSeenAt.toISOString(),
+      isCurrent: session.isCurrent,
+    })),
+  }
+})
+
+export type SessionList = Awaited<ReturnType<typeof loadSessionsFn>>
+
+const revokeSessionFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ sessionId: z.string().min(1).max(36) }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const owner = await requireSessionOwner()
+    await deleteUserSession(owner.id, data.sessionId, getSessionToken())
+    return { ok: true }
+  })
+
 const signOutOtherSessionsFn = createServerFn({ method: "POST" }).handler(
   async () => {
     requireAppOrigin()
-    const user = await requireUser()
-    const removed = await deleteOtherSessions(user.id, getSessionToken())
+    // The owner, not `requireUser`: an admin viewing the app as a member must
+    // sign out their own other browsers here, never the member's.
+    const owner = await requireSessionOwner()
+    const removed = await signOutOtherDevices(owner.id, getSessionToken())
     return { removed }
   }
 )
@@ -473,6 +520,14 @@ export function changePassword(currentPassword: string, newPassword: string) {
   return changePasswordFn({ data: { currentPassword, newPassword } })
 }
 
+export function loadSessions() {
+  return loadSessionsFn()
+}
+
+export function revokeSession(sessionId: string) {
+  return revokeSessionFn({ data: { sessionId } })
+}
+
 export function signOutOtherSessions() {
   return signOutOtherSessionsFn()
 }
@@ -522,4 +577,20 @@ function sendVerificationEmail(email: string, token: string) {
 
 function requestIp() {
   return getRequestIP({ xForwardedFor: true }) || "unknown"
+}
+
+/**
+ * What to remember about the browser starting a session. Null rather than a
+ * stand-in when either is missing, so the Security tab can say it does not know
+ * instead of showing everyone the same made-up value.
+ *
+ * The user agent is capped because it is a header the caller writes: a huge one
+ * would otherwise be stored whole, once per sign-in. 512 characters is roughly
+ * double the longest real browser sends.
+ */
+function describeRequestOrigin() {
+  return {
+    userAgent: getRequestHeader("user-agent")?.slice(0, 512) ?? null,
+    ipAddress: getRequestIP({ xForwardedFor: true }) ?? null,
+  }
 }

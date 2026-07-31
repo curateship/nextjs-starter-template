@@ -81,13 +81,19 @@ import {
 } from "@/server/notifications"
 import {
   createSessionExpiresAt,
+  deleteUserSession,
   findSessionContextByToken,
   findUserBySessionToken,
   hashSessionToken,
+  listUserSessions,
   now,
+  pruneRefusedSessions,
+  SESSION_LIST_LIMIT,
+  signOutOtherDevices,
   uuid,
   verifyPassword,
 } from "@/server/security"
+import { describeDevice } from "@/lib/device-label"
 import {
   createUserWorkspace,
   deleteUserWorkspace,
@@ -1805,6 +1811,327 @@ describe("view as member", () => {
     await expect(
       stopViewingAs(token, database as unknown as CustomShellDb)
     ).rejects.toThrow("VIEW_AS_NOT_ACTIVE")
+  })
+})
+
+describe("device sessions", () => {
+  const HOUR_MS = 60 * 60 * 1000
+  const DAY_MS = 24 * HOUR_MS
+
+  async function seedSessions() {
+    const createdAt = now()
+    const userId = uuid()
+    const otherUserId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: userId,
+        email: "owner@internal.dev",
+        name: "Owner",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: otherUserId,
+        email: "stranger@internal.dev",
+        name: "Stranger",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const laptopId = uuid()
+    const phoneId = uuid()
+    const expiredId = uuid()
+    const strangerId = uuid()
+    const strangerExpiredId = uuid()
+
+    await database.insert(customShellSessions).values([
+      {
+        id: laptopId,
+        userId,
+        tokenHash: hashSessionToken("laptop-token"),
+        expiresAt: createSessionExpiresAt(),
+        createdAt,
+        lastSeenAt: new Date(createdAt.getTime() - 2 * HOUR_MS),
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
+        ipAddress: "203.0.113.7",
+      },
+      {
+        id: phoneId,
+        userId,
+        tokenHash: hashSessionToken("phone-token"),
+        expiresAt: createSessionExpiresAt(),
+        createdAt,
+        lastSeenAt: createdAt,
+        userAgent:
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/604.1",
+        ipAddress: "198.51.100.4",
+      },
+      {
+        id: expiredId,
+        userId,
+        tokenHash: hashSessionToken("expired-token"),
+        expiresAt: new Date(createdAt.getTime() - HOUR_MS),
+        createdAt,
+        lastSeenAt: createdAt,
+      },
+      {
+        id: strangerId,
+        userId: otherUserId,
+        tokenHash: hashSessionToken("stranger-token"),
+        expiresAt: createSessionExpiresAt(),
+        createdAt,
+        lastSeenAt: createdAt,
+      },
+      {
+        // Somebody else's dead session. It exists so a clean-up that forgot
+        // whose rows it was allowed to touch would be caught deleting it.
+        id: strangerExpiredId,
+        userId: otherUserId,
+        tokenHash: hashSessionToken("stranger-expired-token"),
+        expiresAt: new Date(createdAt.getTime() - HOUR_MS),
+        createdAt,
+        lastSeenAt: createdAt,
+      },
+    ])
+
+    return {
+      userId,
+      laptopId,
+      phoneId,
+      expiredId,
+      strangerId,
+      strangerExpiredId,
+    }
+  }
+
+  it("names the browser a session was started from", () => {
+    expect(
+      describeDevice(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"
+      )
+    ).toBe("Chrome on macOS")
+    // Edge and Safari both hide behind names other browsers also use.
+    expect(
+      describeDevice(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 Edg/141.0"
+      )
+    ).toBe("Edge on Windows")
+    expect(
+      describeDevice(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/604.1"
+      )
+    ).toBe("Safari on iPhone")
+    expect(describeDevice(null)).toBe("Unknown device")
+    expect(describeDevice("curl/8.7.1")).toBe("Unknown device")
+  })
+
+  it("lists only this account's live sessions, busiest first, and marks this browser", async () => {
+    const { userId, laptopId, phoneId } = await seedSessions()
+
+    const { sessions, total } = await listUserSessions(
+      userId,
+      "phone-token",
+      database as unknown as CustomShellDb
+    )
+
+    // The stranger's session and the one that ran out are both left out.
+    expect(total).toBe(2)
+    expect(sessions.map((session) => session.id)).toEqual([phoneId, laptopId])
+    expect(sessions[0].isCurrent).toBe(true)
+    expect(sessions[1].isCurrent).toBe(false)
+    expect(sessions[1].ipAddress).toBe("203.0.113.7")
+    // The one value on the row that could sign somebody in must not travel out.
+    expect(sessions[0]).not.toHaveProperty("tokenHash")
+  })
+
+  it("caps the list but still counts everything signed in", async () => {
+    const { userId } = await seedSessions()
+    const createdAt = now()
+
+    await database.insert(customShellSessions).values(
+      Array.from({ length: SESSION_LIST_LIMIT }, (_, index) => ({
+        id: uuid(),
+        userId,
+        tokenHash: hashSessionToken(`spare-token-${index}`),
+        expiresAt: createSessionExpiresAt(),
+        createdAt,
+        // Older than the laptop and the phone, so these fill the list from the
+        // bottom and the two real devices stay on it.
+        lastSeenAt: new Date(createdAt.getTime() - (index + 3) * HOUR_MS),
+      }))
+    )
+
+    const { sessions, total } = await listUserSessions(
+      userId,
+      "phone-token",
+      database as unknown as CustomShellDb
+    )
+
+    expect(sessions).toHaveLength(SESSION_LIST_LIMIT)
+    expect(total).toBe(SESSION_LIST_LIMIT + 2)
+    expect(sessions[0].isCurrent).toBe(true)
+  })
+
+  it("leaves out sessions the app would already refuse", async () => {
+    const { userId, laptopId, phoneId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+    const createdAt = now()
+
+    // Old enough that the 30-day rule below turns it away, but still inside the
+    // ten-year cookie — exactly the session that used to show up as if it were
+    // fine, then die the moment its browser came back.
+    const staleId = uuid()
+    await database.insert(customShellSessions).values({
+      id: staleId,
+      userId,
+      tokenHash: hashSessionToken("stale-token"),
+      expiresAt: createSessionExpiresAt(),
+      createdAt: new Date(createdAt.getTime() - 40 * DAY_MS),
+      lastSeenAt: new Date(createdAt.getTime() - 40 * DAY_MS),
+    })
+
+    const before = await listUserSessions(userId, "phone-token", testDb)
+    expect(before.sessions.map((session) => session.id)).toContain(staleId)
+
+    await setSessionPolicy({ maxAgeDays: 30, idleMinutes: 0 }, testDb)
+
+    const after = await listUserSessions(userId, "phone-token", testDb)
+    expect(after.sessions.map((session) => session.id)).toEqual([
+      phoneId,
+      laptopId,
+    ])
+    // The count has to agree, or the page says how many are hidden and is wrong.
+    expect(after.total).toBe(2)
+  })
+
+  it("leaves out sessions that sat idle past the limit", async () => {
+    const { userId, phoneId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    // The laptop was last used two hours ago; the phone, just now.
+    await setSessionPolicy({ maxAgeDays: 0, idleMinutes: 60 }, testDb)
+
+    const { sessions } = await listUserSessions(userId, "phone-token", testDb)
+    expect(sessions.map((session) => session.id)).toEqual([phoneId])
+  })
+
+  it("clears this account's refused sessions and nobody else's", async () => {
+    const { userId, laptopId, phoneId, expiredId, strangerId, strangerExpiredId } =
+      await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    await setSessionPolicy({ maxAgeDays: 0, idleMinutes: 60 }, testDb)
+
+    // The one that ran out and the one that sat idle: two gone.
+    await expect(pruneRefusedSessions(userId, testDb)).resolves.toBe(2)
+
+    const left = await database
+      .select({ id: customShellSessions.id })
+      .from(customShellSessions)
+    const ids = left.map((row) => row.id)
+    expect(ids).toContain(phoneId)
+    expect(ids).not.toContain(laptopId)
+    expect(ids).not.toContain(expiredId)
+    // Another account's rows are never in reach, whatever the policy says —
+    // including their dead ones, which is the case a missing owner check
+    // would sail straight through.
+    expect(ids).toContain(strangerId)
+    expect(ids).toContain(strangerExpiredId)
+  })
+
+  it("clears only genuinely expired sessions when no limit is set", async () => {
+    const { userId, laptopId, phoneId, expiredId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    await expect(pruneRefusedSessions(userId, testDb)).resolves.toBe(1)
+
+    const { sessions } = await listUserSessions(userId, "phone-token", testDb)
+    expect(sessions.map((session) => session.id)).toEqual([phoneId, laptopId])
+
+    const [gone] = await database
+      .select({ id: customShellSessions.id })
+      .from(customShellSessions)
+      .where(eq(customShellSessions.id, expiredId))
+    expect(gone).toBeUndefined()
+  })
+
+  it("ends one other session and leaves the rest alone", async () => {
+    const { userId, laptopId, phoneId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    await deleteUserSession(userId, laptopId, "phone-token", testDb)
+
+    const { sessions } = await listUserSessions(userId, "phone-token", testDb)
+    expect(sessions.map((session) => session.id)).toEqual([phoneId])
+  })
+
+  it("signs out the others and counts only the ones really signed in", async () => {
+    const { userId, phoneId, expiredId, strangerId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    // The laptop went idle an hour ago and the third one already ran out, so
+    // only the phone is genuinely signed in besides nothing else.
+    await setSessionPolicy({ maxAgeDays: 0, idleMinutes: 60 }, testDb)
+
+    // One live browser other than this one would have been zero here; both the
+    // idle laptop and the expired row are swept up but neither is counted.
+    await expect(
+      signOutOtherDevices(userId, "phone-token", testDb)
+    ).resolves.toBe(0)
+
+    const left = await database
+      .select({ id: customShellSessions.id })
+      .from(customShellSessions)
+    const ids = left.map((row) => row.id)
+    expect(ids).toContain(phoneId)
+    expect(ids).not.toContain(expiredId)
+    expect(ids).toContain(strangerId)
+  })
+
+  it("counts a second live browser when signing the others out", async () => {
+    const { userId, phoneId, laptopId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    // No limits, so the laptop still counts as signed in.
+    await expect(
+      signOutOtherDevices(userId, "phone-token", testDb)
+    ).resolves.toBe(1)
+
+    const { sessions } = await listUserSessions(userId, "phone-token", testDb)
+    expect(sessions.map((session) => session.id)).toEqual([phoneId])
+    expect(sessions.map((session) => session.id)).not.toContain(laptopId)
+  })
+
+  it("refuses a session id belonging to somebody else", async () => {
+    const { userId, strangerId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    await expect(
+      deleteUserSession(userId, strangerId, "phone-token", testDb)
+    ).rejects.toThrow("SESSION_NOT_FOUND")
+
+    // Still signed in, which is the point of the check.
+    const stranger = await findUserBySessionToken("stranger-token", testDb)
+    expect(stranger).not.toBeNull()
+  })
+
+  it("refuses to sign out the browser doing the asking", async () => {
+    const { userId, phoneId } = await seedSessions()
+    const testDb = database as unknown as CustomShellDb
+
+    await expect(
+      deleteUserSession(userId, phoneId, "phone-token", testDb)
+    ).rejects.toThrow("SESSION_NOT_FOUND")
+
+    const { sessions } = await listUserSessions(userId, "phone-token", testDb)
+    expect(sessions.map((session) => session.id)).toContain(phoneId)
   })
 })
 

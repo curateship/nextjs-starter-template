@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto"
 
 import { getCookie, getRequestProtocol, setCookie } from "@tanstack/react-start/server"
 import { hash, verify } from "argon2"
-import { eq, and, gt, inArray, isNull, ne } from "drizzle-orm"
+import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or } from "drizzle-orm"
 
 import { normalizeSessionPolicy } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
@@ -186,6 +186,23 @@ export async function requireUser(database: CustomShellDb = db) {
   return user
 }
 
+/**
+ * The account that actually owns this browser's session — which, while an admin
+ * is viewing the app as a member, is the admin and not the member.
+ *
+ * Anything that manages the sessions themselves has to go through this rather
+ * than `requireUser`. Acting as the viewed member would show an admin somebody
+ * else's browsers and addresses, and let them sign that person out of their own
+ * account.
+ */
+export async function requireSessionOwner(database: CustomShellDb = db) {
+  const context = await findSessionContext(database)
+  if (!context) {
+    throw new Error("AUTH_REQUIRED")
+  }
+  return context.viewedBy ?? context.user
+}
+
 export async function requireAdmin(database: CustomShellDb = db) {
   const user = await requireUser(database)
   if (!isAdmin(user)) {
@@ -221,6 +238,211 @@ export async function deleteOtherSessions(
 
 export function getSessionToken() {
   return getCookie(SESSION_COOKIE_NAME)
+}
+
+/** One signed-in browser, as the Security tab shows it. */
+export type UserSession = {
+  id: string
+  /** How the browser introduced itself, or null if it did not. */
+  userAgent: string | null
+  ipAddress: string | null
+  createdAt: Date
+  lastSeenAt: Date
+  /** The browser asking for the list. It is never offered a sign-out button. */
+  isCurrent: boolean
+}
+
+/**
+ * How many devices the list shows.
+ *
+ * There is a cap because sessions last a long time and nothing prunes them: an
+ * account two weeks into daily use can easily hold hundreds, and all of them in
+ * one modal is a wall nobody can read. The count of the rest is returned so the
+ * page can say plainly that there are more, and "sign out all other devices"
+ * clears them in one go.
+ */
+export const SESSION_LIST_LIMIT = 20
+
+/**
+ * The rule for "this session would still let somebody in", written the same way
+ * `findSessionContextByToken` above decides it: inside its own lifetime, and
+ * inside both limits from Settings → Security. A limit of 0 means it is off.
+ *
+ * The Security tab must not list a session the app would already refuse. Left
+ * to the lifetime alone it would show sessions that die the moment their
+ * browser tries to use them, which is worse than not listing them at all.
+ */
+function stillSignedIn(
+  userId: string,
+  policy: { maxAgeDays: number; idleMinutes: number },
+  timestamp: Date
+) {
+  const conditions = [
+    eq(customShellSessions.userId, userId),
+    gt(customShellSessions.expiresAt, timestamp),
+  ]
+
+  if (policy.maxAgeDays > 0) {
+    conditions.push(
+      gt(
+        customShellSessions.createdAt,
+        new Date(timestamp.getTime() - policy.maxAgeDays * DAY_MS)
+      )
+    )
+  }
+  if (policy.idleMinutes > 0) {
+    conditions.push(
+      gt(
+        customShellSessions.lastSeenAt,
+        new Date(timestamp.getTime() - policy.idleMinutes * MINUTE_MS)
+      )
+    )
+  }
+
+  return and(...conditions)
+}
+
+/**
+ * Deletes the sessions this account has that would already be refused, and
+ * answers how many went.
+ *
+ * Called at sign-in, so the pile clears itself without a background job. It is
+ * only ever the signer's own rows, and only ones the very next request would
+ * have deleted anyway — this brings the deletion forward, it does not sign
+ * anybody out who was still getting in.
+ */
+export async function pruneRefusedSessions(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const policy = await readSessionPolicyRow(database)
+  const timestamp = now()
+  const refused = [lte(customShellSessions.expiresAt, timestamp)]
+
+  if (policy.maxAgeDays > 0) {
+    refused.push(
+      lte(
+        customShellSessions.createdAt,
+        new Date(timestamp.getTime() - policy.maxAgeDays * DAY_MS)
+      )
+    )
+  }
+  if (policy.idleMinutes > 0) {
+    refused.push(
+      lte(
+        customShellSessions.lastSeenAt,
+        new Date(timestamp.getTime() - policy.idleMinutes * MINUTE_MS)
+      )
+    )
+  }
+
+  const deleted = await database
+    .delete(customShellSessions)
+    .where(and(eq(customShellSessions.userId, userId), or(...refused)))
+    .returning({ id: customShellSessions.id })
+
+  return deleted.length
+}
+
+/**
+ * The account's most recently used sessions, busiest first, with the number it
+ * has in total.
+ *
+ * Sessions the app would refuse are left out but not deleted here: a read path
+ * that writes would make simply opening the Security tab a delete. Signing in
+ * is what clears them.
+ */
+export async function listUserSessions(
+  userId: string,
+  currentToken: string | undefined,
+  database: CustomShellDb = db
+): Promise<{ sessions: UserSession[]; total: number }> {
+  const policy = await readSessionPolicyRow(database)
+  const live = stillSignedIn(userId, policy, now())
+
+  // The browser asking is always in this window: listing is itself a request,
+  // and a request refreshes its own last-seen clock.
+  const [rows, [counted]] = await Promise.all([
+    database
+      .select()
+      .from(customShellSessions)
+      .where(live)
+      .orderBy(desc(customShellSessions.lastSeenAt))
+      .limit(SESSION_LIST_LIMIT),
+    database
+      .select({ total: count() })
+      .from(customShellSessions)
+      .where(live),
+  ])
+
+  const currentHash = currentToken ? hashSessionToken(currentToken) : null
+
+  return {
+    // The token hash stays here. It is the only thing on the row that could
+    // sign somebody in, so it must not travel out to the browser with the rest.
+    sessions: rows.map((row) => ({
+      id: row.id,
+      userAgent: row.userAgent,
+      ipAddress: row.ipAddress,
+      createdAt: row.createdAt,
+      lastSeenAt: row.lastSeenAt,
+      isCurrent: currentHash != null && row.tokenHash === currentHash,
+    })),
+    total: counted?.total ?? rows.length,
+  }
+}
+
+/**
+ * Signs out every other browser, and answers how many of them were really still
+ * signed in.
+ *
+ * The delete takes refused rows with it, which is the tidying we want. Counting
+ * them would not be: telling somebody they just signed out fifty devices when
+ * the list in front of them showed three is alarming and untrue.
+ */
+export async function signOutOtherDevices(
+  userId: string,
+  currentToken: string | undefined,
+  database: CustomShellDb = db
+) {
+  const { total } = await listUserSessions(userId, currentToken, database)
+  await deleteOtherSessions(userId, currentToken, database)
+
+  // The browser asking is one of the live ones, and it is the one kept.
+  return Math.max(total - 1, 0)
+}
+
+/**
+ * Ends one other session.
+ *
+ * The where clause is the whole guard: it matches only a row this account owns
+ * and only one that is not the browser asking, so a guessed id can neither sign
+ * somebody else out nor sign this browser out of the page it is on.
+ */
+export async function deleteUserSession(
+  userId: string,
+  sessionId: string,
+  currentToken: string | undefined,
+  database: CustomShellDb = db
+) {
+  const conditions = [
+    eq(customShellSessions.id, sessionId),
+    eq(customShellSessions.userId, userId),
+  ]
+  if (currentToken) {
+    conditions.push(
+      ne(customShellSessions.tokenHash, hashSessionToken(currentToken))
+    )
+  }
+
+  const [deleted] = await database
+    .delete(customShellSessions)
+    .where(and(...conditions))
+    .returning({ id: customShellSessions.id })
+
+  if (!deleted) {
+    throw new Error("SESSION_NOT_FOUND")
+  }
 }
 
 export async function findUserBySessionToken(

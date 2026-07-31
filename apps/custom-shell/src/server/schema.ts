@@ -59,6 +59,19 @@ export const customShellSessions = pgTable(
       .notNull()
       .defaultNow(),
     /**
+     * The browser this session was started from, exactly as it introduced
+     * itself. Stored raw so the device list can be described better later
+     * without having re-asked anybody to sign in. Null for sessions that
+     * predate the device list, and for a browser that sends no user agent.
+     */
+    userAgent: text("user_agent"),
+    /**
+     * Where the sign-in came from, kept whole rather than masked: it is only
+     * ever shown to the person who signed in from it, and it dies with this
+     * row. Null when the address could not be read.
+     */
+    ipAddress: varchar("ip_address", { length: 45 }),
+    /**
      * Set while an admin is looking at the app as this member. `userId` above
      * stays the admin who signed in, so the real owner is never lost and
      * exiting is one column write. See `@/server/view-as`.
