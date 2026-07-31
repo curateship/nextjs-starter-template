@@ -7,6 +7,7 @@ import { adminSettings } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { MAX_ADMIN_SIDEBAR_WIDTH, MIN_ADMIN_SIDEBAR_WIDTH } from '@/lib/utils/admin-sidebar-width'
 import { normalizeStyling, type AdminStyling } from '@/lib/utils/admin-styling'
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from '@/lib/toast-seconds'
 
 export interface AdminSettings {
   id: string
@@ -15,6 +16,8 @@ export interface AdminSettings {
     dashboard_page_size?: number
     sidebar_width?: number
     home_route?: string
+    /** How long a non-error toast stays on screen, in seconds. */
+    toast_seconds?: number
     /** Runtime admin appearance controls (Settings → Styling). */
     styling?: AdminStyling
   }
@@ -27,6 +30,7 @@ export interface UpdateAdminSettingsData {
   dashboard_page_size?: number
   sidebar_width?: number
   home_route?: string
+  toast_seconds?: number
   styling?: AdminStyling
 }
 
@@ -106,6 +110,18 @@ export async function updateAdminSettingsAction(
       return {
         success: false,
         error: `Invalid sidebar width. Must be between ${MIN_ADMIN_SIDEBAR_WIDTH} and ${MAX_ADMIN_SIDEBAR_WIDTH} pixels.`
+      }
+    }
+
+    if (
+      settingsData.toast_seconds !== undefined &&
+      (!Number.isInteger(settingsData.toast_seconds) ||
+        settingsData.toast_seconds < MIN_TOAST_SECONDS ||
+        settingsData.toast_seconds > MAX_TOAST_SECONDS)
+    ) {
+      return {
+        success: false,
+        error: `Invalid toast duration. Must be between ${MIN_TOAST_SECONDS} and ${MAX_TOAST_SECONDS} seconds.`
       }
     }
 

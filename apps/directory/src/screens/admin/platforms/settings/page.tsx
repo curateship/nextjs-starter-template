@@ -1,16 +1,25 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
 import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid.js"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { setToastSeconds } from "@/lib/toast-duration"
+import {
+  clampToastSeconds,
+  DEFAULT_TOAST_SECONDS,
+  MAX_TOAST_SECONDS,
+  MIN_TOAST_SECONDS
+} from "@/lib/toast-seconds"
 
 function PlatformSettingsSkeleton() {
   return (
@@ -29,55 +38,133 @@ function PlatformSettingsSkeleton() {
   )
 }
 
+/**
+ * Seconds a success message stays on screen. Keeps its own draft string so a
+ * half-typed or out-of-range value is reported instead of being written to the
+ * setting — writing a clamped number back mid-keystroke would rewrite "9" to
+ * "60" while the user was still typing "90".
+ */
+function ToastSecondsField({
+  seconds,
+  disabled,
+  onChange
+}: {
+  seconds: number
+  disabled: boolean
+  onChange: (seconds: number) => void
+}) {
+  const [draft, setDraft] = useState(() => String(seconds))
+  const [lastSaved, setLastSaved] = useState(seconds)
+
+  // Follow the saved value when something else changes it (the settings finish
+  // loading). Adjusted during render rather than in an effect so the field
+  // never paints the stale number first.
+  if (lastSaved !== seconds) {
+    setLastSaved(seconds)
+    setDraft(String(seconds))
+  }
+
+  const isValid = (value: string) => {
+    const parsed = Number(value)
+    return (
+      value.trim() !== "" &&
+      Number.isInteger(parsed) &&
+      parsed >= MIN_TOAST_SECONDS &&
+      parsed <= MAX_TOAST_SECONDS
+    )
+  }
+
+  return (
+    <div className="mt-4 grid max-w-xs gap-2">
+      <FieldLabel
+        htmlFor="platform-toast-seconds"
+        hint={`How long a success message stays on screen, from ${MIN_TOAST_SECONDS} to ${MAX_TOAST_SECONDS} seconds. Failures are not affected — they stay until you dismiss them.`}
+      >
+        Toast message duration (seconds)
+      </FieldLabel>
+      <Input
+        id="platform-toast-seconds"
+        type="number"
+        inputMode="numeric"
+        min={MIN_TOAST_SECONDS}
+        max={MAX_TOAST_SECONDS}
+        value={draft}
+        disabled={disabled}
+        aria-invalid={!isValid(draft) || undefined}
+        onChange={(event) => {
+          const next = event.target.value
+          setDraft(next)
+          if (isValid(next)) onChange(Number(next))
+        }}
+        onBlur={() => {
+          if (!isValid(draft)) {
+            showErrorToast(
+              `Enter a whole number of seconds between ${MIN_TOAST_SECONDS} and ${MAX_TOAST_SECONDS}. The last valid value is still in use.`
+            )
+          }
+        }}
+      />
+    </div>
+  )
+}
+
 export default function PlatformSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [dashboardPageSize, setDashboardPageSize] = useState(50)
   const [homeRoute, setHomeRoute] = useState("")
+  const [toastSeconds, setToastSecondsValue] = useState(DEFAULT_TOAST_SECONDS)
   const [hasChanges, setHasChanges] = useState(false)
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const result = await getAdminSettingsAction()
-        if (result.error || !result.data) {
-          setMessage({ type: "error", text: result.error || "Failed to load settings" })
-          return
-        }
-
-        setDashboardPageSize(result.data.settings.dashboard_page_size || 50)
-        setHomeRoute(result.data.settings.home_route || "")
-      } catch (error) {
-        console.error("Error loading settings:", error)
-        setMessage({ type: "error", text: "Failed to load settings" })
-      } finally {
-        setLoading(false)
+  const loadSettings = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const result = await getAdminSettingsAction()
+      if (result.error || !result.data) {
+        setLoadError(result.error || "Failed to load settings")
+        return
       }
-    }
 
-    void loadSettings()
+      setDashboardPageSize(result.data.settings.dashboard_page_size || 50)
+      setHomeRoute(result.data.settings.home_route || "")
+      setToastSecondsValue(clampToastSeconds(result.data.settings.toast_seconds))
+    } catch (error) {
+      console.error("Error loading settings:", error)
+      setLoadError("Failed to load settings")
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
 
   const handleSave = async () => {
     setSaving(true)
-    setMessage(null)
+    dismissErrorToast()
 
     try {
       const result = await updateAdminSettingsAction({
         dashboard_page_size: dashboardPageSize,
-        home_route: homeRoute.trim()
+        home_route: homeRoute.trim(),
+        toast_seconds: toastSeconds
       })
       if (result.error) {
-        setMessage({ type: "error", text: result.error })
+        showErrorToast(result.error)
         return
       }
 
-      setMessage({ type: "success", text: "Settings saved successfully" })
+      // The root layout published the old value on page load, so hand the
+      // Toaster the new one rather than waiting for a full reload.
+      setToastSeconds(toastSeconds)
+      showActionSuccess("Settings saved.")
       setHasChanges(false)
     } catch (error) {
       console.error("Error saving settings:", error)
-      setMessage({ type: "error", text: "Failed to save settings" })
+      showErrorToast("Failed to save settings")
     } finally {
       setSaving(false)
     }
@@ -98,13 +185,10 @@ export default function PlatformSettingsPage() {
             saveVariant="default"
           />
 
-          {message ? (
-            <Alert className={`mb-6 ${message.type === "error" ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className={message.type === "error" ? "text-red-800" : "text-green-800"}>
-                {message.text}
-              </AlertDescription>
-            </Alert>
+          {loadError ? (
+            <div className="mb-3 overflow-hidden rounded-lg">
+              <ErrorBanner message={loadError} onRetry={() => void loadSettings()} />
+            </div>
           ) : null}
 
           <AdminCard>
@@ -121,8 +205,13 @@ export default function PlatformSettingsPage() {
                   Configure dashboard defaults for the admin panel.
                 </p>
 
-                <div className="max-w-xs">
-                  <label className="mb-2 block text-sm font-medium">Default dashboard rows per page</label>
+                <div className="grid max-w-xs gap-2">
+                  <FieldLabel
+                    htmlFor="platform-page-size"
+                    hint="Applies to all admin dashboard listing pages (posts, products, events, etc.)"
+                  >
+                    Default dashboard rows per page
+                  </FieldLabel>
                   <Select
                     value={String(dashboardPageSize)}
                     onValueChange={(value) => {
@@ -131,7 +220,7 @@ export default function PlatformSettingsPage() {
                     }}
                     disabled={saving}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger id="platform-page-size" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -140,15 +229,15 @@ export default function PlatformSettingsPage() {
                       <SelectItem value="100">100</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Applies to all admin dashboard listing pages (posts, products, events, etc.)
-                  </p>
                 </div>
 
-                <div className="mt-6 max-w-xs">
-                  <label htmlFor="platform-home-route" className="mb-2 block text-sm font-medium">
+                <div className="mt-4 grid max-w-xs gap-2">
+                  <FieldLabel
+                    htmlFor="platform-home-route"
+                    hint="Where /admin opens (e.g. /admin/posts). Empty opens the Dashboard. Must be a real route."
+                  >
                     Home route
-                  </label>
+                  </FieldLabel>
                   <Input
                     id="platform-home-route"
                     value={homeRoute}
@@ -159,10 +248,16 @@ export default function PlatformSettingsPage() {
                       setHasChanges(true)
                     }}
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Where /admin opens (e.g. /admin/posts). Empty opens the Dashboard. Must be a real route.
-                  </p>
                 </div>
+
+                <ToastSecondsField
+                  seconds={toastSeconds}
+                  disabled={saving}
+                  onChange={(next) => {
+                    setToastSecondsValue(next)
+                    setHasChanges(true)
+                  }}
+                />
               </div>
             )}
           </AdminCard>

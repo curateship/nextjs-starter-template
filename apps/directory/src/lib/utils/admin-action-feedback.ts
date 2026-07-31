@@ -18,7 +18,9 @@ export function showActionError(message: string) {
 }
 
 export function showActionSuccess(message: string) {
-  toast.success(message, { duration: 3500 })
+  // No duration here: the Toaster's own duration is the saved setting
+  // (Platform Settings → Toast message duration).
+  toast.success(message)
 }
 
 export async function runAction<TResult extends AdminActionResult<unknown>>(
