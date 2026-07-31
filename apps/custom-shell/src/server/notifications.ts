@@ -13,6 +13,7 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
+  customShellAnnouncements,
   customShellChangelogEntries,
   customShellFeedback,
   customShellNotifications,
@@ -272,8 +273,8 @@ async function serializeNotificationRows(
     return []
   }
 
-  // A changelog notice has no actor and no feedback, and a feedback notice has
-  // no changelog entry, so each lookup only asks about the rows that have one.
+  // Each kind of notice fills in one of these and leaves the rest null, so each
+  // lookup only asks about the rows that actually have one.
   const userIds = Array.from(
     new Set(
       rows.flatMap((row) =>
@@ -291,31 +292,45 @@ async function serializeNotificationRows(
       rows.flatMap((row) => (row.changelogEntryId ? [row.changelogEntryId] : []))
     )
   )
+  const announcementIds = Array.from(
+    new Set(rows.flatMap((row) => (row.announcementId ? [row.announcementId] : [])))
+  )
 
-  const [userRows, feedbackRows, changelogRows] = await Promise.all([
-    database
-      .select({ id: customShellUsers.id, name: customShellUsers.name })
-      .from(customShellUsers)
-      .where(inArray(customShellUsers.id, userIds)),
-    feedbackIds.length
-      ? database
-          .select({
-            id: customShellFeedback.id,
-            message: customShellFeedback.message,
-          })
-          .from(customShellFeedback)
-          .where(inArray(customShellFeedback.id, feedbackIds))
-      : [],
-    changelogIds.length
-      ? database
-          .select({
-            id: customShellChangelogEntries.id,
-            title: customShellChangelogEntries.title,
-          })
-          .from(customShellChangelogEntries)
-          .where(inArray(customShellChangelogEntries.id, changelogIds))
-      : [],
-  ])
+  const [userRows, feedbackRows, changelogRows, announcementRows] =
+    await Promise.all([
+      database
+        .select({ id: customShellUsers.id, name: customShellUsers.name })
+        .from(customShellUsers)
+        .where(inArray(customShellUsers.id, userIds)),
+      feedbackIds.length
+        ? database
+            .select({
+              id: customShellFeedback.id,
+              message: customShellFeedback.message,
+            })
+            .from(customShellFeedback)
+            .where(inArray(customShellFeedback.id, feedbackIds))
+        : [],
+      changelogIds.length
+        ? database
+            .select({
+              id: customShellChangelogEntries.id,
+              title: customShellChangelogEntries.title,
+            })
+            .from(customShellChangelogEntries)
+            .where(inArray(customShellChangelogEntries.id, changelogIds))
+        : [],
+      announcementIds.length
+        ? database
+            .select({
+              id: customShellAnnouncements.id,
+              title: customShellAnnouncements.title,
+              body: customShellAnnouncements.body,
+            })
+            .from(customShellAnnouncements)
+            .where(inArray(customShellAnnouncements.id, announcementIds))
+        : [],
+    ])
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
   const feedbackMessages = new Map(
@@ -323,6 +338,9 @@ async function serializeNotificationRows(
   )
   const changelogTitles = new Map(
     changelogRows.map((row) => [row.id, row.title])
+  )
+  const announcements = new Map(
+    announcementRows.map((row) => [row.id, row])
   )
 
   return rows.map((row) => ({
@@ -339,6 +357,15 @@ async function serializeNotificationRows(
     changelog_entry_id: row.changelogEntryId,
     changelog_title: row.changelogEntryId
       ? (changelogTitles.get(row.changelogEntryId) ?? "Deleted update")
+      : null,
+    announcement_id: row.announcementId,
+    // Deleting an announcement takes its notices with it, so the fallback here
+    // only ever shows during the moment between the two.
+    announcement_title: row.announcementId
+      ? (announcements.get(row.announcementId)?.title ?? "Deleted announcement")
+      : null,
+    announcement_body: row.announcementId
+      ? (announcements.get(row.announcementId)?.body ?? "")
       : null,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),

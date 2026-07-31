@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner"
 
 import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
+import { AnnouncementBanners } from "@/components/shell/announcement-banner"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -22,6 +23,7 @@ import {
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   getModalStyleVars,
+  isActiveShellHref,
   isShellEntryNamed,
   isShellItem,
   MODAL_STYLE_VAR_NAMES,
@@ -37,6 +39,7 @@ import {
   type ShellSection,
 } from "@/lib/custom-shell"
 import { resolveAppName } from "@/lib/app-name"
+import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
@@ -88,12 +91,14 @@ export function ShellLayout({
   workspaces,
   plan,
   unreadNotifications,
+  announcements,
 }: {
   user: AuthUser
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
   plan: PlanSummary
   unreadNotifications: number
+  announcements: UserAnnouncement[]
 }) {
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
@@ -415,6 +420,14 @@ export function ShellLayout({
               onOpenFeedbackThread={openFeedback}
             />
             <DashboardContent styling={config.styling}>
+              {/* First cards on the page, so a broadcast rides the content
+                  gutter and the workspace's own card styling. Remounted per set
+                  of ids so a fresh load after one is retired starts from the
+                  server's list, not a stale local one. */}
+              <AnnouncementBanners
+                key={announcements.map((item) => item.id).join("|")}
+                announcements={announcements}
+              />
               <Outlet />
             </DashboardContent>
           </SidebarInset>
@@ -567,19 +580,14 @@ function getShellItems(config: ShellConfig, role: string) {
     }))
 }
 
-function isActivePath(href: string, currentPath: string) {
-  return (
-    href === currentPath ||
-    (href !== "/" && currentPath.startsWith(`${href}/`))
-  )
-}
-
 function findActiveSectionItem(items: ShellItem[], currentPath: string) {
   return items.find(
     (item) =>
       item.children?.length &&
-      (isActivePath(item.href, currentPath) ||
-        item.children.some((child) => isActivePath(child.href, currentPath)))
+      (isActiveShellHref(item.href, currentPath) ||
+        item.children.some((child) =>
+          isActiveShellHref(child.href, currentPath)
+        ))
   )
 }
 
@@ -595,7 +603,7 @@ function getStickyHeaderNavLinks(
   // Most specific match wins, so /account/billing shows Billing rather than the
   // shorter /account that also matches.
   const activeItem = items
-    .filter((item) => isActivePath(item.href, currentPath))
+    .filter((item) => isActiveShellHref(item.href, currentPath))
     .sort((a, b) => b.href.length - a.href.length)[0]
 
   if (activeSectionItem) {

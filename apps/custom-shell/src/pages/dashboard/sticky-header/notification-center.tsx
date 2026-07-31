@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
   CheckCheckIcon,
+  MegaphoneIcon,
   MessageSquareIcon,
   SparklesIcon,
   ThumbsUpIcon,
@@ -56,6 +57,17 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
     )
   }
 
+  // Same for an announcement — it comes from the app, not from a person.
+  if (item.type === "announcement") {
+    return (
+      <Avatar size="lg">
+        <AvatarFallback className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+          <MegaphoneIcon className="h-4 w-4" />
+        </AvatarFallback>
+      </Avatar>
+    )
+  }
+
   const isVote = item.type === "feedback_vote"
 
   return (
@@ -78,6 +90,12 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
     return <>New update shipped</>
   }
 
+  // An announcement has nowhere to be opened, so its own words go here rather
+  // than a stock line that would send the reader looking for a link.
+  if (item.type === "announcement") {
+    return <strong>{item.announcement_title}</strong>
+  }
+
   if (item.type === "feedback_vote") {
     return (
       <>
@@ -97,6 +115,9 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   if (item.type === "changelog") {
     return <SparklesIcon className="h-3.5 w-3.5" />
   }
+  if (item.type === "announcement") {
+    return <MegaphoneIcon className="h-3.5 w-3.5" />
+  }
 
   return item.type === "feedback_vote" ? (
     <ThumbsUpIcon className="h-3.5 w-3.5" />
@@ -105,12 +126,17 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   )
 }
 
-/** The line under the message: the update's title, or the feedback it is about. */
+/**
+ * The line under the message: the update's title, the announcement's own words,
+ * or the feedback it is about.
+ */
 function notificationPreview(item: NotificationItem) {
   const text =
     item.type === "changelog"
       ? (item.changelog_title ?? "")
-      : (item.feedback_message ?? "")
+      : item.type === "announcement"
+        ? (item.announcement_body ?? "")
+        : (item.feedback_message ?? "")
 
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }
@@ -277,6 +303,13 @@ export function NotificationCenter({
         setError(getNotificationErrorMessage(readError))
         return
       }
+    }
+
+    // An announcement is the whole message already — there is nowhere to send
+    // the reader, so it is now marked read and the tray stays where it is
+    // rather than shutting on the words they just clicked.
+    if (item.type === "announcement") {
+      return
     }
 
     setOpen(false)

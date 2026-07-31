@@ -11,9 +11,11 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
 
@@ -185,13 +187,18 @@ export const customShellNotifications = pgTable(
       () => customShellChangelogEntries.id,
       { onDelete: "cascade" }
     ),
+    /** Set on an announcement notice; retiring or deleting it clears them too. */
+    announcementId: varchar("announcement_id", { length: 36 }).references(
+      () => customShellAnnouncements.id,
+      { onDelete: "cascade" }
+    ),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'changelog')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'changelog', 'announcement')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -203,6 +210,69 @@ export const customShellNotifications = pgTable(
       table.feedbackCommentId
     ),
     index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
+    // One notice per person per announcement, so a second tab loading at the
+    // same moment cannot write a duplicate. Partial: every other kind of notice
+    // leaves this column null and there can be many of those.
+    uniqueIndex("ux_notifications_announcement_recipient")
+      .on(table.announcementId, table.recipientUserId)
+      .where(sql`${table.announcementId} is not null`),
+  ]
+)
+
+export const customShellAnnouncements = pgTable(
+  "announcements",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    /** How loud the banner looks: info, warning or critical. */
+    level: varchar("level", { length: 20 }).notNull().default("info"),
+    showBanner: boolean("show_banner").notNull().default(true),
+    notify: boolean("notify").notNull().default(false),
+    /**
+     * The window it shows in. Always set — an announcement posted now starts
+     * now. A null `endsAt` runs until somebody retires it, and retiring is
+     * exactly "set `endsAt` to this moment", so there is one way to be hidden.
+     */
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "announcements_level_check",
+      sql`${table.level} in ('info', 'warning', 'critical')`
+    ),
+    // `>=` rather than `>` on purpose: retiring something that had not started
+    // yet closes its window down to nothing, which is how it never shows.
+    check(
+      "announcements_window_check",
+      sql`${table.endsAt} is null or ${table.endsAt} >= ${table.startsAt}`
+    ),
+    check(
+      "announcements_channel_check",
+      sql`${table.showBanner} or ${table.notify}`
+    ),
+    index("ix_announcements_window").on(table.startsAt, table.endsAt),
+  ]
+)
+
+/** Dismissing hides the banner for one person only, so the row is the pair. */
+export const customShellAnnouncementDismissals = pgTable(
+  "announcement_dismissals",
+  {
+    announcementId: varchar("announcement_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAnnouncements.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.announcementId, table.userId] }),
+    index("ix_announcement_dismissals_user_id").on(table.userId),
   ]
 )
 
@@ -431,3 +501,5 @@ export type CustomShellFeedbackComment =
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
+export type CustomShellAnnouncement =
+  typeof customShellAnnouncements.$inferSelect

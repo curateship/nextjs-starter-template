@@ -20,6 +20,7 @@ import {
 } from "@/server/media"
 import {
   customShellAdminAuditLogs,
+  customShellAnnouncements,
   customShellChangelogEntries,
   customShellMedia,
   customShellFeedback,
@@ -36,12 +37,26 @@ import {
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
 import {
+  createAnnouncement,
+  deleteAnnouncements,
+  dismissAnnouncement,
+  listAnnouncements,
+  loadUserAnnouncements,
+  retireAnnouncements,
+  updateAnnouncement,
+  type AnnouncementInput,
+} from "@/server/announcements"
+import {
   createChangelogEntry,
   deleteChangelogEntries,
   listPublishedChangelogEntries,
   updateChangelogEntry,
 } from "@/server/changelog"
-import { normalizeMaintenance, resolveMaintenanceMessage } from "@/lib/custom-shell"
+import {
+  isActiveShellHref,
+  normalizeMaintenance,
+  resolveMaintenanceMessage,
+} from "@/lib/custom-shell"
 import { loadAccountDetail } from "@/server/account-detail"
 import { grantManualPlan, recordAdminAudit } from "@/server/accounts"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
@@ -226,6 +241,12 @@ describe("custom shell workspaces", () => {
       },
       {
         type: "item",
+        label: "Announcements",
+        href: "/admin/announcements",
+        visible: true,
+      },
+      {
+        type: "item",
         label: "Changelog",
         href: "/changelog",
         visible: true,
@@ -287,6 +308,12 @@ describe("custom shell workspaces", () => {
         type: "item",
         label: "Notifications",
         href: "/admin/notifications",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Announcements",
+        href: "/admin/announcements",
         visible: true,
       },
       {
@@ -1299,6 +1326,246 @@ describe("custom shell maintenance mode", () => {
   it("falls back to the default wording when no message was written", () => {
     expect(resolveMaintenanceMessage("   ")).toContain("back shortly")
     expect(resolveMaintenanceMessage("Nearly done")).toBe("Nearly done")
+  })
+})
+
+describe("custom shell active link matching", () => {
+  it("matches a page and the pages underneath it", () => {
+    expect(isActiveShellHref("/admin/media", "/admin/media")).toBe(true)
+    expect(isActiveShellHref("/admin/media", "/admin/media/storage")).toBe(true)
+    expect(isActiveShellHref("/admin/media", "/admin/plans")).toBe(false)
+    // "/admin/media" must not swallow "/admin/mediaplayer".
+    expect(isActiveShellHref("/admin/media", "/admin/mediaplayer")).toBe(false)
+  })
+
+  it("only matches home when you are on home", () => {
+    expect(isActiveShellHref("/", "/")).toBe(true)
+    expect(isActiveShellHref("/", "/admin/users")).toBe(false)
+  })
+
+  /**
+   * The regression this rule exists for. A sidebar link starts with no address,
+   * and prefix matching on an empty string matches every page — which put one
+   * unfinished link's children in the header on every screen in the app.
+   */
+  it("never matches when the link has no address", () => {
+    expect(isActiveShellHref("", "/admin/users")).toBe(false)
+    expect(isActiveShellHref("   ", "/admin/users")).toBe(false)
+    expect(isActiveShellHref(undefined, "/admin/users")).toBe(false)
+    expect(isActiveShellHref("", "/")).toBe(false)
+  })
+})
+
+describe("custom shell announcements", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  async function seedPerson(email: string) {
+    const userId = uuid()
+    const createdAt = now()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email,
+      name: "Reader",
+      role: "member",
+      passwordHash: await hash("password123"),
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    return userId
+  }
+
+  /** The dates the form would send for a window N days either side of today. */
+  function dayField(offsetDays: number) {
+    return new Date(Date.now() + offsetDays * DAY_MS).toISOString().slice(0, 10)
+  }
+
+  function baseInput(overrides: Partial<AnnouncementInput> = {}) {
+    return {
+      title: "Uploads are slow",
+      body: "We are working on it.",
+      level: "warning" as const,
+      showBanner: true,
+      notify: false,
+      startsOn: "",
+      endsOn: "",
+      ...overrides,
+    }
+  }
+
+  async function noticesFor(announcementId: string) {
+    return database
+      .select()
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.announcementId, announcementId))
+  }
+
+  it("shows a live announcement and keeps a scheduled one out of sight", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+
+    const live = await createAnnouncement(baseInput(), db)
+    await createAnnouncement(
+      baseInput({ title: "Next week", startsOn: dayField(7) }),
+      db
+    )
+
+    const { banners } = await loadUserAnnouncements(readerId, db)
+    expect(banners.map((banner) => banner.id)).toEqual([live.id])
+    expect(banners[0].level).toBe("warning")
+  })
+
+  it("hides a dismissed banner for that person and nobody else", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+    const otherId = await seedPerson("second@internal.dev")
+
+    const announcement = await createAnnouncement(baseInput(), db)
+    await dismissAnnouncement(readerId, announcement.id, db)
+    // Dismissing twice is a no-op, not a crash.
+    await dismissAnnouncement(readerId, announcement.id, db)
+
+    expect((await loadUserAnnouncements(readerId, db)).banners).toEqual([])
+    expect((await loadUserAnnouncements(otherId, db)).banners).toHaveLength(1)
+  })
+
+  it("takes a retired announcement down for everyone", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+
+    const showing = await createAnnouncement(baseInput(), db)
+    const scheduled = await createAnnouncement(
+      baseInput({ title: "Next week", startsOn: dayField(7) }),
+      db
+    )
+
+    const result = await retireAnnouncements([showing.id, scheduled.id], db)
+
+    expect(result.count).toBe(2)
+    expect((await loadUserAnnouncements(readerId, db)).banners).toEqual([])
+    // Retiring one that had not started closes its window down to nothing
+    // rather than leaving a start date in the future it could reopen on.
+    const [row] = await database
+      .select()
+      .from(customShellAnnouncements)
+      .where(eq(customShellAnnouncements.id, scheduled.id))
+    expect(row.endsAt).not.toBeNull()
+    expect(row.startsAt.getTime()).toBeLessThanOrEqual(row.endsAt!.getTime())
+  })
+
+  it("writes one tray notice per person, the first time they look", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+    const otherId = await seedPerson("second@internal.dev")
+
+    const announcement = await createAnnouncement(
+      baseInput({ notify: true }),
+      db
+    )
+
+    // Nobody has loaded the app yet, so nothing has been sent.
+    expect(await noticesFor(announcement.id)).toHaveLength(0)
+
+    // The count of what it wrote is what tells the shell to ask for a fresh
+    // unread total, so it has to be right on the first look and zero after.
+    expect((await loadUserAnnouncements(readerId, db)).noticesCreated).toBe(1)
+    expect((await loadUserAnnouncements(readerId, db)).noticesCreated).toBe(0)
+    await loadUserAnnouncements(otherId, db)
+
+    const notices = await noticesFor(announcement.id)
+    expect(notices).toHaveLength(2)
+    expect(notices.map((row) => row.recipientUserId).sort()).toEqual(
+      [readerId, otherId].sort()
+    )
+    expect(notices.every((row) => row.type === "announcement")).toBe(true)
+    expect(notices.every((row) => row.readAt === null)).toBe(true)
+  })
+
+  it("sends nothing to the tray for a banner-only announcement", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+
+    const announcement = await createAnnouncement(baseInput(), db)
+    await loadUserAnnouncements(readerId, db)
+
+    expect(await noticesFor(announcement.id)).toHaveLength(0)
+  })
+
+  it("takes the tray notices back when the tray is switched off", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+
+    const announcement = await createAnnouncement(
+      baseInput({ notify: true }),
+      db
+    )
+    await loadUserAnnouncements(readerId, db)
+    expect(await noticesFor(announcement.id)).toHaveLength(1)
+
+    await updateAnnouncement(announcement.id, baseInput({ notify: false }), db)
+
+    expect(await noticesFor(announcement.id)).toHaveLength(0)
+  })
+
+  it("keeps a retired announcement readable in the tray", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+
+    const announcement = await createAnnouncement(
+      baseInput({ notify: true }),
+      db
+    )
+    await loadUserAnnouncements(readerId, db)
+    await retireAnnouncements([announcement.id], db)
+
+    expect((await loadUserAnnouncements(readerId, db)).banners).toEqual([])
+    expect(await noticesFor(announcement.id)).toHaveLength(1)
+  })
+
+  it("refuses an announcement with nothing to say and nowhere to say it", async () => {
+    const db = database as unknown as CustomShellDb
+
+    await expect(
+      createAnnouncement(baseInput({ title: "   " }), db)
+    ).rejects.toThrow("ANNOUNCEMENT_TITLE_REQUIRED")
+    await expect(
+      createAnnouncement(baseInput({ body: "   " }), db)
+    ).rejects.toThrow("ANNOUNCEMENT_BODY_REQUIRED")
+    await expect(
+      createAnnouncement(baseInput({ showBanner: false, notify: false }), db)
+    ).rejects.toThrow("ANNOUNCEMENT_CHANNEL_REQUIRED")
+    await expect(
+      createAnnouncement(
+        baseInput({ startsOn: dayField(7), endsOn: dayField(1) }),
+        db
+      )
+    ).rejects.toThrow("ANNOUNCEMENT_WINDOW_INVALID")
+    // The API's date check is a shape check, so a date-shaped non-date still
+    // reaches here and must not be written as an unreadable timestamp.
+    await expect(
+      createAnnouncement(baseInput({ startsOn: "9999-99-99" }), db)
+    ).rejects.toThrow("ANNOUNCEMENT_WINDOW_INVALID")
+    await expect(
+      createAnnouncement(baseInput({ endsOn: "2026-13-40" }), db)
+    ).rejects.toThrow("ANNOUNCEMENT_WINDOW_INVALID")
+  })
+
+  it("takes its notices with it when it is deleted", async () => {
+    const db = database as unknown as CustomShellDb
+    const readerId = await seedPerson("reader@internal.dev")
+
+    const announcement = await createAnnouncement(
+      baseInput({ notify: true }),
+      db
+    )
+    await loadUserAnnouncements(readerId, db)
+    await dismissAnnouncement(readerId, announcement.id, db)
+
+    await deleteAnnouncements([announcement.id], db)
+
+    expect(await noticesFor(announcement.id)).toHaveLength(0)
+    expect(await listAnnouncements(db)).toHaveLength(0)
   })
 })
 

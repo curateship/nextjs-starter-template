@@ -260,6 +260,23 @@ export function isShellEntryNamed(entry: { label?: string }) {
   return Boolean(entry.label?.trim())
 }
 
+/**
+ * Is this link the page we are on? Both the sidebar and the header's shortcut
+ * row ask, so the rule lives here once — two copies drifted apart and the
+ * header's kept the bug the sidebar's had already fixed.
+ *
+ * The blank check is the whole reason this is worth sharing. A new link starts
+ * with no address, and `"".startsWith`-style prefix matching would say a blank
+ * address matches every page — which made one unfinished link's children turn
+ * up in the header on every screen in the app.
+ */
+export function isActiveShellHref(href: string | undefined, currentPath: string) {
+  const link = href?.trim()
+  if (!link) return false
+
+  return link === currentPath || (link !== "/" && currentPath.startsWith(`${link}/`))
+}
+
 export type ShellDivider = {
   type: "divider"
   id: string

@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
+  MegaphoneIcon,
   MessageSquareIcon,
   SparklesIcon,
   ThumbsUpIcon,
@@ -60,17 +61,19 @@ const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
   changelog: "Update",
+  announcement: "Announcement",
 }
 
 /**
  * The free text a row shows and searches on: the update's title for a changelog
- * notice, the feedback it is about for the rest.
+ * notice, the broadcast's own title for an announcement, and the feedback it is
+ * about for the rest.
  */
 function notificationSubject(item: NotificationItem) {
-  return item.changelog_title ?? item.feedback_message ?? ""
+  return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
 }
 
-/** Who caused it. A published update has nobody behind it. */
+/** Who caused it. An update or a broadcast has nobody behind it. */
 function notificationActor(item: NotificationItem) {
   return item.actor_name ?? "—"
 }
@@ -323,6 +326,7 @@ export function NotificationsPage({
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
                 <SelectItem value="changelog">Updates</SelectItem>
+                <SelectItem value="announcement">Announcements</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -421,6 +425,8 @@ export function NotificationsPage({
               <div className="flex items-center gap-2">
                 {item.type === "changelog" ? (
                   <SparklesIcon className="size-4 text-muted-foreground" />
+                ) : item.type === "announcement" ? (
+                  <MegaphoneIcon className="size-4 text-muted-foreground" />
                 ) : item.type === "feedback_vote" ? (
                   <ThumbsUpIcon className="size-4 text-muted-foreground" />
                 ) : (

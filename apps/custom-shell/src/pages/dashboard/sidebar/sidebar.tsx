@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   canSeeShellEntry,
+  isActiveShellHref,
   isShellEntryNamed,
   isShellItem,
   renderShellIcon,
@@ -34,15 +35,6 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   plan: PlanSummary
   workspaces: WorkspaceItem[]
   onLogout: () => void
-}
-
-function isActivePath(href: string, currentPath: string) {
-  if (!href.trim()) return false
-
-  return (
-    href === currentPath ||
-    (href !== "/" && currentPath.startsWith(`${href}/`))
-  )
 }
 
 function getActiveHref(config: ShellConfig, currentPath: string, role: string) {
@@ -62,7 +54,7 @@ function getActiveHref(config: ShellConfig, currentPath: string, role: string) {
   })
 
   return hrefs
-    .filter((href) => isActivePath(href, currentPath))
+    .filter((href) => isActiveShellHref(href, currentPath))
     .sort((a, b) => b.length - a.length)[0]
 }
 
