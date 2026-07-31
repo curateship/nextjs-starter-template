@@ -21,6 +21,7 @@ import {
   renderQuickLinkIcon,
   type QuickLinkIconValue
 } from "@/lib/utils/site-quick-links"
+import { showErrorToast } from "@/lib/error-toast"
 
 export function ShellIconPreview({ icon, className }: { icon?: QuickLinkIconValue; className?: string }) {
   return renderQuickLinkIcon(icon, className)
@@ -82,7 +83,10 @@ export function ShellIconPickerField({
 
   function handleCustomIconSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!customLucideIcon) return
+    if (!customLucideIcon) {
+      showErrorToast("Pick an icon first")
+      return
+    }
     onChange(customLucideIcon)
     closePicker()
   }
@@ -203,7 +207,7 @@ export function ShellIconPickerField({
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={!customLucideIcon}>
+                    <Button type="submit">
                       Use Icon
                     </Button>
                   </div>

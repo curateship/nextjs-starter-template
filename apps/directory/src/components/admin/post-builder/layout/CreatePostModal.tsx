@@ -15,7 +15,6 @@ import { getPostTemplatesBySite } from "@/lib/actions/posts/post-template-action
 import {
   FeaturedImageField,
   MetaDescriptionField,
-  ModalErrorBanner,
   TitleSlugFields,
   postJson,
   useCreateContent,
@@ -79,7 +78,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     }
   }, [currentSite?.id])
 
-  const { loading, loadingAction, error, setError, submit } = useCreateContent<Post>({
+  const { loading, loadingAction, setError, submit } = useCreateContent<Post>({
     entityLabel: "post",
     title,
     titleRequiredMessage: "Post title is required",
@@ -143,7 +142,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       )}
     >
       <form id="create-post-form" onSubmit={handleSubmit} className="contents">
-        <ModalErrorBanner error={error} />
 
         <CardGroup className="grid">
           <Card>

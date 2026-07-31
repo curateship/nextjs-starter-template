@@ -313,7 +313,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
                 contentBlocks={template ? directoryBlocksToJson(blocks, template.content_blocks || {}) : undefined}
                 createPlaceholder="e.g. Featured Listing Layout"
                 enableDefaultCategoryParent
-                onError={setError}
                 onOpenChange={setShow}
                 onSaved={handleSettingsSaved}
                 open={show}

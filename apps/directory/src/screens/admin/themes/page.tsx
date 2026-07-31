@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "@/lib/navigation-client";
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 import { AdminLayout } from "@/components/admin/layout/admin-layout";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
@@ -78,6 +80,7 @@ export default function ThemesPage() {
   const [creating, setCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createNameInvalid, setCreateNameInvalid] = useState(false);
   const [renameDialog, setRenameDialog] = useState<{
     open: boolean;
     templateId: string;
@@ -123,7 +126,13 @@ export default function ThemesPage() {
 
   const handleCreateTheme = async () => {
     const trimmed = createName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setCreateNameInvalid(true);
+      showErrorToast("Theme name is required");
+      return;
+    }
+
+    setCreateNameInvalid(false);
 
     try {
       setCreating(true);
@@ -137,6 +146,7 @@ export default function ThemesPage() {
       }
       if (data) {
         setCreateDialogOpen(false);
+        showActionSuccess("Theme created.");
         router.push(`/admin/pages/${data.id}`);
       }
     } catch {
@@ -166,6 +176,7 @@ export default function ThemesPage() {
         ),
       );
       setRenameDialog((prev) => ({ ...prev, open: false }));
+      showActionSuccess("Theme renamed.");
     } catch {
       setError("Failed to rename theme");
     } finally {
@@ -181,10 +192,12 @@ export default function ThemesPage() {
         setError(`Failed to delete theme: ${deleteError}`);
         return;
       }
-      if (success)
+      if (success) {
         setTemplates((prev) =>
           prev.filter((t) => t.id !== deleteDialog.templateId),
         );
+        showActionSuccess("Theme deleted.");
+      }
       setDeleteDialog((prev) => ({ ...prev, open: false }));
     } catch {
       setError("Failed to delete theme");
@@ -399,7 +412,12 @@ export default function ThemesPage() {
                 <Input
                   id="create-theme-name"
                   value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
+                  aria-invalid={createNameInvalid}
+                  onChange={(e) => {
+                    setCreateName(e.target.value);
+                    if (createNameInvalid && e.target.value.trim())
+                      setCreateNameInvalid(false);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && createName.trim())
                       handleCreateTheme();
@@ -417,7 +435,7 @@ export default function ThemesPage() {
                 </Button>
                 <Button
                   onClick={handleCreateTheme}
-                  disabled={creating || !createName.trim()}
+                  disabled={creating}
                 >
                   {creating ? "Creating..." : "Create"}
                 </Button>

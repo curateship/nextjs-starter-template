@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface CreateProductData {
   title: string
@@ -58,7 +59,12 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug] = useState(false)
@@ -265,14 +271,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           </>
         }
       >
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-              {error}
-            </div>
-          </div>
-        )}
-
         <CardGroup className="grid">
           <Card>
             <CardHeader>

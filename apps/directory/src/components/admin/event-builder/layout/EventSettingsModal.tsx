@@ -23,7 +23,6 @@ import {
 import {
   FeaturedImageCard,
   MetaDescriptionField,
-  ModalErrorBanner,
   putJson,
   useCreateContent,
   useTitleSlug,
@@ -80,7 +79,7 @@ export function EventSettingsModal({
   const isOccurrence = Boolean(event?.series_id)
   const validationTitle = event?.title || 'Event'
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Event>({
+  const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<Event>({
     entityLabel: "event",
     title: validationTitle,
     create: (publish) => {
@@ -210,7 +209,6 @@ export function EventSettingsModal({
             </>
           }
         >
-          <ModalErrorBanner error={error} />
 
           <CardGroup className="grid">
             <Card>

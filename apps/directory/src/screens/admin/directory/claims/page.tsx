@@ -38,6 +38,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const CLAIM_FILTERS = [
   { value: "pending_email", label: "Pending Email", icon: MailCheck },
@@ -209,6 +210,7 @@ export default function DirectoryClaimsPage() {
 
     setSelectedClaim(null)
     await loadRows()
+    showActionSuccess(status === "approved" ? "Claim approved." : status === "rejected" ? "Claim rejected." : "Claim revoked.")
   }
 
   const handleOwnerEditReview = async (status: "approved" | "rejected") => {
@@ -229,6 +231,7 @@ export default function DirectoryClaimsPage() {
 
     setSelectedOwnerEdit(null)
     await loadRows()
+    showActionSuccess(status === "approved" ? "Edit request approved." : "Edit request rejected.")
   }
 
   const activeRowsCount = activeView === "claims" ? claims.length : ownerEdits.length

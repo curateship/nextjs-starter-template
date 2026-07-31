@@ -61,7 +61,7 @@ import {
 import { applyThemeToSiteAction, getTemplateSitesAction } from "@/lib/actions/themes/user-theme-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { showActionError } from "@/lib/utils/admin-action-feedback"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 type FilterStatus = "all" | "active" | "inactive" | "draft"
 type TagFilter = "all-tags" | "untagged" | string
@@ -152,6 +152,7 @@ export default function SitesPage() {
         setSites((prev) => prev.filter((site) => site.id !== siteId))
         await refreshSites()
         setDeleteConfirm(null)
+        showActionSuccess("Site deleted.")
       }
     } catch (err) {
       showActionError("Failed to delete site")
@@ -164,6 +165,7 @@ export default function SitesPage() {
     setSites((prev) => [site, ...prev.filter((item) => item.id !== site.id)])
     localStorage.setItem("selectedSiteId", site.id)
     await refreshSites()
+    showActionSuccess("Site created.")
     router.push(`/admin/pages/${site.id}`)
   }
 
@@ -213,6 +215,7 @@ export default function SitesPage() {
       await refreshSites()
       setDuplicateConfirm(null)
       setDuplicateName("")
+      showActionSuccess("Site duplicated.")
     } catch {
       reportDuplicateError("Failed to duplicate site")
     } finally {

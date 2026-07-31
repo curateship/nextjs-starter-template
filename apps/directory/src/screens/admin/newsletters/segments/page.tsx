@@ -34,6 +34,7 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { formatSegmentDynamicRule } from "@/lib/actions/newsletters/segment-rules"
 import { SegmentFormModal } from "@/components/admin/newsletter-builder/segments/SegmentFormModal"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   Table,
   TableBody,
@@ -117,6 +118,7 @@ export default function SegmentsPage() {
 
   async function handleMassDelete() {
     setMassDeleting(true)
+    const deletedCount = segmentSelection.selectedCount
     const { error: deleteError } = await deleteSegments({ data: { ids: Array.from(segmentSelection.selectedIds) } })
     if (deleteError) {
       setError(deleteError)
@@ -124,6 +126,7 @@ export default function SegmentsPage() {
       segmentSelection.clearSelection()
       setMassDeleteConfirmOpen(false)
       await loadSegments()
+      showActionSuccess(deletedCount === 1 ? "Segment deleted." : "Segments deleted.")
     }
     setMassDeleting(false)
   }
@@ -138,6 +141,7 @@ export default function SegmentsPage() {
       setError(refreshError)
     } else {
       await loadSegments()
+      showActionSuccess("Segments refreshed.")
     }
     setRefreshing(false)
   }
@@ -368,7 +372,6 @@ export default function SegmentsPage() {
 
       <SegmentFormModal
         open={modalOpen}
-        onError={setError}
         onOpenChange={setModalOpen}
         onSaved={loadSegments}
         segment={editingSegment}

@@ -19,7 +19,6 @@ import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardT
 import {
   FeaturedImageCard,
   MetaDescriptionField,
-  ModalErrorBanner,
   TitleSlugFields,
   postJson,
   useCreateContent,
@@ -84,7 +83,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
     }
   }, [currentSite?.id])
 
-  const { loading, loadingAction, error, setError, submit } = useCreateContent<Event>({
+  const { loading, loadingAction, setError, submit } = useCreateContent<Event>({
     entityLabel: "event",
     title,
     titleRequiredMessage: "Title is required",
@@ -161,7 +160,6 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           </>
         }
       >
-        <ModalErrorBanner error={error} />
         <CardGroup className="grid">
           <Card>
             <CardHeader>

@@ -28,6 +28,7 @@ import {
   useAdminSort
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   getDirectorySaveFoldersDashboardAction,
   removeDirectorySaveCollectionsDashboardAction,
@@ -158,6 +159,7 @@ export default function DirectorySavedPage() {
 
     setFolderToRename(null)
     await loadFolders()
+    showActionSuccess("Folder renamed.")
   }
 
   const saveDefaults = async () => {
@@ -186,11 +188,13 @@ export default function DirectorySavedPage() {
     })
     setDefaultsOpen(false)
     await loadFolders()
+    showActionSuccess("Default folders updated.")
   }
 
   const confirmRemove = async () => {
     if (!currentSite?.id || removeIds.length === 0) return
 
+    const removedCount = removeIds.length
     setRemoving(true)
     const result = await removeDirectorySaveCollectionsDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -206,6 +210,7 @@ export default function DirectorySavedPage() {
     selection.clearSelection()
     setRemoveIds([])
     await loadFolders()
+    showActionSuccess(removedCount === 1 ? "Folder removed." : "Folders removed.")
   }
 
   return (

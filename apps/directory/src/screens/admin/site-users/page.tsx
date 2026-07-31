@@ -51,6 +51,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   createSiteUser,
   deleteSiteUsers,
@@ -410,6 +411,7 @@ export default function SiteUsersPage() {
       await loadUsers()
       setConfirmDeleteOpen(false)
       setPendingDeleteId(null)
+      showActionSuccess("User removed.")
     } finally {
       setMassDeleting(false)
     }
@@ -420,6 +422,7 @@ export default function SiteUsersPage() {
 
     setMassDeleting(true)
     setErrorMessage(null)
+    const removedCount = userSelection.selectedCount
 
     try {
       const result = await deleteSiteUsers({ data: { input: {
@@ -435,6 +438,7 @@ export default function SiteUsersPage() {
       clearUserSelection()
       await loadUsers()
       setMassDeleteConfirmOpen(false)
+      showActionSuccess(removedCount === 1 ? "User removed." : "Users removed.")
     } finally {
       setMassDeleting(false)
     }
@@ -481,6 +485,7 @@ export default function SiteUsersPage() {
     })
     setCreating(false)
     await loadUsers()
+    showActionSuccess("User created.")
   }
 
   async function handleUpdateUser(e: React.FormEvent) {
@@ -506,6 +511,7 @@ export default function SiteUsersPage() {
     setEditUser(null)
     setSaving(false)
     await loadUsers()
+    showActionSuccess("User updated.")
   }
 
   return (

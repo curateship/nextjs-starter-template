@@ -242,7 +242,7 @@ export function MediaPicker({
         throw new Error(result.error || 'Upload failed')
       }
 
-      showActionSuccess("Media uploaded successfully!")
+      showActionSuccess("Media uploaded.")
 
       // Select the newly uploaded media immediately
       if (actualOnSelect) {

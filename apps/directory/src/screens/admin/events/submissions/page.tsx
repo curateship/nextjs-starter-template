@@ -31,6 +31,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const STATUS_FILTERS = [
   { value: "pending", label: "Pending Review", icon: Clock3 },
@@ -118,6 +119,7 @@ export default function EventSubmissionsPage() {
 
     setSelected(null)
     await loadRows()
+    showActionSuccess(status === "approved" ? "Submission approved." : "Submission rejected.")
   }
 
   return (

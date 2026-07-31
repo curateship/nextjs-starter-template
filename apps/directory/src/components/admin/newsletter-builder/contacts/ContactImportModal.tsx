@@ -7,6 +7,7 @@ import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { bulkImportContacts } from "@/lib/actions/newsletters/contact-actions"
+import { showErrorToast } from "@/lib/error-toast"
 
 type ContactImportModalProps = {
   fileInputRef: RefObject<HTMLInputElement | null>
@@ -154,8 +155,17 @@ export function ContactImportModal({
 
   const handleImport = async () => {
     if (!siteId) return
+    if (!hasEmailMapped) {
+      showErrorToast("Map one of your columns to Email before importing")
+      return
+    }
+
     const contacts = getMappedContacts()
-    if (!contacts.length) return
+    if (!contacts.length) {
+      showErrorToast("That file has no rows to import")
+      return
+    }
+
     setImporting(true)
 
     try {
@@ -285,7 +295,7 @@ export function ContactImportModal({
                   <Button variant="ghost" onClick={closeImportModal}>
                     Back
                   </Button>
-                  <Button onClick={handleImport} disabled={importing || !hasEmailMapped}>
+                  <Button onClick={handleImport} disabled={importing}>
                     {importing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />

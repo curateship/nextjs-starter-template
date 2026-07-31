@@ -2,6 +2,8 @@
 
 import { use, useState, useEffect, useCallback, type FormEvent } from "react"
 import { useRouter } from "@/lib/navigation-client"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 import Link from "@/components/app-link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -94,6 +96,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
   const [loadingMore, setLoadingMore] = useState(false)
 
   // Edit form state
+  const [nameInvalid, setNameInvalid] = useState(false)
   const [editForm, setEditForm] = useState({
     name: "",
     description: "",
@@ -222,6 +225,13 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!segment) return
+    if (!editForm.name.trim()) {
+      setNameInvalid(true)
+      showErrorToast("Segment name is required")
+      return
+    }
+
+    setNameInvalid(false)
     const dynamicRule = buildDynamicRuleFromForm(dynamicConditions)
     if (editForm.segmentType === "dynamic" && !dynamicRule) {
       setError("Dynamic segments need at least one valid condition")
@@ -245,6 +255,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
       })
       setDynamicConditions(mapDynamicRuleToForm(data.dynamic_rule))
       setSettingsOpen(false)
+      showActionSuccess("Segment updated.")
     }
     if (error) setError(error)
     setSaving(false)
@@ -256,6 +267,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     setDeleting(true)
     const { success, error } = await deleteSegments({ data: { ids: [segment.id] } })
     if (success) {
+      showActionSuccess("Segment deleted.")
       router.push("/admin/newsletters/segments")
     } else {
       setDeleteError(error || "Failed to delete segment")
@@ -272,6 +284,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     }
     setContactToRemove(null)
     await refreshContactsAndStats()
+    showActionSuccess("Contact removed from segment.")
   }
 
   /** Add a contact to the segment from search results */
@@ -288,6 +301,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     setSearchQuery("")
     setAddingContact(null)
     await refreshContactsAndStats()
+    showActionSuccess("Contact added to segment.")
   }
 
   // Helper: format date
@@ -325,7 +339,6 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     }
   }
 
-  const invalidDynamicConditions = editForm.segmentType === "dynamic" && !buildDynamicRuleFromForm(dynamicConditions)
   const segmentExclusionOptions = segmentOptions.filter((option) => option.id !== segment?.id)
 
   return (
@@ -665,7 +678,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                 <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button form="segment-settings-form" type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicConditions}>
+                <Button form="segment-settings-form" type="submit" disabled={saving}>
                   {saving ? "Saving..." : "Save Changes"}
                 </Button>
               </>
@@ -682,7 +695,11 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                     <Input
                       id="segment-name"
                       value={editForm.name}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                      aria-invalid={nameInvalid}
+                      onChange={(e) => {
+                        setEditForm((prev) => ({ ...prev, name: e.target.value }))
+                        if (nameInvalid && e.target.value.trim()) setNameInvalid(false)
+                      }}
                       placeholder="Segment name"
                     />
                   </Field>

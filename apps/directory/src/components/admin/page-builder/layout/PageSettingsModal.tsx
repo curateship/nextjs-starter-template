@@ -36,7 +36,7 @@ export function PageSettingsModal({
   const [metaDescription, setMetaDescription] = useState("")
   const [isHomepage, setIsHomepage] = useState(false)
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Page>({
+  const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<Page>({
     entityLabel: "page",
     title,
     titleRequiredMessage: "Page title is required",
@@ -118,14 +118,6 @@ export function PageSettingsModal({
           }
           footerClassName="sm:justify-between"
         >
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            </div>
-          )}
-
           <CardGroup className="grid">
             <Card>
               <CardHeader>

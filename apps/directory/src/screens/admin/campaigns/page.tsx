@@ -78,7 +78,7 @@ export default function CampaignsPage() {
       return showActionError(result.message)
     }
     onSaved(result.data)
-    showActionSuccess(result.data.status === "active" ? "Campaign activated" : "Campaign paused")
+    showActionSuccess(result.data.status === "active" ? "Campaign activated." : "Campaign paused.")
   }
 
   const remove = async () => {
@@ -92,7 +92,7 @@ export default function CampaignsPage() {
     }
     setCampaigns((current) => current.filter((item) => item.id !== deleteTarget.id))
     setDeleteTarget(null)
-    showActionSuccess("Campaign deleted")
+    showActionSuccess("Campaign deleted.")
   }
 
   return (

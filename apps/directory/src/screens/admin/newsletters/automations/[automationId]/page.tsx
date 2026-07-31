@@ -73,6 +73,7 @@ import PencilLine from "lucide-react/dist/esm/icons/pencil-line.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
+import { showErrorToast } from "@/lib/error-toast"
 
 interface PageProps {
   params: Promise<{ automationId: string }>
@@ -1279,7 +1280,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           automationId={automationId}
           stepOrder={statusEventsStep?.step_order ?? null}
           showRateCards
-          onError={setError}
+          onError={showErrorToast}
           onOpenChange={(open) => {
             if (!open) setStatusEventsStep(null)
           }}

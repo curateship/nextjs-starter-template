@@ -8,7 +8,6 @@ import { Field, FieldDescription } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
   MetaDescriptionField,
-  ModalErrorBanner,
   TitleSlugFields,
   postJson,
   useCreateContent,
@@ -34,7 +33,7 @@ export function CreateAccountPageModal({
   const [isDefault, setIsDefault] = useState(false)
   const isProfileTemplate = isPublicProfileTemplateSlug(slug)
 
-  const { loading, loadingAction, error, submit } = useCreateContent<AccountPage>({
+  const { loading, loadingAction, submit } = useCreateContent<AccountPage>({
     entityLabel: "account page",
     title,
     titleRequiredMessage: "Page title is required",
@@ -74,7 +73,6 @@ export function CreateAccountPageModal({
           </>
         }
       >
-        <ModalErrorBanner error={error} />
         <CardGroup className="grid">
           <Card>
             <CardHeader>

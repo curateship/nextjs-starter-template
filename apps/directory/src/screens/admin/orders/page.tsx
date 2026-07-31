@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "@/lib/navigation-client"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
 
@@ -133,12 +134,14 @@ export default function OrdersPage() {
 
   const confirmDelete = useCallback(async () => {
     setDeleting(true)
+    const deletedCount = deleteIds.length
     try {
       await deleteOrders({ data: { orderIds: deleteIds } })
       setOrders((prev) => prev.filter((o) => !deleteIds.includes(o.id)))
       clearOrderSelection()
       setShowDeleteDialog(false)
       setDeleteIds([])
+      showActionSuccess(deletedCount === 1 ? "Order deleted." : "Orders deleted.")
     } catch (error) {
       console.error("Error deleting orders:", error)
       setDeleteError("Failed to delete orders")

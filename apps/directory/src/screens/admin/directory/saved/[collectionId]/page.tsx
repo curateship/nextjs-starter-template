@@ -25,6 +25,7 @@ import {
   useAdminBulkSelection
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   getDirectorySaveFolderItemsDashboardAction,
   removeDirectorySaveItemsDashboardAction,
@@ -126,12 +127,14 @@ export default function DirectorySavedFolderPage({
 
     setRenameOpen(false)
     await loadItems()
+    showActionSuccess("Folder renamed.")
   }
 
   const confirmRemove = async () => {
     if (!currentSite?.id || removeIds.length === 0) return
 
     dismissErrorToast()
+    const removedCount = removeIds.length
     setRemoving(true)
     const result = await removeDirectorySaveItemsDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -147,6 +150,7 @@ export default function DirectorySavedFolderPage({
     selection.clearSelection()
     setRemoveIds([])
     await loadItems()
+    showActionSuccess(removedCount === 1 ? "Saved listing removed." : "Saved listings removed.")
   }
 
   return (

@@ -160,7 +160,7 @@ export function CampaignEditorDialog({
       return
     }
     onSaved(result.data)
-    showActionSuccess(campaign ? "Campaign updated" : "Campaign created")
+    showActionSuccess(campaign ? "Campaign updated." : "Campaign created.")
     onOpenChange(false)
   }
 

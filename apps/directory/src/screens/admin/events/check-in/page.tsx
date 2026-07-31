@@ -29,6 +29,7 @@ import {
 } from "@/lib/actions/events/event-check-in-actions"
 import { formatEventWhen } from "@/lib/utils/calendar"
 import { cn } from "@/lib/utils/tailwind"
+import { showErrorToast } from "@/lib/error-toast"
 
 /** Longest a name list stays comfortable to scroll on a phone at a door. */
 const VISIBLE_ATTENDEES = 40
@@ -88,6 +89,7 @@ export default function EventCheckInPage() {
   const [eventId, setEventId] = useState("")
   const [query, setQuery] = useState("")
   const [code, setCode] = useState("")
+  const [codeInvalid, setCodeInvalid] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [checkingIn, setCheckingIn] = useState<string | null>(null)
@@ -177,7 +179,18 @@ export default function EventCheckInPage() {
   // event get refused instead of quietly admitted.
   const handleCode = async (submitEvent: React.FormEvent) => {
     submitEvent.preventDefault()
-    if (!eventId || !code.trim() || submitting) return
+    if (submitting) return
+    if (!eventId) {
+      showErrorToast("Choose an event before checking anyone in")
+      return
+    }
+    if (!code.trim()) {
+      setCodeInvalid(true)
+      showErrorToast("Ticket code is required")
+      return
+    }
+
+    setCodeInvalid(false)
 
     setSubmitting(true)
     const result = await checkInByCodeAction({ data: { scanned: code, eventId } })
@@ -279,7 +292,11 @@ export default function EventCheckInPage() {
                     <Input
                       id="check-in-code"
                       value={code}
-                      onChange={(changeEvent) => setCode(changeEvent.target.value)}
+                      aria-invalid={codeInvalid}
+                      onChange={(changeEvent) => {
+                        setCode(changeEvent.target.value)
+                        if (codeInvalid && changeEvent.target.value.trim()) setCodeInvalid(false)
+                      }}
                       placeholder="1A2B-3C4D-5E6F-7890"
                       autoComplete="off"
                       autoCapitalize="characters"
@@ -288,7 +305,7 @@ export default function EventCheckInPage() {
                       className="font-mono tracking-wider"
                     />
                   </div>
-                  <Button type="submit" className="sm:self-end" disabled={submitting || !eventId || !code.trim()}>
+                  <Button type="submit" className="sm:self-end" disabled={submitting}>
                     {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
                     Check in
                   </Button>

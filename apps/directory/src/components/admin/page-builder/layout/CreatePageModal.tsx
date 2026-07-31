@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field } from "@/components/ui/field"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import {
-  ModalErrorBanner,
   TitleSlugFields,
   MetaDescriptionField,
   postJson,
@@ -28,7 +27,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
   const [metaDescription, setMetaDescription] = useState("")
   const [isHomepage, setIsHomepage] = useState(false)
 
-  const { loading, loadingAction, error, submit } = useCreateContent<Page>({
+  const { loading, loadingAction, submit } = useCreateContent<Page>({
     entityLabel: "page",
     title,
     titleRequiredMessage: "Page title is required",
@@ -68,7 +67,6 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
           </>
         }
       >
-        <ModalErrorBanner error={error} />
 
         <CardGroup className="grid">
           <Card>

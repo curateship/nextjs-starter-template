@@ -141,7 +141,7 @@ export default function ImagesPage() {
         showActionError(`Failed to delete image: ${error}`)
         return false
       } else {
-        showActionSuccess("Image deleted successfully")
+        showActionSuccess("Image deleted.")
         loadImages()
         return true
       }
@@ -169,7 +169,7 @@ export default function ImagesPage() {
       if (error) {
         showActionError(`Failed to update image: ${error}`)
       } else {
-        showActionSuccess("Image updated successfully")
+        showActionSuccess("Image updated.")
         // Update the item in current page data
         if (paginatedData) {
           setPaginatedData({
@@ -231,7 +231,7 @@ export default function ImagesPage() {
         throw new Error(result.error || "Upload failed")
       }
 
-      showActionSuccess("Image uploaded successfully!")
+      showActionSuccess("Image uploaded.")
       loadImages()
     } catch (error) {
       showActionError(error instanceof Error ? error.message : "Upload failed")
@@ -270,7 +270,7 @@ export default function ImagesPage() {
       }
 
       if (successCount > 0) {
-        showActionSuccess(`Successfully deleted ${successCount} ${successCount === 1 ? "item" : "items"}`)
+        showActionSuccess(successCount === 1 ? "Item deleted." : "Items deleted.")
       }
       if (failCount > 0) {
         showActionError(`Failed to delete ${failCount} ${failCount === 1 ? "item" : "items"}`)

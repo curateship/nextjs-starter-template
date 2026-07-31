@@ -22,7 +22,6 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
   FeaturedImageCard,
   MetaDescriptionField,
-  ModalErrorBanner,
   useCreateContent,
   useTitleSlug,
   TitleSlugFields,
@@ -77,7 +76,7 @@ export function CreateCategoryModal({
     }
   }, [siteId])
 
-  const { loading, loadingAction, error, submit } = useCreateContent<Category>({
+  const { loading, loadingAction, submit } = useCreateContent<Category>({
     entityLabel: "category",
     title,
     titleRequiredMessage: "Category title is required",
@@ -163,7 +162,6 @@ export function CreateCategoryModal({
             </>
           }
         >
-          <ModalErrorBanner error={error} />
           <CardGroup className="grid">
             <Card>
               <CardHeader>

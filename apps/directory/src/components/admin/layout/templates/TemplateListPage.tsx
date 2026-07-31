@@ -38,7 +38,8 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils/tailwind"
-import { showActionError } from "@/lib/utils/admin-action-feedback"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 type TemplateSortColumn = "name" | "blocks" | "modified"
 
@@ -112,6 +113,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   const [total, setTotal] = useState(0)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
+  const [formNameInvalid, setFormNameInvalid] = useState(false)
   const [creating, setCreating] = useState(false)
   const [settingsTemplate, setSettingsTemplate] = useState<TTemplate | null>(null)
 
@@ -157,7 +159,15 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   }, [loadTemplates])
 
   async function handleCreate() {
-    if (!currentSite?.id || !formName.trim()) return
+    if (!currentSite?.id) return
+    if (!formName.trim()) {
+      setFormNameInvalid(true)
+      showErrorToast("Template name is required")
+      return
+    }
+
+    setFormNameInvalid(false)
+    dismissErrorToast()
     setCreating(true)
 
     const { data, error: createError } = await createTemplate({
@@ -175,12 +185,14 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     setCreateModalOpen(false)
     setFormName("")
     if (data) {
+      showActionSuccess("Template created.")
       router.push(`${routeBase}/${data.id}`)
     }
   }
 
   async function handleMassDelete() {
     setMassDeleting(true)
+    const deletedCount = templateSelection.selectedIds.size
     const { error: deleteError } = await deleteTemplates(Array.from(templateSelection.selectedIds))
     if (deleteError) {
       reportError(deleteError)
@@ -188,6 +200,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
       templateSelection.clearSelection()
       setMassDeleteConfirmOpen(false)
       loadTemplates()
+      showActionSuccess(deletedCount === 1 ? "Template deleted." : "Templates deleted.")
     }
     setMassDeleting(false)
   }
@@ -222,6 +235,8 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     const { error: defaultError } = await setDefaultTemplate(templateId)
     if (defaultError) {
       reportError(defaultError)
+    } else {
+      showActionSuccess("Default template updated.")
     }
     templateSelection.remove(templateId)
     loadTemplates()
@@ -427,7 +442,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
               <Button variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
                 Cancel
               </Button>
-              <Button onClick={handleCreate} disabled={creating || !formName.trim()}>
+              <Button onClick={handleCreate} disabled={creating}>
                 {creating ? "Creating..." : "Create Template"}
               </Button>
             </>
@@ -444,7 +459,11 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                   <Input
                     id="template-name"
                     value={formName}
-                    onChange={(event) => setFormName(event.target.value)}
+                    aria-invalid={formNameInvalid}
+                    onChange={(event) => {
+                      setFormName(event.target.value)
+                      if (formNameInvalid && event.target.value.trim()) setFormNameInvalid(false)
+                    }}
                     placeholder={createPlaceholder}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
@@ -464,7 +483,6 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
         <TemplateSettingsModal
           createPlaceholder={createPlaceholder}
           enableDefaultCategoryParent={enableDefaultCategoryParent}
-          onError={setError}
           onOpenChange={(open) => !open && setSettingsTemplate(null)}
           onSaved={() => {
             setSettingsTemplate(null)
