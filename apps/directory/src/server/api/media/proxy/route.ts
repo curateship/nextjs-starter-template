@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from '@/lib/web-response'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { media } from '@/lib/db/schema'
-import { getFromR2 } from '@/lib/utils/r2'
+import { getFromR2, toBodyInit } from '@/lib/utils/r2'
 import { parseExternalMediaUrl, parseR2MediaKey } from '@/lib/utils/media-proxy'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
@@ -163,19 +163,6 @@ export async function GET(request: NextRequest) {
     console.error('Media proxy error:', error)
     return NextResponse.json({ error: 'Failed to proxy media' }, { status: 500 })
   }
-}
-
-function toBodyInit(body: NonNullable<Awaited<ReturnType<typeof getFromR2>>['Body']>): BodyInit {
-  if (
-    typeof body === 'object'
-    && body !== null
-    && 'transformToWebStream' in body
-    && typeof body.transformToWebStream === 'function'
-  ) {
-    return body.transformToWebStream()
-  }
-
-  return body as BodyInit
 }
 
 export async function OPTIONS() {
