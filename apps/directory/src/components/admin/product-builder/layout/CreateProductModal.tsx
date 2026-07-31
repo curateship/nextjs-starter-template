@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import {
@@ -281,7 +280,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
                   <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                    <Skeleton className="h-4 w-24 rounded-sm" />
                     <ChevronDown className="size-4 opacity-50" />
                   </div>
                 ) : (
@@ -360,7 +358,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                     <button
                       type="button"
                       onClick={handleRemoveImage}
-                      className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                      className="absolute top-2 right-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                     >
                       <X className="h-4 w-4" />
                     </button>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { CardSection } from "@/components/shared/card-sections";
 import { Badge } from "@/components/ui/badge";
 import { ErrorBanner } from "@/components/ui/error-banner";
+import { AdminLoading } from "@/components/admin/layout/loading";
 import {
   TableCell,
   TableRow,
@@ -249,8 +250,10 @@ export function AdminSelectionBanner({
 
 export function AdminListPending() {
   return (
-    <TableRow aria-hidden="true" className="border-0">
-      <TableCell colSpan={100} className="h-32 border-0 p-0" />
+    <TableRow className="border-0 hover:bg-transparent">
+      <TableCell colSpan={100} className="border-0 p-0">
+        <AdminLoading />
+      </TableCell>
     </TableRow>
   );
 }

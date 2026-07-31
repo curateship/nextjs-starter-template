@@ -216,8 +216,8 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
           />
 
           {error && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
@@ -227,10 +227,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
                 {BREADCRUMB_OPTIONS.map((option) => (
                   <div key={option.key} className="flex items-center justify-between gap-4">
                     <div className="space-y-2">
-                      <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                      <div className="h-3 w-64 animate-pulse rounded bg-muted/60" />
                     </div>
-                    <div className="h-6 w-11 animate-pulse rounded-full bg-muted" />
                   </div>
                 ))}
               </CardContent>

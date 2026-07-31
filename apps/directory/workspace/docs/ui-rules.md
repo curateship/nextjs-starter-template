@@ -59,6 +59,7 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Use a 40px header (`h-10`), compact cells (`px-5 py-2`), a muted header, and the shared rounded surface.
 - Keep the main column flexible, metadata compact, and actions in the final column.
 - Order table-card toolbar controls from left to right: mass delete, search, filters, settings, edit actions, then create buttons. Omit unavailable controls without changing the order of the remaining controls.
+- **Long text never widens a table, and cut-off text is never unreadable.** One rule, three cases. **Identifier values** (a name, an email, a filename, a domain) sit on one line with `truncate` and a `title` carrying the full value; outside the flexible main column, cap the cell (`className="max-w-56"` on the `TableCell`, with a `block truncate` span inside). **Message columns** — the main free-text column — clamp to two lines with `line-clamp-2 whitespace-normal`, also with a `title`. **Preview columns** with a fixed width hold a one-line `block truncate` span with a `title`. Never leave a text cell `whitespace-nowrap` without a width cap. The `title` is the whole point: a cell that ends in "…" with no hover text is text the user simply cannot read.
 - Use horizontal scrolling for real overflow and hide low-priority columns on narrow screens.
 - Keep loading, empty, error, and pagination states inside the table surface.
 

@@ -91,8 +91,6 @@ export function AdminStylingSettingsTab({ onStatusChange }: AdminStylingSettings
         <CardContent>
           {[1, 2, 3].map((item) => (
             <div key={item} className="space-y-2">
-              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-              <div className="h-10 animate-pulse rounded bg-muted/60" />
             </div>
           ))}
         </CardContent>

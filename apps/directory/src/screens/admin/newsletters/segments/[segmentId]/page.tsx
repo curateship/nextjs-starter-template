@@ -352,9 +352,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Segments", href: "/admin/newsletters/segments" },
               {
-                label: loading ? (
-                  <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" />
-                ) : (
+                label: loading ? null : (
                   segment?.name || "Segment"
                 )
               }
@@ -381,15 +379,11 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
             }
           />
 
-          {/* Loading skeleton */}
           {loading && (
             <CardGroup className="grid">
               <Card>
                 <CardContent className="flex items-center">
-                  <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                   <div className="space-y-2">
-                    <div className="h-5 w-48 bg-muted rounded animate-pulse" />
-                    <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
                   </div>
                 </CardContent>
               </Card>
@@ -397,10 +391,8 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                 {[1, 2, 3].map((i) => (
                   <Card key={i}>
                     <CardHeader>
-                      <div className="h-4 w-20 bg-muted rounded animate-pulse" />
                     </CardHeader>
                     <CardContent>
-                      <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                     </CardContent>
                   </Card>
                 ))}
@@ -412,7 +404,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
           {error && !loading && (
             <Card className="text-center">
               <CardContent>
-                <p className="text-red-600 mb-4">{error}</p>
+                <p className="text-destructive mb-4">{error}</p>
                 <Link href="/admin/newsletters/segments">
                   <Button variant="outline">Back to Segments</Button>
                 </Link>
@@ -432,12 +424,15 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h1 className="text-lg font-semibold truncate">{segment.name}</h1>
+                      <h1 className="text-lg font-semibold truncate" title={segment.name}>{segment.name}</h1>
                       <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
                         {segment.segment_type}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p
+                      className="truncate text-sm text-muted-foreground"
+                      title={`${stats?.totalContacts ?? 0} contacts${segment.description ? ` · ${segment.description}` : ""}`}
+                    >
                       {stats?.totalContacts ?? 0} contacts
                       {segment.description ? ` · ${segment.description}` : ""}
                     </p>
@@ -494,7 +489,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                     ) : (
                       newsletters.map((nl) => (
                         <CardSection key={nl.id}>
-                          <p className="text-sm font-medium truncate">{nl.subject || nl.name}</p>
+                          <p className="text-sm font-medium truncate" title={nl.subject || nl.name}>{nl.subject || nl.name}</p>
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                             <Badge variant="outline" className="text-xs">
                               {nl.status}
@@ -556,11 +551,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                                   {searchResults.map((result) => (
                                     <div key={result.id} className="py-2 flex items-center gap-2">
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm truncate">{result.email}</p>
+                                        <p className="text-sm truncate" title={result.email}>{result.email}</p>
                                         {getContactName(result.metadata) && (
-                                          <p className="text-xs text-muted-foreground truncate">
-                                            {getContactName(result.metadata)}
-                                          </p>
+                                          <p className="text-xs text-muted-foreground truncate" title={getContactName(result.metadata)}>{getContactName(result.metadata)}</p>
                                         )}
                                       </div>
                                       <Button
@@ -596,11 +589,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                         contacts.map((contact) => (
                           <CardSection key={contact.id} className="flex items-center gap-3">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{contact.email}</p>
+                              <p className="text-sm font-medium truncate" title={contact.email}>{contact.email}</p>
                               {getContactName(contact.metadata) && (
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {getContactName(contact.metadata)}
-                                </p>
+                                <p className="text-xs text-muted-foreground truncate" title={getContactName(contact.metadata)}>{getContactName(contact.metadata)}</p>
                               )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0">

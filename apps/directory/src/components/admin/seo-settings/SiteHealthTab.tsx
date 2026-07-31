@@ -7,7 +7,6 @@ import XCircle from "lucide-react/dist/esm/icons/circle-x.js"
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { getCronJobs, toggleCronJob, type CronJob } from '@/lib/actions/cron/cron-actions'
 
 interface SiteHealthTabProps {
@@ -72,16 +71,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
   }
 
   if (loading) {
-    return (
-      <CardGroup className="grid">
-        <Card>
-          <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
-          <CardContent>
-            {[1, 2, 3].map((item) => <Skeleton key={item} className="h-12 w-full" />)}
-          </CardContent>
-        </Card>
-      </CardGroup>
-    )
+    return null
   }
 
   const enabledJobs = jobs.filter((job) => job.enabled).length
@@ -119,12 +109,12 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                       {job.lastRun?.status === 'success' ? (
-                        <span className="inline-flex items-center gap-1 font-medium text-green-700">
+                        <span className="inline-flex items-center gap-1 font-medium text-green-700 dark:text-green-300">
                           <CheckCircle className="h-4 w-4" />
                           Last run succeeded
                         </span>
                       ) : job.lastRun?.status ? (
-                        <span className="inline-flex items-center gap-1 font-medium text-red-700">
+                        <span className="inline-flex items-center gap-1 font-medium text-destructive">
                           <XCircle className="h-4 w-4" />
                           Last run failed
                         </span>

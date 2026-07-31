@@ -68,7 +68,6 @@ export function EventSettingsModal({
   const [featuredImage, setFeaturedImage] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [loadingCategories, setLoadingCategories] = useState(false)
   const [templates, setTemplates] = useState<EventTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
@@ -141,16 +140,12 @@ export function EventSettingsModal({
 
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
-      setLoadingCategories(true)
       getContentCategoriesAction({ data: { contentId: event.id, contentType: 'event' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
           setPrimaryCategoryId(data.find((c) => c.is_primary)?.id || data[0]?.id || null)
         }
-      }).finally(() => {
-        if (cancelled) return
-        setLoadingCategories(false)
       })
     }
 
@@ -189,7 +184,7 @@ export function EventSettingsModal({
           description="Update this event's setup, schedule, and details."
           titleAccessory={
             <div className="flex items-center gap-2">
-              <span className={`size-2 rounded-full ${event.is_published ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <span className={`size-2 rounded-full ${event.is_published ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">{event.is_published ? 'Published' : 'Draft'}</span>
             </div>
           }
@@ -277,7 +272,6 @@ export function EventSettingsModal({
                       onSelectionChange={setSelectedCategoryIds}
                       primaryCategoryId={primaryCategoryId}
                       onPrimaryCategoryChange={setPrimaryCategoryId}
-                      loadingSelectedCategories={loadingCategories}
                     />
                     <FieldDescription>Assign this event to one or more categories</FieldDescription>
                   </Field>

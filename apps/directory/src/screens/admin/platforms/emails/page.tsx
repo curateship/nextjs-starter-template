@@ -164,21 +164,18 @@ export default function PlatformEmailsPage() {
                               <Link
                                 href={`/admin/platforms/emails/${template.template_key}`}
                                 className="truncate text-sm font-medium hover:underline sm:text-base"
+                                title={template.name}
                               >
                                 {template.name}
                               </Link>
                             ) : (
-                              <p className="truncate text-sm font-medium sm:text-base">
-                                {template.name}
-                              </p>
+                              <p className="truncate text-sm font-medium sm:text-base" title={template.name}>{template.name}</p>
                             )}
                             {!template.editable && (
                               <Badge variant="secondary">Super Admin</Badge>
                             )}
                           </div>
-                          <p className="mt-1 truncate text-xs text-muted-foreground sm:text-sm">
-                            {template.description}
-                          </p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground sm:text-sm" title={template.description}>{template.description}</p>
                         </TableCell>
                         <TableCell column="meta">
                           {template.scope_label}

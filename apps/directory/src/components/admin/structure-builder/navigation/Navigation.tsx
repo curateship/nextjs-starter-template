@@ -235,7 +235,7 @@ function SortableLinkItem({
       onDelete={() => onDelete(index)}
     >
       <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate">{link.text || "Link"}</span>
+      <span className="truncate" title={link.text || "Link"}>{link.text || "Link"}</span>
     </SortableActionRow>
   )
 }
@@ -260,7 +260,7 @@ function StaticLinkItem({
       onDelete={() => onDelete(index)}
     >
       <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate">{link.text || "Link"}</span>
+      <span className="truncate" title={link.text || "Link"}>{link.text || "Link"}</span>
     </ActionRow>
   )
 }
@@ -407,7 +407,7 @@ function SortableButtonItem({
       onDelete={() => onDelete(index)}
     >
       <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate">{button.text || "Button"}</span>
+      <span className="truncate" title={button.text || "Button"}>{button.text || "Button"}</span>
     </SortableActionRow>
   )
 }
@@ -432,7 +432,7 @@ function StaticButtonItem({
       onDelete={() => onDelete(index)}
     >
       <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate">{button.text || "Button"}</span>
+      <span className="truncate" title={button.text || "Button"}>{button.text || "Button"}</span>
     </ActionRow>
   )
 }
@@ -478,7 +478,7 @@ function SortableBuiltInActionItem({
           title={`${item.label} settings`}
         >
           <Icon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{item.label}</span>
+          <span className="truncate" title={item.label}>{item.label}</span>
           {item.hidden ? (
             <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               Hidden
@@ -514,7 +514,7 @@ function StaticBuiltInActionItem({
           title={`${item.label} settings`}
         >
           <Icon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{item.label}</span>
+          <span className="truncate" title={item.label}>{item.label}</span>
           {item.hidden ? (
             <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               Hidden

@@ -144,8 +144,6 @@ export default function TemplateEditorPage({ params }: PageProps) {
   return (
     <NewsletterEditorShell
       loading={loading}
-      loadingActionCount={2}
-      loadingSidebarRows={3}
       error={error}
       showError={Boolean(error && !template)}
       errorBackLabel="Back to Templates"

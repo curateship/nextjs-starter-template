@@ -97,7 +97,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
             disabled={pending}
             title="Report link actions"
           >
-            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Link2 className="h-4 w-4" />}
+            {copied ? <Check className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Link2 className="h-4 w-4" />}
             <span className="sr-only">Report link actions</span>
           </Button>
         </DropdownMenuTrigger>

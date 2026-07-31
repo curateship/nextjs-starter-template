@@ -232,7 +232,7 @@ export function PageDividerBlock({
                                     <button
                                       type="button"
                                       onClick={() => onDividerImageChange?.('')}
-                                      className="absolute top-1 right-1 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                                      className="absolute top-1 right-1 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                                     >
                                       <X className="h-3 w-3" />
                                     </button>

@@ -21,8 +21,6 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
   return (
     <NewsletterEditorShell
       loading={builder.loading}
-      loadingActionCount={3}
-      loadingShowHeader
       error={builder.error}
       showError={Boolean(builder.error && !builder.step)}
       errorBackLabel="Back to Automation"

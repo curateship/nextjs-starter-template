@@ -18,9 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { AdminLoading } from "@/components/admin/layout/loading"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
 import { getDeletionImpactAction } from "@/lib/actions/deletion-impact-actions"
 import {
   deserializeDeletionImpactIds,
@@ -151,10 +151,7 @@ export function ConfirmDestructive({
         <div className="space-y-3 text-sm">
           <p>{policy.consequence}</p>
           {loadingImpact ? (
-            <div className="space-y-2" aria-busy="true" aria-label="Loading deletion impact">
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
+            <AdminLoading className="min-h-12 p-0" label="Loading deletion impact" />
           ) : loadedImpact.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5">
               {loadedImpact.map((item) => (

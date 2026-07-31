@@ -108,10 +108,6 @@ export function ProductSettingsModal({
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryInfo[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [loadingCategories, setLoadingCategories] = useState(false)
-  const hasInitialCategorySnapshot = initialCategories !== undefined
-  const hasInitialSelectedCategories = (initialCategories?.length ?? 0) > 0
-  const showCategorySkeleton = loadingCategories && (!hasInitialCategorySnapshot || hasInitialSelectedCategories)
   const saving = savingAction !== null
 
   const handleTitleChange = (title: string) => {
@@ -166,7 +162,6 @@ export function ProductSettingsModal({
       setSelectedCategoryIds(startingCategories.map((category) => category.id))
       setSelectedCategoryDetails([])
       setPrimaryCategoryId(null)
-      setLoadingCategories(true)
       getContentCategoriesAction({ data: { contentId: product.id, contentType: 'product' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
@@ -178,9 +173,6 @@ export function ProductSettingsModal({
           setSelectedCategoryDetails([])
           setPrimaryCategoryId(null)
         }
-      }).finally(() => {
-        if (cancelled) return
-        setLoadingCategories(false)
       })
     }
 
@@ -323,9 +315,9 @@ export function ProductSettingsModal({
       <DashboardModalContent
         title={(
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate">{product.title}</span>
+            <span className="truncate" title={product.title}>{product.title}</span>
             <div className="flex shrink-0 items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${product?.is_published ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${product?.is_published ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">
                 {product?.is_published ? 'Published' : 'Draft'}
               </span>
@@ -459,7 +451,7 @@ export function ProductSettingsModal({
                         <button
                           type="button"
                           onClick={handleRemoveImage}
-                          className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                          className="absolute top-2 right-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -521,7 +513,6 @@ export function ProductSettingsModal({
                       selectedCategoryDetails={selectedCategoryDetails}
                       primaryCategoryId={primaryCategoryId}
                       onPrimaryCategoryChange={setPrimaryCategoryId}
-                      loadingSelectedCategories={showCategorySkeleton}
                       variant="combobox"
                     />
                     <FieldDescription>Assign this product to one or more categories.</FieldDescription>

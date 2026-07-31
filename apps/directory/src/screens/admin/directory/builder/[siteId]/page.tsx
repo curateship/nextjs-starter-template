@@ -250,7 +250,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            preActions={siteError ? <span className="text-xs text-red-600">{siteError}</span> : null}
+            preActions={siteError ? <span className="text-xs text-destructive">{siteError}</span> : null}
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
             onPublish={handlePublish}

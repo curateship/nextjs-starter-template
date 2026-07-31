@@ -9,7 +9,6 @@ import X from "lucide-react/dist/esm/icons/x.js"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Command,
   CommandGroup,
@@ -42,7 +41,6 @@ interface CategoryPickerProps {
   onSelectionChange: (categoryIds: string[]) => void
   primaryCategoryId?: string | null
   onPrimaryCategoryChange?: (categoryId: string | null) => void
-  loadingSelectedCategories?: boolean
   selectedCategoryDetails?: Array<{ id: string; title: string }>
   variant?: "default" | "combobox"
 }
@@ -74,7 +72,7 @@ function CategoryPath({ parts }: { parts: string[] }) {
       {parts.map((part, index) => (
         <span key={`${part}-${index}`} className="inline-flex min-w-0 items-center gap-1">
           {index > 0 && <ChevronRight className="size-3 shrink-0 text-muted-foreground" />}
-          <span className="truncate">{part}</span>
+          <span className="truncate" title={part}>{part}</span>
         </span>
       ))}
     </span>
@@ -162,7 +160,7 @@ function ParentCategorySelect({
             {selectedChildren.length > 0 ? (
               selectedChildren.map((child) => (
                 <Badge key={child.id} variant="secondary" className="max-w-full gap-1 pr-1">
-                  <span className="truncate">{child.title}</span>
+                  <span className="truncate" title={child.title}>{child.title}</span>
                   <button
                     type="button"
                     onClick={(event) => {
@@ -212,7 +210,7 @@ function ParentCategorySelect({
                             selected ? "opacity-100" : "opacity-0"
                           )}
                         />
-                        <span className="truncate">{child.title}</span>
+                        <span className="truncate" title={child.title}>{child.title}</span>
                       </button>
                     )
                   })}
@@ -278,7 +276,6 @@ export function CategoryPicker({
   onSelectionChange,
   primaryCategoryId,
   onPrimaryCategoryChange,
-  loadingSelectedCategories = false,
   selectedCategoryDetails = [],
   variant = "default",
 }: CategoryPickerProps) {
@@ -433,9 +430,6 @@ export function CategoryPicker({
     return map
   }, [childCategories, validSelectedCategoryIds])
 
-  const showSelectedCategorySkeleton =
-    loadingSelectedCategories ||
-    (selectedCategoryIds.length > 0 && (!categoriesLoaded || loading))
 
   const toggleChildCategory = (categoryId: string) => {
     if (!childCategoryIds.has(categoryId)) return
@@ -476,10 +470,6 @@ export function CategoryPicker({
   if (loading || !categoriesLoaded) {
     return (
       <div className="space-y-3">
-        <Skeleton className="h-10 w-full" />
-        {showSelectedCategorySkeleton && (
-          <Skeleton className="h-6 w-32 rounded-full" />
-        )}
       </div>
     )
   }

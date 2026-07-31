@@ -61,7 +61,7 @@ export function CategoryBlockEditorModal({
           className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
           footer={
             <>
-              {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
+              {error ? <p className="text-sm text-destructive">{error}</p> : <div />}
               <DashboardModalFooterActions>
                 <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
                   Cancel

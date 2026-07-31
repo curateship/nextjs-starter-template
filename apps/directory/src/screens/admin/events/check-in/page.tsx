@@ -379,8 +379,8 @@ export default function EventCheckInPage() {
                       {matches.slice(0, VISIBLE_ATTENDEES).map((attendee) => (
                         <li key={attendee.id} className="flex items-center gap-3 py-2">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{attendee.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{attendee.email}</p>
+                            <p className="truncate text-sm font-medium" title={attendee.name}>{attendee.name}</p>
+                            <p className="truncate text-xs text-muted-foreground" title={attendee.email}>{attendee.email}</p>
                           </div>
                           {attendee.checked_in_at ? (
                             <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">

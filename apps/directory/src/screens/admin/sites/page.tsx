@@ -391,14 +391,10 @@ export default function SitesPage() {
                             </div>
                             <div className="min-w-0">
                               <div className="flex min-w-0 items-center gap-2">
-                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                  {site.name}
-                                </h4>
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={site.name}>{site.name}</h4>
                                 {getSiteTag(site) && <Badge variant="secondary">{getSiteTag(site)}</Badge>}
                               </div>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                {site.custom_domain || site.subdomain}
-                              </p>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={site.custom_domain || site.subdomain}>{site.custom_domain || site.subdomain}</p>
                             </div>
                           </Link>
                         </TableCell>
@@ -543,7 +539,7 @@ export default function SitesPage() {
                   </div>
                 </div>
 
-                {duplicateError && <p className="text-sm text-red-600">{duplicateError}</p>}
+                {duplicateError && <p className="text-sm text-destructive">{duplicateError}</p>}
               </div>
 
               <div className="flex justify-end gap-2 mt-6">
@@ -728,7 +724,7 @@ function CreateSiteModal({
         }
       >
         {error && !isCustomDomainVerificationError && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             {error}
           </div>
         )}

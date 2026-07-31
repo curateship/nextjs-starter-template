@@ -21,6 +21,7 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -113,6 +114,12 @@ export default function UsersPage() {
   const [filterModalOpen, setFilterModalOpen] = useState(false)
   const userSelection = useAdminBulkSelection()
   const userSort = useAdminSort<SortColumn>()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    userSelection,
+    `${searchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}`
+  )
+
 
   async function loadUsers() {
     setLoading(true)
@@ -491,7 +498,6 @@ export default function UsersPage() {
                   value={searchQuery}
                   onChange={(event) => {
                     setSearchQuery(event.target.value)
-                    userSelection.clearSelection()
                   }}
                   placeholder="Search users"
                 />
@@ -607,10 +613,8 @@ export default function UsersPage() {
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium sm:text-base">
-                                {user.display_name || user.email.split("@")[0]}
-                              </h4>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                              <h4 className="truncate text-sm font-medium sm:text-base" title={user.display_name || user.email.split("@")[0]}>{user.display_name || user.email.split("@")[0]}</h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={user.email}>{user.email}</p>
                             </div>
                           </div>
                         </TableCell>

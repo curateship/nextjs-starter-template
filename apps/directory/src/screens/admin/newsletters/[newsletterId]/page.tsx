@@ -75,7 +75,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         <div className={`flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-4 py-2.5 text-sm ${newsletter.status === "paused" ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"}`}>
           <button
             type="button"
-            className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:bg-orange-900/40" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-900/40"}`}
+            className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:bg-orange-900/40" : "border-green-200 bg-green-50 text-green-700 dark:text-green-300 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-900/40"}`}
             onClick={async () => {
               if (newsletter.status === "sending") {
                 await pauseNewsletter({ data: { newsletterId: newsletter.id } })
@@ -107,9 +107,6 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
     <>
       <NewsletterEditorShell
         loading={builder.loading}
-        loadingActionCount={4}
-        loadingContentRows={5}
-        loadingShowHeader
         error={builder.error}
         showError={Boolean(builder.error && !newsletter)}
         errorBackLabel="Back to Newsletters"

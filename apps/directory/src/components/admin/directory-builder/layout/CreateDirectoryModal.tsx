@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Skeleton } from "@/components/ui/skeleton"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
@@ -167,7 +166,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
                   <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap">
-                    <Skeleton className="h-4 w-24 rounded-sm" />
                     <ChevronDown className="size-4 opacity-50" />
                   </div>
                 ) : (

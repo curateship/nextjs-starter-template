@@ -7,7 +7,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -53,7 +52,6 @@ export function PostSettingsModal({
   const [excerpt, setExcerpt] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [loadingCategories, setLoadingCategories] = useState(false)
   const [templates, setTemplates] = useState<PostTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
@@ -94,16 +92,12 @@ export function PostSettingsModal({
 
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
-      setLoadingCategories(true)
       getContentCategoriesAction({ data: { contentId: post.id, contentType: 'post' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
           setPrimaryCategoryId(data.find((c) => c.is_primary)?.id || data[0]?.id || null)
         }
-      }).finally(() => {
-        if (cancelled) return
-        setLoadingCategories(false)
       })
     }
 
@@ -179,10 +173,10 @@ export function PostSettingsModal({
       <DashboardModalContent
         title={(
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate">{post.title}</span>
+            <span className="truncate" title={post.title}>{post.title}</span>
             <div className="flex shrink-0 items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${
-                post?.is_published ? 'bg-green-500' : 'bg-gray-400'
+                post?.is_published ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'
               }`} />
               <span className="text-sm font-medium">
                 {post?.is_published ? 'Published' : 'Draft'}
@@ -234,7 +228,6 @@ export function PostSettingsModal({
                   <FieldLabel htmlFor="modal-post-template">Template</FieldLabel>
                   {templatesLoading ? (
                     <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                      <Skeleton className="h-4 w-24 rounded-sm" />
                       <ChevronDown className="size-4 opacity-50" />
                     </div>
                   ) : (
@@ -295,7 +288,6 @@ export function PostSettingsModal({
                       onSelectionChange={setSelectedCategoryIds}
                       primaryCategoryId={primaryCategoryId}
                       onPrimaryCategoryChange={setPrimaryCategoryId}
-                      loadingSelectedCategories={loadingCategories}
                       variant="combobox"
                     />
                   </Field>

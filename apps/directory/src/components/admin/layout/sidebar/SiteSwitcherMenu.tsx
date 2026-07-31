@@ -54,11 +54,9 @@ export function SiteSwitcherMenu() {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" disabled>
-            <div className="bg-muted flex aspect-square size-8 items-center justify-center rounded-lg animate-pulse">
+            <div className="bg-muted flex aspect-square size-8 items-center justify-center rounded-lg">
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <div className="h-4 bg-muted rounded animate-pulse mb-1 w-24"></div>
-              <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -100,9 +98,7 @@ export function SiteSwitcherMenu() {
           </Link>
           <div className="flex min-w-0 flex-1 items-center overflow-hidden whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:pointer-events-none">
             <Link href={dashboardHref} className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">
-                {currentSite ? currentSite.name : "Select Site"}
-              </span>
+              <span className="truncate font-medium" title={currentSite ? currentSite.name : "Select Site"}>{currentSite ? currentSite.name : "Select Site"}</span>
               <span className="truncate text-xs text-muted-foreground">
                 {currentSite ? (currentSite.custom_domain || `${currentSite.subdomain}.domain.com`) : "Choose a site"}
               </span>

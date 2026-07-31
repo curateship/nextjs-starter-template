@@ -41,6 +41,7 @@ import {
   setDefaultTemplate
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -70,6 +71,12 @@ export default function TemplatesPage() {
   const [total, setTotal] = useState(0)
 
   const templateSort = useAdminSort<TemplateSortColumn>()
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    templateSelection,
+    `${currentSite?.id}|${searchQuery}|${templateSort.sortColumn}|${templateSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
@@ -224,7 +231,6 @@ export default function TemplatesPage() {
                   value={searchQuery}
                   onChange={(event) => {
                     setSearchQuery(event.target.value)
-                    templateSelection.clearSelection()
                   }}
                   placeholder="Search templates"
                 />
@@ -245,10 +251,7 @@ export default function TemplatesPage() {
                   currentPage={currentPage}
                   pageSize={pageSize}
                   total={total}
-                  onPageChange={(page) => {
-                    setCurrentPage(page)
-                    templateSelection.clearSelection()
-                  }}
+                  onPageChange={setCurrentPage}
                 />
               ) : null
             }
@@ -342,7 +345,7 @@ export default function TemplatesPage() {
                             href={`/admin/newsletters/templates/${template.id}`}
                             className="transition-opacity hover:opacity-80"
                           >
-                            <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{template.name}</h4>
+                            <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={template.name}>{template.name}</h4>
                           </Link>
                         </TableCell>
                         <TableCell column="mutedMeta">{getBlockCount(template)}</TableCell>

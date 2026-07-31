@@ -226,8 +226,8 @@ export default function ThemesPage() {
           <DashboardSubheader items={[{ label: "Themes" }]} />
 
           {error && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
@@ -304,13 +304,10 @@ export default function ThemesPage() {
                               </span>
                             </div>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                {template.name}
-                              </h4>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                {template.settings?.description ||
-                                  "Reusable template"}
-                              </p>
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={template.name}>{template.name}</h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={template.settings?.description ||
+                                  "Reusable template"}>{template.settings?.description ||
+                                  "Reusable template"}</p>
                             </div>
                           </Link>
                         </TableCell>

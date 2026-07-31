@@ -16,6 +16,7 @@ import {
   TableRightActionsSelectTrigger
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
@@ -80,6 +81,12 @@ export default function DirectorySavedPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const selection = useAdminBulkSelection()
   const folderSort = useAdminSort<FolderSortColumn>("activity", "desc")
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    selection,
+    `${currentSite?.id}|${query}|${typeFilter}|${folderSort.sortColumn}|${folderSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   const loadFolders = useCallback(async () => {
     if (!currentSite?.id) {
@@ -245,7 +252,6 @@ export default function DirectorySavedPage() {
                   onChange={(event) => {
                     setQuery(event.target.value)
                     setCurrentPage(1)
-                    selection.clearSelection()
                   }}
                   placeholder="Search saved folders"
                 />
@@ -254,7 +260,6 @@ export default function DirectorySavedPage() {
                   onValueChange={(value) => {
                     setTypeFilter(value as DirectorySaveFolderTypeFilter)
                     setCurrentPage(1)
-                    selection.clearSelection()
                   }}
                 >
                   <TableRightActionsSelectTrigger aria-label="Folder type filter">
@@ -366,16 +371,16 @@ export default function DirectorySavedPage() {
                               <FolderOpen className="h-5 w-5 text-primary" />
                             </span>
                             <span className="min-w-0">
-                              <span className="block truncate font-medium hover:underline">{folder.name}</span>
-                              <span className="block truncate text-sm text-muted-foreground">
+                              <span className="block truncate font-medium hover:underline" title={folder.name}>{folder.name}</span>
+                              <span className="block truncate text-sm text-muted-foreground" title={`Created${formatDate(folder.created_at)}`}>
                                 Created {formatDate(folder.created_at)}
                               </span>
                             </span>
                           </Link>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{folder.owner_name}</div>
-                          <div className="truncate text-sm text-muted-foreground">{folder.owner_email}</div>
+                          <div className="truncate text-sm" title={folder.owner_name}>{folder.owner_name}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={folder.owner_email}>{folder.owner_email}</div>
                         </TableCell>
                         <TableCell column="meta">
                           {folder.default_key ? <Badge variant="secondary">Default</Badge> : <Badge>Custom</Badge>}

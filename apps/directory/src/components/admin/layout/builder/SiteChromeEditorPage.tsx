@@ -336,17 +336,14 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
           />
 
           {error && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
           {loading ? (
             <Card>
               <CardContent className="space-y-4">
-                <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-                <div className="h-48 animate-pulse rounded bg-muted/60" />
-                <div className="h-48 animate-pulse rounded bg-muted/40" />
               </CardContent>
             </Card>
           ) : !site ? (

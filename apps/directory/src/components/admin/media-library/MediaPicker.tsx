@@ -438,7 +438,6 @@ export function MediaPicker({
               {isLoading ? (
                 <div className="p-8 flex items-center justify-center">
                   <div className="text-center">
-                    <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
                     <p className="text-muted-foreground">Loading images...</p>
                   </div>
                 </div>

@@ -30,8 +30,8 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getOrdersWithProducts,
@@ -95,6 +95,12 @@ export default function OrdersPage() {
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    orderSelection,
+    `${currentSite?.id}|${activeTab}|${selectedProduct}|${searchQuery}|${orderSort.sortColumn}|${orderSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   useEffect(() => {
     const nextTab = typeParam === "lead_magnet" || typeParam === "paid_purchase" ? typeParam : "all"
@@ -284,9 +290,7 @@ export default function OrdersPage() {
                     <SelectItem value="paid_purchase">Paid ({tabCounts.paid_purchase})</SelectItem>
                   </SelectContent>
                 </Select>
-                {loading ? (
-                  <Skeleton className="h-8 w-[160px] rounded-md" />
-                ) : Object.keys(productMap).length > 0 ? (
+                {loading ? null : Object.keys(productMap).length > 0 ? (
                   <Select
                     value={selectedProduct}
                     onValueChange={(v) => {
@@ -405,7 +409,7 @@ export default function OrdersPage() {
                           />
                         </TableCell>
                         <TableCell column="main">
-                          <h4 className="truncate text-sm font-medium sm:text-base">{order.customer_email}</h4>
+                          <h4 className="truncate text-sm font-medium sm:text-base" title={order.customer_email}>{order.customer_email}</h4>
                         </TableCell>
                         <TableCell column="mutedMeta">{formatDate(order.created_at)}</TableCell>
                         <TableCell column="content">

@@ -127,7 +127,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
         Forms
       </Link>
       <ChevronRight className="size-3 text-muted-foreground" />
-      <span className="truncate">{form?.name || "Submissions"}</span>
+      <span className="truncate" title={form?.name || "Submissions"}>{form?.name || "Submissions"}</span>
     </span>
   )
 

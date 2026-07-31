@@ -19,6 +19,7 @@ import {
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
@@ -87,6 +88,12 @@ export default function EventRegistrationsPage() {
 
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>("registered", "desc")
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    selection,
+    `${currentSite?.id}|${eventFilter}|${query}|${sort.sortColumn}|${sort.sortDirection}`
+  )
+
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -338,8 +345,8 @@ export default function EventRegistrationsPage() {
                           />
                         </TableCell>
                         <TableCell column="main">
-                          <h4 className="truncate font-medium">{row.name}</h4>
-                          <p className="truncate text-sm text-muted-foreground">{row.email}</p>
+                          <h4 className="truncate font-medium" title={row.name}>{row.name}</h4>
+                          <p className="truncate text-sm text-muted-foreground" title={row.email}>{row.email}</p>
                         </TableCell>
                         <TableCell column="content">
                           <a
@@ -347,7 +354,7 @@ export default function EventRegistrationsPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="truncate text-sm hover:underline"
-                          >
+                           title={row.event_title}>
                             {row.event_title}
                           </a>
                         </TableCell>

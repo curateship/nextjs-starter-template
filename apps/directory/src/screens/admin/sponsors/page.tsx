@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { SponsorFormModal } from "@/components/admin/sponsors/SponsorFormModal"
@@ -74,6 +75,12 @@ export default function SponsorsPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const sponsorSelection = useAdminBulkSelection()
   const sponsorSort = useAdminSort<SortColumn>("modified", "desc")
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    sponsorSelection,
+    `${currentSite?.id}|${searchQuery}|${filter}|${sponsorSort.sortColumn}|${sponsorSort.sortDirection}`
+  )
+
 
   useEffect(() => {
     let cancelled = false
@@ -238,7 +245,6 @@ export default function SponsorsPage() {
                 value={filter}
                 onValueChange={(value) => {
                   setFilter(value as SponsorFilter)
-                  sponsorSelection.clearSelection()
                 }}
               >
                 <TableRightActionsSelectTrigger aria-label="Sponsor status filter">
@@ -316,7 +322,7 @@ export default function SponsorsPage() {
                 ) : error ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center">
-                      <p className="text-sm text-red-600">{error}</p>
+                      <p className="text-sm text-destructive">{error}</p>
                     </TableCell>
                   </TableRow>
                 ) : filteredSponsors.length === 0 ? (
@@ -359,11 +365,9 @@ export default function SponsorsPage() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium sm:text-base">{sponsor.title}</h4>
+                              <h4 className="truncate text-sm font-medium sm:text-base" title={sponsor.title}>{sponsor.title}</h4>
                               {sponsor.description && (
-                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                  {sponsor.description}
-                                </p>
+                                <p className="truncate text-xs text-muted-foreground sm:text-sm" title={sponsor.description}>{sponsor.description}</p>
                               )}
                             </div>
                           </div>
@@ -384,7 +388,7 @@ export default function SponsorsPage() {
                             rel="noopener noreferrer"
                             className="inline-flex max-w-64 items-center gap-1 truncate text-sm text-muted-foreground hover:text-foreground"
                           >
-                            <span className="truncate">{sponsor.url}</span>
+                            <span className="truncate" title={sponsor.url}>{sponsor.url}</span>
                             <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                           </a>
                         </TableCell>

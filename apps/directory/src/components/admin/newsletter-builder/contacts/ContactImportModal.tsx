@@ -248,7 +248,7 @@ export function ContactImportModal({
                         <p className="text-xs font-medium text-muted-foreground mb-1.5">{header}</p>
                         <div className="grid gap-2 sm:grid-cols-[1fr_32px_1fr] sm:items-center">
                           <div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center">
-                            <span className="text-sm truncate">{sample || "-"}</span>
+                            <span className="text-sm truncate" title={sample || "-"}>{sample || "-"}</span>
                           </div>
                           <div className="flex justify-center">
                             <span className="text-muted-foreground">-&gt;</span>
@@ -288,7 +288,7 @@ export function ContactImportModal({
                 </div>
 
                 {!hasEmailMapped && (
-                  <p className="text-sm text-red-600 mt-4 text-center">Please map at least one column to Email</p>
+                  <p className="text-sm text-destructive mt-4 text-center">Please map at least one column to Email</p>
                 )}
 
                 <div className="flex items-center justify-between mt-6 pt-4">

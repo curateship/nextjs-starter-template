@@ -5,7 +5,7 @@ import { useRouter } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { BuilderSkeleton } from "@/components/admin/layout/skeletons"
+import { AdminLoading } from "@/components/admin/layout/loading"
 import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { TemplateSettingsModal } from "@/components/admin/layout/templates/TemplateSettingsModal"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
@@ -301,7 +301,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader />
-        <BuilderSkeleton />
+        <AdminLoading className="min-h-0 flex-1" />
       </div>
     )
   }
@@ -312,7 +312,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
         <DashboardStickyHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-red-600 mb-4">{error}</p>
+            <p className="text-destructive mb-4">{error}</p>
             <Button onClick={() => router.push("/admin/directory/templates")} variant="outline">
               Back to Templates
             </Button>

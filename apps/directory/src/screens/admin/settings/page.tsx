@@ -115,7 +115,7 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, onSecre
               {!isConfigured && <Badge variant="secondary">Not configured</Badge>}
               {entry.type === "stripe" && isConfigured && (
                 <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stripeMode === "Sandbox" ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"}`}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stripeMode === "Sandbox" ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" : "bg-green-100 text-green-800 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"}`}
                 >
                   Using {stripeMode}
                 </span>
@@ -376,42 +376,7 @@ function IntegrationTab({ siteId, category, onStatusChange, onSaved, onError }: 
     return integrations.find((i) => i.integrationType === type) ?? null
   }
 
-  if (loading) {
-    return (
-      <CardGroup className="grid">
-        {entries.map((entry) => (
-          <Card key={entry.type}>
-            <CardHeader>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-5 bg-muted rounded animate-pulse w-24" />
-                  {entry.type === "stripe" && <div className="h-5 bg-muted rounded-full animate-pulse w-20" />}
-                </div>
-                <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              {entry.fields.map((field) => (
-                <div key={field.key} className="space-y-2">
-                  {entry.type === "stripe" && (field.key === "secret_key" || field.key === "sandbox_secret_key") && (
-                    <div className="h-5 bg-muted rounded animate-pulse w-36" />
-                  )}
-                  <div className="h-4 bg-muted rounded animate-pulse w-44" />
-                  <div
-                    className={
-                      field.key === "mode"
-                        ? "h-5 bg-muted rounded animate-pulse w-36"
-                        : "h-10 bg-muted rounded animate-pulse w-full"
-                    }
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
-      </CardGroup>
-    )
-  }
+  if (loading) return null
 
   return (
     <CardGroup className="grid">
@@ -433,8 +398,8 @@ function IntegrationTab({ siteId, category, onStatusChange, onSaved, onError }: 
 // --- EmailDomainHealthCard ---
 
 function dnsStatusIcon(status: DomainHealth["spf"]) {
-  if (status === "pass") return <CheckCircle className="h-4 w-4 text-green-600" />
-  if (status === "fail") return <XCircle className="h-4 w-4 text-red-600" />
+  if (status === "pass") return <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+  if (status === "fail") return <XCircle className="h-4 w-4 text-destructive" />
   return <AlertTriangle className="h-4 w-4 text-yellow-600" />
 }
 
@@ -479,9 +444,7 @@ function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refr
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <div className="h-12 animate-pulse rounded-md bg-muted" />
-        ) : domainHealth ? (
+        {loading ? null : domainHealth ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Sending domain: <span className="font-medium text-foreground">{domainHealth.domain}</span>

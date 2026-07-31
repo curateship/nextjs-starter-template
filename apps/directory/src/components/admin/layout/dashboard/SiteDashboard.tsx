@@ -168,8 +168,6 @@ export function SiteDashboard({
             <CardContent>
               {[...Array(3)].map((_, j) => (
                 <div key={j} className="space-y-2">
-                  <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                  <div className="h-10 bg-muted/60 rounded animate-pulse"></div>
                 </div>
               ))}
             </CardContent>
@@ -200,17 +198,17 @@ export function SiteDashboard({
                 required
                 className={
                   subdomainStatus.available === false
-                    ? "pr-10 border-red-300 focus:border-red-500"
+                    ? "pr-10 border-destructive/30 focus:border-destructive"
                     : subdomainStatus.available === true
-                      ? "pr-10 border-green-300 focus:border-green-500"
+                      ? "pr-10 border-green-500/40 focus:border-green-500"
                       : ""
                 }
               />
               {!subdomainStatus.checking && subdomainStatus.available === true && (
-                <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500 dark:text-green-400" />
               )}
               {!subdomainStatus.checking && subdomainStatus.available === false && (
-                <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-destructive" />
               )}
             </div>
             {subdomainStatus.checking && (
@@ -254,17 +252,17 @@ export function SiteDashboard({
                   placeholder="site-url"
                   className={
                     subdomainStatus.available === false
-                      ? "pr-10 border-red-300 focus:border-red-500"
+                      ? "pr-10 border-destructive/30 focus:border-destructive"
                       : subdomainStatus.available === true
-                        ? "pr-10 border-green-300 focus:border-green-500"
+                        ? "pr-10 border-green-500/40 focus:border-green-500"
                         : ""
                   }
                 />
                 {!subdomainStatus.checking && subdomainStatus.available === true && (
-                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500 dark:text-green-400" />
                 )}
                 {!subdomainStatus.checking && subdomainStatus.available === false && (
-                  <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                  <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-destructive" />
                 )}
               </div>
               <div className="text-xs text-muted-foreground space-y-1">
@@ -277,7 +275,7 @@ export function SiteDashboard({
                     Subdomain not available. Suggested: <strong>{subdomainStatus.suggestion}.domain.com</strong>
                   </p>
                 )}
-                {subdomainStatus.available === true && <p className="text-green-600">Subdomain is available!</p>}
+                {subdomainStatus.available === true && <p className="text-green-600 dark:text-green-400">Subdomain is available!</p>}
               </div>
             </div>
           )}
