@@ -15,13 +15,15 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js"
@@ -252,33 +254,9 @@ export default function SegmentsPage() {
                         aria-label="Select all segments"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={segmentSort.sortColumn === "name"}
-                        direction={segmentSort.sortDirection}
-                        onClick={() => segmentSort.toggleSort("name")}
-                      >
-                        Name
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={segmentSort.sortColumn === "contacts"}
-                        direction={segmentSort.sortDirection}
-                        onClick={() => segmentSort.toggleSort("contacts")}
-                      >
-                        Contacts
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={segmentSort.sortColumn === "modified"}
-                        direction={segmentSort.sortDirection}
-                        onClick={() => segmentSort.toggleSort("modified")}
-                      >
-                        Modified
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={segmentSort} sortKey="name">Name</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={segmentSort} sortKey="contacts">Contacts</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={segmentSort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

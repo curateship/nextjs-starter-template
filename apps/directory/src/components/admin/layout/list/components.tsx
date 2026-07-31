@@ -15,6 +15,7 @@ import { ErrorBanner } from "@/components/ui/error-banner";
 import { AdminLoading } from "@/components/admin/layout/loading";
 import {
   TableCell,
+  TableHead,
   TableRow,
   TableSortButton,
   TableSurface,
@@ -154,6 +155,43 @@ export function AdminSortButton({
     >
       {children}
     </TableSortButton>
+  );
+}
+
+/**
+ * A sortable column heading — the `<TableHead><AdminSortButton …>` pair that
+ * every admin table repeats for each of its columns. Renders exactly what
+ * writing the two out by hand does.
+ */
+export function AdminSortableHead<TColumn extends string>({
+  children,
+  className,
+  column,
+  sort,
+  sortKey,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** The table's own width bucket — "main", "meta", "content". */
+  column?: "main" | "meta" | "preview" | "select" | "content";
+  sort: {
+    sortColumn: TColumn | null;
+    sortDirection: AdminSortDirection;
+    toggleSort: (column: TColumn) => void;
+  };
+  sortKey: TColumn;
+}) {
+  return (
+    <TableHead column={column}>
+      <AdminSortButton
+        active={sort.sortColumn === sortKey}
+        className={className}
+        direction={sort.sortDirection}
+        onClick={() => sort.toggleSort(sortKey)}
+      >
+        {children}
+      </AdminSortButton>
+    </TableHead>
   );
 }
 

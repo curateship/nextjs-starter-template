@@ -23,13 +23,15 @@ import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -638,51 +640,11 @@ export default function SiteUsersPage() {
                         aria-label="Select all site users"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "user"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("user")}
-                      >
-                        User
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "role"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("role")}
-                      >
-                        Role
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "status"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "added"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("added")}
-                      >
-                        Date Added
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "engaged"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("engaged")}
-                      >
-                        Last Active
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={userSort} sortKey="user">User</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="role">Role</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="added">Date Added</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="engaged">Last Active</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

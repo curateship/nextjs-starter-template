@@ -22,6 +22,7 @@ import Zap from "lucide-react/dist/esm/icons/zap.js"
 import Link from "@/components/app-link"
 import { useRouter } from "@/lib/navigation-client"
 import {
+  AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
   AdminTableSummaryFooter,
@@ -496,51 +497,11 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
             <TableHeader>
               <TableRow>
                 <TableHead column="meta">Status</TableHead>
-                <TableHead column="main">
-                  <AdminSortButton
-                    active={siteSort.sortColumn === "name"}
-                    direction={siteSort.sortDirection}
-                    onClick={() => siteSort.toggleSort("name")}
-                  >
-                    Site
-                  </AdminSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <AdminSortButton
-                    active={siteSort.sortColumn === "visitors"}
-                    direction={siteSort.sortDirection}
-                    onClick={() => siteSort.toggleSort("visitors")}
-                  >
-                    Visitors
-                  </AdminSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <AdminSortButton
-                    active={siteSort.sortColumn === "revenue"}
-                    direction={siteSort.sortDirection}
-                    onClick={() => siteSort.toggleSort("revenue")}
-                  >
-                    Revenue
-                  </AdminSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <AdminSortButton
-                    active={siteSort.sortColumn === "contacts"}
-                    direction={siteSort.sortDirection}
-                    onClick={() => siteSort.toggleSort("contacts")}
-                  >
-                    Contacts
-                  </AdminSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <AdminSortButton
-                    active={siteSort.sortColumn === "orders"}
-                    direction={siteSort.sortDirection}
-                    onClick={() => siteSort.toggleSort("orders")}
-                  >
-                    Orders
-                  </AdminSortButton>
-                </TableHead>
+                <AdminSortableHead column="main" sort={siteSort} sortKey="name">Site</AdminSortableHead>
+                <AdminSortableHead column="meta" sort={siteSort} sortKey="visitors">Visitors</AdminSortableHead>
+                <AdminSortableHead column="meta" sort={siteSort} sortKey="revenue">Revenue</AdminSortableHead>
+                <AdminSortableHead column="meta" sort={siteSort} sortKey="contacts">Contacts</AdminSortableHead>
+                <AdminSortableHead column="meta" sort={siteSort} sortKey="orders">Orders</AdminSortableHead>
                 <TableHead column="meta">Trend</TableHead>
               </TableRow>
             </TableHeader>

@@ -9,10 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { createSponsorAction, updateSponsorAction, type Sponsor } from "@/lib/actions/sponsors/sponsor-actions"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -119,17 +118,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
             busy={saving}
             title={sponsor ? "Edit Sponsor" : "Create Sponsor"}
             description="Add the sponsor details used by post embeds."
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                  Cancel
-                </Button>
-                <Button form="sponsor-form" type="submit" disabled={saving}>
-                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Save Sponsor
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={saving} cancelDisabled={saving} form="sponsor-form" onCancel={() => onOpenChange(false)} submitLabel="Save Sponsor" />}
           >
             <form
               noValidate id="sponsor-form" onSubmit={handleSave} className="contents">

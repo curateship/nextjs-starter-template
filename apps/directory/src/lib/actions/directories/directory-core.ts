@@ -68,61 +68,38 @@ export function buildDirectoryCoreUrlHref(value?: string | null): string {
   return ""
 }
 
+// The six link kinds and what each one shows. Three lookups over the same keys
+// used to be three separate switch statements.
+const DIRECTORY_CORE_MENU_TYPES: Record<
+  string,
+  { label: string; placeholder: string; icon: QuickLinkIconName }
+> = {
+  directions: {
+    label: "Get Directions",
+    placeholder: "1245 Broadway, New York, NY or Google Maps URL",
+    icon: "map",
+  },
+  phone: { label: "Phone", placeholder: "+1 607-247-8870", icon: "phone" },
+  website: { label: "Website", placeholder: "example.com", icon: "site" },
+  email: { label: "Email", placeholder: "hello@example.com", icon: "newsletters" },
+  claim: { label: "Claim Listing", placeholder: "Claim Listing", icon: "building" },
+  custom: {
+    label: "Custom",
+    placeholder: "/about or https://example.com",
+    icon: "link",
+  },
+}
+
 export function getDirectoryCoreMenuTypeLabel(type?: string): string {
-  switch (type) {
-    case "directions":
-      return "Get Directions"
-    case "phone":
-      return "Phone"
-    case "website":
-      return "Website"
-    case "email":
-      return "Email"
-    case "claim":
-      return "Claim Listing"
-    case "custom":
-      return "Custom"
-    default:
-      return "Link"
-  }
+  return DIRECTORY_CORE_MENU_TYPES[type ?? ""]?.label ?? "Link"
 }
 
 export function getDirectoryCoreMenuValuePlaceholder(type?: string): string {
-  switch (type) {
-    case "directions":
-      return "1245 Broadway, New York, NY or Google Maps URL"
-    case "phone":
-      return "+1 607-247-8870"
-    case "email":
-      return "hello@example.com"
-    case "website":
-      return "example.com"
-    case "claim":
-      return "Claim Listing"
-    case "custom":
-      return "/about or https://example.com"
-    default:
-      return "Value"
-  }
+  return DIRECTORY_CORE_MENU_TYPES[type ?? ""]?.placeholder ?? "Value"
 }
 
 export function getDirectoryCoreMenuDefaultIcon(type?: string): QuickLinkIconName {
-  switch (type) {
-    case "directions":
-      return "map"
-    case "phone":
-      return "phone"
-    case "email":
-      return "newsletters"
-    case "website":
-      return "site"
-    case "claim":
-      return "building"
-    case "custom":
-      return "link"
-    default:
-      return "link"
-  }
+  return DIRECTORY_CORE_MENU_TYPES[type ?? ""]?.icon ?? "link"
 }
 
 export function getDirectoryCoreMenuLabel(link: DirectoryCoreMenuLink): string {

@@ -10,7 +10,6 @@ import {
   posts,
   products,
   siteMemberships,
-  sites,
 } from '@/lib/db/schema'
 import { UUID_REGEX } from '@/lib/utils/validation'
 import {
@@ -334,11 +333,4 @@ export async function rebuildSiteSearchIndexForSite(siteId: string) {
   for (const row of eventRows) await syncSiteSearchDocument('event', row)
   for (const row of categoryRows) await syncSiteSearchDocument('category', row)
   for (const row of profileRows) await syncSiteSearchDocument('profile', row)
-}
-
-export async function rebuildAllSiteSearchIndexes() {
-  const rows = await db.select({ id: sites.id }).from(sites)
-  for (const site of rows) {
-    await rebuildSiteSearchIndexForSite(site.id)
-  }
 }

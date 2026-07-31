@@ -5,11 +5,8 @@ import { getBlockTypeDefinition } from "./page-block-types"
 import { normalizePageBlock, normalizePageBlockContent } from "./page-block-utils"
 import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
+import { type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
 
 interface UsePageBuilderParams {
   siteId: string

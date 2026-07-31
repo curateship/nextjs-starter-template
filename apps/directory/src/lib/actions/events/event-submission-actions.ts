@@ -11,15 +11,7 @@ import type { EventSubmissionStatus } from "./event-submission-actions.server"
 export type * from "./event-submission-actions.server"
 
 export const submitEventSubmissionAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  eventName: string
-  description?: string
-  dateTimeText?: string
-  location?: string
-  submitterEmail: string
-  honeypot?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof submitEventSubmissionActionImpl>[0] }) => data)
   .handler(async ({ data }) => submitEventSubmissionActionImpl(data.input))
 
 export const getEventSubmissionListAction = createServerFn({ method: "POST" })
@@ -27,9 +19,5 @@ export const getEventSubmissionListAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getEventSubmissionListActionImpl(data.siteId, data.status))
 
 export const reviewEventSubmissionAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  submissionId: string
-  status: 'approved' | 'rejected'
-  note?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof reviewEventSubmissionActionImpl>[0] }) => data)
   .handler(async ({ data }) => reviewEventSubmissionActionImpl(data.input))

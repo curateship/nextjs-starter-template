@@ -38,6 +38,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { HeroStyleAdminProps } from "./index"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 const HERO_BACKGROUND_COLOR_OPTIONS = [
   { value: "muted", label: "Muted" },
@@ -67,20 +68,7 @@ function SortableAvatarItem({
   removeAvatar: (index: number) => void
   onOpenImagePicker: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: avatar.id || `avatar-${index}` })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(avatar.id || `avatar-${index}`)
 
   return (
     <div

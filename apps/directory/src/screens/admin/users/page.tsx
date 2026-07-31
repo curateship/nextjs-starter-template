@@ -6,13 +6,15 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
-  AdminSortButton,
-  AdminTableShell, AdminListPending,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminSortButton,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import {
   TableRightActions,
@@ -542,51 +544,11 @@ export default function UsersPage() {
                         aria-label="Select all users"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "user"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("user")}
-                      >
-                        User
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "role"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("role")}
-                      >
-                        Role
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "status"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "added"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("added")}
-                      >
-                        Date Added
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "active"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("active")}
-                      >
-                        Last Active
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={userSort} sortKey="user">User</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="role">Role</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="added">Date Added</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="active">Last Active</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

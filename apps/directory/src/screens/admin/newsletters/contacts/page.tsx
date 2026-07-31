@@ -15,13 +15,15 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -512,60 +514,12 @@ export default function ContactsPage() {
                         aria-label="Select all contacts"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "contact"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("contact")}
-                      >
-                        Contact
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "source"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("source")}
-                      >
-                        Source
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "status"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "tags"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("tags")}
-                      >
-                        Tags
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "added"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("added")}
-                      >
-                        Added
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "engaged"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("engaged")}
-                      >
-                        Last Engaged
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={contactSort} sortKey="contact">Contact</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={contactSort} sortKey="source">Source</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={contactSort} sortKey="tags">Tags</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="added">Added</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="engaged">Last Engaged</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

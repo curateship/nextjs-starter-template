@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
-import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
@@ -161,17 +160,7 @@ export function TemplateSettingsModal<TTemplate extends TemplateSettingsRecord>(
         busy={saving}
         className="max-w-xl"
         title="Template Settings"
-        footer={
-          <>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button form="template-settings-form" type="submit" disabled={saving}>
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save
-            </Button>
-          </>
-        }
+        footer={<DashboardModalFormFooter busy={saving} cancelDisabled={saving} form="template-settings-form" onCancel={() => onOpenChange(false)} submitLabel="Save" />}
       >
         <form
           noValidate

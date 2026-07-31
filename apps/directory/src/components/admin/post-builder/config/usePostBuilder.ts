@@ -9,11 +9,8 @@ import { getBlockTypeDefinition } from './post-block-types'
 import { postBlocksToValueJson } from '@/lib/actions/posts/post-template-inheritance'
 import { hasSaveableChange, type SaveStatus, useSaveStatus } from '@/components/admin/layout/builder/save-status'
 import { AUTO_SAVE_DEBOUNCE_MS } from '@/components/admin/layout/builder/use-auto-save'
+import { type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
 
 interface UsePostBuilderParams {
   blocks: Record<string, PostBlock>

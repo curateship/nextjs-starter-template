@@ -8,20 +8,21 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Star from "lucide-react/dist/esm/icons/star.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
   AdminSelectionBanner,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { TemplateSettingsModal } from "@/components/admin/layout/templates/TemplateSettingsModal"
 import {
   TableRightActions,
@@ -322,33 +323,9 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                         aria-label="Select all templates"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={templateSort.sortColumn === "name"}
-                        direction={templateSort.sortDirection}
-                        onClick={() => templateSort.toggleSort("name")}
-                      >
-                        Name
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={templateSort.sortColumn === "blocks"}
-                        direction={templateSort.sortDirection}
-                        onClick={() => templateSort.toggleSort("blocks")}
-                      >
-                        Blocks
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={templateSort.sortColumn === "modified"}
-                        direction={templateSort.sortDirection}
-                        onClick={() => templateSort.toggleSort("modified")}
-                      >
-                        Modified
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={templateSort} sortKey="name">Name</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={templateSort} sortKey="blocks">Blocks</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={templateSort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -445,17 +422,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
           busy={creating}
           className="max-w-xl"
           title="Create Template"
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
-                Cancel
-              </Button>
-              <Button form="create-template-form" type="submit" disabled={creating}>
-                {creating ? <Loader2 className="size-4 animate-spin" /> : null}
-                Create Template
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={creating} cancelDisabled={creating} form="create-template-form" onCancel={() => setCreateModalOpen(false)} submitLabel="Create Template" />}
         >
           <form
             noValidate

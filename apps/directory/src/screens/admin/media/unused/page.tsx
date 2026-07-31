@@ -23,13 +23,15 @@ import {
 } from "@/components/ui/table"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
-  AdminSortButton,
-  AdminTableShell, AdminListPending,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminSortButton,
+  AdminTableShell,
+  ConfirmDestructive,
   formatRelativeDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { cn } from "@/lib/utils/tailwind"
 import { deleteMediaItemsAction, scanUnusedMediaAction } from "@/lib/actions/media/media-actions"
@@ -213,42 +215,10 @@ export default function UnusedMediaPage() {
                         aria-label="Select all unused media"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "name"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("name")}
-                      >
-                        File
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "type"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("type")}
-                      >
-                        Type
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "size"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("size")}
-                      >
-                        Size
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "added"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("added")}
-                      >
-                        Added
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={mediaSort} sortKey="name">File</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={mediaSort} sortKey="type">Type</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={mediaSort} sortKey="size">Size</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={mediaSort} sortKey="added">Added</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

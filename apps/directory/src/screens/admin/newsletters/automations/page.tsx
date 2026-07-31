@@ -20,17 +20,19 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
@@ -341,51 +343,11 @@ export default function EmailAutomationsPage() {
                         aria-label="Select all automations"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "name"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("name")}
-                      >
-                        Automation
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "trigger"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("trigger")}
-                      >
-                        Trigger
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "status"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "steps"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("steps")}
-                      >
-                        Steps
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "enrolled"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("enrolled")}
-                      >
-                        Enrolled
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={automationSort} sortKey="name">Automation</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="trigger">Trigger</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="steps">Steps</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="enrolled">Enrolled</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -483,17 +445,7 @@ export default function EmailAutomationsPage() {
                 busy={creating}
                 title="Create Email Automation"
                 description="Create the automation shell, then configure triggers and steps in the builder."
-                footer={
-                  <>
-                    <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button form="create-automation-form" type="submit" disabled={creating}>
-                      {creating ? <Loader2 className="size-4 animate-spin" /> : null}
-                      Create Automation
-                    </Button>
-                  </>
-                }
+                footer={<DashboardModalFormFooter busy={creating} form="create-automation-form" onCancel={() => setCreateOpen(false)} submitLabel="Create Automation" />}
               >
                 <form
                   noValidate id="create-automation-form" onSubmit={handleCreate} className="contents">

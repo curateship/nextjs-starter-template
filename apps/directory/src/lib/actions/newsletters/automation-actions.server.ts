@@ -1,7 +1,7 @@
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsActionImpl } from '@/lib/actions/sponsors/sponsor-actions.server'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
@@ -91,14 +91,6 @@ function getSortedAutomationBlocks(contentBlocks: Record<string, any>) {
     }))
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 function rowToAutomation(row: any): EmailAutomation {
   return {

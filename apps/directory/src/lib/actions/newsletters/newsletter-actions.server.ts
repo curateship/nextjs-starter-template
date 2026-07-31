@@ -1,7 +1,7 @@
 import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterSourceStats, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
@@ -37,14 +37,6 @@ export interface Newsletter {
   updated_at: string
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: number, duplicateSendEvents = 0, totalBounced = 0): Newsletter {
   const uniqueSent = row.totalSent ?? 0
@@ -79,14 +71,8 @@ export async function getNewslettersBySiteImpl(
   options?: { page?: number; pageSize?: number }
 ): Promise<{ data: Newsletter[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, total: 0, error: access.error }
 
     const { page, pageSize, offset } = normalizePagination(options)
 
@@ -249,14 +235,8 @@ export async function createNewsletterImpl(input: {
   status?: 'draft' | 'scheduled'
 }): Promise<{ data: Newsletter | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(input.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(input.siteId)
+    if (access.error) return { data: null, error: access.error }
 
     if (!input.subject?.trim()) return { data: null, error: 'Subject is required' }
 

@@ -31,6 +31,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface FaqItem {
   id: string
@@ -110,20 +111,7 @@ function SortableFaqItem({
   updateFaqItem: (index: number, field: keyof FaqItem, value: string) => void
   deleteFaqItem: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(item.id)
 
   return (
     <div

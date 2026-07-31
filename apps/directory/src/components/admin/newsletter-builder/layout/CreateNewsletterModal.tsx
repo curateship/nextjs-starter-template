@@ -6,7 +6,7 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import {
   Select,
   SelectContent,
@@ -25,7 +25,6 @@ import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-acti
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { DripSettingsFields, useDripSettings } from "./DripSettingsFields"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
@@ -193,17 +192,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
             </TabsList>
           }
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button form="create-newsletter-form" type="submit" disabled={loading}>
-                {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-                Continue
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={loading} form="create-newsletter-form" onCancel={onCancel} submitLabel="Continue" />}
         >
           <form
             noValidate id="create-newsletter-form" onSubmit={handleSubmit} className="contents">

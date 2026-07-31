@@ -1,7 +1,7 @@
 import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterTemplates, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface NewsletterTemplate {
@@ -14,14 +14,6 @@ export interface NewsletterTemplate {
   updated_at: string
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 function rowToTemplate(row: any): NewsletterTemplate {
   return {
@@ -58,14 +50,8 @@ export async function getTemplatesBySiteImpl(
   options?: { page?: number; pageSize?: number }
 ): Promise<{ data: NewsletterTemplate[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, total: 0, error: access.error }
 
     // Ensure a default template exists for this site
     await ensureDefaultTemplate(siteId)
@@ -130,14 +116,8 @@ export async function createTemplateImpl(input: {
   contentBlocks?: Record<string, any>
 }): Promise<{ data: NewsletterTemplate | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(input.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(input.siteId)
+    if (access.error) return { data: null, error: access.error }
 
     if (!input.name?.trim()) return { data: null, error: 'Template name is required' }
 

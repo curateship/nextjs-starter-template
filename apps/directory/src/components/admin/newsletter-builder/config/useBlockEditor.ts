@@ -1,5 +1,7 @@
 import { useState } from "react"
 import { getBlockTypeDefinition } from "./newsletter-block-types"
+import { type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
+export type { BlockSelection }
 
 export interface NewsletterBlock {
   id: string
@@ -8,10 +10,6 @@ export interface NewsletterBlock {
   content: Record<string, any>
 }
 
-export interface BlockSelection {
-  type: string
-  quantity: number
-}
 
 export interface UseBlockEditorReturn {
   blocks: NewsletterBlock[]

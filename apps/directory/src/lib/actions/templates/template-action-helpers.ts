@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface TemplateRecord {
@@ -42,15 +42,6 @@ function rowToTemplate(row: any): TemplateRecord {
   }
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-
-  return !!site
-}
 
 export async function getTemplatesBySite(
   table: TemplateTable,
@@ -59,14 +50,8 @@ export async function getTemplatesBySite(
   options?: { page?: number; pageSize?: number }
 ): Promise<{ data: TemplateRecord[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, total: 0, error: access.error }
 
     const { page, pageSize, offset } = normalizePagination(options)
 
@@ -97,14 +82,8 @@ export async function getTemplateIds(
   siteId: string
 ): Promise<{ ids: string[]; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { ids: [], error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { ids: [], error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { ids: [], error: access.error }
 
     const rows = await db
       .select({ id: table.id })
@@ -159,14 +138,8 @@ export async function createTemplate(
   options: TemplateUpdateOptions = {}
 ): Promise<{ data: TemplateRecord | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(input.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(input.siteId)
+    if (access.error) return { data: null, error: access.error }
 
     if (!input.name?.trim()) return { data: null, error: 'Template name is required' }
 

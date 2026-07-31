@@ -27,7 +27,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   ConfirmDestructive,
@@ -79,6 +78,7 @@ import {
   type GuidedForm,
 } from "@/lib/actions/guided-forms/guided-form-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 type FormsSortColumn = "name" | "status" | "submissions" | "modified"
 type FormStatusFilter = "all" | "draft" | "published" | "archived"
@@ -143,13 +143,8 @@ function SortableFieldEditor({
   stepIndex: number
   updateField: (stepIndex: number, fieldIndex: number, updates: Partial<DraftField>) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id })
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(field.id)
   const usesOptions = field.type === "single_choice" || field.type === "multi_choice"
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-3 transition-colors hover:border-muted-foreground">
@@ -256,12 +251,7 @@ function SortableStepEditor({
   updateField: (stepIndex: number, fieldIndex: number, updates: Partial<DraftField>) => void
   updateStep: (stepIndex: number, updates: Partial<DraftStep>) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.6 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(step.id, 0.6)
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-3 transition-colors hover:border-muted-foreground">

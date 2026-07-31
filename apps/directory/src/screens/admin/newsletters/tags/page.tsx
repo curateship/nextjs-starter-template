@@ -3,7 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useState, type FormEvent } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -18,20 +18,21 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -275,33 +276,9 @@ export default function NewsletterContactTagsPage() {
                         aria-label="Select all tags"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={tagSort.sortColumn === "tag"}
-                        direction={tagSort.sortDirection}
-                        onClick={() => tagSort.toggleSort("tag")}
-                      >
-                        Tag
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={tagSort.sortColumn === "contacts"}
-                        direction={tagSort.sortDirection}
-                        onClick={() => tagSort.toggleSort("contacts")}
-                      >
-                        Contacts
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={tagSort.sortColumn === "lastUsed"}
-                        direction={tagSort.sortDirection}
-                        onClick={() => tagSort.toggleSort("lastUsed")}
-                      >
-                        Last Used
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={tagSort} sortKey="tag">Tag</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={tagSort} sortKey="contacts">Contacts</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={tagSort} sortKey="lastUsed">Last Used</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -386,17 +363,7 @@ export default function NewsletterContactTagsPage() {
                 <>Rename <span className="text-muted-foreground">{renamingTag.tag}</span> across matching contacts.</>
               ) : "Rename this tag across matching contacts."
             }
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => setRenamingTag(null)} disabled={renaming}>
-                  Cancel
-                </Button>
-                <Button type="submit" form="rename-tag-form" disabled={renaming}>
-                  {renaming ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Rename Tag
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={renaming} cancelDisabled={renaming} form="rename-tag-form" onCancel={() => setRenamingTag(null)} submitLabel="Rename Tag" />}
           >
             <form
               noValidate id="rename-tag-form" onSubmit={handleRename} className="contents">

@@ -27,6 +27,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
   AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
   formatShortDate as formatDate,
@@ -323,42 +324,10 @@ export default function DirectoryOutreachPage() {
                         aria-label="Select listings"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={sort.sortColumn === "listing"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("listing")}
-                      >
-                        Listing
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={sort.sortColumn === "email"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("email")}
-                      >
-                        Contact email
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "status"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "invited"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("invited")}
-                      >
-                        Last invited
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={sort} sortKey="listing">Listing</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={sort} sortKey="email">Contact email</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="invited">Last invited</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

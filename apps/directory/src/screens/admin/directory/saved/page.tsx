@@ -22,13 +22,15 @@ import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -303,51 +305,11 @@ export default function DirectorySavedPage() {
                         aria-label="Select saved folders"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "name"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("name")}
-                      >
-                        Folder
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "owner"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("owner")}
-                      >
-                        Owner
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "type"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("type")}
-                      >
-                        Type
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "saved"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("saved")}
-                      >
-                        Saved
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "activity"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("activity")}
-                      >
-                        Activity
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={folderSort} sortKey="name">Folder</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={folderSort} sortKey="owner">Owner</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={folderSort} sortKey="type">Type</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={folderSort} sortKey="saved">Saved</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={folderSort} sortKey="activity">Activity</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

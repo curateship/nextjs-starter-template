@@ -11,9 +11,8 @@
 //     within seconds). If the app is ever run as more than one instance, each
 //     gets its own copy and a `revalidateTag` on one will not reach the others.
 //     The fix then is swapping `store` for Redis, inside this file only.
-//   - `revalidatePath`, `cacheTag` and `cacheLife` stay no-ops. Nothing in this
-//     app relies on them doing more; screens update client state themselves
-//     after a mutation.
+//   - `revalidatePath` stays a no-op. Nothing in this app relies on it doing
+//     more; screens update client state themselves after a mutation.
 type AsyncFunction<TArgs extends unknown[], TResult> = (...args: TArgs) => Promise<TResult>
 
 type CacheEntry = {
@@ -204,10 +203,6 @@ export function revalidateTag(tag: string, _profile?: string) {
 }
 
 export function revalidatePath(_path: string, _type?: "layout" | "page") {}
-
-export function cacheTag(..._tags: string[]) {}
-
-export function cacheLife(_profile: string | object) {}
 
 /** Test-only reset so suites do not leak cached state into each other. */
 export function __resetCacheForTests() {
