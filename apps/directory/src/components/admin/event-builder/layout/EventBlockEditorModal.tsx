@@ -53,7 +53,6 @@ export function EventBlockEditorModal({
           busy={saving}
           title={`${mode === "template" ? "Configure" : "Edit"} ${block.title}`}
           titleAccessory={<ModalTabs />}
-          className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
           footer={
             <>
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
