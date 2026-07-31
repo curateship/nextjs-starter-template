@@ -24,6 +24,7 @@ import {
   useAdminSort
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
@@ -84,7 +85,6 @@ export default function ContactsPage() {
   const [segments, setSegments] = useState<Segment[]>([])
   const [selectedSegmentId, setSelectedSegmentId] = useState<string>("")
   const [addingToSegment, setAddingToSegment] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const [importModalOpen, setImportModalOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -196,6 +196,7 @@ export default function ContactsPage() {
       if (success) {
         setPendingDeleteId(null)
         loadContacts()
+        showActionSuccess("Contact deleted.")
       }
     } catch {
       setErrorMessage("Failed to delete contact")
@@ -206,6 +207,7 @@ export default function ContactsPage() {
     setMassDeleting(true)
     try {
       const ids = Array.from(contactSelection.selectedIds)
+      const deletedCount = ids.length
       const { success, error } = await deleteContacts({ data: { contactIds: ids } })
       if (error) {
         setErrorMessage(error)
@@ -215,6 +217,7 @@ export default function ContactsPage() {
         contactSelection.clearSelection()
         setMassDeleteConfirmOpen(false)
         loadContacts()
+        showActionSuccess(deletedCount === 1 ? "Contact deleted." : "Contacts deleted.")
       }
     } catch {
       setErrorMessage("Failed to delete contacts")
@@ -224,7 +227,12 @@ export default function ContactsPage() {
   }
 
   const handleAddToSegment = async () => {
-    if (!selectedSegmentId || !contactSelection.selectedCount) return
+    if (!contactSelection.selectedCount) return
+    if (!selectedSegmentId) {
+      showErrorToast("Choose a segment to add these contacts to")
+      return
+    }
+
     dismissErrorToast()
     setAddingToSegment(true)
     try {
@@ -233,8 +241,7 @@ export default function ContactsPage() {
       if (error) {
         showErrorToast(error)
       } else {
-        setSuccessMessage(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}`)
-        setTimeout(() => setSuccessMessage(null), 5000)
+        showActionSuccess(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}.`)
         contactSelection.clearSelection()
         setSelectedSegmentId("")
         loadContacts()
@@ -412,17 +419,12 @@ export default function ContactsPage() {
                       variant={selectedSegmentId ? "default" : "outline"}
                       className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
                       onClick={handleAddToSegment}
-                      disabled={!selectedSegmentId || addingToSegment}
+                      disabled={addingToSegment}
                     >
                       <ArrowLeft className="h-4 w-4" />
                       <span className="hidden sm:inline">{addingToSegment ? "Adding..." : "Add to Segment"}</span>
                     </TableRightActionsButton>
                   </>
-                ) : null}
-                {successMessage ? (
-                  <span className="rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-800 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300">
-                    {successMessage}
-                  </span>
                 ) : null}
                 <TableRightActionsSearch
                   value={searchQuery}

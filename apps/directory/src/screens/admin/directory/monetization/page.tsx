@@ -45,6 +45,7 @@ import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const ENTITLEMENT_FILTERS = [
   { value: "active", label: "Active", icon: CheckCircle2 },
@@ -207,6 +208,8 @@ export default function DirectoryMonetizationPage() {
   const handleSavePlan = async () => {
     if (!currentSite?.id || !planDraft) return
 
+    const isNewPlan = !planDraft.planId
+
     setSavingPlan(true)
     setPlanError(null)
     const result = await saveDirectoryFeaturedPlanAction({ data: { input: {
@@ -228,6 +231,7 @@ export default function DirectoryMonetizationPage() {
 
     setPlanDraft(null)
     await loadRows()
+    showActionSuccess(isNewPlan ? "Plan created." : "Plan updated.")
   }
 
   const handleArchivePlan = async (plan: DirectoryFeaturedPlanItem) => {
@@ -246,6 +250,7 @@ export default function DirectoryMonetizationPage() {
       return
     }
     await loadRows()
+    showActionSuccess(plan.is_active ? "Plan archived." : "Plan restored.")
   }
 
   const handleRevoke = async () => {
@@ -266,6 +271,7 @@ export default function DirectoryMonetizationPage() {
 
     setSelectedEntitlement(null)
     await loadRows()
+    showActionSuccess("Placement revoked.")
   }
 
   const activeRowsCount = activeView === "plans" ? plans.length : entitlements.length

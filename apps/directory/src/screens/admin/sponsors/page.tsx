@@ -47,6 +47,7 @@ import {
 } from "@/lib/actions/sponsors/sponsor-portal-actions"
 import { SponsorReportLinkCell } from "@/components/admin/sponsors/SponsorReportLinkCell"
 import { cn } from "@/lib/utils/tailwind"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import Handshake from "lucide-react/dist/esm/icons/handshake.js"
@@ -171,6 +172,7 @@ export default function SponsorsPage() {
     setSponsors((current) => current.filter((sponsor) => sponsor.id !== deleteSponsor.id))
     sponsorSelection.remove(deleteSponsor.id)
     setDeleteSponsor(null)
+    showActionSuccess("Sponsor deleted.")
   }
 
   const handleConfirmMassDelete = async () => {
@@ -190,6 +192,7 @@ export default function SponsorsPage() {
     setSponsors((current) => current.filter((sponsor) => !idsToDelete.has(sponsor.id)))
     sponsorSelection.clearSelection()
     setMassDeleteConfirmOpen(false)
+    showActionSuccess(ids.length === 1 ? "Sponsor deleted." : "Sponsors deleted.")
   }
 
   const openCreate = () => {

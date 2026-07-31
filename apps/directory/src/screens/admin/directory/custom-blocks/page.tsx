@@ -23,6 +23,7 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { countDirectoryCustomFields } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { deleteDirectoryCustomBlock, getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const LAYOUT_LABELS: Record<DirectoryCustomBlockTemplate["layout"], string> = {
   stack: "Stack",
@@ -90,6 +91,7 @@ export default function DirectoryCustomBlocksPage() {
     setTemplates((prev) => prev.filter((item) => item.id !== template.id))
     setDeletingId(null)
     setTemplateToDelete(null)
+    showActionSuccess("Custom block deleted.")
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()

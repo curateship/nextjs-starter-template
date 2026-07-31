@@ -43,6 +43,8 @@ import {
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 import {
   Table,
   TableBody,
@@ -71,6 +73,7 @@ export default function TemplatesPage() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
+  const [formNameInvalid, setFormNameInvalid] = useState(false)
   const [creating, setCreating] = useState(false)
 
   const loadTemplates = useCallback(async () => {
@@ -110,7 +113,14 @@ export default function TemplatesPage() {
   }, [loadTemplates])
 
   async function handleCreate() {
-    if (!currentSite?.id || !formName.trim()) return
+    if (!currentSite?.id) return
+    if (!formName.trim()) {
+      setFormNameInvalid(true)
+      showErrorToast("Template name is required")
+      return
+    }
+
+    setFormNameInvalid(false)
     setCreating(true)
 
     const { data, error: createError } = await createTemplate({ data: { input: {
@@ -128,12 +138,14 @@ export default function TemplatesPage() {
     setCreateModalOpen(false)
     setFormName("")
     if (data) {
+      showActionSuccess("Template created.")
       router.push(`/admin/newsletters/templates/${data.id}`)
     }
   }
 
   async function handleMassDelete() {
     setMassDeleting(true)
+    const deletedCount = templateSelection.selectedCount
     const { error: deleteError } = await deleteTemplates({ data: { ids: Array.from(templateSelection.selectedIds) } })
     if (deleteError) {
       setError(deleteError)
@@ -141,6 +153,7 @@ export default function TemplatesPage() {
       templateSelection.clearSelection()
       setMassDeleteConfirmOpen(false)
       loadTemplates()
+      showActionSuccess(deletedCount === 1 ? "Template deleted." : "Templates deleted.")
     }
     setMassDeleting(false)
   }
@@ -175,6 +188,8 @@ export default function TemplatesPage() {
     const { error: defaultError } = await setDefaultTemplate({ data: { templateId: templateId } })
     if (defaultError) {
       setError(defaultError)
+    } else {
+      showActionSuccess("Default template updated.")
     }
     loadTemplates()
   }
@@ -401,7 +416,7 @@ export default function TemplatesPage() {
                 <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
                   Cancel
                 </Button>
-                <Button form="create-template-form" type="submit" disabled={creating || !formName.trim()}>
+                <Button form="create-template-form" type="submit" disabled={creating}>
                   {creating ? "Creating..." : "Create Template"}
                 </Button>
               </>
@@ -418,7 +433,11 @@ export default function TemplatesPage() {
                     <Input
                       id="template-name"
                       value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
+                      aria-invalid={formNameInvalid}
+                      onChange={(e) => {
+                        setFormName(e.target.value)
+                        if (formNameInvalid && e.target.value.trim()) setFormNameInvalid(false)
+                      }}
                       placeholder="e.g. Weekly Newsletter Layout"
                     />
                   </Field>

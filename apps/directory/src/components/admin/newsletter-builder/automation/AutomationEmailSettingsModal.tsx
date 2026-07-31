@@ -10,6 +10,7 @@ import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRi
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { updateStep, type AutomationStep } from "@/lib/actions/newsletters/automation-actions"
 import { DripSettingsFields, useDripSettings } from "../layout/DripSettingsFields"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface AutomationEmailSettingsModalProps {
   open: boolean
@@ -30,7 +31,12 @@ export function AutomationEmailSettingsModal({
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const drip = useDripSettings(false, false)
   const loadDripConfig = drip.loadFromConfig
 
@@ -129,11 +135,6 @@ export function AutomationEmailSettingsModal({
             </>
           }
         >
-          {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 mb-4">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
           <TabsContent value="content" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
               <Card>

@@ -184,7 +184,7 @@ export default function EventRegistrationsPage() {
     selection.clearSelection()
     const removed = results.length - failed.length
     if (failed.length) showActionError(`Removed ${removed}, ${failed.length} failed`)
-    else showActionSuccess(`Removed ${removed} ${removed === 1 ? "registration" : "registrations"}`)
+    else showActionSuccess(removed === 1 ? "Registration removed." : "Registrations removed.")
     await loadRows()
   }
 

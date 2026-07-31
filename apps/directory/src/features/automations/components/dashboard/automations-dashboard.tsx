@@ -156,7 +156,7 @@ export function AutomationsDashboard() {
     if (result.error || !result.success) return showActionError(result.error || "Failed to delete automation")
     setDeleteIds([])
     selection.clearSelection()
-    showActionSuccess(deleteIds.length === 1 ? "Automation deleted" : "Automations deleted")
+    showActionSuccess(deleteIds.length === 1 ? "Automation deleted." : "Automations deleted.")
     await load()
   }
 
@@ -175,8 +175,8 @@ export function AutomationsDashboard() {
     if (result.error) return showActionError(result.error)
     showActionSuccess(
       result.data?.status === "waiting"
-        ? "Paused — this run needs your approval"
-        : "Automation run finished",
+        ? "Paused — this run needs your approval."
+        : "Automation run finished.",
     )
     await load()
   }
@@ -186,7 +186,7 @@ export function AutomationsDashboard() {
     const result = await duplicateAutomation(item.id)
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
-    showActionSuccess("Automation duplicated")
+    showActionSuccess("Automation duplicated.")
     await load()
   }
 

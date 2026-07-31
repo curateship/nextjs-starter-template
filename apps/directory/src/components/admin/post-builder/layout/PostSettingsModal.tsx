@@ -58,7 +58,7 @@ export function PostSettingsModal({
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Post>({
+  const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<Post>({
     entityLabel: "post",
     title,
     titleRequiredMessage: "Post title is required",
@@ -223,12 +223,6 @@ export function PostSettingsModal({
         )}
       >
         <form id="post-settings-form" onSubmit={handleSubmit} className="contents">
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-            </div>
-          )}
-
           <CardGroup className="grid">
             <Card>
               <CardHeader>

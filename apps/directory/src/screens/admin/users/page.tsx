@@ -42,6 +42,7 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { deleteUser, deleteUsers, listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
 import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import CalendarIcon from "lucide-react/dist/esm/icons/calendar.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import SlidersHorizontal from "lucide-react/dist/esm/icons/sliders-horizontal.js"
@@ -221,6 +222,7 @@ export default function UsersPage() {
     setPendingDeleteUser(null)
     setDeletingUserId(null)
     await loadUsers()
+    showActionSuccess("User deleted.")
   }
 
   const handleMassDelete = async () => {
@@ -229,6 +231,7 @@ export default function UsersPage() {
     }
 
     setMassDeleting(true)
+    const deletedCount = userSelection.selectedCount
     const result = await deleteUsers({ data: { userIds: Array.from(userSelection.selectedIds) } })
 
     if (!result.success) {
@@ -241,6 +244,7 @@ export default function UsersPage() {
     setMassDeleting(false)
     setMassDeleteConfirmOpen(false)
     await loadUsers()
+    showActionSuccess(deletedCount === 1 ? "User deleted." : "Users deleted.")
   }
 
   function openFilterModal() {

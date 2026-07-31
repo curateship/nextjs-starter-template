@@ -64,7 +64,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
     setFreshUrl(result.data.url)
     onLinkChange(sponsorId, result.data.link)
     await copyToClipboard(result.data.url)
-    showActionSuccess("Report link created and copied to clipboard")
+    showActionSuccess("Report link created and copied.")
   }
 
   const handleRevoke = async () => {
@@ -79,7 +79,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
 
     setFreshUrl(null)
     onLinkChange(sponsorId, result.data)
-    showActionSuccess("Report link revoked")
+    showActionSuccess("Report link revoked.")
   }
 
   const status = link?.status

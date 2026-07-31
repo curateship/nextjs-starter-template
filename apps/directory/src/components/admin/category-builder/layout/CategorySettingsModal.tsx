@@ -50,7 +50,7 @@ export function CategorySettingsModal({
   const [templates, setTemplates] = useState<CategoryTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Category>({
+  const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<Category>({
     entityLabel: "category",
     title,
     titleRequiredMessage: "Category title is required",
@@ -194,13 +194,6 @@ export function CategorySettingsModal({
         footerClassName="sm:justify-between"
       >
         <form id="category-settings-form" onSubmit={handleSubmit} className="contents">
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            </div>
-          )}
           <CardGroup className="grid">
             <Card>
               <CardHeader>

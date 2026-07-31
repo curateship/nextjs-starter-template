@@ -34,6 +34,7 @@ import {
   type Category,
 } from "@/lib/actions/categories/category-actions"
 import { cn } from "@/lib/utils/tailwind"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface CategoryPickerProps {
   siteId: string
@@ -110,6 +111,7 @@ function ParentCategorySelect({
   const [searchQuery, setSearchQuery] = useState("")
   const [showCreateInput, setShowCreateInput] = useState(false)
   const [newChildTitle, setNewChildTitle] = useState("")
+  const [newChildInvalid, setNewChildInvalid] = useState(false)
   const [creating, setCreating] = useState(false)
 
   const selectedChildren = childOptions.filter((child) => selectedIds.includes(child.id))
@@ -121,8 +123,14 @@ function ParentCategorySelect({
 
   const handleCreateChild = async () => {
     const title = newChildTitle.trim()
-    if (!title) return
+    if (!title) {
+      setNewChildInvalid(true)
+      showErrorToast("Category name is required")
+      return
+    }
 
+    setNewChildInvalid(false)
+    dismissErrorToast()
     setCreating(true)
     try {
       const created = await onCreateChild(parent, title)
@@ -216,7 +224,11 @@ function ParentCategorySelect({
                   <div className="flex items-center gap-2">
                     <Input
                       value={newChildTitle}
-                      onChange={(event) => setNewChildTitle(event.target.value)}
+                      aria-invalid={newChildInvalid}
+                      onChange={(event) => {
+                        setNewChildTitle(event.target.value)
+                        if (newChildInvalid && event.target.value.trim()) setNewChildInvalid(false)
+                      }}
                       placeholder={`New ${parent.title} category`}
                       className="h-8 text-sm"
                       autoFocus
@@ -236,7 +248,7 @@ function ParentCategorySelect({
                       size="sm"
                       className="h-8 px-3"
                       onClick={handleCreateChild}
-                      disabled={creating || !newChildTitle.trim()}
+                      disabled={creating}
                     >
                       {creating ? "..." : "Add"}
                     </Button>

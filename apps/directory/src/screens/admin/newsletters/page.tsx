@@ -25,6 +25,7 @@ import {
 } from "@/components/admin/layout/list"
 import dynamic from "@/lib/dynamic"
 import { showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const CreateNewsletterModal = dynamic(
   () =>
@@ -237,6 +238,7 @@ export default function NewslettersPage() {
     if (success) {
       setPendingDeleteId(null)
       loadNewsletters()
+      showActionSuccess("Newsletter deleted.")
     }
   }
 
@@ -247,6 +249,7 @@ export default function NewslettersPage() {
 
   const confirmMassDelete = async () => {
     setMassDeleting(true)
+    const deletedCount = newsletterSelection.selectedCount
     try {
       const { success, error } = await deleteNewsletters({ data: { ids: Array.from(newsletterSelection.selectedIds) } })
       if (error) {
@@ -257,6 +260,7 @@ export default function NewslettersPage() {
         newsletterSelection.clearSelection()
         setMassDeleteConfirmOpen(false)
         loadNewsletters()
+        showActionSuccess(deletedCount === 1 ? "Newsletter deleted." : "Newsletters deleted.")
       }
     } catch {
       setErrorMessage("Failed to delete newsletters")
@@ -508,12 +512,16 @@ export default function NewslettersPage() {
                                         title={newsletter.status === "sending" ? "Pause" : "Resume"}
                                         onClick={async (e) => {
                                           e.stopPropagation()
-                                          if (newsletter.status === "sending") {
-                                            await pauseNewsletter({ data: { newsletterId: newsletter.id } })
-                                          } else {
-                                            await resumeNewsletter({ data: { newsletterId: newsletter.id } })
+                                          const pausing = newsletter.status === "sending"
+                                          const { error: pauseError } = pausing
+                                            ? await pauseNewsletter({ data: { newsletterId: newsletter.id } })
+                                            : await resumeNewsletter({ data: { newsletterId: newsletter.id } })
+                                          if (pauseError) {
+                                            showErrorToast(pauseError)
+                                            return
                                           }
                                           await loadNewsletters(false)
+                                          showActionSuccess(pausing ? "Newsletter paused." : "Newsletter resumed.")
                                         }}
                                       >
                                         {newsletter.status === "sending" ? (

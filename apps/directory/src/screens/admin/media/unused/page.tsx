@@ -79,7 +79,7 @@ export default function UnusedMediaPage() {
 
       setMediaItems(data?.data ?? [])
       setScannedAt(data?.scanned_at ?? new Date().toISOString())
-      showActionSuccess(`Found ${data?.total ?? 0} unused media ${(data?.total ?? 0) === 1 ? "item" : "items"}`)
+      showActionSuccess(`Scan finished — ${data?.total ?? 0} unused ${(data?.total ?? 0) === 1 ? "item" : "items"} found.`)
     } catch {
       showActionError("Scan failed")
     } finally {
@@ -102,7 +102,7 @@ export default function UnusedMediaPage() {
 
       setMediaItems((prev) => prev?.filter((item) => !ids.includes(item.id)) ?? null)
       ids.forEach((id) => mediaSelection.remove(id))
-      showActionSuccess(`Deleted ${deletedCount} ${deletedCount === 1 ? "item" : "items"}`)
+      showActionSuccess(deletedCount === 1 ? "Item deleted." : "Items deleted.")
       setDeleteConfirmOpen(false)
       setMediaToDelete(null)
     } catch {

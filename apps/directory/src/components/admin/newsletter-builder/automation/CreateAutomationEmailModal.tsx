@@ -19,6 +19,7 @@ import { getTemplatesBySite, type NewsletterTemplate } from "@/lib/actions/newsl
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import { DripSettingsFields, useDripSettings } from "../layout/DripSettingsFields"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export interface CreateAutomationEmailInput {
   subject: string
@@ -70,7 +71,14 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("blank")
   const [loadingAction, setLoadingAction] = useState<"save" | "continue" | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [subjectInvalid, setSubjectInvalid] = useState(false)
+  const [activeTab, setActiveTab] = useState("content")
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const drip = useDripSettings(false, false)
   const loadDripConfig = drip.loadFromConfig
 
@@ -114,9 +122,15 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
 
   const handleCreate = async (openEditor: boolean) => {
     if (!subject.trim()) {
+      // The subject lives on the Content tab, so a submit from Drip Options has
+      // to bring the user back to the field the message is about.
+      setActiveTab("content")
+      setSubjectInvalid(true)
       setError("Subject line is required")
       return
     }
+
+    setSubjectInvalid(false)
     if (!siteId) {
       setError("No site selected")
       return
@@ -158,7 +172,7 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
   const loading = loadingAction !== null
 
   return (
-    <Tabs defaultValue="content">
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
       <form id="create-automation-email-form" onSubmit={handleSubmit} className="contents">
         <DashboardModalContent
           title="Create Email"
@@ -182,12 +196,6 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
             </>
           }
         >
-          {error && (
-            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800 mb-4">
-              {error}
-            </div>
-          )}
-
         <TabsContent value="content" className="mt-0 min-h-[320px]">
           <CardGroup className="grid">
             <Card>
@@ -196,9 +204,12 @@ export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomatio
                   id="automation-email-subject"
                   aria-label="Subject line"
                   value={subject}
-                  onChange={event => setSubject(event.target.value)}
+                  onChange={event => {
+                    setSubject(event.target.value)
+                    if (subjectInvalid && event.target.value.trim()) setSubjectInvalid(false)
+                  }}
                   placeholder="Email subject line..."
-                  required
+                  aria-invalid={subjectInvalid}
                   className="h-auto border-0 bg-transparent px-0 py-0 text-3xl font-semibold tracking-normal shadow-none outline-none focus-visible:ring-0 md:text-4xl"
                 />
               </CardContent>

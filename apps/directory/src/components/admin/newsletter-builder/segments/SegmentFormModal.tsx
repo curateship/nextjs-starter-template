@@ -18,15 +18,16 @@ import {
   type Segment,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { SegmentType } from "@/lib/actions/newsletters/segment-rules"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   buildDynamicRuleFromForm,
   mapDynamicRuleToForm,
   SegmentDynamicConditionEditor,
   type DynamicConditionForm,
 } from "@/components/admin/newsletter-builder/segments/SegmentDynamicConditionEditor"
+import { showErrorToast } from "@/lib/error-toast"
 
 type SegmentFormModalProps = {
-  onError: (message: string) => void
   onOpenChange: (open: boolean) => void
   onSaved: () => void
   open: boolean
@@ -35,7 +36,6 @@ type SegmentFormModalProps = {
 }
 
 export function SegmentFormModal({
-  onError,
   onOpenChange,
   onSaved,
   open,
@@ -43,6 +43,7 @@ export function SegmentFormModal({
   siteId,
 }: SegmentFormModalProps) {
   const [formName, setFormName] = useState("")
+  const [formNameInvalid, setFormNameInvalid] = useState(false)
   const [formDescription, setFormDescription] = useState("")
   const [formSegmentType, setFormSegmentType] = useState<SegmentType>("static")
   const [formDynamicConditions, setFormDynamicConditions] = useState<DynamicConditionForm[]>([])
@@ -70,15 +71,20 @@ export function SegmentFormModal({
     getSegmentsBySite({ data: { siteId: siteId, options: { pageSize: 100 } } }).then(({ data }) => setSegmentOptions(data || []))
   }, [open, siteId])
 
-  const invalidDynamicConditions = formSegmentType === "dynamic" && !buildDynamicRuleFromForm(formDynamicConditions)
   const segmentExclusionOptions = segmentOptions.filter((option) => option.id !== segment?.id)
 
   async function handleSave() {
-    if (!siteId || !formName.trim()) return
+    if (!siteId) return
+    if (!formName.trim()) {
+      setFormNameInvalid(true)
+      showErrorToast("Segment name is required")
+      return
+    }
 
+    setFormNameInvalid(false)
     const dynamicRule = buildDynamicRuleFromForm(formDynamicConditions)
     if (formSegmentType === "dynamic" && !dynamicRule) {
-      onError("Dynamic segments need at least one valid condition")
+      showErrorToast("Dynamic segments need at least one valid condition")
       return
     }
 
@@ -93,7 +99,7 @@ export function SegmentFormModal({
           dynamicRule: formSegmentType === "dynamic" ? dynamicRule : null,
         } } })
         if (error) {
-          onError(error)
+          showErrorToast(error)
           return
         }
       } else {
@@ -105,13 +111,14 @@ export function SegmentFormModal({
           dynamicRule: formSegmentType === "dynamic" ? dynamicRule : null,
         } } })
         if (error) {
-          onError(error)
+          showErrorToast(error)
           return
         }
       }
 
       onOpenChange(false)
       onSaved()
+      showActionSuccess(segment ? "Segment updated." : "Segment created.")
     } finally {
       setSaving(false)
     }
@@ -127,7 +134,7 @@ export function SegmentFormModal({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicConditions}>
+            <Button onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : segment ? "Update Segment" : "Create Segment"}
             </Button>
           </>
@@ -144,7 +151,11 @@ export function SegmentFormModal({
                 <Input
                   id="segment-name"
                   value={formName}
-                  onChange={(event) => setFormName(event.target.value)}
+                  aria-invalid={formNameInvalid}
+                  onChange={(event) => {
+                    setFormName(event.target.value)
+                    if (formNameInvalid && event.target.value.trim()) setFormNameInvalid(false)
+                  }}
                   placeholder="e.g. Austin Fitness Subscribers"
                 />
               </Field>

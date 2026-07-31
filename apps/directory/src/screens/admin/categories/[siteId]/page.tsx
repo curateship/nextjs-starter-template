@@ -46,6 +46,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const CreateCategoryModal = dynamic(
   () =>
@@ -161,6 +162,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
       setTotal((prev) => prev + 1)
     }
     setShowCreateModal(false)
+    showActionSuccess("Category created.")
     if (continueToBuilder) {
       router.push(`/admin/categories/builder/${siteId}?category=${newCategory.slug}`)
     }
@@ -190,6 +192,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     setMassDeleting(true)
     try {
       const ids = Array.from(categorySelection.selectedIds)
+      const deletedCount = ids.length
       const { success, error: deleteError } = await deleteCategoriesAction({ data: { categoryIds: ids } })
       if (deleteError) {
         setErrorMessage(deleteError)
@@ -212,6 +215,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
         setTotal((prev) => Math.max(0, prev - ids.length))
         categorySelection.clearSelection()
         setMassDeleteConfirmOpen(false)
+        showActionSuccess(deletedCount === 1 ? "Category deleted." : "Categories deleted.")
       }
     } catch (err) {
       setErrorMessage("Failed to delete categories")
@@ -443,6 +447,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                       siteId={siteId}
                       onCategoryDeleted={handleCategoryDeleted}
                       onCategoryUpdated={(updated) => {
+                        showActionSuccess("Category updated.")
                         setAllCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
 
                         if ((updated.parent_id || null) !== currentParentId) {

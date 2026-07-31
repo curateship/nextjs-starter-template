@@ -17,7 +17,7 @@ import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive
 import { CategorySettingsModal } from "./CategorySettingsModal"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { showActionError } from "@/lib/utils/admin-action-feedback"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 interface CategoryTreeProps {
   categories: Category[]
@@ -67,6 +67,7 @@ export function CategoryTree({
       onCategoryDeleted(categoryToDelete.id)
       setDeleteDialogOpen(false)
       setCategoryToDelete(null)
+      showActionSuccess("Category deleted.")
     } else {
       const message = error || 'Failed to delete category'
       setDeleteError(message)

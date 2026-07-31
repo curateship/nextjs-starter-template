@@ -30,6 +30,7 @@ import {
   deleteContacts
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 export default function ContactDashboardPage({ params }: { params: Promise<{ contactId: string }> }) {
   const router = useRouter()
@@ -79,7 +80,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
     status: "active"
   })
   const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -148,7 +148,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
     e.preventDefault()
     if (!contact) return
     setSaving(true)
-    setSaveSuccess(false)
 
     const tags = editForm.tags
       ? editForm.tags
@@ -167,8 +166,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
 
     if (data) {
       setContact(data)
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
+      showActionSuccess("Contact updated.")
     }
     if (error) setError(error)
     setSaving(false)
@@ -364,7 +362,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                               Cancel
                             </Button>
                             <Button form="contact-settings-form" type="submit" disabled={saving}>
-                              {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
+                              {saving ? "Saving..." : "Save Changes"}
                             </Button>
                           </>
                         }

@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { ModalErrorBanner } from "@/components/admin/layout/dashboard/content-modal-shared"
 import {
   Select,
   SelectContent,
@@ -28,6 +27,8 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import { DripSettingsFields, useDripSettings } from "./DripSettingsFields"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -38,8 +39,15 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const { currentSite } = useSiteSwitcher()
   const [subject, setSubject] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [subjectInvalid, setSubjectInvalid] = useState(false)
   const [createActiveTab, setCreateActiveTab] = useState('general')
+
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
 
   // Template picker state
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
@@ -118,9 +126,15 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
   const handleCreate = async (status: 'draft' | 'scheduled') => {
     if (!subject.trim()) {
+      // The subject lives on the General tab, so a submit from Drip Options has
+      // to bring the user back to the field the message is about.
+      setCreateActiveTab('general')
+      setSubjectInvalid(true)
       setError('Subject line is required')
       return
     }
+
+    setSubjectInvalid(false)
 
     if (!currentSite?.id) {
       setError('No site selected')
@@ -157,6 +171,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     }
 
     if (data) {
+      showActionSuccess(status === 'scheduled' ? "Newsletter scheduled." : "Newsletter created.")
       onSuccess(data)
     }
     setLoading(false)
@@ -189,7 +204,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             </>
           }
         >
-          <ModalErrorBanner error={error} />
 
           <TabsContent value="general" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
@@ -232,9 +246,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                     <Input
                       id="newsletter-subject"
                       value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={(e) => {
+                        setSubject(e.target.value)
+                        if (subjectInvalid && e.target.value.trim()) setSubjectInvalid(false)
+                      }}
                       placeholder="Email subject line"
-                      required
+                      aria-invalid={subjectInvalid}
                     />
                   </Field>
                 </CardContent>

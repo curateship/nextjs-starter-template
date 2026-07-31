@@ -21,6 +21,7 @@ import type { CategoryInfo } from "@/lib/actions/categories/category-relationshi
 import { generateSlug } from "@/lib/utils/slug"
 import type { Product, UpdateProductData } from "@/lib/actions/products/product-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 const EMPTY_INITIAL_CATEGORIES: CategoryInfo[] = []
 
@@ -94,7 +95,12 @@ export function ProductSettingsModal({
   const [featuredImage, setFeaturedImage] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [createdDateInput, setCreatedDateInput] = useState('')
@@ -363,12 +369,6 @@ export function ProductSettingsModal({
           onSubmit={handleSubmit}
           className="contents"
         >
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-            </div>
-          )}
-
           <CardGroup className="grid">
             <Card>
               <CardHeader>

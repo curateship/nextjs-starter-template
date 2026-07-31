@@ -20,6 +20,8 @@ import {
   updateContact,
   type CrmContact,
 } from "@/lib/actions/newsletters/contact-actions"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 
 type ContactFormModalProps = {
   addOpen: boolean
@@ -43,6 +45,7 @@ export function ContactFormModal({
   siteId,
 }: ContactFormModalProps) {
   const [addForm, setAddForm] = useState({ email: "", first_name: "", last_name: "", tags: "" })
+  const [emailInvalid, setEmailInvalid] = useState(false)
   const [adding, setAdding] = useState(false)
   const [editForm, setEditForm] = useState({ first_name: "", last_name: "", tags: "", status: "active" })
   const [saving, setSaving] = useState(false)
@@ -59,7 +62,14 @@ export function ContactFormModal({
 
   const handleAddContact = async (event: FormEvent) => {
     event.preventDefault()
-    if (!siteId || !addForm.email) return
+    if (!siteId) return
+    if (!addForm.email.trim()) {
+      setEmailInvalid(true)
+      showErrorToast("Email address is required")
+      return
+    }
+
+    setEmailInvalid(false)
     setAdding(true)
 
     try {
@@ -83,6 +93,7 @@ export function ContactFormModal({
       }
       onAddOpenChange(false)
       setAddForm({ email: "", first_name: "", last_name: "", tags: "" })
+      showActionSuccess("Contact created.")
     } catch {
       onError("Failed to add contact")
     } finally {
@@ -115,6 +126,7 @@ export function ContactFormModal({
         onUpdated(data)
       }
       onEditClose()
+      showActionSuccess("Contact updated.")
     } catch {
       onError("Failed to update contact")
     } finally {
@@ -134,7 +146,7 @@ export function ContactFormModal({
                 <Button type="button" variant="outline" onClick={() => onAddOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" form="add-contact-form" disabled={adding || !addForm.email}>
+                <Button type="submit" form="add-contact-form" disabled={adding}>
                   {adding ? "Adding..." : "Add Contact"}
                 </Button>
               </>
@@ -151,10 +163,13 @@ export function ContactFormModal({
                     <Input
                       id="add-email"
                       type="email"
-                      required
+                      aria-invalid={emailInvalid}
                       placeholder="email@example.com"
                       value={addForm.email}
-                      onChange={(event) => setAddForm((prev) => ({ ...prev, email: event.target.value }))}
+                      onChange={(event) => {
+                        setAddForm((prev) => ({ ...prev, email: event.target.value }))
+                        if (emailInvalid && event.target.value.trim()) setEmailInvalid(false)
+                      }}
                     />
                   </Field>
                   <div className="grid grid-cols-2 gap-4">

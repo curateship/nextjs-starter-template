@@ -270,7 +270,6 @@ export default function CategoryTemplateEditorPage({ params }: PageProps) {
               <TemplateSettingsModal
                 contentBlocks={template ? categoryBlocksToJson(blocks, template.content_blocks || {}) : undefined}
                 createPlaceholder="e.g. Standard Category Layout"
-                onError={setError}
                 onOpenChange={setShow}
                 onSaved={handleSettingsSaved}
                 open={show}

@@ -5,6 +5,7 @@ import { useRouter } from "@/lib/navigation-client"
 
 import type { ContentListItem, ContentListPageProps } from "@/components/admin/layout/content/contentListTypes"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 interface ContentListSelection {
   clearSelection: () => void
@@ -85,6 +86,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
         removeItem(itemIdToDelete)
       }
       setPendingDeleteId(null)
+      showActionSuccess(`${itemLabel} deleted.`)
     } catch {
       setErrorMessage(`Failed to delete ${itemLabel.toLowerCase()}`)
     } finally {
@@ -111,6 +113,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
         removeItems(idsToDelete)
       }
       setMassDeleteConfirmOpen(false)
+      showActionSuccess(ids.length === 1 ? `${itemLabel} deleted.` : `${itemLabelPlural} deleted.`)
     } catch {
       setErrorMessage(`Failed to delete ${itemLabelPlural.toLowerCase()}`)
     } finally {
@@ -134,6 +137,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
       } else if (data) {
         appendItem(data)
       }
+      showActionSuccess(`${itemLabel} duplicated.`)
     } catch {
       showErrorToast(`Failed to duplicate ${itemLabel.toLowerCase()}`)
     } finally {
@@ -148,6 +152,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
       appendItem(item)
     }
     closeCreateDialog()
+    showActionSuccess(`${itemLabel} created.`)
     if (continueToBuilder && effectiveSiteId) {
       router.push(`${builderPath}/${effectiveSiteId}?${builderQueryParam || itemLabel.toLowerCase()}=${item.slug}`)
     }
@@ -156,6 +161,7 @@ export function useContentListMutations<TItem extends ContentListItem>({
   function handleItemUpdated(updatedItem: TItem) {
     replaceItem(updatedItem)
     if (refreshAfterUpdate) reloadItems()
+    showActionSuccess(`${itemLabel} updated.`)
   }
 
   return {

@@ -270,7 +270,6 @@ export default function EventTemplateEditorPage({ params }: PageProps) {
               <TemplateSettingsModal
                 contentBlocks={template ? eventBlocksToJson(blocks, template.content_blocks || {}) : undefined}
                 createPlaceholder="e.g. Standard Event Layout"
-                onError={setError}
                 onOpenChange={setShow}
                 onSaved={handleSettingsSaved}
                 open={show}

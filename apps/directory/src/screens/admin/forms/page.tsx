@@ -38,6 +38,7 @@ import {
   useAdminSort,
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
@@ -368,6 +369,7 @@ function CreateFormModal({
       setError(result.error || "Failed to create form")
       return
     }
+    showActionSuccess("Form created.")
     onSuccess(result.data)
   }
 
@@ -517,6 +519,7 @@ function FormSettingsModalContent({
       const updated = await saveDraft()
       onSuccess(updated)
       onOpenChange(false)
+      showActionSuccess("Form updated.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save form")
     }
@@ -534,6 +537,7 @@ function FormSettingsModalContent({
       if (result.error) throw new Error(result.error)
       onSuccess({ ...updated, status: "published" })
       onOpenChange(false)
+      showActionSuccess("Form published.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to publish form")
     }
@@ -830,6 +834,7 @@ export default function AdminGuidedFormsPage() {
       return
     }
     setForms((current) => current.map((item) => item.id === form.id ? { ...item, status: "published" } : item))
+    showActionSuccess("Form published.")
   }
 
   async function confirmArchive() {
@@ -845,6 +850,7 @@ export default function AdminGuidedFormsPage() {
     setForms((current) => current.map((form) => form.id === formId ? { ...form, status: "archived" } : form))
     formSelection.remove(formId)
     setPendingArchiveId(null)
+    showActionSuccess("Form archived.")
   }
 
   async function handleBulkArchive() {
@@ -861,6 +867,7 @@ export default function AdminGuidedFormsPage() {
     setForms((current) => current.map((form) => ids.includes(form.id) ? { ...form, status: "archived" } : form))
     formSelection.clearSelection()
     setBulkArchiveConfirmOpen(false)
+    showActionSuccess(ids.length === 1 ? "Form archived." : "Forms archived.")
   }
 
   function renderSortHeader(column: FormsSortColumn, label: string) {

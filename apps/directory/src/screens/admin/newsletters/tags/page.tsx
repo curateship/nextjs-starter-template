@@ -27,6 +27,7 @@ import {
   useAdminSort
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
@@ -65,6 +66,7 @@ export default function NewsletterContactTagsPage() {
   const [deleting, setDeleting] = useState(false)
   const [renamingTag, setRenamingTag] = useState<NewsletterContactTag | null>(null)
   const [renameValue, setRenameValue] = useState("")
+  const [renameInvalid, setRenameInvalid] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const pageSize = contextPageSize
@@ -137,6 +139,13 @@ export default function NewsletterContactTagsPage() {
   const handleRename = async (event: FormEvent) => {
     event.preventDefault()
     if (!currentSite?.id || !renamingTag) return
+    if (!renameValue.trim()) {
+      setRenameInvalid(true)
+      showErrorToast("Tag name is required")
+      return
+    }
+
+    setRenameInvalid(false)
     dismissErrorToast()
     setRenaming(true)
 
@@ -149,6 +158,7 @@ export default function NewsletterContactTagsPage() {
       setRenamingTag(null)
       tagSelection.clearSelection()
       loadTags()
+      showActionSuccess("Tag renamed.")
     } catch {
       showErrorToast("Failed to rename tag")
     } finally {
@@ -158,6 +168,7 @@ export default function NewsletterContactTagsPage() {
 
   const handleDeleteSelected = async () => {
     if (!currentSite?.id || !tagSelection.selectedCount) return
+    const deletedCount = tagSelection.selectedCount
     setDeleting(true)
 
     try {
@@ -169,6 +180,7 @@ export default function NewsletterContactTagsPage() {
       tagSelection.clearSelection()
       loadTags()
       setDeleteConfirmOpen(false)
+      showActionSuccess(deletedCount === 1 ? "Tag deleted." : "Tags deleted.")
     } catch {
       setErrorMessage("Failed to delete tags")
     } finally {
@@ -371,7 +383,7 @@ export default function NewsletterContactTagsPage() {
                 <Button type="button" variant="outline" onClick={() => setRenamingTag(null)} disabled={renaming}>
                   Cancel
                 </Button>
-                <Button type="submit" form="rename-tag-form" disabled={renaming || !renameValue.trim()}>
+                <Button type="submit" form="rename-tag-form" disabled={renaming}>
                   {renaming ? "Renaming..." : "Rename Tag"}
                 </Button>
               </>
@@ -388,7 +400,11 @@ export default function NewsletterContactTagsPage() {
                     <Input
                       id="tag-name"
                       value={renameValue}
-                      onChange={(event) => setRenameValue(event.target.value)}
+                      aria-invalid={renameInvalid}
+                      onChange={(event) => {
+                        setRenameValue(event.target.value)
+                        if (renameInvalid && event.target.value.trim()) setRenameInvalid(false)
+                      }}
                       autoFocus
                     />
                     <FieldDescription>Renaming into an existing tag merges the two tags.</FieldDescription>

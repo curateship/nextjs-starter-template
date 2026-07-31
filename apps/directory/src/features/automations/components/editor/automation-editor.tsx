@@ -380,8 +380,8 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     if (showToast)
       showActionSuccess(
         result.validationErrors.length
-          ? "Draft saved with validation issues"
-          : "Automation saved",
+          ? "Draft saved with validation issues."
+          : "Automation saved.",
       );
     return { saved: true, valid: result.validationErrors.length === 0 };
   }
@@ -423,10 +423,10 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     );
     showActionSuccess(
       result.data.status === "waiting"
-        ? "Paused — this run needs your approval"
+        ? "Paused — this run needs your approval."
         : result.data.status === "partial"
-          ? "Automation finished with partial results"
-          : "Automation run finished",
+          ? "Automation finished with partial results."
+          : "Automation run finished.",
     );
   }
 
@@ -451,8 +451,8 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     );
     showActionSuccess(
       decision === "approve"
-        ? "Approved — the rest of the run starts within a minute"
-        : "Rejected — nothing after that step will run",
+        ? "Approved — the rest of the run starts within a minute."
+        : "Rejected — nothing after that step will run.",
     );
   }
 
@@ -487,7 +487,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
         : current,
     );
     showActionSuccess(
-      nextStatus === "active" ? "Automation activated" : "Automation paused",
+      nextStatus === "active" ? "Automation activated." : "Automation paused.",
     );
   }
 

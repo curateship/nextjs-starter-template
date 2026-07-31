@@ -53,7 +53,7 @@ export function DirectorySettingsModal({
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Directory>({
+  const { loading: saving, loadingAction: savingAction, setError, submit } = useCreateContent<Directory>({
     entityLabel: "listing",
     title,
     titleRequiredMessage: "Listing title is required",
@@ -174,12 +174,6 @@ export function DirectorySettingsModal({
           </>
         )}
       >
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-          </div>
-        )}
-
         <form id="directory-settings-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>

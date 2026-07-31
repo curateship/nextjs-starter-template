@@ -10,6 +10,8 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getCategoriesForSiteAction, type Category } from "@/lib/actions/categories/category-actions"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 type TemplateSettingsRecord = {
   id: string
@@ -22,7 +24,6 @@ type TemplateSettingsModalProps<TTemplate extends TemplateSettingsRecord> = {
   contentBlocks?: Record<string, any>
   createPlaceholder: string
   enableDefaultCategoryParent?: boolean
-  onError?: (error: string) => void
   onOpenChange: (open: boolean) => void
   onSaved: (template: TTemplate) => void
   open: boolean
@@ -81,7 +82,6 @@ export function TemplateSettingsModal<TTemplate extends TemplateSettingsRecord>(
   contentBlocks,
   createPlaceholder,
   enableDefaultCategoryParent = false,
-  onError,
   onOpenChange,
   onSaved,
   open,
@@ -89,6 +89,7 @@ export function TemplateSettingsModal<TTemplate extends TemplateSettingsRecord>(
   updateTemplate,
 }: TemplateSettingsModalProps<TTemplate>) {
   const [name, setName] = useState("")
+  const [nameInvalid, setNameInvalid] = useState(false)
   const [categoryParentId, setCategoryParentId] = useState("none")
   const [categories, setCategories] = useState<Category[]>([])
   const [saving, setSaving] = useState(false)
@@ -113,17 +114,24 @@ export function TemplateSettingsModal<TTemplate extends TemplateSettingsRecord>(
     getAllCategoriesForSite(template.site_id).then((nextCategories) => {
       if (!cancelled) setCategories(nextCategories)
     }).catch((categoryError) => {
-      if (!cancelled) onError?.(categoryError instanceof Error ? categoryError.message : "Failed to fetch categories")
+      if (!cancelled) showErrorToast(categoryError instanceof Error ? categoryError.message : "Failed to fetch categories")
     })
 
     return () => {
       cancelled = true
     }
-  }, [enableDefaultCategoryParent, onError, open, template?.site_id])
+  }, [enableDefaultCategoryParent, open, template?.site_id])
 
   async function handleSave() {
-    if (!template || !name.trim()) return
+    if (!template) return
+    if (!name.trim()) {
+      setNameInvalid(true)
+      showErrorToast("Template name is required")
+      return
+    }
 
+    setNameInvalid(false)
+    dismissErrorToast()
     setSaving(true)
 
     const updates: { name: string; content_blocks?: Record<string, any> } = { name: name.trim() }
@@ -136,10 +144,11 @@ export function TemplateSettingsModal<TTemplate extends TemplateSettingsRecord>(
 
     const { data, error } = await updateTemplate(template.id, updates)
     if (error) {
-      onError?.(error)
+      showErrorToast(error)
     } else if (data) {
       onSaved(data)
       onOpenChange(false)
+      showActionSuccess("Template updated.")
     }
 
     setSaving(false)
@@ -155,7 +164,7 @@ export function TemplateSettingsModal<TTemplate extends TemplateSettingsRecord>(
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || !name.trim()}>
+            <Button onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </>
@@ -172,7 +181,11 @@ export function TemplateSettingsModal<TTemplate extends TemplateSettingsRecord>(
                 <Input
                   id="template-settings-name"
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  aria-invalid={nameInvalid}
+                  onChange={(event) => {
+                    setName(event.target.value)
+                    if (nameInvalid && event.target.value.trim()) setNameInvalid(false)
+                  }}
                   placeholder={createPlaceholder}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {

@@ -23,6 +23,7 @@ import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/mod
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
 import { generateSlug } from "@/lib/utils/slug"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 // ---- title/slug state ----
 
@@ -124,7 +125,14 @@ export function useCreateContent<TResult>({
 }: UseCreateContentOptions<TResult>) {
   const [loading, setLoading] = useState(false)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md. Passing null clears it,
+  // which is what starting a new attempt does.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
 
   const submit = async (action: string, publish: boolean, onDone: (created: TResult) => void) => {
     if (!title.trim()) {
@@ -168,22 +176,10 @@ export function useCreateContent<TResult>({
     }
   }
 
-  return { loading, loadingAction, error, setError, submit }
+  return { loading, loadingAction, setError, submit }
 }
 
 // ---- presentational pieces ----
-
-/** Red error banner shown at the top of the modal body */
-export function ModalErrorBanner({ error }: { error: string | null }) {
-  if (!error) return null
-  return (
-    <div className="px-6 pb-2">
-      <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-        {error}
-      </div>
-    </div>
-  )
-}
 
 interface TitleSlugFieldsProps {
   titleLabel: string

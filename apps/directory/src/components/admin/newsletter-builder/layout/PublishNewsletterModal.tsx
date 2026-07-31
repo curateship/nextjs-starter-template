@@ -21,6 +21,7 @@ import Radio from "lucide-react/dist/esm/icons/radio.js"
 import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import { formatNewsletterSendWindows, getNewsletterSendWindows } from "@/lib/actions/newsletters/send-windows"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface PublishNewsletterModalProps {
   open: boolean
@@ -44,7 +45,12 @@ export function PublishNewsletterModal({
   const [testEmail, setTestEmail] = useState('')
   const [cronStatus, setCronStatus] = useState<{ isRunning: boolean; enabledCount: number; totalCount: number; lastRunAt: string | null } | null>(null)
   const [cronStatusLoaded, setCronStatusLoaded] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   // Load segments
@@ -182,13 +188,6 @@ export function PublishNewsletterModal({
           </>
         }
       >
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          </div>
-        )}
         {successMsg && (
           <div className="px-6 pb-2">
             <div className="rounded-lg border border-green-200 bg-green-50 p-3">

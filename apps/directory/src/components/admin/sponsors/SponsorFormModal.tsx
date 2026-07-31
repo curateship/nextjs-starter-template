@@ -14,6 +14,8 @@ import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
 import { createSponsorAction, updateSponsorAction, type Sponsor } from "@/lib/actions/sponsors/sponsor-actions"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface SponsorFormModalProps {
   open: boolean
@@ -30,7 +32,12 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
   const [url, setUrl] = useState("")
   const [isActive, setIsActive] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [imagePickerOpen, setImagePickerOpen] = useState(false)
 
   const handleImageChange = (mediaUrl: string) => {
@@ -90,6 +97,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
 
     onSaved(result.data)
     onOpenChange(false)
+    showActionSuccess(sponsor ? "Sponsor updated." : "Sponsor created.")
   }
 
   const safeImageUrl = sanitizeUrl(imageUrl, "")
@@ -112,13 +120,6 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
               </>
             }
           >
-            {error && (
-              <div className="px-6 pb-2">
-                <div className="rounded-md border border-red-200 bg-red-100 p-3 text-sm text-red-800">
-                  {error}
-                </div>
-              </div>
-            )}
             <CardGroup className="grid">
               <Card>
                 <CardHeader>

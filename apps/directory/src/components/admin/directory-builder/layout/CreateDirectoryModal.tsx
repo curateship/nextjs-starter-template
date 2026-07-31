@@ -14,7 +14,6 @@ import { getDirectoryTemplatesBySite } from "@/lib/actions/directories/directory
 import {
   FeaturedImageCard,
   MetaDescriptionField,
-  ModalErrorBanner,
   TitleSlugFields,
   postJson,
   useCreateContent,
@@ -77,7 +76,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     }
   }, [currentSite?.id])
 
-  const { loading, loadingAction, error, setError, submit } = useCreateContent<Directory>({
+  const { loading, loadingAction, setError, submit } = useCreateContent<Directory>({
     entityLabel: "listing",
     title,
     titleRequiredMessage: "Title is required",
@@ -157,7 +156,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           </>
         }
       >
-        <ModalErrorBanner error={error} />
         <CardGroup className="grid">
           <Card>
             <CardHeader>

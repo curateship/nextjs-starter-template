@@ -28,6 +28,7 @@ import {
   useAdminSort
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
@@ -73,9 +74,11 @@ export default function EmailAutomationsPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState("")
+  const [createNameInvalid, setCreateNameInvalid] = useState(false)
   const [creating, setCreating] = useState(false)
   const [settingsAutomation, setSettingsAutomation] = useState<EmailAutomation | null>(null)
   const [settingsName, setSettingsName] = useState("")
+  const [settingsNameInvalid, setSettingsNameInvalid] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -125,11 +128,13 @@ export default function EmailAutomationsPage() {
     if (success) {
       setPendingDeleteId(null)
       loadAutomations()
+      showActionSuccess("Automation deleted.")
     }
   }
 
   const confirmMassDelete = async () => {
     setMassDeleting(true)
+    const deletedCount = automationSelection.selectedCount
     const { success, error } = await deleteAutomations({ data: { ids: Array.from(automationSelection.selectedIds) } })
     if (error) {
       setErrorMessage(error)
@@ -138,13 +143,21 @@ export default function EmailAutomationsPage() {
       automationSelection.clearSelection()
       setMassDeleteConfirmOpen(false)
       loadAutomations()
+      showActionSuccess(deletedCount === 1 ? "Automation deleted." : "Automations deleted.")
     }
     setMassDeleting(false)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!currentSite?.id || !createName.trim()) return
+    if (!currentSite?.id) return
+    if (!createName.trim()) {
+      setCreateNameInvalid(true)
+      showErrorToast("Automation name is required")
+      return
+    }
+
+    setCreateNameInvalid(false)
     dismissErrorToast()
     setCreating(true)
     const { data, error } = await createAutomation({ data: { input: {
@@ -158,6 +171,7 @@ export default function EmailAutomationsPage() {
     if (data) {
       setCreateOpen(false)
       setCreateName("")
+      showActionSuccess("Automation created.")
       router.push(`/admin/newsletters/automations/${data.id}`)
     }
     setCreating(false)
@@ -170,8 +184,14 @@ export default function EmailAutomationsPage() {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!settingsAutomation || !settingsName.trim()) return
+    if (!settingsAutomation) return
+    if (!settingsName.trim()) {
+      setSettingsNameInvalid(true)
+      showErrorToast("Automation name is required")
+      return
+    }
 
+    setSettingsNameInvalid(false)
     dismissErrorToast()
     setSavingSettings(true)
     const { data, error } = await updateAutomation({ data: { automationId: settingsAutomation.id, updates: {
@@ -183,6 +203,7 @@ export default function EmailAutomationsPage() {
     if (data) {
       setAutomations((current) => current.map((automation) => automation.id === data.id ? data : automation))
       setSettingsAutomation(null)
+      showActionSuccess("Automation updated.")
     }
     setSavingSettings(false)
   }
@@ -450,7 +471,7 @@ export default function EmailAutomationsPage() {
                     <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                       Cancel
                     </Button>
-                    <Button form="create-automation-form" type="submit" disabled={creating || !createName.trim()}>
+                    <Button form="create-automation-form" type="submit" disabled={creating}>
                       {creating ? "Creating..." : "Create Automation"}
                     </Button>
                   </>
@@ -466,9 +487,12 @@ export default function EmailAutomationsPage() {
                         <FieldLabel>Name *</FieldLabel>
                         <Input
                           value={createName}
-                          onChange={(e) => setCreateName(e.target.value)}
+                          aria-invalid={createNameInvalid}
+                          onChange={(e) => {
+                            setCreateName(e.target.value)
+                            if (createNameInvalid && e.target.value.trim()) setCreateNameInvalid(false)
+                          }}
                           placeholder="e.g. Fitness Lead Magnet Sequence"
-                          required
                         />
                       </Field>
                       <p className="text-sm text-muted-foreground">
@@ -494,7 +518,7 @@ export default function EmailAutomationsPage() {
                     <Button
                       form="automation-settings-form"
                       type="submit"
-                      disabled={savingSettings || !settingsName.trim()}
+                      disabled={savingSettings}
                     >
                       {savingSettings ? "Saving..." : "Save Settings"}
                     </Button>
@@ -511,9 +535,12 @@ export default function EmailAutomationsPage() {
                         <FieldLabel>Title *</FieldLabel>
                         <Input
                           value={settingsName}
-                          onChange={(e) => setSettingsName(e.target.value)}
+                          aria-invalid={settingsNameInvalid}
+                          onChange={(e) => {
+                            setSettingsName(e.target.value)
+                            if (settingsNameInvalid && e.target.value.trim()) setSettingsNameInvalid(false)
+                          }}
                           placeholder="e.g. Fitness Lead Magnet Sequence"
-                          required
                         />
                       </Field>
                     </CardContent>
