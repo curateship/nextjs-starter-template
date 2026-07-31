@@ -111,11 +111,11 @@ function CheckoutForm({
     // Add a small delay to ensure payment intent update has propagated
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    const customerResult = await updatePaymentIntentCustomer({
+    const customerResult = await updatePaymentIntentCustomer({ data: {
       paymentIntentId,
       email,
       siteId,
-    })
+    } })
 
     if (!customerResult.success) {
       setErrorMessage(customerResult.error || 'Failed to update customer email')
@@ -255,7 +255,7 @@ export function PaymentElementWrapper({
         setTotalAmount(total)
 
         // Create payment intent with initial bumps
-        const result = await createPaymentIntent({
+        const result = await createPaymentIntent({ data: {
           productId: product.id,
           productSlug: product.slug,
           productName: product.title,
@@ -264,7 +264,7 @@ export function PaymentElementWrapper({
           tierName: selectedTier.name,
           selectedBumps: selectedOrderBumps,
           siteId,
-        })
+        } })
 
         if (!result.success || !result.clientSecret) {
           throw new Error(result.error || 'Failed to create payment intent')
@@ -321,12 +321,12 @@ export function PaymentElementWrapper({
         setTotalAmount(total)
 
         // Update existing payment intent with new amount
-        const result = await updatePaymentIntent({
+        const result = await updatePaymentIntent({ data: {
           paymentIntentId,
           mainPriceId: selectedTier.stripePriceId,
           selectedBumps: selectedOrderBumps,
           siteId,
-        })
+        } })
 
         if (!result.success) {
           console.error('Failed to update payment intent:', result.error)
