@@ -149,9 +149,61 @@ export async function listAuditLogs(
     listAuditFilterOptions(database),
   ])
 
+  const entries = await toAuditLogRows(rows, database)
+
+  return { entries, total: totals?.total ?? 0, options }
+}
+
+/**
+ * The entries about one record, newest first — what an account's own page
+ * shows. The viewer at `/admin/audit` stays the whole feed; this only ever
+ * answers "what have admins done to this person", so it takes no filters.
+ */
+export async function listAuditLogsForRecord(
+  recordId: string,
+  limit: number,
+  database: CustomShellDb = db
+) {
+  const rows = await database
+    .select({
+      entry: customShellAdminAuditLogs,
+      actorName: customShellUsers.name,
+      actorEmail: customShellUsers.email,
+    })
+    .from(customShellAdminAuditLogs)
+    .leftJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellAdminAuditLogs.actorUserId)
+    )
+    // Record ids are a jsonb array, so membership is a lookup over its
+    // elements rather than a column comparison.
+    .where(
+      sql`exists (
+        select 1
+        from jsonb_array_elements_text(${customShellAdminAuditLogs.recordIds}) as audit_record(id)
+        where audit_record.id = ${recordId}
+      )`
+    )
+    .orderBy(desc(customShellAdminAuditLogs.createdAt))
+    .limit(limit)
+
+  return toAuditLogRows(rows, database)
+}
+
+type AuditQueryRow = {
+  entry: typeof customShellAdminAuditLogs.$inferSelect
+  actorName: string | null
+  actorEmail: string | null
+}
+
+/** Turns raw entries into rows that name what their ids point at. */
+async function toAuditLogRows(
+  rows: AuditQueryRow[],
+  database: CustomShellDb
+): Promise<AuditLogRow[]> {
   const named = await nameRecords(rows, database)
 
-  const entries: AuditLogRow[] = rows.map((row) => {
+  return rows.map((row) => {
     const recordIds = Array.isArray(row.entry.recordIds)
       ? row.entry.recordIds
       : []
@@ -180,8 +232,6 @@ export async function listAuditLogs(
       ),
     }
   })
-
-  return { entries, total: totals?.total ?? 0, options }
 }
 
 /**
