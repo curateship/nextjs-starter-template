@@ -36,6 +36,7 @@ import {
   type AuthUser,
   type SessionList,
 } from "@/lib/api/auth"
+import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatTimeAgo } from "@/lib/money"
 
@@ -394,7 +395,8 @@ function DeleteAccountCard({
       <CardHeader>
         <CardTitle>Delete account</CardTitle>
         <CardDescription>
-          This removes your account and everything in it. It cannot be undone.
+          This closes your account. You have {ACCOUNT_RESTORE_DAYS} days to
+          change your mind before it and everything in it are gone for good.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -407,7 +409,11 @@ function DeleteAccountCard({
         open={open}
         onOpenChange={setOpen}
         title="Delete your account?"
-        description="Everything you have here is deleted straight away, and any paid plan stops at the end of the period you already paid for."
+        description={
+          hasPassword
+            ? `You are signed out everywhere and cannot sign in again. Signing in with your password within ${ACCOUNT_RESTORE_DAYS} days brings the account back; after that it is deleted for good, and any paid plan stops at the end of the period you already paid for.`
+            : `You are signed out everywhere and cannot sign in again. You sign in with Google and have no password, so only an admin can bring the account back — ask within ${ACCOUNT_RESTORE_DAYS} days. After that it is deleted for good, and any paid plan stops at the end of the period you already paid for.`
+        }
         confirmLabel="Delete account"
         loading={deleting}
         disabled={!confirmation}

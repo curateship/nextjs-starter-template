@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-start/server"
 import { and, eq } from "drizzle-orm"
 
+import { isPendingDeletion } from "@/lib/account-deletion"
 import { safeRedirectPath } from "@/lib/redirect-path"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
@@ -321,7 +322,10 @@ function readIdToken(idToken: string | undefined): GoogleClaims | null {
  * 3. Otherwise the address decides: an account with that email gains the link,
  *    and if there is none, one is created. Since Google confirmed the address
  *    and this app only ever holds confirmed addresses, both are the same person.
- * 4. A suspended account is refused, exactly as the password form refuses it.
+ * 4. A suspended account is refused, exactly as the password form refuses it,
+ *    and so is one that has been deleted and is inside its restore window.
+ *    Bringing an account back is the sign-in form's job, where the person is
+ *    asked plainly whether they meant to.
  */
 export async function signInWithGoogle(
   identity: GoogleIdentity,
@@ -338,6 +342,9 @@ export async function signInWithGoogle(
 
   if (account?.status === "suspended") {
     throw new Error("ACCOUNT_SUSPENDED")
+  }
+  if (account && isPendingDeletion(account)) {
+    throw new Error("ACCOUNT_PENDING_DELETION")
   }
 
   const user = account

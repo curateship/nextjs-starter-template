@@ -9,9 +9,23 @@ in `docs/saas-foundation.md`.
 - A session is a random token in an httpOnly cookie; only its SHA-256 hash is
   stored. `Secure` is set over HTTPS and left off in plain-http development so
   the embedded preview can sign in.
-- Sign-in refuses accounts that are unverified or suspended. Suspending someone
-  deletes their sessions, and a suspended account is treated as signed out even
-  on a session that has not expired.
+- Sign-in refuses accounts that are unverified, suspended, or marked for
+  deletion. Suspending someone deletes their sessions, and a suspended account
+  is treated as signed out even on a session that has not expired.
+- Deleting an account marks it instead of removing it, deletes its sessions, and
+  starts a 30-day restore window. Nothing signs in to a marked account through
+  any route — the password form, a sign-in link, and Google all refuse it — and
+  a change-email link stops working too.
+- Bringing it back is a second, deliberate act. The sign-in page offers "Restore
+  my account" after refusing, and that button sends the same password again with
+  a flag; nothing else sets it, so a routine sign-in can never undo a deletion by
+  accident. An account an admin deleted is refused even then, because a member
+  must not be able to reverse a moderation decision — `users.deleted_by` is what
+  tells the two apart.
+- Once the window passes the row is really deleted and everything hanging off it
+  goes with it. There is no background job, so the purge runs on registration
+  and on sign-in; an admin can also delete a marked account a second time to
+  remove it immediately.
 - Verification, password-reset, sign-in and email-change links are single-use,
   expiring tokens; only their hash is stored. Completing a reset signs out every
   session.

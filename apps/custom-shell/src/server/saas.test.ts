@@ -5,6 +5,12 @@ import { eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
+import {
+  markAccountsForDeletion,
+  purgeExpiredDeletions,
+  restoreOwnAccount,
+} from "@/server/account-deletion"
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
   countOtherActiveAdmins,
@@ -12,6 +18,7 @@ import {
   grantManualPlan,
   listAccounts,
   loadRevenueSummary,
+  restoreUserAccounts,
   setUserStatus,
   updateUserRole,
 } from "@/server/accounts"
@@ -625,6 +632,26 @@ describe("admin account management", () => {
     ).rejects.toThrow("LAST_ADMIN")
   })
 
+  it("refuses to delete the last admin, and leaves them active", async () => {
+    const admin = await createUser({ role: "admin" })
+    const second = await createUser({ role: "admin" })
+
+    // `second` is the one pressing the button, so the guard is judging `admin`
+    // against the admins that would still be able to sign in afterwards.
+    await deleteUserAccounts(second.id, [admin.id], database)
+    await expect(
+      deleteUserAccounts(admin.id, [second.id], database)
+    ).rejects.toThrow("LAST_ADMIN")
+
+    const [remaining] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, second.id))
+
+    expect(remaining.status).toBe("active")
+    expect(remaining.deletedAt).toBeNull()
+  })
+
   it("ends the sessions of an account it suspends", async () => {
     await createUser({ role: "admin" })
     const member = await createUser()
@@ -658,10 +685,171 @@ describe("admin account management", () => {
       database
     )
 
-    expect(result.deleted).toBe(2)
+    // Marked, not removed: every row is still there, and only the two that
+    // were named are on their way out.
+    expect(result).toEqual({ marked: 2, deleted: 0 })
     const remaining = await database.select().from(customShellUsers)
-    expect(remaining).toHaveLength(1)
-    expect(remaining[0].id).toBe(actor.id)
+    expect(remaining).toHaveLength(3)
+    expect(
+      remaining
+        .filter((row) => row.status === "pending_deletion")
+        .map((row) => row.id)
+        .sort()
+    ).toEqual([second.id, third.id].sort())
+    expect(remaining.find((row) => row.id === actor.id)?.status).toBe("active")
+  })
+
+  it("removes an account for good when it is deleted a second time", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+    const result = await deleteUserAccounts(actor.id, [member.id], database)
+
+    expect(result).toEqual({ marked: 0, deleted: 1 })
+    const remaining = await database.select().from(customShellUsers)
+    expect(remaining.map((row) => row.id)).toEqual([actor.id])
+  })
+
+  it("does not restart the window when an account is deleted twice", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+
+    await markAccountsForDeletion(actor.id, [member.id], database)
+    const [first] = await database
+      .select({ deletedAt: customShellUsers.deletedAt })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+
+    // A second marking matches nothing, so the clock keeps the time it had.
+    expect(
+      await markAccountsForDeletion(actor.id, [member.id], database)
+    ).toEqual([])
+
+    const [second] = await database
+      .select({ deletedAt: customShellUsers.deletedAt })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+
+    expect(second.deletedAt).toEqual(first.deletedAt)
+  })
+
+  it("signs a deleted account out and refuses it at sign-in", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+    const token = "doomed-session-token"
+
+    await database.insert(customShellSessions).values({
+      id: uuid(),
+      userId: member.id,
+      tokenHash: hashSessionToken(token),
+      expiresAt: createSessionExpiresAt(),
+      createdAt: now(),
+    })
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+
+    expect(await findUserBySessionToken(token, database)).toBeNull()
+    expect(
+      await database
+        .select()
+        .from(customShellSessions)
+        .where(eq(customShellSessions.userId, member.id))
+    ).toHaveLength(0)
+  })
+
+  it("will not suspend or unsuspend an account that is on its way out", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+
+    await expect(
+      setUserStatus(member.id, "suspended", database)
+    ).rejects.toThrow("ACCOUNT_PENDING_DELETION")
+    await expect(setUserStatus(member.id, "active", database)).rejects.toThrow(
+      "ACCOUNT_PENDING_DELETION"
+    )
+  })
+
+  it("brings a deleted account back, with everything it owned", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+    expect(await restoreUserAccounts([member.id], database)).toEqual({
+      restored: 1,
+    })
+
+    const [restored] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+
+    expect(restored.status).toBe("active")
+    expect(restored.deletedAt).toBeNull()
+    expect(restored.deletedBy).toBeNull()
+  })
+
+  it("refuses to restore an account whose window has passed, and purges it", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+    // Marked a day past the window, so it is out of time either way.
+    await database
+      .update(customShellUsers)
+      .set({
+        deletedAt: new Date(
+          Date.now() - (ACCOUNT_RESTORE_DAYS + 1) * 24 * 60 * 60 * 1000
+        ),
+      })
+      .where(eq(customShellUsers.id, member.id))
+
+    await expect(
+      restoreUserAccounts([member.id], database)
+    ).rejects.toThrow("RESTORE_WINDOW_PASSED")
+
+    expect(await purgeExpiredDeletions(database)).toBe(1)
+    const remaining = await database.select().from(customShellUsers)
+    expect(remaining.map((row) => row.id)).toEqual([actor.id])
+  })
+
+  it("leaves an account still inside its window alone when purging", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+
+    expect(await purgeExpiredDeletions(database)).toBe(0)
+    expect(await database.select().from(customShellUsers)).toHaveLength(2)
+  })
+
+  it("lets the owner restore their own account but not one an admin deleted", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+
+    // Deleted by an admin: the member proving who they are is not enough.
+    await deleteUserAccounts(actor.id, [member.id], database)
+    const [byAdmin] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+
+    await expect(restoreOwnAccount(byAdmin, database)).rejects.toThrow(
+      "DELETED_BY_ADMIN"
+    )
+
+    // Deleted by themselves: their own to undo.
+    await restoreUserAccounts([member.id], database)
+    await markAccountsForDeletion(member.id, [member.id], database)
+    const [bySelf] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+
+    const restored = await restoreOwnAccount(bySelf, database)
+    expect(restored.status).toBe("active")
   })
 
   it("refuses a bulk delete that only contains yourself", async () => {

@@ -36,7 +36,13 @@ import {
   updateAccountStatus,
   type AssignablePlan,
 } from "@/lib/api/admin-users"
+import {
+  isPendingDeletion,
+  PENDING_DELETION,
+} from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+
+type AccountStatus = "active" | "suspended" | typeof PENDING_DELETION
 
 /**
  * Only the fields the modal edits, so the accounts table row and the account
@@ -74,19 +80,27 @@ export function EditAccountDialog({
       ? account.currentPeriodEnd.slice(0, 10)
       : ""
 
+  // Deleted accounts keep their own status here rather than being shown as
+  // active, and the control is disabled — so a save can never send it, and
+  // nothing pretends the account is something it is not.
+  const pendingDeletion = Boolean(account && isPendingDeletion(account))
+  const initialStatus: AccountStatus = pendingDeletion
+    ? PENDING_DELETION
+    : account?.status === "suspended"
+      ? "suspended"
+      : "active"
+
   const [role, setRole] = React.useState<"admin" | "member">(
     account?.role === "admin" ? "admin" : "member"
   )
-  const [status, setStatus] = React.useState<"active" | "suspended">(
-    account?.status === "suspended" ? "suspended" : "active"
-  )
+  const [status, setStatus] = React.useState<AccountStatus>(initialStatus)
   const [planId, setPlanId] = React.useState(grantedPlanId)
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
   const [saving, setSaving] = React.useState(false)
 
   const initial = React.useRef({
     role: account?.role === "admin" ? "admin" : "member",
-    status: account?.status === "suspended" ? "suspended" : "active",
+    status: initialStatus,
     planId: grantedPlanId,
     endsOn: grantedEndsOn,
   })
@@ -101,7 +115,9 @@ export function EditAccountDialog({
       if (role !== initial.current.role) {
         await updateAccountRole(account.id, role)
       }
-      if (status !== initial.current.status) {
+      // The deletion clock is never sent from here — that control is disabled,
+      // and restoring an account is the Users table's job.
+      if (status !== initial.current.status && status !== PENDING_DELETION) {
         await updateAccountStatus(account.id, status)
       }
       if (
@@ -167,12 +183,23 @@ export function EditAccountDialog({
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="account-status">Status</Label>
+                  {/* An account on its way out is neither active nor suspended:
+                      its status is the deletion clock. Restoring it from the
+                      Users table is what gives this control something to say. */}
+                  <FieldLabel
+                    htmlFor="account-status"
+                    hint={
+                      pendingDeletion
+                        ? "This account is scheduled for deletion. Restore it from the Users table to change this."
+                        : "Suspending someone signs them out everywhere and refuses them at sign-in."
+                    }
+                  >
+                    Status
+                  </FieldLabel>
                   <Select
                     value={status}
-                    onValueChange={(value) =>
-                      setStatus(value as "active" | "suspended")
-                    }
+                    disabled={pendingDeletion}
+                    onValueChange={(value) => setStatus(value as AccountStatus)}
                   >
                     <SelectTrigger id="account-status" className="w-full sm:w-fit">
                       <SelectValue />
@@ -180,6 +207,11 @@ export function EditAccountDialog({
                     <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="suspended">Suspended</SelectItem>
+                      {pendingDeletion ? (
+                        <SelectItem value={PENDING_DELETION}>
+                          Scheduled for deletion
+                        </SelectItem>
+                      ) : null}
                     </SelectContent>
                   </Select>
                 </div>

@@ -1,6 +1,12 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { EyeIcon, SettingsIcon, Trash2Icon, UsersIcon } from "lucide-react"
+import {
+  EyeIcon,
+  RotateCcwIcon,
+  SettingsIcon,
+  Trash2Icon,
+  UsersIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -34,9 +40,15 @@ import {
   deleteAccountsAsAdmin,
   getAdminUserErrorMessage,
   listAdminAccounts,
+  restoreAccountsAsAdmin,
   type AccountRow,
   type AssignablePlan,
 } from "@/lib/api/admin-users"
+import {
+  ACCOUNT_RESTORE_DAYS,
+  isPendingDeletion,
+  restoreDeadline,
+} from "@/lib/account-deletion"
 import {
   getViewAsErrorMessage,
   startViewingAsMember,
@@ -44,6 +56,33 @@ import {
 import { formatDate } from "@/lib/money"
 
 type SortColumn = "name" | "email" | "role" | "plan" | "created"
+
+type StatusFilter = "all" | "active" | "suspended" | "pending_deletion"
+
+/**
+ * What deleting these accounts did, said plainly. The same button both marks an
+ * account and, on a second press, removes one for good, so a mixed selection
+ * has to be able to report both.
+ */
+function describeDeletion({
+  marked,
+  deleted,
+}: {
+  marked: number
+  deleted: number
+}) {
+  const parts = []
+  if (marked) {
+    parts.push(
+      `${marked} ${marked === 1 ? "account" : "accounts"} scheduled for deletion`
+    )
+  }
+  if (deleted) {
+    parts.push(`${deleted} deleted for good`)
+  }
+
+  return parts.length ? `${parts.join(", ")}.` : "Nothing to delete."
+}
 
 export function AdminUsersDashboard({
   initialAccounts,
@@ -62,9 +101,7 @@ export function AdminUsersDashboard({
   const [total, setTotal] = React.useState(initialTotal)
   const [search, setSearch] = React.useState("")
   const [role, setRole] = React.useState<"all" | "admin" | "member">("all")
-  const [status, setStatus] = React.useState<"all" | "active" | "suspended">(
-    "all"
-  )
+  const [status, setStatus] = React.useState<StatusFilter>("all")
   const [sort, setSort] = React.useState<SortColumn>("created")
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
   const [page, setPage] = React.useState(1)
@@ -77,6 +114,10 @@ export function AdminUsersDashboard({
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
+  const [restoreTarget, setRestoreTarget] = React.useState<AccountRow | null>(
+    null
+  )
+  const [restoring, setRestoring] = React.useState(false)
   const [viewAsTarget, setViewAsTarget] = React.useState<AccountRow | null>(null)
   const [startingViewAs, setStartingViewAs] = React.useState(false)
 
@@ -131,10 +172,15 @@ export function AdminUsersDashboard({
   )
 
   const runAction = React.useCallback(
-    async (action: () => Promise<unknown>, successText: string) => {
+    async <T,>(
+      action: () => Promise<T>,
+      successText: string | ((result: T) => string)
+    ) => {
       try {
-        await action()
-        toast.success(successText)
+        const result = await action()
+        toast.success(
+          typeof successText === "function" ? successText(result) : successText
+        )
         await refresh()
         return true
       } catch (actionError) {
@@ -181,6 +227,29 @@ export function AdminUsersDashboard({
     })
   }, [selectableIds])
 
+  // The selected rows that are on their way out, so one press can bring back a
+  // bulk delete somebody regrets.
+  const selectedDeletedIds = React.useMemo(
+    () =>
+      accounts
+        .filter(
+          (account) => selectedIds.has(account.id) && isPendingDeletion(account)
+        )
+        .map((account) => account.id),
+    [accounts, selectedIds]
+  )
+
+  const restoreSelected = React.useCallback(async () => {
+    setRestoring(true)
+    const ok = await runAction(
+      () => restoreAccountsAsAdmin(selectedDeletedIds),
+      ({ restored }) =>
+        `${restored} ${restored === 1 ? "account" : "accounts"} restored.`
+    )
+    setRestoring(false)
+    if (ok) setSelectedIds(new Set())
+  }, [runAction, selectedDeletedIds])
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -206,6 +275,17 @@ export function AdminUsersDashboard({
               >
                 <Trash2Icon className="size-4" />
                 Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
+            {selectedDeletedIds.length ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                disabled={restoring}
+                onClick={() => void restoreSelected()}
+              >
+                <RotateCcwIcon className="size-4" />
+                Restore ({selectedDeletedIds.length})
               </DashboardToolbarButton>
             ) : null}
             <DashboardToolbarSearch
@@ -252,6 +332,9 @@ export function AdminUsersDashboard({
                 <SelectItem value="all">All accounts</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="pending_deletion">
+                  Scheduled for deletion
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -351,7 +434,11 @@ export function AdminUsersDashboard({
               >
                 {account.name}
               </Link>
-              {account.status === "suspended" ? (
+              {isPendingDeletion(account) && account.deletedAt ? (
+                <span className="ml-2 text-xs text-destructive">
+                  Deletes {formatDate(restoreDeadline(account.deletedAt))}
+                </span>
+              ) : account.status === "suspended" ? (
                 <span className="ml-2 text-xs text-destructive">Suspended</span>
               ) : account.emailVerified ? null : (
                 <span className="ml-2 text-xs text-muted-foreground">
@@ -400,14 +487,28 @@ export function AdminUsersDashboard({
                   title={
                     account.role === "admin"
                       ? "You cannot view the app as another admin"
-                      : account.status !== "active"
-                        ? "This account is suspended"
-                        : "View the app as this member"
+                      : isPendingDeletion(account)
+                        ? "This account is scheduled for deletion"
+                        : account.status !== "active"
+                          ? "This account is suspended"
+                          : "View the app as this member"
                   }
                   aria-label={`View the app as ${account.name}`}
                 >
                   <EyeIcon className="size-4" />
                 </Button>
+                {isPendingDeletion(account) ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setRestoreTarget(account)}
+                    title="Restore account"
+                    aria-label={`Restore ${account.name}`}
+                  >
+                    <RotateCcwIcon className="size-4" />
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
@@ -451,11 +552,17 @@ export function AdminUsersDashboard({
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null)
         }}
-        title="Delete this account?"
+        title={
+          deleteTarget && isPendingDeletion(deleteTarget)
+            ? "Delete this account for good?"
+            : "Delete this account?"
+        }
         description={
-          deleteTarget
-            ? `${deleteTarget.name} (${deleteTarget.email}) and everything they own is removed. This cannot be undone.`
-            : null
+          !deleteTarget
+            ? null
+            : isPendingDeletion(deleteTarget)
+              ? `${deleteTarget.name} (${deleteTarget.email}) and everything they own is removed now, without waiting out the rest of the restore window. This cannot be undone.`
+              : `${deleteTarget.name} (${deleteTarget.email}) is signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days, after which they and everything they own are gone for good.`
         }
         confirmLabel="Delete account"
         loading={deleting}
@@ -465,10 +572,37 @@ export function AdminUsersDashboard({
           setDeleting(true)
           const ok = await runAction(
             () => deleteAccountAsAdmin(target.id),
-            "Account deleted."
+            describeDeletion
           )
           setDeleting(false)
           if (ok) setDeleteTarget(null)
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(restoreTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRestoreTarget(null)
+        }}
+        title="Restore this account?"
+        description={
+          restoreTarget
+            ? `${restoreTarget.name} (${restoreTarget.email}) becomes active again and can sign in. Nothing was deleted, so everything they own comes back with them.`
+            : null
+        }
+        confirmLabel="Restore account"
+        destructive={false}
+        loading={restoring}
+        onConfirm={async () => {
+          const target = restoreTarget
+          if (!target) return
+          setRestoring(true)
+          const ok = await runAction(
+            () => restoreAccountsAsAdmin([target.id]),
+            "Account restored."
+          )
+          setRestoring(false)
+          if (ok) setRestoreTarget(null)
         }}
       />
 
@@ -506,14 +640,14 @@ export function AdminUsersDashboard({
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "account" : "accounts"}?`}
-        description="Everything those people own is removed. This cannot be undone."
+        description={`Those people are signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days. Any that were already scheduled for deletion are removed for good now.`}
         confirmLabel="Delete accounts"
         loading={massDeleting}
         onConfirm={async () => {
           setMassDeleting(true)
           const ok = await runAction(
             () => deleteAccountsAsAdmin([...selectedIds]),
-            "Accounts deleted."
+            describeDeletion
           )
           setMassDeleting(false)
           if (ok) {

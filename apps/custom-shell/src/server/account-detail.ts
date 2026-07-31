@@ -25,6 +25,8 @@ type AccountProfile = {
   name: string
   role: string
   status: string
+  /** When this account was marked for deletion, and null when it was not. */
+  deletedAt: string | null
   emailVerifiedAt: string | null
   createdAt: string
   updatedAt: string
@@ -74,6 +76,7 @@ export async function loadAccountDetail(
       name: customShellUsers.name,
       role: customShellUsers.role,
       status: customShellUsers.status,
+      deletedAt: customShellUsers.deletedAt,
       emailVerifiedAt: customShellUsers.emailVerifiedAt,
       createdAt: customShellUsers.createdAt,
       updatedAt: customShellUsers.updatedAt,
@@ -102,6 +105,7 @@ export async function loadAccountDetail(
       name: user.name,
       role: user.role,
       status: user.status,
+      deletedAt: user.deletedAt?.toISOString() ?? null,
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),

@@ -30,8 +30,13 @@ All of it arrives in one migration, `drizzle/0004_custom_shell_saas.sql`, with
 Drizzle definitions in `src/server/schema.ts`.
 
 **`users` (extended)** — gains `email_verified_at` and `status`
-(`active` / `suspended`), and `role` is now constrained to `admin` or `member`.
-Accounts that predate the migration are marked verified so nobody is locked out.
+(`active` / `suspended` / `pending_deletion`), and `role` is now constrained to
+`admin` or `member`. Accounts that predate the migration are marked verified so
+nobody is locked out. `deleted_at` and `deleted_by` arrive in
+`drizzle/0015_custom_shell_soft_delete.sql`: when the deletion clock started and
+who started it. A check constraint pairs `deleted_at` with the
+`pending_deletion` status both ways, so a marked account can never be missing
+its date and an ordinary one can never carry one.
 
 **`auth_tokens`** — one-time links. Stores only a SHA-256 hash of the token,
 its `purpose` (`verify_email`, `reset_password`, `login` or `change_email`), an
@@ -132,6 +137,32 @@ there if that matters for your product.
 `findUserBySessionToken` treats a suspended account as signed out — so
 suspending someone takes effect on an open tab, not whenever their cookie
 happens to expire.
+
+**Deleting an account** marks it rather than removing it. The status becomes
+`pending_deletion`, `deleted_at` starts a 30-day clock, `deleted_by` records who
+pressed the button, and every session for that account is dropped. A marked
+account is signed out everywhere and cannot be signed in to by any route — the
+password form, a sign-in link and Google all refuse it, and a change-email link
+stops working. Code: `src/server/account-deletion.ts`, with the window itself in
+`src/lib/account-deletion.ts` so the screens and the server read one number.
+
+**Restoring** is a deliberate second act, never a side effect of signing in.
+After refusing, `/login` offers "Restore my account and sign in", which sends the
+same password with `restore: true`; that flag is the only thing that brings an
+account back through sign-in. An account an *admin* deleted is refused even then
+(`DELETED_BY_ADMIN`) — a member must not be able to reverse a moderation
+decision — so a Google-only account, having no password to offer, is always an
+admin's to restore. Admins restore from `/admin/users`, one row at a time or a
+whole selection at once. An account always comes back **active**: the deletion
+clock took the status column, so a suspended account that was then deleted
+returns unsuspended. The restore confirmation says so.
+
+**Purging.** Once the window passes the row is really deleted, and everything
+that references it goes with it. There is no scheduled job in this app, so
+`purgeExpiredDeletions()` runs on the two everyday write paths that care:
+registering (an address stays taken until the account holding it is really gone)
+and signing in. An admin who does not want to wait deletes a marked account a
+second time, which removes it immediately.
 
 **Throttles** (per IP, in `rate_limits`):
 
@@ -261,8 +292,9 @@ them cleanly.
 devices, delete account), `/account/billing` (plan, renewal or cancellation
 state, upgrade, Stripe portal, invoices), `/account/billing/success`.
 
-**Admin:** `/admin/users` (search, filter, sort, paging, mass delete, edit
-modal for role / status / granted plan), `/admin/plans` (create, edit, archive),
+**Admin:** `/admin/users` (search, filter, sort, paging, mass delete, mass
+restore, edit modal for role / status / granted plan), `/admin/plans` (create,
+edit, archive),
 `/admin/billing` (monthly recurring revenue, subscriber counts, revenue by plan).
 
 Both admin tables follow `.agents/skills/Ui-standards`: a selection column with

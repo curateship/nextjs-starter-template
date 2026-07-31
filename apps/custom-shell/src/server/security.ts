@@ -666,9 +666,10 @@ export async function findSessionContextByToken(
 
   const owner = rows.find((row) => row.id === session.userId)
 
-  // A suspended account is treated as signed out, so suspending someone takes
-  // effect immediately even on a session that is still inside its lifetime.
-  if (!owner || owner.status === "suspended") {
+  // A suspended account, and one marked for deletion, are both treated as
+  // signed out — so either takes effect immediately, even on a session that is
+  // still inside its lifetime.
+  if (!owner || owner.status !== "active") {
     return null
   }
 

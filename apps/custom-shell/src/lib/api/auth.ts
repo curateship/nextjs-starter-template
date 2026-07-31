@@ -3,9 +3,18 @@ import { getRequestIP } from "@tanstack/react-start/server"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
+import {
+  ACCOUNT_RESTORE_DAYS,
+  isPendingDeletion,
+} from "@/lib/account-deletion"
 import { describeDevice } from "@/lib/device-label"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
+import {
+  markAccountsForDeletion,
+  purgeExpiredDeletions,
+  restoreOwnAccount,
+} from "@/server/account-deletion"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
@@ -99,6 +108,13 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1).max(128),
+  /**
+   * Set only by the "Restore my account" button, which the sign-in page offers
+   * after a refusal. The flag is what makes bringing an account back a
+   * deliberate second act rather than something a routine sign-in does by
+   * accident — the credentials on their own are never enough.
+   */
+  restore: z.boolean().default(false),
 })
 const profileSchema = z.object({ name: nameSchema })
 const changePasswordSchema = z.object({
@@ -132,6 +148,11 @@ const authErrorMessages: Record<string, string> = {
   EMAIL_NOT_VERIFIED:
     "Check your inbox and verify your email before signing in.",
   ACCOUNT_SUSPENDED: "This account has been suspended. Contact support.",
+  ACCOUNT_PENDING_DELETION:
+    "This account is scheduled for deletion, so it cannot be signed in to.",
+  DELETED_BY_ADMIN:
+    "An admin deleted this account. Contact support if that was a mistake.",
+  RESTORE_WINDOW_PASSED: `This account was deleted more than ${ACCOUNT_RESTORE_DAYS} days ago and is gone for good.`,
   RATE_LIMITED: "Too many attempts. Please try again later.",
   INVALID_OR_EXPIRED_TOKEN: "This link is invalid or has expired.",
   AUTH_REQUIRED: "Please sign in again.",
@@ -162,6 +183,7 @@ export const SIGN_IN_ERROR_CODES = [
   "GOOGLE_SIGN_IN_FAILED",
   "PROVIDER_EMAIL_UNVERIFIED",
   "ACCOUNT_SUSPENDED",
+  "ACCOUNT_PENDING_DELETION",
   "RATE_LIMITED",
 ] as const
 
@@ -217,6 +239,11 @@ const registerFn = createServerFn({ method: "POST" })
       windowSeconds: 60 * 60,
     })
     await enforceHumanCheck(data.humanCheckToken)
+
+    // Before the address is checked, not after: an address stays taken for as
+    // long as the deleted account holding it is still restorable, and frees up
+    // the moment that account is really gone.
+    await purgeExpiredDeletions()
 
     const [existing] = await db
       .select({ id: customShellUsers.id })
@@ -308,18 +335,34 @@ const loginFn = createServerFn({ method: "POST" })
       windowSeconds: 15 * 60,
     })
 
-    const user = await findUserByEmail(data.email)
-    if (!user || !(await verifyPassword(user.passwordHash, data.password))) {
+    const found = await findUserByEmail(data.email)
+    if (!found || !(await verifyPassword(found.passwordHash, data.password))) {
       throw new Error("INVALID_CREDENTIALS")
     }
-    if (user.status === "suspended") {
+    if (found.status === "suspended") {
       throw new Error("ACCOUNT_SUSPENDED")
+    }
+
+    // The right password on an account that is on its way out signs nobody in.
+    // The page is told why, offers to bring the account back, and only that
+    // button answers this call a second time — so a routine sign-in can never
+    // undo a deletion by accident.
+    const user =
+      isPendingDeletion(found) && data.restore
+        ? await restoreOwnAccount(found)
+        : found
+
+    if (isPendingDeletion(user)) {
+      throw new Error("ACCOUNT_PENDING_DELETION")
     }
     if (!user.emailVerifiedAt) {
       throw new Error("EMAIL_NOT_VERIFIED")
     }
 
     await clearRateLimit(rateLimitKey)
+    // Sweeps up accounts whose restore window ran out. Here and registering are
+    // the two places it happens; there is no background job in this app.
+    await purgeExpiredDeletions()
 
     const token = await createUserSession(user.id, describeRequestOrigin())
     await startWorkspaceFor(user.id)
@@ -703,7 +746,9 @@ const deleteAccountFn = createServerFn({ method: "POST" })
       throw new Error("LAST_ADMIN")
     }
 
-    await db.delete(customShellUsers).where(eq(customShellUsers.id, user.id))
+    // Marked, not removed. Nothing can be reached with it from this moment on,
+    // and it is really deleted once the restore window runs out.
+    await markAccountsForDeletion(user.id, [user.id])
     clearSessionCookie()
     return { ok: true }
   })
@@ -728,8 +773,12 @@ export function resendVerification(email: string) {
   return resendVerificationFn({ data: { email } })
 }
 
-export function login(email: string, password: string) {
-  return loginFn({ data: { email, password } })
+/**
+ * `restore` is the sign-in page's "Restore my account" button answering a
+ * refusal, and nothing else ever sets it.
+ */
+export function login(email: string, password: string, restore = false) {
+  return loginFn({ data: { email, password, restore } })
 }
 
 export function logout() {

@@ -97,6 +97,7 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/security"
+import { markAccountsForDeletion } from "@/server/account-deletion"
 import { signInWithGoogle } from "@/server/google-auth"
 import {
   cancelEmailChange,
@@ -402,6 +403,37 @@ describe("magic-link sign-in", () => {
     expect(await database.select().from(customShellSessions)).toHaveLength(0)
   })
 
+  it("issues nothing, and refuses an old link, once the account is deleted", async () => {
+    const userId = await seedAccount("leaving@internal.dev")
+    const link = await createSignInLinkToken(
+      "leaving@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    await markAccountsForDeletion(
+      userId,
+      [userId],
+      database as unknown as CustomShellDb
+    )
+
+    // No new link goes out, and the one already in the inbox does nothing —
+    // bringing an account back is the sign-in form's job, not a link's.
+    await expect(
+      createSignInLinkToken(
+        "leaving@internal.dev",
+        database as unknown as CustomShellDb
+      )
+    ).resolves.toBeNull()
+    await expect(
+      consumeSignInLink(
+        link!.token,
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("ACCOUNT_PENDING_DELETION")
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+  })
+
   it("verifies an account that had never confirmed its email", async () => {
     const userId = await seedAccount("unconfirmed@internal.dev", {
       emailVerifiedAt: null,
@@ -606,6 +638,28 @@ describe("google sign-in", () => {
         database as unknown as CustomShellDb
       )
     ).rejects.toThrow("ACCOUNT_SUSPENDED")
+
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+    expect(await database.select().from(customShellOauthAccounts)).toHaveLength(
+      0
+    )
+  })
+
+  it("refuses an account that is on its way out", async () => {
+    const userId = await seedAccount("ada@internal.dev")
+    await markAccountsForDeletion(
+      userId,
+      [userId],
+      database as unknown as CustomShellDb
+    )
+
+    await expect(
+      signInWithGoogle(
+        googleIdentity(),
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("ACCOUNT_PENDING_DELETION")
 
     expect(await database.select().from(customShellSessions)).toHaveLength(0)
     expect(await database.select().from(customShellOauthAccounts)).toHaveLength(

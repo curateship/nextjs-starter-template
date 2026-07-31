@@ -8,6 +8,7 @@ import {
   grantManualPlan,
   listAccounts,
   loadRevenueSummary,
+  restoreUserAccounts,
   setUserStatus,
   updateUserRole,
   type AccountRow,
@@ -26,7 +27,9 @@ export type AssignablePlan = { id: string; name: string; slug: string }
 const listQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
   role: z.enum(["all", "admin", "member"]).default("all"),
-  status: z.enum(["all", "active", "suspended"]).default("all"),
+  status: z
+    .enum(["all", "active", "suspended", "pending_deletion"])
+    .default("all"),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
   sort: z.enum(["name", "email", "role", "plan", "created"]).default("created"),
@@ -42,6 +45,10 @@ const adminUserErrorMessages: Record<string, string> = {
   LAST_ADMIN: "You cannot remove the last admin.",
   CANNOT_DELETE_SELF: "You cannot delete your own account here.",
   PLAN_NOT_FOUND: "That plan no longer exists.",
+  ACCOUNT_PENDING_DELETION:
+    "That account is scheduled for deletion. Restore it first.",
+  RESTORE_WINDOW_PASSED:
+    "That account was deleted too long ago to bring back.",
 }
 
 export function getAdminUserErrorMessage(error: unknown) {
@@ -166,6 +173,16 @@ const deleteAccountsFn = createServerFn({ method: "POST" })
     return deleteUserAccounts(actor.id, data.userIds)
   })
 
+const restoreAccountsFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({ userIds: z.array(z.string().min(1).max(36)).min(1).max(100) })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    await requireAdmin()
+    return restoreUserAccounts(data.userIds)
+  })
+
 const loadRevenueFn = createServerFn({ method: "GET" }).handler(async () => {
   await requireAdmin()
   return loadRevenueSummary()
@@ -210,6 +227,10 @@ export function deleteAccountAsAdmin(userId: string) {
 
 export function deleteAccountsAsAdmin(userIds: string[]) {
   return deleteAccountsFn({ data: { userIds } })
+}
+
+export function restoreAccountsAsAdmin(userIds: string[]) {
+  return restoreAccountsFn({ data: { userIds } })
 }
 
 export function loadRevenue() {

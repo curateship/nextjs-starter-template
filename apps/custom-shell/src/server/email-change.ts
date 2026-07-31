@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, isNull } from "drizzle-orm"
 
+import { isPendingDeletion } from "@/lib/account-deletion"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAuthTokens,
@@ -145,6 +146,11 @@ export async function consumeEmailChange(
     }
     if (account.status === "suspended") {
       throw new Error("ACCOUNT_SUSPENDED")
+    }
+    // A change link outlives the account being deleted, and moving the address
+    // on an account on its way out would take the new address down with it.
+    if (isPendingDeletion(account)) {
+      throw new Error("ACCOUNT_PENDING_DELETION")
     }
 
     // Somebody else may have registered the address while the link sat in an

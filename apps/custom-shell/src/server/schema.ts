@@ -34,6 +34,18 @@ export const customShellUsers = pgTable(
      */
     passwordHash: text("password_hash"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    /**
+     * When this account was marked for deletion, and null whenever it was not.
+     * Set only alongside the `pending_deletion` status — the check below holds
+     * the pair together both ways.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /**
+     * Who marked it. An account its own owner marked can be brought back by
+     * signing in; one an admin marked cannot, or a member could quietly undo a
+     * moderation decision.
+     */
+    deletedBy: varchar("deleted_by", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -41,7 +53,11 @@ export const customShellUsers = pgTable(
     check("users_role_check", sql`${table.role} in ('admin', 'member')`),
     check(
       "users_status_check",
-      sql`${table.status} in ('active', 'suspended')`
+      sql`${table.status} in ('active', 'suspended', 'pending_deletion')`
+    ),
+    check(
+      "users_deleted_at_check",
+      sql`(${table.status} = 'pending_deletion') = (${table.deletedAt} is not null)`
     ),
   ]
 )
