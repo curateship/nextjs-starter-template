@@ -11,6 +11,7 @@ import {
   type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
+import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
 import {
   DEFAULT_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
@@ -53,6 +54,17 @@ const AUDIT_LINK: ShellItem = {
   roles: ["admin"],
 }
 
+/** The automation canvas, added after the first workspaces existed. */
+const AUTOMATIONS_LINK: ShellItem = {
+  type: "item",
+  id: "item-automations",
+  label: "Automations",
+  href: "/admin/automations",
+  icon: "workflow",
+  visible: true,
+  roles: ["admin"],
+}
+
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
@@ -62,6 +74,8 @@ export type WorkspaceSettings = {
   sidebarWidth: number
   // Visual styling (spacing, card border, backgrounds), saved per-workspace.
   styling: ShellStyling
+  // Starred palette nodes in the automation editor, saved per-workspace.
+  automationFavoriteNodeKeys: string[]
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -370,13 +384,16 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
       sections: Array.isArray(settings.sections)
-        ? withAuditLink(withMediaChildLinks(settings.sections))
+        ? withAutomationsLink(withAuditLink(withMediaChildLinks(settings.sections)))
         : fallback.sections,
       // Default fills rows saved before this field existed.
       sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
         ? settings.sidebarWidth
         : fallback.sidebarWidth,
       styling: normalizeStyling(settings.styling),
+      automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
+        settings.automationFavoriteNodeKeys
+      ),
     }
   }
 
@@ -438,6 +455,45 @@ function withAuditLink(sections: ShellSection[]): ShellSection[] {
   })
 }
 
+/**
+ * Same story again: the automation canvas arrived after most workspaces were
+ * created and a deploy never rewrites saved navigation. Add its link right
+ * after the Media entry when nothing points at it yet. To take it out of the
+ * sidebar, switch the entry to hidden in Settings → Sidebar — deleting it
+ * brings it back, the same as any default link.
+ */
+function withAutomationsLink(sections: ShellSection[]): ShellSection[] {
+  const alreadyLinked = sections.some((section) =>
+    (section.entries ?? []).some(
+      (entry) => entry.type === "item" && entry.href === AUTOMATIONS_LINK.href
+    )
+  )
+  if (alreadyLinked) return sections
+
+  // It belongs with the platform links; without the media entry to anchor on
+  // there is nowhere sensible to put it, so leave the user's sidebar alone.
+  let placed = false
+  return sections.map((section) => {
+    const entries = section.entries ?? []
+    const mediaIndex = entries.findIndex(
+      (entry) => entry.type === "item" && entry.href === "/admin/media"
+    )
+    if (placed || mediaIndex === -1) {
+      return section
+    }
+
+    placed = true
+    return {
+      ...section,
+      entries: [
+        ...entries.slice(0, mediaIndex + 1),
+        { ...AUTOMATIONS_LINK },
+        ...entries.slice(mediaIndex + 1),
+      ],
+    }
+  })
+}
+
 function cleanWorkspaceSettings(
   settings: Partial<WorkspaceSettings>
 ): WorkspaceSettings {
@@ -458,7 +514,28 @@ function cleanWorkspaceSettings(
       ? settings.sidebarWidth
       : fallback.sidebarWidth,
     styling: normalizeStyling(settings.styling),
+    automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
+      settings.automationFavoriteNodeKeys
+    ),
   }
+}
+
+/** Replaces the workspace's starred automation palette nodes, returning the saved list. */
+export async function saveWorkspaceAutomationFavorites(
+  userId: string,
+  favoriteNodeKeys: string[],
+  database: CustomShellDb = db
+): Promise<string[]> {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  const settings = {
+    ...parseWorkspaceSettings(workspace.settings),
+    automationFavoriteNodeKeys: cleanAutomationPaletteKeys(favoriteNodeKeys),
+  }
+  await database
+    .update(customShellWorkspaces)
+    .set({ settings, updatedAt: now() })
+    .where(eq(customShellWorkspaces.id, workspace.id))
+  return settings.automationFavoriteNodeKeys
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
@@ -469,6 +546,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     sections: createDefaultWorkspaceSections(),
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     styling: normalizeStyling(undefined),
+    automationFavoriteNodeKeys: [],
   }
 }
 
@@ -541,6 +619,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           visible: true,
           children: MEDIA_CHILD_LINKS.map((child) => ({ ...child })),
         },
+        { ...AUTOMATIONS_LINK },
         {
           type: "item",
           id: "item-notifications",
