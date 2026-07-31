@@ -14,11 +14,9 @@ import {
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
-import { EventBlockListPanel } from "@/components/admin/event-builder/layout/EventBlockListPanel"
 import { EVENT_CONTENT_BLOCK_TYPE, eventBlocksToValueJson } from "@/lib/actions/events/event-template-inheritance"
 import { getSiteEventsAction, updateEventAction, updateEventBlocksAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { EventPreview } from "@/components/admin/event-builder/layout/EventPreview"
 import { EventBlockEditorModal } from "@/components/admin/event-builder/layout/EventBlockEditorModal"
@@ -36,7 +34,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     siteId,
   })
   const [selectedEvent, setSelectedEvent] = useState(eventFromUrl)
-  const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Load events (raw rows — settings modal needs row-level _settings/title)
   useEffect(() => {
@@ -230,10 +227,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     ? draftEventTitle.trim() || currentEventData?.title
     : currentEventData?.title
 
-  const viewPageHref = site && currentEventData
-    ? `${getSiteUrl(site)}/events/${currentEventData.slug}`
-    : null
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
@@ -244,8 +237,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentEventData?.is_published)}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentEventData}
             renderSettingsModal={(show, setShow) => (
               <EventSettingsModal
@@ -298,16 +289,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
         />
-
-        {blockListOpen && (
-          <EventBlockListPanel
-            blocks={currentEvent.blocks}
-            selectedBlock={selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            viewPageHref={viewPageHref}
-            blocksLoading={blocksLoading}
-          />
-        )}
       </div>
     </div>
   )

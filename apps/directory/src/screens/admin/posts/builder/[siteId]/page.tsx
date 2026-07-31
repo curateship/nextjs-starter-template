@@ -14,10 +14,8 @@ import {
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
-import { PostBlockListPanel } from "@/components/admin/post-builder/layout/PostBlockListPanel"
 import { updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
 import type { Post } from "@/lib/actions/posts/post-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PostPreview } from "@/components/admin/post-builder/layout/PostPreview"
 import { PostBlockEditorModal } from "@/components/admin/post-builder/layout/PostBlockEditorModal"
@@ -40,7 +38,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     siteId,
   })
   const [selectedPost, setSelectedPost] = useState(postFromUrl)
-  const [blockListOpen, setBlockListOpen] = useState(false)
   const {
     blocks,
     currentPostData,
@@ -197,11 +194,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
-  const viewPageHref = site && currentPostData
-    ? `${getSiteUrl(site)}/posts/${currentPostData.slug}`
-    : null
-  const publishedViewPageHref = currentPostData?.is_published ? viewPageHref : null
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
@@ -212,8 +204,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentPostData?.is_published)}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentPostData}
             renderSettingsModal={(show, setShow) => (
               <PostSettingsModal
@@ -284,20 +274,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
         />
-
-        {blockListOpen && (
-          <PostBlockListPanel
-            blocks={currentPost.blocks}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={(block) => {
-              if (block.type === "core") builderState.setSelectedBlock(block)
-            }}
-            viewPageHref={publishedViewPageHref}
-            deleting={null}
-            blocksLoading={loading}
-            editableStructure={false}
-          />
-        )}
       </div>
     </div>
   )
