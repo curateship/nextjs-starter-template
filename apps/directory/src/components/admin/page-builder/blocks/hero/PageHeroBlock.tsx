@@ -65,7 +65,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
 
   useEffect(() => {
     let cancelled = false
-    getGuidedFormsBySite(siteId, { pageSize: 100 }).then((result) => {
+    getGuidedFormsBySite({ data: { siteId, options: { pageSize: 100 } } }).then((result) => {
       if (cancelled) return
       setForms((result.data ?? []).filter((form) => form.status === 'published'))
     })

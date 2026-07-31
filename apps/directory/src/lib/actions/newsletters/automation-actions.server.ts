@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
-import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
+import { getActiveSponsorsByIdsActionImpl } from '@/lib/actions/sponsors/sponsor-actions.server'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 import {
   getTriggerSegmentIds,
@@ -73,7 +73,7 @@ async function generateAutomationEmailHtml(
 ) {
   const sponsorIds = extractNewsletterSponsorIds(blocks)
   const sponsorsById = sponsorIds.length > 0
-    ? await getActiveSponsorsByIdsAction(siteId, sponsorIds)
+    ? await getActiveSponsorsByIdsActionImpl(siteId, sponsorIds)
     : {}
 
   return generateEmailHtml(blocks, 600, { sponsorsById })

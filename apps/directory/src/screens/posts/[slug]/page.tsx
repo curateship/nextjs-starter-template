@@ -13,7 +13,7 @@ import {
   getContentBreadcrumbItems,
   shouldShowFrontendBreadcrumbs,
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { getActiveSponsorsByIdsAction } from "@/lib/actions/sponsors/sponsor-actions"
+import { getActiveSponsorsByIdsActionImpl } from "@/lib/actions/sponsors/sponsor-actions.server"
 import { extractSponsorIdsFromHtml } from "@/lib/utils/sponsor-embeds"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 
@@ -172,7 +172,7 @@ export default async function PostPage({ params }: PostPageProps) {
   const sponsorIds = blocks.flatMap((block: any) =>
     block?.type === 'core' ? extractSponsorIdsFromHtml(block.content?.body || block.content?.text || '') : []
   )
-  const sponsorsById = await getActiveSponsorsByIdsAction(site.id, sponsorIds)
+  const sponsorsById = await getActiveSponsorsByIdsActionImpl(site.id, sponsorIds)
 
   return (
     <>

@@ -95,8 +95,8 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
     }
 
     const result = sponsor
-      ? await updateSponsorAction(sponsor.id, payload)
-      : await createSponsorAction({ ...payload, site_id: siteId })
+      ? await updateSponsorAction({ data: { sponsorId: sponsor.id, input: payload } })
+      : await createSponsorAction({ data: { input: { ...payload, site_id: siteId } } })
 
     setSaving(false)
 

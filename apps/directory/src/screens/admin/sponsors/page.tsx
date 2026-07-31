@@ -101,7 +101,7 @@ export default function SponsorsPage() {
       setLoading(true)
       setError(null)
       const [{ data, error: loadError }, linksResult] = await Promise.all([
-        getSiteSponsorsAction(currentSite.id),
+        getSiteSponsorsAction({ data: { siteId: currentSite.id } }),
         getSponsorReportLinksAction({ data: { siteId: currentSite.id } })
       ])
 
@@ -179,7 +179,7 @@ export default function SponsorsPage() {
     if (!deleteSponsor) return
 
     setDeleting(true)
-    const result = await deleteSponsorAction(deleteSponsor.id)
+    const result = await deleteSponsorAction({ data: { sponsorId: deleteSponsor.id } })
     setDeleting(false)
 
     if (result.error) {
@@ -199,7 +199,7 @@ export default function SponsorsPage() {
     const idsToDelete = new Set(ids)
 
     setMassDeleting(true)
-    const result = await deleteSponsorsAction(ids)
+    const result = await deleteSponsorsAction({ data: { sponsorIds: ids } })
     setMassDeleting(false)
 
     if (result.error) {

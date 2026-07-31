@@ -369,7 +369,7 @@ function CreateFormModal({
     setNameMissing(false)
     setSaving(true)
     dismissErrorToast()
-    const result = await createGuidedForm({ siteId, name })
+    const result = await createGuidedForm({ data: { siteId, name } })
     setSaving(false)
     if (result.error || !result.data) {
       showErrorToast(result.error || "Failed to create form")
@@ -502,7 +502,7 @@ function FormSettingsModalContent({
   }, [form])
 
   async function saveDraft() {
-    const result = await updateGuidedForm(form.id, {
+    const result = await updateGuidedForm({ data: { formId: form.id, updates: {
       name: draft.name,
       slug: draft.slug,
       headline: draft.headline,
@@ -512,7 +512,7 @@ function FormSettingsModalContent({
       admin_notification_email: draft.adminNotificationEmail,
       draft_steps: draft.steps,
       draft_outcomes: parseJsonArray(draft.outcomesJson),
-    })
+    } } })
 
     if (result.error || !result.data) {
       throw new Error(result.error || "Failed to save form")
@@ -542,7 +542,7 @@ function FormSettingsModalContent({
     dismissErrorToast()
     try {
       const updated = await saveDraft()
-      const result = await publishGuidedForm(form.id)
+      const result = await publishGuidedForm({ data: { formId: form.id } })
       if (result.error) throw new Error(result.error)
       onSuccess({ ...updated, status: "published" })
       onOpenChange(false)
@@ -798,7 +798,7 @@ export default function AdminGuidedFormsPage() {
     }
 
     setLoading(true)
-    const result = await getGuidedFormsBySite(currentSite.id, { pageSize: 100 })
+    const result = await getGuidedFormsBySite({ data: { siteId: currentSite.id, options: { pageSize: 100 } } })
     setLoading(false)
     if (result.error) {
       setError(result.error)
@@ -856,7 +856,7 @@ export default function AdminGuidedFormsPage() {
   async function handlePublish(form: GuidedForm) {
     dismissErrorToast()
     setPublishingId(form.id)
-    const result = await publishGuidedForm(form.id)
+    const result = await publishGuidedForm({ data: { formId: form.id } })
     setPublishingId(null)
     if (result.error) {
       showErrorToast(result.error)
@@ -870,7 +870,7 @@ export default function AdminGuidedFormsPage() {
     if (!pendingArchiveId) return
     const formId = pendingArchiveId
     setArchiving(true)
-    const result = await archiveGuidedForms([formId])
+    const result = await archiveGuidedForms({ data: { ids: [formId] } })
     setArchiving(false)
     if (result.error) {
       setArchiveError(result.error)
@@ -887,7 +887,7 @@ export default function AdminGuidedFormsPage() {
     if (!ids.length) return
 
     setBulkArchiving(true)
-    const result = await archiveGuidedForms(ids)
+    const result = await archiveGuidedForms({ data: { ids } })
     setBulkArchiving(false)
     if (result.error) {
       setArchiveError(result.error)

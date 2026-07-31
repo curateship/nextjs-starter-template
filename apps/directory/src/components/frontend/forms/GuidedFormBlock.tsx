@@ -78,7 +78,7 @@ export function GuidedFormBlock({ siteId, content = {}, preloadedForm = null, co
 
     let cancelled = false
     setLoading(true)
-    getPublicGuidedFormBySlug(siteId, content.formSlug).then((result) => {
+    getPublicGuidedFormBySlug({ data: { siteId, slug: content.formSlug } }).then((result) => {
       if (cancelled) return
       setForm(result.data)
       setAnswers(getInitialAnswers(result.data))
@@ -132,7 +132,7 @@ export function GuidedFormBlock({ siteId, content = {}, preloadedForm = null, co
 
     startTransition(async () => {
       const params = new URLSearchParams(window.location.search)
-      const result = await submitGuidedFormAction({
+      const result = await submitGuidedFormAction({ data: {
         formId: form.id,
         versionId: form.version.id,
         answers,
@@ -147,7 +147,7 @@ export function GuidedFormBlock({ siteId, content = {}, preloadedForm = null, co
           utm_medium: params.get("utm_medium") || "",
           utm_campaign: params.get("utm_campaign") || "",
         },
-      })
+      } })
       if (!result.success) {
         setError(result.error || "Failed to submit form")
         return
