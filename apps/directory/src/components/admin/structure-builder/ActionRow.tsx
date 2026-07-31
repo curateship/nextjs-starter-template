@@ -1,8 +1,7 @@
 "use client"
 
 import type { CSSProperties, ReactNode } from "react"
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
@@ -79,13 +78,7 @@ export function SortableActionRow({
   sortableId,
   ...rowProps
 }: ActionRowProps & { sortableId: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(sortableId)
   return (
     <ActionRow
       {...rowProps}

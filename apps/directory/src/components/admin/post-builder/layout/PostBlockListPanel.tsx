@@ -32,11 +32,11 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface PostBlockListPanelProps {
   blocks: PostBlock[]
@@ -103,20 +103,7 @@ function SortablePostBlockItem({
   deleting: string | null
   onDelete: (block: PostBlock) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: block.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(block.id)
 
   const Icon = getBlockIcon(block.type)
   const name = getBlockName(block.type)

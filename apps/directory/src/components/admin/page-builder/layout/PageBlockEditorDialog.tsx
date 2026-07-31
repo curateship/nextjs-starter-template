@@ -1,10 +1,9 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { PageHeroBlock } from "../blocks/hero/PageHeroBlock"
 import { PageRichTextEditorBlock } from "../blocks/rich-text-editor/PageRichTextEditorBlock"
 import { PageFaqBlock } from "../blocks/faq/PageFaqBlock"
@@ -51,17 +50,7 @@ export function PageBlockEditorDialog({
           title={`Edit ${selectedBlock.title || getBlockName(selectedBlock.type)}`}
           titleAccessory={<ModalTabs />}
           className="max-w-[960px]"
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-                Cancel
-              </Button>
-              <Button form="page-block-editor-form" type="submit" disabled={isSaving}>
-                {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
-                Save
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={isSaving} cancelDisabled={isSaving} form="page-block-editor-form" onCancel={() => onOpenChange(false)} submitLabel="Save" />}
         >
             <form
               noValidate

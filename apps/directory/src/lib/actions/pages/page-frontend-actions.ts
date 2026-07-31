@@ -10,7 +10,6 @@ import { getCategoriesListingData, type CategoriesListingData } from './page-cat
 import { getMemberDirectoryData, type MemberDirectoryData } from './page-member-directory-actions'
 import { getEventsCalendarData, type EventsCalendarData } from './page-events-calendar-actions'
 import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
-import { resolveSiteByHostInternal } from '@/lib/site-host-resolution'
 
 type SitePageLookup = {
   site: typeof sites.$inferSelect
@@ -62,10 +61,6 @@ function orderSitesByHostMatch(host: string, subdomain: string | null) {
       else 3
     end
   `
-}
-
-export async function resolveSiteByHost(hostname: string) {
-  return resolveSiteByHostInternal(hostname)
 }
 
 async function getCachedSiteAndPageByHost(hostname: string, pageSlug: string) {

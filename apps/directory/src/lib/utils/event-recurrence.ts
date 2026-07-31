@@ -27,7 +27,6 @@ export interface RecurrenceMonthly {
 export type RecurrenceRule = RecurrenceWeekly | RecurrenceMonthly
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const ORDINAL_NAMES: Record<number, string> = { 1: 'first', 2: 'second', 3: 'third', 4: 'fourth', [-1]: 'last' }
 
 // --- Date helpers (UTC used purely as a timezone-neutral calendar calculator) ---
@@ -173,11 +172,6 @@ export function describeRecurrence(rule: RecurrenceRule): string {
     return `${base}, until ${formatUntil(rule.until)}`
   }
   return base
-}
-
-/** Short weekday label (Sun..Sat) for compact UI. */
-export function shortWeekday(weekday: number): string {
-  return WEEKDAY_SHORT[weekday] ?? ''
 }
 
 /** Validate/normalize an untrusted value into a RecurrenceRule, or null. */

@@ -26,6 +26,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
   AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
@@ -287,51 +288,11 @@ export default function EventRegistrationsPage() {
                         aria-label="Select registrations"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={sort.sortColumn === "attendee"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("attendee")}
-                      >
-                        Attendee
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={sort.sortColumn === "event"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("event")}
-                      >
-                        Event
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "ticket"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("ticket")}
-                      >
-                        Ticket
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "status"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "registered"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("registered")}
-                      >
-                        Registered
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={sort} sortKey="attendee">Attendee</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={sort} sortKey="event">Event</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="ticket">Ticket</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="registered">Registered</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -31,12 +31,14 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { useBuilderRouteSiteSync } from "@/components/admin/layout/builder/useBuilderRouteState"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import {
   getCategoriesWithCountsAction,
@@ -377,51 +379,11 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                         aria-label="Select all categories"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "title"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("title")}
-                      >
-                        Category
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "parent"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("parent")}
-                      >
-                        Parent
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "status"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "assigned"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("assigned")}
-                      >
-                        Assigned
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "modified"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("modified")}
-                      >
-                        Modified
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={categorySort} sortKey="title">Category</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={categorySort} sortKey="parent">Parent</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={categorySort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={categorySort} sortKey="assigned">Assigned</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={categorySort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

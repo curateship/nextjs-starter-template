@@ -11,22 +11,11 @@ import type { SiteSearchFilterType, SiteSearchSourceType } from "./site-search-a
 export type * from "./site-search-actions.server"
 
 export const searchSiteAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  query: string
-  type?: SiteSearchFilterType
-  page?: number
-  pageSize?: number
-  enabledTypes?: SiteSearchSourceType[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof searchSiteActionImpl>[0] }) => data)
   .handler(async ({ data }) => searchSiteActionImpl(data.input))
 
 export const suggestSiteSearchAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  query: string
-  enabledTypes?: SiteSearchSourceType[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof suggestSiteSearchActionImpl>[0] }) => data)
   .handler(async ({ data }) => suggestSiteSearchActionImpl(data.input))
 
 export const rebuildSiteSearchIndexAction = createServerFn({ method: "POST" })

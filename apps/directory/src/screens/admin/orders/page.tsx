@@ -14,14 +14,16 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
   AdminSelectionBanner,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import {
   TableRightActions,
@@ -351,44 +353,12 @@ export default function OrdersPage() {
                         aria-label="Select all orders"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "customer_email"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("customer_email")}
-                      >
-                        Customer
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "created_at"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("created_at")}
-                      >
-                        Date
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "product"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("product")}
-                      >
-                        Product
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={orderSort} sortKey="customer_email">Customer</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={orderSort} sortKey="created_at">Date</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={orderSort} sortKey="product">Product</AdminSortableHead>
                     <TableHead column="meta">Type</TableHead>
                     <TableHead column="meta">Email Status</TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "amount"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("amount")}
-                      >
-                        Amount
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="meta" sort={orderSort} sortKey="amount">Amount</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

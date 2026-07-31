@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-sync'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
@@ -14,14 +14,6 @@ export interface NewsletterContactTag {
 
 export type NewsletterContactTagFilter = 'all' | 'empty'
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 function normalizeTagKey(tag: string) {
   return tag.trim().toLowerCase()
@@ -107,14 +99,8 @@ export async function getNewsletterContactTagsImpl(
   options?: { filter?: NewsletterContactTagFilter; searchQuery?: string; page?: number; pageSize?: number }
 ): Promise<{ data: NewsletterContactTag[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, total: 0, error: access.error }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const requestedPageSize = Math.floor(options?.pageSize ?? 50)

@@ -36,6 +36,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { BlockEditorEmptyState } from "@/components/admin/layout/builder/block-tabs"
 import { getMediaType } from '@/lib/utils/media-type'
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface Feature {
   id: string
@@ -75,20 +76,7 @@ function SortableFeatureItem({
   removeFeature: (index: number) => void
   onOpenImagePicker: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: feature.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(feature.id)
 
   return (
     <div

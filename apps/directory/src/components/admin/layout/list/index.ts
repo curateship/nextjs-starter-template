@@ -5,6 +5,7 @@ export {
   AdminListPending,
   AdminSelectionBanner,
   AdminSortButton,
+  AdminSortableHead,
   AdminTableSummaryFooter,
   formatRelativeDate,
 } from "./components"

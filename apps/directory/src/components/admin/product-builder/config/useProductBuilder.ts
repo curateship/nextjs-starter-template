@@ -4,6 +4,7 @@ import { getBlockTypeDefinition } from "./product-block-types"
 import { productBlocksToJson, type ProductBuilderBlock } from "./product-block-utils"
 import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
+import { type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 
 type ProductBlock = ProductBuilderBlock
 
@@ -18,10 +19,6 @@ interface UseProductBuilderParams {
   }
 }
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
 
 interface UseProductBuilderReturn {
   selectedBlock: ProductBlock | null

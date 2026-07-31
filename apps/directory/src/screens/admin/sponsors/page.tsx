@@ -16,13 +16,15 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
-  AdminSortButton,
-  AdminTableShell, AdminListPending,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminSortButton,
+  AdminTableShell,
+  ConfirmDestructive,
   formatShortDate as formatDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -287,43 +289,11 @@ export default function SponsorsPage() {
                       aria-label="Select all sponsors"
                     />
                   </TableHead>
-                  <TableHead column="main">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "title"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("title")}
-                    >
-                      Sponsor
-                    </AdminSortButton>
-                  </TableHead>
-                  <TableHead column="meta">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "status"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("status")}
-                    >
-                      Status
-                    </AdminSortButton>
-                  </TableHead>
-                  <TableHead column="content">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "url"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("url")}
-                    >
-                      URL
-                    </AdminSortButton>
-                  </TableHead>
+                  <AdminSortableHead column="main" sort={sponsorSort} sortKey="title">Sponsor</AdminSortableHead>
+                  <AdminSortableHead column="meta" sort={sponsorSort} sortKey="status">Status</AdminSortableHead>
+                  <AdminSortableHead column="content" sort={sponsorSort} sortKey="url">URL</AdminSortableHead>
                   <TableHead column="meta">Report Link</TableHead>
-                  <TableHead column="meta">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "modified"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("modified")}
-                    >
-                      Modified
-                    </AdminSortButton>
-                  </TableHead>
+                  <AdminSortableHead column="meta" sort={sponsorSort} sortKey="modified">Modified</AdminSortableHead>
                   <TableHead column="meta">Actions</TableHead>
                 </TableRow>
               </TableHeader>

@@ -147,27 +147,6 @@ export async function uploadToR2(
   return `/cdn/${fileName}`
 }
 
-export async function uploadPrivateToR2(
-  fileName: string,
-  fileBuffer: Buffer,
-  contentType: string
-): Promise<string> {
-  if (USE_LOCAL_STORAGE) {
-    await writeLocalObject(fileName, fileBuffer, LOCAL_PRIVATE_STORAGE_ROOT)
-    return fileName
-  }
-
-  const command = new PutObjectCommand({
-    Bucket: R2_BUCKET_NAME,
-    Key: fileName,
-    Body: fileBuffer,
-    ContentType: contentType,
-  })
-
-  await requireR2Client().send(command)
-  return fileName
-}
-
 /**
  * Delete a file from R2
  */

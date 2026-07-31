@@ -15,13 +15,15 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   formatRelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import dynamic from "@/lib/dynamic"
 import { showErrorToast } from "@/lib/error-toast"
@@ -427,43 +429,11 @@ export default function NewslettersPage() {
                         aria-label="Select all newsletters"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "name"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("name")}
-                      >
-                        Newsletter
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "opens"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("opens")}
-                      >
-                        Opens
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "clicks"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("clicks")}
-                      >
-                        Clicks
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={newsletterSort} sortKey="name">Newsletter</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={newsletterSort} sortKey="opens">Opens</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={newsletterSort} sortKey="clicks">Clicks</AdminSortableHead>
                     <TableHead column="meta">Unsubscribes</TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "modified"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("modified")}
-                      >
-                        Modified
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="meta" sort={newsletterSort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

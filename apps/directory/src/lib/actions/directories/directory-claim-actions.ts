@@ -11,15 +11,7 @@ export const getDirectoryClaimStateAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getDirectoryClaimStateActionImpl(data.directoryId))
 
 export const submitDirectoryClaimAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  directoryId: string
-  businessEmail: string
-  claimantName: string
-  roleTitle?: string
-  phone?: string
-  message?: string
-  proofUrl?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof submitDirectoryClaimActionImpl>[0] }) => data)
   .handler(async ({ data }) => submitDirectoryClaimActionImpl(data.input))
 
 export const getDirectoryClaimListAction = createServerFn({ method: "POST" })
@@ -27,11 +19,7 @@ export const getDirectoryClaimListAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getDirectoryClaimListActionImpl(data.siteId, data.status))
 
 export const reviewDirectoryClaimAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  claimId: string
-  status: 'approved' | 'rejected' | 'revoked'
-  note?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof reviewDirectoryClaimActionImpl>[0] }) => data)
   .handler(async ({ data }) => reviewDirectoryClaimActionImpl(data.input))
 
 export const getMyClaimedDirectoriesAction = createServerFn({ method: "POST" })
@@ -39,17 +27,7 @@ export const getMyClaimedDirectoriesAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getMyClaimedDirectoriesActionImpl(data.siteId))
 
 export const submitMyClaimedDirectoryEditRequestAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  directoryId: string
-  title: string
-  slug?: string
-  featuredImage?: string | null
-  metaDescription?: string | null
-  contentBlocks: Record<string, any>
-  categoryIds?: unknown[]
-  primaryCategoryId?: string | null
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof submitMyClaimedDirectoryEditRequestActionImpl>[0] }) => data)
   .handler(async ({ data }) => submitMyClaimedDirectoryEditRequestActionImpl(data.input))
 
 export const getDirectoryOwnerEditRequestListAction = createServerFn({ method: "POST" })
@@ -57,9 +35,5 @@ export const getDirectoryOwnerEditRequestListAction = createServerFn({ method: "
   .handler(async ({ data }) => getDirectoryOwnerEditRequestListActionImpl(data.siteId, data.status))
 
 export const reviewDirectoryOwnerEditRequestAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  requestId: string
-  status: 'approved' | 'rejected'
-  note?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof reviewDirectoryOwnerEditRequestActionImpl>[0] }) => data)
   .handler(async ({ data }) => reviewDirectoryOwnerEditRequestActionImpl(data.input))

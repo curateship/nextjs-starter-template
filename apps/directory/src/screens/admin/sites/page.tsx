@@ -20,11 +20,13 @@ import {
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import {
-  AdminSortButton,
-  AdminTableShell, AdminListPending,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminSortButton,
+  AdminTableShell,
   formatRelativeDate as formatDate,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import {
@@ -343,34 +345,10 @@ export default function SitesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={siteSort.sortColumn === "name"}
-                        direction={siteSort.sortDirection}
-                        onClick={() => siteSort.toggleSort("name")}
-                      >
-                        Site
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={siteSort} sortKey="name">Site</AdminSortableHead>
                     <TableHead column="meta">User</TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={siteSort.sortColumn === "created"}
-                        direction={siteSort.sortDirection}
-                        onClick={() => siteSort.toggleSort("created")}
-                      >
-                        Created
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={siteSort.sortColumn === "status"}
-                        direction={siteSort.sortDirection}
-                        onClick={() => siteSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="meta" sort={siteSort} sortKey="created">Created</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={siteSort} sortKey="status">Status</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

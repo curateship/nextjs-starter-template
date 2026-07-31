@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { LogoPickerPreview } from "@/components/admin/structure-builder/LogoPickerPreview"
 import {
   DndContext,
@@ -27,7 +27,6 @@ import {
 } from "@dnd-kit/sortable"
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   createFooterItemId,
   SOCIAL_PLATFORM_OPTIONS,
@@ -499,17 +498,7 @@ export function Footer({
           busy={modalSaving}
           title="Footer Link Settings"
           description="Update the label and destination URL for this footer link."
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
-                Cancel
-              </Button>
-              <Button form="footer-link-editor-form" type="submit" disabled={modalSaving}>
-                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
-                Save
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={modalSaving} form="footer-link-editor-form" onCancel={() => setEditingLinkIndex(null)} submitLabel="Save" />}
         >
           <form
             noValidate
@@ -574,17 +563,7 @@ export function Footer({
           busy={modalSaving}
           title="Social Link Settings"
           description="Update the platform and destination URL for this social link."
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => setEditingSocialLinkIndex(null)}>
-                Cancel
-              </Button>
-              <Button form="footer-social-link-editor-form" type="submit" disabled={modalSaving}>
-                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
-                Save
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={modalSaving} form="footer-social-link-editor-form" onCancel={() => setEditingSocialLinkIndex(null)} submitLabel="Save" />}
         >
           <form
             noValidate

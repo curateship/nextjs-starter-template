@@ -1,7 +1,7 @@
 import { eq, and, sql, desc, inArray, ilike } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterSourceStats, newsletters, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 import {
   normalizeSegmentDynamicRule,
@@ -27,14 +27,6 @@ export interface Segment {
   updated_at: string
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 async function getAuthorizedSegmentSiteId(segmentId: string) {
   if (!UUID_REGEX.test(segmentId)) return { siteId: null, error: 'Invalid ID' }
@@ -109,14 +101,8 @@ export async function getSegmentsBySiteImpl(
   options?: { page?: number; pageSize?: number }
 ): Promise<{ data: Segment[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, total: 0, error: access.error }
 
     const { page, pageSize, offset } = normalizePagination(options)
 
@@ -171,14 +157,8 @@ export async function getSegmentByIdImpl(
 
 export async function getAvailableSegmentTagsImpl(siteId: string): Promise<{ data: string[]; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: [], error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: [], error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: [], error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: [], error: access.error }
 
     const rows = await db.execute<{ tag: string }>(sql`
       select distinct trim(tag.value) as tag
@@ -210,14 +190,8 @@ export async function createSegmentImpl(input: {
   dynamicRule?: SegmentDynamicRule | null
 }): Promise<{ data: Segment | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(input.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(input.siteId)
+    if (access.error) return { data: null, error: access.error }
 
     const validated = validateSegmentInput(input, true)
     if (validated.error || !validated.name) return { data: null, error: validated.error || 'Invalid segment' }
@@ -459,14 +433,8 @@ export async function refreshDynamicSegmentsForSiteImpl(
   siteId: string
 ): Promise<{ error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { error: access.error }
 
     const contacts = await db
       .select({ id: newsletterContacts.id })

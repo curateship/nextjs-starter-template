@@ -5,7 +5,6 @@ import { useRouter } from "@/lib/navigation-client"
 import Monitor from "lucide-react/dist/esm/icons/monitor.js"
 import Smartphone from "lucide-react/dist/esm/icons/smartphone.js"
 import Tablet from "lucide-react/dist/esm/icons/tablet.js"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Button } from "@/components/ui/button"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -19,7 +18,7 @@ import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/lay
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import {
   getSystemEmailEditorAction,
   saveSystemEmailTemplateAction,
@@ -306,17 +305,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
                 </div>
               }
               viewportClassName="[&_h3]:pt-4"
-              footer={
-                <>
-                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                    Cancel
-                  </Button>
-                  <Button form="email-block-editor-form" type="submit" disabled={isSavingBlock}>
-                    {isSavingBlock ? <Loader2 className="size-4 animate-spin" /> : null}
-                    Save
-                  </Button>
-                </>
-              }
+              footer={<DashboardModalFormFooter busy={isSavingBlock} cancelDisabled={isSavingBlock} form="email-block-editor-form" onCancel={handleCloseBlockEditor} submitLabel="Save" />}
             >
               <form
                 noValidate

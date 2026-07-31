@@ -1,13 +1,12 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -221,17 +220,7 @@ export function NewsletterEditorShell({
                 title={`Edit ${selectedBlock.title}`}
                 titleAccessory={<ModalTabs />}
                 className="max-w-[960px]"
-                footer={
-                  <>
-                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                    Cancel
-                  </Button>
-                  <Button form="newsletter-block-editor-form" type="submit" disabled={isSavingBlock}>
-                    {isSavingBlock ? <Loader2 className="size-4 animate-spin" /> : null}
-                    Save
-                  </Button>
-                </>
-                }
+                footer={<DashboardModalFormFooter busy={isSavingBlock} cancelDisabled={isSavingBlock} form="newsletter-block-editor-form" onCancel={handleCloseBlockEditor} submitLabel="Save" />}
               >
               <form
                 noValidate

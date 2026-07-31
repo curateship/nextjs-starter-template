@@ -31,10 +31,10 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface DirectoryTemplateBlockListPanelProps {
   blocks: DirectoryEditorBlock[]
@@ -64,20 +64,7 @@ function SortableDirectoryBlockItem({
   deleting: string | null
   onDelete: (block: DirectoryEditorBlock) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: block.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(block.id)
 
   const Icon = getBlockIcon(block.type)
   const name = block.title || getBlockName(block.type)

@@ -1,25 +1,20 @@
 "use client"
 
-import { use, useCallback, useEffect, useRef, useState } from "react"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useRouter } from "@/lib/navigation-client"
-import { Button } from "@/components/ui/button"
-import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
-import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminLoading } from "@/components/admin/layout/loading"
-import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
-import { TemplateSettingsModal } from "@/components/admin/layout/templates/TemplateSettingsModal"
-import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
+import { use } from "react"
+import Blocks from "lucide-react/dist/esm/icons/blocks.js"
+import { TemplateEditorPage } from "@/components/admin/layout/templates/TemplateEditorPage"
 import { DIRECTORY_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/directory-builder/config/directory-block-types"
 import {
   directoryBlocksToJson,
   parseDirectoryBlocksFromJson,
   type DirectoryEditorBlock,
 } from "@/components/admin/directory-builder/config/directory-block-utils"
+import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
+import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
+import { DirectoryTemplateBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryTemplateBlockListPanel"
 import {
   getDirectoryTemplateById,
   updateDirectoryTemplate,
-  type DirectoryTemplate,
 } from "@/lib/actions/directories/directory-template-actions"
 import {
   DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY,
@@ -28,390 +23,138 @@ import {
 } from "@/lib/actions/directories/directory-template-inheritance"
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import Blocks from "lucide-react/dist/esm/icons/blocks.js"
 import {
   getDirectoryCustomBlockSelectionType,
   parseDirectoryCustomBlockSelectionType,
 } from "@/lib/actions/directories/directory-custom-blocks/utils"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
-import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
-import { DirectoryTemplateBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryTemplateBlockListPanel"
 
 interface PageProps {
   params: Promise<{ templateId: string }>
 }
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
+type CustomBlocks = DirectoryCustomBlockTemplate[]
 
 export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   const { templateId } = use(params)
-  const router = useRouter()
-  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
 
-  const [template, setTemplate] = useState<DirectoryTemplate | null>(null)
-  const [customBlockTemplates, setCustomBlockTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
-  const [blocks, setBlocks] = useState<DirectoryEditorBlock[]>([])
-  const [selectedBlock, setSelectedBlock] = useState<DirectoryEditorBlock | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(false)
-  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
-  const [isSavingBlock, setIsSavingBlock] = useState(false)
+  return (
+    <TemplateEditorPage<DirectoryEditorBlock, CustomBlocks>
+      templateId={templateId}
+      getTemplateById={(id) => getDirectoryTemplateById({ data: { templateId: id } })}
+      updateTemplate={(id, updates) => updateDirectoryTemplate({ data: { templateId: id, updates } })}
+      loadExtra={async (template) => {
+        const { data } = await getDirectoryCustomBlocksBySite({ data: { siteId: template.site_id } })
+        return data || []
+      }}
+      parseBlocks={(contentBlocks, customBlocks) => parseDirectoryBlocksFromJson(contentBlocks, customBlocks)}
+      blocksToJson={directoryBlocksToJson}
+      withPreviewValues={(blocks, customBlocks) => withDirectoryTemplatePreviewValues(blocks, customBlocks)}
+      buildBlocks={(selection, customBlocks) => {
+        const created: DirectoryEditorBlock[] = []
+        const customTemplateId = parseDirectoryCustomBlockSelectionType(selection.type)
 
-  const loadTemplate = useCallback(async () => {
-    setLoading(true)
+        if (customTemplateId) {
+          const customTemplate = (customBlocks || []).find((item) => item.id === customTemplateId)
+          if (!customTemplate) return []
 
-    const { data, error: fetchError } = await getDirectoryTemplateById({ data: { templateId: templateId } })
-    if (fetchError || !data) {
-      setError(fetchError || "Not found")
-      setLoading(false)
-      return
-    }
+          for (let index = 0; index < selection.quantity; index += 1) {
+            const timestamp = Date.now() + index
+            created.push({
+              id: `directory-custom-${timestamp}`,
+              type: 'directory-custom',
+              title: customTemplate.name,
+              content: {
+                templateId: customTemplate.id,
+              },
+            })
+          }
+          return created
+        }
 
-    const { data: customBlocksData } = await getDirectoryCustomBlocksBySite({ data: { siteId: data.site_id } })
-    const loadedCustomBlocks = customBlocksData || []
-
-    setTemplate(data)
-    setCustomBlockTemplates(loadedCustomBlocks)
-    setBlocks(parseDirectoryBlocksFromJson(data.content_blocks || {}, loadedCustomBlocks))
-    setSelectedBlock(null)
-    setLoading(false)
-  }, [templateId])
-
-  useEffect(() => {
-    loadTemplate()
-  }, [loadTemplate])
-
-  useEffect(() => {
-    if (!template || currentSite?.id === template.site_id) return
-
-    const templateSite = sites.find((site) => site.id === template.site_id)
-    if (templateSite) {
-      setCurrentSite(templateSite)
-    }
-  }, [currentSite?.id, setCurrentSite, sites, template])
-
-  useEffect(() => {
-    if (!selectedBlock) {
-      setDraftContent({})
-      dismissErrorToast()
-      return
-    }
-
-    setDraftContent(
-      selectedBlock.content
-        ? JSON.parse(JSON.stringify(selectedBlock.content))
-        : {}
-    )
-    dismissErrorToast()
-  }, [selectedBlock])
-
-  function handleDeleteBlock(block: DirectoryEditorBlock) {
-    setBlocks((prev) => prev.filter((item) => item.id !== block.id))
-
-    if (selectedBlock?.id === block.id) {
-      setSelectedBlock(null)
-    }
-  }
-
-  function handleReorderBlocks(reorderedBlocks: DirectoryEditorBlock[]) {
-    setBlocks(reorderedBlocks)
-  }
-
-  function handleDraftChange(field: string, value: any) {
-    setDraftContent((current) => ({
-      ...current,
-      [field]: value,
-    }))
-  }
-
-  function handleCloseBlockEditor() {
-    if (isSavingBlock) return
-    setSelectedBlock(null)
-    dismissErrorToast()
-  }
-
-  async function handleSaveBlockEditor() {
-    if (!template || !selectedBlock) return
-
-    setIsSavingBlock(true)
-    dismissErrorToast()
-
-    try {
-      const nextBlocks = blocks.map((block) =>
-        block.id === selectedBlock.id
-          ? { ...block, content: draftContent }
-          : block
-      )
-      const contentBlocks = directoryBlocksToJson(nextBlocks, template.content_blocks || {})
-      const { data, error: saveError } = await updateDirectoryTemplate({ data: { templateId: template.id, updates: {
-        content_blocks: contentBlocks,
-      } } })
-
-      if (saveError || !data) {
-        showErrorToast(saveError || "Failed to save block")
-        return
-      }
-
-      const savedBlocks = parseDirectoryBlocksFromJson(data.content_blocks || {}, customBlockTemplates)
-      setBlocks(savedBlocks)
-      setTemplate(data)
-      markBlocksSaved(savedBlocks)
-      setSelectedBlock(null)
-    } catch (error) {
-      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
-    } finally {
-      setIsSavingBlock(false)
-    }
-  }
-
-  function handleAddBlocks(selections: BlockSelection[]) {
-    const newBlocks: DirectoryEditorBlock[] = []
-
-    for (const selection of selections) {
-      const customTemplateId = parseDirectoryCustomBlockSelectionType(selection.type)
-
-      if (customTemplateId) {
-        const customTemplate = customBlockTemplates.find((item) => item.id === customTemplateId)
-        if (!customTemplate) continue
+        const blockDefinition = getBlockTypeDefinition(selection.type)
+        if (!blockDefinition) return []
 
         for (let index = 0; index < selection.quantity; index += 1) {
           const timestamp = Date.now() + index
-          newBlocks.push({
-            id: `directory-custom-${timestamp}`,
-            type: 'directory-custom',
-            title: customTemplate.name,
-            content: {
-              templateId: customTemplate.id,
-            },
+          created.push({
+            id: `${selection.type}-${timestamp}`,
+            type: selection.type,
+            title: blockDefinition.name,
+            content: { ...blockDefinition.defaultContent },
           })
         }
-
-        continue
-      }
-
-      const blockDefinition = getBlockTypeDefinition(selection.type)
-      if (!blockDefinition) continue
-
-      for (let index = 0; index < selection.quantity; index += 1) {
-        const timestamp = Date.now() + index
-        newBlocks.push({
-          id: `${selection.type}-${timestamp}`,
-          type: selection.type,
-          title: blockDefinition.name,
-          content: { ...blockDefinition.defaultContent },
-        })
-      }
-    }
-
-    if (!newBlocks.length) return
-
-    setBlocks((prev) => [...prev, ...newBlocks])
-  }
-
-  // Auto-save: a change to the blocks is written once the edits stop.
-  const blocksRef = useRef(blocks)
-  blocksRef.current = blocks
-  const templateRef = useRef(template)
-  templateRef.current = template
-  const lastSavedBlocksJsonRef = useRef<string | null>(null)
-
-  const { saveStatus, setSaveStatus, scheduleSave } = useAutoSave<typeof blocks>({
-    save: async (nextBlocks) => {
-      const currentTemplate = templateRef.current
-      if (!currentTemplate) return { saved: true }
-
-      const contentBlocks = directoryBlocksToJson(nextBlocks, currentTemplate.content_blocks || {})
-      const { data, error: saveError } = await updateDirectoryTemplate({ data: { templateId: currentTemplate.id, updates: {
-        content_blocks: contentBlocks,
-      } } })
-
-      if (saveError) return { saved: false, reason: saveError }
-      // What is on screen is deliberately not replaced with the round trip:
-      // re-reading it would look like another edit and save again, forever.
-      if (data) setTemplate(data)
-      return { saved: true }
-    }
-  })
-
-  // A write that happened somewhere else (the block editor, the settings
-  // dialog) has already stored these blocks — recording them here stops the
-  // watcher below writing the same thing again a moment later.
-  function markBlocksSaved(savedBlocks: typeof blocks) {
-    lastSavedBlocksJsonRef.current = JSON.stringify(savedBlocks)
-    setSaveStatus("saved")
-  }
-
-  const blocksJson = JSON.stringify(blocks)
-
-  useEffect(() => {
-    if (loading) {
-      lastSavedBlocksJsonRef.current = null
-      return
-    }
-    if (lastSavedBlocksJsonRef.current === null) {
-      lastSavedBlocksJsonRef.current = blocksJson
-      return
-    }
-    if (lastSavedBlocksJsonRef.current === blocksJson) return
-
-    lastSavedBlocksJsonRef.current = blocksJson
-    scheduleSave(blocksRef.current)
-  }, [blocksJson, loading, scheduleSave])
-
-  function handleSettingsSaved(updatedTemplate: DirectoryTemplate) {
-    const savedBlocks = parseDirectoryBlocksFromJson(updatedTemplate.content_blocks || {}, customBlockTemplates)
-    setTemplate(updatedTemplate)
-    setBlocks(savedBlocks)
-    markBlocksSaved(savedBlocks)
-  }
-
-  const customBlockDefinitions = customBlockTemplates.map((customTemplate) => ({
-    type: getDirectoryCustomBlockSelectionType(customTemplate.id),
-    name: customTemplate.name,
-    icon: Blocks,
-    description: `${customTemplate.layout} • ${customTemplate.fields.length} field${customTemplate.fields.length === 1 ? '' : 's'}`,
-    defaultContent: {
-      templateId: customTemplate.id,
-    },
-  }))
-
-  const templateSite = template
-    ? sites.find((site) => site.id === template.site_id)
-    : null
-  const previewSiteSource = templateSite || (currentSite?.id === template?.site_id ? currentSite : null)
-  const previewSite = previewSiteSource
-    ? {
-        id: previewSiteSource.id,
-        name: previewSiteSource.name,
-        subdomain: previewSiteSource.subdomain,
-        settings: previewSiteSource.settings,
-      }
-    : undefined
-  const previewBlocks = withDirectoryTemplatePreviewValues(blocks, customBlockTemplates)
-  const previewBreadcrumbs = getDirectoryTemplatePreviewBreadcrumbs(previewSite?.settings)
-
-  if (loading) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader />
-        <AdminLoading className="min-h-0 flex-1" />
-      </div>
-    )
-  }
-
-  if (error && !template) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => router.push("/admin/directory/templates")} variant="outline">
-              Back to Templates
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader
-        rightActions={(
-          <StickybarTopRightActions
-            saveStatus={saveStatus}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-            renderSettingsModal={(show, setShow) => (
-              <TemplateSettingsModal
-                contentBlocks={template ? directoryBlocksToJson(blocks, template.content_blocks || {}) : undefined}
-                createPlaceholder="e.g. Featured Listing Layout"
-                enableDefaultCategoryParent
-                onOpenChange={setShow}
-                onSaved={handleSettingsSaved}
-                open={show}
-                template={template}
-                updateTemplate={((a0, a1) => updateDirectoryTemplate({ data: { templateId: a0, updates: a1 } }))}
-              />
-            )}
-          />
-        )}
-      />
-
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-hidden border-r bg-background">
-          <ScrollArea className="h-full">
-            <DirectoryPreview
-              blocks={previewBlocks}
-              directory={{
-                slug: 'preview-template',
-                name: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title,
-                title: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title,
-                id: 'preview',
-                site_id: template?.site_id || currentSite?.id || 'preview-site',
-                featured_image: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.featuredImage,
-                status: 'draft',
-              } as any}
-              site={previewSite}
-              customBlockTemplates={customBlockTemplates}
-              blocksLoading={loading}
-              allBlocks={blocks}
-              selectedBlock={selectedBlock}
-              onSelectBlock={setSelectedBlock as any}
-              previewBreadcrumbs={previewBreadcrumbs}
-            />
-          </ScrollArea>
-        </div>
-
+        return created
+      }}
+      getSelectionProps={(customBlocks) => ({
+        sections: [
+          { title: 'Built In', blockTypes: DIRECTORY_BLOCK_TYPES },
+          {
+            title: 'Custom',
+            blockTypes: (customBlocks || []).map((customTemplate) => ({
+              type: getDirectoryCustomBlockSelectionType(customTemplate.id),
+              name: customTemplate.name,
+              icon: Blocks,
+              description: `${customTemplate.layout} • ${customTemplate.fields.length} field${customTemplate.fields.length === 1 ? '' : 's'}`,
+              defaultContent: {
+                templateId: customTemplate.id,
+              },
+            })),
+          },
+        ],
+      })}
+      routeBase="/admin/directory/templates"
+      createPlaceholder="e.g. Featured Listing Layout"
+      entityName="directory template"
+      enableDefaultCategoryParent
+      renderPreview={({ previewBlocks, template, site, siteId, blocks, loading, selectedBlock, onSelectBlock, extra }) => (
+        <DirectoryPreview
+          blocks={previewBlocks}
+          directory={{
+            slug: 'preview-template',
+            name: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title,
+            title: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title,
+            id: 'preview',
+            site_id: template?.site_id || siteId || 'preview-site',
+            featured_image: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.featuredImage,
+            status: 'draft',
+          } as any}
+          site={site}
+          customBlockTemplates={extra}
+          blocksLoading={loading}
+          allBlocks={blocks}
+          selectedBlock={selectedBlock}
+          onSelectBlock={onSelectBlock as any}
+          previewBreadcrumbs={getDirectoryTemplatePreviewBreadcrumbs(site?.settings)}
+        />
+      )}
+      renderBlockEditor={({ selectedBlock, draftContent, siteId, extra, onDraftChange, onCloseBlockEditor, onSaveBlockEditor, savingBlock }) => (
         <DirectoryBlockEditorModal
           block={selectedBlock}
           content={draftContent}
-          siteId={template?.site_id || currentSite?.id || ''}
+          siteId={siteId}
           directoryTitle={DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title}
           onDirectoryTitleChange={() => {}}
-          onContentChange={handleDraftChange}
-          customBlockTemplates={customBlockTemplates}
+          onContentChange={onDraftChange}
+          customBlockTemplates={extra}
           showDirectoryTitleField={false}
-          onClose={handleCloseBlockEditor}
-          onSave={handleSaveBlockEditor}
-          saving={isSavingBlock}
+          onClose={onCloseBlockEditor}
+          onSave={onSaveBlockEditor}
+          saving={savingBlock}
           mode="template"
         />
-
-        {blockListOpen && (
-          <DirectoryTemplateBlockListPanel
-            blocks={blocks}
-            selectedBlock={selectedBlock}
-            onSelectBlock={setSelectedBlock}
-            onDeleteBlock={handleDeleteBlock}
-            onReorderBlocks={handleReorderBlocks}
-            onAddBlock={() => setBlockModalOpen(true)}
-            deleting={null}
-            blocksLoading={loading}
-          />
-        )}
-
-        <BlockSelectionModal
-          open={blockModalOpen}
-          onOpenChange={setBlockModalOpen}
-          onAddBlocks={handleAddBlocks}
-          existingBlockTypes={blocks.map((block) => block.type)}
-          sections={[
-            { title: 'Built In', blockTypes: DIRECTORY_BLOCK_TYPES },
-            { title: 'Custom', blockTypes: customBlockDefinitions },
-          ]}
-          entityName="directory template"
+      )}
+      renderBlockListPanel={({ blocks, selectedBlock, onSelectBlock, onDeleteBlock, onReorderBlocks, onAddBlock, loading }) => (
+        <DirectoryTemplateBlockListPanel
+          blocks={blocks}
+          selectedBlock={selectedBlock}
+          onSelectBlock={onSelectBlock}
+          onDeleteBlock={onDeleteBlock}
+          onReorderBlocks={onReorderBlocks}
+          onAddBlock={onAddBlock}
+          deleting={null}
+          blocksLoading={loading}
         />
-      </div>
-
-    </div>
+      )}
+    />
   )
 }

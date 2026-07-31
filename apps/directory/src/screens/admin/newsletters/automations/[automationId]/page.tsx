@@ -14,7 +14,7 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog } from "@/components/ui/dialog"
-import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Combobox,
@@ -1502,17 +1502,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             busy={savingNode}
             title="Checkpoint"
             description="Choose what happens when a contact reaches this point."
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => setEditingEndRules(null)}>
-                  Cancel
-                </Button>
-                <Button form="automation-checkpoint-form" type="submit" disabled={savingNode}>
-                  {savingNode ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Save
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={savingNode} form="automation-checkpoint-form" onCancel={() => setEditingEndRules(null)} submitLabel="Save" />}
           >
             <form
               noValidate
@@ -1558,17 +1548,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             busy={savingNode}
             title="Time Delay"
             description="Set how long the automation should wait before the next step runs."
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => setEditingDelay(null)}>
-                  Cancel
-                </Button>
-                <Button form="automation-delay-form" type="submit" disabled={savingNode}>
-                  {savingNode ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Save
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={savingNode} form="automation-delay-form" onCancel={() => setEditingDelay(null)} submitLabel="Save" />}
           >
             <form
               noValidate

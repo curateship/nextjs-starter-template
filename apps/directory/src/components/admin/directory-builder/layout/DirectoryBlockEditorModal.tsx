@@ -1,11 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { DirectoryBlockEditor, type DirectoryBlockEditorMode } from "./DirectoryBlockEditor"
 
 interface DirectoryBlock {
@@ -62,17 +61,7 @@ export function DirectoryBlockEditorModal({
           busy={saving}
           title={`${mode === "template" ? "Configure" : "Edit"} ${block.title}`}
           titleAccessory={<ModalTabs />}
-          footer={
-            <>
-            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button form="directory-block-editor-form" type="submit" disabled={saving}>
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save
-            </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={saving} cancelDisabled={saving} form="directory-block-editor-form" onCancel={onClose} submitLabel="Save" />}
         >
           <form
             noValidate

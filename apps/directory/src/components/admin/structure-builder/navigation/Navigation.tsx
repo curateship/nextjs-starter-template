@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -46,7 +46,6 @@ import {
   verticalListSortingStrategy,
   useSortable
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import type { LucideIcon } from "lucide-react"
 import Check from "lucide-react/dist/esm/icons/check.js"
 import Contrast from "lucide-react/dist/esm/icons/contrast.js"
@@ -60,6 +59,7 @@ import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { NAVIGATION_STYLES } from "@/components/admin/structure-builder/navigation"
 import { ActionRow, SortableActionRow } from "@/components/admin/structure-builder/ActionRow"
 import { LogoPickerPreview } from "@/components/admin/structure-builder/LogoPickerPreview"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface NavigationLink {
   text: string
@@ -215,54 +215,51 @@ function NavigationActionSettingsSection({
   )
 }
 
-function SortableLinkItem({
-  link,
+/**
+ * One row in the navigation editor — a link or an action button, draggable or
+ * not. This was four near-identical components (SortableLinkItem,
+ * StaticLinkItem, SortableButtonItem, StaticButtonItem) that differed only in
+ * the wrapper row and a few words.
+ */
+function NavigationEntryItem({
+  entry,
   index,
+  kind,
+  sortable,
   onEdit,
   onDelete
 }: {
-  link: NavigationLink
+  entry: NavigationLink | NavigationButton
   index: number
+  kind: "link" | "button"
+  sortable: boolean
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  return (
-    <SortableActionRow
-      sortableId={link.id || createNavigationItemId("link")}
-      ariaName={link.text || "navigation link"}
-      title={link.text || "Navigation link settings"}
-      buttonClassName="max-w-[220px] gap-2"
-      onEdit={() => onEdit(index)}
-      onDelete={() => onDelete(index)}
-    >
-      <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate" title={link.text || "Link"}>{link.text || "Link"}</span>
-    </SortableActionRow>
-  )
-}
+  const noun = kind === "link" ? "navigation link" : "action button"
+  const settingsTitle = kind === "link" ? "Navigation link settings" : "Action button settings"
+  const fallback = kind === "link" ? "Link" : "Button"
 
-function StaticLinkItem({
-  link,
-  index,
-  onEdit,
-  onDelete
-}: {
-  link: NavigationLink
-  index: number
-  onEdit: (index: number) => void
-  onDelete: (index: number) => void
-}) {
+  const rowProps = {
+    ariaName: entry.text || noun,
+    title: entry.text || settingsTitle,
+    buttonClassName: "max-w-[220px] gap-2",
+    onEdit: () => onEdit(index),
+    onDelete: () => onDelete(index)
+  }
+  const body = (
+    <>
+      <ShellIconPreview icon={entry.icon} className="h-4 w-4 shrink-0" />
+      <span className="truncate" title={entry.text || fallback}>{entry.text || fallback}</span>
+    </>
+  )
+
+  if (!sortable) return <ActionRow {...rowProps}>{body}</ActionRow>
+
   return (
-    <ActionRow
-      ariaName={link.text || "navigation link"}
-      title={link.text || "Navigation link settings"}
-      buttonClassName="max-w-[220px] gap-2"
-      onEdit={() => onEdit(index)}
-      onDelete={() => onDelete(index)}
-    >
-      <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate" title={link.text || "Link"}>{link.text || "Link"}</span>
-    </ActionRow>
+    <SortableActionRow sortableId={entry.id || createNavigationItemId(kind)} {...rowProps}>
+      {body}
+    </SortableActionRow>
   )
 }
 
@@ -330,13 +327,7 @@ function SortableUserPanelChildLink({
   onDelete: (index: number) => void
 }) {
   const itemId = link.id || `user-panel-child-${index}`
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: itemId })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(itemId, 0.55)
 
   return (
     <UserPanelChildLinkRow
@@ -387,56 +378,6 @@ function StaticUserPanelChildLink({
   )
 }
 
-function SortableButtonItem({
-  button,
-  index,
-  onEdit,
-  onDelete
-}: {
-  button: NavigationButton
-  index: number
-  onEdit: (index: number) => void
-  onDelete: (index: number) => void
-}) {
-  return (
-    <SortableActionRow
-      sortableId={button.id || createNavigationItemId("button")}
-      ariaName={button.text || "action button"}
-      title={button.text || "Action button settings"}
-      buttonClassName="max-w-[220px] gap-2"
-      onEdit={() => onEdit(index)}
-      onDelete={() => onDelete(index)}
-    >
-      <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate" title={button.text || "Button"}>{button.text || "Button"}</span>
-    </SortableActionRow>
-  )
-}
-
-function StaticButtonItem({
-  button,
-  index,
-  onEdit,
-  onDelete
-}: {
-  button: NavigationButton
-  index: number
-  onEdit: (index: number) => void
-  onDelete: (index: number) => void
-}) {
-  return (
-    <ActionRow
-      ariaName={button.text || "action button"}
-      title={button.text || "Action button settings"}
-      buttonClassName="max-w-[220px] gap-2"
-      onEdit={() => onEdit(index)}
-      onDelete={() => onDelete(index)}
-    >
-      <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
-      <span className="truncate" title={button.text || "Button"}>{button.text || "Button"}</span>
-    </ActionRow>
-  )
-}
 
 function SortableBuiltInActionItem({
   item,
@@ -445,13 +386,7 @@ function SortableBuiltInActionItem({
   item: Extract<OrderedActionItem, { kind: "special" }>
   onEdit: (itemId: BuiltInNavigationActionItemId) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(item.id)
   const Icon = item.icon
 
   return (
@@ -1200,9 +1135,11 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                   <SortableContext items={links.map((link) => link.id || "")} strategy={horizontalListSortingStrategy}>
                     <div className="flex flex-wrap items-center gap-2">
                       {links.map((link, index) => (
-                        <SortableLinkItem
+                        <NavigationEntryItem
                           key={link.id || `nav-link-${index}`}
-                          link={link}
+                          entry={link}
+                          kind="link"
+                          sortable
                           index={index}
                           onEdit={openLinkEditor}
                           onDelete={removeLink}
@@ -1222,9 +1159,11 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   {links.map((link, index) => (
-                    <StaticLinkItem
+                    <NavigationEntryItem
                       key={link.id || `nav-link-static-${index}`}
-                      link={link}
+                      entry={link}
+                      kind="link"
+                      sortable={false}
                       index={index}
                       onEdit={openLinkEditor}
                       onDelete={removeLink}
@@ -1257,9 +1196,11 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                     <div className="flex flex-wrap items-center gap-2">
                       {orderedActionItems.map((item) =>
                         item.kind === "button" ? (
-                          <SortableButtonItem
+                          <NavigationEntryItem
                             key={item.id}
-                            button={item.button}
+                            entry={item.button}
+                            kind="button"
+                            sortable
                             index={item.index}
                             onEdit={openButtonEditor}
                             onDelete={removeButton}
@@ -1283,9 +1224,11 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                 <div className="flex flex-wrap items-center gap-2">
                   {orderedActionItems.map((item) =>
                     item.kind === "button" ? (
-                      <StaticButtonItem
+                      <NavigationEntryItem
                         key={item.id}
-                        button={item.button}
+                        entry={item.button}
+                        kind="button"
+                        sortable={false}
                         index={item.index}
                         onEdit={openButtonEditor}
                         onDelete={removeButton}
@@ -1553,17 +1496,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
               ? "Control login and register actions plus signed-in child links."
               : "Choose where the theme toggle should render in the navigation."
           }
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => setEditingBuiltInActionItem(null)}>
-                Cancel
-              </Button>
-              <Button form="nav-built-in-action-editor-form" type="submit" disabled={modalSaving}>
-                {modalSaving ? <Loader2 className="size-4 animate-spin" /> : null}
-                Save
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={modalSaving} form="nav-built-in-action-editor-form" onCancel={() => setEditingBuiltInActionItem(null)} submitLabel="Save" />}
         >
           <form
             noValidate

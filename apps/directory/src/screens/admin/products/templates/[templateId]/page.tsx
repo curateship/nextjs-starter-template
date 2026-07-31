@@ -11,7 +11,7 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { AdminLoading } from "@/components/admin/layout/loading"
 import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
-import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
+import { BlockSelectionModal, type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
@@ -50,10 +50,6 @@ interface PageProps {
   params: Promise<{ templateId: string }>
 }
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
 
 export default function ProductTemplateEditorPage({ params }: PageProps) {
   const { templateId } = use(params)

@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/tailwind"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import {
   createDefaultAdminSidebarSettings,
   isAdminSidebarEntryNamed,
@@ -125,14 +126,8 @@ function updateSection(
 }
 
 function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id })
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(child.id, 0.55)
   const childName = isAdminSidebarEntryNamed(child) ? child.label : "child link"
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1
-  }
 
   return (
     <div
@@ -199,20 +194,13 @@ function SortableSidebarItem({
   // text, the accessible names, the dialog title and where focus lands.
   const isNamed = isAdminSidebarEntryNamed(item)
   const itemName = isNamed ? item.label : "sidebar link"
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
-
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(item.id, 0.55)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
   )
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1
-  }
 
   const children = item.children ?? []
 

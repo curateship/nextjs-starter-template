@@ -1,14 +1,13 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
-import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import {
   Select,
   SelectContent,
@@ -142,17 +141,7 @@ export function ContactFormModal({
             busy={adding}
             title="Add Contact"
             description="Add a single contact to this site and optionally tag them."
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => onAddOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" form="add-contact-form" disabled={adding}>
-                  {adding ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Add Contact
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={adding} form="add-contact-form" onCancel={() => onAddOpenChange(false)} submitLabel="Add Contact" />}
           >
             <form
               noValidate id="add-contact-form" onSubmit={handleAddContact} className="contents">
@@ -223,17 +212,7 @@ export function ContactFormModal({
                 <>Update this contact&apos;s details, tags, and subscription status. <span className="text-muted-foreground">{editContact.email}</span></>
               ) : "Update this contact's details, tags, and subscription status."
             }
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={onEditClose}>
-                  Cancel
-                </Button>
-                <Button type="submit" form="edit-contact-form" disabled={saving}>
-                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Save
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={saving} form="edit-contact-form" onCancel={onEditClose} submitLabel="Save" />}
           >
             <form
               noValidate id="edit-contact-form" onSubmit={handleEditContact} className="contents">

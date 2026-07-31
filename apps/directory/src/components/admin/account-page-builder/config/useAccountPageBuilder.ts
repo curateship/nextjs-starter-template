@@ -7,11 +7,8 @@ import { convertBlocksToJson, generateBlockId } from "@/lib/utils/block-utils"
 import { getBlockTypeDefinition } from "./account-page-block-types"
 import { hasSaveableChange, type SaveStatus, useSaveStatus } from "@/components/admin/layout/builder/save-status"
 import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
+import { type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
 
 interface UseAccountPagesBuilderParams {
   siteId: string

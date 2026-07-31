@@ -25,6 +25,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import { CSS } from '@dnd-kit/utilities'
 
 /** Generic block interface for the panel */
@@ -83,20 +84,7 @@ function SortableBlockItem({
   isLocked?: boolean
   lockedLabel?: string
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: block.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(block.id)
 
   const Icon = getBlockIcon(blockTypes, block.type, GripVertical)
   const name = block.title || getBlockName(blockTypes, block.type)
