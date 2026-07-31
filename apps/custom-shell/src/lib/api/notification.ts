@@ -5,11 +5,15 @@ export type NotificationType =
   | "feedback_vote"
   | "feedback_comment"
   | "changelog"
+  | "announcement"
 
 export type NotificationItem = {
   id: string
   type: NotificationType
-  /** Null on a changelog notice: an update is posted by the product, not a person. */
+  /**
+   * Null on a changelog or announcement notice: both are posted by the product,
+   * not by a person acting on your feedback.
+   */
   actor_name: string | null
   recipient_name: string
   /** Both null unless the notice is about a piece of feedback. */
@@ -18,6 +22,14 @@ export type NotificationItem = {
   /** Both null unless the notice is about a published update. */
   changelog_entry_id: string | null
   changelog_title: string | null
+  /**
+   * All three null unless the notice is an announcement. It carries its own
+   * words because there is no announcement page to open — the notice is the
+   * whole message, so somebody who dismissed the banner can still read it here.
+   */
+  announcement_id: string | null
+  announcement_title: string | null
+  announcement_body: string | null
   read_at: string | null
   created_at: string
 }

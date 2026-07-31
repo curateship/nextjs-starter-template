@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_authenticated")({
 })
 
 function AuthenticatedLayout() {
-  const { user, settings, workspaces, plan, unreadNotifications } =
+  const { user, settings, workspaces, plan, unreadNotifications, announcements } =
     Route.useLoaderData()
   return (
     <ShellLayout
@@ -45,6 +45,7 @@ function AuthenticatedLayout() {
       workspaces={workspaces}
       plan={plan}
       unreadNotifications={unreadNotifications}
+      announcements={announcements}
     />
   )
 }

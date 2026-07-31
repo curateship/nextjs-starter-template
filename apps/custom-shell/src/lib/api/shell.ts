@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 
+import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
@@ -12,6 +13,8 @@ export type ShellBootstrap = {
   plan: PlanSummary
   /** Unread notices, so the bell carries its dot before the tray is opened. */
   unreadNotifications: number
+  /** Live admin broadcasts this person has not closed yet. */
+  announcements: UserAnnouncement[]
 }
 
 /**
@@ -32,6 +35,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         workspaces: { workspaces: [] },
         plan: { planSlug: "free", planName: "Free", isPaid: false },
         unreadNotifications: 0,
+        announcements: [],
       }
     }
 
@@ -40,20 +44,32 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
       { readWorkspaceList },
       { loadEntitlements },
       { countUnreadNotifications },
+      { loadUserAnnouncements },
     ] = await Promise.all([
       import("@/server/shell-settings"),
       import("@/server/workspaces"),
       import("@/server/entitlements"),
       import("@/server/notifications"),
+      import("@/server/announcements"),
     ])
 
-    const [settings, workspaces, { entitlements }, unreadNotifications] =
+    const [settings, workspaces, { entitlements }, unreadCount, announcements] =
       await Promise.all([
         readShellSettings(user.id),
         readWorkspaceList(user.id),
         loadEntitlements(user.id),
         countUnreadNotifications(user.id),
+        loadUserAnnouncements(user.id),
       ])
+
+    // The announcement read is the one call here that can write: it drops in the
+    // tray notice for an announcement that has just gone live. That write races
+    // the count above, so on the rare load that actually creates one, ask again
+    // — otherwise the bell would sit there with no dot over a tray that has an
+    // unread notice in it. Every other load pays nothing for this.
+    const unreadNotifications = announcements.noticesCreated
+      ? await countUnreadNotifications(user.id)
+      : unreadCount
 
     return {
       user: {
@@ -72,6 +88,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         isPaid: entitlements.isPaid,
       },
       unreadNotifications,
+      announcements: announcements.banners,
     }
   }
 )

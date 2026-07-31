@@ -83,6 +83,17 @@ function changelogLink(): ShellItem {
   }
 }
 
+/** Where app-wide broadcasts are written. Only an admin has anything to do here. */
+const ANNOUNCEMENTS_LINK: ShellItem = {
+  type: "item",
+  id: "item-admin-announcements",
+  label: "Announcements",
+  href: "/admin/announcements",
+  icon: "megaphone",
+  visible: true,
+  roles: ["admin"],
+}
+
 /** The automation canvas. */
 const AUTOMATIONS_LINK: ShellItem = {
   type: "item",
@@ -566,6 +577,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           icon: "bell",
           visible: true,
         },
+        { ...ANNOUNCEMENTS_LINK },
         changelogLink(),
         {
           type: "item",
