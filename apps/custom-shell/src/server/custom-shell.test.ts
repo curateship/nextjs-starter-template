@@ -186,7 +186,6 @@ describe("custom shell workspaces", () => {
     const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
     expect(defaultSettings.icon).toBe("briefcaseBusiness")
     expect(defaultSettings.sections.map((section) => section.id)).toEqual([
-      "section-account",
       "section-administration",
       "section-platform-settings",
     ])
@@ -208,11 +207,27 @@ describe("custom shell workspaces", () => {
         label: "Media",
         href: "/admin/media",
         visible: true,
+        children: [
+          { label: "Storage by user", href: "/admin/media/storage" },
+          { label: "Orphaned files", href: "/admin/media/orphans" },
+        ],
+      },
+      {
+        type: "item",
+        label: "Automations",
+        href: "/admin/automations",
+        visible: true,
       },
       {
         type: "item",
         label: "Notifications",
         href: "/admin/notifications",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Changelog",
+        href: "/changelog",
         visible: true,
       },
       {
@@ -236,7 +251,6 @@ describe("custom shell workspaces", () => {
     const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
     expect(secondSettings.icon).toBe("globe")
     expect(secondSettings.sections.map((section) => section.id)).toEqual([
-      "section-account",
       "section-administration",
       "section-platform-settings",
     ])
@@ -258,11 +272,27 @@ describe("custom shell workspaces", () => {
         label: "Media",
         href: "/admin/media",
         visible: true,
+        children: [
+          { label: "Storage by user", href: "/admin/media/storage" },
+          { label: "Orphaned files", href: "/admin/media/orphans" },
+        ],
+      },
+      {
+        type: "item",
+        label: "Automations",
+        href: "/admin/automations",
+        visible: true,
       },
       {
         type: "item",
         label: "Notifications",
         href: "/admin/notifications",
+        visible: true,
+      },
+      {
+        type: "item",
+        label: "Changelog",
+        href: "/changelog",
         visible: true,
       },
       {
@@ -327,6 +357,60 @@ describe("custom shell workspaces", () => {
         database as unknown as CustomShellDb
       )
     ).rejects.toThrow("At least one workspace is required")
+  })
+
+  // Reading a saved sidebar used to top it back up with the default links
+  // (Activity log, Automations, Changelog, the Media children), so deleting one
+  // in Settings → Sidebar came straight back on the next page load. Defaults are
+  // handed out once, at workspace creation; a read returns what was saved.
+  it("keeps deleted default sidebar links deleted", () => {
+    const saved = parseWorkspaceSettings({
+      sections: [
+        {
+          id: "section-platform-settings",
+          title: "Platform Settings",
+          entries: [
+            {
+              type: "item",
+              id: "item-media",
+              label: "Media",
+              href: "/admin/media",
+              icon: "image",
+              visible: true,
+              children: [],
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(saved.sections).toEqual([
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-media",
+            label: "Media",
+            href: "/admin/media",
+            icon: "image",
+            visible: true,
+            children: [],
+          },
+        ],
+      },
+    ])
+  })
+
+  it("still gives a brand new workspace the default sidebar links", () => {
+    const hrefs = parseWorkspaceSettings(undefined).sections.flatMap((section) =>
+      section.entries.map((entry) => entry.href ?? "")
+    )
+
+    expect(hrefs).toContain("/admin/audit")
+    expect(hrefs).toContain("/admin/automations")
+    expect(hrefs).toContain("/changelog")
   })
 })
 
