@@ -54,6 +54,13 @@ const shellEntrySchema = z.discriminatedUnion("type", [
   }),
 ])
 
+/** Both sidebars are the same shape — the admin's own, and the members'. */
+const shellSectionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string(),
+  entries: z.array(shellEntrySchema),
+})
+
 const shellBackgroundSchema = z.object({
   mode: z.enum(["default", "muted", "custom"]),
   strength: z.number().int().min(0).max(100),
@@ -106,13 +113,8 @@ const shellConfigSchema = z.object({
       visible: z.boolean(),
     })
   ),
-  sections: z.array(
-    z.object({
-      id: z.string().min(1),
-      title: z.string(),
-      entries: z.array(shellEntrySchema),
-    })
-  ),
+  sections: z.array(shellSectionSchema),
+  memberSections: z.array(shellSectionSchema),
   maintenance: z.object({
     enabled: z.boolean(),
     message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
@@ -127,7 +129,7 @@ export function getShellSettingsErrorMessage(error: unknown) {
 const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
   async () => {
     const user = await requireUser()
-    return { settings: await readShellSettings(user.id) }
+    return { settings: await readShellSettings(user) }
   }
 )
 

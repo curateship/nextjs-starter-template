@@ -493,6 +493,11 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     sections: stripRetiredAccountEntries(
       Array.isArray(settings.sections) ? settings.sections : fallback.sections
     ),
+    // Not stripped: this is the list an admin is editing for members, not the
+    // one being rendered, so nothing should quietly disappear out of the editor.
+    memberSections: Array.isArray(settings.memberSections)
+      ? settings.memberSections
+      : fallback.memberSections,
     maintenance: normalizeMaintenance(settings.maintenance),
     styling: normalizeStyling(settings.styling),
   }

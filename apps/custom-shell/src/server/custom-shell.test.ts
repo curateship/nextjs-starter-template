@@ -55,6 +55,8 @@ import {
   updateChangelogEntry,
 } from "@/server/changelog"
 import {
+  canSeeShellEntry,
+  createDefaultShellConfig,
   isActiveShellHref,
   normalizeMaintenance,
   resolveMaintenanceMessage,
@@ -66,7 +68,12 @@ import { startViewingAs, stopViewingAs } from "@/server/view-as"
 import { loadAccountDetail } from "@/server/account-detail"
 import { grantManualPlan, recordAdminAudit } from "@/server/accounts"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
-import { readShellGlobals } from "@/server/shell-settings"
+import {
+  parseShellGlobals,
+  pickShellGlobals,
+  readShellGlobals,
+  readShellSettings,
+} from "@/server/shell-settings"
 import {
   canViewAllNotifications,
   getNotificationPage,
@@ -725,6 +732,168 @@ describe("membership section", () => {
     expect(
       summary.planMembership.reduce((total, row) => total + row.people, 0)
     ).toBe(summary.revenue.totalUsers)
+  })
+})
+
+describe("member sidebar", () => {
+  async function seedPeople() {
+    const createdAt = now()
+    const adminId = uuid()
+    const memberId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: adminId,
+        email: "sidebar-admin@internal.dev",
+        name: "Sidebar Admin",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: memberId,
+        email: "sidebar-member@internal.dev",
+        name: "Sidebar Member",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    return { adminId, memberId }
+  }
+
+  /** Replaces the app-wide member sidebar, the way the settings page does. */
+  async function saveMemberSections(sections: unknown) {
+    const timestamp = now()
+    await database
+      .insert(customShellSettings)
+      .values({
+        key: "default",
+        settings: { memberSections: sections },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .onConflictDoUpdate({
+        target: customShellSettings.key,
+        set: { settings: { memberSections: sections }, updatedAt: timestamp },
+      })
+  }
+
+  it("gives a member the admin-built list and an admin their own", async () => {
+    const { adminId, memberId } = await seedPeople()
+    const testDb = database as unknown as CustomShellDb
+
+    await saveMemberSections([
+      {
+        id: "section-member",
+        title: "For members",
+        entries: [
+          {
+            type: "item",
+            id: "item-member-help",
+            label: "Help",
+            href: "/changelog",
+            icon: "sparkles",
+            visible: true,
+          },
+        ],
+      },
+    ])
+
+    const memberConfig = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(memberConfig.sections.map((section) => section.title)).toEqual([
+      "For members",
+    ])
+
+    // The admin still gets their own workspace's sidebar, which is the starter
+    // set with the admin pages on it — not the member list.
+    const adminConfig = await readShellSettings(
+      { id: adminId, role: "admin" },
+      testDb
+    )
+    const adminHrefs = adminConfig.sections.flatMap((section) =>
+      section.entries.map((entry) => (entry as { href?: string }).href ?? "")
+    )
+    expect(adminHrefs).toContain("/admin/membership")
+    expect(adminConfig.sections.map((section) => section.title)).not.toContain(
+      "For members"
+    )
+  })
+
+  it("leaves an emptied member sidebar empty, and fills in an unset one", async () => {
+    const { memberId } = await seedPeople()
+    const testDb = database as unknown as CustomShellDb
+
+    // Never set: members get the starting set rather than nothing at all.
+    const fresh = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(fresh.sections.length).toBeGreaterThan(0)
+
+    // Deleted on purpose: that has to stick, exactly like the workspace
+    // sidebar. Handing the starter set back on read would undo the deletion.
+    await saveMemberSections([])
+    const emptied = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(emptied.sections).toEqual([])
+  })
+
+  it("carries the member sidebar through a save and back", () => {
+    // The settings page saves the whole config, and only the fields
+    // `pickShellGlobals` names reach the app-wide row. Forget one and the
+    // member sidebar would be silently dropped on every save.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      memberSections: [
+        { id: "section-kept", title: "Kept", entries: [] },
+      ],
+    })
+
+    expect(parseShellGlobals(saved).memberSections).toEqual([
+      { id: "section-kept", title: "Kept", entries: [] },
+    ])
+  })
+
+  it("still refuses to show a member an admin page put on their list", async () => {
+    const { memberId } = await seedPeople()
+
+    await saveMemberSections([
+      {
+        id: "section-oops",
+        title: "Oops",
+        entries: [
+          {
+            type: "item",
+            id: "item-oops",
+            label: "Users",
+            href: "/admin/users",
+            icon: "users",
+            visible: true,
+          },
+        ],
+      },
+    ])
+
+    const config = await readShellSettings(
+      { id: memberId, role: "member" },
+      database as unknown as CustomShellDb
+    )
+    const entry = config.sections[0].entries[0] as { href: string }
+
+    // The list is returned as saved — an admin typing an admin address into it
+    // is their business — but the shell must never render it for a member.
+    expect(entry.href).toBe("/admin/users")
+    expect(canSeeShellEntry(entry, "member")).toBe(false)
+    expect(canSeeShellEntry(entry, "admin")).toBe(true)
   })
 })
 
