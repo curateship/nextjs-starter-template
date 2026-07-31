@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  EyeIcon,
   Loader2Icon,
   PlusIcon,
   SettingsIcon,
@@ -104,6 +105,9 @@ export function ChangelogAdminDashboard({
   const [sort, setSort] = React.useState<ChangelogSortColumn>("published")
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
   const [editing, setEditing] = React.useState<ChangelogEntry | null>(null)
+  const [previewing, setPreviewing] = React.useState<ChangelogEntry | null>(
+    null
+  )
   const [creating, setCreating] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<ChangelogEntry | null>(
     null
@@ -347,6 +351,16 @@ export function ChangelogAdminDashboard({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  onClick={() => setPreviewing(entry)}
+                  title="Preview update"
+                  aria-label={`Preview ${entry.title}`}
+                >
+                  <EyeIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setEditing(entry)}
                   title="Update settings"
                   aria-label={`Edit ${entry.title}`}
@@ -382,6 +396,11 @@ export function ChangelogAdminDashboard({
           setEditing(null)
           await refresh()
         }}
+      />
+
+      <PreviewDialog
+        entry={previewing}
+        onClose={() => setPreviewing(null)}
       />
 
       <ConfirmDialog
@@ -579,6 +598,49 @@ function ChangelogDialog({
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2Icon className="animate-spin" /> : null}
             {entry ? "Save update" : "Create update"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * The update exactly as the What's new panel shows it, so what an admin checks
+ * before publishing is what everybody gets. This replaced the separate What's
+ * new link in the admin sidebar.
+ */
+function PreviewDialog({
+  entry,
+  onClose,
+}: {
+  entry: ChangelogEntry | null
+  onClose: () => void
+}) {
+  return (
+    <Dialog
+      open={Boolean(entry)}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>{entry?.title ?? "Preview"}</DialogTitle>
+          <DialogDescription>
+            {entry?.publishedAt
+              ? `Published ${dateFormatter.format(new Date(entry.publishedAt))}`
+              : "Draft — not published yet"}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
+            {entry?.body ?? ""}
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>

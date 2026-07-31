@@ -265,7 +265,7 @@ export async function getNotificationPage({
   }
 }
 
-async function serializeNotificationRows(
+export async function serializeNotificationRows(
   rows: CustomShellNotification[],
   database: CustomShellDb
 ) {

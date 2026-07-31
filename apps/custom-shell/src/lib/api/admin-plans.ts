@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { PlanFeatures } from "@/lib/plan-features"
-import { recordAdminAudit } from "@/server/accounts"
 import { archivePlan, createPlan, listPlans, updatePlan } from "@/server/plans"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin } from "@/server/security"
@@ -94,9 +93,8 @@ const createPlanFn = createServerFn({ method: "POST" })
   .inputValidator(planInputSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
-    const actor = await requireAdmin()
+    await requireAdmin()
     const plan = await createPlan(data)
-    await recordAdminAudit(actor.id, "create", "plan", [plan.id], plan.slug)
     return serializePlan(plan)
   })
 
@@ -106,17 +104,8 @@ const updatePlanFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     requireAppOrigin()
-    const actor = await requireAdmin()
-    const { plan, changedFields } = await updatePlan(data.planId, data.plan)
-    // The plan's own name is read back from its id, so the detail is free to
-    // carry the one thing nothing else records: what the edit actually changed.
-    await recordAdminAudit(
-      actor.id,
-      "update",
-      "plan",
-      [plan.id],
-      changedFields.join(", ") || null
-    )
+    await requireAdmin()
+    const { plan } = await updatePlan(data.planId, data.plan)
     return serializePlan(plan)
   })
 
@@ -124,9 +113,8 @@ const archivePlanFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ planId: z.string().min(1).max(36) }))
   .handler(async ({ data }) => {
     requireAppOrigin()
-    const actor = await requireAdmin()
+    await requireAdmin()
     const plan = await archivePlan(data.planId)
-    await recordAdminAudit(actor.id, "archive", "plan", [plan.id], plan.slug)
     return serializePlan(plan)
   })
 

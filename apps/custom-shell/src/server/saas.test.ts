@@ -32,6 +32,7 @@ import {
   type PlanInput,
 } from "@/server/plans"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
+import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/turnstile"
 import {
   consumeAuthToken,
   createAuthToken,
@@ -231,6 +232,106 @@ describe("breached passwords", () => {
     await expect(
       enforcePasswordNotBreached("password123")
     ).resolves.toBeUndefined()
+  })
+})
+
+describe("human check", () => {
+  const SITE_KEY = "1x00000000000000000000AA"
+  const SECRET_KEY = "1x0000000000000000000000000000000AA"
+
+  type FetchCall = { url: string; body: string }
+
+  function configureKeys() {
+    process.env.CUSTOM_SHELL_TURNSTILE_SITE_KEY = SITE_KEY
+    process.env.CUSTOM_SHELL_TURNSTILE_SECRET_KEY = SECRET_KEY
+  }
+
+  function respondWith(verdict: unknown, init: ResponseInit = {}) {
+    const calls: FetchCall[] = []
+    vi.stubGlobal("fetch", (url: string, options: RequestInit) => {
+      calls.push({ url, body: String(options.body) })
+      return Promise.resolve(new Response(JSON.stringify(verdict), init))
+    })
+    return calls
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete process.env.CUSTOM_SHELL_TURNSTILE_SITE_KEY
+    delete process.env.CUSTOM_SHELL_TURNSTILE_SECRET_KEY
+  })
+
+  it("is switched off, and never calls out, when the keys are unset", async () => {
+    const calls = respondWith({ success: false })
+
+    expect(getHumanCheckSiteKey()).toBeNull()
+    await expect(enforceHumanCheck(undefined)).resolves.toBeUndefined()
+    expect(calls).toEqual([])
+  })
+
+  it("stays off when only one of the two keys is set", async () => {
+    process.env.CUSTOM_SHELL_TURNSTILE_SITE_KEY = SITE_KEY
+    const calls = respondWith({ success: false })
+
+    // A site key with no secret would put a widget on the form whose answer
+    // this server has no way to check.
+    expect(getHumanCheckSiteKey()).toBeNull()
+    await expect(enforceHumanCheck(undefined)).resolves.toBeUndefined()
+    expect(calls).toEqual([])
+  })
+
+  it("accepts the request when Cloudflare confirms the answer", async () => {
+    configureKeys()
+    const calls = respondWith({ success: true })
+
+    await expect(enforceHumanCheck("widget-answer")).resolves.toBeUndefined()
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+    )
+    expect(calls[0].body).toContain("response=widget-answer")
+  })
+
+  it("refuses when the form sent no answer at all", async () => {
+    configureKeys()
+    const calls = respondWith({ success: true })
+
+    await expect(enforceHumanCheck(undefined)).rejects.toThrow(
+      "HUMAN_CHECK_FAILED"
+    )
+    // Refused here, without troubling Cloudflare over an empty answer.
+    expect(calls).toEqual([])
+  })
+
+  it("refuses when Cloudflare rejects the answer", async () => {
+    configureKeys()
+    respondWith({ success: false, "error-codes": ["invalid-input-response"] })
+
+    await expect(enforceHumanCheck("stale-answer")).rejects.toThrow(
+      "HUMAN_CHECK_FAILED"
+    )
+  })
+
+  it("refuses when Cloudflare is unreachable or unhappy", async () => {
+    configureKeys()
+
+    // Fails closed, unlike the breached-password check: an unreachable guard
+    // that waves everyone through is the opening a bot is waiting for.
+    vi.stubGlobal("fetch", () => Promise.reject(new Error("network down")))
+    await expect(enforceHumanCheck("widget-answer")).rejects.toThrow(
+      "HUMAN_CHECK_FAILED"
+    )
+
+    respondWith({}, { status: 503 })
+    await expect(enforceHumanCheck("widget-answer")).rejects.toThrow(
+      "HUMAN_CHECK_FAILED"
+    )
+  })
+
+  it("hands the browser the site key only, never the secret", async () => {
+    configureKeys()
+    expect(getHumanCheckSiteKey()).toBe(SITE_KEY)
+    expect(getHumanCheckSiteKey()).not.toBe(SECRET_KEY)
   })
 })
 
@@ -517,15 +618,15 @@ describe("admin account management", () => {
 
     expect(await countOtherActiveAdmins(admin.id, database)).toBe(0)
     await expect(
-      updateUserRole(admin.id, admin.id, "member", database)
+      updateUserRole(admin.id, "member", database)
     ).rejects.toThrow("LAST_ADMIN")
     await expect(
-      setUserStatus(admin.id, admin.id, "suspended", database)
+      setUserStatus(admin.id, "suspended", database)
     ).rejects.toThrow("LAST_ADMIN")
   })
 
   it("ends the sessions of an account it suspends", async () => {
-    const admin = await createUser({ role: "admin" })
+    await createUser({ role: "admin" })
     const member = await createUser()
     const token = "member-session-token"
 
@@ -541,7 +642,7 @@ describe("admin account management", () => {
       findUserBySessionToken(token, database)
     ).resolves.toMatchObject({ id: member.id })
 
-    await setUserStatus(admin.id, member.id, "suspended", database)
+    await setUserStatus(member.id, "suspended", database)
 
     await expect(findUserBySessionToken(token, database)).resolves.toBeNull()
   })
@@ -572,33 +673,33 @@ describe("admin account management", () => {
   })
 
   it("allows the change once another admin exists", async () => {
-    const first = await createUser({ role: "admin" })
+    await createUser({ role: "admin" })
     const second = await createUser({ role: "admin" })
 
-    const result = await updateUserRole(first.id, second.id, "member", database)
+    const result = await updateUserRole(second.id, "member", database)
     expect(result.role).toBe("member")
   })
 
   it("grants and revokes a plan without Stripe", async () => {
-    const admin = await createUser({ role: "admin" })
+    await createUser({ role: "admin" })
     const member = await createUser()
     const pro = await getPlanBySlug("pro", database)
 
-    await grantManualPlan(admin.id, member.id, pro!.id, null, database)
+    await grantManualPlan(member.id, pro!.id, null, database)
     const granted = await loadEntitlements(member.id, database)
     expect(granted.entitlements.planSlug).toBe("pro")
     expect(granted.entitlements.source).toBe("manual")
 
-    await grantManualPlan(admin.id, member.id, null, null, database)
+    await grantManualPlan(member.id, null, null, database)
     const revoked = await loadEntitlements(member.id, database)
     expect(revoked.entitlements.planSlug).toBe("free")
   })
 
   it("lists accounts with their real plan and counts revenue from live plans", async () => {
-    const admin = await createUser({ role: "admin", name: "Ada" })
+    await createUser({ role: "admin", name: "Ada" })
     const member = await createUser({ name: "Blake" })
     const pro = await getPlanBySlug("pro", database)
-    await grantManualPlan(admin.id, member.id, pro!.id, null, database)
+    await grantManualPlan(member.id, pro!.id, null, database)
 
     const { accounts, total } = await listAccounts(
       {

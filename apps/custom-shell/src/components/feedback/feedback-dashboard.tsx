@@ -60,6 +60,7 @@ import {
   type FeedbackItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
+import { FeedbackCommentsModal } from "@/components/feedback/feedback-comments-modal"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
   feedbackTypeBadgeVariants,
@@ -100,6 +101,8 @@ export function FeedbackDashboard({
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [editingFeedback, setEditingFeedback] =
+    React.useState<FeedbackItem | null>(null)
+  const [viewingComments, setViewingComments] =
     React.useState<FeedbackItem | null>(null)
   const [deletingFeedback, setDeletingFeedback] =
     React.useState<FeedbackItem | null>(null)
@@ -435,10 +438,21 @@ export function FeedbackDashboard({
               {dateFormatter.format(new Date(item.created_at))}
             </TableCell>
             <TableCell column="meta">
-              <Badge variant="secondary">
-                <MessageSquareIcon className="h-3.5 w-3.5" />
-                {item.comment_count}
-              </Badge>
+              <button
+                type="button"
+                className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                onClick={() => setViewingComments(item)}
+                title="View comments"
+                aria-label={`View ${item.comment_count} comment${item.comment_count === 1 ? "" : "s"}`}
+              >
+                <Badge
+                  variant="secondary"
+                  className="transition-colors hover:bg-accent"
+                >
+                  <MessageSquareIcon className="h-3.5 w-3.5" />
+                  {item.comment_count}
+                </Badge>
+              </button>
             </TableCell>
             <TableCell column="meta">
               <Badge variant="secondary">
@@ -498,6 +512,22 @@ export function FeedbackDashboard({
         }}
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
+      />
+      <FeedbackCommentsModal
+        feedback={viewingComments}
+        open={Boolean(viewingComments)}
+        onOpenChange={(open) => {
+          if (!open) setViewingComments(null)
+        }}
+        onCommentDeleted={(feedbackId) => {
+          setFeedback((current) =>
+            current.map((item) =>
+              item.id === feedbackId
+                ? { ...item, comment_count: Math.max(0, item.comment_count - 1) }
+                : item
+            )
+          )
+        }}
       />
       <ConfirmDialog
         open={massDeleteOpen}

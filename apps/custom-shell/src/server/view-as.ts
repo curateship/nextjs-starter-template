@@ -1,6 +1,5 @@
 import { and, eq, gt, isNotNull } from "drizzle-orm"
 
-import { recordAdminAudit } from "@/server/accounts"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellSessions, customShellUsers } from "@/server/schema"
 import { hashSessionToken, isAdmin, now } from "@/server/security"
@@ -70,15 +69,6 @@ export async function startViewingAs(
     throw new Error("AUTH_REQUIRED")
   }
 
-  await recordAdminAudit(
-    adminId,
-    "view_as",
-    "user",
-    [target.id],
-    target.email,
-    database
-  )
-
   return { userId: target.id, name: target.name, email: target.email }
 }
 
@@ -118,8 +108,8 @@ export async function stopViewingAs(
   }
 
   // Matching on the id we just read is what settles a race between two tabs:
-  // exactly one of them clears it, and only that one writes the log entry.
-  const [cleared] = await database
+  // exactly one of them clears it.
+  await database
     .update(customShellSessions)
     .set({ viewingAsUserId: null })
     .where(
@@ -128,18 +118,6 @@ export async function stopViewingAs(
         eq(customShellSessions.viewingAsUserId, session.viewedUserId)
       )
     )
-    .returning({ id: customShellSessions.id })
-
-  if (cleared) {
-    await recordAdminAudit(
-      session.adminId,
-      "stop_view_as",
-      "user",
-      [session.viewedUserId],
-      null,
-      database
-    )
-  }
 
   return { userId: session.viewedUserId }
 }

@@ -4,7 +4,6 @@ import {
   ArrowLeftIcon,
   HardDriveIcon,
   MessageSquareIcon,
-  ScrollTextIcon,
   SettingsIcon,
 } from "lucide-react"
 
@@ -25,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { activitySentence, resourceLabel } from "@/lib/audit-sentence"
 import type { FeedbackType } from "@/lib/api/feedback"
 import type { AccountDetail, AssignablePlan } from "@/lib/api/admin-users"
 import {
@@ -268,52 +266,6 @@ export function AdminAccountPage({
             </TableCell>
             <TableCell column="mutedMeta">
               {formatDate(item.createdAt)}
-            </TableCell>
-          </TableRow>
-        ))}
-      </DashboardTable>
-
-      <DashboardTable
-        title="What admins have done here"
-        icon={<ScrollTextIcon className="text-muted-foreground" />}
-        count={detail.activity.length}
-        header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="main">Activity</TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                What
-              </TableHead>
-              <TableHead column="meta">When</TableHead>
-            </TableRow>
-          </TableHeader>
-        }
-        isEmpty={detail.activity.length === 0}
-        emptyText="No admin has changed this account."
-        emptyColSpan={3}
-        footer={{
-          type: "summary",
-          count: detail.activity.length,
-          label: detail.activityTruncated
-            ? "most recent entries — see the activity log for the rest"
-            : "entries",
-        }}
-      >
-        {detail.activity.map((entry) => (
-          <TableRow key={entry.id}>
-            <TableCell column="main">
-              <span
-                className="line-clamp-2 text-sm whitespace-normal"
-                title={activitySentence(entry)}
-              >
-                {activitySentence(entry)}
-              </span>
-            </TableCell>
-            <TableCell column="meta" className="hidden lg:table-cell">
-              <Badge variant="outline">{resourceLabel(entry.resource)}</Badge>
-            </TableCell>
-            <TableCell column="mutedMeta">
-              {formatDateTime(entry.createdAt)}
             </TableCell>
           </TableRow>
         ))}
