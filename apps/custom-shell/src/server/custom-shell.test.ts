@@ -20,6 +20,7 @@ import {
 } from "@/server/media"
 import {
   customShellAnnouncements,
+  customShellAuthTokens,
   customShellChangelogEntries,
   customShellMedia,
   customShellFeedback,
@@ -80,11 +81,13 @@ import {
   getNotificationPage,
 } from "@/server/notifications"
 import {
+  createAuthToken,
   createSessionExpiresAt,
   deleteUserSession,
   findSessionContextByToken,
   findUserBySessionToken,
   hashSessionToken,
+  hashToken,
   listUserSessions,
   now,
   pruneRefusedSessions,
@@ -93,7 +96,12 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/security"
+import {
+  consumeSignInLink,
+  createSignInLinkToken,
+} from "@/server/sign-in-link"
 import { describeDevice } from "@/lib/device-label"
+import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   createUserWorkspace,
   deleteUserWorkspace,
@@ -202,6 +210,228 @@ describe("custom shell auth helpers", () => {
 
     await database.delete(customShellSessions)
     await expect(findUserBySessionToken(token, database as unknown as CustomShellDb)).resolves.toBeNull()
+  })
+})
+
+describe("magic-link sign-in", () => {
+  const CHROME_ON_MAC =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"
+  const NO_BROWSER = { userAgent: null, ipAddress: null }
+
+  async function seedAccount(
+    email: string,
+    extra: { status?: string; emailVerifiedAt?: Date | null } = {}
+  ) {
+    const createdAt = now()
+    const userId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email,
+      name: "Link User",
+      role: "member",
+      status: extra.status ?? "active",
+      passwordHash: "hash",
+      emailVerifiedAt:
+        extra.emailVerifiedAt === undefined ? createdAt : extra.emailVerifiedAt,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    return userId
+  }
+
+  it("issues a link for an account, stores only its hash, and expires it in fifteen minutes", async () => {
+    const userId = await seedAccount("linked@internal.dev")
+
+    const link = await createSignInLinkToken(
+      "linked@internal.dev",
+      database as unknown as CustomShellDb
+    )
+    expect(link?.email).toBe("linked@internal.dev")
+
+    const [row] = await database.select().from(customShellAuthTokens)
+    expect(row.userId).toBe(userId)
+    expect(row.purpose).toBe("login")
+    // The secret itself is never stored, so a copy of the table is not a pile
+    // of working sign-in links.
+    expect(row.tokenHash).toBe(hashToken(link!.token))
+    expect(row.tokenHash).not.toBe(link!.token)
+    expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
+      SIGN_IN_LINK_MINUTES * 60 * 1000
+    )
+  })
+
+  it("issues nothing for an unknown address or a suspended account", async () => {
+    await seedAccount("halted@internal.dev", { status: "suspended" })
+
+    await expect(
+      createSignInLinkToken(
+        "nobody@internal.dev",
+        database as unknown as CustomShellDb
+      )
+    ).resolves.toBeNull()
+    await expect(
+      createSignInLinkToken(
+        "halted@internal.dev",
+        database as unknown as CustomShellDb
+      )
+    ).resolves.toBeNull()
+    expect(await database.select().from(customShellAuthTokens)).toHaveLength(0)
+  })
+
+  it("signs the browser in and records the browser and address", async () => {
+    const userId = await seedAccount("linked@internal.dev")
+    const link = await createSignInLinkToken(
+      "linked@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    const { user, sessionToken } = await consumeSignInLink(
+      link!.token,
+      { userAgent: CHROME_ON_MAC, ipAddress: "203.0.113.7" },
+      database as unknown as CustomShellDb
+    )
+
+    expect(user.id).toBe(userId)
+    await expect(
+      findUserBySessionToken(sessionToken, database as unknown as CustomShellDb)
+    ).resolves.toMatchObject({ id: userId })
+
+    const [session] = await database.select().from(customShellSessions)
+    expect(session.userAgent).toBe(CHROME_ON_MAC)
+    expect(session.ipAddress).toBe("203.0.113.7")
+  })
+
+  it("refuses the same link a second time", async () => {
+    await seedAccount("linked@internal.dev")
+    const link = await createSignInLinkToken(
+      "linked@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    await consumeSignInLink(
+      link!.token,
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+    await expect(
+      consumeSignInLink(
+        link!.token,
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+
+    // The second attempt must not have started a second session either.
+    expect(await database.select().from(customShellSessions)).toHaveLength(1)
+  })
+
+  it("refuses a link past its expiry, and a reset link presented as a sign-in link", async () => {
+    const userId = await seedAccount("linked@internal.dev")
+    const link = await createSignInLinkToken(
+      "linked@internal.dev",
+      database as unknown as CustomShellDb
+    )
+    await database
+      .update(customShellAuthTokens)
+      .set({ expiresAt: new Date(now().getTime() - 1000) })
+
+    await expect(
+      consumeSignInLink(
+        link!.token,
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+
+    // A password-reset link is a live token for the same account. It must not
+    // be redeemable as a way in.
+    const resetToken = await createAuthToken(
+      userId,
+      "reset_password",
+      database as unknown as CustomShellDb
+    )
+    await expect(
+      consumeSignInLink(
+        resetToken,
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+  })
+
+  it("refuses a link for an account suspended after it was sent", async () => {
+    const userId = await seedAccount("linked@internal.dev")
+    const link = await createSignInLinkToken(
+      "linked@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    await database
+      .update(customShellUsers)
+      .set({ status: "suspended" })
+      .where(eq(customShellUsers.id, userId))
+
+    await expect(
+      consumeSignInLink(
+        link!.token,
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("ACCOUNT_SUSPENDED")
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+  })
+
+  it("verifies an account that had never confirmed its email", async () => {
+    const userId = await seedAccount("unconfirmed@internal.dev", {
+      emailVerifiedAt: null,
+    })
+    const link = await createSignInLinkToken(
+      "unconfirmed@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    const { user } = await consumeSignInLink(
+      link!.token,
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    expect(user.emailVerifiedAt).not.toBeNull()
+    const [stored] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+    expect(stored.emailVerifiedAt).not.toBeNull()
+  })
+
+  it("clears this account's dead sessions as it signs them in", async () => {
+    const userId = await seedAccount("linked@internal.dev")
+    const createdAt = now()
+    await database.insert(customShellSessions).values({
+      id: uuid(),
+      userId,
+      tokenHash: hashSessionToken("dead-token"),
+      expiresAt: new Date(createdAt.getTime() - 60 * 60 * 1000),
+      createdAt,
+      lastSeenAt: createdAt,
+    })
+
+    const link = await createSignInLinkToken(
+      "linked@internal.dev",
+      database as unknown as CustomShellDb
+    )
+    const { sessionToken } = await consumeSignInLink(
+      link!.token,
+      NO_BROWSER,
+      database as unknown as CustomShellDb
+    )
+
+    const sessions = await database.select().from(customShellSessions)
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0].tokenHash).toBe(hashSessionToken(sessionToken))
   })
 })
 

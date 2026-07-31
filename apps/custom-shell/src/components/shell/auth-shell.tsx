@@ -32,9 +32,9 @@ export function AuthShell({
           <p
             role="status"
             aria-live="polite"
-            className="flex items-start gap-2 text-sm text-muted-foreground"
+            className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground"
           >
-            <CheckCircle2Icon className="mt-0.5 h-4 w-4 shrink-0" />
+            <CheckCircle2Icon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <span>{notice}</span>
           </p>
         ) : null}

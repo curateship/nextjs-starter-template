@@ -357,7 +357,7 @@ export const customShellAuthTokens = pgTable(
   (table) => [
     check(
       "auth_tokens_purpose_check",
-      sql`${table.purpose} in ('verify_email', 'reset_password')`
+      sql`${table.purpose} in ('verify_email', 'reset_password', 'login')`
     ),
     index("ix_auth_tokens_user_purpose").on(table.userId, table.purpose),
     index("ix_auth_tokens_expires_at").on(table.expiresAt),
