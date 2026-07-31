@@ -15,9 +15,21 @@ Admin mutations return `AdminActionResult`: `{ ok: true, data }` on success or `
 - **Do not rely on the browser's built-in `required` inside a tabbed modal.** Tab panels unmount when you switch away, so the browser refuses the submit with nothing on screen and the button looks dead. Validate in the handler, report through the error toast, set `aria-invalid` on the field, and switch back to the tab that holds it so the message points at something visible.
 - Never expose stack traces, SQL, raw provider responses, or secrets.
 
+## Auto-save
+
+- **The admin has no page-level Save button.** Settings, the builders, the template editors and the email editors all write on their own: an edit is stored ~800ms after the last change, through the shared `useAutoSave` hook (`src/components/admin/layout/builder/use-auto-save.ts`). Saves run on a queue, so quick successive edits land in the order they were made and a slow request can never overwrite a newer one; a pending edit is flushed if the screen unmounts. Never add a Save button back to a page header.
+- **The header says what happened**, through `saveStatus` on `DashboardSubheader` / `StickybarTopRightActions`: *Saving…* while it writes, *Saved* for a few seconds after, nothing when idle. Auto-save never toasts a success — a toast on every keystroke pause would be unusable.
+- **A save that cannot run says why** — the fourth status, `blocked`. Give `useAutoSave` a `blockedReason(draft)` and return a sentence starting "Not saved — " (`Not saved — add a site name`). It stays in the header until the reason is fixed, which is the only warning the user gets when the edit that broke it was on another tab. A refused save is not an error toast.
+- **A failed save reports through the shared error toast** and leaves the edit on screen — the hook does this for you when `save` returns `{ saved: false, reason }`.
+- **Fields whose half-typed value would do real damage wait for the box to be left, not the debounce.** Today that is the site URL and custom domain (`onAddressFieldCommit`) and every integration key or password (`onSecretCommit`) — a partial subdomain is a live web address, a partial domain fails its DNS check, and a partial key breaks a live integration. Use `saveNow()` on blur for these; everything else follows the debounce.
+- **Never disable a field while a save is in flight.** `disabled={saving}` fights the typing that started the save.
+- **Dialogs keep their Save / Done buttons.** A dialog is a deliberate "make these changes, then confirm" step; its button calls `saveNow()` so the edit is written before the dialog closes rather than left sitting in the debounce.
+- **Creating something new is the one exception**: a screen that would *create* a record on the first keystroke keeps its button (the new custom-block screen's "Create Block"). Auto-save takes over once the record exists.
+- **Loading values in is not an edit.** Anything that fills fields from the server (a site switch, a reload) must record what it loaded as already-saved, or the screen writes it straight back.
+
 ## Success
 
-- **Every create, edit and delete confirms with exactly one `showActionSuccess`.** A dialog that just closes is indistinguishable from a silent failure.
+- **Every create, edit and delete confirms with exactly one `showActionSuccess`.** A dialog that just closes is indistinguishable from a silent failure. Auto-save is the exception — it confirms in the header, not with a toast.
 - Wording is a terse past-tense sentence naming the thing, capitalised, with a full stop: `Site created.` / `Contact updated.` / `Listings deleted.` Never prefix with "Successfully", and never carry an exclamation mark.
 - Singular vs plural follows the count, and the count is captured **before** `clearSelection()` runs: `showActionSuccess(ids.length === 1 ? "Product deleted." : "Products deleted.")`.
 - **One signal per action.** Toast at the layer that owns the server call, and nowhere else — if a modal toasts, its parent's `onSuccess` callback must not. Do not leave an inline "Saved!" label or green chip behind as a second confirmation.

@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -65,7 +66,6 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbSettings>(getBreadcrumbSettings(contextSite?.settings))
   const [loading, setLoading] = useState(!contextSite)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useSaveStatus()
 
@@ -114,11 +114,15 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
     }
   }, [contextSite, siteId])
 
+  // Auto-save bookkeeping — declared above handleSave because it records what
+  // that save wrote.
+  const lastBreadcrumbsJsonRef = useRef<string | null>(null)
+  const pendingBreadcrumbSaveRef = useRef(false)
+
   const handleSave = async () => {
     if (!site) return
 
     try {
-      setSaving(true)
       setError(null)
       setSaveStatus("saving")
 
@@ -144,8 +148,10 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
       }
 
       if (data) {
+        const savedBreadcrumbs = getBreadcrumbSettings(data.settings)
+        lastBreadcrumbsJsonRef.current = JSON.stringify(savedBreadcrumbs)
         setSite(data)
-        setBreadcrumbs(getBreadcrumbSettings(data.settings))
+        setBreadcrumbs(savedBreadcrumbs)
         if (currentSite?.id === siteId) {
           setCurrentSite({ ...currentSite, ...data })
         }
@@ -155,10 +161,42 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
       console.error("Error saving breadcrumb settings:", saveError)
       setError("Failed to save breadcrumb settings")
       setSaveStatus("error", "Failed to save breadcrumb settings")
-    } finally {
-      setSaving(false)
     }
   }
+
+  // Auto-save: a switch flipped here is written a moment later.
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  const watchedBreadcrumbsJson = JSON.stringify(breadcrumbs)
+
+  useEffect(() => {
+    if (loading || !site) {
+      lastBreadcrumbsJsonRef.current = null
+      return
+    }
+    if (lastBreadcrumbsJsonRef.current === null) {
+      lastBreadcrumbsJsonRef.current = watchedBreadcrumbsJson
+      return
+    }
+    if (lastBreadcrumbsJsonRef.current === watchedBreadcrumbsJson) return
+
+    lastBreadcrumbsJsonRef.current = watchedBreadcrumbsJson
+    pendingBreadcrumbSaveRef.current = true
+    const timer = setTimeout(() => {
+      pendingBreadcrumbSaveRef.current = false
+      void handleSaveRef.current()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [loading, site, watchedBreadcrumbsJson])
+
+  // Leaving the screen inside that wait must not lose the edit.
+  useEffect(() => {
+    return () => {
+      if (pendingBreadcrumbSaveRef.current) {
+        void handleSaveRef.current()
+      }
+    }
+  }, [])
 
   return (
     <>
@@ -175,11 +213,6 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
               { label: "Breadcrumbs" }
             ]}
             saveStatus={saveStatus}
-            isSaving={saving}
-            onSave={handleSave}
-            saveLabel="Save"
-            savingLabel="Saving..."
-            saveVariant="default"
           />
 
           {error && (

@@ -10,9 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid.js"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 import { setToastSeconds } from "@/lib/toast-duration"
 import {
   clampToastSeconds,
@@ -46,11 +46,9 @@ function PlatformSettingsSkeleton() {
  */
 function ToastSecondsField({
   seconds,
-  disabled,
   onChange
 }: {
   seconds: number
-  disabled: boolean
   onChange: (seconds: number) => void
 }) {
   const [draft, setDraft] = useState(() => String(seconds))
@@ -89,7 +87,6 @@ function ToastSecondsField({
         min={MIN_TOAST_SECONDS}
         max={MAX_TOAST_SECONDS}
         value={draft}
-        disabled={disabled}
         aria-invalid={!isValid(draft) || undefined}
         onChange={(event) => {
           const next = event.target.value
@@ -108,14 +105,36 @@ function ToastSecondsField({
   )
 }
 
+interface PlatformSettingsDraft {
+  dashboardPageSize: number
+  homeRoute: string
+  toastSeconds: number
+}
+
 export default function PlatformSettingsPage() {
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [dashboardPageSize, setDashboardPageSize] = useState(50)
   const [homeRoute, setHomeRoute] = useState("")
   const [toastSeconds, setToastSecondsValue] = useState(DEFAULT_TOAST_SECONDS)
-  const [hasChanges, setHasChanges] = useState(false)
+
+  const { saveStatus, scheduleSave, markSaved } = useAutoSave<PlatformSettingsDraft>({
+    save: async (draft) => {
+      const result = await updateAdminSettingsAction({
+        dashboard_page_size: draft.dashboardPageSize,
+        home_route: draft.homeRoute.trim(),
+        toast_seconds: draft.toastSeconds
+      })
+      if (result.error) {
+        return { saved: false, reason: result.error }
+      }
+
+      // The root layout published the old value on page load, so hand the
+      // Toaster the new one rather than waiting for a full reload.
+      setToastSeconds(draft.toastSeconds)
+      return { saved: true }
+    }
+  })
 
   const loadSettings = useCallback(async () => {
     setLoading(true)
@@ -130,44 +149,33 @@ export default function PlatformSettingsPage() {
       setDashboardPageSize(result.data.settings.dashboard_page_size || 50)
       setHomeRoute(result.data.settings.home_route || "")
       setToastSecondsValue(clampToastSeconds(result.data.settings.toast_seconds))
+      // Loaded values are already what the server holds — never write them back.
+      markSaved()
     } catch (error) {
       console.error("Error loading settings:", error)
       setLoadError("Failed to load settings")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [markSaved])
 
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
 
-  const handleSave = async () => {
-    setSaving(true)
-    dismissErrorToast()
-
-    try {
-      const result = await updateAdminSettingsAction({
-        dashboard_page_size: dashboardPageSize,
-        home_route: homeRoute.trim(),
-        toast_seconds: toastSeconds
-      })
-      if (result.error) {
-        showErrorToast(result.error)
-        return
-      }
-
-      // The root layout published the old value on page load, so hand the
-      // Toaster the new one rather than waiting for a full reload.
-      setToastSeconds(toastSeconds)
-      showActionSuccess("Settings saved.")
-      setHasChanges(false)
-    } catch (error) {
-      console.error("Error saving settings:", error)
-      showErrorToast("Failed to save settings")
-    } finally {
-      setSaving(false)
+  // One place every edit goes through, so nothing can change a field without
+  // queueing the save.
+  const applyChange = (patch: Partial<PlatformSettingsDraft>) => {
+    const next: PlatformSettingsDraft = {
+      dashboardPageSize,
+      homeRoute,
+      toastSeconds,
+      ...patch
     }
+    setDashboardPageSize(next.dashboardPageSize)
+    setHomeRoute(next.homeRoute)
+    setToastSecondsValue(next.toastSeconds)
+    scheduleSave(next)
   }
 
   return (
@@ -175,15 +183,7 @@ export default function PlatformSettingsPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader
-            items={[{ label: "Platform Settings" }]}
-            isSaving={saving}
-            onSave={handleSave}
-            saveDisabled={loading || !hasChanges}
-            saveLabel="Save"
-            savingLabel="Saving..."
-            saveVariant="default"
-          />
+          <DashboardSubheader items={[{ label: "Platform Settings" }]} saveStatus={saveStatus} />
 
           {loadError ? (
             <div className="mb-3 overflow-hidden rounded-lg">
@@ -214,11 +214,7 @@ export default function PlatformSettingsPage() {
                   </FieldLabel>
                   <Select
                     value={String(dashboardPageSize)}
-                    onValueChange={(value) => {
-                      setDashboardPageSize(Number(value))
-                      setHasChanges(true)
-                    }}
-                    disabled={saving}
+                    onValueChange={(value) => applyChange({ dashboardPageSize: Number(value) })}
                   >
                     <SelectTrigger id="platform-page-size" className="w-full">
                       <SelectValue />
@@ -242,21 +238,13 @@ export default function PlatformSettingsPage() {
                     id="platform-home-route"
                     value={homeRoute}
                     placeholder="Leave empty for Dashboard"
-                    disabled={saving}
-                    onChange={(event) => {
-                      setHomeRoute(event.target.value)
-                      setHasChanges(true)
-                    }}
+                    onChange={(event) => applyChange({ homeRoute: event.target.value })}
                   />
                 </div>
 
                 <ToastSecondsField
                   seconds={toastSeconds}
-                  disabled={saving}
-                  onChange={(next) => {
-                    setToastSecondsValue(next)
-                    setHasChanges(true)
-                  }}
+                  onChange={(next) => applyChange({ toastSeconds: next })}
                 />
               </div>
             )}

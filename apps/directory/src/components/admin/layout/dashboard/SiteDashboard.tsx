@@ -32,6 +32,13 @@ interface SiteDashboardProps {
   maintenanceEnabled?: boolean
   loading?: boolean
   customDomainError?: string | null
+  /**
+   * Fired when one of the address fields loses focus. Those two are the only
+   * fields here that must not be written mid-keystroke — a half-typed subdomain
+   * is a live URL and a half-typed domain fails its DNS check — so auto-save
+   * waits for this instead of following every character.
+   */
+  onAddressFieldCommit?: () => void
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onSiteTagChange?: (value: string) => void
@@ -57,6 +64,7 @@ export function SiteDashboard({
   maintenanceEnabled = false,
   loading = false,
   customDomainError = null,
+  onAddressFieldCommit,
   onSiteNameChange,
   onStatusChange,
   onSiteTagChange,
@@ -242,6 +250,7 @@ export function SiteDashboard({
                   id="subdomain"
                   value={subdomain}
                   onChange={(e) => handleSubdomainChange(e.target.value)}
+                  onBlur={onAddressFieldCommit}
                   placeholder="site-url"
                   className={
                     subdomainStatus.available === false
@@ -286,6 +295,7 @@ export function SiteDashboard({
                 id="customDomain"
                 value={customDomain}
                 onChange={(e) => onCustomDomainChange(e.target.value)}
+                onBlur={onAddressFieldCommit}
                 placeholder="example.com"
               />
               {customDomain && (
@@ -296,7 +306,8 @@ export function SiteDashboard({
               {dnsRecordName && dnsRecordValue && (
                 <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
                   <p className="text-sm font-medium text-amber-900">
-                    Add this TXT record at your DNS provider, then save again.
+                    Add this TXT record at your DNS provider, then click into the Custom Domain
+                    box and back out to try again.
                   </p>
                   <div className="space-y-2">
                     <Label htmlFor="customDomainTxtName" className="text-xs text-amber-900">

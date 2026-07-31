@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "@/components/app-link"
 import { useSearchParams } from "@/lib/navigation-client"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -68,7 +69,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
   const [site, setSite] = useState<SiteWithTheme | null>(cachedSite)
   const [loading, setLoading] = useState(!cachedSite)
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useSaveStatus()
   const [navigationContent, setNavigationContent] = useState<Record<string, any>>(defaultNavigation)
   const [footerContent, setFooterContent] = useState<Record<string, any>>(DEFAULT_FOOTER)
@@ -131,11 +131,15 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
     }
   }, [cachedSite, defaultNavigation, publicAuthPagePath, siteId])
 
+  // Auto-save bookkeeping — declared above handleSave because it records what
+  // that save wrote.
+  const lastChromeJsonRef = useRef<string | null>(null)
+  const pendingChromeSaveRef = useRef(false)
+
   const handleSave = async () => {
     if (!site) return
 
     try {
-      setSaving(true)
       setError(null)
       setSaveStatus("saving")
 
@@ -169,6 +173,11 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       } else {
         setFooterContent(nextFooterContent)
       }
+      // Tidying the content on the way out counts as a change, so record it as
+      // already written rather than letting it schedule the same save again.
+      lastChromeJsonRef.current = JSON.stringify(
+        mode === "navigation" ? nextNavigationContent : nextFooterContent
+      )
       setSite(updatedSite)
       if (currentSite?.id === updatedSite.id) {
         setCurrentSite(updatedSite)
@@ -180,16 +189,47 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       const message = `Failed to save ${activeLabel.toLowerCase()}`
       setError(message)
       setSaveStatus("error", message)
-    } finally {
-      setSaving(false)
     }
   }
+
+  // Auto-save: an edit here is written once the changes stop.
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  const watchedChromeJson = JSON.stringify(mode === "navigation" ? navigationContent : footerContent)
+
+  useEffect(() => {
+    if (loading || !site) {
+      lastChromeJsonRef.current = null
+      return
+    }
+    if (lastChromeJsonRef.current === null) {
+      lastChromeJsonRef.current = watchedChromeJson
+      return
+    }
+    if (lastChromeJsonRef.current === watchedChromeJson) return
+
+    lastChromeJsonRef.current = watchedChromeJson
+    pendingChromeSaveRef.current = true
+    const timer = setTimeout(() => {
+      pendingChromeSaveRef.current = false
+      void handleSaveRef.current()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [loading, site, watchedChromeJson])
+
+  // Leaving the screen inside that wait must not lose the edit.
+  useEffect(() => {
+    return () => {
+      if (pendingChromeSaveRef.current) {
+        void handleSaveRef.current()
+      }
+    }
+  }, [])
 
   const persistNavigationContent = async (nextNavigationContent: Record<string, any>) => {
     if (!site) return false
 
     try {
-      setSaving(true)
       setError(null)
       setSaveStatus("saving")
 
@@ -227,8 +267,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       setError("Failed to save navigation")
       setSaveStatus("error", "Failed to save navigation")
       return false
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -236,7 +274,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
     if (!site) return false
 
     try {
-      setSaving(true)
       setError(null)
       setSaveStatus("saving")
 
@@ -271,8 +308,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       setError("Failed to save footer")
       setSaveStatus("error", "Failed to save footer")
       return false
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -291,11 +326,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
               { label: activeLabel }
             ]}
             saveStatus={saveStatus}
-            isSaving={saving}
-            onSave={handleSave}
-            saveLabel="Save"
-            savingLabel="Saving..."
-            saveVariant="default"
             actions={safeReturnTo ? (
               <div className="flex items-center gap-2">
                 <Button variant="outline" asChild>

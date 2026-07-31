@@ -188,7 +188,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={currentPageData ? builderState.handleSaveAllBlocks : undefined}
             blockListOpen={blockListOpen}
             onToggleBlockList={currentPageData ? () => setBlockListOpen(!blockListOpen) : undefined}
             settingsDisabled={!currentPageData}
