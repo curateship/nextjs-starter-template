@@ -48,6 +48,12 @@ interface SiteDashboardProps {
   onCustomAnalyticsEnabledChange?: (value: boolean) => void
   onListingWidgetsEnabledChange?: (value: boolean) => void
   onMaintenanceChange?: (value: boolean) => void
+  /**
+   * Lets the cache and search-index cards mirror their failures into the
+   * settings header's save-status badge, so a failed action never lives only
+   * in a card-local message.
+   */
+  onSaveStatus?: (state: "error" | "idle", message?: string) => void
 }
 
 export function SiteDashboard({
@@ -73,7 +79,8 @@ export function SiteDashboard({
   onTrackingScriptsChange,
   onCustomAnalyticsEnabledChange,
   onListingWidgetsEnabledChange,
-  onMaintenanceChange
+  onMaintenanceChange,
+  onSaveStatus
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [copiedDnsField, setCopiedDnsField] = useState<"name" | "value" | null>(null)
@@ -398,8 +405,8 @@ export function SiteDashboard({
       )}
 
       {/* Maintenance cards - Only show in edit mode */}
-      {isEditMode && siteId && <SearchIndexSettingsCard siteId={siteId} />}
-      {isEditMode && <CacheSettingsCard />}
+      {isEditMode && siteId && <SearchIndexSettingsCard siteId={siteId} onSaveStatus={onSaveStatus} />}
+      {isEditMode && <CacheSettingsCard onSaveStatus={onSaveStatus} />}
     </CardGroup>
   )
 }

@@ -708,7 +708,8 @@ export default function SiteEditPage() {
   const {
     saveStatus: siteSaveStatus,
     scheduleSave: scheduleSiteSave,
-    saveNow: saveSiteNow
+    saveNow: saveSiteNow,
+    setSaveStatus: setSiteSaveStatus
   } = useAutoSave<SiteDraft>({
     blockedReason: (draft) => (draft.siteName.trim() ? null : "Not saved — add a site name"),
     save: async (draft) => {
@@ -959,6 +960,7 @@ export default function SiteEditPage() {
                     onCustomAnalyticsEnabledChange={setCustomAnalyticsEnabled}
                     onListingWidgetsEnabledChange={setListingWidgetsEnabled}
                     onMaintenanceChange={setMaintenanceEnabled}
+                    onSaveStatus={setSiteSaveStatus}
                   />
                 </form>
               )}

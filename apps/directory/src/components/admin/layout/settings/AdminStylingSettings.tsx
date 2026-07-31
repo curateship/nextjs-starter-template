@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -408,8 +408,6 @@ function BackgroundField({
   defaultHint: string
   onChange: (patch: Partial<AdminBackground>) => void
 }) {
-  const color = /^#[0-9a-fA-F]{6}$/.test(value.color) ? value.color : "#ffffff"
-
   return (
     <div className="grid gap-6">
       <div className="grid gap-2">
@@ -449,24 +447,12 @@ function BackgroundField({
       {value.mode === "custom" ? (
         <div className="grid gap-2">
           <Label htmlFor={`${idPrefix}-color`}>Color</Label>
-          <div className="flex items-center gap-2">
-            <input
-              id={`${idPrefix}-color`}
-              type="color"
-              value={color}
-              disabled={isSaving}
-              onChange={(event) => onChange({ color: event.target.value })}
-              className="h-8 w-12 cursor-pointer rounded-md border border-border bg-background p-1 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Pick a color"
-            />
-            <Input
-              value={value.color}
-              disabled={isSaving}
-              onChange={(event) => onChange({ color: event.target.value })}
-              placeholder="#ffffff"
-              className="w-40"
-            />
-          </div>
+          <HexColorInput
+            id={`${idPrefix}-color`}
+            value={value.color}
+            disabled={isSaving}
+            onColorChange={(color) => onChange({ color })}
+          />
           <p className="text-xs text-muted-foreground">
             A custom color stays the same in light and dark mode.
           </p>

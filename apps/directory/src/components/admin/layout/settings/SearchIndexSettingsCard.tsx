@@ -1,26 +1,52 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { rebuildSiteSearchIndexAction } from "@/lib/actions/site-search/site-search-actions"
 
-export function SearchIndexSettingsCard({ siteId }: { siteId: string }) {
+type SearchIndexSettingsCardProps = {
+  siteId: string
+  /**
+   * Mirrors this card's failures into the settings header's save-status badge
+   * so the badge and the error toast agree. "idle" clears a failure this card
+   * put there once a retry succeeds.
+   */
+  onSaveStatus?: (state: "error" | "idle", message?: string) => void
+}
+
+export function SearchIndexSettingsCard({ siteId, onSaveStatus }: SearchIndexSettingsCardProps) {
   const [rebuilding, setRebuilding] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const reportedErrorRef = useRef(false)
+
+  const reportFailure = (reason: string) => {
+    reportedErrorRef.current = true
+    setMessage(reason)
+    showErrorToast(reason)
+    onSaveStatus?.("error", reason)
+  }
 
   const handleRebuild = async () => {
     try {
       setRebuilding(true)
       setMessage(null)
+      dismissErrorToast()
       const result = await rebuildSiteSearchIndexAction({ data: { siteId } })
+      if (!result.success) {
+        reportFailure(result.error || "Rebuild failed. Please try again.")
+        return
+      }
+      if (reportedErrorRef.current) {
+        reportedErrorRef.current = false
+        onSaveStatus?.("idle")
+      }
       setMessage(
-        result.success
-          ? `Search index rebuilt. ${result.indexed} item${result.indexed === 1 ? "" : "s"} can now be found by search.`
-          : result.error || "Rebuild failed. Please try again."
+        `Search index rebuilt. ${result.indexed} item${result.indexed === 1 ? "" : "s"} can now be found by search.`
       )
     } catch {
-      setMessage("Rebuild failed. Please try again.")
+      reportFailure("Rebuild failed. Please try again.")
     } finally {
       setRebuilding(false)
     }

@@ -2,6 +2,7 @@
 
 import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
@@ -63,20 +64,14 @@ export function NewsletterRichTextBlock({
                 <CardContent>
                 <div>
                   <Label htmlFor="richtext-bg-color">Background Color</Label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input
-                      type="color"
-                      value={content.backgroundColor || '#ffffff'}
-                      onChange={(e) => onContentChange('backgroundColor', e.target.value)}
-                      className="w-10 h-10 rounded border cursor-pointer"
-                    />
-                    <Input
-                      id="richtext-bg-color"
-                      value={content.backgroundColor || '#ffffff'}
-                      onChange={(e) => onContentChange('backgroundColor', e.target.value)}
-                      className="flex-1"
-                    />
-                  </div>
+                  <HexColorInput
+                    id="richtext-bg-color"
+                    className="mt-1"
+                    inputClassName="flex-1"
+                    value={content.backgroundColor || '#ffffff'}
+                    onColorChange={(color) => onContentChange('backgroundColor', color)}
+                    swatchAriaLabel="Pick a background color"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="richtext-padding">Padding (px)</Label>
@@ -124,20 +119,14 @@ export function NewsletterRichTextBlock({
 
                 <div>
                   <Label htmlFor="newsletter-image-border-color">Border Color</Label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input
-                      type="color"
-                      value={imageBorderColor}
-                      onChange={(event) => onContentChange('imageBorderColor', event.target.value)}
-                      className="w-10 h-10 rounded border cursor-pointer"
-                    />
-                    <Input
-                      id="newsletter-image-border-color"
-                      value={imageBorderColor}
-                      onChange={(event) => onContentChange('imageBorderColor', event.target.value)}
-                      className="flex-1"
-                    />
-                  </div>
+                  <HexColorInput
+                    id="newsletter-image-border-color"
+                    className="mt-1"
+                    inputClassName="flex-1"
+                    value={imageBorderColor}
+                    onColorChange={(color) => onContentChange('imageBorderColor', color)}
+                    swatchAriaLabel="Pick a border color"
+                  />
                 </div>
                 </CardContent>
               </Card>

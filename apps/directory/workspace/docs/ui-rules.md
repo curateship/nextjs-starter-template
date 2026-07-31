@@ -43,6 +43,7 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Icon-only buttons require an accessible name and a tooltip when their meaning is not obvious.
 - Use the established Lucide action icons consistently: `PencilIcon` for edit, `Trash2Icon` for delete, `PlusIcon` for add, and `Loader2Icon` for loading.
 - Give every field a visible label. Keep help and error text beside the field and preserve entered values after errors.
+- Color fields use the shared `HexColorInput` (`src/components/ui/hex-color-input.tsx`): a swatch plus a hex text box. Only a full 6-digit `#rrggbb` is ever saved; leaving the box with anything else marks the field, reports through the shared error toast, and keeps the last good color in force. Never wire a bare color input + text input pair by hand.
 - Draggable or repeatable text-field lists start with one default row. Users add more rows explicitly; do not create multiple empty rows by default.
 - Use `gap-1` label-to-control, `gap-2` within field groups, and `gap-4` between form sections.
 
