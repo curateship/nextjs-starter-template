@@ -19,7 +19,6 @@ import {
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -27,6 +26,7 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
@@ -66,7 +66,6 @@ export default function NewsletterContactTagsPage() {
   const [renamingTag, setRenamingTag] = useState<NewsletterContactTag | null>(null)
   const [renameValue, setRenameValue] = useState("")
   const [renaming, setRenaming] = useState(false)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const pageSize = contextPageSize
   const tagSelection = useAdminBulkSelection()
@@ -76,11 +75,6 @@ export default function NewsletterContactTagsPage() {
   useEffect(() => {
     clearTagSelection()
   }, [clearTagSelection, currentSite?.id, siteLoading])
-
-  const showError = (message: string) => {
-    setErrorMessage(message)
-    setErrorDialogOpen(true)
-  }
 
   const loadTags = useCallback(async () => {
     if (siteLoading || !currentSite?.id) {
@@ -143,19 +137,20 @@ export default function NewsletterContactTagsPage() {
   const handleRename = async (event: FormEvent) => {
     event.preventDefault()
     if (!currentSite?.id || !renamingTag) return
+    dismissErrorToast()
     setRenaming(true)
 
     try {
       const { error: renameError } = await renameNewsletterContactTag({ data: { siteId: currentSite.id, fromTag: renamingTag.id, toTag: renameValue } })
       if (renameError) {
-        showError(renameError)
+        showErrorToast(renameError)
         return
       }
       setRenamingTag(null)
       tagSelection.clearSelection()
       loadTags()
     } catch {
-      showError("Failed to rename tag")
+      showErrorToast("Failed to rename tag")
     } finally {
       setRenaming(false)
     }
@@ -191,6 +186,7 @@ export default function NewsletterContactTagsPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadTags() } : null}
             title="Tags"
             icon={<Tag className="text-muted-foreground" />}
             count={tags.length}
@@ -292,15 +288,6 @@ export default function NewsletterContactTagsPage() {
                 <TableBody>
                   {loading && sortedTags.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadTags()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : tags.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
@@ -424,8 +411,6 @@ export default function NewsletterContactTagsPage() {
         onCancel={() => { setDeleteConfirmOpen(false); setErrorMessage("") }}
         onConfirm={handleDeleteSelected}
       />
-
-      <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
     </>
   )
 }

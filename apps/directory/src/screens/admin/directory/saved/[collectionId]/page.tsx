@@ -19,12 +19,12 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminTableShell, AdminListPending,
   formatShortDate as formatDate,
   useAdminBulkSelection
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
   getDirectorySaveFolderItemsDashboardAction,
   removeDirectorySaveItemsDashboardAction,
@@ -66,7 +66,6 @@ export default function DirectorySavedFolderPage({
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState("")
   const [savingRename, setSavingRename] = useState(false)
-  const [errorMessage, setErrorMessage] = useState("")
   const selection = useAdminBulkSelection()
 
   const loadItems = useCallback(async () => {
@@ -92,7 +91,7 @@ export default function DirectorySavedFolderPage({
       setCollection(result.collection)
       setItems([])
       setTotal(0)
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -111,6 +110,7 @@ export default function DirectorySavedFolderPage({
   const saveRename = async () => {
     if (!currentSite?.id || !collection) return
 
+    dismissErrorToast()
     setSavingRename(true)
     const result = await renameDirectorySaveCollectionDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -120,7 +120,7 @@ export default function DirectorySavedFolderPage({
     setSavingRename(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -131,6 +131,7 @@ export default function DirectorySavedFolderPage({
   const confirmRemove = async () => {
     if (!currentSite?.id || removeIds.length === 0) return
 
+    dismissErrorToast()
     setRemoving(true)
     const result = await removeDirectorySaveItemsDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -139,7 +140,7 @@ export default function DirectorySavedFolderPage({
     setRemoving(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -335,12 +336,6 @@ export default function DirectorySavedFolderPage({
         confirmLabel={removing ? "Removing..." : "Remove"}
         onCancel={() => setRemoveIds([])}
         onConfirm={confirmRemove}
-      />
-
-      <AdminErrorDialog
-        open={Boolean(errorMessage)}
-        message={errorMessage}
-        onOpenChange={(open) => !open && setErrorMessage("")}
       />
     </>
   )

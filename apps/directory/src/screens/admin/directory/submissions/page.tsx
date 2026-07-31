@@ -134,6 +134,7 @@ export default function DirectorySubmissionsPage() {
           <DashboardSubheader items={[{ label: "Directory", href: "/admin/directory" }, { label: "Submissions" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadRows } : null}
             title="Listing Submissions"
             icon={<Store className="text-muted-foreground" />}
             count={submissions.length}
@@ -170,15 +171,6 @@ export default function DirectorySubmissionsPage() {
                 <TableBody>
                   {loading && submissions.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : submissions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

@@ -3,6 +3,7 @@
 import { toast } from "sonner"
 
 import type { AdminActionResult } from "@/lib/actions/action-result"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 type ActionRunResult<TResult> =
   | { ok: true; result: TResult }
@@ -13,7 +14,7 @@ function getFailureMessage(result: AdminActionResult<unknown>) {
 }
 
 export function showActionError(message: string) {
-  toast.error(message, { duration: Infinity })
+  showErrorToast(message)
 }
 
 export function showActionSuccess(message: string) {
@@ -30,6 +31,7 @@ export async function runAction<TResult extends AdminActionResult<unknown>>(
     successMessage?: string
   } = {},
 ): Promise<ActionRunResult<TResult>> {
+  dismissErrorToast()
   try {
     const result = await action()
     const message = getFailureMessage(result)

@@ -241,6 +241,7 @@ export default function DirectoryClaimsPage() {
           <DashboardSubheader items={[{ label: "Directory", href: "/admin/directory" }, { label: "Claims" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadRows } : null}
             title={activeView === "claims" ? "Claims" : "Owner Edits"}
             icon={activeView === "claims"
               ? <ShieldCheck className="text-muted-foreground" />
@@ -321,15 +322,6 @@ export default function DirectoryClaimsPage() {
                 <TableBody>
                   {loading && activeRowsCount === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : activeRowsCount === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

@@ -196,6 +196,7 @@ export default function EventRegistrationsPage() {
           <DashboardSubheader items={[{ label: "Events", href: "/admin/events" }, { label: "Registrations" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadRows } : null}
             title="Event Registrations"
             icon={<Users className="text-muted-foreground" />}
             count={filtered.length}
@@ -316,15 +317,6 @@ export default function EventRegistrationsPage() {
                 <TableBody>
                   {loading && rows.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : sorted.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">

@@ -1,7 +1,6 @@
 export {
   AdminTableShell,
   AdminBulkDeleteButton,
-  AdminErrorDialog,
   AdminListFooter,
   AdminListPending,
   AdminSelectionBanner,

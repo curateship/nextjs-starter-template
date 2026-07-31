@@ -235,6 +235,7 @@ export default function DirectoryOutreachPage() {
           <DashboardSubheader items={[{ label: "Directory", href: "/admin/directory" }, { label: "Outreach" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadRows } : null}
             title="Claim Outreach"
             icon={<Send className="text-muted-foreground" />}
             count={filtered.length}
@@ -342,15 +343,6 @@ export default function DirectoryOutreachPage() {
                 <TableBody>
                   {loading && sorted.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : sorted.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center">

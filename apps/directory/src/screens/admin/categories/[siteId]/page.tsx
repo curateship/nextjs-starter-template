@@ -30,7 +30,6 @@ import { useBuilderRouteSiteSync } from "@/components/admin/layout/builder/useBu
 import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -79,7 +78,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const categorySort = useAdminSort<CategorySortColumn>()
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -195,7 +193,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
       const { success, error: deleteError } = await deleteCategoriesAction({ data: { categoryIds: ids } })
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
@@ -218,7 +215,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
       }
     } catch (err) {
       setErrorMessage("Failed to delete categories")
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -305,6 +301,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => setReloadNonce((nonce) => nonce + 1) } : null}
             title={categoryTitle}
             icon={<Tag className="text-muted-foreground" />}
             count={filteredCategories.length}
@@ -422,15 +419,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                 <TableBody>
                   {loading && sortedCategories.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => setReloadNonce((nonce) => nonce + 1)} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : categories.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
@@ -498,12 +486,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
               : undefined}
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
-          />
-
-          <AdminErrorDialog
-            open={errorDialogOpen}
-            message={errorMessage}
-            onOpenChange={setErrorDialogOpen}
           />
         </div>
       </AdminLayout>

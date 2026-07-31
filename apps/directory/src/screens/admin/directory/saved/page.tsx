@@ -20,7 +20,6 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -28,6 +27,7 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
   getDirectorySaveFoldersDashboardAction,
   removeDirectorySaveCollectionsDashboardAction,
@@ -101,7 +101,7 @@ export default function DirectorySavedPage() {
     if (result.error) {
       setFolders([])
       setTotal(0)
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -142,6 +142,7 @@ export default function DirectorySavedPage() {
   const saveRename = async () => {
     if (!currentSite?.id || !folderToRename) return
 
+    dismissErrorToast()
     setSavingRename(true)
     const result = await renameDirectorySaveCollectionDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -151,7 +152,7 @@ export default function DirectorySavedPage() {
     setSavingRename(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -162,6 +163,7 @@ export default function DirectorySavedPage() {
   const saveDefaults = async () => {
     if (!currentSite?.id) return
 
+    dismissErrorToast()
     setSavingDefaults(true)
     const result = await updateDirectorySaveDefaultCollectionsAction({ data: { input: {
       siteId: currentSite.id,
@@ -171,7 +173,7 @@ export default function DirectorySavedPage() {
     setSavingDefaults(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -483,12 +485,6 @@ export default function DirectorySavedPage() {
         confirmLabel={removing ? "Removing..." : "Remove"}
         onCancel={() => { setRemoveIds([]); setErrorMessage("") }}
         onConfirm={confirmRemove}
-      />
-
-      <AdminErrorDialog
-        open={Boolean(errorMessage)}
-        message={errorMessage}
-        onOpenChange={(open) => !open && setErrorMessage("")}
       />
     </>
   )

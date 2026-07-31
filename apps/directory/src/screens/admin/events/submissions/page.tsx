@@ -128,6 +128,7 @@ export default function EventSubmissionsPage() {
           <DashboardSubheader items={[{ label: "Events", href: "/admin/events" }, { label: "Submissions" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadRows } : null}
             title="Event Submissions"
             icon={<CalendarPlus className="text-muted-foreground" />}
             count={submissions.length}
@@ -164,15 +165,6 @@ export default function EventSubmissionsPage() {
                 <TableBody>
                   {loading && submissions.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : submissions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">

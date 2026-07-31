@@ -12,7 +12,6 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   AdminBulkDeleteButton,
-  AdminErrorDialog,
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
@@ -293,6 +292,7 @@ export function ContentListPage<TItem extends ContentListItem>({
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: reloadItems } : null}
             title={listLabel}
             icon={<EmptyIcon className="text-muted-foreground" />}
             count={usesCursorPagination || showTotalCount ? total : filteredItems.length}
@@ -383,14 +383,6 @@ export function ContentListPage<TItem extends ContentListItem>({
                 <TableBody>
                   {loading && sortedItems.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={tableColumnCount} className="h-32 text-center">
-                        <AlertCircle className="mx-auto h-10 w-10 text-red-500" />
-                        <h3 className="mt-4 text-lg font-semibold text-red-900">Error Loading {itemLabelPlural}</h3>
-                        <p className="text-red-700">{error}</p>
-                      </TableCell>
-                    </TableRow>
                   ) : filteredItems.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={tableColumnCount} className="h-32 text-center">
@@ -586,14 +578,6 @@ export function ContentListPage<TItem extends ContentListItem>({
             : undefined}
           onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage(null) }}
           onConfirm={confirmMassDelete}
-        />
-
-        <AdminErrorDialog
-          open={errorMessage !== null}
-          message={errorMessage ?? ""}
-          onOpenChange={(open) => {
-            if (!open) setErrorMessage(null)
-          }}
         />
       </AdminLayout>
     </>
