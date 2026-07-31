@@ -502,6 +502,7 @@ interface SiteDraft {
   trackingScripts: string
   customAnalyticsEnabled: boolean
   listingWidgetsEnabled: boolean
+  checkoutRecoveryEnabled: boolean
   siteWidth: "full" | "custom"
   customWidth: number | undefined
   defaultTheme: "system" | "light" | "dark"
@@ -523,6 +524,7 @@ function buildSiteDraft(source: any, siteId: string): SiteDraft {
     trackingScripts: source?.settings?.tracking_scripts || "",
     customAnalyticsEnabled: !!source?.settings?.custom_analytics_enabled,
     listingWidgetsEnabled: source?.settings?.listing_widgets_enabled !== false,
+    checkoutRecoveryEnabled: source?.settings?.checkout_recovery_enabled !== false,
     siteWidth: source?.settings?.site_width || "custom",
     customWidth: source?.settings?.custom_width,
     defaultTheme: source?.settings?.default_theme || "system",
@@ -575,6 +577,9 @@ export default function SiteEditPage() {
   )
   const [listingWidgetsEnabled, setListingWidgetsEnabled] = useState(
     contextSite?.settings?.listing_widgets_enabled !== false
+  )
+  const [checkoutRecoveryEnabled, setCheckoutRecoveryEnabled] = useState(
+    contextSite?.settings?.checkout_recovery_enabled !== false
   )
   const [siteWidth, setSiteWidth] = useState<"full" | "custom">(contextSite?.settings?.site_width || "custom")
   const [customWidth, setCustomWidth] = useState<number | undefined>(contextSite?.settings?.custom_width)
@@ -653,6 +658,7 @@ export default function SiteEditPage() {
     setTrackingScripts(loaded.trackingScripts)
     setCustomAnalyticsEnabled(loaded.customAnalyticsEnabled)
     setListingWidgetsEnabled(loaded.listingWidgetsEnabled)
+    setCheckoutRecoveryEnabled(loaded.checkoutRecoveryEnabled)
     setSiteWidth(loaded.siteWidth)
     setCustomWidth(loaded.customWidth)
     setDefaultTheme(loaded.defaultTheme)
@@ -692,6 +698,7 @@ export default function SiteEditPage() {
     trackingScripts,
     customAnalyticsEnabled,
     listingWidgetsEnabled,
+    checkoutRecoveryEnabled,
     siteWidth,
     customWidth,
     defaultTheme,
@@ -733,6 +740,7 @@ export default function SiteEditPage() {
           tracking_scripts: draft.trackingScripts,
           custom_analytics_enabled: draft.customAnalyticsEnabled,
           listing_widgets_enabled: draft.listingWidgetsEnabled,
+          checkout_recovery_enabled: draft.checkoutRecoveryEnabled,
           site_width: draft.siteWidth,
           custom_width: draft.customWidth,
           default_theme: draft.defaultTheme
@@ -946,6 +954,7 @@ export default function SiteEditPage() {
                     trackingScripts={trackingScripts}
                     customAnalyticsEnabled={customAnalyticsEnabled}
                     listingWidgetsEnabled={listingWidgetsEnabled}
+                    checkoutRecoveryEnabled={checkoutRecoveryEnabled}
                     maintenanceEnabled={maintenanceEnabled}
                     customDomainError={error}
                     isEditMode={true}
@@ -959,6 +968,7 @@ export default function SiteEditPage() {
                     onTrackingScriptsChange={setTrackingScripts}
                     onCustomAnalyticsEnabledChange={setCustomAnalyticsEnabled}
                     onListingWidgetsEnabledChange={setListingWidgetsEnabled}
+                    onCheckoutRecoveryEnabledChange={setCheckoutRecoveryEnabled}
                     onMaintenanceChange={setMaintenanceEnabled}
                     onSaveStatus={setSiteSaveStatus}
                   />

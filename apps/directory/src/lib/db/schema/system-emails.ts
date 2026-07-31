@@ -14,6 +14,7 @@ export const systemEmailTemplateKeyEnum = pgEnum('system_email_template_key_enum
   'magic_link',
   'event_registration_confirmation',
   'event_reminder',
+  'abandoned_checkout_recovery',
 ])
 
 export const emailSystemTemplates = pgTable('email_system_templates', {

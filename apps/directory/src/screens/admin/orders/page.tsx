@@ -74,6 +74,7 @@ export default function OrdersPage() {
   const searchParams = useSearchParams()
 
   const [orders, setOrders] = useState<ProductOrder[]>([])
+  const [recoverySentTotal, setRecoverySentTotal] = useState(0)
   const [productMap, setProductMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -125,6 +126,7 @@ export default function OrdersPage() {
 
         setOrders(result.data)
         setTotal(result.total)
+        setRecoverySentTotal(result.recoverySentTotal)
         setProductMap(result.productMap)
       } catch (error) {
         console.error("Error fetching orders data:", error)
@@ -240,6 +242,13 @@ export default function OrdersPage() {
         </Badge>
       )
     }
+    if (order.recovery_email_sent_at) {
+      return (
+        <Badge variant="outline" className={emailStatusStyles.pending}>
+          Recovery sent
+        </Badge>
+      )
+    }
     return (
       <Badge variant="outline" className={emailStatusStyles.pending}>
         Pending
@@ -263,6 +272,13 @@ export default function OrdersPage() {
             loading={loading}
             selectedCount={orderSelection.selectedCount}
             onClearSelection={orderSelection.clearSelection}
+            titleMeta={
+              recoverySentTotal > 0 ? (
+                <span className="text-xs text-muted-foreground">
+                  {recoverySentTotal} recovery {recoverySentTotal === 1 ? "email" : "emails"} sent
+                </span>
+              ) : null
+            }
             titleActions={
               <AdminBulkDeleteButton
                 deleting={deleting}

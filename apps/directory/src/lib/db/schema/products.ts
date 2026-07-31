@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqueIndex, index, pgEnum } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import { sites } from './sites'
 
 export const orderTypeEnum = pgEnum('order_type_enum', ['free_signup', 'paid_purchase', 'lead_magnet'])
@@ -38,6 +38,9 @@ export const productOrders = pgTable('product_orders', {
   clickedAt: timestamp('clicked_at', { withTimezone: true }),
   clickCount: integer('click_count').default(0),
   emailSentAt: timestamp('email_sent_at', { withTimezone: true }),
+  // Set once the one-off abandoned-checkout follow-up has gone out; the
+  // recovery cron only ever picks rows where this is still NULL.
+  recoveryEmailSentAt: timestamp('recovery_email_sent_at', { withTimezone: true }),
   fulfillmentStartedAt: timestamp('fulfillment_started_at', { withTimezone: true }),
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -50,6 +53,10 @@ export const productOrders = pgTable('product_orders', {
   index('idx_product_orders_site_type').on(table.siteId, table.orderType),
   uniqueIndex('idx_product_orders_stripe_session_unique').on(table.stripeSessionId),
   uniqueIndex('idx_product_orders_stripe_payment_intent_unique').on(table.stripePaymentIntentId),
+  // Recovery cron candidates (partial in SQL: pending paid purchases not yet emailed).
+  index('idx_product_orders_recovery_pending')
+    .on(table.createdAt)
+    .where(sql`${table.orderType} = 'paid_purchase' and ${table.paymentStatus} = 'pending' and ${table.recoveryEmailSentAt} is null`),
 ])
 
 export const productsRelations = relations(products, ({ one }) => ({
