@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { useAppName } from "@/lib/app-name"
 import { cn } from "@/lib/utils"
 
 /**
@@ -7,6 +8,9 @@ import { cn } from "@/lib/utils"
  * full-height muted canvas that centers its single child both horizontally and
  * vertically, so public pages are framed identically instead of each
  * hand-rolling its own <main> wrapper.
+ *
+ * It also carries the app name above the content, which is the one place a
+ * signed-out visitor sees which app they are signing in to.
  */
 export function PublicPageFrame({
   className,
@@ -15,6 +19,8 @@ export function PublicPageFrame({
   className?: string
   children: React.ReactNode
 }) {
+  const appName = useAppName()
+
   return (
     <main
       className={cn(
@@ -22,7 +28,10 @@ export function PublicPageFrame({
         className
       )}
     >
-      {children}
+      <div className="flex w-full flex-col items-center gap-2 md:gap-3">
+        <p className="text-sm font-medium text-foreground">{appName}</p>
+        {children}
+      </div>
     </main>
   )
 }

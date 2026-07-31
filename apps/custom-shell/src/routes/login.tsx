@@ -14,6 +14,7 @@ import {
   login,
   resendVerification,
 } from "@/lib/api/auth"
+import { useAppName } from "@/lib/app-name"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 /**
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginRoute() {
   const navigate = useNavigate()
+  const appName = useAppName()
   const { redirect: redirectTo } = Route.useSearch()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -95,7 +97,7 @@ function LoginRoute() {
   return (
     <AuthShell
       title="Sign in"
-      description="Use your Custom Shell account."
+      description={`Use your ${appName} account.`}
       notice={notice}
       onSubmit={handleSubmit}
       footer={
