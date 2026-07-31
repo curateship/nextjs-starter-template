@@ -1,10 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
   CheckCheckIcon,
   MessageSquareIcon,
+  SparklesIcon,
   ThumbsUpIcon,
 } from "lucide-react"
 
@@ -41,11 +43,19 @@ function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"
 }
 
-function getFeedbackPreview(message: string) {
-  return message.length > 90 ? `${message.slice(0, 90)}...` : message
-}
-
 function NotificationAvatar({ item }: { item: NotificationItem }) {
+  // A published update has no person behind it, so it gets the product's own
+  // mark rather than an initial.
+  if (item.type === "changelog") {
+    return (
+      <Avatar size="lg">
+        <AvatarFallback className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+          <SparklesIcon className="h-4 w-4" />
+        </AvatarFallback>
+      </Avatar>
+    )
+  }
+
   const isVote = item.type === "feedback_vote"
 
   return (
@@ -57,13 +67,17 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
             : "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
         }
       >
-        {getInitial(item.actor_name)}
+        {getInitial(item.actor_name ?? "")}
       </AvatarFallback>
     </Avatar>
   )
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (item.type === "changelog") {
+    return <>New update shipped</>
+  }
+
   if (item.type === "feedback_vote") {
     return (
       <>
@@ -80,11 +94,25 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "changelog") {
+    return <SparklesIcon className="h-3.5 w-3.5" />
+  }
+
   return item.type === "feedback_vote" ? (
     <ThumbsUpIcon className="h-3.5 w-3.5" />
   ) : (
     <MessageSquareIcon className="h-3.5 w-3.5" />
   )
+}
+
+/** The line under the message: the update's title, or the feedback it is about. */
+function notificationPreview(item: NotificationItem) {
+  const text =
+    item.type === "changelog"
+      ? (item.changelog_title ?? "")
+      : (item.feedback_message ?? "")
+
+  return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }
 
 function NotificationTabs({
@@ -123,18 +151,32 @@ function NotificationTabs({
 }
 
 type NotificationCenterProps = {
+  /** Server count, so the dot is right before the tray has ever been opened. */
+  initialUnreadCount: number
   onOpenFeedback?: (feedbackId: string) => void
 }
 
 export function NotificationCenter({
+  initialUnreadCount,
   onOpenFeedback,
 }: NotificationCenterProps) {
+  const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [filter, setFilter] = React.useState<NotificationFilter>("unread")
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     []
   )
-  const [unreadCount, setUnreadCount] = React.useState(0)
+  const [unreadCount, setUnreadCount] = React.useState(initialUnreadCount)
+  // Follow the shell's count when it reloads, so a notice that arrived while
+  // the page was open still shows up. Adjusted during render rather than in an
+  // effect so the bell never paints the stale number first.
+  const [lastInitialUnread, setLastInitialUnread] =
+    React.useState(initialUnreadCount)
+
+  if (lastInitialUnread !== initialUnreadCount) {
+    setLastInitialUnread(initialUnreadCount)
+    setUnreadCount(initialUnreadCount)
+  }
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
@@ -238,7 +280,14 @@ export function NotificationCenter({
     }
 
     setOpen(false)
-    onOpenFeedback?.(item.feedback_id)
+
+    if (item.type === "changelog") {
+      void navigate({ to: "/changelog/whats-new" })
+      return
+    }
+    if (item.feedback_id) {
+      onOpenFeedback?.(item.feedback_id)
+    }
   }
 
   return (
@@ -300,7 +349,7 @@ export function NotificationCenter({
                           </span>
                         </p>
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {getFeedbackPreview(item.feedback_message)}
+                          {notificationPreview(item)}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {dateFormatter.format(new Date(item.created_at))}

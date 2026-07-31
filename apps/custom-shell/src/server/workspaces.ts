@@ -54,6 +54,36 @@ const AUDIT_LINK: ShellItem = {
   roles: ["admin"],
 }
 
+/**
+ * The changelog area, added after the first workspaces existed. Neither entry is
+ * role-gated: What's new is the page a changelog notice opens and everyone gets
+ * those notices, and the parent sends anyone who cannot write updates straight
+ * to it.
+ */
+const CHANGELOG_CHILD_LINKS: ShellChildItem[] = [
+  {
+    id: "item-changelog-whats-new",
+    label: "What's new",
+    href: "/changelog/whats-new",
+    icon: "sparkles",
+  },
+]
+
+function changelogLink(): ShellItem {
+  return {
+    type: "item",
+    id: "item-changelog",
+    label: "Changelog",
+    href: "/changelog",
+    icon: "sparkles",
+    visible: true,
+    // Built fresh, like the media entry's children below: a spread of a shared
+    // constant would hand every workspace the same child array to save into its
+    // own settings.
+    children: CHANGELOG_CHILD_LINKS.map((child) => ({ ...child })),
+  }
+}
+
 /** The automation canvas, added after the first workspaces existed. */
 const AUTOMATIONS_LINK: ShellItem = {
   type: "item",
@@ -384,7 +414,15 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
       sections: Array.isArray(settings.sections)
-        ? withAutomationsLink(withAuditLink(withMediaChildLinks(settings.sections)))
+        ? withLinkAfter(
+            withLinkAfter(
+              withAuditLink(withMediaChildLinks(settings.sections)),
+              AUTOMATIONS_LINK,
+              "/admin/media"
+            ),
+            changelogLink(),
+            "/admin/notifications"
+          )
         : fallback.sections,
       // Default fills rows saved before this field existed.
       sidebarWidth: isValidSidebarWidth(settings.sidebarWidth)
@@ -456,29 +494,31 @@ function withAuditLink(sections: ShellSection[]): ShellSection[] {
 }
 
 /**
- * Same story again: the automation canvas arrived after most workspaces were
- * created and a deploy never rewrites saved navigation. Add its link right
- * after the Media entry when nothing points at it yet. To take it out of the
- * sidebar, switch the entry to hidden in Settings → Sidebar — deleting it
- * brings it back, the same as any default link.
+ * Same story again, for links that belong next to an existing one: the entry
+ * goes in right after the link it names as its anchor, and only when nothing
+ * points at it yet. Without that anchor there is nowhere sensible to put it, so
+ * the user's sidebar is left alone. To take one out, switch the entry to hidden
+ * in Settings → Sidebar — deleting it brings it back, like any default link.
  */
-function withAutomationsLink(sections: ShellSection[]): ShellSection[] {
+function withLinkAfter(
+  sections: ShellSection[],
+  link: ShellItem,
+  anchorHref: string
+): ShellSection[] {
   const alreadyLinked = sections.some((section) =>
     (section.entries ?? []).some(
-      (entry) => entry.type === "item" && entry.href === AUTOMATIONS_LINK.href
+      (entry) => entry.type === "item" && entry.href === link.href
     )
   )
   if (alreadyLinked) return sections
 
-  // It belongs with the platform links; without the media entry to anchor on
-  // there is nowhere sensible to put it, so leave the user's sidebar alone.
   let placed = false
   return sections.map((section) => {
     const entries = section.entries ?? []
-    const mediaIndex = entries.findIndex(
-      (entry) => entry.type === "item" && entry.href === "/admin/media"
+    const anchorIndex = entries.findIndex(
+      (entry) => entry.type === "item" && entry.href === anchorHref
     )
-    if (placed || mediaIndex === -1) {
+    if (placed || anchorIndex === -1) {
       return section
     }
 
@@ -486,9 +526,9 @@ function withAutomationsLink(sections: ShellSection[]): ShellSection[] {
     return {
       ...section,
       entries: [
-        ...entries.slice(0, mediaIndex + 1),
-        { ...AUTOMATIONS_LINK },
-        ...entries.slice(mediaIndex + 1),
+        ...entries.slice(0, anchorIndex + 1),
+        { ...link },
+        ...entries.slice(anchorIndex + 1),
       ],
     }
   })
@@ -628,6 +668,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           icon: "bell",
           visible: true,
         },
+        changelogLink(),
         {
           type: "item",
           id: "item-settings",

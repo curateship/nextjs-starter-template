@@ -21,6 +21,7 @@ type StickyHeaderProps = {
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
   rightNavItems?: ShellTopRightNavigationItem[]
+  unreadNotifications?: number
   saveStatus?: SaveStatus
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
@@ -31,6 +32,7 @@ export function StickyHeader({
   navLinks,
   navContent,
   rightNavItems,
+  unreadNotifications,
   saveStatus,
   onOpenFeedback,
   onOpenFeedbackThread,
@@ -70,6 +72,7 @@ export function StickyHeader({
           <SaveStatusIndicator status={saveStatus} />
           <StickyHeaderRightNav
             items={rightNavItems}
+            unreadNotifications={unreadNotifications}
             onOpenFeedback={onOpenFeedback}
             onOpenFeedbackThread={onOpenFeedbackThread}
           />

@@ -76,11 +76,13 @@ export function ShellLayout({
   settings,
   workspaces,
   plan,
+  unreadNotifications,
 }: {
   user: AuthUser
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
   plan: PlanSummary
+  unreadNotifications: number
 }) {
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
@@ -351,6 +353,7 @@ export function ShellLayout({
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
               rightNavItems={config.topRightNavigation}
+              unreadNotifications={unreadNotifications}
               saveStatus={saveStatus}
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}

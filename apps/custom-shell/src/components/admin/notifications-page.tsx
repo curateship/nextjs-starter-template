@@ -1,7 +1,9 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
   MessageSquareIcon,
+  SparklesIcon,
   ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -57,6 +59,20 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
+  changelog: "Update",
+}
+
+/**
+ * The free text a row shows and searches on: the update's title for a changelog
+ * notice, the feedback it is about for the rest.
+ */
+function notificationSubject(item: NotificationItem) {
+  return item.changelog_title ?? item.feedback_message ?? ""
+}
+
+/** Who caused it. A published update has nobody behind it. */
+function notificationActor(item: NotificationItem) {
+  return item.actor_name ?? "—"
 }
 
 type NotificationsPageProps = {
@@ -68,6 +84,7 @@ export function NotificationsPage({
   defaultRowsPerPage,
   onOpenFeedbackThread,
 }: NotificationsPageProps) {
+  const navigate = useNavigate()
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     []
   )
@@ -122,9 +139,9 @@ export function NotificationsPage({
     return notifications.filter((item) => {
       const matchesSearch =
         !query ||
-        item.actor_name.toLowerCase().includes(query) ||
+        notificationActor(item).toLowerCase().includes(query) ||
         item.recipient_name.toLowerCase().includes(query) ||
-        item.feedback_message.toLowerCase().includes(query)
+        notificationSubject(item).toLowerCase().includes(query)
       const matchesRead =
         readFilter === "all" ||
         (readFilter === "unread" && !item.read_at) ||
@@ -133,8 +150,8 @@ export function NotificationsPage({
 
       return matchesSearch && matchesRead && matchesType
     }).sort((a, b) => {
-      if (sortColumn === "activity") return a.actor_name.localeCompare(b.actor_name) * direction
-      if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
+      if (sortColumn === "activity") return notificationActor(a).localeCompare(notificationActor(b)) * direction
+      if (sortColumn === "feedback") return notificationSubject(a).localeCompare(notificationSubject(b)) * direction
       if (sortColumn === "recipient") return a.recipient_name.localeCompare(b.recipient_name) * direction
       if (sortColumn === "type") return notificationTypeLabels[a.type].localeCompare(notificationTypeLabels[b.type]) * direction
       if (sortColumn === "status") return (Number(Boolean(a.read_at)) - Number(Boolean(b.read_at))) * direction
@@ -206,6 +223,16 @@ export function NotificationsPage({
       showErrorToast(getNotificationErrorMessage(deleteError))
     } finally {
       setDeleting(false)
+    }
+  }
+
+  function openNotification(item: NotificationItem) {
+    if (item.type === "changelog") {
+      void navigate({ to: "/changelog/whats-new" })
+      return
+    }
+    if (item.feedback_id) {
+      onOpenFeedbackThread(item.feedback_id)
     }
   }
 
@@ -295,6 +322,7 @@ export function NotificationsPage({
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
+                <SelectItem value="changelog">Updates</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -370,11 +398,11 @@ export function NotificationsPage({
             role="button"
             tabIndex={0}
             className="cursor-pointer"
-            onClick={() => onOpenFeedbackThread(item.feedback_id)}
+            onClick={() => openNotification(item)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
-                onOpenFeedbackThread(item.feedback_id)
+                openNotification(item)
               }
             }}
           >
@@ -391,7 +419,9 @@ export function NotificationsPage({
             </TableCell>
             <TableCell column="main">
               <div className="flex items-center gap-2">
-                {item.type === "feedback_vote" ? (
+                {item.type === "changelog" ? (
+                  <SparklesIcon className="size-4 text-muted-foreground" />
+                ) : item.type === "feedback_vote" ? (
                   <ThumbsUpIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <MessageSquareIcon className="size-4 text-muted-foreground" />
@@ -401,14 +431,17 @@ export function NotificationsPage({
                     {notificationTypeLabels[item.type]}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {item.actor_name}
+                    {notificationActor(item)}
                   </p>
                 </div>
               </div>
             </TableCell>
             <TableCell column="preview">
-              <span className="block truncate" title={item.feedback_message}>
-                {item.feedback_message}
+              <span
+                className="block truncate"
+                title={notificationSubject(item)}
+              >
+                {notificationSubject(item)}
               </span>
             </TableCell>
             <TableCell column="mutedMeta">
