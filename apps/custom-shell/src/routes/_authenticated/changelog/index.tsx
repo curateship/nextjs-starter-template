@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { ChangelogAdminDashboard } from "@/components/changelog/changelog-admin-dashboard"
 import { loadAdminChangelog } from "@/lib/api/changelog"
+import { readOpenSearch } from "@/lib/use-open-from-link"
 
 /**
  * Where updates are written. Only an admin has anything to do here, so anyone
@@ -10,6 +11,8 @@ import { loadAdminChangelog } from "@/lib/api/changelog"
  * rendering a <Navigate> means they never paint an empty page first.
  */
 export const Route = createFileRoute("/_authenticated/changelog/")({
+  // `?open=<id>` is how the feeds dashboard links to one update.
+  validateSearch: readOpenSearch,
   loader: async () => {
     const { entries } = await loadAdminChangelog()
     if (!entries) {
@@ -22,6 +25,7 @@ export const Route = createFileRoute("/_authenticated/changelog/")({
 
 function ChangelogIndexRoute() {
   const { entries } = Route.useLoaderData()
+  const { open } = Route.useSearch()
 
-  return <ChangelogAdminDashboard initialEntries={entries} />
+  return <ChangelogAdminDashboard initialEntries={entries} openId={open} />
 }

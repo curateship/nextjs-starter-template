@@ -3,6 +3,12 @@ import { toast } from "sonner"
 import { Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Dialog,
@@ -116,57 +122,75 @@ export function FeedbackCommentsModal({
                 message={error}
                 onRetry={() => setReloadCount((count) => count + 1)}
               />
-            ) : loading ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Loading comments…
-              </p>
-            ) : comments.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No comments yet.
-              </p>
             ) : (
-              <ul className="flex flex-col divide-y">
-                {comments.map((comment) => (
-                  <li
-                    key={comment.id}
-                    className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
-                  >
-                    <span
-                      className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-medium text-muted-foreground"
-                      aria-hidden
-                    >
-                      {comment.author_name.trim().charAt(0).toUpperCase() || "?"}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm">
-                        <span className="font-medium">
-                          {comment.author_name}
-                        </span>{" "}
-                        <span className="text-xs text-muted-foreground">
-                          {dateTimeFormatter.format(
-                            new Date(comment.created_at)
-                          )}
-                        </span>
-                      </p>
-                      <p className="mt-0.5 text-sm whitespace-pre-wrap">
-                        {comment.message}
-                      </p>
-                    </div>
-                    {comment.can_delete ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeletingComment(comment)}
-                        title="Delete comment"
-                        aria-label="Delete comment"
-                      >
-                        <Trash2Icon className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
+              /* The thread sits in its own card, the way every admin modal
+                 groups its body. */
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>
+                    {loading || comments.length === 0
+                      ? "Comments"
+                      : `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Loading comments…
+                    </p>
+                  ) : comments.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      No comments yet.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col divide-y">
+                      {comments.map((comment) => (
+                        <li
+                          key={comment.id}
+                          className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
+                        >
+                          <span
+                            className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-medium text-muted-foreground"
+                            aria-hidden
+                          >
+                            {comment.author_name
+                              .trim()
+                              .charAt(0)
+                              .toUpperCase() || "?"}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm">
+                              <span className="font-medium">
+                                {comment.author_name}
+                              </span>{" "}
+                              <span className="text-xs text-muted-foreground">
+                                {dateTimeFormatter.format(
+                                  new Date(comment.created_at)
+                                )}
+                              </span>
+                            </p>
+                            <p className="mt-0.5 text-sm whitespace-pre-wrap">
+                              {comment.message}
+                            </p>
+                          </div>
+                          {comment.can_delete ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingComment(comment)}
+                              title="Delete comment"
+                              aria-label="Delete comment"
+                            >
+                              <Trash2Icon className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </DialogBody>
           <DialogFooter variant="plain">

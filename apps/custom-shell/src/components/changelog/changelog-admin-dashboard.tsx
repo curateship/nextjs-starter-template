@@ -56,6 +56,7 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useOpenFromLink } from "@/lib/use-open-from-link"
 
 type ChangelogSortColumn = "title" | "status" | "published"
 
@@ -94,8 +95,11 @@ function compareEntries(
  */
 export function ChangelogAdminDashboard({
   initialEntries,
+  openId,
 }: {
   initialEntries: ChangelogEntry[]
+  /** One update named by the link that brought us here. */
+  openId?: string
 }) {
   const { config } = useShellRuntime()
   const [entries, setEntries] = React.useState(initialEntries)
@@ -117,6 +121,8 @@ export function ChangelogAdminDashboard({
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  useOpenFromLink({ openId, records: entries, onOpen: setEditing })
 
   const sortedEntries = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
