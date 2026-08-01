@@ -487,10 +487,7 @@ export function MediaLibraryPage({
     : "No media has been uploaded yet."
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <input
         ref={fileInputRef}
         type="file"
@@ -627,7 +624,7 @@ export function MediaLibraryPage({
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
       />
-    </div>
+    </>
   )
 }
 

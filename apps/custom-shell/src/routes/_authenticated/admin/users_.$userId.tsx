@@ -50,10 +50,7 @@ function AdminAccountErrorRoute({ error }: ErrorComponentProps) {
     error instanceof Error && error.message.includes("USER_NOT_FOUND")
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <div className="flex items-center gap-2">
         <Button asChild variant="ghost" size="icon">
           <Link to="/admin/users" aria-label="Back to Users">
@@ -69,6 +66,6 @@ function AdminAccountErrorRoute({ error }: ErrorComponentProps) {
           onRetry={gone ? undefined : () => void router.invalidate()}
         />
       </TableSurface>
-    </div>
+    </>
   )
 }

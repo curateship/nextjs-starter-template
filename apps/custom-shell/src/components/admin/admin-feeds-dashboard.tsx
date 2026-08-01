@@ -28,6 +28,7 @@ import type {
 } from "@/lib/api/feeds"
 import { feedbackTypeLabels } from "@/lib/feedback-type"
 import { formatTimeAgo } from "@/lib/format-time"
+import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
 
 /**
@@ -41,7 +42,7 @@ import { cn } from "@/lib/utils"
  */
 
 export function AdminFeedsDashboard({ summary }: { summary: FeedsSummary }) {
-  const gutter = { gap: "var(--shell-gutter, 1.5rem)" }
+  const gutter = { gap: pageGutter }
 
   return (
     // On a wide screen the page fills the window exactly and never scrolls

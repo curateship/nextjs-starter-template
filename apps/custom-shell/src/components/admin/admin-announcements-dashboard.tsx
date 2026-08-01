@@ -281,10 +281,7 @@ export function AdminAnnouncementsDashboard({
   )
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <DashboardTable
         title="Announcements"
         icon={<MegaphoneIcon />}
@@ -586,7 +583,7 @@ export function AdminAnnouncementsDashboard({
           }
         }}
       />
-    </div>
+    </>
   )
 }
 

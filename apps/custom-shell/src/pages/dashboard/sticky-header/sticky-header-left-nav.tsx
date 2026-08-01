@@ -73,7 +73,7 @@ export function StickyHeaderLeftNav({
               }
             }}
             className={cn(
-              "inline-flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-all",
+              "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-all",
               link.active
                 ? "bg-muted text-foreground"
                 : "hover:bg-muted"
@@ -94,7 +94,7 @@ export function StickyHeaderLeftNav({
           type="button"
           onClick={link.onClick as React.MouseEventHandler<HTMLButtonElement> | undefined}
           className={cn(
-            "inline-flex h-[30px] items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-all",
+            "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-all",
             link.active
               ? "bg-muted text-foreground"
               : "hover:bg-muted"
@@ -115,13 +115,13 @@ export function StickyHeaderLeftNav({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-[30px] gap-1.5">
+          <Button variant="ghost" className="gap-1.5">
             {activeLink.icon ? (
               <span className="flex h-3.5 w-3.5 items-center justify-center">
                 {activeLink.icon}
               </span>
             ) : null}
-            <span className="text-[13px]">{activeLink.label}</span>
+            <span>{activeLink.label}</span>
             <ChevronDownIcon className="size-3" />
           </Button>
         </DropdownMenuTrigger>

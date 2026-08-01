@@ -10,6 +10,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardGroup,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -62,10 +63,7 @@ function invoiceStatusLabel(status: string) {
 // the content lands (a skeleton, not a spinner).
 export function BillingTabSkeleton() {
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <CardGroup className="w-full">
       <Card>
         <CardHeader className="gap-2">
           <Skeleton className="h-5 w-28" />
@@ -92,7 +90,7 @@ export function BillingTabSkeleton() {
           </Card>
         ))}
       </div>
-    </div>
+    </CardGroup>
   )
 }
 
@@ -135,10 +133,7 @@ export function AccountBillingPage({
   }, [])
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <CardGroup className="w-full">
       <Card>
         <CardHeader>
           <CardTitle>Your plan</CardTitle>
@@ -193,7 +188,7 @@ export function AccountBillingPage({
       )}
 
       <InvoicesCard invoices={invoices} />
-    </div>
+    </CardGroup>
   )
 }
 

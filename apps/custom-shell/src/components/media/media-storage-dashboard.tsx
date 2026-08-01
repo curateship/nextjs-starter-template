@@ -107,126 +107,121 @@ export function MediaStorageDashboard({
       : null
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
-      <DashboardTable
-        title="Storage by user"
-        icon={<HardDriveIcon className="text-muted-foreground" />}
-        count={sorted.length}
-        error={tableError}
-        controls={
-          <>
-            <DashboardToolbarSearch
-              name="storage-search"
-              aria-label="Search people"
-              placeholder="Search name or email..."
-              value={search}
-              onChange={(event) => {
-                setPage(1)
-                setSearch(event.target.value)
-              }}
-            />
-            <DashboardToolbarButton
-              type="button"
-              disabled={loading}
-              onClick={() => void refresh()}
-            >
-              {loading ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <RefreshCwIcon className="size-4" />
-              )}
-              Refresh
-            </DashboardToolbarButton>
-          </>
-        }
-        header={
-          <TableHeader>
-            <TableRow>
-              {sortableColumns.map((column) => (
-                <TableHead
-                  key={column.by}
-                  column={column.column}
-                  className={column.className}
-                  aria-sort={
-                    sort === column.by
-                      ? direction === "asc"
-                        ? "ascending"
-                        : "descending"
-                      : "none"
-                  }
-                >
-                  <TableSortButton
-                    active={sort === column.by}
-                    direction={direction}
-                    onClick={() => toggleSort(column.by)}
-                  >
-                    {column.label}
-                  </TableSortButton>
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-        }
-        isEmpty={visible.length === 0}
-        emptyText={
-          search.trim()
-            ? "Nobody matches that search."
-            : "Nobody has uploaded anything yet."
-        }
-        emptyColSpan={5}
-        footer={{
-          type: "pagination",
-          page: currentPage,
-          pageSize,
-          total: sorted.length,
-          totalPages,
-          pageSizeOptions,
-          onPageChange: setPage,
-          onPageSizeChange: (size) => {
-            setPageSize(size)
-            setPage(1)
-          },
-        }}
-      >
-        {visible.map((user) => (
-          <TableRow key={user.userId} className="group">
-            <TableCell column="main">
-              <Link
-                to="/admin/media"
-                search={{ owner: user.userId }}
-                className="block max-w-full truncate text-sm font-medium group-hover:underline"
-                title={user.email}
+    <DashboardTable
+      title="Storage by user"
+      icon={<HardDriveIcon className="text-muted-foreground" />}
+      count={sorted.length}
+      error={tableError}
+      controls={
+        <>
+          <DashboardToolbarSearch
+            name="storage-search"
+            aria-label="Search people"
+            placeholder="Search name or email..."
+            value={search}
+            onChange={(event) => {
+              setPage(1)
+              setSearch(event.target.value)
+            }}
+          />
+          <DashboardToolbarButton
+            type="button"
+            disabled={loading}
+            onClick={() => void refresh()}
+          >
+            {loading ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <RefreshCwIcon className="size-4" />
+            )}
+            Refresh
+          </DashboardToolbarButton>
+        </>
+      }
+      header={
+        <TableHeader>
+          <TableRow>
+            {sortableColumns.map((column) => (
+              <TableHead
+                key={column.by}
+                column={column.column}
+                className={column.className}
+                aria-sort={
+                  sort === column.by
+                    ? direction === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : "none"
+                }
               >
-                {user.name}
-              </Link>
-            </TableCell>
-            <TableCell column="mutedMeta">{user.files.toLocaleString()}</TableCell>
-            <TableCell column="mutedMeta">{formatFileSize(user.bytes)}</TableCell>
-            <TableCell column="meta">
-              {data.scanError ? (
-                <span className="text-muted-foreground">—</span>
-              ) : user.orphanFiles ? (
-                <Link
-                  to="/admin/media/orphans"
-                  className="text-destructive hover:underline"
+                <TableSortButton
+                  active={sort === column.by}
+                  direction={direction}
+                  onClick={() => toggleSort(column.by)}
                 >
-                  {user.orphanFiles.toLocaleString()} ·{" "}
-                  {formatFileSize(user.orphanBytes)}
-                </Link>
-              ) : (
-                <span className="text-muted-foreground">None</span>
-              )}
-            </TableCell>
-            <TableCell column="mutedMeta" className="hidden lg:table-cell">
-              {formatShare(user.bytes, data.totalBytes)}
-            </TableCell>
+                  {column.label}
+                </TableSortButton>
+              </TableHead>
+            ))}
           </TableRow>
-        ))}
-      </DashboardTable>
-    </div>
+        </TableHeader>
+      }
+      isEmpty={visible.length === 0}
+      emptyText={
+        search.trim()
+          ? "Nobody matches that search."
+          : "Nobody has uploaded anything yet."
+      }
+      emptyColSpan={5}
+      footer={{
+        type: "pagination",
+        page: currentPage,
+        pageSize,
+        total: sorted.length,
+        totalPages,
+        pageSizeOptions,
+        onPageChange: setPage,
+        onPageSizeChange: (size) => {
+          setPageSize(size)
+          setPage(1)
+        },
+      }}
+    >
+      {visible.map((user) => (
+        <TableRow key={user.userId} className="group">
+          <TableCell column="main">
+            <Link
+              to="/admin/media"
+              search={{ owner: user.userId }}
+              className="block max-w-full truncate text-sm font-medium group-hover:underline"
+              title={user.email}
+            >
+              {user.name}
+            </Link>
+          </TableCell>
+          <TableCell column="mutedMeta">{user.files.toLocaleString()}</TableCell>
+          <TableCell column="mutedMeta">{formatFileSize(user.bytes)}</TableCell>
+          <TableCell column="meta">
+            {data.scanError ? (
+              <span className="text-muted-foreground">—</span>
+            ) : user.orphanFiles ? (
+              <Link
+                to="/admin/media/orphans"
+                className="text-destructive hover:underline"
+              >
+                {user.orphanFiles.toLocaleString()} ·{" "}
+                {formatFileSize(user.orphanBytes)}
+              </Link>
+            ) : (
+              <span className="text-muted-foreground">None</span>
+            )}
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden lg:table-cell">
+            {formatShare(user.bytes, data.totalBytes)}
+          </TableCell>
+        </TableRow>
+      ))}
+    </DashboardTable>
   )
 }
 

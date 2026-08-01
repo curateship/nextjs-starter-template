@@ -114,6 +114,29 @@ const feedbackSortLabels: Record<FeedbackSort, string> = {
   most_comments: "Most Comments",
 }
 
+/**
+ * Nothing in the list, said the way the media gallery says it: an icon and a
+ * line about what would be here. `filterLabel` is the type being filtered on,
+ * or null when the whole list is genuinely empty.
+ */
+function EmptyFeedback({ filterLabel }: { filterLabel: string | null }) {
+  return (
+    <div className="grid h-40 place-items-center text-center text-sm text-muted-foreground">
+      <div>
+        <MessageSquareIcon className="mx-auto mb-3 size-10" />
+        <p className="font-medium text-foreground">
+          {filterLabel ? `No ${filterLabel} yet` : "No feedback yet"}
+        </p>
+        <p className="mt-1">
+          {filterLabel
+            ? "Switch the filter to All Types to see everything else."
+            : "Be the first — say what you'd like changed in the box above."}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 type FeedbackModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -164,6 +187,9 @@ export function FeedbackModal({
   // The item just posted, pinned to the top of the list so filing a Bug Report
   // while the list is sorted by votes still shows what you wrote.
   const [justPostedId, setJustPostedId] = React.useState<string | null>(null)
+  // Bumped by "Try again" on a failed load. The deep link is unchanged, so the
+  // retry is a plain reload: nothing you were typing is thrown away.
+  const [reloads, setReloads] = React.useState(0)
 
   // The deep link the popup was last opened with. A different one means a
   // notification is pointing at one specific item and wants a clean view;
@@ -261,7 +287,7 @@ export function FeedbackModal({
     return () => {
       active = false
     }
-  }, [open, targetFeedbackId])
+  }, [open, reloads, targetFeedbackId])
 
   const filteredFeedback = React.useMemo(() => {
     const matches =
@@ -636,9 +662,21 @@ export function FeedbackModal({
               {loadingFeedback ? (
                 <LoadingRow label="Loading feedback…" />
               ) : loadError ? (
-                <ErrorBanner message={loadError} />
+                <ErrorBanner
+                  message={loadError}
+                  onRetry={() => setReloads((count) => count + 1)}
+                />
               ) : filteredFeedback.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No feedback found.</p>
+                <EmptyFeedback
+                  // An empty list and a filter that matched nothing look the
+                  // same but mean different things, and only one of them is
+                  // fixed by changing the dropdown.
+                  filterLabel={
+                    feedbackFilter === "all"
+                      ? null
+                      : feedbackTypeLabels[feedbackFilter]
+                  }
+                />
               ) : (
                 <CardGroup>
                   {filteredFeedback.map((item) => {

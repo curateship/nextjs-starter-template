@@ -38,9 +38,10 @@ export function DashboardContent({
         className
       )}
       style={{
-        // --shell-gutter cascades to nested card-stacking containers
-        // (CardGroup, DashboardRow, settings page) so the gap *between* cards
-        // tracks the gutter too — not just the outer padding.
+        // This gap is the only thing spacing a page's blocks: a page renders
+        // its cards and tables straight into here, with no wrapper of its own.
+        // --shell-gutter also cascades to the containers that stack cards
+        // inside a page (CardGroup, the settings columns) so those match too.
         "--shell-gutter": `${styling.gutter}px`,
         padding: "var(--shell-gutter)",
         gap: "var(--shell-gutter)",
@@ -49,21 +50,6 @@ export function DashboardContent({
         "--shell-card-border-width": String(styling.cardBorderWidth),
         ...(borderColor ? { "--shell-card-border-color": borderColor } : {}),
       } as React.CSSProperties}
-      {...props}
-    />
-  )
-}
-
-export function DashboardRow({
-  className,
-  style,
-  ...props
-}: React.ComponentProps<"section">) {
-  return (
-    <section
-      className={cn("flex flex-col xl:flex-row", className)}
-      // Falls back to the previous gap-4 (1rem) outside a styled content area.
-      style={{ gap: "var(--shell-gutter, 1rem)", ...style }}
       {...props}
     />
   )

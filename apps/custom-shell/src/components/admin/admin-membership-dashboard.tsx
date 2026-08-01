@@ -70,10 +70,7 @@ export function AdminMembershipDashboard({
   summary: MembershipSummary
 }) {
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <HeadlineFigures summary={summary} />
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
@@ -86,7 +83,7 @@ export function AdminMembershipDashboard({
         <SubscriptionsCard summary={summary} />
         <PeopleByPlanCard summary={summary} />
       </div>
-    </div>
+    </>
   )
 }
 

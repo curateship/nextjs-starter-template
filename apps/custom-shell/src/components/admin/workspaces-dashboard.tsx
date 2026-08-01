@@ -191,7 +191,7 @@ export function WorkspacesDashboard({
   }
 
   return (
-    <div className="w-full pb-8">
+    <>
       <DashboardTable
         title="Workspaces"
         icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
@@ -369,6 +369,6 @@ export function WorkspacesDashboard({
         loading={busy}
         onConfirm={() => void confirmDelete()}
       />
-    </div>
+    </>
   )
 }

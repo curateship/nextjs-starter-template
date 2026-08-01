@@ -56,10 +56,7 @@ export function AdminRevenueDashboard({
   const planCount = summary.planBreakdown.length
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <div className="grid gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
         <StatCard
           label="Monthly recurring revenue"
@@ -153,7 +150,7 @@ export function AdminRevenueDashboard({
           </TableRow>
         ))}
       </DashboardTable>
-    </div>
+    </>
   )
 }
 
