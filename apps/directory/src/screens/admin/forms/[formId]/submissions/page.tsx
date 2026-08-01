@@ -13,6 +13,7 @@ import {
   AdminListFooter,
   AdminTableShell, AdminListPending,
   formatRelativeDate,
+  RelativeDate,
 } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -227,7 +228,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
                         ) : null}
                       </button>
                     </TableCell>
-                    <TableCell column="mutedMeta">{formatRelativeDate(submission.created_at)}</TableCell>
+                    <TableCell column="mutedMeta"><RelativeDate date={submission.created_at} /></TableCell>
                   </TableRow>
                 )})}
               </TableBody>
@@ -280,7 +281,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
                       </div>
                       <div>
                         <div className="text-muted-foreground">Submitted</div>
-                        <div className="font-medium">{formatRelativeDate(selectedSubmission.created_at)}</div>
+                        <div className="font-medium"><RelativeDate date={selectedSubmission.created_at} /></div>
                       </div>
                     </div>
                   </CardContent>

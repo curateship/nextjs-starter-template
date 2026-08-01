@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import CheckCircle from "lucide-react/dist/esm/icons/circle-check-big.js"
 import Clock from "lucide-react/dist/esm/icons/clock.js"
 import XCircle from "lucide-react/dist/esm/icons/circle-x.js"
+import { RelativeDate } from '@/components/admin/layout/list'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,17 +22,6 @@ function formatSchedule(schedule: string) {
   }
   if (schedule.startsWith('0 ')) return 'Every hour'
   return schedule
-}
-
-function timeAgo(dateStr: string | null) {
-  if (!dateStr) return 'Never'
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
 }
 
 function formatDuration(ms: number | null | undefined) {
@@ -124,7 +114,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
                           No runs yet
                         </span>
                       )}
-                      <span>{timeAgo(job.lastRun?.startedAt ?? job.lastRunAt)}</span>
+                      <span><RelativeDate date={job.lastRun?.startedAt ?? job.lastRunAt} fallback="Never" /></span>
                       {job.lastRun?.httpStatus && <span>HTTP {job.lastRun.httpStatus}</span>}
                       {formatDuration(job.lastRun?.durationMs) && <span>{formatDuration(job.lastRun?.durationMs)}</span>}
                     </div>

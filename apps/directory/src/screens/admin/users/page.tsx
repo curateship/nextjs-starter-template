@@ -12,7 +12,8 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  formatShortDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -205,22 +206,6 @@ export default function UsersPage() {
     }
   }
 
-  const formatLastActive = (lastSignIn: string | null) => {
-    if (!lastSignIn) return "Never"
-
-    const date = new Date(lastSignIn)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffHours < 1) return "Just now"
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${diffDays >= 14 ? "s" : ""} ago`
-    return `${Math.floor(diffDays / 30)} month${diffDays >= 60 ? "s" : ""} ago`
-  }
-
   const handleDeleteUser = async () => {
     if (!pendingDeleteUser) {
       return
@@ -372,7 +357,7 @@ export default function UsersPage() {
       return `${label} ${operatorLabel} in the last ${rule.value.days} days`
     }
 
-    const formatValue = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    const formatValue = (value: string) => formatShortDate(value)
     const range = rule.value.from && rule.value.to
       ? `${formatValue(rule.value.from)} to ${formatValue(rule.value.to)}`
       : rule.value.from
@@ -593,8 +578,8 @@ export default function UsersPage() {
                         </TableCell>
                         <TableCell column="meta">{getRoleBadge(user.role)}</TableCell>
                         <TableCell column="meta">{getStatusBadge(user.status)}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(user.created_at)}</TableCell>
-                        <TableCell column="mutedMeta">{formatLastActive(user.last_sign_in_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.created_at} /></TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.last_sign_in_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
                           {user.id !== currentUserId && (
                             <Button

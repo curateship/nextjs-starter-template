@@ -26,6 +26,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   AdminTableSummaryFooter,
+  RelativeDate,
   useAdminSort,
 } from "@/components/admin/layout/list"
 import {
@@ -171,20 +172,6 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 
 function getSiteTag(site: Site) {
   return typeof site.settings?.site_tag === "string" ? site.settings.site_tag.trim() : ""
-}
-
-function relativeTime(iso: string) {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ""
-  const minutes = Math.floor((Date.now() - date.getTime()) / 60000)
-  if (minutes < 1) return "Just now"
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days === 1) return "Yesterday"
-  if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 function getStatusPill(status: string) {
@@ -368,7 +355,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
                       <span className="block truncate text-sm font-medium" title={run.name}>{run.name}</span>
                       <span className="block text-xs text-muted-foreground">{run.message}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {run.siteName} · {TRIGGER_LABELS[run.triggerType] ?? run.triggerType} · {relativeTime(run.startedAt)}
+                        {run.siteName} · {TRIGGER_LABELS[run.triggerType] ?? run.triggerType} · <RelativeDate date={run.startedAt} />
                       </span>
                     </span>
                     <span className={`shrink-0 whitespace-nowrap text-xs font-medium ${meta.labelClass}`}>
@@ -435,7 +422,7 @@ export function MultiSiteDashboard({ sites, metrics, notifications, automationRu
                       <span className="block text-sm font-medium">{item.title}</span>
                       <span className="block text-xs text-muted-foreground">{item.message}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {item.site_name} · {relativeTime(item.created_at)}
+                        {item.site_name} · <RelativeDate date={item.created_at} />
                       </span>
                     </span>
                   </button>

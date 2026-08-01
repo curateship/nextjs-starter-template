@@ -9,7 +9,7 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import {
   AdminTableShell, AdminListPending,
   AdminListFooter,
-  formatShortDate,
+  RelativeDate,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -193,7 +193,7 @@ export default function PlatformEmailsPage() {
                         </TableCell>
                         <TableCell column="mutedMeta">
                           {template.updated_at
-                            ? formatShortDate(template.updated_at)
+                            ? <RelativeDate date={template.updated_at} />
                             : "Default"}
                         </TableCell>
                         <TableCell column="meta">

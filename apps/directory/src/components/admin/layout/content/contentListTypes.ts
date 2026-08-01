@@ -54,7 +54,6 @@ export interface ContentListPageProps<TItem extends ContentListItem> {
   emptyButtonLabel: string
   emptyDescription?: (items: TItem[], filterStatus: ContentStatusFilter) => string
   emptyTitle: (items: TItem[], filterStatus: ContentStatusFilter) => string
-  formatModified?: (item: TItem) => string
   getBuilderHref?: (item: TItem) => string
   getCursorItems?: (
     params: ContentCursorListParams

@@ -22,7 +22,7 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminListFooter, RelativeDate } from "@/components/admin/layout/list"
 import Link from "@/components/app-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -234,7 +234,7 @@ export default function EventSubmissionsPage() {
                         <TableCell column="meta">
                           <div className="space-y-2">
                             {statusBadge(submission.status)}
-                            <div className="text-sm text-muted-foreground">{formatDate(submission.created_at)}</div>
+                            <div className="text-sm text-muted-foreground"><RelativeDate date={submission.created_at} /></div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">

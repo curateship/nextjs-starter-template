@@ -15,7 +15,7 @@ import {
   ConfirmDestructive,
   AdminTableShell, AdminListPending,
   AdminListFooter,
-  formatRelativeDate,
+  RelativeDate,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -325,7 +325,7 @@ export default function ThemesPage() {
                           </Link>
                         </TableCell>
                         <TableCell column="mutedMeta">
-                          {formatRelativeDate(template.created_at)}
+                          <RelativeDate date={template.created_at} />
                         </TableCell>
                         <TableCell column="meta">
                           <DropdownMenu>

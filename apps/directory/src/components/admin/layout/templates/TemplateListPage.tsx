@@ -19,6 +19,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -78,15 +79,6 @@ interface TemplateListPageProps<TTemplate extends AdminTemplateRecord> {
   setDefaultTemplate: (templateId: string) => Promise<{ success: boolean; error: string | null }>
   updateTemplate?: (templateId: string, updates: { name?: string; content_blocks?: Record<string, any> }) => Promise<{ data: TTemplate | null; error: string | null }>
   enableDefaultCategoryParent?: boolean
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  })
 }
 
 export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
@@ -365,7 +357,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                           </Link>
                         </TableCell>
                         <TableCell column="mutedMeta">{getBlockCount(template)}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(template.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={template.updated_at} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button

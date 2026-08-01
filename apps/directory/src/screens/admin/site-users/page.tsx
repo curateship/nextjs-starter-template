@@ -29,7 +29,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -94,20 +94,6 @@ function isDateRule(
 
 function isValueRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRule, { type: "status" | "role" }> {
   return rule.type === "status" || rule.type === "role"
-}
-
-function formatRelativeTime(dateString: string | null) {
-  if (!dateString) return "—"
-  const diff = Date.now() - new Date(dateString).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return "Just now"
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  return `${months}mo ago`
 }
 
 function getRoleBadge(role: string) {
@@ -700,8 +686,8 @@ export default function SiteUsersPage() {
                         </TableCell>
                         <TableCell column="meta">{getRoleBadge(user.role)}</TableCell>
                         <TableCell column="meta">{getStatusBadge(user.status)}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(user.created_at)}</TableCell>
-                        <TableCell column="mutedMeta">{formatRelativeTime(user.last_sign_in_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.created_at} /></TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.last_sign_in_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button

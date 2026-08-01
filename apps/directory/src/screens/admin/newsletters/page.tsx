@@ -21,7 +21,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatRelativeDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -577,7 +577,7 @@ export default function NewslettersPage() {
                                 ? `${((newsletter.total_unsubscribed / newsletter.total_sent) * 100).toFixed(1)}%`
                                 : `${Math.round((newsletter.total_unsubscribed / newsletter.total_sent) * 100)}%`}
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatRelativeDate(newsletter.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={newsletter.updated_at} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center space-x-2">
                             <Button

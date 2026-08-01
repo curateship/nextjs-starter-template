@@ -30,7 +30,7 @@ import {
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -388,7 +388,7 @@ export default function DirectoryOutreachPage() {
                           <TableCell column="mutedMeta">
                             {row.last_invited_at ? (
                               <div>
-                                <div className="text-sm">{formatDate(row.last_invited_at)}</div>
+                                <div className="text-sm"><RelativeDate date={row.last_invited_at} /></div>
                                 {row.times_invited > 1 ? (
                                   <div className="text-xs text-muted-foreground">{row.times_invited}× invited</div>
                                 ) : null}

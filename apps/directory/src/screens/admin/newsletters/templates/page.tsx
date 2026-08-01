@@ -23,7 +23,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -338,7 +338,7 @@ export default function TemplatesPage() {
                           </Link>
                         </TableCell>
                         <TableCell column="mutedMeta">{getBlockCount(template)}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(template.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={template.updated_at} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button

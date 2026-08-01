@@ -24,7 +24,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -314,7 +314,7 @@ export default function NewsletterContactTagsPage() {
                           <h4 className="truncate text-sm font-medium sm:text-base" title={tag.tag}>{tag.tag}</h4>
                         </TableCell>
                         <TableCell column="mutedMeta">{tag.contact_count.toLocaleString()}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(tag.last_used_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={tag.last_used_at} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center">
                             <Button

@@ -24,7 +24,7 @@ import {
   ConfirmDestructive,
   AdminListFooter,
   AdminTableShell, AdminListPending,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
@@ -287,7 +287,7 @@ export default function DirectorySavedFolderPage({
                         <TableCell column="meta">
                           {item.directory_status === "published" ? <Badge>Published</Badge> : <Badge variant="secondary">Draft</Badge>}
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(item.saved_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={item.saved_at} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>

@@ -19,7 +19,7 @@ import {
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  formatRelativeDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -281,7 +281,7 @@ export function AutomationsDashboard() {
                     <TableCell column="select"><Checkbox checked={selection.selectedIds.has(item.id)} onCheckedChange={() => selection.toggleOne(item.id)} aria-label={`Select ${item.name}`} /></TableCell>
                     <TableCell column="main">
                       <Link href={`/admin/automations/${item.id}`} className="font-medium hover:underline">{item.name}</Link>
-                      <div className="text-xs text-muted-foreground">{item.nodeCount} nodes · Updated {formatRelativeDate(item.updatedAt)}</div>
+                      <div className="text-xs text-muted-foreground">{item.nodeCount} nodes · Updated <RelativeDate date={item.updatedAt} /></div>
                     </TableCell>
                     <TableCell column="content" className="text-sm text-muted-foreground">{formatSchedule(item.schedule)}<div className="text-xs">{item.schedule?.timezone}</div></TableCell>
                     <TableCell column="meta"><StatusBadge status={item.status} /></TableCell>

@@ -22,7 +22,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -387,7 +387,7 @@ export default function SponsorsPage() {
                             }}
                           />
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(sponsor.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={sponsor.updated_at} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button
