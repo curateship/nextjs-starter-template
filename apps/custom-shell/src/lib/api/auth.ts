@@ -26,6 +26,7 @@ import {
   type PendingEmailChange,
 } from "@/server/email-change"
 import { sendAuthEmail } from "@/server/email"
+import { isOwnedImageUrl } from "@/server/media"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
 import { googleSignInEnabled } from "@/server/google-auth"
 import { customShellSessions, customShellUsers } from "@/server/schema"
@@ -69,6 +70,11 @@ export type AuthUser = {
    * for a current password nobody has.
    */
   hasPassword: boolean
+  /**
+   * The profile photo's public URL, or "" when there is none — the shell falls
+   * back to the account's initials.
+   */
+  avatarUrl: string
 }
 
 const emailSchema = z.string().trim().toLowerCase().min(3).max(255).email()
@@ -116,7 +122,14 @@ const loginSchema = z.object({
    */
   restore: z.boolean().default(false),
 })
-const profileSchema = z.object({ name: nameSchema })
+const profileSchema = z.object({
+  name: nameSchema,
+  /**
+   * The picture's URL, or "" to take the photo off. The server still checks it
+   * is one of this account's own images before storing it — see the handler.
+   */
+  avatarUrl: z.string().trim().max(2048),
+})
 const changePasswordSchema = z.object({
   /**
    * Absent only for an account that has no password yet, which is how an
@@ -172,6 +185,8 @@ const authErrorMessages: Record<string, string> = {
   EMAIL_UNCHANGED: "That is already the email address on your account.",
   VIEW_AS_ACTIVE:
     "You are looking at the app as someone else. Leave that view first.",
+  AVATAR_NOT_FOUND:
+    "That picture is no longer in your media library. Pick another one.",
 }
 
 /**
@@ -536,9 +551,20 @@ const updateProfileFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const user = await requireUser()
 
+    // The picture is drawn into the shell on every page, so what gets stored
+    // has to be a file this account really uploaded — not any address the
+    // browser felt like sending.
+    if (data.avatarUrl && !(await isOwnedImageUrl(user.id, data.avatarUrl))) {
+      throw new Error("AVATAR_NOT_FOUND")
+    }
+
     const [updated] = await db
       .update(customShellUsers)
-      .set({ name: data.name, updatedAt: now() })
+      .set({
+        name: data.name,
+        avatarUrl: data.avatarUrl || null,
+        updatedAt: now(),
+      })
       .where(eq(customShellUsers.id, user.id))
       .returning()
 
@@ -801,8 +827,8 @@ export function resetPassword(token: string, password: string) {
   return resetPasswordFn({ data: { token, password } })
 }
 
-export function updateProfile(name: string) {
-  return updateProfileFn({ data: { name } })
+export function updateProfile(name: string, avatarUrl: string) {
+  return updateProfileFn({ data: { name, avatarUrl } })
 }
 
 export function changePassword(
@@ -891,6 +917,7 @@ export function serializeUser(user: {
   status: string
   emailVerifiedAt: Date | null
   passwordHash: string | null
+  avatarUrl: string | null
 }): AuthUser {
   return {
     id: user.id,
@@ -901,6 +928,7 @@ export function serializeUser(user: {
     emailVerified: Boolean(user.emailVerifiedAt),
     // The hash itself never leaves the server; only whether there is one.
     hasPassword: Boolean(user.passwordHash),
+    avatarUrl: user.avatarUrl ?? "",
   }
 }
 

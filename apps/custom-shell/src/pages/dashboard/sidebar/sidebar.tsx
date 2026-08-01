@@ -168,7 +168,7 @@ export function AppSidebar({
           user={{
             name: user.name,
             email: user.email,
-            avatar: "",
+            avatar: user.avatarUrl,
           }}
         />
       </SidebarFooter>

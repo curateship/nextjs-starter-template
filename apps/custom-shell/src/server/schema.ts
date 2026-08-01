@@ -33,6 +33,12 @@ export const customShellUsers = pgTable(
      * match", and Account → Security offers to set one.
      */
     passwordHash: text("password_hash"),
+    /**
+     * The public URL of this account's profile photo, and null when it has
+     * none. Always a picture the account itself uploaded — the server checks
+     * that before writing it — so it can be rendered straight into the shell.
+     */
+    avatarUrl: text("avatar_url"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     /**
      * When this account was marked for deletion, and null whenever it was not.

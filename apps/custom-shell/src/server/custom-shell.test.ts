@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
-import { eq, sql } from "drizzle-orm"
+import { eq, inArray, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -10,8 +10,10 @@ import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
   cleanAltText,
   cleanOriginalName,
+  clearAvatarsForStoragePaths,
   getMediaFileType,
   getOwnedMedia,
+  isOwnedImageUrl,
   listOwnedMedia,
   prepareMediaContent,
   storedFilename,
@@ -3360,6 +3362,142 @@ describe("custom shell media helpers", () => {
     })
     await expect(getOwnedMedia(otherId, ownedMediaId)).rejects.toThrow(
       "Media not found"
+    )
+  })
+
+  it("only accepts a profile photo the account itself uploaded", async () => {
+    const createdAt = now()
+    const ownerId = uuid()
+    const strangerId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: ownerId,
+        email: "photo-owner@internal.dev",
+        name: "Photo Owner",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: strangerId,
+        email: "photo-stranger@internal.dev",
+        name: "Stranger",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    await database.insert(customShellMedia).values([
+      {
+        id: uuid(),
+        userId: ownerId,
+        filename: "face.png",
+        originalName: "face.png",
+        altText: null,
+        fileSize: 123,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: `${ownerId}/face.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: uuid(),
+        userId: ownerId,
+        filename: "clip.mp4",
+        originalName: "clip.mp4",
+        altText: null,
+        fileSize: 456,
+        mimeType: "video/mp4",
+        fileType: "video",
+        storagePath: `${ownerId}/clip.mp4`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: uuid(),
+        userId: strangerId,
+        filename: "theirs.png",
+        originalName: "theirs.png",
+        altText: null,
+        fileSize: 123,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: `${strangerId}/theirs.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const base = "https://custom-shell-media.example.test"
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${ownerId}/face.png`, database)
+    ).resolves.toBe(true)
+    // Somebody else's picture, one of their own videos, a file that is not
+    // there, and an address this app never handed out.
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${strangerId}/theirs.png`, database)
+    ).resolves.toBe(false)
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${ownerId}/clip.mp4`, database)
+    ).resolves.toBe(false)
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${ownerId}/gone.png`, database)
+    ).resolves.toBe(false)
+    await expect(
+      isOwnedImageUrl(ownerId, "https://elsewhere.example.test/face.png", database)
+    ).resolves.toBe(false)
+  })
+
+  it("takes the profile photo off any account whose picture is deleted", async () => {
+    const createdAt = now()
+    const wearerId = uuid()
+    const bystanderId = uuid()
+    const base = "https://custom-shell-media.example.test"
+
+    await database.insert(customShellUsers).values([
+      {
+        id: wearerId,
+        email: "photo-wearer@internal.dev",
+        name: "Wearer",
+        role: "member",
+        passwordHash: "hash",
+        avatarUrl: `${base}/${wearerId}/face.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: bystanderId,
+        email: "photo-bystander@internal.dev",
+        name: "Bystander",
+        role: "member",
+        passwordHash: "hash",
+        avatarUrl: `${base}/${bystanderId}/face.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    await clearAvatarsForStoragePaths([`${wearerId}/face.png`], database)
+
+    const rows = await database
+      .select({
+        id: customShellUsers.id,
+        avatarUrl: customShellUsers.avatarUrl,
+      })
+      .from(customShellUsers)
+      .where(
+        inArray(customShellUsers.id, [wearerId, bystanderId])
+      )
+
+    expect(rows.find((row) => row.id === wearerId)?.avatarUrl).toBeNull()
+    // Untouched: only the account holding the deleted file loses its photo.
+    expect(rows.find((row) => row.id === bystanderId)?.avatarUrl).toBe(
+      `${base}/${bystanderId}/face.png`
     )
   })
 

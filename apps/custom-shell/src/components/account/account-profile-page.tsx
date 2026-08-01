@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { ImageUpload } from "@/components/shared/image-upload"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -51,11 +52,12 @@ export function AccountProfilePage({
   }) => void
 }) {
   const [name, setName] = React.useState(user.name)
+  const [avatarUrl, setAvatarUrl] = React.useState(user.avatarUrl)
   const [saved, setSaved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
-  // Nothing to write when the name matches what's already stored, so the
+  // Nothing to write when both fields match what's already stored, so the
   // footer's Save button switches off rather than sending a pointless request.
-  const dirty = name.trim() !== user.name
+  const dirty = name.trim() !== user.name || avatarUrl !== user.avatarUrl
 
   React.useEffect(() => {
     onStatusChange({ saving, saved, dirty })
@@ -69,7 +71,7 @@ export function AccountProfilePage({
       setSaving(true)
 
       try {
-        await updateProfile(name)
+        await updateProfile(name, avatarUrl)
         setSaved(true)
         onSaved()
       } catch (saveError) {
@@ -78,7 +80,7 @@ export function AccountProfilePage({
         setSaving(false)
       }
     },
-    [name, onSaved]
+    [avatarUrl, name, onSaved]
   )
 
   return (
@@ -115,11 +117,22 @@ export function AccountProfilePage({
           <CardHeader>
             <CardTitle>Profile</CardTitle>
             <CardDescription>
-              This name shows up next to your activity.
+              This photo and name are how you show up around the app.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="grid gap-2">
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <ImageUpload
+              label="Photo"
+              value={avatarUrl}
+              onChange={(url) => {
+                setSaved(false)
+                setAvatarUrl(url)
+              }}
+              aspect="square"
+              emptyLabel="Add photo"
+              className="max-w-20"
+            />
+            <div className="grid gap-2 sm:flex-1">
               <Label htmlFor="account-name">Name</Label>
               <Input
                 id="account-name"

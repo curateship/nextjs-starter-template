@@ -35,6 +35,29 @@ import {
   SparklesIcon,
 } from "lucide-react"
 
+/**
+ * The account's photo, or its initials when there is none.
+ *
+ * The image is left out entirely rather than given an empty `src`, which React
+ * warns about because the browser treats it as a request for the page itself.
+ * A photo whose file has gone missing falls back to the initials too — that is
+ * `AvatarImage`'s own behavior when the picture will not load.
+ */
+function UserAvatar({
+  user,
+  initials,
+}: {
+  user: { name: string; avatar: string }
+  initials: string
+}) {
+  return (
+    <Avatar className="h-8 w-8 rounded-lg">
+      {user.avatar ? <AvatarImage src={user.avatar} alt={user.name} /> : null}
+      <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+    </Avatar>
+  )
+}
+
 export function UserDropdown({
   user,
   onLogout,
@@ -72,10 +95,7 @@ export function UserDropdown({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-              </Avatar>
+              <UserAvatar user={user} initials={initials} />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
                 <span className="truncate text-xs text-muted-foreground">
@@ -93,10 +113,7 @@ export function UserDropdown({
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-                </Avatar>
+                <UserAvatar user={user} initials={initials} />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
                   <span className="truncate text-xs text-muted-foreground">

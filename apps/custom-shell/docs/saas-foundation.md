@@ -114,6 +114,17 @@ every session for that user.
 `/account/security` also offers "sign out other devices" and account deletion,
 both requiring the current password.
 
+**Profile photo.** Account → Profile carries the shared `ImageUpload`, so a photo
+is picked or uploaded through the ordinary media library and R2 pipeline. Its
+public URL is stored on `users.avatar_url` and drawn in the sidebar user button
+and its dropdown; with none, both fall back to the account's initials. Saving
+refuses any URL that is not one of this account's own *images*
+(`isOwnedImageUrl`), because that value is stored and rendered back into every
+page. Deleting the picture from the media library — by its owner or by an admin —
+takes it off the account at the same time (`clearAvatarsForStoragePaths`), since
+no foreign key can follow a URL. Deleting the *account* needs no such hook: media
+rows cascade with it, and nobody else could have been holding its files.
+
 **Changing an email address.** Account → Profile asks for the new address and
 the current password (skipped for an account that has none), then mails a
 `change_email` link there. Nothing about the account moves until that link is
@@ -288,7 +299,7 @@ them cleanly.
 **Public:** `/login`, `/register`, `/verify-email`, `/forgot-password`,
 `/reset-password`, `/sign-in-link`, `/change-email`, `/pricing`.
 
-**Member:** `/account` (profile, email address and plan), `/account/security` (password,
+**Member:** `/account` (photo, name, email address and plan), `/account/security` (password,
 devices, delete account), `/account/billing` (plan, renewal or cancellation
 state, upgrade, Stripe portal, invoices), `/account/billing/success`.
 
