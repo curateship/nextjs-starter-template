@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -33,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -500,6 +500,13 @@ function PlanDialog({
   )
   const [saving, setSaving] = React.useState(false)
 
+  // What the window opened with, so closing it can tell real edits from a
+  // window that was only looked at.
+  const [openedWith] = React.useState(draft)
+  const dirty = (Object.keys(draft) as Array<keyof PlanDraft>).some(
+    (field) => draft[field] !== openedWith[field]
+  )
+
   const update = React.useCallback(
     <Key extends keyof PlanDraft>(key: Key, value: PlanDraft[Key]) => {
       setDraft((current) => ({ ...current, [key]: value }))
@@ -553,201 +560,197 @@ function PlanDialog({
   }, [draft, onSaved, plan])
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        // A save in flight holds the window open, so the X, the overlay and
-        // Escape cannot walk away from it — same as every other edit window.
-        if (!nextOpen && saving) return
-        if (!nextOpen) onClose()
-      }}
-    >
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>{plan ? "Edit plan" : "New plan"}</DialogTitle>
-          <DialogDescription>
-            Prices are shown to people exactly as entered here. Stripe price ids
-            decide what they are actually charged.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Basics</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Name" htmlFor="plan-name">
-                  <Input
-                    id="plan-name"
-                    value={draft.name}
-                    onChange={(event) => update("name", event.target.value)}
+    // A save in flight holds the window open, and typed edits are asked about
+    // before the X, the overlay or Escape can throw them away.
+    <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
+      {(requestClose) => (
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>{plan ? "Edit plan" : "New plan"}</DialogTitle>
+            <DialogDescription>
+              Prices are shown to people exactly as entered here. Stripe price ids
+              decide what they are actually charged.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Basics</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Name" htmlFor="plan-name">
+                    <Input
+                      id="plan-name"
+                      value={draft.name}
+                      onChange={(event) => update("name", event.target.value)}
+                    />
+                  </Field>
+                  <Field
+                    label="Short id"
+                    htmlFor="plan-slug"
+                    help="Lowercase letters, numbers and dashes, like `pro`."
+                  >
+                    <Input
+                      id="plan-slug"
+                      value={draft.slug}
+                      onChange={(event) => update("slug", event.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Field label="Description" htmlFor="plan-description">
+                  <Textarea
+                    id="plan-description"
+                    rows={1}
+                    value={draft.description}
+                    onChange={(event) => update("description", event.target.value)}
                   />
                 </Field>
-                <Field
-                  label="Short id"
-                  htmlFor="plan-slug"
-                  help="Lowercase letters, numbers and dashes, like `pro`."
-                >
-                  <Input
-                    id="plan-slug"
-                    value={draft.slug}
-                    onChange={(event) => update("slug", event.target.value)}
-                  />
-                </Field>
-              </div>
-              <Field label="Description" htmlFor="plan-description">
-                <Textarea
-                  id="plan-description"
-                  rows={1}
-                  value={draft.description}
-                  onChange={(event) => update("description", event.target.value)}
-                />
-              </Field>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Price</CardTitle>
-              <CardDescription>
-                Enter amounts in whole currency, like 19 or 19.50. Use 0 to hide
-                a billing period.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Monthly price" htmlFor="plan-monthly">
-                  <Input
-                    id="plan-monthly"
-                    inputMode="decimal"
-                    value={draft.priceMonthly}
-                    onChange={(event) =>
-                      update("priceMonthly", event.target.value)
-                    }
-                  />
-                </Field>
-                <Field label="Yearly price" htmlFor="plan-yearly">
-                  <Input
-                    id="plan-yearly"
-                    inputMode="decimal"
-                    value={draft.priceYearly}
-                    onChange={(event) =>
-                      update("priceYearly", event.target.value)
-                    }
-                  />
-                </Field>
-                <Field label="Currency" htmlFor="plan-currency">
-                  <Input
-                    id="plan-currency"
-                    value={draft.currency}
-                    onChange={(event) => update("currency", event.target.value)}
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Price</CardTitle>
+                <CardDescription>
+                  Enter amounts in whole currency, like 19 or 19.50. Use 0 to hide
+                  a billing period.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Monthly price" htmlFor="plan-monthly">
+                    <Input
+                      id="plan-monthly"
+                      inputMode="decimal"
+                      value={draft.priceMonthly}
+                      onChange={(event) =>
+                        update("priceMonthly", event.target.value)
+                      }
+                    />
+                  </Field>
+                  <Field label="Yearly price" htmlFor="plan-yearly">
+                    <Input
+                      id="plan-yearly"
+                      inputMode="decimal"
+                      value={draft.priceYearly}
+                      onChange={(event) =>
+                        update("priceYearly", event.target.value)
+                      }
+                    />
+                  </Field>
+                  <Field label="Currency" htmlFor="plan-currency">
+                    <Input
+                      id="plan-currency"
+                      value={draft.currency}
+                      onChange={(event) => update("currency", event.target.value)}
+                    />
+                  </Field>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Stripe monthly price id"
+                    htmlFor="plan-stripe-monthly"
+                  >
+                    <Input
+                      id="plan-stripe-monthly"
+                      placeholder="price_..."
+                      value={draft.stripePriceIdMonthly}
+                      onChange={(event) =>
+                        update("stripePriceIdMonthly", event.target.value)
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label="Stripe yearly price id"
+                    htmlFor="plan-stripe-yearly"
+                  >
+                    <Input
+                      id="plan-stripe-yearly"
+                      placeholder="price_..."
+                      value={draft.stripePriceIdYearly}
+                      onChange={(event) =>
+                        update("stripePriceIdYearly", event.target.value)
+                      }
+                    />
+                  </Field>
+                </div>
                 <Field
-                  label="Stripe monthly price id"
-                  htmlFor="plan-stripe-monthly"
+                  label="Free trial days"
+                  htmlFor="plan-trial"
+                  help="0 means no trial."
                 >
                   <Input
-                    id="plan-stripe-monthly"
-                    placeholder="price_..."
-                    value={draft.stripePriceIdMonthly}
-                    onChange={(event) =>
-                      update("stripePriceIdMonthly", event.target.value)
-                    }
+                    id="plan-trial"
+                    inputMode="numeric"
+                    value={draft.trialDays}
+                    onChange={(event) => update("trialDays", event.target.value)}
                   />
                 </Field>
-                <Field
-                  label="Stripe yearly price id"
-                  htmlFor="plan-stripe-yearly"
-                >
-                  <Input
-                    id="plan-stripe-yearly"
-                    placeholder="price_..."
-                    value={draft.stripePriceIdYearly}
-                    onChange={(event) =>
-                      update("stripePriceIdYearly", event.target.value)
-                    }
-                  />
-                </Field>
-              </div>
-              <Field
-                label="Free trial days"
-                htmlFor="plan-trial"
-                help="0 means no trial."
-              >
-                <Input
-                  id="plan-trial"
-                  inputMode="numeric"
-                  value={draft.trialDays}
-                  onChange={(event) => update("trialDays", event.target.value)}
-                />
-              </Field>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Features and visibility</CardTitle>
-              <CardDescription>
-                Features are JSON. `true` shows as a bullet, a number shows as a
-                limit, and text shows as a value.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <Field label="Features" htmlFor="plan-features">
-                <Textarea
-                  id="plan-features"
-                  rows={1}
-                  className="font-mono text-xs"
-                  value={draft.features}
-                  onChange={(event) => update("features", event.target.value)}
-                />
-              </Field>
-              <Field label="Order" htmlFor="plan-sort">
-                <Input
-                  id="plan-sort"
-                  inputMode="numeric"
-                  value={draft.sortOrder}
-                  onChange={(event) => update("sortOrder", event.target.value)}
-                />
-              </Field>
-              <div className="grid gap-2">
-                <CheckboxRow
-                  id="plan-public"
-                  label="Show on the pricing page"
-                  checked={draft.isPublic}
-                  onChange={(checked) => update("isPublic", checked)}
-                />
-                <CheckboxRow
-                  id="plan-default"
-                  label="Everyone starts on this plan"
-                  checked={draft.isDefault}
-                  onChange={(checked) => update("isDefault", checked)}
-                />
-                <CheckboxRow
-                  id="plan-active"
-                  label="Active"
-                  checked={draft.active}
-                  onChange={(checked) => update("active", checked)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-            {plan ? "Save plan" : "Create plan"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Features and visibility</CardTitle>
+                <CardDescription>
+                  Features are JSON. `true` shows as a bullet, a number shows as a
+                  limit, and text shows as a value.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <Field label="Features" htmlFor="plan-features">
+                  <Textarea
+                    id="plan-features"
+                    rows={1}
+                    className="font-mono text-xs"
+                    value={draft.features}
+                    onChange={(event) => update("features", event.target.value)}
+                  />
+                </Field>
+                <Field label="Order" htmlFor="plan-sort">
+                  <Input
+                    id="plan-sort"
+                    inputMode="numeric"
+                    value={draft.sortOrder}
+                    onChange={(event) => update("sortOrder", event.target.value)}
+                  />
+                </Field>
+                <div className="grid gap-2">
+                  <CheckboxRow
+                    id="plan-public"
+                    label="Show on the pricing page"
+                    checked={draft.isPublic}
+                    onChange={(checked) => update("isPublic", checked)}
+                  />
+                  <CheckboxRow
+                    id="plan-default"
+                    label="Everyone starts on this plan"
+                    checked={draft.isDefault}
+                    onChange={(checked) => update("isDefault", checked)}
+                  />
+                  <CheckboxRow
+                    id="plan-active"
+                    label="Active"
+                    checked={draft.active}
+                    onChange={(checked) => update("active", checked)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={requestClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              {plan ? "Save changes" : "Create plan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }
 

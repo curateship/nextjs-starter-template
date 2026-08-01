@@ -4,13 +4,13 @@ import { Loader2Icon, SaveIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountProfilePage } from "@/components/account/account-profile-page"
@@ -95,79 +95,96 @@ export function AccountDialog({
   })
 
   return (
-    <Dialog
+    // Only the Profile tab holds a form. Its unsaved name or photo is asked
+    // about before the X, the overlay or Escape can drop it, and a save in
+    // flight holds the window open. The other tabs close on the first click,
+    // exactly as before.
+    <FormDialog
       open={tab != null}
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
+      dirty={tab === "profile" && profileStatus.dirty}
+      busy={tab === "profile" && profileStatus.saving}
+      onClose={onClose}
     >
-      <DialogContent
-        variant="admin"
-        className="sm:max-w-3xl"
-        aria-describedby={undefined}
-      >
-        <Tabs
-          value={tab ?? "profile"}
-          onValueChange={(value) => onTabChange(value as AccountTab)}
-          className="flex min-h-0 flex-1 flex-col gap-0"
+      {(requestClose) => (
+        <DialogContent
+          variant="admin"
+          className="sm:max-w-3xl"
+          aria-describedby={undefined}
         >
-          <DialogHeader>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <DialogTitle>Account</DialogTitle>
-              <TabsList>
-                {ACCOUNT_TABS.map((id) => (
-                  <TabsTrigger key={id} value={id}>
-                    {TAB_LABELS[id]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          </DialogHeader>
+          <Tabs
+            value={tab ?? "profile"}
+            onValueChange={(value) => onTabChange(value as AccountTab)}
+            className="flex min-h-0 flex-1 flex-col gap-0"
+          >
+            <DialogHeader>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <DialogTitle>Account</DialogTitle>
+                <TabsList>
+                  {ACCOUNT_TABS.map((id) => (
+                    <TabsTrigger key={id} value={id}>
+                      {TAB_LABELS[id]}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+            </DialogHeader>
 
-          <DialogBody>
-            <TabsContent value="profile">
-              <AccountProfilePage
-                user={user}
-                planName={plan.planName}
-                isPaid={plan.isPaid}
-                formId={PROFILE_FORM_ID}
-                onSaved={onProfileSaved}
-                onManageBilling={() => onTabChange("billing")}
-                onStatusChange={setProfileStatus}
-              />
-            </TabsContent>
-            <TabsContent value="billing">
-              <BillingTab />
-            </TabsContent>
-            <TabsContent value="security">
-              <AccountSecurityPage user={user} />
-            </TabsContent>
-          </DialogBody>
+            <DialogBody>
+              <TabsContent value="profile">
+                <AccountProfilePage
+                  user={user}
+                  planName={plan.planName}
+                  isPaid={plan.isPaid}
+                  formId={PROFILE_FORM_ID}
+                  onSaved={onProfileSaved}
+                  onManageBilling={() => onTabChange("billing")}
+                  onStatusChange={setProfileStatus}
+                />
+              </TabsContent>
+              <TabsContent value="billing">
+                <BillingTab />
+              </TabsContent>
+              <TabsContent value="security">
+                <AccountSecurityPage user={user} />
+              </TabsContent>
+            </DialogBody>
 
-          {tab === "profile" ? (
-            <DialogFooter>
-              {profileStatus.saved ? (
-                <span className="mr-auto text-sm text-muted-foreground">
-                  Saved
-                </span>
-              ) : null}
-              <Button
-                type="submit"
-                form={PROFILE_FORM_ID}
-                disabled={profileStatus.saving || !profileStatus.dirty}
-              >
-                {profileStatus.saving ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <SaveIcon className="size-4" />
-                )}
-                Save
-              </Button>
-            </DialogFooter>
-          ) : null}
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+            {tab === "profile" ? (
+              // The "Saved" note takes the hard-left slot this window has no
+              // Delete for, so Cancel and the primary stay where they are in
+              // every other window.
+              <DialogFooter>
+                {profileStatus.saved ? (
+                  <span className="mr-auto text-sm text-muted-foreground">
+                    Saved
+                  </span>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={profileStatus.saving}
+                  onClick={requestClose}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  form={PROFILE_FORM_ID}
+                  disabled={profileStatus.saving || !profileStatus.dirty}
+                >
+                  {profileStatus.saving ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <SaveIcon className="size-4" />
+                  )}
+                  Save changes
+                </Button>
+              </DialogFooter>
+            ) : null}
+          </Tabs>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }
 

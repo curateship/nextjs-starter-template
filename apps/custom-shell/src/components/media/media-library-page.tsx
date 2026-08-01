@@ -24,7 +24,6 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -33,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { DetailRow } from "@/components/media/media-detail-row"
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { Input } from "@/components/ui/input"
@@ -611,7 +611,7 @@ export function MediaLibraryPage({
         }}
         title={`Delete ${deleteIds?.length ?? 0} ${(deleteIds?.length ?? 0) === 1 ? "file" : "files"}?`}
         description="The file is erased from storage and removed from its owner's library. This cannot be undone."
-        confirmLabel="Delete"
+        confirmLabel={(deleteIds?.length ?? 0) === 1 ? "Delete file" : "Delete files"}
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
       />
@@ -638,6 +638,8 @@ function MediaDetailsDialog({
 }) {
   const [altText, setAltText] = React.useState(item?.alt_text ?? "")
   const [saving, setSaving] = React.useState(false)
+  // Somebody else's file has nothing to edit, so it always closes instantly.
+  const dirty = editable && altText !== (item?.alt_text ?? "")
 
   async function handleSave() {
     if (!item) return
@@ -656,106 +658,121 @@ function MediaDetailsDialog({
   }
 
   return (
-    <Dialog
-      open={Boolean(item)}
-      onOpenChange={(open) => {
-        if (!open && !saving) onClose()
-      }}
-    >
-      <DialogContent variant="admin">
-        <DialogHeader>
-          {/* A file name is the whole point of this header, so it wraps rather
-              than losing its end to the shared one-line truncation. */}
-          <DialogTitle className="pr-8 break-all whitespace-normal">
-            {item?.original_name ?? "File"}
-          </DialogTitle>
-          <DialogDescription className="break-words">
-            {item ? `Uploaded by ${item.owner_name} (${item.owner_email})` : null}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          {item ? (
-            <>
-              <Card size="sm">
-                <CardContent className="grid gap-4">
-                  {item.file_type === "video" ? (
-                    // Opened deliberately, so it plays with sound and seeks
-                    // over range requests rather than downloading in full.
-                    <video
-                      src={item.url}
-                      className="mx-auto max-h-[50vh] w-full rounded-lg bg-muted object-contain"
-                      controls
-                      playsInline
-                      preload="metadata"
-                    />
-                  ) : (
-                    <img
-                      src={item.url}
-                      alt={item.alt_text ?? item.original_name}
-                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
-                    />
-                  )}
-                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                    <DetailRow label="Type" value={item.mime_type} />
-                    <DetailRow label="Size" value={formatFileSize(item.file_size)} />
-                    <DetailRow label="Added" value={formatDate(item.created_at)} />
-                    <DetailRow label="Stored at" value={item.storage_path} />
-                  </dl>
-                </CardContent>
-              </Card>
-
-              {editable ? (
+    <FormDialog open={Boolean(item)} dirty={dirty} busy={saving} onClose={onClose}>
+      {(requestClose) => (
+        <DialogContent variant="admin">
+          <DialogHeader>
+            {/* A file name is the whole point of this header, so it wraps rather
+                than losing its end to the shared one-line truncation. */}
+            <DialogTitle className="pr-8 break-all whitespace-normal">
+              {item?.original_name ?? "File"}
+            </DialogTitle>
+            <DialogDescription className="break-words">
+              {item ? `Uploaded by ${item.owner_name} (${item.owner_email})` : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {item ? (
+              <>
                 <Card size="sm">
                   <CardContent className="grid gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="media-alt-text">
-                        {item.file_type === "video" ? "Description" : "Alt text"}
-                      </Label>
-                      <Input
-                        id="media-alt-text"
-                        value={altText}
-                        onChange={(event) => setAltText(event.target.value)}
-                        placeholder="Optional"
+                    {item.file_type === "video" ? (
+                      // Opened deliberately, so it plays with sound and seeks
+                      // over range requests rather than downloading in full.
+                      <video
+                        src={item.url}
+                        className="mx-auto max-h-[50vh] w-full rounded-lg bg-muted object-contain"
+                        controls
+                        playsInline
+                        preload="metadata"
                       />
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : item.alt_text ? (
-                <Card size="sm">
-                  <CardContent className="grid gap-4">
-                    <dl className="grid gap-2 text-sm">
-                      <DetailRow
-                        label={item.file_type === "video" ? "Description" : "Alt text"}
-                        value={item.alt_text}
+                    ) : (
+                      <img
+                        src={item.url}
+                        alt={item.alt_text ?? item.original_name}
+                        className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
                       />
+                    )}
+                    <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                      <DetailRow label="Type" value={item.mime_type} />
+                      <DetailRow label="Size" value={formatFileSize(item.file_size)} />
+                      <DetailRow label="Added" value={formatDate(item.created_at)} />
+                      <DetailRow label="Stored at" value={item.storage_path} />
                     </dl>
                   </CardContent>
                 </Card>
-              ) : null}
-            </>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={saving}
-            onClick={onDelete}
-          >
-            Delete
-          </Button>
-          <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
-            {editable ? "Cancel" : "Close"}
-          </Button>
-          {editable ? (
-            <Button type="button" disabled={saving} onClick={() => void handleSave()}>
-              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Save
+
+                {editable ? (
+                  <Card size="sm">
+                    <CardContent className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="media-alt-text">
+                          {item.file_type === "video" ? "Description" : "Alt text"}
+                        </Label>
+                        <Input
+                          id="media-alt-text"
+                          value={altText}
+                          onChange={(event) => setAltText(event.target.value)}
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : item.alt_text ? (
+                  <Card size="sm">
+                    <CardContent className="grid gap-4">
+                      <dl className="grid gap-2 text-sm">
+                        <DetailRow
+                          label={item.file_type === "video" ? "Description" : "Alt text"}
+                          value={item.alt_text}
+                        />
+                      </dl>
+                    </CardContent>
+                  </Card>
+                ) : null}
+              </>
+            ) : null}
+          </DialogBody>
+          {/* Someone else's file opens read-only, so it ends with a single Done
+              — there would be nothing for a Cancel to undo. */}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="destructive"
+              className="mr-auto"
+              disabled={saving}
+              onClick={onDelete}
+            >
+              Delete
             </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {editable ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={requestClose}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleSave()}
+                >
+                  {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                  Save changes
+                </Button>
+              </>
+            ) : (
+              <Button type="button" onClick={requestClose}>
+                Done
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }
 
