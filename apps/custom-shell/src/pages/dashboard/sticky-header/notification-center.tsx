@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
   CheckCheckIcon,
+  Loader2Icon,
   MegaphoneIcon,
   MessageSquareIcon,
   SparklesIcon,
@@ -206,15 +207,35 @@ export function NotificationCenter({
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
+  const [markingAll, setMarkingAll] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
+  const requestInFlightRef = React.useRef(false)
 
   const visibleNotifications =
     filter === "unread"
       ? notifications.filter((item) => !item.read_at)
       : notifications
 
+  // The Unread tab can only filter the rows it has pulled, so with unread
+  // notices sitting further back than the first page the tab would say 3 and
+  // show none. Own up to the gap and offer the pages that close it.
+  const hiddenUnreadCount =
+    filter === "unread"
+      ? Math.max(0, unreadCount - visibleNotifications.length)
+      : 0
+  const canLoadHiddenUnread = hiddenUnreadCount > 0 && nextCursor !== null
+
   const loadNotificationRows = React.useCallback(async (cursor?: string) => {
+    // One request at a time. Three things ask for pages now — opening the
+    // panel, scrolling to the bottom, and the Load more button — and the
+    // busy flags they check only go up on the next render, so two can start
+    // together. That matters most when a reload lands mid-append: the reload
+    // replaces the list, then the append grafts a page fetched against the
+    // old one onto it, which duplicates rows.
+    if (requestInFlightRef.current) return
+    requestInFlightRef.current = true
+
     if (cursor) {
       setLoadingMore(true)
     } else {
@@ -235,6 +256,7 @@ export function NotificationCenter({
     } catch (loadError) {
       setError(getNotificationErrorMessage(loadError))
     } finally {
+      requestInFlightRef.current = false
       setLoading(false)
       setLoadingMore(false)
     }
@@ -268,8 +290,11 @@ export function NotificationCenter({
   }, [loadMoreFromElement])
 
   async function markAllAsRead() {
-    if (unreadCount === 0) return
+    // The button is disabled in both cases; this is the guard against a second
+    // click landing between the first one and the re-render.
+    if (unreadCount === 0 || markingAll) return
 
+    setMarkingAll(true)
     setError(null)
     try {
       const result = await markAllNotificationsRead()
@@ -282,6 +307,8 @@ export function NotificationCenter({
       setUnreadCount(0)
     } catch (readError) {
       setError(getNotificationErrorMessage(readError))
+    } finally {
+      setMarkingAll(false)
     }
   }
 
@@ -330,11 +357,24 @@ export function NotificationCenter({
           variant="ghost"
           size="icon"
           className="relative"
-          aria-label="Open notifications"
+          aria-label={
+            unreadCount > 0
+              ? `Open notifications, ${unreadCount} unread`
+              : "Open notifications"
+          }
         >
           <BellIcon className="h-[1.15rem] w-[1.15rem]" />
           {unreadCount > 0 ? (
-            <span className="absolute right-1 top-1 size-3 rounded-full border-2 border-background bg-red-500" />
+            // A circle at one digit that stretches into a pill at two or three,
+            // capped at 99+ so a big number can never widen past the button.
+            // The count is in the button's own label, so this is decoration to
+            // a screen reader.
+            <span
+              aria-hidden
+              className="absolute -top-1 -right-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full border-2 border-background bg-red-500 px-1 text-[0.625rem] leading-none font-semibold text-white tabular-nums"
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
           ) : null}
         </Button>
       </DropdownMenuTrigger>
@@ -345,7 +385,7 @@ export function NotificationCenter({
         className="w-[calc(100vw-2rem)] max-w-[26rem] overflow-hidden p-0 sm:w-[26rem]"
       >
         <div className="flex flex-wrap items-center gap-3 p-4">
-          <h2 className="mr-auto text-xl font-semibold">Notification</h2>
+          <h2 className="mr-auto text-xl font-semibold">Notifications</h2>
           <NotificationTabs
             activeFilter={filter}
             unreadCount={unreadCount}
@@ -357,8 +397,19 @@ export function NotificationCenter({
         <div ref={scrollAreaRootRef}>
           <ScrollArea className="h-[28rem]">
             <div className="px-4 py-4">
-              {loading ? (
-                null
+              {/* Only the very first open has nothing to show. Later opens keep
+                  the rows already in hand while they refresh, rather than
+                  flashing a spinner over data that is very likely still right. */}
+              {loading && notifications.length === 0 ? (
+                <div
+                  className="grid h-56 place-items-center text-sm text-muted-foreground"
+                  role="status"
+                >
+                  <span className="flex items-center gap-2">
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Loading…
+                  </span>
+                </div>
               ) : visibleNotifications.length > 0 ? (
                 <div className="space-y-3">
                   {visibleNotifications.map((item) => (
@@ -391,14 +442,56 @@ export function NotificationCenter({
                     </button>
                   ))}
                 </div>
-              ) : (
+              ) : canLoadHiddenUnread || error ? null : (
+                // A failed load leaves no rows either, and saying "none" there
+                // would be the same lie in a different place — the banner below
+                // is the only honest thing to show.
                 <div className="py-10 text-center text-sm text-muted-foreground">
-                  No notifications
+                  {filter === "unread"
+                    ? "No unread notifications"
+                    : "No notifications"}
                 </div>
               )}
+
+              {canLoadHiddenUnread ? (
+                <div
+                  className={cn(
+                    "flex flex-col items-center gap-1 text-center",
+                    visibleNotifications.length > 0 ? "pt-4" : "py-10"
+                  )}
+                >
+                  <p className="text-sm text-muted-foreground">
+                    {hiddenUnreadCount === 1
+                      ? "1 unread notice further back"
+                      : `${hiddenUnreadCount} unread notices further back`}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={loading || loadingMore}
+                    onClick={() => {
+                      if (nextCursor) void loadNotificationRows(nextCursor)
+                    }}
+                  >
+                    {loadingMore ? (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    ) : null}
+                    Load more
+                  </Button>
+                </div>
+              ) : loadingMore ? (
+                <div className="flex justify-center pt-4" role="status">
+                  <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : null}
+
               {error ? (
                 <div className="mt-4">
-                  <ErrorBanner message={error} />
+                  <ErrorBanner
+                    message={error}
+                    onRetry={() => void loadNotificationRows()}
+                  />
                 </div>
               ) : null}
             </div>
@@ -406,8 +499,17 @@ export function NotificationCenter({
         </div>
         <Separator />
         <div className="flex flex-wrap items-center gap-2 p-4">
-          <Button type="button" variant="ghost" onClick={markAllAsRead}>
-            <CheckCheckIcon className="h-4 w-4" />
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={unreadCount === 0 || markingAll}
+            onClick={() => void markAllAsRead()}
+          >
+            {markingAll ? (
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCheckIcon className="h-4 w-4" />
+            )}
             Mark all as read
           </Button>
         </div>
