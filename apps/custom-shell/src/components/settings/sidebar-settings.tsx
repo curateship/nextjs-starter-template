@@ -96,6 +96,10 @@ type SidebarSettingsProps = {
 type SortableItemProps = {
   sectionId: string
   item: ShellItem
+  /** Which link's editor is open, and the new child link — see the parent. */
+  openItemId: string | null
+  onOpenItemChange: (itemId: string | null) => void
+  newChildId: string | null
   onItemChange: (
     sectionId: string,
     itemId: string,
@@ -120,6 +124,8 @@ type SortableItemProps = {
 
 type SortableChildProps = {
   child: ShellChildItem
+  /** True for the child link "Add Child" just made, which takes the cursor. */
+  isNew: boolean
   onChange: (childId: string, patch: Partial<ShellChildItem>) => void
   onDelete: (childId: string) => void
 }
@@ -127,6 +133,10 @@ type SortableChildProps = {
 type SortableSectionProps = {
   section: ShellSection
   isDraggingItem: boolean
+  /** Which link's editor is open, and the new child link — see the parent. */
+  openItemId: string | null
+  onOpenItemChange: (itemId: string | null) => void
+  newChildId: string | null
   onSectionTitleChange: (sectionId: string, title: string) => void
   onSectionDelete: (sectionId: string) => void
   onReset: () => void
@@ -184,7 +194,7 @@ function DividerPreview({ entry }: { entry: ShellEntry }) {
   )
 }
 
-function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
+function SortableChild({ child, isNew, onChange, onDelete }: SortableChildProps) {
   const childName = isShellEntryNamed(child) ? child.label : "child link"
   const {
     attributes,
@@ -223,7 +233,12 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
         ghost
         onValueChange={(icon) => onChange(child.id, { icon })}
       />
+      {/* A child row has no editor of its own, so "ready to type" is the cursor
+          landing here the moment "Add Child" makes the row — which also scrolls
+          it into view at the bottom of a long list. Mount-only, so an existing
+          child never takes focus when the link's editor is reopened. */}
       <Input
+        autoFocus={isNew}
         value={child.label}
         onChange={(event) => onChange(child.id, { label: event.target.value })}
         placeholder="Child label"
@@ -253,6 +268,9 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
 function SortableSidebarItem({
   sectionId,
   item,
+  openItemId,
+  onOpenItemChange,
+  newChildId,
   onItemChange,
   onItemDelete,
   onChildAdd,
@@ -261,8 +279,11 @@ function SortableSidebarItem({
   onChildDragEnd,
   onSaveConfig,
 }: SortableItemProps) {
-  const [dialogOpen, setDialogOpen] = React.useState(false)
   const labelInputRef = React.useRef<HTMLInputElement>(null)
+  // Whether this row's editor is open is the parent's business, not the row's:
+  // it is the only way "Add Link" can open the editor of the link it has just
+  // made. It also means a row remounting mid-drag cannot lose or reopen it.
+  const dialogOpen = openItemId === item.id
   // One source of truth for "has this link been named yet" — it drives the row
   // text, the accessible names, the dialog title and where focus lands.
   const isNamed = isShellEntryNamed(item)
@@ -309,7 +330,7 @@ function SortableSidebarItem({
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
-          onClick={() => setDialogOpen(true)}
+          onClick={() => onOpenItemChange(item.id)}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center text-foreground">
             {renderShellIcon(item.icon, "h-4 w-4")}
@@ -364,7 +385,10 @@ function SortableSidebarItem({
         </Button>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => onOpenItemChange(open ? item.id : null)}
+      >
         <DialogContent
           variant="admin"
           // Opening a link that has no name yet drops the cursor straight in
@@ -461,6 +485,7 @@ function SortableSidebarItem({
                           <SortableChild
                             key={child.id}
                             child={child}
+                            isNew={child.id === newChildId}
                             onChange={(childId, patch) =>
                               onChildChange(sectionId, item.id, childId, patch)
                             }
@@ -486,7 +511,7 @@ function SortableSidebarItem({
               onClick={async () => {
                 // Edits already auto-save; flush any pending debounce, then close.
                 await onSaveConfig()
-                setDialogOpen(false)
+                onOpenItemChange(null)
               }}
             >
               Done
@@ -501,6 +526,9 @@ function SortableSidebarItem({
 function SortableSectionCard({
   section,
   isDraggingItem,
+  openItemId,
+  onOpenItemChange,
+  newChildId,
   onSectionTitleChange,
   onSectionDelete,
   onReset,
@@ -609,6 +637,9 @@ function SortableSectionCard({
                   key={entry.id}
                   sectionId={section.id}
                   item={entry}
+                  openItemId={openItemId}
+                  onOpenItemChange={onOpenItemChange}
+                  newChildId={newChildId}
                   onItemChange={onItemChange}
                   onItemDelete={onItemDelete}
                   onChildAdd={onChildAdd}
@@ -645,6 +676,11 @@ export function SidebarSettings({
   reset,
 }: SidebarSettingsProps) {
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
+  // Which link's editor is open, and which child link was just added. Both are
+  // held here rather than in the rows because that is the only way "Add" can
+  // hand the thing it has just made straight to the user, ready to type in.
+  const [openItemId, setOpenItemId] = React.useState<string | null>(null)
+  const [newChildId, setNewChildId] = React.useState<string | null>(null)
   const [resetOpen, setResetOpen] = React.useState(false)
   const [pendingDeleteSectionId, setPendingDeleteSectionId] = React.useState<
     string | null
@@ -723,6 +759,13 @@ export function SidebarSettings({
     [emptySectionIds, itemIds, sectionIds]
   )
 
+  const handleOpenItemChange = (itemId: string | null) => {
+    setOpenItemId(itemId)
+    // A new child link only claims the cursor for the editor session that made
+    // it, so reopening a link later never pulls focus into an old child row.
+    setNewChildId(null)
+  }
+
   const handleAddItem = (sectionId: string) => {
     const item: ShellItem = {
       type: "item",
@@ -733,6 +776,9 @@ export function SidebarSettings({
       visible: true,
     }
 
+    // The editor opens on the same click that makes the link, so a blank row
+    // never has to be hunted down at the bottom of the section and clicked.
+    handleOpenItemChange(item.id)
     onSectionsChange(
       updateSection(sections, sectionId, (section) => ({
         ...section,
@@ -963,6 +1009,7 @@ export function SidebarSettings({
       href: "",
     }
 
+    setNewChildId(child.id)
     onSectionsChange(
       updateSection(sections, sectionId, (section) => ({
         ...section,
@@ -1112,6 +1159,9 @@ export function SidebarSettings({
                 key={section.id}
                 section={section}
                 isDraggingItem={isDraggingItem}
+                openItemId={openItemId}
+                onOpenItemChange={handleOpenItemChange}
+                newChildId={newChildId}
                 onSectionTitleChange={handleSectionTitleChange}
                 onSectionDelete={(sectionId) =>
                   setPendingDeleteSectionId(sectionId)
