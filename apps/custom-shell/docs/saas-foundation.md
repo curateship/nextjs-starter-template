@@ -30,12 +30,21 @@ All of it arrives in one migration, `drizzle/0004_custom_shell_saas.sql`, with
 Drizzle definitions in `src/server/schema.ts`.
 
 **`users` (extended)** — gains `email_verified_at` and `status`
-(`active` / `suspended`), and `role` is now constrained to `admin` or `member`.
-Accounts that predate the migration are marked verified so nobody is locked out.
+(`active` / `suspended` / `pending_deletion`), and `role` is now constrained to
+`admin` or `member`. Accounts that predate the migration are marked verified so
+nobody is locked out. `deleted_at` and `deleted_by` arrive in
+`drizzle/0015_custom_shell_soft_delete.sql`: when the deletion clock started and
+who started it. A check constraint pairs `deleted_at` with the
+`pending_deletion` status both ways, so a marked account can never be missing
+its date and an ordinary one can never carry one.
 
 **`auth_tokens`** — one-time links. Stores only a SHA-256 hash of the token,
-its `purpose` (`verify_email`, `reset_password` or `login`), an expiry, and
-`used_at`. A `login` token is a magic-link sign-in and lives 15 minutes.
+its `purpose` (`verify_email`, `reset_password`, `login` or `change_email`), an
+expiry, and `used_at`. A `login` token is a magic-link sign-in and lives 15
+minutes. A `change_email` token also carries `new_email`, the address opening it
+would move the account to; a check constraint pairs the two both ways, so a
+change link cannot exist without a destination and no other kind carries one.
+Arrives in `drizzle/0014_custom_shell_email_change.sql`.
 
 **`oauth_accounts`** — one linked sign-in provider account per row: the
 `provider`, the provider's own permanent id for the person, and the account here
@@ -105,10 +114,66 @@ every session for that user.
 `/account/security` also offers "sign out other devices" and account deletion,
 both requiring the current password.
 
+**Profile photo.** Account → Profile carries the shared `ImageUpload`, so a photo
+is picked or uploaded through the ordinary media library and R2 pipeline. Its
+public URL is stored on `users.avatar_url` and drawn in the sidebar user button
+and its dropdown; with none, both fall back to the account's initials. Saving
+refuses any URL that is not one of this account's own *images*
+(`isOwnedImageUrl`), because that value is stored and rendered back into every
+page. Deleting the picture from the media library — by its owner or by an admin —
+takes it off the account at the same time (`clearAvatarsForStoragePaths`), since
+no foreign key can follow a URL. Deleting the *account* needs no such hook: media
+rows cascade with it, and nobody else could have been holding its files.
+
+**Changing an email address.** Account → Profile asks for the new address and
+the current password (skipped for an account that has none), then mails a
+`change_email` link there. Nothing about the account moves until that link is
+opened at `/change-email?token=…`, which is why the tab shows the address it is
+waiting on and offers to cancel. Asking again replaces the outstanding link, so
+only one can ever be live. Uniqueness is checked when the link is issued *and*
+inside the transaction that spends it — the second check is the one that matters,
+since the address can be taken while the link sits in an inbox, and a clash rolls
+the whole thing back and leaves the link usable. Confirming marks the account
+verified and leaves every session alone. If the confirmation mail cannot be
+delivered the token is dropped again, so the tab never claims a link is on its
+way when none went out. Code: `src/server/email-change.ts`.
+
+One thing it does **not** move: the address on the Stripe customer. Checkout
+creates that customer with whatever address the person had at the time
+(`customer_email` in `createCheckoutSession`) and this app never calls
+`customers.update`, so Stripe receipts keep going to the old address. Sync it
+there if that matters for your product.
+
 **Suspension** deletes the person's sessions immediately, and
 `findUserBySessionToken` treats a suspended account as signed out — so
 suspending someone takes effect on an open tab, not whenever their cookie
 happens to expire.
+
+**Deleting an account** marks it rather than removing it. The status becomes
+`pending_deletion`, `deleted_at` starts a 30-day clock, `deleted_by` records who
+pressed the button, and every session for that account is dropped. A marked
+account is signed out everywhere and cannot be signed in to by any route — the
+password form, a sign-in link and Google all refuse it, and a change-email link
+stops working. Code: `src/server/account-deletion.ts`, with the window itself in
+`src/lib/account-deletion.ts` so the screens and the server read one number.
+
+**Restoring** is a deliberate second act, never a side effect of signing in.
+After refusing, `/login` offers "Restore my account and sign in", which sends the
+same password with `restore: true`; that flag is the only thing that brings an
+account back through sign-in. An account an *admin* deleted is refused even then
+(`DELETED_BY_ADMIN`) — a member must not be able to reverse a moderation
+decision — so a Google-only account, having no password to offer, is always an
+admin's to restore. Admins restore from `/admin/users`, one row at a time or a
+whole selection at once. An account always comes back **active**: the deletion
+clock took the status column, so a suspended account that was then deleted
+returns unsuspended. The restore confirmation says so.
+
+**Purging.** Once the window passes the row is really deleted, and everything
+that references it goes with it. There is no scheduled job in this app, so
+`purgeExpiredDeletions()` runs on the two everyday write paths that care:
+registering (an address stays taken until the account holding it is really gone)
+and signing in. An admin who does not want to wait deletes a marked account a
+second time, which removes it immediately.
 
 **Throttles** (per IP, in `rate_limits`):
 
@@ -118,6 +183,8 @@ happens to expire.
 | Register | 5 per hour |
 | Password reset request | 5 per hour |
 | Resend verification | 5 per hour |
+| Email change request | 5 per hour, per account |
+| Email change confirm | 10 per hour |
 
 A successful sign-in clears its bucket. Note the registration limit is strict
 enough that a shared office IP could hit it; raise it in `src/lib/api/auth.ts`
@@ -230,14 +297,15 @@ them cleanly.
 ## 8. Screens
 
 **Public:** `/login`, `/register`, `/verify-email`, `/forgot-password`,
-`/reset-password`, `/pricing`.
+`/reset-password`, `/sign-in-link`, `/change-email`, `/pricing`.
 
-**Member:** `/account` (profile and plan), `/account/security` (password,
+**Member:** `/account` (photo, name, email address and plan), `/account/security` (password,
 devices, delete account), `/account/billing` (plan, renewal or cancellation
 state, upgrade, Stripe portal, invoices), `/account/billing/success`.
 
-**Admin:** `/admin/users` (search, filter, sort, paging, mass delete, edit
-modal for role / status / granted plan), `/admin/plans` (create, edit, archive),
+**Admin:** `/admin/users` (search, filter, sort, paging, mass delete, mass
+restore, edit modal for role / status / granted plan), `/admin/plans` (create,
+edit, archive),
 `/admin/billing` (monthly recurring revenue, subscriber counts, revenue by plan).
 
 Both admin tables follow `.agents/skills/Ui-standards`: a selection column with
@@ -354,7 +422,7 @@ in `users.role`; change it from `/admin/users`.
    `src/server/schema.ts`.
 2. Copy `src/server/`: the `security.ts` additions, `rate-limit.ts`, `email.ts`,
    `plans.ts`, `entitlements.ts`, `billing.ts`, `accounts.ts`, `app-url.ts`,
-   `google-auth.ts`.
+   `google-auth.ts`, `sign-in-link.ts`, `email-change.ts`.
 3. Copy `src/lib/api/`: `auth.ts`, `billing.ts`, `admin-plans.ts`,
    `admin-users.ts`.
 4. Copy the auth, account and admin routes plus
@@ -365,5 +433,5 @@ in `users.role`; change it from `/admin/users`.
 ## 15. Not included
 
 Teams or organisations (billing is per user), seats and invites, usage-based
-metering, coupons and promotion codes, tax handling, dunning email beyond
-Stripe's own, and self-serve email address changes.
+metering, coupons and promotion codes, tax handling, and dunning email beyond
+Stripe's own.

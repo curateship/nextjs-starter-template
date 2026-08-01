@@ -3,12 +3,30 @@ import { getRequestIP } from "@tanstack/react-start/server"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
+import {
+  ACCOUNT_RESTORE_DAYS,
+  isPendingDeletion,
+} from "@/lib/account-deletion"
 import { describeDevice } from "@/lib/device-label"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
+import {
+  markAccountsForDeletion,
+  purgeExpiredDeletions,
+  restoreOwnAccount,
+} from "@/server/account-deletion"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
+import {
+  cancelEmailChange,
+  consumeEmailChange,
+  createEmailChangeToken,
+  findPendingEmailChange,
+  type PendingEmailChange,
+} from "@/server/email-change"
 import { sendAuthEmail } from "@/server/email"
+import { isOwnedImageUrl } from "@/server/media"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
 import { googleSignInEnabled } from "@/server/google-auth"
 import { customShellSessions, customShellUsers } from "@/server/schema"
@@ -23,6 +41,7 @@ import {
   deleteUserSession,
   describeRequestOrigin,
   findCurrentUser,
+  findSessionContext,
   findUserByEmail,
   getSessionToken,
   hashPassword,
@@ -51,6 +70,11 @@ export type AuthUser = {
    * for a current password nobody has.
    */
   hasPassword: boolean
+  /**
+   * The profile photo's public URL, or "" when there is none — the shell falls
+   * back to the account's initials.
+   */
+  avatarUrl: string
 }
 
 const emailSchema = z.string().trim().toLowerCase().min(3).max(255).email()
@@ -90,8 +114,22 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1).max(128),
+  /**
+   * Set only by the "Restore my account" button, which the sign-in page offers
+   * after a refusal. The flag is what makes bringing an account back a
+   * deliberate second act rather than something a routine sign-in does by
+   * accident — the credentials on their own are never enough.
+   */
+  restore: z.boolean().default(false),
 })
-const profileSchema = z.object({ name: nameSchema })
+const profileSchema = z.object({
+  name: nameSchema,
+  /**
+   * The picture's URL, or "" to take the photo off. The server still checks it
+   * is one of this account's own images before storing it — see the handler.
+   */
+  avatarUrl: z.string().trim().max(2048),
+})
 const changePasswordSchema = z.object({
   /**
    * Absent only for an account that has no password yet, which is how an
@@ -104,6 +142,14 @@ const resetPasswordSchema = z.object({
   token: tokenSchema,
   password: passwordSchema,
 })
+const changeEmailSchema = z.object({
+  newEmail: emailSchema,
+  /**
+   * Absent only for an account that has no password, which is how an account
+   * created by signing in with Google starts life.
+   */
+  currentPassword: z.string().min(1).max(128).optional(),
+})
 const deleteAccountSchema = z.object({
   /** The account's password, or its email address when it has no password. */
   confirmation: z.string().min(1).max(255),
@@ -115,6 +161,11 @@ const authErrorMessages: Record<string, string> = {
   EMAIL_NOT_VERIFIED:
     "Check your inbox and verify your email before signing in.",
   ACCOUNT_SUSPENDED: "This account has been suspended. Contact support.",
+  ACCOUNT_PENDING_DELETION:
+    "This account is scheduled for deletion, so it cannot be signed in to.",
+  DELETED_BY_ADMIN:
+    "An admin deleted this account. Contact support if that was a mistake.",
+  RESTORE_WINDOW_PASSED: `This account was deleted more than ${ACCOUNT_RESTORE_DAYS} days ago and is gone for good.`,
   RATE_LIMITED: "Too many attempts. Please try again later.",
   INVALID_OR_EXPIRED_TOKEN: "This link is invalid or has expired.",
   AUTH_REQUIRED: "Please sign in again.",
@@ -130,6 +181,12 @@ const authErrorMessages: Record<string, string> = {
     "We could not sign you in with Google. Please try again.",
   PROVIDER_EMAIL_UNVERIFIED:
     "Google has not confirmed the email address on that account, so we cannot use it to sign you in.",
+  EMAIL_TAKEN: "That email address is already in use.",
+  EMAIL_UNCHANGED: "That is already the email address on your account.",
+  VIEW_AS_ACTIVE:
+    "You are looking at the app as someone else. Leave that view first.",
+  AVATAR_NOT_FOUND:
+    "That picture is no longer in your media library. Pick another one.",
 }
 
 /**
@@ -141,6 +198,7 @@ export const SIGN_IN_ERROR_CODES = [
   "GOOGLE_SIGN_IN_FAILED",
   "PROVIDER_EMAIL_UNVERIFIED",
   "ACCOUNT_SUSPENDED",
+  "ACCOUNT_PENDING_DELETION",
   "RATE_LIMITED",
 ] as const
 
@@ -196,6 +254,11 @@ const registerFn = createServerFn({ method: "POST" })
       windowSeconds: 60 * 60,
     })
     await enforceHumanCheck(data.humanCheckToken)
+
+    // Before the address is checked, not after: an address stays taken for as
+    // long as the deleted account holding it is still restorable, and frees up
+    // the moment that account is really gone.
+    await purgeExpiredDeletions()
 
     const [existing] = await db
       .select({ id: customShellUsers.id })
@@ -287,18 +350,34 @@ const loginFn = createServerFn({ method: "POST" })
       windowSeconds: 15 * 60,
     })
 
-    const user = await findUserByEmail(data.email)
-    if (!user || !(await verifyPassword(user.passwordHash, data.password))) {
+    const found = await findUserByEmail(data.email)
+    if (!found || !(await verifyPassword(found.passwordHash, data.password))) {
       throw new Error("INVALID_CREDENTIALS")
     }
-    if (user.status === "suspended") {
+    if (found.status === "suspended") {
       throw new Error("ACCOUNT_SUSPENDED")
+    }
+
+    // The right password on an account that is on its way out signs nobody in.
+    // The page is told why, offers to bring the account back, and only that
+    // button answers this call a second time — so a routine sign-in can never
+    // undo a deletion by accident.
+    const user =
+      isPendingDeletion(found) && data.restore
+        ? await restoreOwnAccount(found)
+        : found
+
+    if (isPendingDeletion(user)) {
+      throw new Error("ACCOUNT_PENDING_DELETION")
     }
     if (!user.emailVerifiedAt) {
       throw new Error("EMAIL_NOT_VERIFIED")
     }
 
     await clearRateLimit(rateLimitKey)
+    // Sweeps up accounts whose restore window ran out. Here and registering are
+    // the two places it happens; there is no background job in this app.
+    await purgeExpiredDeletions()
 
     const token = await createUserSession(user.id, describeRequestOrigin())
     await startWorkspaceFor(user.id)
@@ -472,9 +551,20 @@ const updateProfileFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const user = await requireUser()
 
+    // The picture is drawn into the shell on every page, so what gets stored
+    // has to be a file this account really uploaded — not any address the
+    // browser felt like sending.
+    if (data.avatarUrl && !(await isOwnedImageUrl(user.id, data.avatarUrl))) {
+      throw new Error("AVATAR_NOT_FOUND")
+    }
+
     const [updated] = await db
       .update(customShellUsers)
-      .set({ name: data.name, updatedAt: now() })
+      .set({
+        name: data.name,
+        avatarUrl: data.avatarUrl || null,
+        updatedAt: now(),
+      })
       .where(eq(customShellUsers.id, user.id))
       .returning()
 
@@ -510,6 +600,118 @@ const changePasswordFn = createServerFn({ method: "POST" })
     // Keep this session, drop every other one.
     await deleteOtherSessions(user.id, getSessionToken())
     return { ok: true }
+  })
+
+/** The address this account is waiting on, or nulls when it is waiting on none. */
+export type EmailChangeState = {
+  pendingEmail: string | null
+  expiresAt: string | null
+}
+
+function describePendingChange(
+  pending: PendingEmailChange | null
+): EmailChangeState {
+  return {
+    pendingEmail: pending?.newEmail ?? null,
+    expiresAt: pending?.expiresAt.toISOString() ?? null,
+  }
+}
+
+/**
+ * The change this account is waiting on, for the Profile tab. Nothing pending
+ * is the ordinary case.
+ */
+const loadEmailChangeFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<EmailChangeState> => {
+    const user = await requireUser()
+    return describePendingChange(await findPendingEmailChange(user.id))
+  }
+)
+
+/**
+ * Asks to move the account to another address. Nothing changes here — a
+ * confirmation link goes to the new address, and opening it is what moves it.
+ *
+ * The current password is required whenever there is one. A stolen session
+ * would otherwise be enough to take an account over outright: change the
+ * address, then ask that address for a password reset.
+ */
+const requestEmailChangeFn = createServerFn({ method: "POST" })
+  .inputValidator(changeEmailSchema)
+  .handler(async ({ data }): Promise<EmailChangeState> => {
+    requireAppOrigin()
+    const user = await requireOwnAccount()
+
+    // Keyed on the account rather than the address: what this endpoint can be
+    // abused for is mailing strangers, and the account is who would be doing it.
+    await enforceRateLimit(`email-change:${user.id}`, {
+      maxAttempts: 5,
+      windowSeconds: 60 * 60,
+    })
+
+    if (
+      user.passwordHash &&
+      !(await verifyPassword(user.passwordHash, data.currentPassword ?? ""))
+    ) {
+      throw new Error("INVALID_CREDENTIALS")
+    }
+
+    const token = await createEmailChangeToken(user, data.newEmail)
+
+    try {
+      await sendAuthEmail({
+        to: data.newEmail,
+        subject: "Confirm your new email address",
+        heading: "Confirm your new email address",
+        message: `Opening this link moves the account at ${user.email} to this address. It expires in ${EMAIL_CHANGE_HOURS} hours.`,
+        action: "Confirm email address",
+        actionUrl: appUrlFor(`/change-email?token=${encodeURIComponent(token)}`),
+      })
+    } catch (deliveryError) {
+      // The token is dropped rather than left behind. This is the one link
+      // whose existence is shown to the person who asked for it, so a mail that
+      // never went out must not leave the tab saying one is on its way — they
+      // would sit waiting for a link that cannot arrive.
+      await cancelEmailChange(user.id)
+      throw deliveryError
+    }
+
+    // Read back rather than assembled here, so the tab shows the row the
+    // server actually holds — including its exact expiry.
+    return describePendingChange(await findPendingEmailChange(user.id))
+  })
+
+const cancelEmailChangeFn = createServerFn({ method: "POST" }).handler(
+  async () => {
+    requireAppOrigin()
+    const user = await requireOwnAccount()
+    await cancelEmailChange(user.id)
+    return { ok: true }
+  }
+)
+
+/**
+ * Spends a confirmation link. Deliberately open to a signed-out browser: the
+ * link is mailed to the new address and may well be opened somewhere the person
+ * has never signed in. The single-use token is the whole proof.
+ */
+const confirmEmailChangeFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ token: tokenSchema }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    // Nothing above has been checked yet, so without a limit anyone could call
+    // this endpoint with made-up links all day. A success clears it, because
+    // the refused attempts are the only ones worth counting.
+    const rateLimitKey = `email-change-confirm:${requestIp()}`
+    await enforceRateLimit(rateLimitKey, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    const { user } = await consumeEmailChange(data.token)
+    await clearRateLimit(rateLimitKey)
+
+    return { email: user.email }
   })
 
 /** The devices signed in to this account, for the Security tab's list. */
@@ -570,7 +772,9 @@ const deleteAccountFn = createServerFn({ method: "POST" })
       throw new Error("LAST_ADMIN")
     }
 
-    await db.delete(customShellUsers).where(eq(customShellUsers.id, user.id))
+    // Marked, not removed. Nothing can be reached with it from this moment on,
+    // and it is really deleted once the restore window runs out.
+    await markAccountsForDeletion(user.id, [user.id])
     clearSessionCookie()
     return { ok: true }
   })
@@ -595,8 +799,12 @@ export function resendVerification(email: string) {
   return resendVerificationFn({ data: { email } })
 }
 
-export function login(email: string, password: string) {
-  return loginFn({ data: { email, password } })
+/**
+ * `restore` is the sign-in page's "Restore my account" button answering a
+ * refusal, and nothing else ever sets it.
+ */
+export function login(email: string, password: string, restore = false) {
+  return loginFn({ data: { email, password, restore } })
 }
 
 export function logout() {
@@ -619,8 +827,8 @@ export function resetPassword(token: string, password: string) {
   return resetPasswordFn({ data: { token, password } })
 }
 
-export function updateProfile(name: string) {
-  return updateProfileFn({ data: { name } })
+export function updateProfile(name: string, avatarUrl: string) {
+  return updateProfileFn({ data: { name, avatarUrl } })
 }
 
 export function changePassword(
@@ -628,6 +836,25 @@ export function changePassword(
   newPassword: string
 ) {
   return changePasswordFn({ data: { currentPassword, newPassword } })
+}
+
+export function loadEmailChange() {
+  return loadEmailChangeFn()
+}
+
+export function requestEmailChange(
+  newEmail: string,
+  currentPassword: string | undefined
+) {
+  return requestEmailChangeFn({ data: { newEmail, currentPassword } })
+}
+
+export function cancelPendingEmailChange() {
+  return cancelEmailChangeFn()
+}
+
+export function confirmEmailChange(token: string) {
+  return confirmEmailChangeFn({ data: { token } })
 }
 
 export function loadSessions() {
@@ -644,6 +871,25 @@ export function signOutOtherSessions() {
 
 export function deleteAccount(confirmation: string) {
   return deleteAccountFn({ data: { confirmation } })
+}
+
+/**
+ * The signed-in account, and only when the browser really is that person.
+ *
+ * `requireUser` answers with the member an admin is *looking at the app as*,
+ * which is right for reading their screen and wrong for changing the address
+ * their account is reached at. This refuses instead, so an admin has to leave
+ * the view — and be themselves — before either account can be moved.
+ */
+async function requireOwnAccount() {
+  const context = await findSessionContext()
+  if (!context) {
+    throw new Error("AUTH_REQUIRED")
+  }
+  if (context.viewedBy) {
+    throw new Error("VIEW_AS_ACTIVE")
+  }
+  return context.user
 }
 
 /**
@@ -671,6 +917,7 @@ export function serializeUser(user: {
   status: string
   emailVerifiedAt: Date | null
   passwordHash: string | null
+  avatarUrl: string | null
 }): AuthUser {
   return {
     id: user.id,
@@ -681,6 +928,7 @@ export function serializeUser(user: {
     emailVerified: Boolean(user.emailVerifiedAt),
     // The hash itself never leaves the server; only whether there is one.
     hasPassword: Boolean(user.passwordHash),
+    avatarUrl: user.avatarUrl ?? "",
   }
 }
 

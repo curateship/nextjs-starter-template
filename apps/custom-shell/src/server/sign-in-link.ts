@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import { isPendingDeletion } from "@/lib/account-deletion"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellUsers, type CustomShellUser } from "@/server/schema"
 import {
@@ -25,9 +26,11 @@ import {
  * Issues a sign-in link for an email address, or answers null when there is
  * nobody to issue one to.
  *
- * Suspended accounts get nothing. There is no session for them to reach — the
- * app treats a suspended account as signed out on every request — so mailing a
- * link would only be a link that fails after the click.
+ * Anything but an active account gets nothing — suspended, or marked for
+ * deletion. There is no session for either to reach, since the app treats both
+ * as signed out on every request, so mailing a link would only be a link that
+ * fails after the click. Bringing a deleted account back is the sign-in form's
+ * job, and it asks for the password.
  *
  * The caller sends the mail and reports success either way, so this cannot be
  * used to find out which addresses have accounts.
@@ -37,7 +40,7 @@ export async function createSignInLinkToken(
   database: CustomShellDb = db
 ) {
   const user = await findUserByEmail(email, database)
-  if (!user || user.status === "suspended") {
+  if (!user || user.status !== "active") {
     return null
   }
 
@@ -77,6 +80,12 @@ export async function consumeSignInLink(
   }
   if (account.status === "suspended") {
     throw new Error("ACCOUNT_SUSPENDED")
+  }
+  // A link issued before the account was deleted must not still work, and a
+  // link must never be what brings one back — the person could be undoing an
+  // admin's decision without ever being asked whether they meant to.
+  if (isPendingDeletion(account)) {
+    throw new Error("ACCOUNT_PENDING_DELETION")
   }
 
   // Opening a link that was mailed to the address proves the address works, so

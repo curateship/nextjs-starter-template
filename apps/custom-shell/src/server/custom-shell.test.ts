@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
-import { eq, sql } from "drizzle-orm"
+import { eq, inArray, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -10,8 +10,10 @@ import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
   cleanAltText,
   cleanOriginalName,
+  clearAvatarsForStoragePaths,
   getMediaFileType,
   getOwnedMedia,
+  isOwnedImageUrl,
   listOwnedMedia,
   prepareMediaContent,
   storedFilename,
@@ -97,12 +99,20 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/security"
+import { markAccountsForDeletion } from "@/server/account-deletion"
 import { signInWithGoogle } from "@/server/google-auth"
+import {
+  cancelEmailChange,
+  consumeEmailChange,
+  createEmailChangeToken,
+  findPendingEmailChange,
+} from "@/server/email-change"
 import {
   consumeSignInLink,
   createSignInLinkToken,
 } from "@/server/sign-in-link"
 import { describeDevice } from "@/lib/device-label"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   createUserWorkspace,
@@ -395,6 +405,37 @@ describe("magic-link sign-in", () => {
     expect(await database.select().from(customShellSessions)).toHaveLength(0)
   })
 
+  it("issues nothing, and refuses an old link, once the account is deleted", async () => {
+    const userId = await seedAccount("leaving@internal.dev")
+    const link = await createSignInLinkToken(
+      "leaving@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    await markAccountsForDeletion(
+      userId,
+      [userId],
+      database as unknown as CustomShellDb
+    )
+
+    // No new link goes out, and the one already in the inbox does nothing —
+    // bringing an account back is the sign-in form's job, not a link's.
+    await expect(
+      createSignInLinkToken(
+        "leaving@internal.dev",
+        database as unknown as CustomShellDb
+      )
+    ).resolves.toBeNull()
+    await expect(
+      consumeSignInLink(
+        link!.token,
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("ACCOUNT_PENDING_DELETION")
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+  })
+
   it("verifies an account that had never confirmed its email", async () => {
     const userId = await seedAccount("unconfirmed@internal.dev", {
       emailVerifiedAt: null,
@@ -606,6 +647,28 @@ describe("google sign-in", () => {
     )
   })
 
+  it("refuses an account that is on its way out", async () => {
+    const userId = await seedAccount("ada@internal.dev")
+    await markAccountsForDeletion(
+      userId,
+      [userId],
+      database as unknown as CustomShellDb
+    )
+
+    await expect(
+      signInWithGoogle(
+        googleIdentity(),
+        NO_BROWSER,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("ACCOUNT_PENDING_DELETION")
+
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+    expect(await database.select().from(customShellOauthAccounts)).toHaveLength(
+      0
+    )
+  })
+
   it("falls back to the address when Google sends no name", async () => {
     const { user } = await signInWithGoogle(
       googleIdentity({ name: null }),
@@ -614,6 +677,265 @@ describe("google sign-in", () => {
     )
 
     expect(user.name).toBe("ada")
+  })
+})
+
+describe("self-serve email change", () => {
+  async function seedAccount(
+    email: string,
+    extra: { status?: string; emailVerifiedAt?: Date | null } = {}
+  ) {
+    const createdAt = now()
+    const userId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email,
+      name: "Mover",
+      role: "member",
+      status: extra.status ?? "active",
+      passwordHash: "hash",
+      emailVerifiedAt:
+        extra.emailVerifiedAt === undefined ? createdAt : extra.emailVerifiedAt,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    return { id: userId, email }
+  }
+
+  it("issues a link that carries the new address, stores only its hash, and lives a day", async () => {
+    const user = await seedAccount("old@internal.dev")
+
+    const token = await createEmailChangeToken(
+      user,
+      "new@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    const [row] = await database.select().from(customShellAuthTokens)
+    expect(row.userId).toBe(user.id)
+    expect(row.purpose).toBe("change_email")
+    expect(row.newEmail).toBe("new@internal.dev")
+    // The secret itself is never stored, so a copy of the table is not a pile
+    // of working links.
+    expect(row.tokenHash).toBe(hashToken(token))
+    expect(row.tokenHash).not.toBe(token)
+    expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
+      EMAIL_CHANGE_HOURS * 60 * 60 * 1000
+    )
+
+    // Nothing about the account moves until the link is opened.
+    const [stored] = await database.select().from(customShellUsers)
+    expect(stored.email).toBe("old@internal.dev")
+  })
+
+  it("refuses an address already in use, and the one already on the account", async () => {
+    const user = await seedAccount("old@internal.dev")
+    await seedAccount("taken@internal.dev")
+
+    await expect(
+      createEmailChangeToken(
+        user,
+        "taken@internal.dev",
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("EMAIL_TAKEN")
+    await expect(
+      createEmailChangeToken(
+        user,
+        "old@internal.dev",
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("EMAIL_UNCHANGED")
+
+    expect(await database.select().from(customShellAuthTokens)).toHaveLength(0)
+  })
+
+  it("replaces the outstanding link when a second address is asked for", async () => {
+    const user = await seedAccount("old@internal.dev")
+
+    const first = await createEmailChangeToken(
+      user,
+      "first@internal.dev",
+      database as unknown as CustomShellDb
+    )
+    const second = await createEmailChangeToken(
+      user,
+      "second@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    // One live link, so the address the Profile tab names is the only address
+    // any outstanding link could move the account to.
+    expect(await database.select().from(customShellAuthTokens)).toHaveLength(1)
+    await expect(
+      findPendingEmailChange(user.id, database as unknown as CustomShellDb)
+    ).resolves.toMatchObject({ newEmail: "second@internal.dev" })
+
+    await expect(
+      consumeEmailChange(first, database as unknown as CustomShellDb)
+    ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+    await expect(
+      consumeEmailChange(second, database as unknown as CustomShellDb)
+    ).resolves.toMatchObject({ previousEmail: "old@internal.dev" })
+  })
+
+  it("moves the account when the link is opened, confirms the address, and keeps sessions", async () => {
+    const user = await seedAccount("old@internal.dev", {
+      emailVerifiedAt: null,
+    })
+    const createdAt = now()
+    await database.insert(customShellSessions).values({
+      id: uuid(),
+      userId: user.id,
+      tokenHash: hashSessionToken("live-session"),
+      expiresAt: createSessionExpiresAt(),
+      createdAt,
+      lastSeenAt: createdAt,
+    })
+
+    const token = await createEmailChangeToken(
+      user,
+      "new@internal.dev",
+      database as unknown as CustomShellDb
+    )
+    const result = await consumeEmailChange(
+      token,
+      database as unknown as CustomShellDb
+    )
+
+    expect(result.previousEmail).toBe("old@internal.dev")
+    expect(result.user.email).toBe("new@internal.dev")
+    // Opening a link mailed to the address proves the address works.
+    expect(result.user.emailVerifiedAt).not.toBeNull()
+
+    // Changing where mail goes is not a reason to throw anybody out of the app.
+    await expect(
+      findUserBySessionToken(
+        "live-session",
+        database as unknown as CustomShellDb
+      )
+    ).resolves.toMatchObject({ email: "new@internal.dev" })
+  })
+
+  it("refuses the same link twice, an expired one, and a link of another kind", async () => {
+    const user = await seedAccount("old@internal.dev")
+
+    const token = await createEmailChangeToken(
+      user,
+      "new@internal.dev",
+      database as unknown as CustomShellDb
+    )
+    await consumeEmailChange(token, database as unknown as CustomShellDb)
+    await expect(
+      consumeEmailChange(token, database as unknown as CustomShellDb)
+    ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+
+    const expired = await createEmailChangeToken(
+      { id: user.id, email: "new@internal.dev" },
+      "later@internal.dev",
+      database as unknown as CustomShellDb
+    )
+    await database
+      .update(customShellAuthTokens)
+      .set({ expiresAt: new Date(now().getTime() - 1000) })
+      .where(eq(customShellAuthTokens.tokenHash, hashToken(expired)))
+    await expect(
+      consumeEmailChange(expired, database as unknown as CustomShellDb)
+    ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+
+    // A verification link is a live token for the same account, and it carries
+    // no address. It must not move anybody.
+    const verification = await createAuthToken(
+      user.id,
+      "verify_email",
+      database as unknown as CustomShellDb
+    )
+    await expect(
+      consumeEmailChange(verification, database as unknown as CustomShellDb)
+    ).rejects.toThrow("INVALID_OR_EXPIRED_TOKEN")
+
+    const [stored] = await database.select().from(customShellUsers)
+    expect(stored.email).toBe("new@internal.dev")
+  })
+
+  it("refuses an address taken while the link sat in the inbox, and leaves the link usable", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const token = await createEmailChangeToken(
+      user,
+      "contested@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    const squatter = await seedAccount("contested@internal.dev")
+    await expect(
+      consumeEmailChange(token, database as unknown as CustomShellDb)
+    ).rejects.toThrow("EMAIL_TAKEN")
+
+    // The whole thing rolled back, so the account is untouched and the link is
+    // still unspent — it works the moment the clash is gone.
+    const [unchanged] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, user.id))
+    expect(unchanged.email).toBe("old@internal.dev")
+
+    await database
+      .delete(customShellUsers)
+      .where(eq(customShellUsers.id, squatter.id))
+    await expect(
+      consumeEmailChange(token, database as unknown as CustomShellDb)
+    ).resolves.toMatchObject({ previousEmail: "old@internal.dev" })
+  })
+
+  it("refuses a link for an account suspended after it was sent", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const token = await createEmailChangeToken(
+      user,
+      "new@internal.dev",
+      database as unknown as CustomShellDb
+    )
+
+    await database
+      .update(customShellUsers)
+      .set({ status: "suspended" })
+      .where(eq(customShellUsers.id, user.id))
+
+    await expect(
+      consumeEmailChange(token, database as unknown as CustomShellDb)
+    ).rejects.toThrow("ACCOUNT_SUSPENDED")
+
+    const [stored] = await database.select().from(customShellUsers)
+    expect(stored.email).toBe("old@internal.dev")
+  })
+
+  it("reports nothing pending once a link is cancelled, spent or expired", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const live = database as unknown as CustomShellDb
+
+    await createEmailChangeToken(user, "new@internal.dev", live)
+    await expect(findPendingEmailChange(user.id, live)).resolves.toMatchObject({
+      newEmail: "new@internal.dev",
+    })
+
+    await cancelEmailChange(user.id, live)
+    await expect(findPendingEmailChange(user.id, live)).resolves.toBeNull()
+    expect(await database.select().from(customShellAuthTokens)).toHaveLength(0)
+
+    const spent = await createEmailChangeToken(user, "next@internal.dev", live)
+    await consumeEmailChange(spent, live)
+    await expect(findPendingEmailChange(user.id, live)).resolves.toBeNull()
+
+    await createEmailChangeToken(
+      { id: user.id, email: "next@internal.dev" },
+      "later@internal.dev",
+      live
+    )
+    await database
+      .update(customShellAuthTokens)
+      .set({ expiresAt: new Date(now().getTime() - 1000) })
+    await expect(findPendingEmailChange(user.id, live)).resolves.toBeNull()
   })
 })
 
@@ -3040,6 +3362,142 @@ describe("custom shell media helpers", () => {
     })
     await expect(getOwnedMedia(otherId, ownedMediaId)).rejects.toThrow(
       "Media not found"
+    )
+  })
+
+  it("only accepts a profile photo the account itself uploaded", async () => {
+    const createdAt = now()
+    const ownerId = uuid()
+    const strangerId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: ownerId,
+        email: "photo-owner@internal.dev",
+        name: "Photo Owner",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: strangerId,
+        email: "photo-stranger@internal.dev",
+        name: "Stranger",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    await database.insert(customShellMedia).values([
+      {
+        id: uuid(),
+        userId: ownerId,
+        filename: "face.png",
+        originalName: "face.png",
+        altText: null,
+        fileSize: 123,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: `${ownerId}/face.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: uuid(),
+        userId: ownerId,
+        filename: "clip.mp4",
+        originalName: "clip.mp4",
+        altText: null,
+        fileSize: 456,
+        mimeType: "video/mp4",
+        fileType: "video",
+        storagePath: `${ownerId}/clip.mp4`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: uuid(),
+        userId: strangerId,
+        filename: "theirs.png",
+        originalName: "theirs.png",
+        altText: null,
+        fileSize: 123,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: `${strangerId}/theirs.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const base = "https://custom-shell-media.example.test"
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${ownerId}/face.png`, database)
+    ).resolves.toBe(true)
+    // Somebody else's picture, one of their own videos, a file that is not
+    // there, and an address this app never handed out.
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${strangerId}/theirs.png`, database)
+    ).resolves.toBe(false)
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${ownerId}/clip.mp4`, database)
+    ).resolves.toBe(false)
+    await expect(
+      isOwnedImageUrl(ownerId, `${base}/${ownerId}/gone.png`, database)
+    ).resolves.toBe(false)
+    await expect(
+      isOwnedImageUrl(ownerId, "https://elsewhere.example.test/face.png", database)
+    ).resolves.toBe(false)
+  })
+
+  it("takes the profile photo off any account whose picture is deleted", async () => {
+    const createdAt = now()
+    const wearerId = uuid()
+    const bystanderId = uuid()
+    const base = "https://custom-shell-media.example.test"
+
+    await database.insert(customShellUsers).values([
+      {
+        id: wearerId,
+        email: "photo-wearer@internal.dev",
+        name: "Wearer",
+        role: "member",
+        passwordHash: "hash",
+        avatarUrl: `${base}/${wearerId}/face.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: bystanderId,
+        email: "photo-bystander@internal.dev",
+        name: "Bystander",
+        role: "member",
+        passwordHash: "hash",
+        avatarUrl: `${base}/${bystanderId}/face.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    await clearAvatarsForStoragePaths([`${wearerId}/face.png`], database)
+
+    const rows = await database
+      .select({
+        id: customShellUsers.id,
+        avatarUrl: customShellUsers.avatarUrl,
+      })
+      .from(customShellUsers)
+      .where(
+        inArray(customShellUsers.id, [wearerId, bystanderId])
+      )
+
+    expect(rows.find((row) => row.id === wearerId)?.avatarUrl).toBeNull()
+    // Untouched: only the account holding the deleted file loses its photo.
+    expect(rows.find((row) => row.id === bystanderId)?.avatarUrl).toBe(
+      `${base}/${bystanderId}/face.png`
     )
   })
 

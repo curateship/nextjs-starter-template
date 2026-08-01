@@ -24,7 +24,7 @@ import {
   customShellUsers,
   type CustomShellMedia,
 } from "@/server/schema"
-import { uuid } from "@/server/security"
+import { now, uuid } from "@/server/security"
 
 export const IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -264,6 +264,88 @@ function getMediaOrderBy(sortBy: MediaSortBy, sortDirection: MediaSortDirection)
           : customShellMedia.createdAt
 
   return sortDirection === "asc" ? asc(column) : desc(column)
+}
+
+/**
+ * Whether a URL is one of this account's own uploaded images.
+ *
+ * Anywhere a media URL arrives from the browser and is then stored and rendered
+ * back — a profile photo, for one — this is what stands between that and any
+ * other address someone could type. The URL is turned back into the storage key
+ * it would have to be, and that key has to belong to a row this account owns.
+ * Videos are refused too: a picture field is for pictures.
+ */
+export async function isOwnedImageUrl(
+  userId: string,
+  url: string,
+  database: CustomShellDb = db
+) {
+  const storagePath = storagePathForUrl(url)
+  if (!storagePath) return false
+
+  const [row] = await database
+    .select({ fileType: customShellMedia.fileType })
+    .from(customShellMedia)
+    .where(
+      and(
+        eq(customShellMedia.userId, userId),
+        eq(customShellMedia.storagePath, storagePath)
+      )
+    )
+    .limit(1)
+
+  return row?.fileType === "image"
+}
+
+/**
+ * Takes the profile photo off any account that was using one of these files.
+ *
+ * Every path that erases a live picture calls this. An account stores its photo
+ * as a URL, which no foreign key can follow, so deleting the file would
+ * otherwise leave the account pointing at nothing. Deleting the account itself
+ * needs no call: its media rows cascade away with it, and ownership is checked
+ * on the way in, so nobody else can have been holding its files.
+ */
+export async function clearAvatarsForStoragePaths(
+  storagePaths: string[],
+  database: CustomShellDb = db
+) {
+  if (!storagePaths.length) return
+
+  let urls: string[]
+  try {
+    urls = storagePaths.map(getPublicMediaUrl)
+  } catch {
+    // No public URL means no account can be holding one.
+    return
+  }
+
+  await database
+    .update(customShellUsers)
+    .set({ avatarUrl: null, updatedAt: now() })
+    .where(inArray(customShellUsers.avatarUrl, urls))
+}
+
+/**
+ * The bucket key a public media URL points at, or null when the URL is not one
+ * this app would ever have handed out.
+ */
+function storagePathForUrl(url: string) {
+  let prefix: string
+  try {
+    // Passing the empty key yields the public base with its trailing slash,
+    // which is exactly what every real media URL starts with.
+    prefix = getPublicMediaUrl("")
+  } catch {
+    // Storage is not configured, so this app has handed out no media URLs and
+    // nothing can match.
+    return null
+  }
+
+  // Compared exactly as it was handed out: `getPublicMediaUrl` glues the key on
+  // without escaping it, and stored keys only ever hold safe characters.
+  if (!url.startsWith(prefix)) return null
+  return url.slice(prefix.length) || null
 }
 
 export async function getOwnedMedia(userId: string, mediaId: string) {
@@ -804,6 +886,10 @@ export async function deleteMediaAsAdmin(
         customShellMedia.id,
         rows.map((row) => row.id)
       )
+    )
+    await clearAvatarsForStoragePaths(
+      rows.map((row) => row.storagePath),
+      database
     )
   }
 

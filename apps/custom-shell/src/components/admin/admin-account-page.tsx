@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { isPendingDeletion, restoreDeadline } from "@/lib/account-deletion"
 import type { FeedbackType } from "@/lib/api/feedback"
 import type { AccountDetail, AssignablePlan } from "@/lib/api/admin-users"
 import {
@@ -106,13 +107,25 @@ export function AdminAccountPage({
               value={
                 <Badge
                   variant={
-                    profile.status === "suspended" ? "destructive" : "secondary"
+                    profile.status === "active" ? "secondary" : "destructive"
                   }
                 >
-                  {profile.status === "suspended" ? "Suspended" : "Active"}
+                  {isPendingDeletion(profile)
+                    ? "Scheduled for deletion"
+                    : profile.status === "suspended"
+                      ? "Suspended"
+                      : "Active"}
                 </Badge>
               }
             />
+            {/* Only while the clock is running. Restoring is on the Users
+                dashboard, like every other change this page links out for. */}
+            {isPendingDeletion(profile) && profile.deletedAt ? (
+              <DetailRow
+                label="Deletes on"
+                value={formatDate(restoreDeadline(profile.deletedAt))}
+              />
+            ) : null}
             <DetailRow
               label="Email verified"
               value={

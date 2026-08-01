@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { startWorkspaceFor } from "@/lib/api/auth"
+import { SIGN_IN_ERROR_CODES, startWorkspaceFor } from "@/lib/api/auth"
 import {
   browserRedirect,
   exchangeGoogleCode,
@@ -79,17 +79,18 @@ export const Route = createFileRoute("/api/auth/google_/callback")({
 })
 
 /**
- * The codes the sign-in page has a message for. Anything else — a database that
- * is down, a bug — comes back as a failed Google sign-in rather than handing
- * the browser a raw error to print.
+ * Only a code the sign-in page has a message for is passed on. Anything else —
+ * a database that is down, a bug — comes back as a failed Google sign-in rather
+ * than handing the browser a raw error to print.
+ *
+ * The list is the page's own `SIGN_IN_ERROR_CODES`, read rather than copied: a
+ * second copy here would quietly turn a new refusal into "we could not sign you
+ * in with Google" until somebody noticed the two had drifted.
  */
-const REPORTED_CODES = new Set([
-  "ACCOUNT_SUSPENDED",
-  "PROVIDER_EMAIL_UNVERIFIED",
-  "RATE_LIMITED",
-])
-
 function signInFailed(code: string) {
-  const reported = REPORTED_CODES.has(code) ? code : "GOOGLE_SIGN_IN_FAILED"
+  const reported = SIGN_IN_ERROR_CODES.some((known) => known === code)
+    ? code
+    : "GOOGLE_SIGN_IN_FAILED"
+
   return browserRedirect(`/login?error=${reported}`)
 }

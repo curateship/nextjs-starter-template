@@ -6,6 +6,7 @@ import { db } from "@/server/db"
 import {
   cleanAltText,
   cleanOriginalName,
+  clearAvatarsForStoragePaths,
   getMediaFileType,
   getOwnedMedia,
   listOwnedMedia,
@@ -174,6 +175,7 @@ const deleteMediaFn = createServerFn({ method: "POST" })
           eq(customShellMedia.userId, user.id)
         )
       )
+    await clearAvatarsForStoragePaths([row.storagePath])
   })
 
 const bulkDeleteMediaFn = createServerFn({ method: "POST" })
@@ -208,6 +210,7 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
             )
           )
         )
+      await clearAvatarsForStoragePaths(rows.map((row) => row.storagePath))
     }
 
     return { deleted_count: rows.length }

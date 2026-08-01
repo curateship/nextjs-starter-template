@@ -11,6 +11,7 @@ import { hash, verify } from "argon2"
 import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
 
 import { normalizeSessionPolicy } from "@/lib/custom-shell"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -93,20 +94,31 @@ export async function verifyPassword(
 export const AUTH_TOKEN_TTL_MS = {
   verify_email: 24 * 60 * 60 * 1000,
   reset_password: 60 * 60 * 1000,
-  // A sign-in link is the shortest-lived of the three: it hands over an account
-  // outright, where the other two still ask for something afterwards.
+  // A sign-in link is the shortest-lived of them all: it hands over an account
+  // outright, where the others still ask for something afterwards.
   login: SIGN_IN_LINK_MINUTES * 60 * 1000,
+  // Same day-long life as a verification link, and for the same reason: it is
+  // an address being proved, and somebody may not read that inbox until later.
+  change_email: EMAIL_CHANGE_HOURS * 60 * 60 * 1000,
 } as const
 
 export type AuthTokenPurpose = keyof typeof AUTH_TOKEN_TTL_MS
 
 type AuthTokenDatabase = Pick<CustomShellDb, "insert" | "update">
 
-/** Issues a link token and returns the raw secret; only its hash is stored. */
+/**
+ * Issues a link token and returns the raw secret; only its hash is stored.
+ *
+ * `newEmail` is for a `change_email` link alone — the address opening it would
+ * move the account to. The table's own check constraint holds the pairing both
+ * ways, so a change link cannot be written without one and no other kind can
+ * carry one.
+ */
 export async function createAuthToken(
   userId: string,
   purpose: AuthTokenPurpose,
-  database: AuthTokenDatabase = db
+  database: AuthTokenDatabase = db,
+  newEmail: string | null = null
 ) {
   const token = createSecretToken()
   const createdAt = now()
@@ -116,6 +128,7 @@ export async function createAuthToken(
     userId,
     tokenHash: hashToken(token),
     purpose,
+    newEmail,
     expiresAt: new Date(createdAt.getTime() + AUTH_TOKEN_TTL_MS[purpose]),
     createdAt,
   })
@@ -653,9 +666,10 @@ export async function findSessionContextByToken(
 
   const owner = rows.find((row) => row.id === session.userId)
 
-  // A suspended account is treated as signed out, so suspending someone takes
-  // effect immediately even on a session that is still inside its lifetime.
-  if (!owner || owner.status === "suspended") {
+  // A suspended account, and one marked for deletion, are both treated as
+  // signed out — so either takes effect immediately, even on a session that is
+  // still inside its lifetime.
+  if (!owner || owner.status !== "active") {
     return null
   }
 

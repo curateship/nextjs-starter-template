@@ -33,7 +33,25 @@ export const customShellUsers = pgTable(
      * match", and Account → Security offers to set one.
      */
     passwordHash: text("password_hash"),
+    /**
+     * The public URL of this account's profile photo, and null when it has
+     * none. Always a picture the account itself uploaded — the server checks
+     * that before writing it — so it can be rendered straight into the shell.
+     */
+    avatarUrl: text("avatar_url"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    /**
+     * When this account was marked for deletion, and null whenever it was not.
+     * Set only alongside the `pending_deletion` status — the check below holds
+     * the pair together both ways.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /**
+     * Who marked it. An account its own owner marked can be brought back by
+     * signing in; one an admin marked cannot, or a member could quietly undo a
+     * moderation decision.
+     */
+    deletedBy: varchar("deleted_by", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -41,7 +59,11 @@ export const customShellUsers = pgTable(
     check("users_role_check", sql`${table.role} in ('admin', 'member')`),
     check(
       "users_status_check",
-      sql`${table.status} in ('active', 'suspended')`
+      sql`${table.status} in ('active', 'suspended', 'pending_deletion')`
+    ),
+    check(
+      "users_deleted_at_check",
+      sql`(${table.status} = 'pending_deletion') = (${table.deletedAt} is not null)`
     ),
   ]
 )
@@ -355,6 +377,12 @@ export const customShellAuthTokens = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
     purpose: varchar("purpose", { length: 20 }).notNull(),
+    /**
+     * Only on a `change_email` link: the address opening it would move the
+     * account to. Held here rather than on `users` so nothing about the account
+     * changes until the link is actually opened.
+     */
+    newEmail: varchar("new_email", { length: 255 }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -362,7 +390,11 @@ export const customShellAuthTokens = pgTable(
   (table) => [
     check(
       "auth_tokens_purpose_check",
-      sql`${table.purpose} in ('verify_email', 'reset_password', 'login')`
+      sql`${table.purpose} in ('verify_email', 'reset_password', 'login', 'change_email')`
+    ),
+    check(
+      "auth_tokens_new_email_check",
+      sql`(${table.purpose} = 'change_email') = (${table.newEmail} is not null)`
     ),
     index("ix_auth_tokens_user_purpose").on(table.userId, table.purpose),
     index("ix_auth_tokens_expires_at").on(table.expiresAt),

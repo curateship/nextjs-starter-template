@@ -12,6 +12,11 @@ import {
   type SQL,
 } from "drizzle-orm"
 
+import { PENDING_DELETION } from "@/lib/account-deletion"
+import {
+  markAccountsForDeletion,
+  restoreAccounts,
+} from "@/server/account-deletion"
 import { db, type CustomShellDb } from "@/server/db"
 import { subscriptionIsActive } from "@/server/entitlements"
 import { getDefaultPlan, getPlan } from "@/server/plans"
@@ -28,7 +33,7 @@ export type AccountSort = "name" | "email" | "role" | "plan" | "created"
 export type AccountListQuery = {
   search: string
   role: "all" | "admin" | "member"
-  status: "all" | "active" | "suspended"
+  status: "all" | "active" | "suspended" | "pending_deletion"
   page: number
   pageSize: number
   sort: AccountSort
@@ -41,6 +46,8 @@ export type AccountRow = {
   name: string
   role: string
   status: string
+  /** When this account was marked for deletion, and null when it was not. */
+  deletedAt: string | null
   emailVerified: boolean
   planName: string
   planSlug: string
@@ -122,6 +129,7 @@ export async function listAccounts(
       name: row.user.name,
       role: row.user.role,
       status: row.user.status,
+      deletedAt: row.user.deletedAt?.toISOString() ?? null,
       emailVerified: Boolean(row.user.emailVerifiedAt),
       planName: paid && row.plan ? row.plan.name : (defaultPlan?.name ?? "Free"),
       planSlug: paid && row.plan ? row.plan.slug : (defaultPlan?.slug ?? "free"),
@@ -158,6 +166,17 @@ export async function countOtherActiveAdmins(
     )
 
   return row?.total ?? 0
+}
+
+/** The status on an account, or null when there is no such account. */
+async function findAccountStatus(userId: string, database: CustomShellDb) {
+  const [row] = await database
+    .select({ status: customShellUsers.status })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+    .limit(1)
+
+  return row?.status ?? null
 }
 
 /** Guards every change that could remove the last way into the admin area. */
@@ -210,14 +229,26 @@ export async function setUserStatus(
     await requireAnotherAdmin(userId, database)
   }
 
+  // An account on its way out is not suspended or unsuspended from here. Its
+  // status is the deletion clock, and the only two things that may move it are
+  // restoring the account and purging it.
   const [updated] = await database
     .update(customShellUsers)
     .set({ status, updatedAt: now() })
-    .where(eq(customShellUsers.id, userId))
+    .where(
+      and(
+        eq(customShellUsers.id, userId),
+        ne(customShellUsers.status, PENDING_DELETION)
+      )
+    )
     .returning({ id: customShellUsers.id })
 
   if (!updated) {
-    throw new Error("USER_NOT_FOUND")
+    throw new Error(
+      (await findAccountStatus(userId, database)) === PENDING_DELETION
+        ? "ACCOUNT_PENDING_DELETION"
+        : "USER_NOT_FOUND"
+    )
   }
 
   if (status === "suspended") {
@@ -230,26 +261,23 @@ export async function setUserStatus(
   return { id: updated.id, status }
 }
 
+/**
+ * What deleting accounts did: how many were marked for deletion, and how many
+ * were removed outright.
+ *
+ * Both happen through the same button. An ordinary account is marked and starts
+ * its restore window; one that is already marked is the admin saying "no, now",
+ * so it goes for good. That second case is also the manual purge — an admin
+ * never has to wait out somebody's window.
+ */
+export type AccountDeletionResult = { marked: number; deleted: number }
+
 export async function deleteUserAccount(
   actorId: string,
   userId: string,
   database: CustomShellDb = db
-) {
-  if (actorId === userId) {
-    throw new Error("CANNOT_DELETE_SELF")
-  }
-  await requireAnotherAdmin(userId, database)
-
-  const [deleted] = await database
-    .delete(customShellUsers)
-    .where(eq(customShellUsers.id, userId))
-    .returning({ id: customShellUsers.id, email: customShellUsers.email })
-
-  if (!deleted) {
-    throw new Error("USER_NOT_FOUND")
-  }
-
-  return { id: deleted.id }
+): Promise<AccountDeletionResult> {
+  return deleteUserAccounts(actorId, [userId], database)
 }
 
 /** Bulk delete for the table's multi-selection action. Same guards, one pass. */
@@ -257,22 +285,58 @@ export async function deleteUserAccounts(
   actorId: string,
   userIds: string[],
   database: CustomShellDb = db
-) {
+): Promise<AccountDeletionResult> {
   const targets = userIds.filter((userId) => userId !== actorId)
   if (targets.length === 0) {
     throw new Error("CANNOT_DELETE_SELF")
   }
 
-  for (const userId of targets) {
-    await requireAnotherAdmin(userId, database)
+  const rows = await database
+    .select({ id: customShellUsers.id, status: customShellUsers.status })
+    .from(customShellUsers)
+    .where(inArray(customShellUsers.id, targets))
+
+  if (rows.length === 0) {
+    throw new Error("USER_NOT_FOUND")
   }
 
-  const deleted = await database
-    .delete(customShellUsers)
-    .where(inArray(customShellUsers.id, targets))
-    .returning({ id: customShellUsers.id })
+  for (const row of rows) {
+    await requireAnotherAdmin(row.id, database)
+  }
 
-  return { deleted: deleted.length }
+  const alreadyMarked = rows
+    .filter((row) => row.status === PENDING_DELETION)
+    .map((row) => row.id)
+  const toMark = rows
+    .filter((row) => row.status !== PENDING_DELETION)
+    .map((row) => row.id)
+
+  const marked = toMark.length
+    ? await markAccountsForDeletion(actorId, toMark, database)
+    : []
+
+  const deleted = alreadyMarked.length
+    ? await database
+        .delete(customShellUsers)
+        .where(inArray(customShellUsers.id, alreadyMarked))
+        .returning({ id: customShellUsers.id })
+    : []
+
+  return { marked: marked.length, deleted: deleted.length }
+}
+
+/** Brings marked accounts back. Anything out of time is left alone. */
+export async function restoreUserAccounts(
+  userIds: string[],
+  database: CustomShellDb = db
+) {
+  const restored = await restoreAccounts(userIds, database)
+
+  if (restored.length === 0) {
+    throw new Error("RESTORE_WINDOW_PASSED")
+  }
+
+  return { restored: restored.length }
 }
 
 /**
