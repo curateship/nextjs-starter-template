@@ -285,26 +285,35 @@ function DashboardTablePaginationFooter({
   onLast?: () => void
   nextIcon?: React.ReactNode
 }) {
+  // A single option is not a choice. Surfaces with a fixed page size (the media
+  // picker, the load-more footer) showed a dropdown that could only reopen on
+  // the value it already had, so they get the range on its own.
+  const canChangePageSize = pageSizeOptions.length > 1
+
   return (
     <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
       <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-        <span className="hidden sm:inline">Rows per page:</span>
-        <Select
-          value={String(pageSize)}
-          onValueChange={(value) => onPageSizeChange?.(Number(value))}
-          disabled={!onPageSizeChange}
-        >
-          <DashboardToolbarSelectTrigger>
-            <SelectValue />
-          </DashboardToolbarSelectTrigger>
-          <SelectContent>
-            {pageSizeOptions.map((size) => (
-              <SelectItem key={size} value={String(size)}>
-                {size}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {canChangePageSize ? (
+          <>
+            <span className="hidden sm:inline">Rows per page:</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) => onPageSizeChange?.(Number(value))}
+              disabled={!onPageSizeChange}
+            >
+              <DashboardToolbarSelectTrigger>
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                {pageSizeOptions.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        ) : null}
         <span>{rangeText}</span>
       </div>
 

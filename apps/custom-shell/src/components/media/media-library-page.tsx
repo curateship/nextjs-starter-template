@@ -589,7 +589,7 @@ function MediaDetailsDialog({
                     // over range requests rather than downloading in full.
                     <video
                       src={item.url}
-                      className="mx-auto max-h-[50vh] w-full rounded-lg bg-black object-contain"
+                      className="mx-auto max-h-[50vh] w-full rounded-lg bg-muted object-contain"
                       controls
                       playsInline
                       preload="metadata"
@@ -775,7 +775,7 @@ function GalleryItem({
     <div
       className={cn(
         "group relative overflow-hidden rounded-lg border bg-muted",
-        selected && "border-destructive ring-2 ring-destructive/25"
+        selected && "border-primary ring-3 ring-primary/15"
       )}
     >
       <button

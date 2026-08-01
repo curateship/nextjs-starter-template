@@ -1,9 +1,11 @@
 import * as React from "react"
-import { ImageIcon, PlayIcon, SearchIcon, UploadIcon, XIcon } from "lucide-react"
+import { ImageIcon, Loader2Icon, PlayIcon, UploadIcon, XIcon } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import {
   Dialog,
   DialogBody,
@@ -179,9 +181,10 @@ export function MediaPicker({
     }
   }
 
-  function handleSelectMedia() {
-    if (!selectedMedia) return
-    onSelectMedia(selectedMedia.url, selectedMedia.alt_text ?? undefined)
+  // Takes the item rather than reading the selection, so a double-click can
+  // pick a tile in the same gesture that selects it.
+  function chooseMedia(item: MediaItem) {
+    onSelectMedia(item.url, item.alt_text ?? undefined)
     onOpenChange(false)
   }
 
@@ -195,16 +198,15 @@ export function MediaPicker({
         <DialogBody>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative min-w-0 flex-1">
-                <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search media"
-                  className="pl-9"
-                />
-              </div>
+              <DashboardToolbarSearch
+                className="min-w-0 sm:flex-1"
+                inputClassName="sm:w-full lg:w-full"
+                name="media-picker-search"
+                aria-label="Search media"
+                placeholder="Search media"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
 
               {showVideos ? (
                 <Select value={filterType} onValueChange={handleFilterChange}>
@@ -283,8 +285,20 @@ export function MediaPicker({
               </div>
             ) : null}
 
-            <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
-              {loading ? null : mediaItems.length === 0 ? (
+            {/* No scroll box of its own: the dialog body is already a
+                ScrollArea, and a second one would trap the wheel. */}
+            <div className="min-h-[260px] rounded-lg border p-3">
+              {loading ? (
+                <div
+                  className="grid h-56 place-items-center text-sm text-muted-foreground"
+                  role="status"
+                >
+                  <span className="flex items-center gap-2">
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Loading…
+                  </span>
+                </div>
+              ) : mediaItems.length === 0 ? (
                 <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
                   <div>
                     <ImageIcon className="mx-auto mb-3 size-10" />
@@ -303,6 +317,7 @@ export function MediaPicker({
                       isCurrent={currentMediaUrl === item.url}
                       playing={playingId === item.id}
                       onSelect={() => setSelectedMedia(item)}
+                      onChoose={() => chooseMedia(item)}
                       onPlay={() => {
                         setSelectedMedia(item)
                         setPlayingId(item.id)
@@ -346,7 +361,11 @@ export function MediaPicker({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" disabled={!selectedMedia} onClick={handleSelectMedia}>
+          <Button
+            type="button"
+            disabled={!selectedMedia}
+            onClick={() => selectedMedia && chooseMedia(selectedMedia)}
+          >
             Select
           </Button>
         </DialogFooter>
@@ -356,11 +375,12 @@ export function MediaPicker({
 }
 
 /**
- * One item in the picker grid. Videos get a play button over the still frame so
- * a clip can be checked before it is chosen — pressing it selects the item as
- * well, since nobody plays a video they are not considering. The tile is a div
- * with the choose-this button filling it, because a play button inside a button
- * is not valid markup.
+ * One item in the picker grid. One click selects, a double-click picks and
+ * closes. Videos get a play button over the still frame so a clip can be
+ * checked before it is chosen — pressing it selects the item as well, since
+ * nobody plays a video they are not considering. The tile is a div with the
+ * choose-this button filling it, because a play button inside a button is not
+ * valid markup.
  */
 function MediaTile({
   item,
@@ -368,6 +388,7 @@ function MediaTile({
   isCurrent,
   playing,
   onSelect,
+  onChoose,
   onPlay,
 }: {
   item: MediaItem
@@ -375,6 +396,7 @@ function MediaTile({
   isCurrent: boolean
   playing: boolean
   onSelect: () => void
+  onChoose: () => void
   onPlay: () => void
 }) {
   return (
@@ -382,14 +404,14 @@ function MediaTile({
       className={cn(
         "group relative aspect-square overflow-hidden rounded-md border bg-muted transition",
         selected
-          ? "border-green-500 ring-2 ring-green-500/20"
+          ? "border-primary ring-3 ring-primary/15"
           : "hover:border-muted-foreground/40"
       )}
     >
       {playing ? (
         <video
           src={item.url}
-          className="h-full w-full bg-black object-contain"
+          className="h-full w-full object-contain"
           controls
           autoPlay
           playsInline
@@ -401,6 +423,7 @@ function MediaTile({
             type="button"
             className="block h-full w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             onClick={onSelect}
+            onDoubleClick={onChoose}
             aria-pressed={selected}
             aria-label={`Select ${item.original_name}`}
           >
@@ -416,19 +439,22 @@ function MediaTile({
             // Only the badge plays, so the rest of the tile still just picks.
             <button
               type="button"
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 outline-none transition hover:bg-black/75 focus-visible:ring-2 focus-visible:ring-ring"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/60 p-2 outline-none transition hover:bg-foreground/80 focus-visible:ring-2 focus-visible:ring-ring"
               onClick={onPlay}
               aria-label={`Play ${item.original_name}`}
             >
-              <PlayIcon className="size-5 fill-white text-white" />
+              <PlayIcon className="size-5 fill-background text-background" />
             </button>
           ) : null}
         </>
       )}
       {isCurrent ? (
-        <span className="pointer-events-none absolute top-2 right-2 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
+        <Badge
+          variant="secondary"
+          className="pointer-events-none absolute top-2 right-2"
+        >
           Current
-        </span>
+        </Badge>
       ) : null}
     </div>
   )
