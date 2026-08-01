@@ -50,7 +50,7 @@ export function StylingSettingsCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Styling Settings</CardTitle>
+          <CardTitle>Site Appearance</CardTitle>
         </CardHeader>
         <CardContent>
           {/* Default Theme (Light/Dark Mode) */}
