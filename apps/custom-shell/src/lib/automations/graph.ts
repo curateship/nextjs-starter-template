@@ -96,5 +96,7 @@ export const automationGraphSchema = z
 export const EMPTY_AUTOMATION_GRAPH: AutomationGraph = {
   nodes: [],
   edges: [],
-  viewport: { x: 0, y: 0, zoom: 1 },
+  // 90%, matching what "Fit automation to view" settles on, so a new canvas
+  // opens at the same size the Fit button would give it.
+  viewport: { x: 0, y: 0, zoom: 0.9 },
 }
