@@ -1,9 +1,5 @@
-import { ChevronsDownIcon, ChevronsUpIcon } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-import { AutomationPanelToggles } from "./automation-panel-toggles"
 import type { AutomationLogEntry } from "./automation-log"
 
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -14,29 +10,13 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
 
 export function AutomationActivityLog({
   entries,
-  collapsed,
-  onToggleCollapse,
-  showPanelToggles = false,
-  paletteCollapsed = false,
-  inspectorCollapsed = false,
-  onTogglePalette,
-  onToggleInspector,
 }: {
   entries: AutomationLogEntry[]
-  /** The panel is squeezed down to just this header (BOTTOM_COLLAPSED_HEIGHT). */
-  collapsed: boolean
-  onToggleCollapse: () => void
-  showPanelToggles?: boolean
-  paletteCollapsed?: boolean
-  inspectorCollapsed?: boolean
-  onTogglePalette?: () => void
-  onToggleInspector?: () => void
 }) {
-  const ToggleIcon = collapsed ? ChevronsUpIcon : ChevronsDownIcon
   return (
     <div className="flex h-full min-h-0 flex-col bg-card">
       {/* Same 44px header height as the palette's tab row. The panel collapses
-          to exactly this row, so it always keeps the reopen controls. */}
+          to exactly this row, so the title stays readable while it's shut. */}
       <div className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
         <h2 className="text-xs font-semibold tracking-wide uppercase">
           Activity log
@@ -44,27 +24,6 @@ export function AutomationActivityLog({
         <span className="text-xs text-muted-foreground">
           {entries.length} {entries.length === 1 ? "event" : "events"}
         </span>
-        <div className="ml-auto flex items-center gap-1">
-          {showPanelToggles && onTogglePalette && onToggleInspector ? (
-            <AutomationPanelToggles
-              paletteCollapsed={paletteCollapsed}
-              inspectorCollapsed={inspectorCollapsed}
-              onTogglePalette={onTogglePalette}
-              onToggleInspector={onToggleInspector}
-            />
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={
-              collapsed ? "Expand activity log" : "Collapse activity log"
-            }
-            onClick={onToggleCollapse}
-          >
-            <ToggleIcon className="size-4" />
-          </Button>
-        </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div role="log" aria-live="polite" className="grid gap-2 p-4 text-xs">

@@ -15,7 +15,6 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
-import { togglePanel } from "@/lib/panel-collapse"
 import {
   Sheet,
   SheetClose,
@@ -77,7 +76,6 @@ export function AutomationEditor({
   const [desktop, setDesktop] = React.useState(false)
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
-  const [logCollapsed, setLogCollapsed] = React.useState(false)
   const [logEntries, setLogEntries] = React.useState<AutomationLogEntry[]>([])
   const [favoriteNodeKeys, setFavoriteNodeKeys] = React.useState(
     initialFavoriteNodeKeys
@@ -518,25 +516,12 @@ export function AutomationEditor({
             maxSize="45%"
             // Dragging the divider all the way down collapses the log to its
             // own header bar. It never unmounts, so it can always be dragged
-            // (or clicked) back open. A fixed-height collapse can't be read
-            // from the size percentage — ask the panel instead.
+            // back open.
             collapsible
             collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-            onResize={() =>
-              setLogCollapsed(logPanelRef.current?.isCollapsed() ?? false)
-            }
           >
             <WorkspacePanel>
-              <AutomationActivityLog
-                entries={logEntries}
-                collapsed={logCollapsed}
-                onToggleCollapse={() => togglePanel(logPanelRef, "22%")}
-                showPanelToggles={desktop}
-                paletteCollapsed={paletteCollapsed}
-                inspectorCollapsed={inspectorCollapsed}
-                onTogglePalette={togglePalette}
-                onToggleInspector={toggleInspector}
-              />
+              <AutomationActivityLog entries={logEntries} />
             </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>

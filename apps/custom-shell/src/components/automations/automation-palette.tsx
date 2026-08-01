@@ -1,7 +1,6 @@
 import * as React from "react"
-import { LayoutGridIcon, PlusIcon, SearchIcon, StarIcon } from "lucide-react"
+import { LayoutGridIcon, PlusIcon, StarIcon } from "lucide-react"
 
-import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -20,21 +19,14 @@ const paletteGroups = AUTOMATION_PALETTE_GROUPS.map((label) => ({
 
 function paletteGroupsFor(
   view: "fav" | "all",
-  favoriteNodeKeys: readonly string[],
-  query: string
+  favoriteNodeKeys: readonly string[]
 ) {
   const favorites = new Set(favoriteNodeKeys)
-  const normalizedQuery = query.trim().toLowerCase()
   return paletteGroups
     .map((group) => ({
       ...group,
       items: group.items.filter(
-        (item) =>
-          (view === "all" || favorites.has(item.key)) &&
-          (!normalizedQuery ||
-            `${item.name} ${item.description}`
-              .toLowerCase()
-              .includes(normalizedQuery))
+        (item) => view === "all" || favorites.has(item.key)
       ),
     }))
     .filter((group) => group.items.length > 0)
@@ -56,8 +48,6 @@ export function AutomationPalette({
   onDragEnd: () => void
 }) {
   const [tab, setTab] = React.useState<"fav" | "all">("fav")
-  const [search, setSearch] = React.useState("")
-  const query = search.trim().toLowerCase()
 
   return (
     <Tabs
@@ -91,8 +81,7 @@ export function AutomationPalette({
       </div>
       <PaletteTab
         value="fav"
-        groups={paletteGroupsFor("fav", favoriteNodeKeys, query)}
-        hasSearch={Boolean(query)}
+        groups={paletteGroupsFor("fav", favoriteNodeKeys)}
         onSelect={onSelect}
         onAdd={onAdd}
         onDragStart={onDragStart}
@@ -100,32 +89,12 @@ export function AutomationPalette({
       />
       <PaletteTab
         value="all"
-        groups={paletteGroupsFor("all", favoriteNodeKeys, query)}
-        hasSearch={Boolean(query)}
+        groups={paletteGroupsFor("all", favoriteNodeKeys)}
         onSelect={onSelect}
         onAdd={onAdd}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       />
-      <div className="shrink-0 border-t bg-card p-3">
-        <div className="relative">
-          <SearchIcon
-            aria-hidden="true"
-            className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search nodes…"
-            aria-label="Search automation nodes"
-            className="h-8 pr-2 pl-8 text-xs"
-          />
-        </div>
-        <p className="pt-2 text-[10px] text-muted-foreground">
-          Select to preview · Drag or use + to add.
-        </p>
-      </div>
     </Tabs>
   )
 }
@@ -133,7 +102,6 @@ export function AutomationPalette({
 function PaletteTab({
   value,
   groups,
-  hasSearch,
   onSelect,
   onAdd,
   onDragStart,
@@ -141,7 +109,6 @@ function PaletteTab({
 }: {
   value: "fav" | "all"
   groups: Array<{ label: string; items: AutomationPaletteItem[] }>
-  hasSearch: boolean
   onSelect: (key: string) => void
   onAdd: (key: string) => void
   onDragStart: (key: string) => void
@@ -178,11 +145,9 @@ function PaletteTab({
           ))}
           {groups.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
-              {hasSearch
-                ? "No nodes match that search."
-                : value === "fav"
-                  ? "No favorite nodes yet. Open All nodes, select a node, and use the star in its settings."
-                  : "No nodes are available."}
+              {value === "fav"
+                ? "No favorite nodes yet. Open All nodes, select a node, and use the star in its settings."
+                : "No nodes are available."}
             </p>
           ) : null}
         </div>
