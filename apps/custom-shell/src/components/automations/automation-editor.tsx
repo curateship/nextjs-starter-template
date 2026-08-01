@@ -1,13 +1,12 @@
 import * as React from "react"
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 
 import { AutomationActivityLog } from "@/components/automations/automation-activity-log"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
-import { AutomationToolbar } from "@/components/automations/automation-toolbar"
-import { Button } from "@/components/ui/button"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   ResizableHandle,
@@ -15,12 +14,6 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import {
@@ -52,7 +45,11 @@ export function AutomationEditor({
   initial: AutomationDetail
   initialFavoriteNodeKeys: string[]
 }) {
-  const [name, setName] = React.useState(initial.name)
+  const { reportSaveStatus } = useShellRuntime()
+  // Nothing on this page renames an automation any more, so the name is only
+  // ever the one it loaded with — but it still has to ride along on every save,
+  // or the record would be written back without it.
+  const [name] = React.useState(initial.name)
   const [graph, setGraph] = React.useState(initial.graph)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     null
@@ -70,8 +67,6 @@ export function AutomationEditor({
     width: 0,
     height: 0,
   })
-  const [paletteOpen, setPaletteOpen] = React.useState(false)
-  const [inspectorOpen, setInspectorOpen] = React.useState(false)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [desktop, setDesktop] = React.useState(false)
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
@@ -118,7 +113,7 @@ export function AutomationEditor({
   // ----- Auto-save (700ms debounce, serialized queue, version counter) -----
   // Mirrors the shell-layout config auto-save: edits schedule a debounced save
   // that runs on a serialized queue so rapid edits persist in order; an empty
-  // name blocks the save and says so in the toolbar instead of failing silently.
+  // name blocks the save and says so in the top bar instead of failing silently.
   const serialize = React.useCallback(
     (nextName: string, nextGraph: AutomationGraph) =>
       JSON.stringify({ name: nextName, graph: nextGraph }),
@@ -184,15 +179,6 @@ export function AutomationEditor({
     }, SAVE_DEBOUNCE_MS)
   }, [saveNow])
 
-  const changeName = React.useCallback(
-    (nextName: string) => {
-      setName(nextName)
-      latestRef.current = { ...latestRef.current, name: nextName }
-      scheduleSave()
-    },
-    [scheduleSave]
-  )
-
   const changeGraph = React.useCallback(
     (updater: (current: AutomationGraph) => AutomationGraph) => {
       // Computed eagerly from the ref, not inside a functional setState: the
@@ -231,6 +217,17 @@ export function AutomationEditor({
     const timer = setTimeout(() => setSaveStatus("idle"), 2000)
     return () => clearTimeout(timer)
   }, [saveStatus])
+
+  // This editor has no bar of its own, so its saving is reported in the sticky
+  // header alongside every other auto-save in the app. Clearing on the way out
+  // matters: without it "Saved" would still be sitting there on the next page.
+  React.useEffect(() => {
+    reportSaveStatus(saveStatus)
+  }, [reportSaveStatus, saveStatus])
+
+  React.useEffect(() => {
+    return () => reportSaveStatus(null)
+  }, [reportSaveStatus])
 
   React.useEffect(() => {
     const media = window.matchMedia("(min-width: 1280px)")
@@ -323,11 +320,9 @@ export function AutomationEditor({
       setPreviewNode(createNode(key))
       setSelectedNodeId(null)
       setSelectedEdgeId(null)
-      setPaletteOpen(false)
-      if (desktop) inspectorPanelRef.current?.expand()
-      else setInspectorOpen(true)
+      inspectorPanelRef.current?.expand()
     },
-    [createNode, desktop]
+    [createNode]
   )
 
   const placeNode = React.useCallback(
@@ -347,7 +342,6 @@ export function AutomationEditor({
       setPreviewNode(null)
       setSelectedNodeId(placedNode.id)
       setSelectedEdgeId(null)
-      setPaletteOpen(false)
       record(`Added ${automationNodeName(placedNode)}.`)
     },
     [canvasSize.width, changeGraph, record]
@@ -485,14 +479,6 @@ export function AutomationEditor({
       className="flex min-h-0 flex-1 flex-col"
       style={{ gap: "var(--shell-gutter, 0.75rem)" }}
     >
-      <AutomationToolbar
-        name={name}
-        saveStatus={saveStatus}
-        onNameChange={changeName}
-        onOpenPalette={() => setPaletteOpen(true)}
-        onOpenInspector={() => setInspectorOpen(true)}
-      />
-
       <div className="flex min-h-0 flex-1 flex-col">
         <ResizablePanelGroup
           key={verticalLayout.layoutKey}
@@ -527,32 +513,6 @@ export function AutomationEditor({
         </ResizablePanelGroup>
       </div>
 
-      <Sheet open={paletteOpen} onOpenChange={setPaletteOpen}>
-        <SheetContent
-          side="left"
-          showCloseButton={false}
-          className="w-[min(90vw,320px)] gap-0 p-0"
-        >
-          <SheetPanelHeader title="Add a node" />
-          <AutomationPalette
-            favoriteNodeKeys={favoriteNodeKeys}
-            onSelect={previewPaletteNode}
-            onAdd={addNode}
-            onDragStart={setDraggedNodeKey}
-            onDragEnd={() => setDraggedNodeKey(null)}
-          />
-        </SheetContent>
-      </Sheet>
-      <Sheet open={inspectorOpen} onOpenChange={setInspectorOpen}>
-        <SheetContent
-          side="right"
-          showCloseButton={false}
-          className="w-[min(90vw,360px)] gap-0 p-0"
-        >
-          <SheetPanelHeader title="Automation inspector" />
-          {inspector}
-        </SheetContent>
-      </Sheet>
     </div>
   )
 }
@@ -624,23 +584,5 @@ function PanelReopenTab({
     >
       <Icon className="size-4" />
     </button>
-  )
-}
-
-function SheetPanelHeader({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-between border-b px-4 py-3">
-      <SheetTitle className="text-sm">{title}</SheetTitle>
-      <SheetClose asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Close panel"
-        >
-          <XIcon className="size-4" />
-        </Button>
-      </SheetClose>
-    </div>
   )
 }

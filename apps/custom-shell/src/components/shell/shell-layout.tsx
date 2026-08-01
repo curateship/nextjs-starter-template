@@ -84,6 +84,13 @@ type ShellRuntime = {
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   onOpenFeedback: () => void
   onOpenFeedbackThread: (feedbackId: string) => void
+  /**
+   * Lets a page that auto-saves its own record — the automation editor — put its
+   * status in the sticky header, which is the one place this app reports saving.
+   * The page owns the value and must clear it (pass null) when it unmounts, or
+   * its last word would outlive it on the next screen.
+   */
+  reportSaveStatus: (status: SaveStatus | null) => void
 }
 
 const ShellRuntimeContext = React.createContext<ShellRuntime | null>(null)
@@ -136,6 +143,12 @@ export function ShellLayout({
   const configSaveQueueRef = React.useRef(Promise.resolve())
   const configSaveVersionRef = React.useRef(0)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
+  // A page's own auto-save, when it has one. It wins over the settings status
+  // above because only one of the two can be on screen at a time, and this is
+  // the one the person is looking at.
+  const [pageSaveStatus, setPageSaveStatus] = React.useState<SaveStatus | null>(
+    null
+  )
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   const [targetFeedbackId, setTargetFeedbackId] = React.useState<string | null>(
     null
@@ -396,6 +409,7 @@ export function ShellLayout({
       onSessionPolicyChange: handleSessionPolicyChange,
       onOpenFeedback: () => openFeedback(),
       onOpenFeedbackThread: openFeedback,
+      reportSaveStatus: setPageSaveStatus,
     }),
     [
       config,
@@ -449,7 +463,7 @@ export function ShellLayout({
               navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
               rightNavItems={config.topRightNavigation}
               unreadNotifications={unreadNotifications}
-              saveStatus={saveStatus}
+              saveStatus={pageSaveStatus ?? saveStatus}
               maintenanceOn={
                 user.role === "admin" && config.maintenance.enabled
               }
