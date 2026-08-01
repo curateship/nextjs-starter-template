@@ -82,6 +82,8 @@ import {
 import {
   canViewAllNotifications,
   getNotificationPage,
+  listAdminNotifications,
+  type AdminNotificationQuery,
 } from "@/server/notifications"
 import {
   createAuthToken,
@@ -117,6 +119,7 @@ import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   createUserWorkspace,
   deleteUserWorkspace,
+  deleteUserWorkspaces,
   getOrCreateCurrentWorkspace,
   groupFeedbackIntoFeeds,
   groupFeedsLinks,
@@ -1112,6 +1115,70 @@ describe("custom shell workspaces", () => {
         database as unknown as CustomShellDb
       )
     ).rejects.toThrow("At least one workspace is required")
+  })
+
+  // The table's Delete (n) sends the whole selection in one request, so the
+  // guards that protect a single delete have to hold for the batch: someone
+  // else's workspace is left alone, and one workspace always survives.
+  it("bulk deletes in one pass and always leaves one workspace standing", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const strangerId = uuid()
+    const shellDb = database as unknown as CustomShellDb
+
+    await database.insert(customShellUsers).values([
+      {
+        id: userId,
+        email: "bulk-owner@internal.dev",
+        name: "Bulk Owner",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: strangerId,
+        email: "bulk-stranger@internal.dev",
+        name: "Stranger",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const first = await getOrCreateCurrentWorkspace(userId, shellDb)
+    const second = await createUserWorkspace(userId, "Second", {}, shellDb)
+    // Creating one makes it the current workspace, so this batch takes the
+    // workspace in use with it and the user has to land somewhere.
+    const third = await createUserWorkspace(userId, "Third", {}, shellDb)
+    const strangers = await getOrCreateCurrentWorkspace(strangerId, shellDb)
+    const missingId = uuid()
+
+    const result = await deleteUserWorkspaces(
+      userId,
+      [second.id, third.id, strangers.id, missingId],
+      shellDb
+    )
+    expect([...result.deleted].sort()).toEqual([second.id, third.id].sort())
+    expect([...result.kept].sort()).toEqual([strangers.id, missingId].sort())
+    await expect(listUserWorkspaces(userId, shellDb)).resolves.toMatchObject({
+      currentWorkspaceId: first.id,
+    })
+    await expect(
+      listUserWorkspaces(strangerId, shellDb)
+    ).resolves.toMatchObject({ currentWorkspaceId: strangers.id })
+
+    // Asking for every workspace still leaves the one in use standing.
+    const extra = await createUserWorkspace(userId, "Extra", {}, shellDb)
+    await expect(
+      deleteUserWorkspaces(userId, [first.id, extra.id], shellDb)
+    ).resolves.toEqual({ deleted: [first.id], kept: [extra.id] })
+
+    // And the last one on its own goes nowhere.
+    await expect(
+      deleteUserWorkspaces(userId, [extra.id], shellDb)
+    ).resolves.toEqual({ deleted: [], kept: [extra.id] })
   })
 
   // Reading a saved sidebar used to top it back up with the default links
@@ -3186,7 +3253,7 @@ describe("custom shell feedback notifications", () => {
     ])
 
     const firstPage = await getNotificationPage({
-      currentUser: { id: ownerId, role: "member" },
+      currentUser: { id: ownerId },
       limit: 1,
       database: database as unknown as CustomShellDb,
     })
@@ -3197,7 +3264,7 @@ describe("custom shell feedback notifications", () => {
     expect(firstPage.next_cursor).toBeTruthy()
 
     const secondPage = await getNotificationPage({
-      currentUser: { id: ownerId, role: "member" },
+      currentUser: { id: ownerId },
       cursor: firstPage.next_cursor ?? undefined,
       limit: 1,
       database: database as unknown as CustomShellDb,
@@ -3264,19 +3331,18 @@ describe("custom shell feedback notifications", () => {
       createdAt,
     })
 
-    await expect(
-      getNotificationPage({
-        currentUser: { id: ownerId, role: "member" },
-        includeAll: true,
-        database: database as unknown as CustomShellDb,
-      })
-    ).rejects.toThrow("Not authorized")
-
-    const adminPage = await getNotificationPage({
-      currentUser: { id: adminId, role: "admin" },
-      includeAll: true,
+    // A member's own page never shows somebody else's notice, whoever asks.
+    const ownerPage = await getNotificationPage({
+      currentUser: { id: actorId },
       database: database as unknown as CustomShellDb,
     })
+    expect(ownerPage.notifications).toEqual([])
+
+    const adminPage = await listAdminNotifications(
+      adminNotificationQuery(),
+      database as unknown as CustomShellDb
+    )
+    expect(adminPage.total).toBe(1)
     expect(adminPage.notifications).toMatchObject([
       {
         id: notificationId,
@@ -3291,7 +3357,125 @@ describe("custom shell feedback notifications", () => {
       .where(eq(customShellNotifications.id, notificationId))
     expect(notification.readAt).toBeNull()
   })
+
+  it("searches, filters and sorts the whole admin list, not one page", async () => {
+    const createdAt = now()
+    const recipientId = uuid()
+    const votersIds = [uuid(), uuid(), uuid()]
+    const feedbackIds = [uuid(), uuid(), uuid()]
+    const notificationIds = [uuid(), uuid(), uuid()]
+
+    await database.insert(customShellUsers).values([
+      {
+        id: recipientId,
+        email: "whole-list-owner@internal.dev",
+        name: "Zoe Owner",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      // Named so alphabetical order and newest-first order disagree: the
+      // buried one is both the oldest and the first by name.
+      ...["Buried Person", "Middle Person", "Recent Person"].map(
+        (name, index) => ({
+          id: votersIds[index],
+          email: `whole-list-actor-${index}@internal.dev`,
+          name,
+          role: "member",
+          passwordHash: "hash",
+          createdAt,
+          updatedAt: createdAt,
+        })
+      ),
+    ])
+    await database.insert(customShellFeedback).values(
+      feedbackIds.map((id, index) => ({
+        id,
+        userId: recipientId,
+        type: "suggestion",
+        message: `Feedback ${index}`,
+        createdAt,
+        updatedAt: createdAt,
+      }))
+    )
+    await database.insert(customShellNotifications).values(
+      notificationIds.map((id, index) => ({
+        id,
+        recipientUserId: recipientId,
+        actorUserId: votersIds[index],
+        feedbackId: feedbackIds[index],
+        type: index === 0 ? "feedback_comment" : "feedback_vote",
+        // The oldest one is last by date, so a one-row page never reaches it.
+        createdAt: new Date(createdAt.getTime() + index * 1000),
+        readAt: index === 2 ? createdAt : null,
+      }))
+    )
+
+    const list = (query: Partial<AdminNotificationQuery>) =>
+      listAdminNotifications(
+        adminNotificationQuery(query),
+        database as unknown as CustomShellDb
+      )
+
+    // The buried row is oldest, so a page of one newest-first would miss it.
+    const buried = await list({ search: "buried", pageSize: 1 })
+    expect(buried.total).toBe(1)
+    expect(buried.notifications.map((item) => item.id)).toEqual([
+      notificationIds[0],
+    ])
+
+    // Searching the feedback text and the recipient's name works the same way.
+    expect((await list({ search: "Feedback 1" })).total).toBe(1)
+    expect((await list({ search: "zoe owner" })).total).toBe(3)
+
+    expect((await list({ read: "unread" })).total).toBe(2)
+    expect((await list({ read: "read" })).total).toBe(1)
+    expect((await list({ type: "feedback_comment" })).total).toBe(1)
+
+    // The count is the whole match, not the page — three matches, one row.
+    const firstPage = await list({ pageSize: 1 })
+    expect(firstPage.total).toBe(3)
+    expect(firstPage.notifications).toHaveLength(1)
+    expect(firstPage.notifications[0].id).toBe(notificationIds[2])
+
+    const secondPage = await list({ pageSize: 1, page: 2 })
+    expect(secondPage.notifications.map((item) => item.id)).toEqual([
+      notificationIds[1],
+    ])
+
+    const byActor = await list({ sort: "activity", direction: "asc" })
+    expect(byActor.notifications.map((item) => item.actor_name)).toEqual([
+      "Buried Person",
+      "Middle Person",
+      "Recent Person",
+    ])
+
+    // Type sorts by the words on screen: "Comment" before "Thumbs up".
+    const byType = await list({ sort: "type", direction: "asc" })
+    expect(byType.notifications[0].id).toBe(notificationIds[0])
+
+    // Unread first, because that is the row you still have to deal with.
+    const byStatus = await list({ sort: "status", direction: "asc" })
+    expect(byStatus.notifications.at(-1)?.id).toBe(notificationIds[2])
+  })
 })
+
+/** The list query with every filter off, so a test only states what it changes. */
+function adminNotificationQuery(
+  overrides: Partial<AdminNotificationQuery> = {}
+): AdminNotificationQuery {
+  return {
+    search: "",
+    read: "all",
+    type: "all",
+    page: 1,
+    pageSize: 25,
+    sort: "created",
+    direction: "desc",
+    ...overrides,
+  }
+}
 
 describe("custom shell media helpers", () => {
   it("validates media types, sizes, filenames, and alt text", () => {

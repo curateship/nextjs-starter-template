@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -31,7 +32,30 @@ import {
   type BillingOverview,
   type PlanOption,
 } from "@/lib/api/billing"
-import { formatDate, formatMoney } from "@/lib/money"
+import { formatDate } from "@/lib/format-time"
+import { formatMoney } from "@/lib/money"
+
+/**
+ * Stripe's own words for an invoice, said the way a person would. Anything not
+ * listed — a status Stripe adds later — falls through to the raw word rather
+ * than a blank cell, so a receipt is never silently unlabelled.
+ */
+const INVOICE_STATUS_LABELS: Record<string, string> = {
+  draft: "Not sent yet",
+  open: "Awaiting payment",
+  paid: "Paid",
+  uncollectible: "Won't be collected",
+  void: "Cancelled",
+}
+
+function invoiceStatusLabel(status: string) {
+  const known = INVOICE_STATUS_LABELS[status]
+  if (known) return known
+
+  const raw = status.replace(/[_-]+/g, " ").trim()
+  if (!raw) return "Unknown"
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
 
 // Stand-in shown while the Billing tab fetches its data on open. It mirrors the
 // real layout's shape and height so the modal doesn't flash blank or resize when
@@ -181,51 +205,96 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
         <CardDescription>Your last two years of receipts.</CardDescription>
       </CardHeader>
       <CardContent>
-        {invoices.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No invoices yet. They appear here after your first payment.
-          </p>
-        ) : (
-          <TableSurface>
+        <TableSurface>
+          {/* Same wrapper the dashboard tables use: five columns cannot fit a
+              phone, so the table scrolls sideways on its own with a visible
+              scrollbar rather than stretching the window. */}
+          <ScrollArea className="w-full">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Receipt</TableHead>
+                  <TableHead column="meta">Date</TableHead>
+                  {/* The flexible column, but without the dashboard `main`
+                      column's 320px floor — this table lives in a modal that is
+                      only as wide as a phone. The number is also the first
+                      thing to go on that phone: what you paid and whether it
+                      went through matter more than the reference code. */}
+                  <TableHead
+                    column="main"
+                    className="hidden min-w-0 sm:table-cell"
+                  >
+                    Invoice
+                  </TableHead>
+                  <TableHead column="meta">Amount</TableHead>
+                  <TableHead column="meta">Status</TableHead>
+                  <TableHead column="meta" className="text-right">
+                    Receipt
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell>{formatDate(invoice.createdAt)}</TableCell>
-                    <TableCell>{invoice.number ?? "—"}</TableCell>
-                    <TableCell>
-                      {formatMoney(invoice.amountPaid, invoice.currency)}
-                    </TableCell>
-                    <TableCell className="capitalize">{invoice.status}</TableCell>
-                    <TableCell className="text-right">
-                      {invoice.hostedInvoiceUrl ? (
-                        <a
-                          className="font-medium underline-offset-4 hover:underline"
-                          href={invoice.hostedInvoiceUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          View
-                        </a>
-                      ) : (
-                        "—"
-                      )}
+                {invoices.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="h-24 text-center text-sm text-muted-foreground"
+                    >
+                      No invoices yet. They appear here after your first payment.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  invoices.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell column="mutedMeta">
+                        {formatDate(invoice.createdAt)}
+                      </TableCell>
+                      <TableCell
+                        column="main"
+                        className="hidden min-w-0 sm:table-cell"
+                      >
+                        {/* Stripe numbers are short, but a custom prefix can
+                            make one long enough to push the modal sideways. Cap
+                            it and keep the whole number on hover. */}
+                        <span
+                          className="block max-w-56 truncate"
+                          title={invoice.number ?? undefined}
+                        >
+                          {invoice.number ?? "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell column="meta">
+                        {formatMoney(invoice.amountPaid, invoice.currency)}
+                      </TableCell>
+                      <TableCell column="meta">
+                        <span
+                          className="block max-w-32 truncate"
+                          title={invoiceStatusLabel(invoice.status)}
+                        >
+                          {invoiceStatusLabel(invoice.status)}
+                        </span>
+                      </TableCell>
+                      <TableCell column="meta" className="text-right">
+                        {invoice.hostedInvoiceUrl ? (
+                          <a
+                            className="font-medium underline-offset-4 hover:underline"
+                            href={invoice.hostedInvoiceUrl}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                          >
+                            View
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
-          </TableSurface>
-        )}
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </TableSurface>
       </CardContent>
     </Card>
   )

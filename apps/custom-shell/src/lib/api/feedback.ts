@@ -260,21 +260,28 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
       })
     }
 
-    const [voteCount] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(customShellFeedbackVotes)
-      .where(eq(customShellFeedbackVotes.feedbackId, row.id))
-    const [author] = await db
-      .select({ name: customShellUsers.name })
-      .from(customShellUsers)
-      .where(eq(customShellUsers.id, row.userId))
-      .limit(1)
+    // The vote is already written; these three only describe the result, so
+    // they go out together instead of one at a time.
+    const [[voteCount], [author], commentCount] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(customShellFeedbackVotes)
+        .where(eq(customShellFeedbackVotes.feedbackId, row.id)),
+
+      db
+        .select({ name: customShellUsers.name })
+        .from(customShellUsers)
+        .where(eq(customShellUsers.id, row.userId))
+        .limit(1),
+
+      getFeedbackCommentCount(row.id),
+    ])
 
     return serializeFeedbackRow(
       row,
       author?.name ?? "Unknown",
       voteCount?.count ?? 0,
-      await getFeedbackCommentCount(row.id),
+      commentCount,
       hasVoted
     )
   })
@@ -505,39 +512,45 @@ async function serializeFeedbackRows(
   }
 
   const feedbackIds = rows.map((row) => row.id)
-  const voteRows = await db
-    .select({
-      feedbackId: customShellFeedbackVotes.feedbackId,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(customShellFeedbackVotes)
-    .where(inArray(customShellFeedbackVotes.feedbackId, feedbackIds))
-    .groupBy(customShellFeedbackVotes.feedbackId)
-
-  const votedRows = await db
-    .select({ feedbackId: customShellFeedbackVotes.feedbackId })
-    .from(customShellFeedbackVotes)
-    .where(
-      and(
-        inArray(customShellFeedbackVotes.feedbackId, feedbackIds),
-        eq(customShellFeedbackVotes.userId, currentUserId)
-      )
-    )
-
   const authorIds = Array.from(new Set(rows.map((row) => row.userId)))
-  const authorRows = await db
-    .select({ id: customShellUsers.id, name: customShellUsers.name })
-    .from(customShellUsers)
-    .where(inArray(customShellUsers.id, authorIds))
 
-  const commentRows = await db
-    .select({
-      feedbackId: customShellFeedbackComments.feedbackId,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(customShellFeedbackComments)
-    .where(inArray(customShellFeedbackComments.feedbackId, feedbackIds))
-    .groupBy(customShellFeedbackComments.feedbackId)
+  // Vote counts, my votes, author names and comment counts do not depend on
+  // each other, so they go out together. Run one after another they cost four
+  // round trips to a database that is 1-2s away.
+  const [voteRows, votedRows, authorRows, commentRows] = await Promise.all([
+    db
+      .select({
+        feedbackId: customShellFeedbackVotes.feedbackId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(customShellFeedbackVotes)
+      .where(inArray(customShellFeedbackVotes.feedbackId, feedbackIds))
+      .groupBy(customShellFeedbackVotes.feedbackId),
+
+    db
+      .select({ feedbackId: customShellFeedbackVotes.feedbackId })
+      .from(customShellFeedbackVotes)
+      .where(
+        and(
+          inArray(customShellFeedbackVotes.feedbackId, feedbackIds),
+          eq(customShellFeedbackVotes.userId, currentUserId)
+        )
+      ),
+
+    db
+      .select({ id: customShellUsers.id, name: customShellUsers.name })
+      .from(customShellUsers)
+      .where(inArray(customShellUsers.id, authorIds)),
+
+    db
+      .select({
+        feedbackId: customShellFeedbackComments.feedbackId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(customShellFeedbackComments)
+      .where(inArray(customShellFeedbackComments.feedbackId, feedbackIds))
+      .groupBy(customShellFeedbackComments.feedbackId),
+  ])
 
   const voteCounts = new Map(
     voteRows.map((row) => [row.feedbackId, row.count])
@@ -563,31 +576,38 @@ async function serializeFeedbackWithMeta(
   row: CustomShellFeedback,
   currentUserId: string
 ) {
-  const [voteCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(customShellFeedbackVotes)
-    .where(eq(customShellFeedbackVotes.feedbackId, row.id))
-  const [vote] = await db
-    .select({ id: customShellFeedbackVotes.id })
-    .from(customShellFeedbackVotes)
-    .where(
-      and(
-        eq(customShellFeedbackVotes.feedbackId, row.id),
-        eq(customShellFeedbackVotes.userId, currentUserId)
+  // Four independent lookups, so they go out together rather than one at a time.
+  const [[voteCount], [vote], [author], commentCount] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(customShellFeedbackVotes)
+      .where(eq(customShellFeedbackVotes.feedbackId, row.id)),
+
+    db
+      .select({ id: customShellFeedbackVotes.id })
+      .from(customShellFeedbackVotes)
+      .where(
+        and(
+          eq(customShellFeedbackVotes.feedbackId, row.id),
+          eq(customShellFeedbackVotes.userId, currentUserId)
+        )
       )
-    )
-    .limit(1)
-  const [author] = await db
-    .select({ name: customShellUsers.name })
-    .from(customShellUsers)
-    .where(eq(customShellUsers.id, row.userId))
-    .limit(1)
+      .limit(1),
+
+    db
+      .select({ name: customShellUsers.name })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, row.userId))
+      .limit(1),
+
+    getFeedbackCommentCount(row.id),
+  ])
 
   return serializeFeedbackRow(
     row,
     author?.name ?? "Unknown",
     voteCount?.count ?? 0,
-    await getFeedbackCommentCount(row.id),
+    commentCount,
     Boolean(vote)
   )
 }
@@ -602,14 +622,19 @@ async function serializeFeedbackCommentRows(
 
   const authorIds = Array.from(new Set(rows.map((row) => row.userId)))
   const feedbackIds = Array.from(new Set(rows.map((row) => row.feedbackId)))
-  const authorRows = await db
-    .select({ id: customShellUsers.id, name: customShellUsers.name })
-    .from(customShellUsers)
-    .where(inArray(customShellUsers.id, authorIds))
-  const feedbackRows = await db
-    .select()
-    .from(customShellFeedback)
-    .where(inArray(customShellFeedback.id, feedbackIds))
+
+  // Same shape as the feedback list: two independent lookups, sent together.
+  const [authorRows, feedbackRows] = await Promise.all([
+    db
+      .select({ id: customShellUsers.id, name: customShellUsers.name })
+      .from(customShellUsers)
+      .where(inArray(customShellUsers.id, authorIds)),
+
+    db
+      .select()
+      .from(customShellFeedback)
+      .where(inArray(customShellFeedback.id, feedbackIds)),
+  ])
 
   const authorNames = new Map(authorRows.map((row) => [row.id, row.name]))
   const feedbackById = new Map(feedbackRows.map((row) => [row.id, row]))
@@ -628,12 +653,15 @@ async function serializeFeedbackCommentWithMeta(
   row: CustomShellFeedbackComment,
   currentUser: CustomShellUser
 ) {
-  const [author] = await db
-    .select({ name: customShellUsers.name })
-    .from(customShellUsers)
-    .where(eq(customShellUsers.id, row.userId))
-    .limit(1)
-  const feedback = await requireFeedback(row.feedbackId)
+  const [[author], feedback] = await Promise.all([
+    db
+      .select({ name: customShellUsers.name })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, row.userId))
+      .limit(1),
+
+    requireFeedback(row.feedbackId),
+  ])
 
   return serializeFeedbackCommentRow(
     row,

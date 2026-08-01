@@ -19,6 +19,7 @@ import {
   SIGN_IN_ERROR_CODES,
 } from "@/lib/api/auth"
 import { useAppName } from "@/lib/app-name"
+import { carriedEmail } from "@/lib/carried-email"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { safeRedirectPath } from "@/lib/redirect-path"
 
@@ -150,7 +151,14 @@ function LoginRoute() {
             </Link>
           </p>
           <p>
-            <Link to="/forgot-password" className={authLinkClassName}>
+            <Link
+              to="/forgot-password"
+              // Take the address already typed along so it does not have to be
+              // typed a second time. A half-finished one is dropped rather than
+              // carried, so the reset page opens empty instead of wrong.
+              state={{ email: carriedEmail(email) }}
+              className={authLinkClassName}
+            >
               Forgot your password?
             </Link>
           </p>

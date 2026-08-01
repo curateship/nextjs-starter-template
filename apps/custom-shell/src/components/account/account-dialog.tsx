@@ -130,7 +130,12 @@ export function AccountDialog({
             </DialogHeader>
 
             <DialogBody>
-              <TabsContent value="profile">
+              {/* A tab panel is a cell of the body's grid, so without `min-w-0`
+                  it is as wide as its widest child — one long invoice number or
+                  device name would then stretch every card in the window past
+                  the edge of a phone screen. With it, a wide table stays inside
+                  its own surface and scrolls sideways there. */}
+              <TabsContent value="profile" className="min-w-0">
                 <AccountProfilePage
                   user={user}
                   planName={plan.planName}
@@ -141,10 +146,10 @@ export function AccountDialog({
                   onStatusChange={setProfileStatus}
                 />
               </TabsContent>
-              <TabsContent value="billing">
+              <TabsContent value="billing" className="min-w-0">
                 <BillingTab />
               </TabsContent>
-              <TabsContent value="security">
+              <TabsContent value="security" className="min-w-0">
                 <AccountSecurityPage user={user} />
               </TabsContent>
             </DialogBody>

@@ -17,6 +17,12 @@ export type WorkspaceListResponse = {
   workspaces: WorkspaceItem[]
 }
 
+/** A bulk delete's honest accounting: what went, and what is still there. */
+export type WorkspaceBulkDeleteResponse = WorkspaceListResponse & {
+  deleted: string[]
+  kept: string[]
+}
+
 const iconSchema = z.custom<IconKey>(
   (value) => typeof value === "string" && value in iconMeta,
   { message: "Invalid workspace icon." }
@@ -39,6 +45,10 @@ const updateWorkspaceSchema = z.object({
 
 const deleteWorkspaceSchema = z.object({
   workspaceId: z.string().min(1),
+})
+
+const deleteWorkspacesSchema = z.object({
+  workspaceIds: z.array(z.string().min(1).max(36)).min(1).max(100),
 })
 
 export function getWorkspaceErrorMessage(error: unknown) {
@@ -99,6 +109,17 @@ const deleteWorkspaceFn = createServerFn({ method: "POST" })
     return workspaceListForUser(user.id)
   })
 
+const deleteWorkspacesFn = createServerFn({ method: "POST" })
+  .inputValidator(deleteWorkspacesSchema)
+  .handler(async ({ data }): Promise<WorkspaceBulkDeleteResponse> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { deleteUserWorkspaces } = await import("@/server/workspaces")
+    requireAppOrigin()
+    const user = await requireUser()
+    const result = await deleteUserWorkspaces(user.id, data.workspaceIds)
+    return { ...(await workspaceListForUser(user.id)), ...result }
+  })
+
 export function loadWorkspaces() {
   return loadWorkspacesFn()
 }
@@ -121,6 +142,10 @@ export function updateWorkspace(
 
 export function deleteWorkspace(workspaceId: string) {
   return deleteWorkspaceFn({ data: { workspaceId } })
+}
+
+export function deleteWorkspaces(workspaceIds: string[]) {
+  return deleteWorkspacesFn({ data: { workspaceIds } })
 }
 
 async function requireUser() {

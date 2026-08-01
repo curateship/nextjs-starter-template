@@ -8,10 +8,12 @@ import {
   ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
+import { toast } from "sonner"
 
+import { describeBulkResult } from "@/lib/bulk-result"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { Badge } from "@/components/ui/badge"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -38,7 +40,8 @@ import {
   clearAdminNotifications,
   deleteAdminNotifications,
   getNotificationErrorMessage,
-  listAllNotifications,
+  listAdminNotifications,
+  notificationTypeLabels,
   type NotificationItem,
   type NotificationType,
 } from "@/lib/api/notification"
@@ -47,27 +50,19 @@ import { cn } from "@/lib/utils"
 
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
-type NotificationSortColumn = "activity" | "feedback" | "recipient" | "type" | "status" | "created"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-})
-
-const notificationTypeLabels: Record<NotificationType, string> = {
-  feedback_vote: "Thumbs up",
-  feedback_comment: "Comment",
-  changelog: "Update",
-  announcement: "Announcement",
-}
+type NotificationSortColumn =
+  | "activity"
+  | "feedback"
+  | "recipient"
+  | "type"
+  | "status"
+  | "created"
 
 /**
- * The free text a row shows and searches on: the update's title for a changelog
- * notice, the broadcast's own title for an announcement, and the feedback it is
- * about for the rest.
+ * The free text a row shows: the update's title for a changelog notice, the
+ * broadcast's own title for an announcement, and the feedback it is about for
+ * the rest. The database searches and sorts on the same three, in the same
+ * order — see `subjectExpression` in `src/server/notifications.ts`.
  */
 function notificationSubject(item: NotificationItem) {
   return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
@@ -79,98 +74,98 @@ function notificationActor(item: NotificationItem) {
 }
 
 type NotificationsPageProps = {
-  defaultRowsPerPage: number
+  initialNotifications: NotificationItem[]
+  initialTotal: number
+  defaultPageSize: number
   onOpenFeedbackThread: (feedbackId: string) => void
 }
 
 export function NotificationsPage({
-  defaultRowsPerPage,
+  initialNotifications,
+  initialTotal,
+  defaultPageSize,
   onOpenFeedbackThread,
 }: NotificationsPageProps) {
   const navigate = useNavigate()
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    []
-  )
-  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
-  const [loadingMore, setLoadingMore] = React.useState(false)
+  const [notifications, setNotifications] = React.useState(initialNotifications)
+  const [total, setTotal] = React.useState(initialTotal)
+  const [page, setPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(defaultPageSize)
+  const [loading, setLoading] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [clearAllOpen, setClearAllOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = React.useState("")
+  const [search, setSearch] = React.useState("")
   const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all")
-  const [sortColumn, setSortColumn] = React.useState<NotificationSortColumn>("created")
-  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
+  const [sort, setSort] = React.useState<NotificationSortColumn>("created")
+  const [direction, setDirection] = React.useState<TableSortDirection>("desc")
 
-  const loadNotifications = React.useCallback(async (cursor?: string) => {
-    if (cursor) {
-      setLoadingMore(true)
-    }
-    setError(null)
-
+  const refresh = React.useCallback(async () => {
+    setLoading(true)
     try {
-      const data = await listAllNotifications({
-        cursor,
-        limit: defaultRowsPerPage,
+      const result = await listAdminNotifications({
+        search,
+        read: readFilter,
+        type: typeFilter,
+        page,
+        pageSize,
+        sort,
+        direction,
       })
-      setNotifications((current) =>
-        cursor ? [...current, ...data.notifications] : data.notifications
-      )
-      setNextCursor(data.next_cursor)
+      setNotifications(result.notifications)
+      setTotal(result.total)
+      setError(null)
+
+      // Deleting the tail of the list can leave you on a page that no longer
+      // exists. Step back — and stay loading until that lands, so nobody is
+      // told their list is empty on the way.
+      const lastPage = Math.max(1, Math.ceil(result.total / pageSize))
+      if (page > lastPage) {
+        setPage(lastPage)
+        return
+      }
     } catch (loadError) {
       setError(getNotificationErrorMessage(loadError))
-    } finally {
-      setLoadingMore(false)
     }
-  }, [defaultRowsPerPage])
 
+    setLoading(false)
+  }, [direction, page, pageSize, readFilter, search, sort, typeFilter])
+
+  // The route loader already fetched page one, so the first render has its rows
+  // and must not ask again.
+  const isFirstRender = React.useRef(true)
   React.useEffect(() => {
-    void loadNotifications()
-  }, [loadNotifications])
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+
+    const timer = setTimeout(refresh, 250)
+    return () => clearTimeout(timer)
+  }, [refresh])
 
   useClearSelectionOnListChange(
     setSelectedIds,
-    `${searchQuery}|${readFilter}|${typeFilter}|${sortColumn}|${sortDirection}`
+    `${search}|${readFilter}|${typeFilter}|${sort}|${direction}|${page}|${pageSize}`
   )
 
-  const filteredNotifications = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    const direction = sortDirection === "asc" ? 1 : -1
-
-    return notifications.filter((item) => {
-      const matchesSearch =
-        !query ||
-        notificationActor(item).toLowerCase().includes(query) ||
-        item.recipient_name.toLowerCase().includes(query) ||
-        notificationSubject(item).toLowerCase().includes(query)
-      const matchesRead =
-        readFilter === "all" ||
-        (readFilter === "unread" && !item.read_at) ||
-        (readFilter === "read" && item.read_at)
-      const matchesType = typeFilter === "all" || item.type === typeFilter
-
-      return matchesSearch && matchesRead && matchesType
-    }).sort((a, b) => {
-      if (sortColumn === "activity") return notificationActor(a).localeCompare(notificationActor(b)) * direction
-      if (sortColumn === "feedback") return notificationSubject(a).localeCompare(notificationSubject(b)) * direction
-      if (sortColumn === "recipient") return a.recipient_name.localeCompare(b.recipient_name) * direction
-      if (sortColumn === "type") return notificationTypeLabels[a.type].localeCompare(notificationTypeLabels[b.type]) * direction
-      if (sortColumn === "status") return (Number(Boolean(a.read_at)) - Number(Boolean(b.read_at))) * direction
-      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
-    })
-  }, [notifications, readFilter, searchQuery, sortColumn, sortDirection, typeFilter])
-
   const visibleNotificationIds = React.useMemo(
-    () => filteredNotifications.map((item) => item.id),
-    [filteredNotifications]
+    () => notifications.map((item) => item.id),
+    [notifications]
   )
   const visibleSelected =
     visibleNotificationIds.length > 0 &&
     visibleNotificationIds.every((id) => selectedIds.has(id))
   const visiblePartiallySelected =
     !visibleSelected && visibleNotificationIds.some((id) => selectedIds.has(id))
+
+  // A filter can hide every row while there is still plenty left to clear, so
+  // "Clear all" only goes grey when the whole list is genuinely empty.
+  const filtersActive =
+    search.trim() !== "" || readFilter !== "all" || typeFilter !== "all"
 
   function toggleVisibleSelection(checked: boolean) {
     setSelectedIds((current) => {
@@ -199,13 +194,19 @@ export function NotificationsPage({
     setDeleting(true)
     dismissErrorToast()
     try {
-      await deleteAdminNotifications(notificationIds)
-      const deletedIds = new Set(notificationIds)
-      setNotifications((current) =>
-        current.filter((item) => !deletedIds.has(item.id))
+      const { count } = await deleteAdminNotifications(notificationIds)
+      toast.success(
+        describeBulkResult({
+          done: count,
+          kept: notificationIds.length - count,
+          one: "notification",
+          many: "notifications",
+          verb: "deleted",
+        })
       )
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
+      await refresh()
     } catch (deleteError) {
       showErrorToast(getNotificationErrorMessage(deleteError))
     } finally {
@@ -217,9 +218,15 @@ export function NotificationsPage({
     setDeleting(true)
     dismissErrorToast()
     try {
-      await clearAdminNotifications()
+      const { count } = await clearAdminNotifications()
+      toast.success(
+        `${count} ${count === 1 ? "notification" : "notifications"} deleted.`
+      )
+      // Nothing survives a clear-all, so there is nothing left to go and ask
+      // the server for.
       setNotifications([])
-      setNextCursor(null)
+      setTotal(0)
+      setPage(1)
       setSelectedIds(new Set())
       setClearAllOpen(false)
     } catch (deleteError) {
@@ -240,30 +247,23 @@ export function NotificationsPage({
   }
 
   const toggleSort = (column: NotificationSortColumn) => {
-    if (sortColumn === column) {
-      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+    setPage(1)
+    if (sort === column) {
+      setDirection((current) => (current === "asc" ? "desc" : "asc"))
       return
     }
 
-    setSortColumn(column)
-    setSortDirection("asc")
+    setSort(column)
+    setDirection("asc")
   }
 
   return (
     <div className="w-full pb-8">
-      {error ? (
-        <div className="mt-4">
-          <ErrorBanner
-            message={error}
-            onRetry={() => void loadNotifications()}
-          />
-        </div>
-      ) : null}
-
       <DashboardTable
         title="Notifications"
         icon={<BellIcon className="text-muted-foreground" />}
-        count={filteredNotifications.length}
+        count={total}
+        error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -272,7 +272,7 @@ export function NotificationsPage({
               <DashboardToolbarButton
                 type="button"
                 variant="destructive"
-                disabled={deleting || loadingMore}
+                disabled={deleting}
                 onClick={() => setMassDeleteOpen(true)}
               >
                 <Trash2Icon className="size-4" />
@@ -282,9 +282,7 @@ export function NotificationsPage({
             <DashboardToolbarButton
               type="button"
               variant="destructive"
-              disabled={
-                notifications.length === 0 || deleting || loadingMore
-              }
+              disabled={deleting || (total === 0 && !filtersActive)}
               onClick={() => setClearAllOpen(true)}
             >
               <Trash2Icon className="size-4" />
@@ -292,14 +290,20 @@ export function NotificationsPage({
             </DashboardToolbarButton>
             <DashboardToolbarSearch
               name="notification-search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              value={search}
+              onChange={(event) => {
+                setPage(1)
+                setSearch(event.target.value)
+              }}
               aria-label="Search notifications"
               placeholder="Search notifications..."
             />
             <Select
               value={readFilter}
-              onValueChange={(value) => setReadFilter(value as ReadFilter)}
+              onValueChange={(value) => {
+                setPage(1)
+                setReadFilter(value as ReadFilter)
+              }}
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Read filter"
@@ -314,7 +318,10 @@ export function NotificationsPage({
             </Select>
             <Select
               value={typeFilter}
-              onValueChange={(value) => setTypeFilter(value as TypeFilter)}
+              onValueChange={(value) => {
+                setPage(1)
+                setTypeFilter(value as TypeFilter)
+              }}
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
@@ -350,53 +357,55 @@ export function NotificationsPage({
                   />
                 </TableHead>
                 <TableHead column="main">
-                  <TableSortButton active={sortColumn === "activity"} direction={sortDirection} onClick={() => toggleSort("activity")}>
+                  <TableSortButton active={sort === "activity"} direction={direction} onClick={() => toggleSort("activity")}>
                     Activity
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="preview">
-                  <TableSortButton active={sortColumn === "feedback"} direction={sortDirection} onClick={() => toggleSort("feedback")}>
+                  <TableSortButton active={sort === "feedback"} direction={direction} onClick={() => toggleSort("feedback")}>
                     Feedback
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "recipient"} direction={sortDirection} onClick={() => toggleSort("recipient")}>
+                  <TableSortButton active={sort === "recipient"} direction={direction} onClick={() => toggleSort("recipient")}>
                     Recipient
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
+                  <TableSortButton active={sort === "type"} direction={direction} onClick={() => toggleSort("type")}>
                     Type
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
+                  <TableSortButton active={sort === "status"} direction={direction} onClick={() => toggleSort("status")}>
                     Status
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
+                  <TableSortButton active={sort === "created"} direction={direction} onClick={() => toggleSort("created")}>
                     Created
                   </TableSortButton>
                 </TableHead>
               </TableRow>
             </TableHeader>
         }
-        isEmpty={filteredNotifications.length === 0}
-        emptyText="No notifications found."
+        isEmpty={!loading && notifications.length === 0}
+        emptyText="No notifications match those filters."
         emptyColSpan={7}
         footer={{
-          type: "loadMore",
-          count: filteredNotifications.length,
-          label: "notifications",
-          hasMore: Boolean(nextCursor),
-          loading: loadingMore,
-          onLoadMore: nextCursor
-            ? () => void loadNotifications(nextCursor)
-            : undefined,
+          type: "pagination",
+          page,
+          pageSize,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / pageSize)),
+          onPageChange: setPage,
+          onPageSizeChange: (nextSize) => {
+            setPage(1)
+            setPageSize(nextSize)
+          },
         }}
       >
-        {filteredNotifications.map((item) => (
+        {notifications.map((item) => (
           <TableRow
             key={item.id}
             role="button"
@@ -466,8 +475,11 @@ export function NotificationsPage({
                 {item.read_at ? "Read" : "Unread"}
               </Badge>
             </TableCell>
-            <TableCell column="mutedMeta">
-              {dateFormatter.format(new Date(item.created_at))}
+            <TableCell
+              column="mutedMeta"
+              title={formatDateTime(item.created_at)}
+            >
+              {formatRelativeTime(item.created_at, formatDateTime)}
             </TableCell>
           </TableRow>
         ))}
@@ -485,7 +497,7 @@ export function NotificationsPage({
         open={clearAllOpen}
         onOpenChange={setClearAllOpen}
         title="Clear all notifications?"
-        description="This cannot be undone."
+        description="Every notification goes, including any your search or filters are currently hiding. This cannot be undone."
         confirmLabel="Clear all"
         loading={deleting}
         onConfirm={() => void clearAll()}

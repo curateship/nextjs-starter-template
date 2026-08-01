@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/auth"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { formatDateTime } from "@/lib/money"
+import { formatDateTime } from "@/lib/format-time"
 import type { AuthUser } from "@/lib/api/auth"
 
 export function AccountProfilePage({

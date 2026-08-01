@@ -38,7 +38,7 @@ import {
 } from "@/lib/api/auth"
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { formatDateTime, formatTimeAgo } from "@/lib/money"
+import { formatDateTime, formatTimeAgo } from "@/lib/format-time"
 
 export function AccountSecurityPage({ user }: { user: AuthUser }) {
   const router = useRouter()

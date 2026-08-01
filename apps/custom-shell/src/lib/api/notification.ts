@@ -7,6 +7,19 @@ export type NotificationType =
   | "changelog"
   | "announcement"
 
+/**
+ * What each kind of notice is called on screen. Kept here rather than in the
+ * table because the server sorts the Type column by these words too — sorting
+ * by the stored value would put "Announcement, Update, Comment, Thumbs up" in
+ * that order and look random.
+ */
+export const notificationTypeLabels: Record<NotificationType, string> = {
+  feedback_vote: "Thumbs up",
+  feedback_comment: "Comment",
+  changelog: "Update",
+  announcement: "Announcement",
+}
+
 export type NotificationItem = {
   id: string
   type: NotificationType
@@ -54,6 +67,28 @@ const listNotificationsSchema = z.object({
   limit: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
 })
 
+const adminListQuerySchema = z.object({
+  search: z.string().trim().max(120).default(""),
+  read: z.enum(["all", "unread", "read"]).default("all"),
+  type: z
+    .enum([
+      "all",
+      "feedback_vote",
+      "feedback_comment",
+      "changelog",
+      "announcement",
+    ])
+    .default("all"),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(5).max(100).default(25),
+  sort: z
+    .enum(["activity", "feedback", "recipient", "type", "status", "created"])
+    .default("created"),
+  direction: z.enum(["asc", "desc"]).default("desc"),
+})
+
+export type AdminNotificationQueryInput = z.input<typeof adminListQuerySchema>
+
 const notificationIdSchema = z.object({
   notificationId: z.string().min(1),
 })
@@ -78,11 +113,33 @@ const listNotificationsPageFn = createServerFn({ method: "GET" })
     return listCurrentUserNotificationPage(data)
   })
 
-const listAllNotificationsFn = createServerFn({ method: "GET" })
-  .inputValidator(listNotificationsSchema)
-  .handler(async ({ data }): Promise<NotificationListResponse> => {
-    const { listAdminNotificationPage } = await import("@/server/notifications")
-    return listAdminNotificationPage(data)
+const listAdminNotificationsFn = createServerFn({ method: "GET" })
+  .inputValidator(adminListQuerySchema)
+  .handler(async ({ data }) => {
+    const { listAdminNotifications, requireAdminNotificationUser } =
+      await import("@/server/notifications")
+    await requireAdminNotificationUser()
+    return listAdminNotifications(data)
+  })
+
+/**
+ * The admin page's first request, done on the server.
+ *
+ * Like the Users page, the page size is not passed in: the configured
+ * rows-per-page is read here and sent back with the rows, so the table and the
+ * footer's "1-10 of N" cannot disagree on first paint.
+ */
+const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
+  .inputValidator(adminListQuerySchema.omit({ pageSize: true }))
+  .handler(async ({ data }) => {
+    const { listAdminNotifications, requireAdminNotificationUser } =
+      await import("@/server/notifications")
+    const { readDashboardRowsPerPage } = await import("@/server/shell-settings")
+
+    await requireAdminNotificationUser()
+    const pageSize = await readDashboardRowsPerPage()
+
+    return { ...(await listAdminNotifications({ ...data, pageSize })), pageSize }
   })
 
 const markNotificationReadFn = createServerFn({ method: "POST" })
@@ -127,8 +184,14 @@ export function listNotificationPage(payload: NotificationListPayload = {}) {
   return listNotificationsPageFn({ data: payload })
 }
 
-export function listAllNotifications(payload: NotificationListPayload = {}) {
-  return listAllNotificationsFn({ data: payload })
+export function listAdminNotifications(query: AdminNotificationQueryInput) {
+  return listAdminNotificationsFn({ data: query })
+}
+
+export function loadAdminNotificationsPage(
+  query: Omit<AdminNotificationQueryInput, "pageSize">
+) {
+  return loadAdminNotificationsPageFn({ data: query })
 }
 
 export function markNotificationRead(notificationId: string) {

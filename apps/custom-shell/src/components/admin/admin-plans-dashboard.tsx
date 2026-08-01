@@ -47,12 +47,14 @@ import {
 } from "@/components/ui/table"
 import {
   archiveAdminPlan,
+  archiveAdminPlans,
   createAdminPlan,
   getPlanErrorMessage,
   loadAdminPlans,
   updateAdminPlan,
   type AdminPlan,
 } from "@/lib/api/admin-plans"
+import { describeBulkResult } from "@/lib/bulk-result"
 import { formatMoney } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
@@ -216,6 +218,42 @@ export function AdminPlansDashboard({
       setError(getPlanErrorMessage(loadError))
     }
   }, [])
+
+  // One request for the whole selection, and the server decides what it can
+  // take — the default plan and anything already archived are left alone.
+  const confirmMassArchive = React.useCallback(async () => {
+    setMassArchiving(true)
+    dismissErrorToast()
+    try {
+      const { archived, kept } = await archiveAdminPlans([...selectedIds])
+      await refresh()
+      // Anything that would not go stays ticked, so the rows still on screen
+      // are the ones the count is talking about.
+      setSelectedIds(new Set(kept))
+
+      if (archived.length === 0) {
+        showErrorToast(
+          "No plans were archived. The default plan has to stay, and the others may already be archived."
+        )
+        return
+      }
+
+      toast.success(
+        describeBulkResult({
+          done: archived.length,
+          kept: kept.length,
+          one: "plan",
+          many: "plans",
+          verb: "archived",
+        })
+      )
+      setMassArchiveOpen(false)
+    } catch (archiveError) {
+      showErrorToast(getPlanErrorMessage(archiveError))
+    } finally {
+      setMassArchiving(false)
+    }
+  }, [refresh, selectedIds])
 
   return (
     <div
@@ -431,22 +469,7 @@ export function AdminPlansDashboard({
         description="They disappear from the pricing page. Anyone already on them keeps their plan until their subscription ends."
         confirmLabel="Archive plans"
         loading={massArchiving}
-        onConfirm={async () => {
-          setMassArchiving(true)
-          try {
-            for (const planId of selectedIds) {
-              await archiveAdminPlan(planId)
-            }
-            toast.success("Plans archived.")
-            setSelectedIds(new Set())
-            setMassArchiveOpen(false)
-            await refresh()
-          } catch (archiveError) {
-            showErrorToast(getPlanErrorMessage(archiveError))
-          } finally {
-            setMassArchiving(false)
-          }
-        }}
+        onConfirm={confirmMassArchive}
       />
 
       <ConfirmDialog

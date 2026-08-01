@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, inArray } from "drizzle-orm"
 
 import {
   createDefaultTopRightNavigation,
@@ -428,6 +428,65 @@ export async function deleteUserWorkspace(
     }
 
     return { workspaceId: deleted.id }
+  })
+}
+
+/**
+ * Bulk delete for the table's multi-selection action. Same guards as deleting
+ * one, in a single pass: an id that is not this user's is left alone, and one
+ * workspace always survives — if every one of them was asked for, the one being
+ * used is held back. The caller is told exactly which ids went so a run that
+ * only got part way can say so.
+ */
+export async function deleteUserWorkspaces(
+  userId: string,
+  workspaceIds: string[],
+  database: CustomShellDb = db
+): Promise<{ deleted: string[]; kept: string[] }> {
+  return database.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(customShellWorkspaces)
+      .where(eq(customShellWorkspaces.userId, userId))
+      .orderBy(asc(customShellWorkspaces.createdAt))
+
+    const requested = new Set(workspaceIds)
+    const owned = rows.filter((row) => requested.has(row.id))
+    const untouched = rows.filter((row) => !requested.has(row.id))
+
+    // Whatever was not asked for already survives; otherwise the workspace in
+    // use is the one held back, or the oldest when none is marked.
+    const survivor =
+      untouched[0] ?? owned.find((row) => row.isDefault) ?? owned[0] ?? null
+    const targetIds = owned
+      .filter((row) => row.id !== survivor?.id)
+      .map((row) => row.id)
+
+    if (!survivor || targetIds.length === 0) {
+      return { deleted: [], kept: workspaceIds }
+    }
+
+    // Deleting the workspace in use moves the user to the one that survives.
+    if (owned.some((row) => row.isDefault && row.id !== survivor.id)) {
+      await setDefaultWorkspace(userId, survivor.id, tx)
+    }
+
+    const deleted = await tx
+      .delete(customShellWorkspaces)
+      .where(
+        and(
+          eq(customShellWorkspaces.userId, userId),
+          inArray(customShellWorkspaces.id, targetIds)
+        )
+      )
+      .returning({ id: customShellWorkspaces.id })
+
+    const deletedIds = deleted.map((row) => row.id)
+    const wentThrough = new Set(deletedIds)
+    return {
+      deleted: deletedIds,
+      kept: workspaceIds.filter((id) => !wentThrough.has(id)),
+    }
   })
 }
 

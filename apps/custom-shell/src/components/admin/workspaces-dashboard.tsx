@@ -1,46 +1,18 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
-import {
-  Loader2Icon,
-  PlusIcon,
-  SettingsIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
 } from "@/components/shared/dashboard-toolbar"
+import { WorkspaceFormDialog } from "@/components/shared/workspace-form-dialog"
 import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { FormDialog } from "@/components/ui/form-dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   TableCell,
   TableHead,
@@ -50,31 +22,23 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
-  createWorkspace,
   deleteWorkspace,
+  deleteWorkspaces,
   getWorkspaceErrorMessage,
-  updateWorkspace,
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
+import { describeBulkResult } from "@/lib/bulk-result"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  iconMeta,
   renderShellIcon,
-  type IconKey,
 } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
-type WorkspaceForm = {
-  name: string
-  icon: IconKey
-}
 type WorkspaceSortColumn = "name" | "status"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-
-const defaultIcon = "briefcaseBusiness" satisfies IconKey
 
 export function WorkspacesDashboard({
   initialWorkspaces: workspaces,
@@ -92,12 +56,7 @@ export function WorkspacesDashboard({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [formOpen, setFormOpen] = React.useState(false)
-  const [form, setForm] = React.useState<WorkspaceForm>({
-    name: "",
-    icon: defaultIcon,
-  })
   const [busy, setBusy] = React.useState(false)
-  const [nameInvalid, setNameInvalid] = React.useState(false)
   const [sortColumn, setSortColumn] = React.useState<WorkspaceSortColumn>("name")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("asc")
 
@@ -141,46 +100,12 @@ export function WorkspacesDashboard({
 
   function openCreateForm() {
     setEditing(null)
-    setForm({ name: "", icon: defaultIcon })
-    setNameInvalid(false)
-    dismissErrorToast()
     setFormOpen(true)
   }
 
   function openEditForm(workspace: WorkspaceItem) {
     setEditing(workspace)
-    setForm({ name: workspace.name, icon: workspace.icon })
-    setNameInvalid(false)
-    dismissErrorToast()
     setFormOpen(true)
-  }
-
-  async function saveWorkspace() {
-    const name = form.name.trim()
-    if (!name) {
-      setNameInvalid(true)
-      showErrorToast("Workspace name is required")
-      return
-    }
-
-    setNameInvalid(false)
-    dismissErrorToast()
-    setBusy(true)
-    try {
-      if (editing) {
-        await updateWorkspace(editing.id, name, form.icon)
-      } else {
-        await createWorkspace(name, form.icon)
-      }
-      await router.invalidate()
-      toast.success(editing ? "Workspace updated." : "Workspace created.")
-      setFormOpen(false)
-      setEditing(null)
-    } catch (error) {
-      showErrorToast(getWorkspaceErrorMessage(error))
-    } finally {
-      setBusy(false)
-    }
   }
 
   function toggleSelection(id: string) {
@@ -212,17 +137,34 @@ export function WorkspacesDashboard({
     !visibleSelected &&
     paginatedWorkspaces.some((workspace) => selectedIds.has(workspace.id))
 
-  // One workspace always has to survive, so the last one cannot be selected away.
+  // One request for the whole selection, and the server decides what it can
+  // take — one workspace always has to survive, so the last one never goes.
   async function confirmMassDelete() {
     dismissErrorToast()
     setBusy(true)
     try {
-      for (const id of selectedIds) {
-        await deleteWorkspace(id)
-      }
+      const { deleted, kept } = await deleteWorkspaces([...selectedIds])
       await router.invalidate()
-      toast.success("Workspaces deleted.")
-      setSelectedIds(new Set())
+      // Anything that would not go stays ticked, so the rows still on screen
+      // are the ones the count is talking about.
+      setSelectedIds(new Set(kept))
+
+      if (deleted.length === 0) {
+        showErrorToast(
+          "No workspaces were deleted. One workspace always has to stay, and the others may already be gone."
+        )
+        return
+      }
+
+      toast.success(
+        describeBulkResult({
+          done: deleted.length,
+          kept: kept.length,
+          one: "workspace",
+          many: "workspaces",
+          verb: "deleted",
+        })
+      )
       setMassDeleteOpen(false)
     } catch (error) {
       showErrorToast(getWorkspaceErrorMessage(error))
@@ -413,15 +355,7 @@ export function WorkspacesDashboard({
       <WorkspaceFormDialog
         open={formOpen}
         editing={editing}
-        form={form}
-        saving={busy}
-        nameInvalid={nameInvalid}
-        onFormChange={(next) => {
-          if (next.name.trim()) setNameInvalid(false)
-          setForm(next)
-        }}
         onClose={() => setFormOpen(false)}
-        onSave={() => void saveWorkspace()}
       />
 
       <ConfirmDialog
@@ -436,116 +370,5 @@ export function WorkspacesDashboard({
         onConfirm={() => void confirmDelete()}
       />
     </div>
-  )
-}
-
-function WorkspaceFormDialog({
-  open,
-  editing,
-  form,
-  saving,
-  nameInvalid,
-  onFormChange,
-  onClose,
-  onSave,
-}: {
-  open: boolean
-  editing: WorkspaceItem | null
-  form: WorkspaceForm
-  saving: boolean
-  nameInvalid: boolean
-  onFormChange: (form: WorkspaceForm) => void
-  onClose: () => void
-  onSave: () => void
-}) {
-  // A new workspace starts empty and on the default icon, so anything typed or
-  // picked here is work that closing would throw away.
-  const dirty = editing
-    ? form.name !== editing.name || form.icon !== editing.icon
-    : form.name !== "" || form.icon !== defaultIcon
-
-  return (
-    <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
-      {(requestClose) => (
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>
-              {editing ? "Edit workspace" : "New workspace"}
-            </DialogTitle>
-            <DialogDescription>
-              Choose the name and icon shown in the workspace switcher.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault()
-              onSave()
-            }}
-          >
-            <DialogBody>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Workspace</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="workspace-name">Name</Label>
-                    <Input
-                      id="workspace-name"
-                      value={form.name}
-                      disabled={saving}
-                      aria-invalid={nameInvalid || undefined}
-                      onChange={(event) =>
-                        onFormChange({ ...form, name: event.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="workspace-icon">Icon</Label>
-                    <Select
-                      value={form.icon}
-                      disabled={saving}
-                      onValueChange={(value) =>
-                        onFormChange({ ...form, icon: value as IconKey })
-                      }
-                    >
-                      <SelectTrigger
-                        id="workspace-icon"
-                        className="w-full sm:w-fit"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(iconMeta).map(([icon, meta]) => (
-                          <SelectItem key={icon} value={icon}>
-                            {renderShellIcon(icon as IconKey)}
-                            {meta.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            </DialogBody>
-            <DialogFooter variant="plain">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={requestClose}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                {editing ? "Save changes" : "Create workspace"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      )}
-    </FormDialog>
   )
 }

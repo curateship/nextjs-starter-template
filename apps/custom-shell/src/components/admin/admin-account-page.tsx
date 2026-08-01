@@ -33,7 +33,7 @@ import {
   feedbackTypeLabels,
 } from "@/lib/feedback-type"
 import { formatFileSize } from "@/lib/format-bytes"
-import { formatDate, formatDateTime } from "@/lib/money"
+import { formatDate, formatDateTime } from "@/lib/format-time"
 
 /**
  * Everything about one person on one page, so a support question is answered

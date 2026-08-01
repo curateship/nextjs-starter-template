@@ -45,7 +45,7 @@ import {
   type AutomationsPage,
 } from "@/lib/api/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { formatDate } from "@/lib/money"
+import { formatDate } from "@/lib/format-time"
 
 type SortColumn = "name" | "steps" | "updated"
 

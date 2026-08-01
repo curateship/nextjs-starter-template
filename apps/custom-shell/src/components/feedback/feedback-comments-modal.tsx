@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   deleteFeedbackComment,
   getFeedbackErrorMessage,
@@ -28,14 +29,7 @@ import {
   type FeedbackItem,
 } from "@/lib/api/feedback"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-})
+import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 
 /**
  * The comments behind one feedback row, opened from its Comments count. The
@@ -135,9 +129,7 @@ export function FeedbackCommentsModal({
                 </CardHeader>
                 <CardContent>
                   {loading ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">
-                      Loading comments…
-                    </p>
+                    <LoadingRow label="Loading comments…" />
                   ) : comments.length === 0 ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">
                       No comments yet.
@@ -163,9 +155,13 @@ export function FeedbackCommentsModal({
                               <span className="font-medium">
                                 {comment.author_name}
                               </span>{" "}
-                              <span className="text-xs text-muted-foreground">
-                                {dateTimeFormatter.format(
-                                  new Date(comment.created_at)
+                              <span
+                                className="text-xs text-muted-foreground"
+                                title={formatDateTime(comment.created_at)}
+                              >
+                                {formatRelativeTime(
+                                  comment.created_at,
+                                  formatDateTime
                                 )}
                               </span>
                             </p>
