@@ -139,8 +139,6 @@ type SortableSectionProps = {
   newChildId: string | null
   onSectionTitleChange: (sectionId: string, title: string) => void
   onSectionDelete: (sectionId: string) => void
-  onReset: () => void
-  resetLabel: string
   onItemAdd: (sectionId: string) => void
   onItemChange: (
     sectionId: string,
@@ -531,8 +529,6 @@ function SortableSectionCard({
   newChildId,
   onSectionTitleChange,
   onSectionDelete,
-  onReset,
-  resetLabel,
   onItemAdd,
   onItemChange,
   onItemDelete,
@@ -567,7 +563,11 @@ function SortableSectionCard({
   return (
     <Card ref={setNodeRef} style={style}>
       <CardContent className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        {/* Wraps rather than side-scrolls: on a phone the title keeps a usable
+            width and the buttons drop to their own line. `basis-40` is what
+            makes that happen — a flex-1 child alone has a zero base size, so
+            the row would squeeze the title to nothing before it ever wrapped. */}
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             {...attributes}
@@ -577,7 +577,7 @@ function SortableSectionCard({
           >
             <GripVertical className="h-4 w-4" />
           </button>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-40">
             <Input
               value={section.title}
               onChange={(event) =>
@@ -588,13 +588,7 @@ function SortableSectionCard({
               className="h-8 max-w-xs border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:bg-muted/40 focus-visible:bg-background"
             />
           </div>
-          <div className="flex items-center gap-2">
-            {/* Not a per-section reset — it throws away every section on this
-                sidebar, so the label has to say which sidebar that is. */}
-            <Button type="button" variant="outline" size="sm" onClick={onReset}>
-              <RotateCcwIcon className="h-4 w-4" />
-              {resetLabel}
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
@@ -1166,8 +1160,6 @@ export function SidebarSettings({
                 onSectionDelete={(sectionId) =>
                   setPendingDeleteSectionId(sectionId)
                 }
-                onReset={() => setResetOpen(true)}
-                resetLabel={reset.label}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={(_sectionId, itemId) =>
@@ -1185,7 +1177,11 @@ export function SidebarSettings({
           </CardGroup>
         </SortableContext>
       </DndContext>
-      <div className="mt-3 flex justify-end">
+      {/* The tab's own actions, and the only reset on the page — it wipes the
+          whole sidebar, so it is the last button in the row and the only red
+          one, instead of being repeated on every section card next to
+          "Add Link" where it read as a per-section reset. */}
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
         <Button
           type="button"
           variant="outline"
@@ -1193,6 +1189,14 @@ export function SidebarSettings({
         >
           <PlusIcon className="h-4 w-4" />
           Add Section
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => setResetOpen(true)}
+        >
+          <RotateCcwIcon className="h-4 w-4" />
+          {reset.label}
         </Button>
       </div>
 
