@@ -99,13 +99,17 @@ function child(
 // admin.
 export const OVERVIEW_SECTION_ID = "section-overview"
 export const DASHBOARD_ITEM_ID = "item-dashboard"
+// The admin's own front door. Deliberately not the configurable home_route —
+// a stale home_route is exactly what sends people to a missing page, so the way
+// back out has to be a fixed address.
+export const ADMIN_DASHBOARD_HREF = "/admin/dashboard"
 
 function createOverviewSection(siteId: string | null): AdminSidebarSection {
   return {
     id: OVERVIEW_SECTION_ID,
     title: "Overview",
     entries: [
-      item(DASHBOARD_ITEM_ID, "Dashboard", "/admin/dashboard", "grid", [
+      item(DASHBOARD_ITEM_ID, "Dashboard", ADMIN_DASHBOARD_HREF, "grid", [
         child(
           "child-dashboard-current-site",
           "Current Site",
@@ -594,6 +598,47 @@ function isItemActive(pathname: string, entry: AdminSidebarItem) {
 function isChildActive(pathname: string, childItem: AdminSidebarChildItem) {
   return isPathActive(pathname, childItem.href)
     || Boolean(childItem.activePaths?.some((activePath) => isPathActive(pathname, activePath)))
+}
+
+// The nearest real screen above an address that does not exist: the sidebar link
+// whose address is the longest whole-segment prefix of it. `/admin/directory/nope`
+// finds Directory; `/admin/site-settings` finds nothing, because no sidebar link
+// owns that path. Used by the admin not-found panel to offer more than "go home".
+export function getClosestAdminSidebarLink(
+  value: unknown,
+  context: { siteId?: string | null; pathname: string }
+): { label: string; href: string } | null {
+  const settings = resolveAdminSidebarSettings(value, context)
+  const above = settings.sections
+    .flatMap((section) =>
+      section.entries.flatMap((entry) => {
+        if (!entry.visible || !isAdminSidebarEntryNamed(entry)) return []
+
+        const children = (entry.children ?? []).filter(
+          (childItem) => childItem.visible !== false && isAdminSidebarEntryNamed(childItem)
+        )
+
+        return [
+          { label: entry.label, href: entry.href },
+          ...children.map((childItem) => ({ label: childItem.label, href: childItem.href })),
+        ]
+      })
+    )
+    .flatMap((link) => {
+      const href = sanitizeAdminSidebarHref(link.href)
+      // An off-site link is not a route back into the admin.
+      if (!href || isExternalAdminSidebarHref(href)) return []
+      // Match on the path alone, but keep the link's own query on the way back.
+      const path = stripQuery(href).trim()
+      // Strictly above the missing address, never equal to it — a sidebar link
+      // pointing at a deleted page would otherwise offer itself as the way out.
+      if (!path || !context.pathname.startsWith(`${path}/`)) return []
+      return [{ label: link.label, href, path }]
+    })
+    .sort((a, b) => b.path.length - a.path.length)
+
+  const closest = above[0]
+  return closest ? { label: closest.label, href: closest.href } : null
 }
 
 export function getAdminSidebarStickyNavLinks(

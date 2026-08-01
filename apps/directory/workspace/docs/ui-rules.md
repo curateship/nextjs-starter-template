@@ -93,6 +93,7 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Render the page when its route data is ready instead of showing a placeholder for first load or route changes. The loading state stays inside the panel that owns it; never cover the app shell or whole page.
 - In-flight actions are the one place a spinner lives: a saving button shows a compact `Loader2Icon` beside its unchanged label.
 - Every data surface needs intentional loading, empty, error, and populated states. Failed loads and failed actions each have exactly one home — see `workspace/docs/admin-action-feedback.md`.
+- **An `/admin` address with no page behind it keeps the dashboard around it.** The `/admin/$` route's `notFoundComponent` is `AdminNotFound` (`src/components/admin/layout/admin-not-found.tsx`), a normal content card inside `AdminLayout`, so the sidebar, header and site switcher all stay put and the selected site is not lost. It names the address that was not found and offers the dashboard plus the nearest real sidebar section (`getClosestAdminSidebarLink`). The way back is the fixed `ADMIN_DASHBOARD_HREF`, never the configurable `home_route` — a stale `home_route` is exactly what sends people here. A thrown error is not a not-found and still surfaces as an error; the public site's 404 is a separate page and unaffected.
 
 ## Accessibility and Verification
 
