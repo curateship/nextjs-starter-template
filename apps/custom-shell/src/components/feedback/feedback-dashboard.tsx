@@ -63,6 +63,7 @@ import {
 } from "@/lib/api/feedback"
 import { FeedbackCommentsModal } from "@/components/feedback/feedback-comments-modal"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import {
   feedbackTypeBadgeVariants,
   feedbackTypeClassNames,
@@ -76,12 +77,6 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 type FeedbackDashboardProps = {
   refreshToken: number
@@ -116,6 +111,9 @@ export function FeedbackDashboard({
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [quickDeleting, setQuickDeleting] = React.useState(false)
   const [reloadCount, setReloadCount] = React.useState(0)
+  // Flips once, when the first load lands. After that every refetch already has
+  // real numbers on screen, so the count and the footer never blank out again.
+  const [firstLoadDone, setFirstLoadDone] = React.useState(false)
 
   // A link from elsewhere opens the conversation, which is where a reply is
   // written — it waits for the list below to arrive before it can.
@@ -138,12 +136,17 @@ export function FeedbackDashboard({
       .finally(() => {
         if (!active) return
         setLoading(false)
+        setFirstLoadDone(true)
       })
 
     return () => {
       active = false
     }
   }, [refreshToken, reloadCount])
+
+  // Until the first answer arrives there is no honest number to show: the list
+  // is empty because nothing has come back, not because there is no feedback.
+  const countsPending = loading && !firstLoadDone
 
   const filteredFeedback = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -291,6 +294,7 @@ export function FeedbackDashboard({
         title="Feedback"
         icon={<MessageSquarePlusIcon className="text-muted-foreground" />}
         count={filteredFeedback.length}
+        countsPending={countsPending}
         error={
           error
             ? {
@@ -443,8 +447,12 @@ export function FeedbackDashboard({
             <TableCell column="mutedMeta" className="hidden md:table-cell">
               {item.author_name}
             </TableCell>
-            <TableCell column="mutedMeta" className="hidden lg:table-cell">
-              {dateFormatter.format(new Date(item.created_at))}
+            <TableCell
+              column="mutedMeta"
+              className="hidden lg:table-cell"
+              title={formatDateTime(item.created_at)}
+            >
+              {formatRelativeTime(item.created_at)}
             </TableCell>
             <TableCell column="meta">
               <button
@@ -582,11 +590,13 @@ function EditFeedbackModal({
   const [message, setMessage] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false)
 
   React.useEffect(() => {
     if (!feedback) return
     setFeedbackType(feedback.type)
     setMessage(feedback.message)
+    setConfirmingDelete(false)
   }, [feedback])
 
   const handleSave = async () => {
@@ -624,8 +634,11 @@ function EditFeedbackModal({
       await deleteFeedback(feedback.id)
       onDeleted(feedback.id)
       toast.success("Feedback deleted.")
+      setConfirmingDelete(false)
       onOpenChange(false)
     } catch (deleteError) {
+      // The question stays up on a failure, so the answer is still one click
+      // away once the error toast says what went wrong.
       showErrorToast(getFeedbackErrorMessage(deleteError))
     } finally {
       setDeleting(false)
@@ -638,98 +651,106 @@ function EditFeedbackModal({
     : false
 
   return (
-    // A save or delete in flight holds the window open, and an edited message
-    // is asked about before the X, the overlay or Escape can drop it.
-    <FormDialog
-      open={open}
-      dirty={dirty}
-      busy={busy}
-      onClose={() => onOpenChange(false)}
-    >
-      {(requestClose) => (
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Edit feedback</DialogTitle>
-            <DialogDescription>
-              Update the message and feedback type.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Feedback</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="feedback-message">Feedback</Label>
-              <Textarea
-                id="feedback-message"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                rows={1}
-                disabled={busy}
-                autoFocus
-              />
-            </div>
+    <>
+      {/* A save or delete in flight holds the window open, and an edited message
+          is asked about before the X, the overlay or Escape can drop it. */}
+      <FormDialog
+        open={open}
+        dirty={dirty}
+        busy={busy}
+        onClose={() => onOpenChange(false)}
+      >
+        {(requestClose) => (
+          <DialogContent variant="admin">
+            <DialogHeader>
+              <DialogTitle>Edit feedback</DialogTitle>
+              <DialogDescription>
+                Update the message and feedback type.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Feedback</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="feedback-message">Feedback</Label>
+                <Textarea
+                  id="feedback-message"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  rows={1}
+                  disabled={busy}
+                  autoFocus
+                />
+              </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="feedback-type">Type</Label>
-              <Select
-                value={feedbackType}
-                onValueChange={(value) => setFeedbackType(value as FeedbackType)}
+              <div className="grid gap-2">
+                <Label htmlFor="feedback-type">Type</Label>
+                <Select
+                  value={feedbackType}
+                  onValueChange={(value) => setFeedbackType(value as FeedbackType)}
+                  disabled={busy}
+                >
+                  <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(feedbackTypeLabels).map(([type, label]) => (
+                      <SelectItem key={type} value={type}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter variant="plain">
+              {/* Delete asks first, exactly as the row's trash icon does — the
+                  spinner lives on the confirmation that is running the delete. */}
+              <Button
+                type="button"
+                variant="destructive"
+                className="mr-auto"
+                onClick={() => setConfirmingDelete(true)}
                 disabled={busy}
               >
-                <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(feedbackTypeLabels).map(([type, label]) => (
-                    <SelectItem key={type} value={type}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="destructive"
-              className="mr-auto"
-              onClick={handleDelete}
-              disabled={busy}
-            >
-              {/* All three buttons grey out together, so only the one that is
-                  actually running spins. */}
-              {deleting ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
                 <Trash2Icon className="h-4 w-4" />
-              )}
-              Delete
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={requestClose}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={busy}>
-              {saving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              Save changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      )}
-    </FormDialog>
+                Delete
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={requestClose}
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleSave} disabled={busy}>
+                {saving ? (
+                  <Loader2Icon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <SaveIcon className="h-4 w-4" />
+                )}
+                Save changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </FormDialog>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this feedback item?"
+        description="This action cannot be undone."
+        confirmLabel="Delete item"
+        loading={deleting}
+        disabled={!feedback}
+        onConfirm={handleDelete}
+      />
+    </>
   )
 }

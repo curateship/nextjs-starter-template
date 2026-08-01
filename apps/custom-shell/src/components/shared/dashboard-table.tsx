@@ -72,6 +72,13 @@ type DashboardTableBaseProps = {
   selectedCount?: number
   onClearSelection?: () => void
   footer: DashboardTableFooter
+  /**
+   * The first load has not answered yet, so `count` and the footer totals are
+   * not known. Both show an em-dash instead of a 0 that is about to be wrong.
+   * Pass this only for the first load — a refetch already has real numbers on
+   * screen and must not blank them out.
+   */
+  countsPending?: boolean
 }
 
 type DashboardTableProps = DashboardTableBaseProps & (
@@ -103,6 +110,7 @@ export function DashboardTable(props: DashboardTableProps) {
     selectedCount = 0,
     onClearSelection,
     footer,
+    countsPending = false,
   } = props
 
   return (
@@ -115,7 +123,9 @@ export function DashboardTable(props: DashboardTableProps) {
             </span>
           ) : null}
           <span className="text-sm font-medium sm:text-base">{title}</span>
-          <Badge variant="secondary">{count}</Badge>
+          <Badge variant="secondary">
+            {countsPending ? "—" : count.toLocaleString()}
+          </Badge>
           {selectedCount && onClearSelection ? (
             <button
               type="button"
@@ -161,7 +171,7 @@ export function DashboardTable(props: DashboardTableProps) {
         </ScrollArea>
       )}
 
-      <DashboardTableFooter footer={footer} />
+      <DashboardTableFooter footer={footer} countsPending={countsPending} />
     </TableSurface>
   )
 }
@@ -176,6 +186,7 @@ export function DashboardTablePagination({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions,
+  countsPending = false,
 }: {
   page: number
   pageSize: number
@@ -184,6 +195,8 @@ export function DashboardTablePagination({
   onPageChange: (page: number) => void
   onPageSizeChange?: (pageSize: number) => void
   pageSizeOptions?: number[]
+  /** The total is not known yet — show a dash, not "0 of 0". */
+  countsPending?: boolean
 }) {
   const options = pageSizeOptions ?? defaultPageSizeOptions
   const totalPages = totalPagesInput || 1
@@ -195,12 +208,16 @@ export function DashboardTablePagination({
     <DashboardTablePaginationFooter
       pageSize={pageSize}
       pageSizeOptions={options}
-      rangeText={`${firstRow ? `${firstRow}-${lastRow}` : "0"} of ${total}`}
+      rangeText={
+        countsPending
+          ? "—"
+          : `${firstRow ? `${firstRow.toLocaleString()}-${lastRow.toLocaleString()}` : "0"} of ${total.toLocaleString()}`
+      }
       onPageSizeChange={onPageSizeChange}
-      firstDisabled={currentPage === 1}
-      previousDisabled={currentPage === 1}
-      nextDisabled={currentPage === totalPages || total === 0}
-      lastDisabled={currentPage === totalPages || total === 0}
+      firstDisabled={countsPending || currentPage === 1}
+      previousDisabled={countsPending || currentPage === 1}
+      nextDisabled={countsPending || currentPage === totalPages || total === 0}
+      lastDisabled={countsPending || currentPage === totalPages || total === 0}
       onFirst={() => onPageChange(1)}
       onPrevious={() => onPageChange(currentPage - 1)}
       onNext={() => onPageChange(currentPage + 1)}
@@ -209,7 +226,13 @@ export function DashboardTablePagination({
   )
 }
 
-function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
+function DashboardTableFooter({
+  footer,
+  countsPending = false,
+}: {
+  footer: DashboardTableFooter
+  countsPending?: boolean
+}) {
   if (footer.type === "pagination") {
     return (
       <DashboardTablePagination
@@ -220,6 +243,7 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
         onPageChange={footer.onPageChange}
         onPageSizeChange={footer.onPageSizeChange}
         pageSizeOptions={footer.pageSizeOptions}
+        countsPending={countsPending}
       />
     )
   }
@@ -231,7 +255,7 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
       <DashboardTablePaginationFooter
         pageSize={pageSize}
         pageSizeOptions={[pageSize]}
-        rangeText={`${footer.count ? `1-${footer.count}` : "0"} of ${footer.count}${footer.hasMore ? "+" : ""}`}
+        rangeText={`${footer.count ? `1-${footer.count.toLocaleString()}` : "0"} of ${footer.count.toLocaleString()}${footer.hasMore ? "+" : ""}`}
         firstDisabled
         previousDisabled
         nextDisabled={!footer.hasMore || Boolean(footer.loading)}
@@ -251,7 +275,7 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
 
   return (
     <div className="flex items-center bg-muted/50 p-4 text-sm text-muted-foreground">
-      {footer.count} {label}
+      {countsPending ? "—" : `${footer.count.toLocaleString()} ${label}`}
     </div>
   )
 }
