@@ -73,6 +73,7 @@ export interface EventRegistrationListItem {
   amount_total: number | null
   currency: string | null
   reminder_sent_at: string | null
+  follow_up_sent_at: string | null
   checked_in_at: string | null
   created_at: string
 }
@@ -684,6 +685,7 @@ export async function getEventRegistrationListActionImpl(input: {
           amountTotal: eventRegistrations.amountTotal,
           currency: eventRegistrations.currency,
           reminderSentAt: eventRegistrations.reminderSentAt,
+          followUpSentAt: eventRegistrations.followUpSentAt,
           checkedInAt: eventRegistrations.checkedInAt,
           createdAt: eventRegistrations.createdAt,
           eventTitle: events.title,
@@ -745,6 +747,7 @@ export async function getEventRegistrationListActionImpl(input: {
         amount_total: row.amountTotal ?? null,
         currency: row.currency ?? null,
         reminder_sent_at: isoOrNull(row.reminderSentAt),
+        follow_up_sent_at: isoOrNull(row.followUpSentAt),
         checked_in_at: isoOrNull(row.checkedInAt),
         created_at: row.createdAt?.toISOString() ?? '',
       })),

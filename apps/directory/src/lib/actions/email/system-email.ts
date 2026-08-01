@@ -16,6 +16,7 @@ export type SystemEmailTemplateKey =
   | 'featured_listing_renewal_reminder'
   | 'event_registration_confirmation'
   | 'event_reminder'
+  | 'event_follow_up'
   | 'abandoned_checkout_recovery'
 
 export interface SystemEmailTemplateRecord {
@@ -68,6 +69,7 @@ const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'featured_listing_renewal_reminder',
   'event_registration_confirmation',
   'event_reminder',
+  'event_follow_up',
   'abandoned_checkout_recovery',
 ]
 
@@ -208,6 +210,20 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
     }
   }
 
+  if (templateKey === 'event_follow_up') {
+    return {
+      name: 'Event Follow-up',
+      description: 'Sent to everyone registered for an event the morning after it ends.',
+      scopeLabel: 'Current Site',
+      subject: 'Thanks for coming to {{event_name}}',
+      // No link to an events listing here on purpose: a site's events page is
+      // whatever page its owner built, so this points at the site itself and the
+      // owner can add their own link when they edit the template.
+      bodyHtml: '<p>Hi {{attendee_name}}, thanks for coming to <strong>{{event_name}}</strong>.</p><p>We hope you enjoyed it. Come and see what is on next at {{site_name}}.</p><p><a href="{{site_url}}">Visit {{site_name}}</a> &middot; <a href="{{event_url}}">Revisit the event page</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{site_name}}', '{{site_url}}'],
+    }
+  }
+
   if (templateKey === 'abandoned_checkout_recovery') {
     return {
       name: 'Abandoned Checkout Recovery',
@@ -320,6 +336,7 @@ export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
     getSystemEmailTemplate('featured_listing_renewal_reminder', siteId),
     getSystemEmailTemplate('event_registration_confirmation', siteId),
     getSystemEmailTemplate('event_reminder', siteId),
+    getSystemEmailTemplate('event_follow_up', siteId),
     getSystemEmailTemplate('abandoned_checkout_recovery', siteId),
   ])
 

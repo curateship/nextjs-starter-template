@@ -357,6 +357,11 @@ export default function EventRegistrationsPage() {
                               Reminded <RelativeDate date={row.reminder_sent_at} />
                             </div>
                           ) : null}
+                          {row.follow_up_sent_at ? (
+                            <div className="text-xs text-muted-foreground">
+                              Thanked <RelativeDate date={row.follow_up_sent_at} />
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell column="meta">
                           <Button

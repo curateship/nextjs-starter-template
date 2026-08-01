@@ -43,6 +43,11 @@ export const eventRegistrations = pgTable('event_registrations', {
   checkedInAt: timestamp('checked_in_at', { withTimezone: true }),
   confirmationSentAt: timestamp('confirmation_sent_at', { withTimezone: true }),
   reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
+  // The start time the reminder described, e.g. `2026-08-15T18:00` (see
+  // migration 201). When the event is rescheduled this stops matching, which is
+  // how one corrected reminder goes out instead of none or one per tick.
+  reminderSentFor: varchar('reminder_sent_for', { length: 20 }),
+  followUpSentAt: timestamp('follow_up_sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -58,9 +63,6 @@ export const eventRegistrations = pgTable('event_registrations', {
   uniqueIndex('idx_event_registrations_payment_intent')
     .on(table.stripePaymentIntentId)
     .where(sql`${table.stripePaymentIntentId} is not null`),
-  index('idx_event_registrations_reminder_pending')
-    .on(table.eventId)
-    .where(sql`${table.status} = 'confirmed' and ${table.reminderSentAt} is null`),
   uniqueIndex('idx_event_registrations_check_in_code').on(table.checkInCode),
   index('idx_event_registrations_checked_in')
     .on(table.eventId)

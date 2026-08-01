@@ -1,6 +1,7 @@
-// Sends the two registration emails (immediate confirmation, and the reminder
-// before the event) through the same per-site Resend config and editable
-// system-email templates every other transactional email in the app uses.
+// Sends the three registration emails (the immediate confirmation, the reminder
+// before the event, and the thank-you after it) through the same per-site Resend
+// config and editable system-email templates every other transactional email in
+// the app uses.
 //
 // The sender config, the template and everything in the message that does not
 // depend on who is receiving it are resolved once by createEventRegistrationMailer.
@@ -21,7 +22,7 @@ import { buildTicketQrUrl, buildTicketUrl } from './event-check-in-core'
 
 export type EventRegistrationEmailKey = Extract<
   SystemEmailTemplateKey,
-  'event_registration_confirmation' | 'event_reminder'
+  'event_registration_confirmation' | 'event_reminder' | 'event_follow_up'
 >
 
 export interface EventEmailContext {
@@ -48,8 +49,9 @@ export interface EventRegistrationMailer {
  * Returns `mailer: null` with a reason rather than throwing, because every caller
  * must carry on when a site has no mail sender configured or the owner has turned
  * the template off — the registration itself still stands. Callers only stamp
- * `confirmation_sent_at` / `reminder_sent_at` on a successful send, so an unsent
- * email is retried later rather than silently skipped.
+ * `confirmation_sent_at` / `reminder_sent_at` / `follow_up_sent_at` on a
+ * successful send, so an unsent email is retried later rather than silently
+ * skipped.
  */
 export async function createEventRegistrationMailer(params: {
   templateKey: EventRegistrationEmailKey
