@@ -1,9 +1,14 @@
 import { createServerFn } from "@tanstack/react-start"
 
-import { loadFeedsSummary, type FeedsSummary } from "@/server/feeds"
+import {
+  loadFeedsSummary,
+  type FeedsAnnouncementRow,
+  type FeedsAnnouncementStatus,
+  type FeedsSummary,
+} from "@/server/feeds"
 import { requireAdmin } from "@/server/security"
 
-export type { FeedsSummary }
+export type { FeedsAnnouncementRow, FeedsAnnouncementStatus, FeedsSummary }
 
 const feedsErrorMessages: Record<string, string> = {
   FORBIDDEN: "You do not have access to that.",

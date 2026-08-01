@@ -2178,6 +2178,7 @@ describe("feeds section", () => {
       .where(eq(customShellNotifications.id, firstNotice.id))
 
     // One fresh piece of feedback and one from before the seven-day line.
+    const answeredFeedbackId = uuid()
     await database.insert(customShellFeedback).values([
       {
         id: uuid(),
@@ -2188,7 +2189,7 @@ describe("feeds section", () => {
         updatedAt: createdAt,
       },
       {
-        id: uuid(),
+        id: answeredFeedbackId,
         userId: memberId,
         type: "bug_report",
         message: "An old bug",
@@ -2196,6 +2197,22 @@ describe("feeds section", () => {
         updatedAt: new Date(Date.now() - 8 * DAY_MS),
       },
     ])
+
+    // One of the two has been replied to, and one has a vote behind it.
+    await database.insert(customShellFeedbackComments).values({
+      id: uuid(),
+      feedbackId: answeredFeedbackId,
+      userId: adminId,
+      message: "Looking at it.",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellFeedbackVotes).values({
+      id: uuid(),
+      feedbackId: answeredFeedbackId,
+      userId: adminId,
+      createdAt,
+    })
 
     const summary = await loadFeedsSummary(db)
 
@@ -2225,26 +2242,50 @@ describe("feeds section", () => {
       unread: 3,
       sentLast7Days: 4,
     })
-    // The listed notices carry who got them and what they were about.
-    expect(summary.notifications.latest).toHaveLength(4)
-    expect(
-      summary.notifications.latest.map((item) => item.type)
-    ).toEqual(["changelog", "changelog", "changelog", "changelog"])
-    expect(
-      summary.notifications.latest.every(
-        (item) =>
-          ["Feeds Admin", "Feeds Member"].includes(item.recipient_name) &&
-          ["Shipped one", "Shipped two"].includes(item.changelog_title ?? "")
-      )
-    ).toBe(true)
-
-    expect(summary.feedback).toMatchObject({ total: 2, last7Days: 1 })
-    // Newest first, with what was said and what kind it was.
-    expect(summary.feedback.latest.map((item) => item.message)).toEqual([
-      "More feeds please",
-      "An old bug",
+    expect(summary.notifications.oldestUnreadAt).not.toBeNull()
+    // Publishing wrote a notice per person, but the activity feed is one line
+    // per event: two published updates, not four notices.
+    expect(summary.notifications.latest).toHaveLength(2)
+    expect(summary.notifications.latest.map((item) => item.type)).toEqual([
+      "changelog",
+      "changelog",
     ])
-    expect(summary.feedback.latest[0].type).toBe("suggestion")
+    expect(
+      summary.notifications.latest
+        .map((item) => item.changelog_title ?? "")
+        .sort()
+    ).toEqual(["Shipped one", "Shipped two"])
+    // One person opened one of them, so that line counts as opened.
+    expect(
+      summary.notifications.latest.filter((item) => item.read_at).length
+    ).toBe(1)
+
+    expect(summary.feedback).toMatchObject({
+      total: 2,
+      last7Days: 1,
+      // The eight-day-old one lands in the seven days before this week.
+      previous7Days: 1,
+      // One of the two has been replied to.
+      noReply: 1,
+    })
+    // The voted-for one leads, however new the other is.
+    expect(summary.feedback.topVoted.map((item) => item.message)).toEqual([
+      "An old bug",
+      "More feeds please",
+    ])
+    expect(summary.feedback.topVoted[0]).toMatchObject({
+      type: "bug_report",
+      authorName: "Feeds Member",
+      votes: 1,
+    })
+
+    // What is waiting on somebody: the draft's shipping history and the
+    // announcement that has not started yet.
+    expect(summary.changelog.lastPublishedAt).not.toBeNull()
+    expect(summary.announcements.nextScheduled).toMatchObject({
+      title: "Scheduled",
+      status: "scheduled",
+    })
   })
 })
 

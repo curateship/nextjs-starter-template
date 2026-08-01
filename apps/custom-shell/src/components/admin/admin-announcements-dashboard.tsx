@@ -73,6 +73,7 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useOpenFromLink } from "@/lib/use-open-from-link"
 
 type AnnouncementSortColumn = "title" | "where" | "status" | "shows"
 
@@ -160,8 +161,11 @@ function compareAnnouncements(
  */
 export function AdminAnnouncementsDashboard({
   announcements,
+  openId,
 }: {
   announcements: Announcement[]
+  /** One announcement named by the link that brought us here. */
+  openId?: string
 }) {
   const { config } = useShellRuntime()
   const router = useRouter()
@@ -178,6 +182,8 @@ export function AdminAnnouncementsDashboard({
   const [deleting, setDeleting] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [error, setError] = React.useState<string | null>(null)
+
+  useOpenFromLink({ openId, records: announcements, onOpen: setEditing })
 
   // One reading of the clock, taken once. Every row's status and the sort then
   // agree with each other, and — because a fresh number on every render would

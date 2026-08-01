@@ -69,6 +69,7 @@ import {
 } from "@/lib/feedback-type"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useOpenFromLink } from "@/lib/use-open-from-link"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
@@ -84,11 +85,14 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 type FeedbackDashboardProps = {
   refreshToken: number
   onOpenFeedback: () => void
+  /** One piece of feedback named by the link that brought us here. */
+  openId?: string
 }
 
 export function FeedbackDashboard({
   refreshToken,
   onOpenFeedback,
+  openId,
 }: FeedbackDashboardProps) {
   const { config } = useShellRuntime()
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
@@ -111,6 +115,10 @@ export function FeedbackDashboard({
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [quickDeleting, setQuickDeleting] = React.useState(false)
   const [reloadCount, setReloadCount] = React.useState(0)
+
+  // A link from elsewhere opens the conversation, which is where a reply is
+  // written — it waits for the list below to arrive before it can.
+  useOpenFromLink({ openId, records: feedback, onOpen: setViewingComments })
 
   React.useEffect(() => {
     let active = true

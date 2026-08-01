@@ -7,8 +7,11 @@ import {
   getAnnouncementErrorMessage,
   loadAdminAnnouncements,
 } from "@/lib/api/announcements"
+import { readOpenSearch } from "@/lib/use-open-from-link"
 
+/** `?open=<id>` is how the feeds dashboard links to one announcement. */
 export const Route = createFileRoute("/_authenticated/admin/announcements")({
+  validateSearch: readOpenSearch,
   loader: () => loadAdminAnnouncements(),
   component: AdminAnnouncementsRoute,
   errorComponent: AdminAnnouncementsErrorRoute,
@@ -16,8 +19,11 @@ export const Route = createFileRoute("/_authenticated/admin/announcements")({
 
 function AdminAnnouncementsRoute() {
   const { announcements } = Route.useLoaderData()
+  const { open } = Route.useSearch()
 
-  return <AdminAnnouncementsDashboard announcements={announcements} />
+  return (
+    <AdminAnnouncementsDashboard announcements={announcements} openId={open} />
+  )
 }
 
 /** A database that would not answer. Say so and leave a way to try again. */

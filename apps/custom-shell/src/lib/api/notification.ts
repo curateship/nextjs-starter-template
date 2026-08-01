@@ -15,6 +15,8 @@ export type NotificationItem = {
    * not by a person acting on your feedback.
    */
   actor_name: string | null
+  /** The actor's profile photo, when they have one. Null with no actor. */
+  actor_avatar_url: string | null
   recipient_name: string
   /** Both null unless the notice is about a piece of feedback. */
   feedback_id: string | null

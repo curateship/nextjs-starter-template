@@ -299,7 +299,11 @@ export async function serializeNotificationRows(
   const [userRows, feedbackRows, changelogRows, announcementRows] =
     await Promise.all([
       database
-        .select({ id: customShellUsers.id, name: customShellUsers.name })
+        .select({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          avatarUrl: customShellUsers.avatarUrl,
+        })
         .from(customShellUsers)
         .where(inArray(customShellUsers.id, userIds)),
       feedbackIds.length
@@ -333,6 +337,7 @@ export async function serializeNotificationRows(
     ])
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
+  const userAvatars = new Map(userRows.map((row) => [row.id, row.avatarUrl]))
   const feedbackMessages = new Map(
     feedbackRows.map((row) => [row.id, row.message])
   )
@@ -348,6 +353,10 @@ export async function serializeNotificationRows(
     type: row.type as NotificationItem["type"],
     actor_name: row.actorUserId
       ? (userNames.get(row.actorUserId) ?? "Unknown")
+      : null,
+    // The photo goes with the name, so a row can show whose doing it was.
+    actor_avatar_url: row.actorUserId
+      ? (userAvatars.get(row.actorUserId) ?? null)
       : null,
     recipient_name: userNames.get(row.recipientUserId) ?? "Unknown",
     feedback_id: row.feedbackId,
