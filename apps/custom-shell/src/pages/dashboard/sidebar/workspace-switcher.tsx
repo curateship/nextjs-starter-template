@@ -8,25 +8,9 @@ import {
   Loader2Icon,
   PlusIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { WorkspaceFormDialog } from "@/components/shared/workspace-form-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,15 +19,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   SidebarMenu,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
 import {
-  createWorkspace,
   getWorkspaceErrorMessage,
   switchWorkspace,
   type WorkspaceItem,
@@ -69,11 +50,9 @@ export function WorkspaceSwitcher({
   const activeWorkspacePlan = workspacePlan.trim() || "Project"
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
   const [createOpen, setCreateOpen] = React.useState(false)
-  const [name, setName] = React.useState("")
   const [busyWorkspaceId, setBusyWorkspaceId] = React.useState<string | null>(
     null
   )
-  const [creating, setCreating] = React.useState(false)
 
   if (!activeWorkspace) {
     return null
@@ -91,28 +70,6 @@ export function WorkspaceSwitcher({
       showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
       setBusyWorkspaceId(null)
-    }
-  }
-
-  const handleCreate = async () => {
-    const workspaceName = name.trim()
-    if (!workspaceName) {
-      showErrorToast("Workspace name is required")
-      return
-    }
-
-    dismissErrorToast()
-    setCreating(true)
-    try {
-      await createWorkspace(workspaceName)
-      await router.invalidate()
-      toast.success("Workspace created.")
-      setCreateOpen(false)
-      setName("")
-    } catch (error) {
-      showErrorToast(getWorkspaceErrorMessage(error))
-    } finally {
-      setCreating(false)
     }
   }
 
@@ -215,11 +172,7 @@ export function WorkspaceSwitcher({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={Boolean(busyWorkspaceId)}
-                    onSelect={() => {
-                      dismissErrorToast()
-                      setName("")
-                      setCreateOpen(true)
-                    }}
+                    onSelect={() => setCreateOpen(true)}
                     className="gap-2 p-2"
                   >
                     <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
@@ -236,62 +189,10 @@ export function WorkspaceSwitcher({
         </SidebarMenuItem>
       </SidebarMenu>
 
-      <Dialog
+      <WorkspaceFormDialog
         open={createOpen}
-        onOpenChange={(next) => {
-          if (!next && creating) return
-          setCreateOpen(next)
-        }}
-      >
-        <DialogContent variant="admin" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>New workspace</DialogTitle>
-            <DialogDescription>
-              Create a private project workspace.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void handleCreate()
-            }}
-          >
-            <DialogBody>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Workspace</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="workspace-name">Name</Label>
-                    <Input
-                      id="workspace-name"
-                      value={name}
-                      disabled={creating}
-                      onChange={(event) => setName(event.target.value)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </DialogBody>
-            <DialogFooter variant="plain">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={creating}
-                onClick={() => setCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={creating}>
-                {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Create workspace
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        onClose={() => setCreateOpen(false)}
+      />
     </>
   )
 }
