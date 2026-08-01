@@ -193,13 +193,11 @@ export function FeedbackCommentsModal({
               </Card>
             )}
           </DialogBody>
+          {/* Comments save themselves as they are added or deleted, so there is
+              nothing to cancel — a single Done closes the window. */}
           <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Close
+            <Button type="button" onClick={() => onOpenChange(false)}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -209,9 +207,9 @@ export function FeedbackCommentsModal({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setDeletingComment(null)
         }}
-        title="Delete Comment"
+        title="Delete this comment?"
         description="This action cannot be undone."
-        confirmLabel="Delete"
+        confirmLabel="Delete comment"
         loading={deleting}
         onConfirm={handleDelete}
       />

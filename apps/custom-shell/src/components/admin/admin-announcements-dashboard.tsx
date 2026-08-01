@@ -854,7 +854,7 @@ function AnnouncementDialog({
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2Icon className="animate-spin" /> : null}
-            {announcement ? "Save announcement" : "Create announcement"}
+            {announcement ? "Save changes" : "Create announcement"}
           </Button>
         </DialogFooter>
       </DialogContent>

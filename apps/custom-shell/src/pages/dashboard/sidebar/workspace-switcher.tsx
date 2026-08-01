@@ -226,7 +226,7 @@ export function WorkspaceSwitcher({
                       <PlusIcon className="size-4" />
                     </div>
                     <div className="font-medium text-muted-foreground">
-                      Add workspace
+                      New workspace
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -286,7 +286,7 @@ export function WorkspaceSwitcher({
               </Button>
               <Button type="submit" disabled={creating}>
                 {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Create
+                Create workspace
               </Button>
             </DialogFooter>
           </form>

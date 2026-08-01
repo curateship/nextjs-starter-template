@@ -418,7 +418,7 @@ export function FeedbackModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle>Send Feedback</DialogTitle>
+          <DialogTitle>Send feedback</DialogTitle>
           <DialogDescription>
             Share a request, report, question, or win.
           </DialogDescription>

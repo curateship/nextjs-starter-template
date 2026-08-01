@@ -477,7 +477,7 @@ export function NotificationsPage({
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedIds.size} notification${selectedIds.size === 1 ? "" : "s"}?`}
         description="This cannot be undone."
-        confirmLabel="Delete"
+        confirmLabel={selectedIds.size === 1 ? "Delete notification" : "Delete notifications"}
         loading={deleting}
         onConfirm={() => void deleteSelected()}
       />

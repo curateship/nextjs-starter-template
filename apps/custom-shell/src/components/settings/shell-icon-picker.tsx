@@ -122,7 +122,7 @@ export function ShellIconPicker({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent variant="admin" className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Choose Icon</DialogTitle>
+            <DialogTitle>Choose icon</DialogTitle>
             <DialogDescription>
               Pick an icon from the library, or add any Lucide icon by name.
             </DialogDescription>
@@ -154,7 +154,7 @@ export function ShellIconPicker({
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-80">
                   <PopoverHeader>
-                    <PopoverTitle>Add Lucide Icon</PopoverTitle>
+                    <PopoverTitle>Add Lucide icon</PopoverTitle>
                   </PopoverHeader>
                   <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
                     <Input
@@ -176,7 +176,7 @@ export function ShellIconPicker({
                       >
                         Cancel
                       </Button>
-                      <Button type="submit">Use Icon</Button>
+                      <Button type="submit">Use icon</Button>
                     </div>
                   </form>
                 </PopoverContent>
@@ -194,21 +194,24 @@ export function ShellIconPicker({
             />
           </DialogBody>
 
+          {/* Picking an icon from the grid applies it and closes, so there is
+              no primary button to press — only the two ways out. */}
           <DialogFooter variant="plain">
             {allowEmpty && value ? (
               <Button
                 type="button"
                 variant="outline"
+                className="mr-auto"
                 onClick={() => {
                   onValueChange(undefined)
                   closePicker()
                 }}
               >
-                Remove Icon
+                Remove icon
               </Button>
             ) : null}
             <Button type="button" variant="outline" onClick={closePicker}>
-              Back
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

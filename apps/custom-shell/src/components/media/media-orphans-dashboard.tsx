@@ -855,12 +855,19 @@ function OrphanDetailsDialog({
             </Card>
           ) : null}
         </DialogBody>
+        {/* Nothing to save here, so Delete sits hard left and a single Done
+            closes the window. */}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Close
-          </Button>
-          <Button type="button" variant="destructive" onClick={onDelete}>
+          <Button
+            type="button"
+            variant="destructive"
+            className="mr-auto"
+            onClick={onDelete}
+          >
             Delete
+          </Button>
+          <Button type="button" onClick={onClose}>
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>

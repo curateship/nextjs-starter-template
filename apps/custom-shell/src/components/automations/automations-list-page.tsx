@@ -306,7 +306,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               onClick={() => void handleCreate()}
             >
               {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Create
+              Create automation
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -319,7 +319,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         }}
         title={`Delete "${deleteTarget?.name}"?`}
         description="The flow and its canvas are permanently removed. This cannot be undone."
-        confirmLabel="Delete"
+        confirmLabel="Delete automation"
         loading={deleting}
         onConfirm={() => void handleDelete()}
       />

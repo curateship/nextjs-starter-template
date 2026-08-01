@@ -465,7 +465,7 @@ function SortableSidebarItem({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{isNamed ? item.label : "Sidebar Link"}</DialogTitle>
+            <DialogTitle>{isNamed ? item.label : "Sidebar link"}</DialogTitle>
             <DialogDescription>
               Edit this sidebar destination and its child links.
             </DialogDescription>
@@ -570,11 +570,13 @@ function SortableSidebarItem({
               </CardContent>
             </Card>
           </DialogBody>
+          {/* Edits here save themselves as you type, so there is nothing for a
+              Cancel to undo — this window ends with a single Done. */}
           <DialogFooter variant="plain">
             <Button
               type="button"
               onClick={async () => {
-                // Edits already auto-save; flush any pending debounce, then close.
+                // Flush any pending debounce, then close.
                 await onSaveConfig()
                 onOpenItemChange(null)
               }}
@@ -1270,7 +1272,7 @@ export function SidebarSettings({
       <ConfirmDialog
         open={resetOpen}
         onOpenChange={setResetOpen}
-        title="Reset this sidebar"
+        title="Reset this sidebar?"
         description={reset.description}
         confirmLabel="Reset"
         onConfirm={() => {
@@ -1284,7 +1286,7 @@ export function SidebarSettings({
         onOpenChange={(open) => {
           if (!open) setPendingDeleteSectionId(null)
         }}
-        title="Delete Section"
+        title="Delete this section?"
         description={describeSectionDelete(pendingDeleteSection)}
         confirmLabel="Delete section"
         onConfirm={() => {
@@ -1303,7 +1305,7 @@ export function SidebarSettings({
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null)
         }}
-        title={isDeletingChild ? "Delete Child Link" : "Delete Link"}
+        title={isDeletingChild ? "Delete this child link?" : "Delete this link?"}
         description={
           isDeletingChild
             ? describeChildDelete(pendingDeleteChild)
