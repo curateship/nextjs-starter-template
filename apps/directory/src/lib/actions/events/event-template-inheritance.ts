@@ -5,7 +5,12 @@
 // non-block entries from the VALUE side, not the template.
 
 import { sanitizeExternalHttpUrl } from '@/lib/utils/url-validator'
-import { normalizeCapacity, normalizeTicketPriceId } from './event-registration-core'
+import {
+  REMINDER_LEAD_HOURS,
+  normalizeCapacity,
+  normalizeReminderLeadHours,
+  normalizeTicketPriceId,
+} from './event-registration-core'
 import {
   blocksToTemplateValueJson,
   getTemplateNonBlockEntries,
@@ -35,6 +40,9 @@ const EVENT_VALUE_KEYS: Record<string, string[]> = {
     'capacity',
     'ticketPriceId',
     'ticketPriceLabel',
+    'remindersEnabled',
+    'reminderLeadHours',
+    'followUpEnabled',
   ],
 }
 
@@ -90,6 +98,22 @@ function transformEventValue({ key, value }: TemplateValueTransformArgs) {
   if (key === 'ticketPriceLabel') {
     const label = String(value).trim().slice(0, 40)
     return label ? { include: true as const, value: label } : { include: false as const }
+  }
+
+  // Both reminder switches are on unless the event says otherwise, so only the
+  // "off" answer is worth storing. Keeping the "on" answer out means an event
+  // that has never been near these settings behaves the same as one that has.
+  if (key === 'remindersEnabled' || key === 'followUpEnabled') {
+    return value === false ? { include: true as const, value: false } : { include: false as const }
+  }
+
+  // Same idea: the default lead time is not stored, so changing the app's
+  // default later moves every event that never chose one.
+  if (key === 'reminderLeadHours') {
+    const leadHours = normalizeReminderLeadHours(value)
+    return leadHours === REMINDER_LEAD_HOURS
+      ? { include: false as const }
+      : { include: true as const, value: leadHours }
   }
 
   return undefined
