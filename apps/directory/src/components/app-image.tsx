@@ -1,4 +1,4 @@
-import type { CSSProperties, ImgHTMLAttributes } from "react"
+import type { CSSProperties, ImgHTMLAttributes, Ref } from "react"
 
 type ImageSource = string | { src: string; width?: number; height?: number }
 
@@ -9,6 +9,9 @@ type AppImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & {
   src: ImageSource
   fill?: boolean
   priority?: boolean
+  // Lets a caller read the element back — used to spot a picture that already
+  // failed before React was running.
+  ref?: Ref<HTMLImageElement>
 }
 
 export default function AppImage({
@@ -18,6 +21,7 @@ export default function AppImage({
   style,
   width,
   height,
+  ref,
   ...props
 }: AppImageProps) {
   const resolved = typeof src === "string" ? src : src.src
@@ -29,6 +33,7 @@ export default function AppImage({
 
   return (
     <img
+      ref={ref}
       src={resolved}
       width={resolvedWidth}
       height={resolvedHeight}
