@@ -13,11 +13,9 @@ import {
   FieldDescription,
   FieldLabel,
 } from "@/components/ui/field"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { FeaturedImageField } from "@/components/admin/layout/dashboard/content-modal-shared"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
-import ImageIcon from "lucide-react/dist/esm/icons/image.js"
-import X from "lucide-react/dist/esm/icons/x.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
@@ -69,7 +67,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     if (message) showErrorToast(message)
     else dismissErrorToast()
   }
-  const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
@@ -145,16 +142,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       cancelled = true
     }
   }, [currentSite?.id])
-
-  // Handle featured image changes
-  const handleImageChange = async (newImageUrl: string) => {
-    setFeaturedImage(newImageUrl)
-  }
-
-  // Handle removing the featured image
-  const handleRemoveImage = async () => {
-    setFeaturedImage('')
-  }
 
   // Handle saving as draft, optionally signaling redirect to builder
   const handleSave = async (continueToBuilder = false, publishNow = false) => {
@@ -241,7 +228,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   }
 
   return (
-    <>
       <DashboardModalContent
         busy={loading}
         title="Create New Product"
@@ -360,43 +346,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
             </CardHeader>
               <CardContent>
-                <Field className="w-48">
-                  {featuredImage ? (
-                  <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
-                    <img
-                      src={featuredImage}
-                      alt="Featured image preview"
-                      className="h-full w-full object-contain"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="absolute top-2 right-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div
-                      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-center text-white">
-                        <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                        <p className="text-sm font-medium">Click to change image</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                      <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                    </div>
-                  </div>
-                  )}
-                </Field>
+                <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
               </CardContent>
           </Card>
 
@@ -464,15 +414,5 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         </CardGroup>
         </form>
       </DashboardModalContent>
-      <MediaPicker
-        open={showImagePicker}
-        onOpenChange={setShowImagePicker}
-        onSelectMedia={(imageUrl) => {
-          handleImageChange(imageUrl)
-          setShowImagePicker(false)
-        }}
-        currentMediaUrl={featuredImage || ''}
-      />
-    </>
   )
 }

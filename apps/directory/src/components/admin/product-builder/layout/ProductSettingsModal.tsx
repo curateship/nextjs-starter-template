@@ -11,11 +11,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { FeaturedImageField } from "@/components/admin/layout/dashboard/content-modal-shared"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import CalendarIcon from "lucide-react/dist/esm/icons/calendar.js"
-import ImageIcon from "lucide-react/dist/esm/icons/image.js"
-import X from "lucide-react/dist/esm/icons/x.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
@@ -107,7 +105,6 @@ export function ProductSettingsModal({
     else dismissErrorToast()
   }
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
-  const [showImagePicker, setShowImagePicker] = useState(false)
   const [createdDateInput, setCreatedDateInput] = useState('')
   const [createdDateBad, setCreatedDateBad] = useState(false)
   // Clears itself once the box holds a real date, so the ring never outlives the fault.
@@ -134,14 +131,6 @@ export function ProductSettingsModal({
       setSlugManuallyEdited(true)
       setFormData(prev => ({ ...prev, slug }))
     }
-  }
-
-  const handleImageChange = async (newImageUrl: string) => {
-    setFeaturedImage(newImageUrl)
-  }
-
-  const handleRemoveImage = async () => {
-    setFeaturedImage('')
   }
 
   useEffect(() => {
@@ -458,45 +447,7 @@ export function ProductSettingsModal({
                   <FieldDescription>Used when product listings are sorted by date.</FieldDescription>
                 </Field>
 
-                <Field className="[&>div]:w-fit">
-                  <div>
-                    {featuredImage ? (
-                      <div className="relative aspect-square w-48 overflow-hidden rounded-lg bg-muted">
-                        <img
-                          src={featuredImage}
-                          alt="Featured image preview"
-                          className="h-full w-full object-contain"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleRemoveImage}
-                          className="absolute top-2 right-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                        <div
-                          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-                          onClick={() => setShowImagePicker(true)}
-                        >
-                          <div className="text-center text-white">
-                            <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                            <p className="text-sm font-medium">Click to change image</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                        onClick={() => setShowImagePicker(true)}
-                      >
-                        <div className="text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                          <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Field>
+                <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
               </CardContent>
             </Card>
 
@@ -567,15 +518,6 @@ export function ProductSettingsModal({
           </CardGroup>
         </form>
 
-        <MediaPicker
-          open={showImagePicker}
-          onOpenChange={setShowImagePicker}
-          onSelectMedia={(imageUrl) => {
-            handleImageChange(imageUrl)
-            setShowImagePicker(false)
-          }}
-          currentMediaUrl={featuredImage || ''}
-        />
       </DashboardModalContent>
     </Dialog>
   )
