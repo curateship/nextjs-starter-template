@@ -21,7 +21,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -325,7 +325,7 @@ export default function SegmentsPage() {
                             {contactCounts[segment.id] !== undefined ? contactCounts[segment.id].toLocaleString() : "—"}
                           </span>
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(segment.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={segment.updated_at} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center">
                             <Button

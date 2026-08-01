@@ -29,7 +29,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatRelativeDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -289,7 +289,7 @@ export default function UnusedMediaPage() {
                           </TableCell>
                           <TableCell column="mutedMeta" className="capitalize">{media.file_type}</TableCell>
                           <TableCell column="mutedMeta">{formatFileSize(media.file_size)}</TableCell>
-                          <TableCell column="mutedMeta">{formatDate(media.created_at)}</TableCell>
+                          <TableCell column="mutedMeta"><RelativeDate date={media.created_at} /></TableCell>
                           <TableCell column="meta">
                             <div className="flex items-center space-x-1">
                               <Button

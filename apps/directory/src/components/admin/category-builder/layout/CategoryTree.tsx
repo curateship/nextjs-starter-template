@@ -14,6 +14,7 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import Link from "@/components/app-link"
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
+import { RelativeDate } from "@/components/admin/layout/list"
 import { CategorySettingsModal } from "./CategorySettingsModal"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableRow } from "@/components/ui/table"
@@ -83,18 +84,6 @@ export function CategoryTree({
 
   const handleSettingsSuccess = (updatedCategory: Category) => {
     onCategoryUpdated(updatedCategory)
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
   }
 
   const getCategoryHref = (category: Category) => {
@@ -184,7 +173,7 @@ export function CategoryTree({
             )}
           </TableCell>
           <TableCell column="mutedMeta">{assignmentCounts[category.id] || 0}</TableCell>
-          <TableCell column="mutedMeta">{formatDate(category.updated_at)}</TableCell>
+          <TableCell column="mutedMeta"><RelativeDate date={category.updated_at} /></TableCell>
           <TableCell column="meta">
             <div className="flex items-center space-x-2">
               <Button

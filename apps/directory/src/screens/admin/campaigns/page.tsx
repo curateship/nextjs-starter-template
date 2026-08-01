@@ -12,7 +12,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminListPending, ConfirmDestructive, AdminSortButton, AdminTableShell, AdminListFooter, useAdminSort } from "@/components/admin/layout/list"
+import { AdminListPending, ConfirmDestructive, AdminSortButton, AdminTableShell, AdminListFooter, formatShortDate, useAdminSort } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsButton, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,8 +25,8 @@ import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-fee
 
 function formatSchedule(campaign: CampaignRecord) {
   if (!campaign.startsAt && !campaign.endsAt) return "Always"
-  const start = campaign.startsAt ? new Date(campaign.startsAt).toLocaleDateString() : "Now"
-  const end = campaign.endsAt ? new Date(campaign.endsAt).toLocaleDateString() : "No end"
+  const start = campaign.startsAt ? formatShortDate(campaign.startsAt) : "Now"
+  const end = campaign.endsAt ? formatShortDate(campaign.endsAt) : "No end"
   return `${start} – ${end}`
 }
 

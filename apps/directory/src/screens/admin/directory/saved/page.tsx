@@ -28,7 +28,9 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
+  formatExactDateTime,
+  formatRelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -340,8 +342,8 @@ export default function DirectorySavedPage() {
                             </span>
                             <span className="min-w-0">
                               <span className="block truncate font-medium hover:underline" title={folder.name}>{folder.name}</span>
-                              <span className="block truncate text-sm text-muted-foreground" title={`Created${formatDate(folder.created_at)}`}>
-                                Created {formatDate(folder.created_at)}
+                              <span className="block truncate text-sm text-muted-foreground" title={`Created ${formatExactDateTime(folder.created_at)}`}>
+                                Created {formatRelativeDate(folder.created_at)}
                               </span>
                             </span>
                           </Link>
@@ -354,7 +356,7 @@ export default function DirectorySavedPage() {
                           {folder.default_key ? <Badge variant="secondary">Default</Badge> : <Badge>Custom</Badge>}
                         </TableCell>
                         <TableCell column="mutedMeta">{folder.item_count}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(folderActivity(folder))}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={folderActivity(folder)} /></TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button

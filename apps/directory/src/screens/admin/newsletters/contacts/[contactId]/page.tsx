@@ -4,6 +4,7 @@ import { use, useState, useEffect, useCallback } from "react"
 import { useRouter } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { RelativeDate, formatShortDate } from "@/components/admin/layout/list"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -186,28 +187,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
     }
   }
 
-  // Helper: format date relative (e.g. "3d ago") or absolute
-  function formatRelativeDate(dateStr: string | null): string {
-    if (!dateStr) return "Never"
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-    if (diffDays === 0) return "Today"
-    if (diffDays === 1) return "1d ago"
-    if (diffDays < 30) return `${diffDays}d ago`
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`
-    return `${Math.floor(diffDays / 365)}y ago`
-  }
-
-  // Helper: format date for display
-  function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    })
-  }
 
   // Helper: get initials for avatar
   function getInitials(): string {
@@ -510,7 +489,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                       <div className="flex items-center gap-3 flex-wrap">
                         {getStatusBadge(contact.status)}
                         {getSourceBadge(contact.metadata?.source || "manual")}
-                        <span className="text-xs text-muted-foreground">Since {formatDate(contact.created_at)}</span>
+                        <span className="text-xs text-muted-foreground">Since {formatShortDate(contact.created_at)}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -547,7 +526,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                       <CardTitle className="text-sm font-medium text-muted-foreground">Last Engaged</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-2xl font-semibold">{formatRelativeDate(contact.last_engaged_at)}</p>
+                      <p className="text-2xl font-semibold"><RelativeDate date={contact.last_engaged_at} fallback="Never" /></p>
                     </CardContent>
                   </Card>
                 </CardGroup>
@@ -570,7 +549,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                             <p className="font-medium text-sm mb-1">{event.newsletterSubject || "Unknown"}</p>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs text-muted-foreground">
-                                {formatDate(event.createdAt)}
+                                <RelativeDate date={event.createdAt} />
                               </span>
                               <span className="text-xs text-muted-foreground">·</span>
                               {getEventBadge(event.eventType)}
@@ -636,7 +615,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                                   <p className="text-sm truncate" title={link.linkUrl || "Unknown URL"}>{link.linkUrl || "Unknown URL"}</p>
                                   <p className="text-xs text-muted-foreground">
                                     {link.newsletterSubject && <span>{link.newsletterSubject} · </span>}
-                                    {formatDate(link.createdAt)}
+                                    <RelativeDate date={link.createdAt} />
                                   </p>
                                 </div>
                               </div>

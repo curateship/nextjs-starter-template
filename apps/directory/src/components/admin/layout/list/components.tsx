@@ -10,6 +10,7 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
 import { Button } from "@/components/ui/button";
 import { CardSection } from "@/components/shared/card-sections";
+import { formatExactDateTime, formatRelativeDate } from "./dates";
 import { Badge } from "@/components/ui/badge";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { AdminLoading } from "@/components/admin/layout/loading";
@@ -442,14 +443,20 @@ export function AdminTableSummaryFooter({
   );
 }
 
-export function formatRelativeDate(dateString: string) {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 1) return "1 day ago";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
-  return `${Math.ceil(diffDays / 30)} months ago`;
+/**
+ * A relative date with the exact moment one hover away: renders
+ * `formatRelativeDate` with a `title` holding the full date and time, the same
+ * reasoning as the table long-text rule.
+ */
+export function RelativeDate({
+  date,
+  fallback = "-",
+}: {
+  date: string | Date | null | undefined;
+  fallback?: string;
+}) {
+  const exact = formatExactDateTime(date, "");
+  const label = formatRelativeDate(date, fallback);
+  if (!exact) return <>{label}</>;
+  return <span title={exact}>{label}</span>;
 }

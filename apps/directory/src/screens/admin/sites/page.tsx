@@ -25,7 +25,7 @@ import {
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
-  formatRelativeDate as formatDate,
+  RelativeDate,
   useAdminSort,
 } from "@/components/admin/layout/list"
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
@@ -403,7 +403,7 @@ export default function SitesPage() {
                             <span className="text-sm">You</span>
                           </div>
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(site.created_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={site.created_at} /></TableCell>
                         <TableCell column="meta">{getStatusBadge(site.status)}</TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center space-x-1">

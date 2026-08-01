@@ -30,7 +30,7 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminListFooter, RelativeDate } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -410,7 +410,7 @@ export default function DirectoryClaimsPage() {
                         <TableCell column="meta">
                           <div className="space-y-2">
                             {ownerEditStatusBadge(request.status)}
-                            <div className="text-sm text-muted-foreground">{formatDate(request.created_at)}</div>
+                            <div className="text-sm text-muted-foreground"><RelativeDate date={request.created_at} /></div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">
@@ -449,7 +449,7 @@ export default function DirectoryClaimsPage() {
                         <TableCell column="meta">
                           <div className="space-y-2">
                             {statusBadge(claim.status)}
-                            <div className="text-sm text-muted-foreground">{formatDate(claim.created_at)}</div>
+                            <div className="text-sm text-muted-foreground"><RelativeDate date={claim.created_at} /></div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">

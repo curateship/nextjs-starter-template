@@ -30,7 +30,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -346,15 +346,15 @@ export default function EventRegistrationsPage() {
                           {statusBadge(row.status)}
                           {row.checked_in_at ? (
                             <div className="mt-1 text-xs text-muted-foreground">
-                              Checked in {formatDate(row.checked_in_at)}
+                              Checked in <RelativeDate date={row.checked_in_at} />
                             </div>
                           ) : null}
                         </TableCell>
                         <TableCell column="meta">
-                          <div className="text-sm text-muted-foreground">{formatDate(row.created_at)}</div>
+                          <div className="text-sm text-muted-foreground"><RelativeDate date={row.created_at} /></div>
                           {row.reminder_sent_at ? (
                             <div className="text-xs text-muted-foreground">
-                              Reminded {formatDate(row.reminder_sent_at)}
+                              Reminded <RelativeDate date={row.reminder_sent_at} />
                             </div>
                           ) : null}
                         </TableCell>

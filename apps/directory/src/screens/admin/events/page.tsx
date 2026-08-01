@@ -68,7 +68,6 @@ export default function EventsPage() {
         events.length === 0 ? "Get started by creating your first event." : "Try adjusting your search or filter criteria."
       }
       emptyTitle={(events) => (events.length === 0 ? "No events yet" : "No events match your filters")}
-      formatModified={(event) => new Date(event.updated_at).toLocaleDateString()}
       getItems={((a0, a1) => getSiteEventsWithCategoriesAction({ data: { siteId: a0, options: a1 } }))}
       icon={Calendar}
       itemLabel="Event"

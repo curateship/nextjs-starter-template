@@ -21,7 +21,7 @@ import {
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -393,7 +393,7 @@ export default function OrdersPage() {
                         <TableCell column="main">
                           <h4 className="truncate text-sm font-medium sm:text-base" title={order.customer_email}>{order.customer_email}</h4>
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(order.created_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={order.created_at} /></TableCell>
                         <TableCell column="content">
                           <span className="text-sm font-medium">{productMap[order.product_id] || "Unknown Product"}</span>
                         </TableCell>

@@ -16,7 +16,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AdminTableShell, AdminListPending, AdminListFooter, ConfirmDestructive } from "@/components/admin/layout/list"
+import { AdminTableShell, AdminListPending, AdminListFooter, ConfirmDestructive, RelativeDate } from "@/components/admin/layout/list"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -182,7 +182,7 @@ export default function DirectoryCustomBlocksPage() {
                         <TableCell column="mutedMeta">{countDirectoryCustomFields(template.fields)}</TableCell>
                         <TableCell column="mutedMeta">{template.used_in_count || 0}</TableCell>
                         <TableCell column="mutedMeta">
-                          {template.updated_at ? new Date(template.updated_at).toLocaleDateString() : "-"}
+                          <RelativeDate date={template.updated_at} />
                         </TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">

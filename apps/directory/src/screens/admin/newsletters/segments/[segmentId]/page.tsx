@@ -6,6 +6,7 @@ import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { showErrorToast } from "@/lib/error-toast"
 import Link from "@/components/app-link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { RelativeDate } from "@/components/admin/layout/list"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -305,15 +306,6 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     showActionSuccess("Contact added to segment.")
   }
 
-  // Helper: format date
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return "—"
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    })
-  }
 
   // Helper: get contact display name from metadata
   function getContactName(metadata: any): string {
@@ -444,7 +436,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                       </p>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">Created {formatDate(segment.created_at)}</span>
+                  <span className="text-xs text-muted-foreground">Created <RelativeDate date={segment.created_at} /></span>
                 </CardContent>
               </Card>
 
@@ -496,7 +488,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                             <Badge variant="outline" className="text-xs">
                               {nl.status}
                             </Badge>
-                            {nl.sentAt && <span>{formatDate(nl.sentAt)}</span>}
+                            {nl.sentAt && <span><RelativeDate date={nl.sentAt} /></span>}
                             <span>·</span>
                             <span>{nl.totalSent} sent</span>
                             <span>·</span>

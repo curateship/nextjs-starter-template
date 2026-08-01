@@ -33,7 +33,7 @@ import {
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  formatRelativeDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -1033,7 +1033,7 @@ export default function AdminGuidedFormsPage() {
                     </TableCell>
                     <TableCell column="meta">{getStatusBadge(form)}</TableCell>
                     <TableCell column="meta">{form.submission_count.toLocaleString()}</TableCell>
-                    <TableCell column="mutedMeta">{formatRelativeDate(form.updated_at)}</TableCell>
+                    <TableCell column="mutedMeta"><RelativeDate date={form.updated_at} /></TableCell>
                     <TableCell column="meta">
                       <div className="flex items-center">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSettingsForm(form)} title="Form settings">

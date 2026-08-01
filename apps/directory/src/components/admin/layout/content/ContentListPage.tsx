@@ -15,7 +15,7 @@ import {
   AdminListFooter,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  formatRelativeDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -73,7 +73,6 @@ export function ContentListPage<TItem extends ContentListItem>({
   emptyButtonLabel,
   emptyDescription,
   emptyTitle,
-  formatModified,
   getBuilderHref,
   getCursorItems,
   getDisplayPath,
@@ -486,7 +485,7 @@ export function ContentListPage<TItem extends ContentListItem>({
                           )}
                           <TableCell column="meta">{renderStatusBadge ? renderStatusBadge(item) : getDefaultStatusBadge(item)}</TableCell>
                           <TableCell column="mutedMeta">
-                            {formatModified ? formatModified(item) : formatRelativeDate(item.updated_at)}
+                            <RelativeDate date={item.updated_at} />
                           </TableCell>
                           <TableCell column="meta">
                             <div className="flex items-center">
