@@ -6,6 +6,7 @@ import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { Rating } from "@/components/shadcnblocks/rating"
+import { ListingImage } from "@/components/shared/listing-image"
 import {
   getDirectoryRelatedListingsAction,
   type DirectoryRelatedListingItem,
@@ -167,18 +168,12 @@ export function DirectoryRelatedListingBlock({
                     aria-label={item.title}
                     className="block size-20 shrink-0 overflow-hidden rounded-md bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:size-35"
                   >
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={item.title}
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-opacity hover:opacity-80"
-                      />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                        No Image
-                      </span>
-                    )}
+                    <ListingImage
+                      src={imageUrl}
+                      alt={item.title}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-opacity hover:opacity-80"
+                    />
                   </Link>
                 ) : null}
 

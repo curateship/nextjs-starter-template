@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, type KeyboardEvent } from "react"
 import { useSearchParams } from "@/lib/navigation-client"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -474,18 +474,21 @@ function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refr
 
 // --- Settings Page ---
 
+// Grouped: the site itself, then the admin's own look, then the connected
+// services, then sending, with housekeeping last. Ids are stable — they are
+// what existing ?tab= links carry — so only labels and order may change.
 const TABS = [
-  { id: "general", label: "General Settings" },
-  { id: "style", label: "Style" },
+  { id: "general", label: "General" },
+  { id: "style", label: "Site Appearance" },
+  { id: "styling", label: "Admin Appearance" },
+  { id: "sidebar", label: "Sidebar" },
   { id: "payments", label: "Payments" },
-  { id: "newsletters", label: "Newsletters" },
   { id: "email", label: "Email" },
   { id: "integrations", label: "Integrations" },
-  { id: "cron-jobs", label: "Cron Jobs" },
-  { id: "notifications", label: "Notifications" },
   { id: "ai", label: "AI Providers" },
-  { id: "sidebar", label: "Sidebar" },
-  { id: "styling", label: "Styling" }
+  { id: "newsletters", label: "Newsletters" },
+  { id: "notifications", label: "Notifications" },
+  { id: "cron-jobs", label: "Cron Jobs" }
 ] as const
 
 type TabId = (typeof TABS)[number]["id"]
@@ -561,6 +564,15 @@ export default function SiteEditPage() {
     const requestedTab = searchParams.get("tab")
     return isTabId(requestedTab) ? requestedTab : "general"
   })
+
+  // A router navigation straight to a ?tab= link while this screen is already
+  // mounted re-renders it rather than remounting, so the initial read above
+  // would miss the new value. Tab clicks bypass the router, so this only fires
+  // on real navigations.
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab")
+    if (isTabId(requestedTab)) setActiveTab(requestedTab)
+  }, [searchParams])
   const contextSite = currentSite
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
   const [siteName, setSiteName] = useState(contextSite?.name || "")
@@ -686,6 +698,36 @@ export default function SiteEditPage() {
   const showError = useCallback((message: string) => {
     showErrorToast(message)
   }, [])
+
+  // Every tab change lands in the URL, replacing the entry rather than pushing
+  // one, so a refresh or a shared link reopens the same tab and the back button
+  // still leaves the settings screen. The URL is written directly instead of
+  // through the router because a router search change re-runs the admin
+  // loader — a full server round trip for what is a purely local switch.
+  const selectTab = useCallback((tab: TabId) => {
+    setActiveTab(tab)
+    const params = new URLSearchParams(window.location.search)
+    params.set("tab", tab)
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
+  }, [])
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const step: Record<string, number> = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }
+    const currentIndex = TABS.findIndex((tab) => tab.id === activeTab)
+    let nextIndex: number
+    if (event.key in step) {
+      nextIndex = (currentIndex + step[event.key] + TABS.length) % TABS.length
+    } else if (event.key === "Home") {
+      nextIndex = 0
+    } else if (event.key === "End") {
+      nextIndex = TABS.length - 1
+    } else {
+      return
+    }
+    event.preventDefault()
+    selectTab(TABS[nextIndex].id)
+    document.getElementById(`settings-tab-${TABS[nextIndex].id}`)?.focus()
+  }
 
   const handleEmailIntegrationSaved = useCallback(() => {
     setDomainHealthRefreshSignal((current) => current + 1)
@@ -933,11 +975,20 @@ export default function SiteEditPage() {
             {/* Vertical tab list */}
             <Card className="w-48 shrink-0">
               <CardContent className="grid gap-0.5 p-2">
-                <nav className="grid gap-0.5">
+                {/* Only the active tab is in the Tab order; the arrow keys move
+                    between tabs, the standard pattern for a tablist. */}
+                <div role="tablist" aria-label="Settings" aria-orientation="vertical" className="grid gap-0.5">
                   {TABS.map((tab) => (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
+                      type="button"
+                      id={`settings-tab-${tab.id}`}
+                      role="tab"
+                      aria-selected={activeTab === tab.id}
+                      aria-controls="settings-tab-panel"
+                      tabIndex={activeTab === tab.id ? 0 : -1}
+                      onClick={() => selectTab(tab.id)}
+                      onKeyDown={handleTabKeyDown}
                       className={cn(
                         "text-left px-3 py-2 text-sm font-medium rounded-md transition-colors",
                         activeTab === tab.id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -946,12 +997,17 @@ export default function SiteEditPage() {
                       {tab.label}
                     </button>
                   ))}
-                </nav>
+                </div>
               </CardContent>
             </Card>
 
             {/* Tab content */}
-            <div className="flex-1 min-w-0">
+            <div
+              id="settings-tab-panel"
+              role="tabpanel"
+              aria-labelledby={`settings-tab-${activeTab}`}
+              className="flex-1 min-w-0"
+            >
               {activeTab === "general" && (
                 <form onSubmit={(event) => event.preventDefault()}>
                   <SiteDashboard

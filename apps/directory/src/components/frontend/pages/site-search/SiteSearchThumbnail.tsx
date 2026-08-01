@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "@/components/app-image"
+import { useImageFallback } from "@/components/shared/listing-image"
 import { cn } from "@/lib/utils/tailwind"
 import { resolveMediaUrl } from "@/lib/utils/media-url"
 
@@ -30,23 +31,26 @@ interface SiteSearchThumbnailProps {
   className?: string
 }
 
-/** A search result's picture, or a muted tile when the item has none. */
+/** A search result's picture, or a muted tile when the item has none — or when the picture won't load. */
 export function SiteSearchThumbnail({ image, size, className }: SiteSearchThumbnailProps) {
   const styles = SIZES[size]
   // Stored media references are not always usable as-is: `r2://` keys are only
   // served through the media proxy. Every other public block resolves them the
   // same way.
   const src = resolveMediaUrl(image)
+  const { imageRef, failed, onError } = useImageFallback(src)
 
-  if (!src) return <span className={cn(styles.placeholder, className)} />
+  if (!src || failed) return <span className={cn(styles.placeholder, className)} />
 
   return (
     <Image
+      ref={imageRef}
       src={src}
       alt=""
       width={styles.width}
       height={styles.height}
       className={cn(styles.image, className)}
+      onError={onError}
     />
   )
 }
