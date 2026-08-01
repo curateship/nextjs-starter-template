@@ -12,10 +12,13 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { useResetPageOnListChange } from "@/lib/use-reset-page";
 import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog";
 import {
-  ConfirmDestructive,
-  AdminTableShell, AdminListPending,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
+  ConfirmDestructive,
   RelativeDate,
+  useAdminSort,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -65,6 +68,8 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
+type ThemeSortColumn = "theme" | "created";
+
 export default function ThemesPage() {
   const router = useRouter();
   const { pageSize } = useSiteSwitcher();
@@ -107,6 +112,7 @@ export default function ThemesPage() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const themeSort = useAdminSort<ThemeSortColumn>("created", "desc");
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -222,13 +228,27 @@ export default function ThemesPage() {
       })
     : templates;
 
-  // Searching from a later page would otherwise land you past the end of the
-  // shorter result.
-  useResetPageOnListChange(setCurrentPage, normalizedSearchQuery);
+  const sortedTemplates = useMemo(() => {
+    return [...filteredTemplates].sort((a, b) => {
+      if (!themeSort.sortColumn) return 0;
+
+      const dir = themeSort.sortDirection === "asc" ? 1 : -1;
+      if (themeSort.sortColumn === "theme") return a.name.localeCompare(b.name) * dir;
+
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+    });
+  }, [filteredTemplates, themeSort.sortColumn, themeSort.sortDirection]);
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${normalizedSearchQuery}|${themeSort.sortColumn}|${themeSort.sortDirection}`
+  );
 
   const pagedTemplates = useMemo(
-    () => filteredTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [currentPage, filteredTemplates, pageSize]
+    () => sortedTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedTemplates]
   );
 
   return (
@@ -274,8 +294,8 @@ export default function ThemesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Theme</TableHead>
-                    <TableHead column="meta">Created</TableHead>
+                    <AdminSortableHead column="main" sort={themeSort} sortKey="theme">Theme</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={themeSort} sortKey="created">Created</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -7,8 +7,11 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
-  AdminTableShell, AdminListPending,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
+  useAdminSort,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -40,6 +43,8 @@ interface SenderRow {
   updatedAt: string | null;
 }
 
+type SenderSortColumn = "sender" | "provider" | "status";
+
 function buildSenderRows(integration: SiteIntegration | null): SenderRow[] {
   const fromEmail = integration?.config?.from_email?.trim();
   if (!fromEmail) {
@@ -64,6 +69,7 @@ export default function PlatformSenderEmailsPage() {
   const [senders, setSenders] = useState<SenderRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const senderSort = useAdminSort<SenderSortColumn>("sender", "asc");
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
@@ -105,13 +111,29 @@ export default function PlatformSenderEmailsPage() {
       })
     : senders;
 
-  // Searching from a later page would otherwise land you past the end of the
-  // shorter result.
-  useResetPageOnListChange(setCurrentPage, `${currentSite?.id}|${normalizedSearchQuery}`);
+  const sortedSenders = useMemo(() => {
+    return [...filteredSenders].sort((a, b) => {
+      if (!senderSort.sortColumn) return 0;
+
+      const dir = senderSort.sortDirection === "asc" ? 1 : -1;
+      if (senderSort.sortColumn === "sender")
+        return (a.name.localeCompare(b.name) || a.email.localeCompare(b.email)) * dir;
+      if (senderSort.sortColumn === "provider") return a.provider.localeCompare(b.provider) * dir;
+
+      return a.status.localeCompare(b.status) * dir;
+    });
+  }, [filteredSenders, senderSort.sortColumn, senderSort.sortDirection]);
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${normalizedSearchQuery}|${senderSort.sortColumn}|${senderSort.sortDirection}`
+  );
 
   const pagedSenders = useMemo(
-    () => filteredSenders.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [currentPage, filteredSenders, pageSize]
+    () => sortedSenders.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedSenders]
   );
 
   if (!currentSite) {
@@ -158,9 +180,9 @@ export default function PlatformSenderEmailsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Sender</TableHead>
-                    <TableHead column="meta">Provider</TableHead>
-                    <TableHead column="meta">Status</TableHead>
+                    <AdminSortableHead column="main" sort={senderSort} sortKey="sender">Sender</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={senderSort} sortKey="provider">Provider</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={senderSort} sortKey="status">Status</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

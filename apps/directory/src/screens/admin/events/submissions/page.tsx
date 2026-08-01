@@ -22,7 +22,14 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminListFooter, RelativeDate } from "@/components/admin/layout/list"
+import {
+  AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
+  RelativeDate,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import Link from "@/components/app-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,6 +47,8 @@ const STATUS_FILTERS = [
   { value: "approved", label: "Approved", icon: CheckCircle2 },
   { value: "rejected", label: "Rejected", icon: XCircle },
 ] as const
+
+type SubmissionSortColumn = "event" | "submitter" | "when" | "status"
 
 function statusBadge(status: EventSubmissionStatus) {
   switch (status) {
@@ -68,6 +77,9 @@ export default function EventSubmissionsPage() {
   const [savingStatus, setSavingStatus] = useState<"approved" | "rejected" | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
+  // Queue screens open oldest-first: within one status filter every row shares
+  // the status, so the created-at tiebreak puts the longest-waiting one on top.
+  const submissionSort = useAdminSort<SubmissionSortColumn>("status", "asc")
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -119,16 +131,38 @@ export default function EventSubmissionsPage() {
     ].join(" ").toLowerCase().includes(normalizedSearchQuery))
   }, [normalizedSearchQuery, submissions])
 
-  // Searching or switching status from a later page would otherwise land you
-  // past the end of the shorter result.
+  const sortedSubmissions = useMemo(() => {
+    return [...filteredSubmissions].sort((a, b) => {
+      if (!submissionSort.sortColumn) return 0
+
+      const dir = submissionSort.sortDirection === "asc" ? 1 : -1
+      if (submissionSort.sortColumn === "event") return a.event_name.localeCompare(b.event_name) * dir
+      if (submissionSort.sortColumn === "submitter")
+        return (a.submitter_email || "").localeCompare(b.submitter_email || "") * dir
+      // "When" is the submitter's free text, so this is a plain text sort.
+      if (submissionSort.sortColumn === "when")
+        return (
+          ((a.date_time_text || "").localeCompare(b.date_time_text || "") ||
+            (a.location || "").localeCompare(b.location || "")) * dir
+        )
+
+      return (
+        (a.status.localeCompare(b.status) ||
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+      )
+    })
+  }, [filteredSubmissions, submissionSort.sortColumn, submissionSort.sortDirection])
+
+  // Searching, switching status or re-sorting from a later page would
+  // otherwise land you past the end of the shorter result.
   useResetPageOnListChange(
     setCurrentPage,
-    `${currentSite?.id}|${activeStatus}|${normalizedSearchQuery}`
+    `${currentSite?.id}|${activeStatus}|${normalizedSearchQuery}|${submissionSort.sortColumn}|${submissionSort.sortDirection}`
   )
 
   const pagedSubmissions = useMemo(
-    () => filteredSubmissions.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [currentPage, filteredSubmissions, pageSize]
+    () => sortedSubmissions.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedSubmissions]
   )
 
   const handleReview = async (status: "approved" | "rejected") => {
@@ -192,10 +226,10 @@ export default function EventSubmissionsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Event</TableHead>
-                    <TableHead column="content">Submitter</TableHead>
-                    <TableHead column="content">When &amp; Where</TableHead>
-                    <TableHead column="meta">Status</TableHead>
+                    <AdminSortableHead column="main" sort={submissionSort} sortKey="event">Event</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={submissionSort} sortKey="submitter">Submitter</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={submissionSort} sortKey="when">When &amp; Where</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={submissionSort} sortKey="status">Status</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
