@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { SaveIcon } from "lucide-react"
+import { Loader2Icon, SaveIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -156,7 +156,11 @@ export function AccountDialog({
                 form={PROFILE_FORM_ID}
                 disabled={profileStatus.saving || !profileStatus.dirty}
               >
-                <SaveIcon className="size-4" />
+                {profileStatus.saving ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <SaveIcon className="size-4" />
+                )}
                 Save
               </Button>
             </DialogFooter>

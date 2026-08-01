@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  Loader2Icon,
   MessageSquareIcon,
   PencilIcon,
   SendIcon,
@@ -461,7 +462,11 @@ export function FeedbackModal({
               disabled={isSubmitting}
               className="self-start sm:self-auto"
             >
-              <SendIcon className="h-4 w-4" />
+              {isSubmitting ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <SendIcon className="h-4 w-4" />
+              )}
               Send
             </Button>
           </div>
@@ -725,6 +730,9 @@ export function FeedbackModal({
                                               busyCommentId === comment.id
                                             }
                                           >
+                                            {busyCommentId === comment.id ? (
+                                              <Loader2Icon className="animate-spin" />
+                                            ) : null}
                                             Save
                                           </Button>
                                         </div>
@@ -761,7 +769,11 @@ export function FeedbackModal({
                                 onClick={() => void handleCommentSubmit(item.id)}
                                 disabled={submittingCommentId === item.id}
                               >
-                                <SendIcon className="h-3.5 w-3.5" />
+                                {submittingCommentId === item.id ? (
+                                  <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <SendIcon className="h-3.5 w-3.5" />
+                                )}
                                 Comment
                               </Button>
                             </div>

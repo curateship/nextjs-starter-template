@@ -277,7 +277,11 @@ export function MediaPicker({
                       />
                     </div>
                     <Button type="button" onClick={handleUpload} disabled={uploading}>
-                      <UploadIcon className="size-4" />
+                      {uploading ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <UploadIcon className="size-4" />
+                      )}
                       Upload and select
                     </Button>
                   </div>

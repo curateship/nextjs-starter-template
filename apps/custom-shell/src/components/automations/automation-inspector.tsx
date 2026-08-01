@@ -1,5 +1,11 @@
 import * as React from "react"
-import { AlertCircleIcon, PlusIcon, StarIcon, Trash2Icon } from "lucide-react"
+import {
+  AlertCircleIcon,
+  Loader2Icon,
+  PlusIcon,
+  StarIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -71,7 +77,11 @@ export function AutomationInspector({
               favorite && "text-amber-500"
             )}
           >
-            <StarIcon className={cn("size-4", favorite && "fill-current")} />
+            {savingFavorite ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <StarIcon className={cn("size-4", favorite && "fill-current")} />
+            )}
           </Button>
         ) : null}
       </div>

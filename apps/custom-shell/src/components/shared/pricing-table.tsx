@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, Loader2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -152,6 +152,7 @@ function PlanCard({
             disabled={Boolean(disabled) || current || !purchasable || busy}
             onClick={() => onSelect(plan, interval)}
           >
+            {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
             {current
               ? "Your plan"
               : purchasable

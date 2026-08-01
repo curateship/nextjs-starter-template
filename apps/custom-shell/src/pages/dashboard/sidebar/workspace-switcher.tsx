@@ -194,7 +194,9 @@ export function WorkspaceSwitcher({
                             {displayPlan}
                           </div>
                         </div>
-                        {workspace.active && !busy ? (
+                        {busy ? (
+                          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                        ) : workspace.active ? (
                           <CheckIcon className="size-4 text-muted-foreground" />
                         ) : null}
                       </DropdownMenuItem>
