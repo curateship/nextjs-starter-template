@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import Bookmark from "lucide-react/dist/esm/icons/bookmark.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
@@ -21,11 +21,14 @@ import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
-  ConfirmDestructive,
   AdminListFooter,
-  AdminTableShell, AdminListPending,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
+  ConfirmDestructive,
   RelativeDate,
-  useAdminBulkSelection
+  useAdminBulkSelection,
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
@@ -52,6 +55,8 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+type SavedItemSortColumn = "listing" | "status" | "saved"
+
 export default function DirectorySavedFolderPage({
   params
 }: {
@@ -71,8 +76,10 @@ export default function DirectorySavedFolderPage({
   const [renameValue, setRenameValue] = useState("")
   const [savingRename, setSavingRename] = useState(false)
   const selection = useAdminBulkSelection()
+  // Newest saves first, matching the order the server pages in.
+  const itemSort = useAdminSort<SavedItemSortColumn>("saved", "desc")
   // Everything that changes what the table shows, minus the page itself.
-  const listQueryKey = `${currentSite?.id}|${collectionId}|${query}`
+  const listQueryKey = `${currentSite?.id}|${collectionId}|${query}|${itemSort.sortColumn}|${itemSort.sortDirection}`
   // Searching, filtering or re-sorting from a later page would otherwise
   // land you past the end of the shorter result.
   useResetPageOnListChange(setCurrentPage, listQueryKey)
@@ -119,7 +126,21 @@ export default function DirectorySavedFolderPage({
     void loadItems()
   }, [loadItems])
 
-  const visibleIds = items.map((item) => item.id)
+  // The server pages this list, so the sort reorders the rows on screen —
+  // the same as the saved-folders screen next door.
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      if (!itemSort.sortColumn) return 0
+
+      const dir = itemSort.sortDirection === "asc" ? 1 : -1
+      if (itemSort.sortColumn === "listing") return a.directory_title.localeCompare(b.directory_title) * dir
+      if (itemSort.sortColumn === "status") return a.directory_status.localeCompare(b.directory_status) * dir
+
+      return (new Date(a.saved_at).getTime() - new Date(b.saved_at).getTime()) * dir
+    })
+  }, [items, itemSort.sortColumn, itemSort.sortDirection])
+
+  const visibleIds = sortedItems.map((item) => item.id)
 
   const saveRename = async () => {
     if (!currentSite?.id || !collection) return
@@ -238,9 +259,9 @@ export default function DirectorySavedFolderPage({
                         aria-label="Select saved listings"
                       />
                     </TableHead>
-                    <TableHead column="main">Listing</TableHead>
-                    <TableHead column="meta">Status</TableHead>
-                    <TableHead column="meta">Saved</TableHead>
+                    <AdminSortableHead column="main" sort={itemSort} sortKey="listing">Listing</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={itemSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={itemSort} sortKey="saved">Saved</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -255,7 +276,7 @@ export default function DirectorySavedFolderPage({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    items.map((item) => (
+                    sortedItems.map((item) => (
                       <TableRow key={item.id} data-state={selection.selectedIds.has(item.id) ? "selected" : undefined}>
                         <TableCell column="select">
                           <Checkbox

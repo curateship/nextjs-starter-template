@@ -11,9 +11,12 @@ import { DashboardModalCardTitle, DashboardModalContent } from "@/components/adm
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
-  AdminTableShell, AdminListPending,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
   formatRelativeDate,
   RelativeDate,
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -36,6 +39,8 @@ import {
   type GuidedForm,
   type GuidedFormSubmission,
 } from "@/lib/actions/guided-forms/guided-form-actions"
+
+type SubmissionSortColumn = "email" | "outcome" | "submitted"
 
 function formatAnswerValue(value: unknown) {
   if (Array.isArray(value)) return value.join(", ")
@@ -71,6 +76,8 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedSubmission, setSelectedSubmission] = useState<GuidedFormSubmission | null>(null)
+  // A queue screen: opens oldest-first, the order you work submissions.
+  const submissionSort = useAdminSort<SubmissionSortColumn>("submitted", "asc")
 
   useEffect(() => {
     let cancelled = false
@@ -118,14 +125,31 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
     ))
   }, [searchQuery, submissions])
 
-  // Searching from a later page would otherwise land you past the end of the
-  // shorter result.
-  useResetPageOnListChange(setCurrentPage, searchQuery.trim().toLowerCase())
+  const sortedSubmissions = useMemo(() => {
+    return [...filteredSubmissions].sort((a, b) => {
+      if (!submissionSort.sortColumn) return 0
+
+      const dir = submissionSort.sortDirection === "asc" ? 1 : -1
+      if (submissionSort.sortColumn === "email")
+        return (a.contact_email || "").localeCompare(b.contact_email || "") * dir
+      if (submissionSort.sortColumn === "outcome")
+        return (a.matched_outcome_id || "").localeCompare(b.matched_outcome_id || "") * dir
+
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    })
+  }, [filteredSubmissions, submissionSort.sortColumn, submissionSort.sortDirection])
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${searchQuery.trim().toLowerCase()}|${submissionSort.sortColumn}|${submissionSort.sortDirection}`
+  )
 
   const total = filteredSubmissions.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
-  const visibleSubmissions = filteredSubmissions.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize)
+  const visibleSubmissions = sortedSubmissions.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize)
   const selectedAnswerRows = getAnswerRows(form, selectedSubmission)
 
   const title = (
@@ -172,10 +196,10 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead column="main">Email</TableHead>
-                  <TableHead column="meta">Outcome</TableHead>
+                  <AdminSortableHead column="main" sort={submissionSort} sortKey="email">Email</AdminSortableHead>
+                  <AdminSortableHead column="meta" sort={submissionSort} sortKey="outcome">Outcome</AdminSortableHead>
                   <TableHead column="content">Response</TableHead>
-                  <TableHead column="meta">Submitted</TableHead>
+                  <AdminSortableHead column="meta" sort={submissionSort} sortKey="submitted">Submitted</AdminSortableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

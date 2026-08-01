@@ -16,7 +16,15 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AdminTableShell, AdminListPending, AdminListFooter, ConfirmDestructive, RelativeDate } from "@/components/admin/layout/list"
+import {
+  AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -32,6 +40,8 @@ const LAYOUT_LABELS: Record<DirectoryCustomBlockTemplate["layout"], string> = {
   "two-column": "Two Column"
 }
 
+type BlockSortColumn = "block" | "layout" | "fields" | "used" | "modified"
+
 export default function DirectoryCustomBlocksPage() {
   const router = useRouter()
   const { currentSite, pageSize } = useSiteSwitcher()
@@ -43,6 +53,7 @@ export default function DirectoryCustomBlocksPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
+  const blockSort = useAdminSort<BlockSortColumn>("modified", "desc")
 
   useEffect(() => {
     const siteId = currentSite?.id
@@ -105,13 +116,32 @@ export default function DirectoryCustomBlocksPage() {
       })
     : templates
 
-  // Searching from a later page would otherwise land you past the end of the
-  // shorter result.
-  useResetPageOnListChange(setCurrentPage, `${currentSite?.id}|${normalizedSearchQuery}`)
+  const sortedTemplates = useMemo(() => {
+    return [...filteredTemplates].sort((a, b) => {
+      if (!blockSort.sortColumn) return 0
+
+      const dir = blockSort.sortDirection === "asc" ? 1 : -1
+      if (blockSort.sortColumn === "block") return a.name.localeCompare(b.name) * dir
+      if (blockSort.sortColumn === "layout")
+        return LAYOUT_LABELS[a.layout].localeCompare(LAYOUT_LABELS[b.layout]) * dir
+      if (blockSort.sortColumn === "fields")
+        return (countDirectoryCustomFields(a.fields) - countDirectoryCustomFields(b.fields)) * dir
+      if (blockSort.sortColumn === "used") return ((a.used_in_count || 0) - (b.used_in_count || 0)) * dir
+
+      return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    })
+  }, [blockSort.sortColumn, blockSort.sortDirection, filteredTemplates])
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${normalizedSearchQuery}|${blockSort.sortColumn}|${blockSort.sortDirection}`
+  )
 
   const pagedTemplates = useMemo(
-    () => filteredTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [currentPage, filteredTemplates, pageSize]
+    () => sortedTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedTemplates]
   )
 
   return (
@@ -145,11 +175,11 @@ export default function DirectoryCustomBlocksPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Block</TableHead>
-                    <TableHead column="meta">Layout</TableHead>
-                    <TableHead column="meta">Fields</TableHead>
-                    <TableHead column="meta">Used In</TableHead>
-                    <TableHead column="meta">Modified</TableHead>
+                    <AdminSortableHead column="main" sort={blockSort} sortKey="block">Block</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="layout">Layout</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="fields">Fields</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="used">Used In</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

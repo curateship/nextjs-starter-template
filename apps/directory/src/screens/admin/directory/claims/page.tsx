@@ -30,7 +30,14 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminListFooter, RelativeDate } from "@/components/admin/layout/list"
+import {
+  AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
+  RelativeDate,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -55,6 +62,9 @@ const OWNER_EDIT_FILTERS = [
   { value: "approved", label: "Approved", icon: CheckCircle2 },
   { value: "rejected", label: "Rejected", icon: XCircle },
 ]
+
+type ClaimSortColumn = "listing" | "claimant" | "email" | "status"
+type OwnerEditSortColumn = "listing" | "owner" | "status"
 
 function statusBadge(status: DirectoryClaimStatus) {
   switch (status) {
@@ -137,6 +147,10 @@ export default function DirectoryClaimsPage() {
   const [savingOwnerEditStatus, setSavingOwnerEditStatus] = useState<DirectoryOwnerEditRequestStatus | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
+  // Queue screens open oldest-first: within one status filter every row shares
+  // the status, so the created-at tiebreak puts the longest-waiting one on top.
+  const claimSort = useAdminSort<ClaimSortColumn>("status", "asc")
+  const ownerEditSort = useAdminSort<OwnerEditSortColumn>("status", "asc")
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -268,23 +282,56 @@ export default function DirectoryClaimsPage() {
     ].join(" ").toLowerCase().includes(normalizedSearchQuery))
   }, [normalizedSearchQuery, ownerEdits])
 
+  const sortedClaims = useMemo(() => {
+    return [...filteredClaims].sort((a, b) => {
+      if (!claimSort.sortColumn) return 0
+
+      const dir = claimSort.sortDirection === "asc" ? 1 : -1
+      if (claimSort.sortColumn === "listing") return a.directory_title.localeCompare(b.directory_title) * dir
+      if (claimSort.sortColumn === "claimant")
+        return (a.claimant_name || a.claimant_display_name || "").localeCompare(b.claimant_name || b.claimant_display_name || "") * dir
+      if (claimSort.sortColumn === "email") return (a.business_email || "").localeCompare(b.business_email || "") * dir
+
+      return (
+        (a.status.localeCompare(b.status) ||
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+      )
+    })
+  }, [claimSort.sortColumn, claimSort.sortDirection, filteredClaims])
+
+  const sortedOwnerEdits = useMemo(() => {
+    return [...filteredOwnerEdits].sort((a, b) => {
+      if (!ownerEditSort.sortColumn) return 0
+
+      const dir = ownerEditSort.sortDirection === "asc" ? 1 : -1
+      if (ownerEditSort.sortColumn === "listing") return a.directory_title.localeCompare(b.directory_title) * dir
+      if (ownerEditSort.sortColumn === "owner")
+        return (a.claimant_display_name || "").localeCompare(b.claimant_display_name || "") * dir
+
+      return (
+        (a.status.localeCompare(b.status) ||
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+      )
+    })
+  }, [filteredOwnerEdits, ownerEditSort.sortColumn, ownerEditSort.sortDirection])
+
   const activeRowsCount = activeView === "claims" ? filteredClaims.length : filteredOwnerEdits.length
 
   // One page counter serves both views because switching view is itself a list
   // change, which sends you back to page 1.
   useResetPageOnListChange(
     setCurrentPage,
-    `${currentSite?.id}|${activeView}|${activeStatus}|${ownerEditStatus}|${normalizedSearchQuery}`
+    `${currentSite?.id}|${activeView}|${activeStatus}|${ownerEditStatus}|${normalizedSearchQuery}|${claimSort.sortColumn}|${claimSort.sortDirection}|${ownerEditSort.sortColumn}|${ownerEditSort.sortDirection}`
   )
 
   const pageStart = (currentPage - 1) * pageSize
   const pagedClaims = useMemo(
-    () => filteredClaims.slice(pageStart, pageStart + pageSize),
-    [filteredClaims, pageSize, pageStart]
+    () => sortedClaims.slice(pageStart, pageStart + pageSize),
+    [pageSize, pageStart, sortedClaims]
   )
   const pagedOwnerEdits = useMemo(
-    () => filteredOwnerEdits.slice(pageStart, pageStart + pageSize),
-    [filteredOwnerEdits, pageSize, pageStart]
+    () => sortedOwnerEdits.slice(pageStart, pageStart + pageSize),
+    [pageSize, pageStart, sortedOwnerEdits]
   )
 
   return (
@@ -362,18 +409,18 @@ export default function DirectoryClaimsPage() {
                 <TableHeader>
                   {activeView === "claims" ? (
                     <TableRow>
-                      <TableHead column="main">Listing</TableHead>
-                      <TableHead column="content">Claimant</TableHead>
-                      <TableHead column="content">Business Email</TableHead>
-                      <TableHead column="meta">Status</TableHead>
+                      <AdminSortableHead column="main" sort={claimSort} sortKey="listing">Listing</AdminSortableHead>
+                      <AdminSortableHead column="content" sort={claimSort} sortKey="claimant">Claimant</AdminSortableHead>
+                      <AdminSortableHead column="content" sort={claimSort} sortKey="email">Business Email</AdminSortableHead>
+                      <AdminSortableHead column="meta" sort={claimSort} sortKey="status">Status</AdminSortableHead>
                       <TableHead column="meta">Actions</TableHead>
                     </TableRow>
                   ) : (
                     <TableRow>
-                      <TableHead column="main">Listing</TableHead>
-                      <TableHead column="content">Owner</TableHead>
+                      <AdminSortableHead column="main" sort={ownerEditSort} sortKey="listing">Listing</AdminSortableHead>
+                      <AdminSortableHead column="content" sort={ownerEditSort} sortKey="owner">Owner</AdminSortableHead>
                       <TableHead column="content">Submitted Changes</TableHead>
-                      <TableHead column="meta">Status</TableHead>
+                      <AdminSortableHead column="meta" sort={ownerEditSort} sortKey="status">Status</AdminSortableHead>
                       <TableHead column="meta">Actions</TableHead>
                     </TableRow>
                   )}

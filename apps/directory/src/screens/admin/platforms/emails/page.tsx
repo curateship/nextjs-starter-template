@@ -7,9 +7,12 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
-  AdminTableShell, AdminListPending,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
   RelativeDate,
+  useAdminSort,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -35,6 +38,8 @@ interface DashboardData {
   templates: SystemEmailListItem[];
 }
 
+type TemplateSortColumn = "template" | "scope" | "updated";
+
 export default function PlatformEmailsPage() {
   const { currentSite, pageSize } = useSiteSwitcher();
   const [loading, setLoading] = useState(true);
@@ -45,6 +50,7 @@ export default function PlatformEmailsPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const templateSort = useAdminSort<TemplateSortColumn>("template", "asc");
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
@@ -91,13 +97,31 @@ export default function PlatformEmailsPage() {
       })
     : templates;
 
-  // Searching from a later page would otherwise land you past the end of the
-  // shorter result.
-  useResetPageOnListChange(setCurrentPage, `${currentSite?.id}|${normalizedSearchQuery}`);
+  const sortedTemplates = useMemo(() => {
+    return [...filteredTemplates].sort((a, b) => {
+      if (!templateSort.sortColumn) return 0;
+
+      const dir = templateSort.sortDirection === "asc" ? 1 : -1;
+      if (templateSort.sortColumn === "template") return a.name.localeCompare(b.name) * dir;
+      if (templateSort.sortColumn === "scope") return a.scope_label.localeCompare(b.scope_label) * dir;
+
+      // A template never edited shows "Default"; it sorts as the oldest.
+      const aUpdated = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const bUpdated = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return (aUpdated - bUpdated) * dir;
+    });
+  }, [filteredTemplates, templateSort.sortColumn, templateSort.sortDirection]);
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${normalizedSearchQuery}|${templateSort.sortColumn}|${templateSort.sortDirection}`
+  );
 
   const pagedTemplates = useMemo(
-    () => filteredTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [currentPage, filteredTemplates, pageSize]
+    () => sortedTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedTemplates]
   );
 
   if (!currentSite) {
@@ -146,9 +170,9 @@ export default function PlatformEmailsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Template</TableHead>
-                    <TableHead column="meta">Scope</TableHead>
-                    <TableHead column="meta">Updated</TableHead>
+                    <AdminSortableHead column="main" sort={templateSort} sortKey="template">Template</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={templateSort} sortKey="scope">Scope</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={templateSort} sortKey="updated">Updated</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
