@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  Loader2Icon,
   PackageIcon,
   PlusIcon,
   SettingsIcon,
@@ -555,6 +556,9 @@ function PlanDialog({
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
+        // A save in flight holds the window open, so the X, the overlay and
+        // Escape cannot walk away from it — same as every other edit window.
+        if (!nextOpen && saving) return
         if (!nextOpen) onClose()
       }}
     >
@@ -734,10 +738,11 @@ function PlanDialog({
           </Card>
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
             {plan ? "Save plan" : "Create plan"}
           </Button>
         </DialogFooter>

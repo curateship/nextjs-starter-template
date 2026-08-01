@@ -1,5 +1,6 @@
 import * as React from "react"
 import { format } from "date-fns"
+import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -270,6 +271,7 @@ export function EditAccountDialog({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
             Save changes
           </Button>
         </DialogFooter>

@@ -177,6 +177,13 @@ export function NotificationCenter({
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
   const requestInFlightRef = React.useRef(false)
+  // Marking a notice read now happens behind the click, so two things can race
+  // it: a second click on the same row, and a reload that replaces the list
+  // with the server's own answer. This holds the rows whose write is still in
+  // the air — a row in here is never counted twice, and once a reload clears
+  // it, a late failure no longer puts the dot back, because the freshly loaded
+  // list is already the truth.
+  const pendingReadIdsRef = React.useRef<Set<string>>(new Set())
 
   const visibleNotifications =
     filter === "unread"
@@ -219,6 +226,7 @@ export function NotificationCenter({
       )
       setUnreadCount(data.unread_count)
       setNextCursor(data.next_cursor)
+      pendingReadIdsRef.current.clear()
     } catch (loadError) {
       setError(getNotificationErrorMessage(loadError))
     } finally {
@@ -278,42 +286,61 @@ export function NotificationCenter({
     }
   }
 
-  async function openNotification(item: NotificationItem) {
-    setError(null)
+  /**
+   * Clears the dot straight away and saves that in the background. Marking a
+   * notice read is bookkeeping the reader never asked for, so it is not allowed
+   * to hold up — or block — the thing they actually clicked, and a failure says
+   * nothing: the dot simply comes back and the notice stays unread.
+   */
+  function markReadInBackground(item: NotificationItem) {
+    if (item.read_at || pendingReadIdsRef.current.has(item.id)) return
 
-    if (!item.read_at) {
-      try {
-        const result = await markNotificationRead(item.id)
+    pendingReadIdsRef.current.add(item.id)
+    const optimisticReadAt = new Date().toISOString()
+    setNotifications((current) =>
+      current.map((currentItem) =>
+        currentItem.id === item.id
+          ? { ...currentItem, read_at: optimisticReadAt }
+          : currentItem
+      )
+    )
+    setUnreadCount((current) => Math.max(0, current - 1))
+
+    // Nothing to do when it lands: the row already reads as read, and only that
+    // — never the time itself — is ever shown.
+    void markNotificationRead(item.id)
+      .catch(() => {
+        if (!pendingReadIdsRef.current.has(item.id)) return
         setNotifications((current) =>
           current.map((currentItem) =>
-            currentItem.id === result.notificationId
-              ? { ...currentItem, read_at: result.readAt }
+            currentItem.id === item.id
+              ? { ...currentItem, read_at: null }
               : currentItem
           )
         )
-        setUnreadCount((current) => Math.max(0, current - 1))
-      } catch (readError) {
-        setError(getNotificationErrorMessage(readError))
-        return
+        setUnreadCount((current) => current + 1)
+      })
+      .finally(() => {
+        pendingReadIdsRef.current.delete(item.id)
+      })
+  }
+
+  function openNotification(item: NotificationItem) {
+    // An announcement is the whole message already — there is nowhere to send
+    // the reader, so the tray stays where it is rather than shutting on the
+    // words they just clicked. Everything else opens first; the dot is cleared
+    // afterwards, behind the click.
+    if (item.type !== "announcement") {
+      setOpen(false)
+
+      if (item.type === "changelog") {
+        void navigate({ to: "/changelog/whats-new" })
+      } else if (item.feedback_id) {
+        onOpenFeedback?.(item.feedback_id)
       }
     }
 
-    // An announcement is the whole message already — there is nowhere to send
-    // the reader, so it is now marked read and the tray stays where it is
-    // rather than shutting on the words they just clicked.
-    if (item.type === "announcement") {
-      return
-    }
-
-    setOpen(false)
-
-    if (item.type === "changelog") {
-      void navigate({ to: "/changelog/whats-new" })
-      return
-    }
-    if (item.feedback_id) {
-      onOpenFeedback?.(item.feedback_id)
-    }
+    markReadInBackground(item)
   }
 
   return (
@@ -387,7 +414,7 @@ export function NotificationCenter({
                       key={item.id}
                       type="button"
                       className="grid w-full grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60"
-                      onClick={() => void openNotification(item)}
+                      onClick={() => openNotification(item)}
                     >
                       <div className="pt-5">
                         {!item.read_at ? (

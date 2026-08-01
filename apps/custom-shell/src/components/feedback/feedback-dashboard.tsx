@@ -1,6 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 import {
+  Loader2Icon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
   SaveIcon,
@@ -634,7 +635,15 @@ function EditFeedbackModal({
   const busy = saving || deleting
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A save or delete in flight holds the window open, so the X, the
+        // overlay and Escape cannot walk away from it.
+        if (!next && busy) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Edit Feedback</DialogTitle>
@@ -690,11 +699,21 @@ function EditFeedbackModal({
               onClick={handleDelete}
               disabled={busy}
             >
-              <Trash2Icon className="h-4 w-4" />
+              {/* Both buttons grey out together, so only the one that is
+                  actually running spins. */}
+              {deleting ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2Icon className="h-4 w-4" />
+              )}
               Delete
             </Button>
             <Button type="button" onClick={handleSave} disabled={busy}>
-              <SaveIcon className="h-4 w-4" />
+              {saving ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <SaveIcon className="h-4 w-4" />
+              )}
               Save
             </Button>
           </>

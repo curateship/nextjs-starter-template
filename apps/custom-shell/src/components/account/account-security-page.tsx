@@ -176,6 +176,7 @@ function ChangePasswordCard({
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={saving}>
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               {hasPassword ? "Update password" : "Set password"}
             </Button>
             {saved ? (
@@ -195,7 +196,9 @@ function ChangePasswordCard({
 function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
   const [list, setList] = React.useState<SessionList | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [working, setWorking] = React.useState(false)
+  // Which action is running, so only the button that was clicked spins while
+  // all of them grey out. Null means nothing is running.
+  const [runningId, setRunningId] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<string | null>(null)
 
   // Bumped to ask for the list again — by the retry button, and after anything
@@ -218,21 +221,25 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
     }
   }, [devicesChanged, reloads])
 
-  // One switch for both actions, so a second click cannot start while the first
-  // is still running.
-  const run = React.useCallback(async (action: () => Promise<string>) => {
-    setWorking(true)
-    setResult(null)
-    try {
-      setResult(await action())
-      setReloads((count) => count + 1)
-    } catch (sessionError) {
-      showErrorToast(getAuthErrorMessage(sessionError))
-    } finally {
-      setWorking(false)
-    }
-  }, [])
+  // Every sign-out goes through here, so a second click cannot start while the
+  // first is still running. `id` is what the running button spins by.
+  const run = React.useCallback(
+    async (id: string, action: () => Promise<string>) => {
+      setRunningId(id)
+      setResult(null)
+      try {
+        setResult(await action())
+        setReloads((count) => count + 1)
+      } catch (sessionError) {
+        showErrorToast(getAuthErrorMessage(sessionError))
+      } finally {
+        setRunningId(null)
+      }
+    },
+    []
+  )
 
+  const working = runningId !== null
   const hidden = list ? list.total - list.sessions.length : 0
 
   return (
@@ -310,13 +317,17 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
                           title="Sign out this device"
                           aria-label={`Sign out ${session.device}`}
                           onClick={() =>
-                            void run(async () => {
+                            void run(session.id, async () => {
                               await revokeSession(session.id)
                               return `Signed out ${session.device}.`
                             })
                           }
                         >
-                          <LogOutIcon className="size-4" />
+                          {runningId === session.id ? (
+                            <Loader2Icon className="size-4 animate-spin" />
+                          ) : (
+                            <LogOutIcon className="size-4" />
+                          )}
                         </Button>
                       )}
                     </TableCell>
@@ -333,12 +344,15 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
               variant="outline"
               disabled={working}
               onClick={() =>
-                void run(async () => {
+                void run("all-others", async () => {
                   const { removed } = await signOutOtherSessions()
                   return `Signed out ${removed} other ${removed === 1 ? "device" : "devices"}.`
                 })
               }
             >
+              {runningId === "all-others" ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
               Sign out all other devices
             </Button>
             {hidden > 0 ? (

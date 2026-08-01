@@ -52,6 +52,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { showErrorToast } from "@/lib/error-toast"
 import { cn } from "@/lib/utils"
 import {
   isShellEntryNamed,
@@ -96,6 +97,10 @@ type SidebarSettingsProps = {
 type SortableItemProps = {
   sectionId: string
   item: ShellItem
+  /** Which link's editor is open, and the new child link — see the parent. */
+  openItemId: string | null
+  onOpenItemChange: (itemId: string | null) => void
+  newChildId: string | null
   onItemChange: (
     sectionId: string,
     itemId: string,
@@ -120,6 +125,8 @@ type SortableItemProps = {
 
 type SortableChildProps = {
   child: ShellChildItem
+  /** True for the child link "Add Child" just made, which takes the cursor. */
+  isNew: boolean
   onChange: (childId: string, patch: Partial<ShellChildItem>) => void
   onDelete: (childId: string) => void
 }
@@ -127,10 +134,12 @@ type SortableChildProps = {
 type SortableSectionProps = {
   section: ShellSection
   isDraggingItem: boolean
+  /** Which link's editor is open, and the new child link — see the parent. */
+  openItemId: string | null
+  onOpenItemChange: (itemId: string | null) => void
+  newChildId: string | null
   onSectionTitleChange: (sectionId: string, title: string) => void
   onSectionDelete: (sectionId: string) => void
-  onReset: () => void
-  resetLabel: string
   onItemAdd: (sectionId: string) => void
   onItemChange: (
     sectionId: string,
@@ -172,6 +181,67 @@ function updateSection(
   )
 }
 
+/**
+ * Why this address will not work, in the words the user gets told, or null when
+ * it is fine. It checks the shape only — a path inside the app, or a full web
+ * address — never whether the route exists, and it never blocks a save. A dead
+ * address is a warning, the same as a bad hex colour in Styling settings.
+ *
+ * A blank address is only a problem once the link has a name. A brand new link
+ * starts blank on purpose and stays out of the sidebar until it is named.
+ *
+ * `href` is typed as required, but stored sections come back from jsonb with
+ * only an Array.isArray check, so a legacy or hand-edited row can arrive
+ * without one — same reason `isShellEntryNamed` guards its label.
+ */
+function getShellHrefProblem(href: string | undefined, isNamed: boolean) {
+  if (!href) {
+    return isNamed ? "Give this link an address, like /admin/media." : null
+  }
+
+  if (/\s/.test(href)) {
+    return "An address cannot contain spaces. Try /admin/media."
+  }
+
+  if (href.startsWith("/")) return null
+
+  if (/^https?:\/\//i.test(href)) {
+    try {
+      new URL(href)
+      return null
+    } catch {
+      return "That is not a complete web address. Try https://example.com."
+    }
+  }
+
+  return "An address has to start with / — like /admin/media — or be a full web address, like https://example.com."
+}
+
+/**
+ * The props that turn an address box into a checked one. Both address boxes —
+ * the link's and its children's — spread this, so the two can never drift into
+ * warning about different things.
+ *
+ * The red ring on a *blank* address waits until you have actually been in the
+ * box: naming a brand new link would otherwise redden an address field you have
+ * not reached yet. Anything already typed is wrong on sight, so a link saved
+ * before this check existed shows its problem the moment its editor opens. The
+ * message itself is a toast on leaving the field, never per keystroke.
+ */
+function useCheckedAddress(href: string | undefined, isNamed: boolean) {
+  const [touched, setTouched] = React.useState(false)
+  const problem = getShellHrefProblem(href, isNamed)
+
+  return {
+    "aria-invalid":
+      (Boolean(problem) && (Boolean(href) || touched)) || undefined,
+    onBlur: () => {
+      setTouched(true)
+      if (problem) showErrorToast(problem)
+    },
+  }
+}
+
 function DividerPreview({ entry }: { entry: ShellEntry }) {
   if (isShellItem(entry)) {
     return null
@@ -184,8 +254,10 @@ function DividerPreview({ entry }: { entry: ShellEntry }) {
   )
 }
 
-function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
-  const childName = isShellEntryNamed(child) ? child.label : "child link"
+function SortableChild({ child, isNew, onChange, onDelete }: SortableChildProps) {
+  const isNamed = isShellEntryNamed(child)
+  const childName = isNamed ? child.label : "child link"
+  const addressCheck = useCheckedAddress(child.href, isNamed)
   const {
     attributes,
     listeners,
@@ -223,7 +295,12 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
         ghost
         onValueChange={(icon) => onChange(child.id, { icon })}
       />
+      {/* A child row has no editor of its own, so "ready to type" is the cursor
+          landing here the moment "Add Child" makes the row — which also scrolls
+          it into view at the bottom of a long list. Mount-only, so an existing
+          child never takes focus when the link's editor is reopened. */}
       <Input
+        autoFocus={isNew}
         value={child.label}
         onChange={(event) => onChange(child.id, { label: event.target.value })}
         placeholder="Child label"
@@ -236,6 +313,7 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
         placeholder="/admin/example"
         aria-label="Child URL"
         className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
+        {...addressCheck}
       />
       <Button
         type="button"
@@ -253,6 +331,9 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
 function SortableSidebarItem({
   sectionId,
   item,
+  openItemId,
+  onOpenItemChange,
+  newChildId,
   onItemChange,
   onItemDelete,
   onChildAdd,
@@ -261,12 +342,16 @@ function SortableSidebarItem({
   onChildDragEnd,
   onSaveConfig,
 }: SortableItemProps) {
-  const [dialogOpen, setDialogOpen] = React.useState(false)
   const labelInputRef = React.useRef<HTMLInputElement>(null)
+  // Whether this row's editor is open is the parent's business, not the row's:
+  // it is the only way "Add Link" can open the editor of the link it has just
+  // made. It also means a row remounting mid-drag cannot lose or reopen it.
+  const dialogOpen = openItemId === item.id
   // One source of truth for "has this link been named yet" — it drives the row
   // text, the accessible names, the dialog title and where focus lands.
   const isNamed = isShellEntryNamed(item)
   const itemName = isNamed ? item.label : "sidebar link"
+  const addressCheck = useCheckedAddress(item.href, isNamed)
   const {
     attributes,
     listeners,
@@ -309,7 +394,7 @@ function SortableSidebarItem({
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
-          onClick={() => setDialogOpen(true)}
+          onClick={() => onOpenItemChange(item.id)}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center text-foreground">
             {renderShellIcon(item.icon, "h-4 w-4")}
@@ -364,7 +449,10 @@ function SortableSidebarItem({
         </Button>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => onOpenItemChange(open ? item.id : null)}
+      >
         <DialogContent
           variant="admin"
           // Opening a link that has no name yet drops the cursor straight in
@@ -418,6 +506,7 @@ function SortableSidebarItem({
                     }
                     placeholder="/admin/example"
                     aria-label="Sidebar link URL"
+                    {...addressCheck}
                   />
                 </div>
 
@@ -461,6 +550,7 @@ function SortableSidebarItem({
                           <SortableChild
                             key={child.id}
                             child={child}
+                            isNew={child.id === newChildId}
                             onChange={(childId, patch) =>
                               onChildChange(sectionId, item.id, childId, patch)
                             }
@@ -486,7 +576,7 @@ function SortableSidebarItem({
               onClick={async () => {
                 // Edits already auto-save; flush any pending debounce, then close.
                 await onSaveConfig()
-                setDialogOpen(false)
+                onOpenItemChange(null)
               }}
             >
               Done
@@ -501,10 +591,11 @@ function SortableSidebarItem({
 function SortableSectionCard({
   section,
   isDraggingItem,
+  openItemId,
+  onOpenItemChange,
+  newChildId,
   onSectionTitleChange,
   onSectionDelete,
-  onReset,
-  resetLabel,
   onItemAdd,
   onItemChange,
   onItemDelete,
@@ -539,7 +630,11 @@ function SortableSectionCard({
   return (
     <Card ref={setNodeRef} style={style}>
       <CardContent className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        {/* Wraps rather than side-scrolls: on a phone the title keeps a usable
+            width and the buttons drop to their own line. `basis-40` is what
+            makes that happen — a flex-1 child alone has a zero base size, so
+            the row would squeeze the title to nothing before it ever wrapped. */}
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             {...attributes}
@@ -549,7 +644,7 @@ function SortableSectionCard({
           >
             <GripVertical className="h-4 w-4" />
           </button>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-40">
             <Input
               value={section.title}
               onChange={(event) =>
@@ -560,13 +655,7 @@ function SortableSectionCard({
               className="h-8 max-w-xs border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:bg-muted/40 focus-visible:bg-background"
             />
           </div>
-          <div className="flex items-center gap-2">
-            {/* Not a per-section reset — it throws away every section on this
-                sidebar, so the label has to say which sidebar that is. */}
-            <Button type="button" variant="outline" size="sm" onClick={onReset}>
-              <RotateCcwIcon className="h-4 w-4" />
-              {resetLabel}
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
@@ -609,6 +698,9 @@ function SortableSectionCard({
                   key={entry.id}
                   sectionId={section.id}
                   item={entry}
+                  openItemId={openItemId}
+                  onOpenItemChange={onOpenItemChange}
+                  newChildId={newChildId}
                   onItemChange={onItemChange}
                   onItemDelete={onItemDelete}
                   onChildAdd={onChildAdd}
@@ -645,6 +737,11 @@ export function SidebarSettings({
   reset,
 }: SidebarSettingsProps) {
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
+  // Which link's editor is open, and which child link was just added. Both are
+  // held here rather than in the rows because that is the only way "Add" can
+  // hand the thing it has just made straight to the user, ready to type in.
+  const [openItemId, setOpenItemId] = React.useState<string | null>(null)
+  const [newChildId, setNewChildId] = React.useState<string | null>(null)
   const [resetOpen, setResetOpen] = React.useState(false)
   const [pendingDeleteSectionId, setPendingDeleteSectionId] = React.useState<
     string | null
@@ -723,6 +820,13 @@ export function SidebarSettings({
     [emptySectionIds, itemIds, sectionIds]
   )
 
+  const handleOpenItemChange = (itemId: string | null) => {
+    setOpenItemId(itemId)
+    // A new child link only claims the cursor for the editor session that made
+    // it, so reopening a link later never pulls focus into an old child row.
+    setNewChildId(null)
+  }
+
   const handleAddItem = (sectionId: string) => {
     const item: ShellItem = {
       type: "item",
@@ -733,6 +837,9 @@ export function SidebarSettings({
       visible: true,
     }
 
+    // The editor opens on the same click that makes the link, so a blank row
+    // never has to be hunted down at the bottom of the section and clicked.
+    handleOpenItemChange(item.id)
     onSectionsChange(
       updateSection(sections, sectionId, (section) => ({
         ...section,
@@ -963,6 +1070,7 @@ export function SidebarSettings({
       href: "",
     }
 
+    setNewChildId(child.id)
     onSectionsChange(
       updateSection(sections, sectionId, (section) => ({
         ...section,
@@ -1112,12 +1220,13 @@ export function SidebarSettings({
                 key={section.id}
                 section={section}
                 isDraggingItem={isDraggingItem}
+                openItemId={openItemId}
+                onOpenItemChange={handleOpenItemChange}
+                newChildId={newChildId}
                 onSectionTitleChange={handleSectionTitleChange}
                 onSectionDelete={(sectionId) =>
                   setPendingDeleteSectionId(sectionId)
                 }
-                onReset={() => setResetOpen(true)}
-                resetLabel={reset.label}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={(_sectionId, itemId) =>
@@ -1135,7 +1244,11 @@ export function SidebarSettings({
           </CardGroup>
         </SortableContext>
       </DndContext>
-      <div className="mt-3 flex justify-end">
+      {/* The tab's own actions, and the only reset on the page — it wipes the
+          whole sidebar, so it is the last button in the row and the only red
+          one, instead of being repeated on every section card next to
+          "Add Link" where it read as a per-section reset. */}
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
         <Button
           type="button"
           variant="outline"
@@ -1143,6 +1256,14 @@ export function SidebarSettings({
         >
           <PlusIcon className="h-4 w-4" />
           Add Section
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => setResetOpen(true)}
+        >
+          <RotateCcwIcon className="h-4 w-4" />
+          {reset.label}
         </Button>
       </div>
 

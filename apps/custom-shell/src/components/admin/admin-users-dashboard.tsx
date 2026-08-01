@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   EyeIcon,
+  Loader2Icon,
   RotateCcwIcon,
   SettingsIcon,
   Trash2Icon,
@@ -284,7 +285,11 @@ export function AdminUsersDashboard({
                 disabled={restoring}
                 onClick={() => void restoreSelected()}
               >
-                <RotateCcwIcon className="size-4" />
+                {restoring ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <RotateCcwIcon className="size-4" />
+                )}
                 Restore ({selectedDeletedIds.length})
               </DashboardToolbarButton>
             ) : null}

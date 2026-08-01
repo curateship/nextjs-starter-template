@@ -749,6 +749,7 @@ function MediaDetailsDialog({
           </Button>
           {editable ? (
             <Button type="button" disabled={saving} onClick={() => void handleSave()}>
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Save
             </Button>
           ) : null}
