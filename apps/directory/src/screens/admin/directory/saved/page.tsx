@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import Bookmark from "lucide-react/dist/esm/icons/bookmark.js"
 import FolderOpen from "lucide-react/dist/esm/icons/folder-open.js"
-import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
@@ -24,6 +23,8 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -358,29 +359,19 @@ export default function DirectorySavedPage() {
                         <TableCell column="mutedMeta">{folder.item_count}</TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={folderActivity(folder)} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => openRename(folder)}
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label={folder.default_key ? "Use Default Folders to rename this label" : "Folder settings"}
                               disabled={Boolean(folder.default_key)}
-                              title={folder.default_key ? "Use Default Folders to rename this label" : "Rename folder"}
-                            >
-                              <Pencil className="h-4 w-4" />
-                              <span className="sr-only">Rename</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                              onClick={() => openRename(folder)}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={folder.default_key ? "Clear folder" : "Delete folder"}
                               onClick={() => setRemoveIds([folder.id])}
-                              title={folder.default_key ? "Clear folder" : "Delete folder"}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">{folder.default_key ? "Clear" : "Delete"}</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

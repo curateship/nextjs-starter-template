@@ -14,6 +14,8 @@ import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/Apply
 import {
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminTableShell,
   ConfirmDestructive,
@@ -34,12 +36,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -60,11 +56,10 @@ import {
   deleteTemplateAction,
   getTemplateSitesAction,
 } from "@/lib/actions/themes/user-theme-actions";
-import Edit from "lucide-react/dist/esm/icons/square-pen.js"
-import MoreHorizontal from "lucide-react/dist/esm/icons/ellipsis.js"
 import Paintbrush from "lucide-react/dist/esm/icons/paintbrush.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
@@ -348,75 +343,43 @@ export default function ThemesPage() {
                           <RelativeDate date={template.created_at} />
                         </TableCell>
                         <TableCell column="meta">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link
-                                  href={`/admin/pages/${template.id}`}
-                                  className="flex items-center"
-                                >
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Edit
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  setApplyDialog({
-                                    open: true,
-                                    templateId: template.id,
-                                    templateName: template.name,
-                                  })
-                                }
-                              >
-                                <Paintbrush className="mr-2 h-4 w-4" />
-                                Apply to Site
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  setRenameName(template.name);
-                                  setTimeout(
-                                    () =>
-                                      setRenameDialog({
-                                        open: true,
-                                        templateId: template.id,
-                                        currentName: template.name,
-                                      }),
-                                    0,
-                                  );
-                                }}
-                              >
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  setTimeout(
-                                    () =>
-                                      setDeleteDialog({
-                                        open: true,
-                                        templateId: template.id,
-                                        templateName: template.name,
-                                      }),
-                                    0,
-                                  )
-                                }
-                                className="text-foreground focus:text-foreground"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Theme
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Paintbrush}
+                              label="Apply to site"
+                              onClick={() => setApplyDialog({
+                                open: true,
+                                templateId: template.id,
+                                templateName: template.name,
+                              })}
+                            />
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Rename theme"
+                              onClick={() => {
+                                setRenameName(template.name)
+                                setRenameDialog({
+                                  open: true,
+                                  templateId: template.id,
+                                  currentName: template.name,
+                                })
+                              }}
+                            />
+                            <AdminRowAction
+                              icon={Pencil}
+                              label="Edit theme"
+                              href={`/admin/pages/${template.id}`}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete theme"
+                              onClick={() => setDeleteDialog({
+                                open: true,
+                                templateId: template.id,
+                                templateName: template.name,
+                              })}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

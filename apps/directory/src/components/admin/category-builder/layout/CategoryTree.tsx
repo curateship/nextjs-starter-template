@@ -3,9 +3,8 @@
 import { useState } from "react"
 import type { Category } from "@/lib/actions/categories/category-actions"
 import { deleteCategoryAction } from "@/lib/actions/categories/category-actions"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import Edit from "lucide-react/dist/esm/icons/square-pen.js"
+import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Eye from "lucide-react/dist/esm/icons/eye.js"
 import EyeOff from "lucide-react/dist/esm/icons/eye-off.js"
@@ -14,7 +13,7 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import Link from "@/components/app-link"
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
-import { RelativeDate } from "@/components/admin/layout/list"
+import { AdminRowAction, AdminRowActions, RelativeDate } from "@/components/admin/layout/list"
 import { CategorySettingsModal } from "./CategorySettingsModal"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableRow } from "@/components/ui/table"
@@ -175,37 +174,23 @@ export function CategoryTree({
           <TableCell column="mutedMeta">{assignmentCounts[category.id] || 0}</TableCell>
           <TableCell column="mutedMeta"><RelativeDate date={category.updated_at} /></TableCell>
           <TableCell column="meta">
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
+            <AdminRowActions>
+              <AdminRowAction
+                icon={Settings}
+                label="Category settings"
                 onClick={() => handleSettingsClick(category)}
-              >
-                <Settings className="w-4 h-4" />
-                <span className="sr-only">Settings</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                asChild
-              >
-                <Link href={`/admin/categories/builder/${siteId}?category=${category.slug}`}>
-                  <Edit className="w-4 h-4" />
-                  <span className="sr-only">Edit</span>
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+              />
+              <AdminRowAction
+                icon={Pencil}
+                label="Edit category"
+                href={`/admin/categories/builder/${siteId}?category=${category.slug}`}
+              />
+              <AdminRowAction
+                icon={Trash2}
+                label="Delete category"
                 onClick={() => handleDeleteClick(category)}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete</span>
-              </Button>
-            </div>
+              />
+            </AdminRowActions>
           </TableCell>
           </TableRow>
         )

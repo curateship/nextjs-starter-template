@@ -18,6 +18,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -55,8 +57,8 @@ import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import Handshake from "lucide-react/dist/esm/icons/handshake.js"
-import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
 type SponsorFilter = "all" | "active" | "inactive"
@@ -389,28 +391,18 @@ export default function SponsorsPage() {
                         </TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={sponsor.updated_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Sponsor settings"
                               onClick={() => openEdit(sponsor)}
-                              title="Edit sponsor"
-                            >
-                              <Pencil className="h-4 w-4" />
-                              <span className="sr-only">Edit sponsor</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete sponsor"
                               onClick={() => setDeleteSponsor(sponsor)}
-                              title="Delete sponsor"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete sponsor</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     )

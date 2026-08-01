@@ -43,6 +43,20 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Order footer actions as Cancel, then primary or destructive. Disable running actions and show a compact loading indicator.
 - Icon-only buttons require an accessible name and a tooltip when their meaning is not obvious.
 - Use the established Lucide action icons consistently: `PencilIcon` for edit, `Trash2Icon` for delete, `PlusIcon` for add, and `Loader2Icon` for loading.
+- **Every row of action icons is the same set, in the same order, on every list.** Build it from the shared `AdminRowActions` + `AdminRowAction` (`src/components/admin/layout/list/components.tsx`) — never hand-roll a ghost icon button in a table row. `AdminRowAction` requires a `label`, which it renders as both the hover tooltip and the screen-reader name, so a row action cannot ship without either; a disabled action gets its tooltip from a wrapper, because a disabled control takes no pointer events. Its `className` is for layout or visibility only, never a different look.
+
+  | Order | Meaning | Icon | What it opens or does |
+  | --- | --- | --- | --- |
+  | 1 | screen-specific actions | varies | run, pause, set-as-default, delivery events — anything only that list has |
+  | 2 | settings | `Settings` | this row's settings or edit **dialog** |
+  | 3 | preview | `Eye` | the public version, in a new tab |
+  | 4 | duplicate | `Copy` | |
+  | 5 | edit | `Pencil` | this row's full **editor or builder page** |
+  | 6 | send | `Send` | publish or send |
+  | 7 | archive | `Archive` | |
+  | 8 | delete | `Trash2` | **always last** |
+
+  Two rules keep it honest. **The last icon means delete and nothing else** — `Trash2` never stands for archive, and archive never takes delete's place; a list whose rows can only archive still ends in `Archive`, and one that cannot delete at all shows no trash. **Gear and pencil are not interchangeable**: a gear opens a dialog, a pencil leaves for a page. A screen that cannot do one of these simply leaves it out and the rest keep their relative order — a list with no preview has no eye, it does not shuffle everything up.
 - Give every field a visible label. Keep help and error text beside the field and preserve entered values after errors.
 - Color fields use the shared `HexColorInput` (`src/components/ui/hex-color-input.tsx`): a swatch plus a hex text box. Only a full 6-digit `#rrggbb` is ever saved; leaving the box with anything else marks the field, reports through the shared error toast, and keeps the last good color in force. Never wire a bare color input + text input pair by hand.
 - Draggable or repeatable text-field lists start with one default row. Users add more rows explicitly; do not create multiple empty rows by default.

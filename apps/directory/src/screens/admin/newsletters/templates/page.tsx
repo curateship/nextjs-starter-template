@@ -19,6 +19,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -31,9 +33,9 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
-import Settings from "lucide-react/dist/esm/icons/settings.js"
 import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Star from "lucide-react/dist/esm/icons/star.js"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -340,44 +342,29 @@ export default function TemplatesPage() {
                         <TableCell column="mutedMeta">{getBlockCount(template)}</TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={template.updated_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={cn("h-8 w-8 p-0", template.is_default && "text-yellow-500 hover:text-yellow-500")}
-                              onClick={() => handleSetDefault(template.id)}
-                              title={template.is_default ? "Default template" : "Set as default"}
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Star}
+                              className={cn(template.is_default && "text-yellow-500 hover:text-yellow-500 [&_svg]:fill-current")}
+                              label={template.is_default ? "Default template" : "Set as default"}
                               disabled={template.is_default}
-                            >
-                              <Star className={cn("h-4 w-4", template.is_default && "fill-current")} />
-                              <span className="sr-only">{template.is_default ? "Default" : "Set as default"}</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => router.push(`/admin/newsletters/templates/${template.id}`)}
-                              title="Edit Template"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit Template</span>
-                            </Button>
-                            {!template.is_default && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                                onClick={() => {
-                                  templateSelection.selectOnly([template.id])
-                                  setMassDeleteConfirmOpen(true)
-                                }}
-                                title="Delete Template"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Delete Template</span>
-                              </Button>
-                            )}
-                          </div>
+                              onClick={() => handleSetDefault(template.id)}
+                            />
+                            <AdminRowAction
+                              icon={Pencil}
+                              label="Edit template"
+                              href={`/admin/newsletters/templates/${template.id}`}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={template.is_default ? "The default template cannot be deleted" : "Delete template"}
+                              disabled={template.is_default}
+                              onClick={() => {
+                                templateSelection.selectOnly([template.id])
+                                setMassDeleteConfirmOpen(true)
+                              }}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

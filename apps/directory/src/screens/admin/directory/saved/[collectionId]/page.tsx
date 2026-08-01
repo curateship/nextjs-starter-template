@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import Bookmark from "lucide-react/dist/esm/icons/bookmark.js"
-import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import FolderOpen from "lucide-react/dist/esm/icons/folder-open.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
@@ -23,6 +23,8 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminTableShell,
   ConfirmDestructive,
@@ -310,24 +312,19 @@ export default function DirectorySavedFolderPage({
                         </TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={item.saved_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <a href={`/directory/${item.directory_slug}`} target="_blank" rel="noopener noreferrer" title="View listing">
-                                <ExternalLink className="h-4 w-4" />
-                                <span className="sr-only">View Listing</span>
-                              </a>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Eye}
+                              external
+                              href={`/directory/${item.directory_slug}`}
+                              label="Preview listing"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Remove saved listing"
                               onClick={() => setRemoveIds([item.id])}
-                              title="Remove saved listing"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Remove</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

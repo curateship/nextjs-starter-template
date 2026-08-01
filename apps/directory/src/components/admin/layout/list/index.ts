@@ -3,6 +3,8 @@ export {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSelectionBanner,
   AdminSortButton,
   AdminSortableHead,

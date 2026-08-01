@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import {
   archiveGuidedFormsImpl,
   createGuidedFormImpl,
+  deleteGuidedFormsImpl,
   getGuidedFormByIdImpl,
   getGuidedFormSubmissionsImpl,
   getGuidedFormsBySiteImpl,
@@ -41,6 +42,10 @@ export const publishGuidedForm = createServerFn({ method: "POST" })
 export const archiveGuidedForms = createServerFn({ method: "POST" })
   .inputValidator((data: { ids: string[] }) => data)
   .handler(async ({ data }) => archiveGuidedFormsImpl(data.ids))
+
+export const deleteGuidedForms = createServerFn({ method: "POST" })
+  .inputValidator((data: { ids: string[] }) => data)
+  .handler(async ({ data }) => deleteGuidedFormsImpl(data.ids))
 
 export const getGuidedFormSubmissions = createServerFn({ method: "POST" })
   .inputValidator((data: { formId: string; options?: { page?: number; pageSize?: number } }) => data)

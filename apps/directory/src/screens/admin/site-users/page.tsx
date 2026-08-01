@@ -25,6 +25,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -689,29 +691,19 @@ export default function SiteUsersPage() {
                         <TableCell column="mutedMeta"><RelativeDate date={user.created_at} /></TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={user.last_sign_in_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="User settings"
                               onClick={() => openEditModal(user)}
-                              title="Edit User"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit User</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                              onClick={() => handleDelete(user.id)}
-                              title="Delete User"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={user.role === "owner" ? "The owner cannot be removed" : "Delete user"}
                               disabled={user.role === "owner" || massDeleting}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete User</span>
-                            </Button>
-                          </div>
+                              onClick={() => handleDelete(user.id)}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

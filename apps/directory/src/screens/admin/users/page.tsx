@@ -8,6 +8,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -581,19 +583,16 @@ export default function UsersPage() {
                         <TableCell column="mutedMeta"><RelativeDate date={user.created_at} /></TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={user.last_sign_in_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
-                          {user.id !== currentUserId && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                              disabled={deletingUserId === user.id}
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={user.id === currentUserId
+                                ? "You cannot delete your own account"
+                                : `Delete ${user.display_name || user.email}`}
+                              disabled={user.id === currentUserId || deletingUserId === user.id}
                               onClick={() => { setError(null); setPendingDeleteUser(user) }}
-                              aria-label={`Delete ${user.display_name || user.email}`}
-                              title={`Delete ${user.display_name || user.email}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

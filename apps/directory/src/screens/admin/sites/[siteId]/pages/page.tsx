@@ -42,6 +42,7 @@ export default function SitePagesPage({ params }: { params: Promise<{ siteId: st
     <ContentListPage<Page>
       builderPath="/admin/pages"
       canDeleteItem={(page) => !page.is_homepage}
+      deleteBlockedLabel="The homepage cannot be deleted"
       canSelectItem={(page) => !page.is_homepage}
       columnCount={5}
       createButtonLabel="Create Page"

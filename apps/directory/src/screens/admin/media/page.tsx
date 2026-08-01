@@ -10,7 +10,8 @@ import Grid from "lucide-react/dist/esm/icons/grid-3x3.js"
 import List from "lucide-react/dist/esm/icons/list.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
-import Edit from "lucide-react/dist/esm/icons/square-pen.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
 import VideoIcon from "lucide-react/dist/esm/icons/video.js"
 import Upload from "lucide-react/dist/esm/icons/upload.js"
 import {
@@ -23,6 +24,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -483,24 +486,16 @@ export default function ImagesPage() {
                                 aria-label={`Select ${media.original_name}`}
                               />
                             </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
+                            <AdminRowAction
+                              icon={Settings}
+                              label="File settings"
                               onClick={() => handleEditImage(media)}
-                              className="h-8 w-8 cursor-pointer p-0"
-                              aria-label="Edit media"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete file"
                               onClick={() => setDeleteTarget(media)}
-                              className="h-8 w-8 cursor-pointer p-0 text-foreground hover:text-foreground"
-                              aria-label="Delete media"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            />
                           </div>
                         </div>
                       )
@@ -597,38 +592,26 @@ export default function ImagesPage() {
                             <TableCell column="mutedMeta">{formatFileSize(media.file_size)}</TableCell>
                             <TableCell column="mutedMeta"><RelativeDate date={media.created_at} /></TableCell>
                             <TableCell column="meta">
-                              <div className="flex items-center space-x-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                              <AdminRowActions>
+                                <AdminRowAction
+                                  icon={Settings}
+                                  className="md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                  label="File settings"
                                   onClick={() => handleEditImage(media)}
-                                  title="Edit Details"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  <span className="sr-only">Edit</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => window.open(media.public_url, "_blank")}
-                                  title="View Original"
-                                >
-                                  <ImageIcon className="h-4 w-4" />
-                                  <span className="sr-only">View Original</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-foreground hover:text-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                />
+                                <AdminRowAction
+                                  icon={Eye}
+                                  external
+                                  href={media.public_url}
+                                  label="Preview original"
+                                />
+                                <AdminRowAction
+                                  icon={Trash2}
+                                  className="md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                  label="Delete file"
                                   onClick={() => setDeleteTarget(media)}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              </div>
+                                />
+                              </AdminRowActions>
                             </TableCell>
                           </TableRow>
                         )

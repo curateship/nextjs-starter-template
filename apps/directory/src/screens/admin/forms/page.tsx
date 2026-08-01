@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import Archive from "lucide-react/dist/esm/icons/archive.js"
 import ClipboardList from "lucide-react/dist/esm/icons/clipboard-list.js"
-import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Send from "lucide-react/dist/esm/icons/send.js"
@@ -31,6 +31,8 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   ConfirmDestructive,
   AdminListFooter,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortButton,
   AdminTableShell, AdminListPending,
   RelativeDate,
@@ -72,6 +74,7 @@ import {
 import {
   archiveGuidedForms,
   createGuidedForm,
+  deleteGuidedForms,
   getGuidedFormsBySite,
   publishGuidedForm,
   updateGuidedForm,
@@ -762,6 +765,9 @@ export default function AdminGuidedFormsPage() {
   const [archiveError, setArchiveError] = useState<string | null>(null)
   const [bulkArchiving, setBulkArchiving] = useState(false)
   const [bulkArchiveConfirmOpen, setBulkArchiveConfirmOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [publishingId, setPublishingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<FormStatusFilter>("all")
@@ -870,6 +876,22 @@ export default function AdminGuidedFormsPage() {
     formSelection.remove(formId)
     setPendingArchiveId(null)
     showActionSuccess("Form archived.")
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteId) return
+    const formId = pendingDeleteId
+    setDeleting(true)
+    const result = await deleteGuidedForms({ data: { ids: [formId] } })
+    setDeleting(false)
+    if (result.error) {
+      setDeleteError(result.error)
+      return
+    }
+    setForms((current) => current.filter((form) => form.id !== formId))
+    formSelection.remove(formId)
+    setPendingDeleteId(null)
+    showActionSuccess("Form deleted.")
   }
 
   async function handleBulkArchive() {
@@ -1035,42 +1057,39 @@ export default function AdminGuidedFormsPage() {
                     <TableCell column="meta">{form.submission_count.toLocaleString()}</TableCell>
                     <TableCell column="mutedMeta"><RelativeDate date={form.updated_at} /></TableCell>
                     <TableCell column="meta">
-                      <div className="flex items-center">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSettingsForm(form)} title="Form settings">
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Form settings</span>
-                        </Button>
+                      <AdminRowActions>
+                        <AdminRowAction
+                          icon={Settings}
+                          label="Form settings"
+                          onClick={() => setSettingsForm(form)}
+                        />
                         {form.status === "published" ? (
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                            <Link href={`${publicSiteUrl}/forms/${form.slug}`} target="_blank" title="Open form">
-                              <ExternalLink className="h-4 w-4" />
-                              <span className="sr-only">Open form</span>
-                            </Link>
-                          </Button>
+                          <AdminRowAction
+                            icon={Eye}
+                            external
+                            href={`${publicSiteUrl}/forms/${form.slug}`}
+                            label="Preview"
+                          />
                         ) : null}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handlePublish(form)}
+                        <AdminRowAction
+                          icon={Send}
+                          label={form.status === "archived" ? "Archived forms cannot be published" : "Publish"}
                           disabled={publishingId === form.id || form.status === "archived"}
-                          title="Publish"
-                        >
-                          <Send className="h-4 w-4" />
-                          <span className="sr-only">Publish</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => { setArchiveError(null); setPendingArchiveId(form.id) }}
+                          onClick={() => handlePublish(form)}
+                        />
+                        <AdminRowAction
+                          icon={Archive}
+                          label={form.status === "archived" ? "Already archived" : "Archive"}
                           disabled={form.status === "archived"}
-                          title="Archive"
-                        >
-                          <Archive className="h-4 w-4" />
-                          <span className="sr-only">Archive</span>
-                        </Button>
-                      </div>
+                          onClick={() => { setArchiveError(null); setPendingArchiveId(form.id) }}
+                        />
+                        <AdminRowAction
+                          icon={Trash2}
+                          label="Delete"
+                          disabled={deleting && pendingDeleteId === form.id}
+                          onClick={() => { setDeleteError(null); setPendingDeleteId(form.id) }}
+                        />
+                      </AdminRowActions>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1130,6 +1149,20 @@ export default function AdminGuidedFormsPage() {
             : undefined}
           onCancel={() => { setBulkArchiveConfirmOpen(false); setArchiveError(null) }}
           onConfirm={handleBulkArchive}
+        />
+
+        <ConfirmDestructive
+          action="delete-form"
+          open={pendingDeleteId !== null}
+          title={`Delete ${forms.find((form) => form.id === pendingDeleteId)?.name || "form"}?`}
+          disabled={deleting}
+          error={deleteError}
+          confirmLabel={deleting ? "Deleting..." : "Delete"}
+          impactRequest={currentSite?.id && pendingDeleteId
+            ? { ids: [pendingDeleteId], siteId: currentSite.id, target: "form-delete" }
+            : undefined}
+          onCancel={() => { setPendingDeleteId(null); setDeleteError(null) }}
+          onConfirm={confirmDelete}
         />
       </AdminLayout>
     </>

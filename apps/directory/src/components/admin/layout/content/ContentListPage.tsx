@@ -13,6 +13,8 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   AdminBulkDeleteButton,
   AdminListFooter,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortButton,
   AdminTableShell, AdminListPending,
   RelativeDate,
@@ -61,6 +63,7 @@ export function ContentListPage<TItem extends ContentListItem>({
   builderPath,
   builderQueryParam,
   canDeleteItem,
+  deleteBlockedLabel = "This one cannot be deleted",
   canSelectItem,
   columnCount = 6,
   createButtonLabel,
@@ -488,55 +491,32 @@ export function ContentListPage<TItem extends ContentListItem>({
                             <RelativeDate date={item.updated_at} />
                           </TableCell>
                           <TableCell column="meta">
-                            <div className="flex items-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
+                            <AdminRowActions>
+                              <AdminRowAction
+                                icon={Settings}
+                                label={`${itemLabel} Settings`}
                                 onClick={() => setSettingsItem(item)}
-                                title={`${itemLabel} Settings`}
-                              >
-                                <Settings className="h-4 w-4" />
-                                <span className="sr-only">{itemLabel} Settings</span>
-                              </Button>
-                              {previewDisabled ? (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled title={`Publish ${itemLabel.toLowerCase()} to preview`}>
-                                  <Eye className="h-4 w-4" />
-                                  <span className="sr-only">Publish {itemLabel.toLowerCase()} to preview</span>
-                                </Button>
-                              ) : (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                                  <a href={previewHref} target="_blank" rel="noopener noreferrer" title="Preview">
-                                    <Eye className="h-4 w-4" />
-                                    <span className="sr-only">Preview</span>
-                                  </a>
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => handleDuplicate(item)}
+                              />
+                              <AdminRowAction
+                                icon={Eye}
+                                external
+                                href={previewHref}
+                                disabled={previewDisabled}
+                                label={previewDisabled ? `Publish ${itemLabel.toLowerCase()} to preview` : "Preview"}
+                              />
+                              <AdminRowAction
+                                icon={Copy}
+                                label="Duplicate"
                                 disabled={duplicatingItemId === item.id}
-                                title="Duplicate"
-                              >
-                                <Copy className="h-4 w-4" />
-                                <span className="sr-only">Duplicate</span>
-                              </Button>
-                              {isDeletable(item) && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                                  onClick={() => setPendingDeleteId(item.id)}
-                                  disabled={deletingItemId === item.id}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              )}
-                            </div>
+                                onClick={() => handleDuplicate(item)}
+                              />
+                              <AdminRowAction
+                                icon={Trash2}
+                                label={isDeletable(item) ? "Delete" : deleteBlockedLabel}
+                                disabled={!isDeletable(item) || deletingItemId === item.id}
+                                onClick={() => setPendingDeleteId(item.id)}
+                              />
+                            </AdminRowActions>
                           </TableCell>
                         </TableRow>
                       )
