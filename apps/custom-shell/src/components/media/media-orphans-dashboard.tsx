@@ -8,7 +8,6 @@ import {
   SettingsIcon,
   Trash2Icon,
   UnlinkIcon,
-  VideoIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -18,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DetailRow } from "@/components/media/media-detail-row"
+import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -637,6 +637,7 @@ function OrphanTableRow({
           <OrphanPreview
             row={row}
             className="size-12 shrink-0 rounded-md border bg-muted"
+            compact
           />
           <div className="min-w-0">
             <button
@@ -773,9 +774,11 @@ function OrphanGalleryItem({
 function OrphanPreview({
   row,
   className,
+  compact = false,
 }: {
   row: MediaOrphan
   className?: string
+  compact?: boolean
 }) {
   return (
     <div className={cn("relative grid place-items-center overflow-hidden", className)}>
@@ -784,18 +787,14 @@ function OrphanPreview({
           <FileQuestionIcon className="size-6" />
           <span className="text-[10px] leading-tight">No file</span>
         </div>
-      ) : row.fileType === "video" ? (
-        <>
-          <video
-            src={row.url}
-            className="h-full w-full object-contain"
-            muted
-            preload="metadata"
-          />
-          <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
-        </>
-      ) : row.fileType === "image" ? (
-        <img src={row.url} alt={row.name} className="h-full w-full object-contain" />
+      ) : row.fileType === "video" || row.fileType === "image" ? (
+        <MediaThumbnail
+          url={row.url}
+          fileType={row.fileType}
+          alt={row.name}
+          className="h-full w-full"
+          compact={compact}
+        />
       ) : (
         <div className="grid place-items-center gap-1 p-2 text-center text-muted-foreground">
           <FileQuestionIcon className="size-6" />

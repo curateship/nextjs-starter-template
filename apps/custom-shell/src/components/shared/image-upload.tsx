@@ -1,7 +1,8 @@
 import * as React from "react"
-import { ImagePlus, PlayIcon, XIcon } from "lucide-react"
+import { ImagePlus, XIcon } from "lucide-react"
 
 import { MediaPicker } from "@/components/media/media-picker"
+import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
@@ -39,7 +40,6 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const aspectClass = aspect === "square" ? "aspect-square" : "aspect-video"
-  const fitClass = fit === "contain" ? "object-contain" : "object-cover"
   const isVideo = showVideos && getMediaType(value) === "video"
 
   return (
@@ -54,20 +54,13 @@ export function ImageUpload({
           aria-label={value ? `Change ${label.toLowerCase()}` : `Select ${label.toLowerCase()}`}
         >
           {value ? (
-            <div className={cn("relative bg-muted/50", aspectClass)}>
-              {isVideo ? (
-                <>
-                  <video src={value} className={cn("h-full w-full", fitClass)} muted playsInline />
-                  <div className="absolute inset-0 grid place-items-center">
-                    <span className="rounded-full bg-black/50 p-2">
-                      <PlayIcon className="size-5 fill-white text-white" />
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <img src={value} alt={label} className={cn("h-full w-full", fitClass)} />
-              )}
-            </div>
+            <MediaThumbnail
+              url={value}
+              fileType={isVideo ? "video" : "image"}
+              alt={label}
+              fit={fit}
+              className={cn("bg-muted/50", aspectClass)}
+            />
           ) : (
             <div
               className={cn(
