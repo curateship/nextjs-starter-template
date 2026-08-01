@@ -254,10 +254,7 @@ export function AdminUsersDashboard({
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <DashboardTable
         title="Users"
         icon={<UsersIcon />}
@@ -661,6 +658,6 @@ export function AdminUsersDashboard({
           }
         }}
       />
-    </div>
+    </>
   )
 }

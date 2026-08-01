@@ -37,7 +37,7 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 
 ## Buttons, Forms, and Action Icons
 
-- Standard buttons are always 32px (`h-8`) by default, including modal footer and table-toolbar buttons. Use another documented size only for a clear compact or prominent context.
+- Standard buttons are always 32px (`h-8`) by default, including table-toolbar buttons. The one exception is modal footers: the shared `DialogFooter` forces its buttons to 36px (`h-9`) — accept that, do not override it. Use another documented size only for a clear compact or prominent context.
 - Use one primary button per action group, `outline` for secondary actions, `ghost` for low-emphasis actions, and destructive styling only for irreversible actions.
 - Order footer actions as Cancel, then primary or destructive. Disable running actions and show a compact loading indicator.
 - Icon-only buttons require an accessible name and a tooltip when their meaning is not obvious.
@@ -70,7 +70,7 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Group the body into white `<Card size="sm">` sections. Put each section title inside `CardHeader`, optional help in `CardDescription`, and fields in `CardContent`; do not leave form fields loose on the shell.
 - Keep the modal's established body gap (`gap-6`) and do not override `DialogBody` spacing.
 - Modal dropdowns use the default 32px height (`h-8`) to match inputs.
-- Keep footers directly on the shell without a border or separate background band.
+- Keep footers directly on the shell without a border or separate background band. Footer buttons are the app's one sanctioned 36px (`h-9`) control; `DialogFooter` applies that itself, so never set a height at the call site.
 - Every footer reads the same way, left to right: `[Delete] ……… [Cancel] [Primary]`. The button that throws something away sits hard left (`className="mr-auto"`) so it cannot be mistaken for the primary. Cancel sits directly left of the primary and carries the same `disabled`, so a half-finished save cannot be walked away from. Primary labels follow one scheme: "Save changes" for an edit, "Create <thing>" for a create, the action's own verb otherwise. A window with nothing to save ends with a single "Done" and no Cancel. Titles are sentence case; confirmations ask a question and name what goes in the confirm button.
 - Keep confirmations compact and explain the consequence in plain English. Tiny title-and-description confirmations do not need cards.
 - A modal that holds typed work uses the shared `FormDialog` (`src/components/ui/form-dialog.tsx`) instead of `Dialog` directly: pass `dirty` and it asks "Discard changes?" before the backdrop, Escape, the X or Cancel can throw the edits away, and `busy` while a save runs. Wire the footer's Cancel to the `requestClose` it hands to its children, or that one path skips the question. Read-only and pick-something modals stay on plain `Dialog`.

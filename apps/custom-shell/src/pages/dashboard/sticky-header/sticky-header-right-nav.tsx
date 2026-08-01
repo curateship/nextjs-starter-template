@@ -69,7 +69,6 @@ export function StickyHeaderRightNav({
               key={item.id}
               type="button"
               variant="outline"
-              size="sm"
               data-icon="inline-start"
               aria-label="Send feedback"
               onClick={onOpenFeedback}

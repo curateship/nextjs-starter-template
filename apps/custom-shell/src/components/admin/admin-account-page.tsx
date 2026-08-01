@@ -34,6 +34,7 @@ import {
 } from "@/lib/feedback-type"
 import { formatFileSize } from "@/lib/format-bytes"
 import { formatDate, formatDateTime } from "@/lib/format-time"
+import { pageGutter } from "@/lib/shell-gutter"
 
 /**
  * Everything about one person on one page, so a support question is answered
@@ -56,10 +57,7 @@ export function AdminAccountPage({
   const { profile, subscription, storage } = detail
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <div className="flex items-center gap-2">
         <Button asChild variant="ghost" size="icon">
           <Link to="/admin/users" aria-label="Back to Users">
@@ -84,7 +82,7 @@ export function AdminAccountPage({
 
       <div
         className="grid sm:grid-cols-2 xl:grid-cols-3"
-        style={{ gap: "var(--shell-gutter, 1.5rem)" }}
+        style={{ gap: pageGutter }}
       >
         <Card size="sm">
           <CardHeader>
@@ -308,7 +306,7 @@ export function AdminAccountPage({
           await onSaved()
         }}
       />
-    </div>
+    </>
   )
 }
 

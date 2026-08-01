@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
 
 function Card({
@@ -84,9 +85,10 @@ function CardGroup({ className, style, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="card-group"
       className={cn("flex flex-col", className)}
-      // Gap between stacked cards tracks the content gutter; falls back to the
-      // previous gap-4 (1rem) outside a styled content area (e.g. modals).
-      style={{ gap: "var(--shell-gutter, 1rem)", ...style }}
+      // Gap between stacked cards tracks the content gutter. Outside a styled
+      // content area — inside a modal, mainly — it falls back to 24px, which is
+      // the modal's own default padding.
+      style={{ gap: pageGutter, ...style }}
       {...props}
     />
   )

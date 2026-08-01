@@ -10,6 +10,7 @@ import { MemberSettings } from "@/components/settings/member-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
+import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
@@ -70,97 +71,91 @@ export function SettingsPage({
 }) {
   return (
     <div
-      className="flex w-full flex-col pb-8"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
+      className="flex flex-col items-start lg:flex-row"
+      style={{ gap: pageGutter }}
     >
-
       <div
-        className="flex flex-col items-start lg:flex-row"
-        style={{ gap: "var(--shell-gutter, 1.5rem)" }}
+        className="flex w-full shrink-0 flex-col lg:w-48"
+        style={{ gap: pageGutter }}
       >
-        <div
-          className="flex w-full shrink-0 flex-col lg:w-48"
-          style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-        >
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Platform</CardTitle>
-            </CardHeader>
-            <CardContent className="px-2">
-              <nav className="flex flex-col gap-1">
-                {settingsTabs.map((tab) => (
-                  <SettingsTabLink
-                    key={tab.id}
-                    tabId={tab.id}
-                    label={tab.label}
-                    active={activeTab === tab.id}
-                  />
-                ))}
-              </nav>
-            </CardContent>
-          </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Platform</CardTitle>
+          </CardHeader>
+          <CardContent className="px-2">
+            <nav className="flex flex-col gap-1">
+              {settingsTabs.map((tab) => (
+                <SettingsTabLink
+                  key={tab.id}
+                  tabId={tab.id}
+                  label={tab.label}
+                  active={activeTab === tab.id}
+                />
+              ))}
+            </nav>
+          </CardContent>
+        </Card>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Members</CardTitle>
-            </CardHeader>
-            <CardContent className="px-2">
-              <nav className="flex flex-col gap-1">
-                {memberSettingsTabs.map((tab) => (
-                  <SettingsTabLink
-                    key={tab.id}
-                    tabId={tab.id}
-                    label={tab.label}
-                    active={activeTab === tab.id}
-                  />
-                ))}
-              </nav>
-            </CardContent>
-          </Card>
-        </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Members</CardTitle>
+          </CardHeader>
+          <CardContent className="px-2">
+            <nav className="flex flex-col gap-1">
+              {memberSettingsTabs.map((tab) => (
+                <SettingsTabLink
+                  key={tab.id}
+                  tabId={tab.id}
+                  label={tab.label}
+                  active={activeTab === tab.id}
+                />
+              ))}
+            </nav>
+          </CardContent>
+        </Card>
+      </div>
 
-        <div className="min-w-0 flex-1">
-          {activeTab === "general" ? (
-            <GeneralSettings
-              config={config}
-              onConfigChange={onConfigChange}
-              onMaintenanceChange={onMaintenanceChange}
-              maintenanceBusy={maintenanceBusy}
-            />
-          ) : null}
-          {activeTab === "sidebar" ? (
-            <SidebarSettings
-              sections={config.sections}
-              onSectionsChange={(sections) =>
-                onConfigChange({ ...config, sections })
-              }
-              onSaveConfig={onSaveConfig}
-              reset={{
-                label: "Reset all to defaults",
-                description:
-                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone.",
-                onReset: () => onConfigChange(createDefaultShellConfig()),
-              }}
-            />
-          ) : null}
-          {activeTab === "member-sidebar" ? (
-            <MemberSettings
-              config={config}
-              onConfigChange={onConfigChange}
-              onSaveConfig={onSaveConfig}
-            />
-          ) : null}
-          {activeTab === "styling" ? (
-            <StylingSettings config={config} onConfigChange={onConfigChange} />
-          ) : null}
-          {activeTab === "security" ? (
-            <SecuritySettings
-              config={config}
-              onSessionPolicyChange={onSessionPolicyChange}
-              sessionPolicyBusy={sessionPolicyBusy}
-            />
-          ) : null}
-        </div>
+      <div className="min-w-0 flex-1">
+        {activeTab === "general" ? (
+          <GeneralSettings
+            config={config}
+            onConfigChange={onConfigChange}
+            onMaintenanceChange={onMaintenanceChange}
+            maintenanceBusy={maintenanceBusy}
+          />
+        ) : null}
+        {activeTab === "sidebar" ? (
+          <SidebarSettings
+            sections={config.sections}
+            onSectionsChange={(sections) =>
+              onConfigChange({ ...config, sections })
+            }
+            onSaveConfig={onSaveConfig}
+            reset={{
+              label: "Reset all to defaults",
+              description:
+                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone.",
+              onReset: () => onConfigChange(createDefaultShellConfig()),
+            }}
+          />
+        ) : null}
+        {activeTab === "member-sidebar" ? (
+          <MemberSettings
+            config={config}
+            onConfigChange={onConfigChange}
+            onSaveConfig={onSaveConfig}
+          />
+        ) : null}
+        {activeTab === "styling" ? (
+          <StylingSettings config={config} onConfigChange={onConfigChange} />
+        ) : null}
+        {activeTab === "security" ? (
+          <SecuritySettings
+            config={config}
+            onSessionPolicyChange={onSessionPolicyChange}
+            sessionPolicyBusy={sessionPolicyBusy}
+          />
+        ) : null}
       </div>
     </div>
   )

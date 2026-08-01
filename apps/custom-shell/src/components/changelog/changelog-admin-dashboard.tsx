@@ -210,10 +210,7 @@ export function ChangelogAdminDashboard({
   }, [])
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <DashboardTable
         title="Changelog"
         icon={<SparklesIcon />}
@@ -461,7 +458,7 @@ export function ChangelogAdminDashboard({
           }
         }}
       />
-    </div>
+    </>
   )
 }
 

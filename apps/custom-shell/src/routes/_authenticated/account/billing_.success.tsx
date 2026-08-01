@@ -75,32 +75,27 @@ function BillingSuccessRoute() {
   }, [confirmed, router])
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {confirmed ? <CheckCircle2Icon className="h-5 w-5" /> : null}
-            {confirmed ? `You are on ${planName}` : "Finishing your payment"}
-          </CardTitle>
-          <CardDescription>
-            {confirmed
-              ? "Thanks. Your plan is active and your receipt is in your inbox."
-              : waiting
-                ? "Stripe is confirming the payment. This usually takes a few seconds."
-                : "Stripe has your payment, but we have not seen the confirmation yet. It should appear on your billing page shortly."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link to="/" search={{ account: "billing" }}>
-              Go to billing
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {confirmed ? <CheckCircle2Icon className="h-5 w-5" /> : null}
+          {confirmed ? `You are on ${planName}` : "Finishing your payment"}
+        </CardTitle>
+        <CardDescription>
+          {confirmed
+            ? "Thanks. Your plan is active and your receipt is in your inbox."
+            : waiting
+              ? "Stripe is confirming the payment. This usually takes a few seconds."
+              : "Stripe has your payment, but we have not seen the confirmation yet. It should appear on your billing page shortly."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link to="/" search={{ account: "billing" }}>
+            Go to billing
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   )
 }

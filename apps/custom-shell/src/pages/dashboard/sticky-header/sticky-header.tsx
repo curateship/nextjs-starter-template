@@ -65,8 +65,7 @@ export function StickyHeader({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              className="h-[30px] gap-1.5"
+              size="icon"
               aria-label="Toggle sidebar"
               onClick={toggleSidebar}
             >

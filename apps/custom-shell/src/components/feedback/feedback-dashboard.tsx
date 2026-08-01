@@ -289,7 +289,7 @@ export function FeedbackDashboard({
   }
 
   return (
-    <div className="w-full pb-8">
+    <>
       <DashboardTable
         title="Feedback"
         icon={<MessageSquarePlusIcon className="text-muted-foreground" />}
@@ -568,7 +568,7 @@ export function FeedbackDashboard({
         disabled={!deletingFeedback}
         onConfirm={handleQuickDelete}
       />
-    </div>
+    </>
   )
 }
 

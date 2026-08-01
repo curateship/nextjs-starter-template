@@ -48,13 +48,6 @@ const dashboardToolbarButtonGroupItemClassName =
   "h-full border-0 first:rounded-r-none last:rounded-l-none"
 const dashboardToolbarButtonActiveClassName =
   "border-primary bg-primary bg-clip-border text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-const dashboardToolbarButtonActiveFilterClassName = "border-primary"
-const dashboardToolbarMutedButtonClassName =
-  "text-muted-foreground hover:text-foreground"
-const dashboardToolbarFilterChipClassName =
-  "inline-flex h-5 cursor-pointer items-center gap-1 rounded-md bg-gray-50 px-2 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 sm:h-6 sm:text-xs dark:bg-gray-800/50 dark:text-gray-400 dark:ring-gray-400/20"
-const dashboardToolbarClearButtonClassName =
-  "text-[10px] text-destructive hover:underline sm:text-xs"
 
 function DashboardToolbarSearch({
   className,
@@ -130,12 +123,8 @@ export {
   DashboardToolbar,
   DashboardToolbarControls,
   dashboardToolbarButtonActiveClassName,
-  dashboardToolbarButtonActiveFilterClassName,
   dashboardToolbarButtonGroupClassName,
   dashboardToolbarButtonGroupItemClassName,
-  dashboardToolbarClearButtonClassName,
-  dashboardToolbarFilterChipClassName,
-  dashboardToolbarMutedButtonClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,

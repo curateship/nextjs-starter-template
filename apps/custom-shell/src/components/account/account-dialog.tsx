@@ -202,6 +202,9 @@ function BillingTab() {
     invoices: BillingInvoice[]
   } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  // Bumped by "Try again", which re-runs the same load rather than making the
+  // reader close the window and come back.
+  const [reloads, setReloads] = React.useState(0)
 
   React.useEffect(() => {
     let cancelled = false
@@ -215,10 +218,20 @@ function BillingTab() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reloads])
 
   if (error) {
-    return <ErrorBanner message={error} />
+    return (
+      <ErrorBanner
+        message={error}
+        // Clearing the message here rather than in the effect: the loading
+        // state is what should show while the second attempt is in the air.
+        onRetry={() => {
+          setError(null)
+          setReloads((count) => count + 1)
+        }}
+      />
+    )
   }
 
   if (!data) {

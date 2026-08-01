@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useNavigate, useRouterState } from "@tanstack/react-router"
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
+import { ListIcon } from "lucide-react"
 
 import { UserDropdown } from "@/pages/dashboard/sidebar/user-dropdown"
 import {
@@ -13,6 +14,7 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
@@ -150,15 +152,19 @@ export function AppSidebar({
         />
       </SidebarHeader>
       <SidebarContent>
-        {sections.map(({ section, entries }) => (
-          <SidebarCollapsible
-            key={section.id}
-            id={section.id}
-            title={section.title}
-            entries={entries}
-            onNavigate={handleNavigate}
-          />
-        ))}
+        {sections.length ? (
+          sections.map(({ section, entries }) => (
+            <SidebarCollapsible
+              key={section.id}
+              id={section.id}
+              title={section.title}
+              entries={entries}
+              onNavigate={handleNavigate}
+            />
+          ))
+        ) : (
+          <EmptySidebar isAdmin={user.role === "admin"} />
+        )}
       </SidebarContent>
       <SidebarFooter>
         <UserDropdown
@@ -174,5 +180,40 @@ export function AppSidebar({
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+/**
+ * Every section is hidden, emptied, or filtered away by role. The config is
+ * already in hand when the shell renders, so this is never a half-loaded rail —
+ * it means there is genuinely nothing to show, and a blank column just reads as
+ * broken. Admins get the way to put links back; members are told whose call it
+ * is. Hidden when the rail is collapsed to icons, where there is no room to
+ * read it.
+ */
+function EmptySidebar({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <SidebarGroup className="px-2 py-0 group-data-[collapsible=icon]:hidden">
+      <div className="flex flex-col items-center gap-2 px-2 py-6 text-center">
+        <ListIcon className="size-6 text-sidebar-foreground/45" />
+        <p className="text-sm font-medium text-sidebar-foreground">
+          No links to show
+        </p>
+        <p className="text-xs text-sidebar-foreground/70">
+          {isAdmin
+            ? "Your sidebar links are set up in Settings."
+            : "An admin decides which links appear here."}
+        </p>
+        {isAdmin ? (
+          <Link
+            to="/admin/settings/$tab"
+            params={{ tab: "sidebar" }}
+            className="rounded-md px-2 py-1 text-xs font-medium text-sidebar-foreground underline underline-offset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:no-underline"
+          >
+            Sidebar settings
+          </Link>
+        ) : null}
+      </div>
+    </SidebarGroup>
   )
 }

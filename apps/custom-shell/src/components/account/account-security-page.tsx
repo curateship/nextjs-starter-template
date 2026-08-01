@@ -8,6 +8,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardGroup,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -47,10 +48,7 @@ export function AccountSecurityPage({ user }: { user: AuthUser }) {
   const [devicesChanged, setDevicesChanged] = React.useState(0)
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <CardGroup className="w-full">
       <ChangePasswordCard
         hasPassword={user.hasPassword}
         onPasswordChanged={() => {
@@ -62,7 +60,7 @@ export function AccountSecurityPage({ user }: { user: AuthUser }) {
       />
       <SessionsCard devicesChanged={devicesChanged} />
       <DeleteAccountCard hasPassword={user.hasPassword} email={user.email} />
-    </div>
+    </CardGroup>
   )
 }
 

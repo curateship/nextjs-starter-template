@@ -51,55 +51,50 @@ export function ChangelogPage({
   }, [])
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
-      <DashboardTable
-        title="What's new"
-        icon={<SparklesIcon />}
-        count={visibleEntries.length}
-        error={error ? { message: error, onRetry: () => void refresh() } : null}
-        controls={
-          <DashboardToolbarSearch
-            name="changelog-search"
-            aria-label="Search updates"
-            placeholder="Search updates..."
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
-        }
-        content={
-          visibleEntries.length ? (
-            <div className="flex flex-col gap-6 p-5">
-              {visibleEntries.map((entry) => (
-                <article key={entry.id} className="flex flex-col gap-1">
-                  <h2 className="text-sm font-medium">{entry.title}</h2>
-                  <p className="text-xs text-muted-foreground">
-                    {entry.publishedAt
-                      ? dateFormatter.format(new Date(entry.publishedAt))
-                      : null}
-                  </p>
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                    {entry.body}
-                  </p>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="p-10 text-center text-sm text-muted-foreground">
-              {entries.length === 0
-                ? "No updates yet."
-                : "No updates found matching your search."}
-            </div>
-          )
-        }
-        footer={{
-          type: "summary",
-          count: visibleEntries.length,
-          label: "updates",
-        }}
-      />
-    </div>
+    <DashboardTable
+      title="What's new"
+      icon={<SparklesIcon />}
+      count={visibleEntries.length}
+      error={error ? { message: error, onRetry: () => void refresh() } : null}
+      controls={
+        <DashboardToolbarSearch
+          name="changelog-search"
+          aria-label="Search updates"
+          placeholder="Search updates..."
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+        />
+      }
+      content={
+        visibleEntries.length ? (
+          <div className="flex flex-col gap-6 p-5">
+            {visibleEntries.map((entry) => (
+              <article key={entry.id} className="flex flex-col gap-1">
+                <h2 className="text-sm font-medium">{entry.title}</h2>
+                <p className="text-xs text-muted-foreground">
+                  {entry.publishedAt
+                    ? dateFormatter.format(new Date(entry.publishedAt))
+                    : null}
+                </p>
+                <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                  {entry.body}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            {entries.length === 0
+              ? "No updates yet."
+              : "No updates found matching your search."}
+          </div>
+        )
+      }
+      footer={{
+        type: "summary",
+        count: visibleEntries.length,
+        label: "updates",
+      }}
+    />
   )
 }

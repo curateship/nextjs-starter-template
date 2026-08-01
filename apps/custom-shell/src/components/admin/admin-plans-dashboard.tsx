@@ -256,10 +256,7 @@ export function AdminPlansDashboard({
   }, [refresh, selectedIds])
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <DashboardTable
         title="Plans"
         icon={<PackageIcon />}
@@ -501,7 +498,7 @@ export function AdminPlansDashboard({
           }
         }}
       />
-    </div>
+    </>
   )
 }
 

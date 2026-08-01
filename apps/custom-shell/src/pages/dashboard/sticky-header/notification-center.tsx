@@ -137,6 +137,29 @@ function notificationPreview(item: NotificationItem) {
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }
 
+/**
+ * Nothing to show, said the way the media gallery says it: an icon, a line, and
+ * what would have been here. `hasAny` separates "you have read everything" from
+ * "nothing has ever arrived" — only the first has anything to go and look at.
+ */
+function EmptyNotifications({ hasAny }: { hasAny: boolean }) {
+  return (
+    <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
+      <div>
+        <BellIcon className="mx-auto mb-3 size-10" />
+        <p className="font-medium text-foreground">
+          {hasAny ? "You are all caught up" : "No notifications yet"}
+        </p>
+        <p className="mt-1">
+          {hasAny
+            ? "Everything here has been read. View all shows the rest."
+            : "Votes and replies on your feedback land here, along with announcements and new updates."}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 type NotificationCenterProps = {
   /** Server count, so the dot is right before the tray has ever been opened. */
   initialUnreadCount: number
@@ -443,11 +466,11 @@ export function NotificationCenter({
                 // A failed load leaves no rows either, and saying "none" there
                 // would be the same lie in a different place — the banner below
                 // is the only honest thing to show.
-                <div className="py-10 text-center text-sm text-muted-foreground">
-                  {filter === "unread"
-                    ? "No unread notifications"
-                    : "No notifications"}
-                </div>
+                <EmptyNotifications
+                  // Nothing loaded at all is a different thing from having read
+                  // everything, and the two deserve different words.
+                  hasAny={notifications.length > 0}
+                />
               )}
 
               {canLoadHiddenUnread ? (

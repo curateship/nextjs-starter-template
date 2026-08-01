@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardGroup,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -84,10 +85,7 @@ export function AccountProfilePage({
   )
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <CardGroup className="w-full">
       <Card>
         <CardHeader>
           <CardTitle>Account</CardTitle>
@@ -152,7 +150,7 @@ export function AccountProfilePage({
       </Card>
 
       <EmailCard email={user.email} hasPassword={user.hasPassword} />
-    </div>
+    </CardGroup>
   )
 }
 

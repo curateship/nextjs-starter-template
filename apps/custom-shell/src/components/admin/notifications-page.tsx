@@ -258,7 +258,7 @@ export function NotificationsPage({
   }
 
   return (
-    <div className="w-full pb-8">
+    <>
       <DashboardTable
         title="Notifications"
         icon={<BellIcon className="text-muted-foreground" />}
@@ -502,6 +502,6 @@ export function NotificationsPage({
         loading={deleting}
         onConfirm={() => void clearAll()}
       />
-    </div>
+    </>
   )
 }

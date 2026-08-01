@@ -393,10 +393,7 @@ export function MediaOrphansDashboard({
 
   if (viewMode === "gallery") {
     return (
-      <div
-        className="flex w-full flex-col"
-        style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-      >
+      <>
         <DashboardTable
           title="Orphaned files"
           icon={<UnlinkIcon className="text-muted-foreground" />}
@@ -453,15 +450,12 @@ export function MediaOrphansDashboard({
           }}
           onConfirm={() => void handleClean()}
         />
-      </div>
+      </>
     )
   }
 
   return (
-    <div
-      className="flex w-full flex-col"
-      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
-    >
+    <>
       <DashboardTable
         title="Orphaned files"
         icon={<UnlinkIcon className="text-muted-foreground" />}
@@ -546,7 +540,7 @@ export function MediaOrphansDashboard({
         }}
         onConfirm={() => void handleClean()}
       />
-    </div>
+    </>
   )
 }
 
