@@ -31,6 +31,9 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH_MOBILE = "13rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+const SIDEBAR_KEYBOARD_RESIZE_STEP = 8
+/** How long the rail waits after the last arrow press before saving the width. */
+const SIDEBAR_KEYBOARD_RESIZE_SAVE_DELAY = 500
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -309,6 +312,34 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
     wrapper: HTMLElement
   } | null>(null)
   const draggedRef = React.useRef(false)
+  // The width the arrow keys have moved to but not saved yet. A drag holds the
+  // same thing in `dragRef`; this is the keyboard's version of it.
+  const nudgedWidthRef = React.useRef<number | null>(null)
+  const nudgeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /** Writes the nudged width, if there is one waiting. Safe to call twice. */
+  const flushNudge = React.useCallback(() => {
+    if (nudgeTimerRef.current) {
+      clearTimeout(nudgeTimerRef.current)
+      nudgeTimerRef.current = null
+    }
+
+    const width = nudgedWidthRef.current
+    nudgedWidthRef.current = null
+    if (width !== null) commitSidebarWidth(width)
+  }, [commitSidebarWidth])
+
+  // `commitSidebarWidth` is rebuilt whenever the width changes, so the unmount
+  // cleanup below reaches the current one through a ref rather than re-running
+  // (and flushing) on every render.
+  const flushNudgeRef = React.useRef(flushNudge)
+  React.useEffect(() => {
+    flushNudgeRef.current = flushNudge
+  }, [flushNudge])
+
+  // Navigating away mid-nudge is still the user choosing that width, so it is
+  // written on the way out instead of being dropped.
+  React.useEffect(() => () => flushNudgeRef.current(), [])
 
   const clearResize = React.useCallback(() => {
     const drag = dragRef.current
@@ -352,11 +383,17 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
         )
         if (!wrapper || !sidebar) return
 
+        // A nudge still waiting to be written is the real current width, so the
+        // drag starts from there. It is saved first: this press may turn out to
+        // be a plain click that collapses the sidebar, which commits nothing.
+        const startWidth = nudgedWidthRef.current ?? sidebarWidth
+        flushNudge()
+
         draggedRef.current = false
         dragRef.current = {
           startX: event.clientX,
-          startWidth: sidebarWidth,
-          width: sidebarWidth,
+          startWidth,
+          width: startWidth,
           direction: sidebar.dataset.side === "right" ? -1 : 1,
           wrapper,
         }
@@ -378,12 +415,16 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       }}
       onPointerUp={finishResize}
       onPointerCancel={cancelResize}
+      onBlur={flushNudge}
       onClick={(event) => {
         if (draggedRef.current) {
           draggedRef.current = false
           event.preventDefault()
           return
         }
+        // Enter and Space land here without a pointer press, so a nudge that is
+        // still waiting is written before the sidebar folds away.
+        flushNudge()
         toggleSidebar()
       }}
       onKeyDown={(event) => {
@@ -395,12 +436,41 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
         }
 
         event.preventDefault()
+        const wrapper = event.currentTarget.closest<HTMLElement>(
+          '[data-slot="sidebar-wrapper"]'
+        )
         const sidebar = event.currentTarget.closest<HTMLElement>(
           '[data-slot="sidebar"]'
         )
+        if (!wrapper) return
+
         const direction = sidebar?.dataset.side === "right" ? -1 : 1
-        const delta = event.key === "ArrowRight" ? 8 : -8
-        commitSidebarWidth(sidebarWidth + delta * direction)
+        const delta =
+          event.key === "ArrowRight"
+            ? SIDEBAR_KEYBOARD_RESIZE_STEP
+            : -SIDEBAR_KEYBOARD_RESIZE_STEP
+        // Each press builds on the width that is on screen, which both this
+        // handler and a drag write to. The context width is the wrong base: it
+        // does not know about presses since the last save, so a held key would
+        // fight itself back to a single step.
+        const shown = Number.parseFloat(
+          wrapper.style.getPropertyValue("--sidebar-width")
+        )
+        const width = clampSidebarWidth(
+          (Number.isFinite(shown) ? shown : sidebarWidth) + delta * direction
+        )
+
+        // The sidebar moves now; the write waits for the nudging to stop. This
+        // is the drag path's split — live width on the element, one commit at
+        // the end — with the key repeat standing in for pointer moves.
+        nudgedWidthRef.current = width
+        wrapper.style.setProperty("--sidebar-width", `${width}px`)
+
+        if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current)
+        nudgeTimerRef.current = setTimeout(
+          flushNudge,
+          SIDEBAR_KEYBOARD_RESIZE_SAVE_DELAY
+        )
       }}
       title="Drag to resize or click to collapse"
       className={cn(
