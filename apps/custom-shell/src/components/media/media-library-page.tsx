@@ -7,7 +7,6 @@ import {
   SettingsIcon,
   Trash2Icon,
   UploadIcon,
-  VideoIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -34,6 +33,7 @@ import {
 } from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DetailRow } from "@/components/media/media-detail-row"
+import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -62,25 +62,11 @@ import {
 import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { formatFileSize } from "@/lib/format-bytes"
+import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { formatDate } from "@/lib/money"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { cn } from "@/lib/utils"
 
-const imageTypes = [
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/svg+xml",
-]
-const videoTypes = [
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-msvideo",
-  "video/x-matroska",
-]
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type ViewMode = "list" | "gallery"
@@ -230,18 +216,9 @@ export function MediaLibraryPage({
     const file = event.target.files?.[0]
     if (!file) return
 
-    if (![...imageTypes, ...videoTypes].includes(file.type)) {
-      showErrorToast("Invalid file type. Only images, SVGs, and videos are allowed.")
-      event.target.value = ""
-      return
-    }
-
-    const kind = imageTypes.includes(file.type) ? "image" : "video"
-    const maxSize = kind === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
-    if (file.size > maxSize) {
-      showErrorToast(
-        `File size too large. Maximum size is ${kind === "image" ? "10MB" : "100MB"}.`
-      )
+    const uploadError = getMediaUploadError(file, true)
+    if (uploadError) {
+      showErrorToast(uploadError)
       event.target.value = ""
       return
     }
@@ -413,7 +390,7 @@ export function MediaLibraryPage({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept={[...imageTypes, ...videoTypes].join(",")}
+        accept={mediaAccept(true)}
         onChange={handleUploadSelect}
       />
 
@@ -608,11 +585,14 @@ function MediaDetailsDialog({
               <Card size="sm">
                 <CardContent className="grid gap-4">
                   {item.file_type === "video" ? (
+                    // Opened deliberately, so it plays with sound and seeks
+                    // over range requests rather than downloading in full.
                     <video
                       src={item.url}
-                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                      className="mx-auto max-h-[50vh] w-full rounded-lg bg-black object-contain"
                       controls
-                      muted
+                      playsInline
+                      preload="metadata"
                     />
                   ) : (
                     <img
@@ -709,7 +689,13 @@ function MediaTableRow({
       </TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
-          <MediaPreview item={item} className="size-12 shrink-0 rounded-md border bg-muted" />
+          <MediaThumbnail
+            url={item.url}
+            fileType={item.file_type}
+            alt={item.alt_text ?? item.original_name}
+            className="size-12 shrink-0 rounded-md border bg-muted"
+            compact
+          />
           <div className="min-w-0">
             <button
               type="button"
@@ -797,7 +783,12 @@ function GalleryItem({
         className="relative block aspect-[3/4] w-full bg-muted"
         onClick={onOpen}
       >
-        <MediaPreview item={item} className="h-full w-full" />
+        <MediaThumbnail
+          url={item.url}
+          fileType={item.file_type}
+          alt={item.alt_text ?? item.original_name}
+          className="h-full w-full"
+        />
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
           {item.file_type}
         </span>
@@ -836,31 +827,6 @@ function GalleryItem({
           <Trash2Icon className="size-4" />
         </Button>
       </div>
-    </div>
-  )
-}
-
-function MediaPreview({
-  item,
-  className,
-}: {
-  item: AdminMediaItem
-  className?: string
-}) {
-  return (
-    <div className={cn("relative grid place-items-center overflow-hidden", className)}>
-      {item.file_type === "video" ? (
-        <>
-          <video src={item.url} className="h-full w-full object-contain" muted preload="metadata" />
-          <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
-        </>
-      ) : (
-        <img
-          src={item.url}
-          alt={item.alt_text ?? item.original_name}
-          className="h-full w-full object-contain"
-        />
-      )}
     </div>
   )
 }

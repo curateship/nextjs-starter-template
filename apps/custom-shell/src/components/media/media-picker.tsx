@@ -1,14 +1,8 @@
 import * as React from "react"
-import {
-  ImageIcon,
-  PlayIcon,
-  SearchIcon,
-  UploadIcon,
-  VideoIcon,
-  XIcon,
-} from "lucide-react"
+import { ImageIcon, PlayIcon, SearchIcon, UploadIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import {
   Dialog,
@@ -38,10 +32,8 @@ import {
   type MediaListResponse,
 } from "@/lib/api/media"
 import { formatFileSize } from "@/lib/format-bytes"
+import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { cn } from "@/lib/utils"
-
-const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
-const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
 
 type MediaFilter = "all" | MediaFileType
 
@@ -67,11 +59,24 @@ export function MediaPicker({
   const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(null)
   const [filterType, setFilterType] = React.useState<MediaFilter>("all")
   const [currentPage, setCurrentPage] = React.useState(1)
-  const [uploadFile, setUploadFile] = React.useState<File | null>(null)
-  const [uploadPreview, setUploadPreview] = React.useState<string | null>(null)
+  const [upload, setUpload] = React.useState<{
+    file: File
+    previewUrl: string
+  } | null>(null)
   const [altText, setAltText] = React.useState("")
   const [uploading, setUploading] = React.useState(false)
+  /** The one video allowed to play at a time, so tiles never talk over each other. */
+  const [playingId, setPlayingId] = React.useState<string | null>(null)
   const pageSize = 12
+
+  // The preview points at the file rather than holding it: reading a 100MB
+  // video into a data URL would cost well over 100MB of memory as text. A blob
+  // address has to be handed back or the file stays in memory until reload.
+  const previewUrl = upload?.previewUrl
+  React.useEffect(() => {
+    if (!previewUrl) return
+    return () => URL.revokeObjectURL(previewUrl)
+  }, [previewUrl])
 
   const loadCurrentMedia = React.useCallback(async () => {
     setLoading(true)
@@ -83,6 +88,7 @@ export function MediaPicker({
           : filterType
         : "image"
       setData(await listMedia({ page: currentPage, pageSize, fileType }))
+      setPlayingId(null)
     } catch (loadError) {
       setError(getMediaErrorMessage(loadError))
     } finally {
@@ -95,6 +101,7 @@ export function MediaPicker({
       setCurrentPage(1)
       setSearchQuery("")
       setSelectedMedia(null)
+      setPlayingId(null)
       clearUpload()
       return
     }
@@ -129,8 +136,7 @@ export function MediaPicker({
   }, [currentMediaUrl, mediaItems, open, selectedMedia])
 
   function clearUpload() {
-    setUploadFile(null)
-    setUploadPreview(null)
+    setUpload(null)
     setAltText("")
   }
 
@@ -143,41 +149,26 @@ export function MediaPicker({
     const file = event.target.files?.[0]
     if (!file) return
 
-    const allowedTypes = showVideos ? [...imageTypes, ...videoTypes] : imageTypes
-    if (!allowedTypes.includes(file.type)) {
-      showErrorToast(
-        showVideos
-          ? "Invalid file type. Only images, SVGs, and videos are allowed."
-          : "Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed."
-      )
+    const uploadError = getMediaUploadError(file, showVideos)
+    if (uploadError) {
+      showErrorToast(uploadError)
       event.target.value = ""
       return
     }
 
-    const fileType = imageTypes.includes(file.type) ? "image" : "video"
-    const maxSize = fileType === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
-    if (file.size > maxSize) {
-      showErrorToast(`File size too large. Maximum size is ${fileType === "image" ? "10MB" : "100MB"}.`)
-      event.target.value = ""
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = () => setUploadPreview(reader.result?.toString() ?? null)
-    reader.readAsDataURL(file)
-    setUploadFile(file)
+    setUpload({ file, previewUrl: URL.createObjectURL(file) })
     setAltText("")
     dismissErrorToast()
     event.target.value = ""
   }
 
   async function handleUpload() {
-    if (!uploadFile) return
+    if (!upload) return
 
     setUploading(true)
     dismissErrorToast()
     try {
-      const item = await uploadMedia(uploadFile, altText)
+      const item = await uploadMedia(upload.file, altText)
       onSelectMedia(item.url, item.alt_text ?? undefined)
       clearUpload()
       onOpenChange(false)
@@ -233,11 +224,7 @@ export function MediaPicker({
                   <input
                     type="file"
                     className="hidden"
-                    accept={
-                      showVideos
-                        ? [...imageTypes, ...videoTypes].join(",")
-                        : imageTypes.join(",")
-                    }
+                    accept={mediaAccept(showVideos)}
                     onChange={handleFileSelect}
                   />
                   <UploadIcon className="size-4" />
@@ -253,26 +240,23 @@ export function MediaPicker({
               />
             ) : null}
 
-            {uploadFile ? (
+            {upload ? (
               <div className="rounded-lg border bg-muted/30 p-3">
                 <div className="flex gap-3">
-                  <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-md bg-background">
-                    {uploadPreview && uploadFile.type.startsWith("video/") ? (
-                      <>
-                        <video src={uploadPreview} className="h-full w-full object-contain" muted />
-                        <PlayIcon className="absolute size-5 text-white drop-shadow" />
-                      </>
-                    ) : uploadPreview ? (
-                      <img src={uploadPreview} alt="" className="h-full w-full object-contain" />
-                    ) : (
-                      <ImageIcon className="size-6 text-muted-foreground" />
-                    )}
-                  </div>
+                  <MediaThumbnail
+                    url={upload.previewUrl}
+                    fileType={
+                      upload.file.type.startsWith("video/") ? "video" : "image"
+                    }
+                    alt={upload.file.name}
+                    className="size-20 shrink-0 rounded-md bg-background"
+                    compact
+                  />
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{uploadFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatFileSize(uploadFile.size)}</p>
+                        <p className="truncate text-sm font-medium">{upload.file.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatFileSize(upload.file.size)}</p>
                       </div>
                       <Button type="button" variant="ghost" size="icon-sm" onClick={clearUpload}>
                         <XIcon className="size-4" />
@@ -281,7 +265,7 @@ export function MediaPicker({
                     </div>
                     <div className="grid gap-1.5">
                       <Label htmlFor="media-picker-alt-text">
-                        {uploadFile.type.startsWith("video/") ? "Description" : "Alt text"}
+                        {upload.file.type.startsWith("video/") ? "Description" : "Alt text"}
                       </Label>
                       <Input
                         id="media-picker-alt-text"
@@ -310,35 +294,20 @@ export function MediaPicker({
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                   {mediaItems.map((item) => (
-                    <button
+                    <MediaTile
                       key={item.id}
-                      type="button"
-                      className={cn(
-                        "group relative aspect-square overflow-hidden rounded-md border bg-muted text-left outline-none transition",
-                          selectedMedia?.id === item.id || currentMediaUrl === item.url
-                            ? "border-green-500 ring-2 ring-green-500/20"
-                            : "hover:border-muted-foreground/40"
-                      )}
-                      onClick={() => setSelectedMedia(item)}
-                    >
-                      {item.file_type === "video" ? (
-                        <div className="relative h-full w-full bg-black">
-                          <video src={item.url} className="h-full w-full object-contain" muted preload="metadata" />
-                          <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
-                        </div>
-                      ) : (
-                        <img
-                          src={item.url}
-                          alt={item.alt_text ?? item.original_name}
-                          className="h-full w-full object-contain"
-                        />
-                      )}
-                      {currentMediaUrl === item.url ? (
-                        <span className="absolute top-2 right-2 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
-                          Current
-                        </span>
-                      ) : null}
-                    </button>
+                      item={item}
+                      selected={
+                        selectedMedia?.id === item.id || currentMediaUrl === item.url
+                      }
+                      isCurrent={currentMediaUrl === item.url}
+                      playing={playingId === item.id}
+                      onSelect={() => setSelectedMedia(item)}
+                      onPlay={() => {
+                        setSelectedMedia(item)
+                        setPlayingId(item.id)
+                      }}
+                    />
                   ))}
                 </div>
               )}
@@ -383,5 +352,84 @@ export function MediaPicker({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * One item in the picker grid. Videos get a play button over the still frame so
+ * a clip can be checked before it is chosen — pressing it selects the item as
+ * well, since nobody plays a video they are not considering. The tile is a div
+ * with the choose-this button filling it, because a play button inside a button
+ * is not valid markup.
+ */
+function MediaTile({
+  item,
+  selected,
+  isCurrent,
+  playing,
+  onSelect,
+  onPlay,
+}: {
+  item: MediaItem
+  selected: boolean
+  isCurrent: boolean
+  playing: boolean
+  onSelect: () => void
+  onPlay: () => void
+}) {
+  return (
+    <div
+      className={cn(
+        "group relative aspect-square overflow-hidden rounded-md border bg-muted transition",
+        selected
+          ? "border-green-500 ring-2 ring-green-500/20"
+          : "hover:border-muted-foreground/40"
+      )}
+    >
+      {playing ? (
+        <video
+          src={item.url}
+          className="h-full w-full bg-black object-contain"
+          controls
+          autoPlay
+          playsInline
+          preload="metadata"
+        />
+      ) : (
+        <>
+          <button
+            type="button"
+            className="block h-full w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            onClick={onSelect}
+            aria-pressed={selected}
+            aria-label={`Select ${item.original_name}`}
+          >
+            <MediaThumbnail
+              url={item.url}
+              fileType={item.file_type}
+              alt={item.alt_text ?? item.original_name}
+              className="h-full w-full"
+              showPlayBadge={false}
+            />
+          </button>
+          {item.file_type === "video" ? (
+            // Only the badge plays, so the rest of the tile still just picks.
+            <button
+              type="button"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 outline-none transition hover:bg-black/75 focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={onPlay}
+              aria-label={`Play ${item.original_name}`}
+            >
+              <PlayIcon className="size-5 fill-white text-white" />
+            </button>
+          ) : null}
+        </>
+      )}
+      {isCurrent ? (
+        <span className="pointer-events-none absolute top-2 right-2 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
+          Current
+        </span>
+      ) : null}
+    </div>
   )
 }
