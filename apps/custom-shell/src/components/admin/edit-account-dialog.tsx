@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -21,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import {
@@ -99,12 +99,22 @@ export function EditAccountDialog({
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
   const [saving, setSaving] = React.useState(false)
 
-  const initial = React.useRef({
+  // What the window opened with. Held from the first render so the save can
+  // send only what changed, and so closing can tell edits from a look.
+  const [initial] = React.useState(() => ({
     role: account?.role === "admin" ? "admin" : "member",
     status: initialStatus,
     planId: grantedPlanId,
     endsOn: grantedEndsOn,
-  })
+  }))
+
+  // A window that was only looked at still closes on the first click outside;
+  // one with a changed control asks first.
+  const dirty =
+    role !== initial.role ||
+    status !== initial.status ||
+    planId !== initial.planId ||
+    endsOn !== initial.endsOn
 
   const handleSave = React.useCallback(async () => {
     if (!account) return
@@ -113,18 +123,15 @@ export function EditAccountDialog({
     setSaving(true)
     try {
       // Only send what changed, so a no-op save writes no audit rows.
-      if (role !== initial.current.role) {
+      if (role !== initial.role) {
         await updateAccountRole(account.id, role)
       }
       // The deletion clock is never sent from here — that control is disabled,
       // and restoring an account is the Users table's job.
-      if (status !== initial.current.status && status !== PENDING_DELETION) {
+      if (status !== initial.status && status !== PENDING_DELETION) {
         await updateAccountStatus(account.id, status)
       }
-      if (
-        planId !== initial.current.planId ||
-        endsOn !== initial.current.endsOn
-      ) {
+      if (planId !== initial.planId || endsOn !== initial.endsOn) {
         await grantAccountPlan(
           account.id,
           planId === "none" ? null : planId,
@@ -139,143 +146,145 @@ export function EditAccountDialog({
     } finally {
       setSaving(false)
     }
-  }, [account, endsOn, onSaved, planId, role, status])
+  }, [account, endsOn, initial, onSaved, planId, role, status])
 
   return (
-    <Dialog
+    <FormDialog
       open={Boolean(account)}
-      onOpenChange={(open) => {
-        if (!open && !saving) onClose()
-      }}
+      dirty={dirty}
+      busy={saving}
+      onClose={onClose}
     >
-      <DialogContent variant="admin" className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{account?.name ?? "Account"}</DialogTitle>
-          <DialogDescription>
-            {account?.email ?? "Change what this person can do and pays for."}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Access</CardTitle>
-              <CardDescription>
-                Admins reach the whole back office. Suspending someone signs them
-                out everywhere.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
-                <div className="grid gap-2">
-                  <Label htmlFor="account-role">Role</Label>
-                  <Select
-                    value={role}
-                    onValueChange={(value) =>
-                      setRole(value as "admin" | "member")
-                    }
-                  >
-                    <SelectTrigger id="account-role" className="w-full sm:w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+      {(requestClose) => (
+        <DialogContent variant="admin" className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{account?.name ?? "Account"}</DialogTitle>
+            <DialogDescription>
+              {account?.email ?? "Change what this person can do and pays for."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Access</CardTitle>
+                <CardDescription>
+                  Admins reach the whole back office. Suspending someone signs them
+                  out everywhere.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+                  <div className="grid gap-2">
+                    <Label htmlFor="account-role">Role</Label>
+                    <Select
+                      value={role}
+                      onValueChange={(value) =>
+                        setRole(value as "admin" | "member")
+                      }
+                    >
+                      <SelectTrigger id="account-role" className="w-full sm:w-fit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    {/* An account on its way out is neither active nor suspended:
+                        its status is the deletion clock. Restoring it from the
+                        Users table is what gives this control something to say. */}
+                    <FieldLabel
+                      htmlFor="account-status"
+                      hint={
+                        pendingDeletion
+                          ? "This account is scheduled for deletion. Restore it from the Users table to change this."
+                          : "Suspending someone signs them out everywhere and refuses them at sign-in."
+                      }
+                    >
+                      Status
+                    </FieldLabel>
+                    <Select
+                      value={status}
+                      disabled={pendingDeletion}
+                      onValueChange={(value) => setStatus(value as AccountStatus)}
+                    >
+                      <SelectTrigger id="account-status" className="w-full sm:w-fit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="suspended">Suspended</SelectItem>
+                        {pendingDeletion ? (
+                          <SelectItem value={PENDING_DELETION}>
+                            Scheduled for deletion
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  {/* An account on its way out is neither active nor suspended:
-                      its status is the deletion clock. Restoring it from the
-                      Users table is what gives this control something to say. */}
-                  <FieldLabel
-                    htmlFor="account-status"
-                    hint={
-                      pendingDeletion
-                        ? "This account is scheduled for deletion. Restore it from the Users table to change this."
-                        : "Suspending someone signs them out everywhere and refuses them at sign-in."
-                    }
-                  >
-                    Status
-                  </FieldLabel>
-                  <Select
-                    value={status}
-                    disabled={pendingDeletion}
-                    onValueChange={(value) => setStatus(value as AccountStatus)}
-                  >
-                    <SelectTrigger id="account-status" className="w-full sm:w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="suspended">Suspended</SelectItem>
-                      {pendingDeletion ? (
-                        <SelectItem value={PENDING_DELETION}>
-                          Scheduled for deletion
-                        </SelectItem>
-                      ) : null}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Granted plan</CardTitle>
-              <CardDescription>
-                Puts this person on a paid plan without charging them. Plans paid
-                through Stripe are not affected.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                <div className="grid gap-2">
-                  <Label htmlFor="account-plan">Plan</Label>
-                  <Select value={planId} onValueChange={setPlanId}>
-                    <SelectTrigger id="account-plan" className="w-full sm:w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No granted plan</SelectItem>
-                      {plans.map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id}>
-                          {plan.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Granted plan</CardTitle>
+                <CardDescription>
+                  Puts this person on a paid plan without charging them. Plans paid
+                  through Stripe are not affected.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="grid gap-2">
+                    <Label htmlFor="account-plan">Plan</Label>
+                    <Select value={planId} onValueChange={setPlanId}>
+                      <SelectTrigger id="account-plan" className="w-full sm:w-fit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No granted plan</SelectItem>
+                        {plans.map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2 sm:flex-1">
+                    <FieldLabel
+                      htmlFor="account-ends-on"
+                      hint="Leave empty to keep the plan until you remove it."
+                    >
+                      Ends on
+                    </FieldLabel>
+                    <DatePicker
+                      id="account-ends-on"
+                      value={endsOn ? new Date(`${endsOn}T00:00:00`) : undefined}
+                      disabled={planId === "none"}
+                      onChange={(date) =>
+                        setEndsOn(date ? format(date, "yyyy-MM-dd") : "")
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="grid gap-2 sm:flex-1">
-                  <FieldLabel
-                    htmlFor="account-ends-on"
-                    hint="Leave empty to keep the plan until you remove it."
-                  >
-                    Ends on
-                  </FieldLabel>
-                  <DatePicker
-                    id="account-ends-on"
-                    value={endsOn ? new Date(`${endsOn}T00:00:00`) : undefined}
-                    disabled={planId === "none"}
-                    onChange={(date) =>
-                      setEndsOn(date ? format(date, "yyyy-MM-dd") : "")
-                    }
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-            Save changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              </CardContent>
+            </Card>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={requestClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }

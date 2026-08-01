@@ -192,7 +192,7 @@ export function MediaPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle>{showVideos ? "Select Media" : "Select Image"}</DialogTitle>
+          <DialogTitle>{showVideos ? "Select media" : "Select image"}</DialogTitle>
         </DialogHeader>
 
         <DialogBody>
@@ -354,6 +354,7 @@ export function MediaPicker({
             <Button
               type="button"
               variant="outline"
+              className="mr-auto"
               onClick={() => {
                 onSelectMedia("")
                 onOpenChange(false)

@@ -23,7 +23,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -32,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -278,7 +278,7 @@ export function WorkspacesDashboard({
             />
             <DashboardToolbarButton type="button" onClick={openCreateForm}>
               <PlusIcon className="size-4" />
-              Add Workspace
+              New workspace
             </DashboardToolbarButton>
           </>
         }
@@ -420,7 +420,7 @@ export function WorkspacesDashboard({
           if (next.name.trim()) setNameInvalid(false)
           setForm(next)
         }}
-        onOpenChange={setFormOpen}
+        onClose={() => setFormOpen(false)}
         onSave={() => void saveWorkspace()}
       />
 
@@ -429,9 +429,9 @@ export function WorkspacesDashboard({
         onOpenChange={(open) => {
           if (!open) setPendingDelete(null)
         }}
-        title="Delete Workspace"
+        title="Delete this workspace?"
         description={`${pendingDelete?.name ?? "This workspace"} and its settings are removed. This cannot be undone.`}
-        confirmLabel="Delete"
+        confirmLabel="Delete workspace"
         loading={busy}
         onConfirm={() => void confirmDelete()}
       />
@@ -446,7 +446,7 @@ function WorkspaceFormDialog({
   saving,
   nameInvalid,
   onFormChange,
-  onOpenChange,
+  onClose,
   onSave,
 }: {
   open: boolean
@@ -455,95 +455,97 @@ function WorkspaceFormDialog({
   saving: boolean
   nameInvalid: boolean
   onFormChange: (form: WorkspaceForm) => void
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
   onSave: () => void
 }) {
+  // A new workspace starts empty and on the default icon, so anything typed or
+  // picked here is work that closing would throw away.
+  const dirty = editing
+    ? form.name !== editing.name || form.icon !== editing.icon
+    : form.name !== "" || form.icon !== defaultIcon
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next && saving) return
-        onOpenChange(next)
-      }}
-    >
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>
-            {editing ? "Edit Workspace" : "Add Workspace"}
-          </DialogTitle>
-          <DialogDescription>
-            Choose the name and icon shown in the workspace switcher.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          onSubmit={(event) => {
-            event.preventDefault()
-            onSave()
-          }}
-        >
-          <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Workspace</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="workspace-name">Name</Label>
-                  <Input
-                    id="workspace-name"
-                    value={form.name}
-                    disabled={saving}
-                    aria-invalid={nameInvalid || undefined}
-                    onChange={(event) =>
-                      onFormChange({ ...form, name: event.target.value })
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="workspace-icon">Icon</Label>
-                  <Select
-                    value={form.icon}
-                    disabled={saving}
-                    onValueChange={(value) =>
-                      onFormChange({ ...form, icon: value as IconKey })
-                    }
-                  >
-                    <SelectTrigger
-                      id="workspace-icon"
-                      className="w-full sm:w-fit"
+    <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
+      {(requestClose) => (
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? "Edit workspace" : "New workspace"}
+            </DialogTitle>
+            <DialogDescription>
+              Choose the name and icon shown in the workspace switcher.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              onSave()
+            }}
+          >
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Workspace</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="workspace-name">Name</Label>
+                    <Input
+                      id="workspace-name"
+                      value={form.name}
+                      disabled={saving}
+                      aria-invalid={nameInvalid || undefined}
+                      onChange={(event) =>
+                        onFormChange({ ...form, name: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="workspace-icon">Icon</Label>
+                    <Select
+                      value={form.icon}
+                      disabled={saving}
+                      onValueChange={(value) =>
+                        onFormChange({ ...form, icon: value as IconKey })
+                      }
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(iconMeta).map(([icon, meta]) => (
-                        <SelectItem key={icon} value={icon}>
-                          {renderShellIcon(icon as IconKey)}
-                          {meta.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Save
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+                      <SelectTrigger
+                        id="workspace-icon"
+                        className="w-full sm:w-fit"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(iconMeta).map(([icon, meta]) => (
+                          <SelectItem key={icon} value={icon}>
+                            {renderShellIcon(icon as IconKey)}
+                            {meta.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter variant="plain">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={requestClose}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                {editing ? "Save changes" : "Create workspace"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }

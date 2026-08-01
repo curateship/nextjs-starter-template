@@ -179,15 +179,32 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/**
+ * Every window ends the same way, so nobody has to re-read the footer:
+ *
+ *     [Delete]  ……………  [Cancel] [Primary]
+ *
+ * - **Delete / Remove** — the button that throws something away — sits hard
+ *   left with `className="mr-auto"`, so it can never be mistaken for the
+ *   primary. Omit it when the window has nothing to throw away.
+ * - **Cancel** is `variant="outline"`, always directly left of the primary, and
+ *   is disabled for as long as the action is running (same `disabled` as the
+ *   primary), so a half-finished save cannot be walked away from.
+ * - **Primary label** follows one scheme: "Save changes" when editing something
+ *   that already exists, "Create <thing>" when making a new one, and the
+ *   action's own verb otherwise ("Select", "Send").
+ * - **A window with nothing to save** — a preview, a details view, an editor
+ *   that auto-saves — ends with a single primary "Done" and no Cancel, because
+ *   there is nothing a Cancel could undo.
+ * - **Titles are sentence case**: "Edit workspace", not "Edit Workspace".
+ *   Confirmations ask a question: "Delete this workspace?".
+ */
 function DialogFooter({
   className,
   variant = "default",
-  showCloseButton = false,
-  children,
   ...props
 }: React.ComponentProps<"div"> & {
   variant?: "default" | "plain"
-  showCloseButton?: boolean
 }) {
   const contentVariant = React.useContext(DialogContentVariantContext)
   const isAdminPlain = contentVariant === "admin" && variant === "plain"
@@ -204,14 +221,7 @@ function DialogFooter({
         className
       )}
       {...props}
-    >
-      {children}
-      {showCloseButton && (
-        <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
-        </DialogPrimitive.Close>
-      )}
-    </div>
+    />
   )
 }
 

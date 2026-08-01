@@ -25,6 +25,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel = "Cancel",
   destructive = true,
   loading = false,
   disabled = false,
@@ -36,6 +37,8 @@ export function ConfirmDialog({
   title: React.ReactNode
   description: React.ReactNode
   confirmLabel: React.ReactNode
+  /** Only for a question where "Cancel" is the wrong word, e.g. "Keep editing". */
+  cancelLabel?: React.ReactNode
   destructive?: boolean
   loading?: boolean
   disabled?: boolean
@@ -68,7 +71,7 @@ export function ConfirmDialog({
             disabled={loading}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {cancelLabel}
           </Button>
           <Button
             type="button"

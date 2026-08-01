@@ -26,6 +26,7 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -35,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -541,9 +541,9 @@ export function FeedbackDashboard({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} Feedback Item${selectedIds.size === 1 ? "" : "s"}`}
+        title={`Delete ${selectedIds.size} feedback item${selectedIds.size === 1 ? "" : "s"}?`}
         description="This action cannot be undone."
-        confirmLabel="Delete"
+        confirmLabel={selectedIds.size === 1 ? "Delete item" : "Delete items"}
         loading={massDeleting}
         disabled={selectedIds.size === 0}
         onConfirm={handleMassDelete}
@@ -553,9 +553,9 @@ export function FeedbackDashboard({
         onOpenChange={(open) => {
           if (!open) setDeletingFeedback(null)
         }}
-        title="Delete Feedback Item"
+        title="Delete this feedback item?"
         description="This action cannot be undone."
-        confirmLabel="Delete"
+        confirmLabel="Delete item"
         loading={quickDeleting}
         disabled={!deletingFeedback}
         onConfirm={handleQuickDelete}
@@ -633,73 +633,76 @@ function EditFeedbackModal({
   }
 
   const busy = saving || deleting
+  const dirty = feedback
+    ? message !== feedback.message || feedbackType !== feedback.type
+    : false
 
   return (
-    <Dialog
+    // A save or delete in flight holds the window open, and an edited message
+    // is asked about before the X, the overlay or Escape can drop it.
+    <FormDialog
       open={open}
-      onOpenChange={(next) => {
-        // A save or delete in flight holds the window open, so the X, the
-        // overlay and Escape cannot walk away from it.
-        if (!next && busy) return
-        onOpenChange(next)
-      }}
+      dirty={dirty}
+      busy={busy}
+      onClose={() => onOpenChange(false)}
     >
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Edit Feedback</DialogTitle>
-          <DialogDescription>
-            Update the message and feedback type.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>Feedback</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="feedback-message">Feedback</Label>
-            <Textarea
-              id="feedback-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              rows={1}
-              disabled={busy}
-              autoFocus
-            />
-          </div>
+      {(requestClose) => (
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Edit feedback</DialogTitle>
+            <DialogDescription>
+              Update the message and feedback type.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Feedback</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="feedback-message">Feedback</Label>
+              <Textarea
+                id="feedback-message"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                rows={1}
+                disabled={busy}
+                autoFocus
+              />
+            </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="feedback-type">Type</Label>
-            <Select
-              value={feedbackType}
-              onValueChange={(value) => setFeedbackType(value as FeedbackType)}
-              disabled={busy}
-            >
-              <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(feedbackTypeLabels).map(([type, label]) => (
-                  <SelectItem key={type} value={type}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-            </CardContent>
-          </Card>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <>
+            <div className="grid gap-2">
+              <Label htmlFor="feedback-type">Type</Label>
+              <Select
+                value={feedbackType}
+                onValueChange={(value) => setFeedbackType(value as FeedbackType)}
+                disabled={busy}
+              >
+                <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(feedbackTypeLabels).map(([type, label]) => (
+                    <SelectItem key={type} value={type}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+              </CardContent>
+            </Card>
+          </DialogBody>
+          <DialogFooter variant="plain">
             <Button
               type="button"
               variant="destructive"
+              className="mr-auto"
               onClick={handleDelete}
               disabled={busy}
             >
-              {/* Both buttons grey out together, so only the one that is
+              {/* All three buttons grey out together, so only the one that is
                   actually running spins. */}
               {deleting ? (
                 <Loader2Icon className="h-4 w-4 animate-spin" />
@@ -708,17 +711,25 @@ function EditFeedbackModal({
               )}
               Delete
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={requestClose}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
             <Button type="button" onClick={handleSave} disabled={busy}>
               {saving ? (
                 <Loader2Icon className="h-4 w-4 animate-spin" />
               ) : (
                 <SaveIcon className="h-4 w-4" />
               )}
-              Save
+              Save changes
             </Button>
-          </>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </DialogFooter>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }

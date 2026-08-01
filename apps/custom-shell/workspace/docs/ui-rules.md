@@ -71,7 +71,9 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Keep the modal's established body gap (`gap-6`) and do not override `DialogBody` spacing.
 - Modal dropdowns use the default 32px height (`h-8`) to match inputs.
 - Keep footers directly on the shell without a border or separate background band.
+- Every footer reads the same way, left to right: `[Delete] ……… [Cancel] [Primary]`. The button that throws something away sits hard left (`className="mr-auto"`) so it cannot be mistaken for the primary. Cancel sits directly left of the primary and carries the same `disabled`, so a half-finished save cannot be walked away from. Primary labels follow one scheme: "Save changes" for an edit, "Create <thing>" for a create, the action's own verb otherwise. A window with nothing to save ends with a single "Done" and no Cancel. Titles are sentence case; confirmations ask a question and name what goes in the confirm button.
 - Keep confirmations compact and explain the consequence in plain English. Tiny title-and-description confirmations do not need cards.
+- A modal that holds typed work uses the shared `FormDialog` (`src/components/ui/form-dialog.tsx`) instead of `Dialog` directly: pass `dirty` and it asks "Discard changes?" before the backdrop, Escape, the X or Cancel can throw the edits away, and `busy` while a save runs. Wire the footer's Cancel to the `requestClose` it hands to its children, or that one path skips the question. Read-only and pick-something modals stay on plain `Dialog`.
 - Support Escape, focus trapping, focus restoration, and accessible titles.
 - In Trading, use `src/components/backtest/new-run-dialog.tsx` as the reference form-modal implementation.
 

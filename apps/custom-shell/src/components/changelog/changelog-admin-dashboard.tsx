@@ -603,7 +603,7 @@ function ChangelogDialog({
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2Icon className="animate-spin" /> : null}
-            {entry ? "Save update" : "Create update"}
+            {entry ? "Save changes" : "Create update"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -644,9 +644,11 @@ function PreviewDialog({
             {entry?.body ?? ""}
           </p>
         </DialogBody>
+        {/* Read-only: nothing to save, so a single Done rather than
+            Cancel-and-primary. */}
         <DialogFooter variant="plain">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Close
+          <Button type="button" onClick={onClose}>
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>
