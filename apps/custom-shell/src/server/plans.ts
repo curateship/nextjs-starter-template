@@ -1,4 +1,4 @@
-import { asc, eq, or } from "drizzle-orm"
+import { and, asc, eq, inArray, or } from "drizzle-orm"
 
 import type { PlanFeatures } from "@/lib/plan-features"
 import { db, type CustomShellDb } from "@/server/db"
@@ -154,7 +154,6 @@ export async function updatePlan(
   })
 }
 
-/** What each plan field is called in the activity log, in plain words. */
 /**
  * Plans are archived, never deleted: existing subscriptions still point at them
  * and their price history has to stay readable.
@@ -175,6 +174,35 @@ export async function archivePlan(planId: string, database: CustomShellDb = db) 
     .returning()
 
   return archived
+}
+
+/**
+ * Bulk archive for the table's multi-selection action. Same guards as archiving
+ * one, in a single statement: the default plan everyone falls back to is left
+ * alone, as is a plan that is already archived or no longer there. The caller is
+ * told exactly which ids went so a run that only got part way can say so.
+ */
+export async function archivePlans(
+  planIds: string[],
+  database: CustomShellDb = db
+): Promise<{ archived: string[]; kept: string[] }> {
+  const rows = await database
+    .update(customShellPlans)
+    .set({ active: false, isPublic: false, updatedAt: now() })
+    .where(
+      and(
+        inArray(customShellPlans.id, planIds),
+        eq(customShellPlans.isDefault, false),
+        eq(customShellPlans.active, true)
+      )
+    )
+    .returning({ id: customShellPlans.id })
+
+  const wentThrough = new Set(rows.map((row) => row.id))
+  return {
+    archived: [...wentThrough],
+    kept: planIds.filter((id) => !wentThrough.has(id)),
+  }
 }
 
 function validatePlanInput(input: PlanInput) {

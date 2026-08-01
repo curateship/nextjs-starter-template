@@ -52,10 +52,12 @@ import {
 import {
   createWorkspace,
   deleteWorkspace,
+  deleteWorkspaces,
   getWorkspaceErrorMessage,
   updateWorkspace,
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
+import { describeBulkResult } from "@/lib/bulk-result"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   iconMeta,
@@ -212,17 +214,34 @@ export function WorkspacesDashboard({
     !visibleSelected &&
     paginatedWorkspaces.some((workspace) => selectedIds.has(workspace.id))
 
-  // One workspace always has to survive, so the last one cannot be selected away.
+  // One request for the whole selection, and the server decides what it can
+  // take — one workspace always has to survive, so the last one never goes.
   async function confirmMassDelete() {
     dismissErrorToast()
     setBusy(true)
     try {
-      for (const id of selectedIds) {
-        await deleteWorkspace(id)
-      }
+      const { deleted, kept } = await deleteWorkspaces([...selectedIds])
       await router.invalidate()
-      toast.success("Workspaces deleted.")
-      setSelectedIds(new Set())
+      // Anything that would not go stays ticked, so the rows still on screen
+      // are the ones the count is talking about.
+      setSelectedIds(new Set(kept))
+
+      if (deleted.length === 0) {
+        showErrorToast(
+          "No workspaces were deleted. One workspace always has to stay, and the others may already be gone."
+        )
+        return
+      }
+
+      toast.success(
+        describeBulkResult({
+          done: deleted.length,
+          kept: kept.length,
+          one: "workspace",
+          many: "workspaces",
+          verb: "deleted",
+        })
+      )
       setMassDeleteOpen(false)
     } catch (error) {
       showErrorToast(getWorkspaceErrorMessage(error))

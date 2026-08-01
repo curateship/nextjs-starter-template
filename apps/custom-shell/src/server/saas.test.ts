@@ -32,6 +32,7 @@ import {
 } from "@/server/entitlements"
 import {
   archivePlan,
+  archivePlans,
   createPlan,
   findPlanByStripePrice,
   getDefaultPlan,
@@ -422,6 +423,35 @@ describe("plans", () => {
     await expect(archivePlan(defaultPlan!.id, database)).rejects.toThrow(
       "DEFAULT_PLAN_REQUIRED"
     )
+  })
+
+  // The table's Archive (n) sends the whole selection in one request, so the
+  // guard that protects a single archive has to hold for the batch too, and the
+  // caller has to be told exactly what went through.
+  it("archives a whole selection in one pass and leaves the default plan alone", async () => {
+    const team = await createPlan(planInput(), database)
+    const starter = await createPlan(
+      planInput({
+        slug: "starter",
+        stripePriceIdMonthly: "price_starter_monthly",
+      }),
+      database
+    )
+    const defaultPlan = await getDefaultPlan(database)
+
+    const result = await archivePlans(
+      [team.id, starter.id, defaultPlan!.id],
+      database
+    )
+    expect([...result.archived].sort()).toEqual([team.id, starter.id].sort())
+    expect(result.kept).toEqual([defaultPlan!.id])
+    expect((await getPlanBySlug("team", database))?.active).toBe(false)
+    expect((await getPlanBySlug("free", database))?.active).toBe(true)
+
+    // Running it again takes nothing: those two are already archived.
+    await expect(
+      archivePlans([team.id, starter.id], database)
+    ).resolves.toEqual({ archived: [], kept: [team.id, starter.id] })
   })
 })
 

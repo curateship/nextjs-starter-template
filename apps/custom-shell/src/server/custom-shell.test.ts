@@ -117,6 +117,7 @@ import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   createUserWorkspace,
   deleteUserWorkspace,
+  deleteUserWorkspaces,
   getOrCreateCurrentWorkspace,
   groupFeedbackIntoFeeds,
   groupFeedsLinks,
@@ -1112,6 +1113,70 @@ describe("custom shell workspaces", () => {
         database as unknown as CustomShellDb
       )
     ).rejects.toThrow("At least one workspace is required")
+  })
+
+  // The table's Delete (n) sends the whole selection in one request, so the
+  // guards that protect a single delete have to hold for the batch: someone
+  // else's workspace is left alone, and one workspace always survives.
+  it("bulk deletes in one pass and always leaves one workspace standing", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const strangerId = uuid()
+    const shellDb = database as unknown as CustomShellDb
+
+    await database.insert(customShellUsers).values([
+      {
+        id: userId,
+        email: "bulk-owner@internal.dev",
+        name: "Bulk Owner",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: strangerId,
+        email: "bulk-stranger@internal.dev",
+        name: "Stranger",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const first = await getOrCreateCurrentWorkspace(userId, shellDb)
+    const second = await createUserWorkspace(userId, "Second", {}, shellDb)
+    // Creating one makes it the current workspace, so this batch takes the
+    // workspace in use with it and the user has to land somewhere.
+    const third = await createUserWorkspace(userId, "Third", {}, shellDb)
+    const strangers = await getOrCreateCurrentWorkspace(strangerId, shellDb)
+    const missingId = uuid()
+
+    const result = await deleteUserWorkspaces(
+      userId,
+      [second.id, third.id, strangers.id, missingId],
+      shellDb
+    )
+    expect([...result.deleted].sort()).toEqual([second.id, third.id].sort())
+    expect([...result.kept].sort()).toEqual([strangers.id, missingId].sort())
+    await expect(listUserWorkspaces(userId, shellDb)).resolves.toMatchObject({
+      currentWorkspaceId: first.id,
+    })
+    await expect(
+      listUserWorkspaces(strangerId, shellDb)
+    ).resolves.toMatchObject({ currentWorkspaceId: strangers.id })
+
+    // Asking for every workspace still leaves the one in use standing.
+    const extra = await createUserWorkspace(userId, "Extra", {}, shellDb)
+    await expect(
+      deleteUserWorkspaces(userId, [first.id, extra.id], shellDb)
+    ).resolves.toEqual({ deleted: [first.id], kept: [extra.id] })
+
+    // And the last one on its own goes nowhere.
+    await expect(
+      deleteUserWorkspaces(userId, [extra.id], shellDb)
+    ).resolves.toEqual({ deleted: [], kept: [extra.id] })
   })
 
   // Reading a saved sidebar used to top it back up with the default links
