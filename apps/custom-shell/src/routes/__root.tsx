@@ -12,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadAppName } from "@/lib/api/shell"
 import { resolveAppName } from "@/lib/app-name"
 import { useDismissErrorToastOnNavigate } from "@/lib/error-toast"
+import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { ThemeProvider } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 
 // The app name changes about as rarely as the shell config, so hold it for the
@@ -56,6 +57,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
               "try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(d?'dark':'light')}catch(e){}",
           }}
         />
+        <script dangerouslySetInnerHTML={{ __html: noFlashCollapseScript }} />
         <HeadContent />
       </head>
       <body>

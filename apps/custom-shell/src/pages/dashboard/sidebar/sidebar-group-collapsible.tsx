@@ -19,6 +19,10 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  collapseStorageKey,
+  useRememberedCollapse,
+} from "@/lib/remembered-choice"
 
 type SidebarGroupChild = {
   id: string
@@ -83,28 +87,19 @@ export function SidebarCollapsible({
   onNavigate,
 }: SidebarGroupProps) {
   const { state, setOpenMobile } = useSidebar()
-  const storageKey = `custom-shell-sidebar-section-${id}`
-  const [open, setOpen] = React.useState(true)
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(
+    collapseStorageKey.sidebarSection(id)
+  )
   const handleNavClick = React.useCallback(() => {
     setOpenMobile(false)
   }, [setOpenMobile])
-  React.useEffect(() => {
-    setOpen(window.localStorage.getItem(storageKey) !== "closed")
-  }, [storageKey])
-  const handleOpenChange = React.useCallback(
-    (nextOpen: boolean) => {
-      setOpen(nextOpen)
-      window.localStorage.setItem(storageKey, nextOpen ? "open" : "closed")
-    },
-    [storageKey]
-  )
 
   if (!entries.length) {
     return null
   }
 
   return (
-    <Collapsible open={open} onOpenChange={handleOpenChange}>
+    <Collapsible open={open} onOpenChange={setOpen}>
       <SidebarGroup className="px-2 py-0">
         <SidebarGroupLabel
           asChild
@@ -115,7 +110,7 @@ export function SidebarCollapsible({
             <ChevronRight className="opacity-0 transition-[opacity,transform] duration-200 group-hover/section-label:opacity-100 group-focus-visible/section-label:opacity-100 group-data-[state=open]/section-label:rotate-90" />
           </CollapsibleTrigger>
         </SidebarGroupLabel>
-        <CollapsibleContent className="pb-2">
+        <CollapsibleContent className="pb-2" data-collapse-key={noFlashKey}>
           <SidebarMenu>
             {entries.map((entry) => {
           if (entry.type === "divider") {

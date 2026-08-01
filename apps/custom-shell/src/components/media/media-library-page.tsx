@@ -70,12 +70,18 @@ import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { formatFileSize } from "@/lib/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { formatDate } from "@/lib/money"
+import {
+  MEDIA_VIEW_STORAGE_KEY,
+  useRememberedChoice,
+} from "@/lib/remembered-choice"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { cn } from "@/lib/utils"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type ViewMode = "list" | "gallery"
+
+const viewModes: readonly ViewMode[] = ["list", "gallery"]
 
 export type AdminMediaPageData = {
   media: AdminMediaListResponse
@@ -158,7 +164,13 @@ export function MediaLibraryPage({
   const [typeFilter, setTypeFilter] = React.useState<AdminMediaTypeFilter>("all")
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(initialData.pageSize)
-  const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
+  // List or gallery is a habit, not a per-visit decision, so the page opens the
+  // way it was last left.
+  const [viewMode, setViewMode] = useRememberedChoice(
+    MEDIA_VIEW_STORAGE_KEY,
+    "gallery",
+    viewModes
+  )
   const [sort, setSort] = React.useState<AdminMediaSort>("created")
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
   const [upload, setUpload] = React.useState<{ done: number; total: number } | null>(
