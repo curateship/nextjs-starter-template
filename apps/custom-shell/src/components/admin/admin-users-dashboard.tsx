@@ -54,7 +54,7 @@ import {
   getViewAsErrorMessage,
   startViewingAsMember,
 } from "@/lib/api/view-as"
-import { formatDate } from "@/lib/money"
+import { formatDate } from "@/lib/format-time"
 
 type SortColumn = "name" | "email" | "role" | "plan" | "created"
 

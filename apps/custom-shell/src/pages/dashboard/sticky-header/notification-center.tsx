@@ -30,17 +30,11 @@ import {
   markNotificationRead,
   type NotificationItem,
 } from "@/lib/api/notification"
+import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
 const NOTIFICATION_PAGE_SIZE = 20
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-})
 
 function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"
@@ -432,8 +426,14 @@ export function NotificationCenter({
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                           {notificationPreview(item)}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {dateFormatter.format(new Date(item.created_at))}
+                        {/* The exact moment is one hover away; the line itself
+                            answers the only question a tray gets asked, which
+                            is how long ago this happened. */}
+                        <p
+                          className="mt-1 text-xs text-muted-foreground"
+                          title={formatDateTime(item.created_at)}
+                        >
+                          {formatRelativeTime(item.created_at, formatDateTime)}
                         </p>
                       </div>
                     </button>

@@ -59,7 +59,7 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatFileSize } from "@/lib/format-bytes"
-import { formatDate } from "@/lib/money"
+import { formatDate } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 
 type OrphanSort = "file" | "problem" | "owner" | "size" | "created"

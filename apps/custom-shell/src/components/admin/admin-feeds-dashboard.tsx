@@ -27,7 +27,7 @@ import type {
   FeedsSummary,
 } from "@/lib/api/feeds"
 import { feedbackTypeLabels } from "@/lib/feedback-type"
-import { formatTimeAgo } from "@/lib/money"
+import { formatTimeAgo } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 
 /**

@@ -69,7 +69,7 @@ import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { formatFileSize } from "@/lib/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
-import { formatDate } from "@/lib/money"
+import { formatDate } from "@/lib/format-time"
 import {
   MEDIA_VIEW_STORAGE_KEY,
   useRememberedChoice,

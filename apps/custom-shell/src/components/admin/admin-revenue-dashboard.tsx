@@ -69,7 +69,7 @@ export function AdminRevenueDashboard({
         <StatCard
           label="Paying subscribers"
           value={summary.paidSubscribers.toLocaleString()}
-          help={`${summary.trialing} on a trial`}
+          help={`${summary.trialing.toLocaleString()} on a trial`}
         />
         <StatCard
           label="Cancelling"
@@ -79,7 +79,7 @@ export function AdminRevenueDashboard({
         <StatCard
           label="Accounts"
           value={summary.totalUsers.toLocaleString()}
-          help={`${summary.verifiedUsers} verified`}
+          help={`${summary.verifiedUsers.toLocaleString()} verified`}
         />
       </div>
 

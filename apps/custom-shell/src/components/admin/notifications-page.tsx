@@ -12,6 +12,7 @@ import { toast } from "sonner"
 
 import { describeBulkResult } from "@/lib/bulk-result"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -56,14 +57,6 @@ type NotificationSortColumn =
   | "type"
   | "status"
   | "created"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-})
 
 /**
  * The free text a row shows: the update's title for a changelog notice, the
@@ -482,8 +475,11 @@ export function NotificationsPage({
                 {item.read_at ? "Read" : "Unread"}
               </Badge>
             </TableCell>
-            <TableCell column="mutedMeta">
-              {dateFormatter.format(new Date(item.created_at))}
+            <TableCell
+              column="mutedMeta"
+              title={formatDateTime(item.created_at)}
+            >
+              {formatRelativeTime(item.created_at, formatDateTime)}
             </TableCell>
           </TableRow>
         ))}
