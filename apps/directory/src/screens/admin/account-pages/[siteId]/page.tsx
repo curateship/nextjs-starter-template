@@ -49,6 +49,7 @@ export default function AccountPagesPage({ params }: { params: Promise<{ siteId:
       breadcrumbs={[{ label: "Pages", href: `/admin/sites/${siteId}/pages` }, { label: "Account Pages" }]}
       builderPath="/admin/account-pages/builder"
       canDeleteItem={(page) => !page.is_default}
+      deleteBlockedLabel="The default page cannot be deleted"
       canSelectItem={(page) => !page.is_default}
       columnCount={5}
       createButtonLabel="Create Account Page"

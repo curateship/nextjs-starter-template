@@ -6,6 +6,7 @@ import Ban from "lucide-react/dist/esm/icons/ban.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import FilePenLine from "lucide-react/dist/esm/icons/file-pen-line.js"
 import MailCheck from "lucide-react/dist/esm/icons/mail-check.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
@@ -33,6 +34,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
   AdminSortableHead,
   AdminTableShell,
   RelativeDate,
@@ -104,17 +106,7 @@ function describeOwnerEdit(request: DirectoryOwnerEditRequestListItem) {
 
 function ViewListingButton({ slug }: { slug: string }) {
   return (
-    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-      <a
-        href={`/directory/${slug}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="View Listing"
-      >
-        <ExternalLink className="h-4 w-4" />
-        <span className="sr-only">View Listing</span>
-      </a>
-    </Button>
+    <AdminRowAction icon={Eye} external href={`/directory/${slug}`} label="Preview listing" />
   )
 }
 

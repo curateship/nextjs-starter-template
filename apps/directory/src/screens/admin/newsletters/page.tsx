@@ -17,6 +17,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -52,6 +54,7 @@ import {
 } from "@/lib/actions/newsletters/newsletter-actions"
 import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/actions/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
+import Activity from "lucide-react/dist/esm/icons/activity.js"
 import Mail from "lucide-react/dist/esm/icons/mail.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
@@ -579,36 +582,23 @@ export default function NewslettersPage() {
                         </TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={newsletter.updated_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 px-2"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Activity}
+                              label="Delivery events"
                               onClick={() => openStatusEvents(newsletter.id)}
-                            >
-                              Events
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                            />
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Newsletter settings"
                               onClick={() => setSettingsNewsletterId(newsletter.id)}
-                              title="Newsletter Settings"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Newsletter Settings</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete newsletter"
                               onClick={() => handleDelete(newsletter.id)}
-                              title="Delete Newsletter"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Newsletter</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

@@ -184,7 +184,7 @@ export async function getDeletionImpactActionImpl(input: DeletionImpactRequest):
       const row = result.rows[0]
       if (count(row?.target_count) !== ids.length) return { data: null, error: "Segment not found or access denied" }
       impact = [{ label: "contact memberships", count: count(row.membership_count) }]
-    } else if (input.target === "form") {
+    } else if (input.target === "form" || input.target === "form-delete") {
       const result = await db.execute<{ target_count: number; submission_count: number }>(sql`
         select
           (select count(*)::int from guided_forms where site_id = ${input.siteId}::uuid and id in (${idList})) as target_count,
@@ -192,7 +192,11 @@ export async function getDeletionImpactActionImpl(input: DeletionImpactRequest):
       `)
       const row = result.rows[0]
       if (count(row?.target_count) !== ids.length) return { data: null, error: "Form not found or access denied" }
-      impact = [{ label: "existing submissions retained", count: count(row.submission_count) }]
+      // Archiving keeps the submissions; deleting takes them with it.
+      impact = [{
+        label: input.target === "form" ? "existing submissions retained" : "submissions deleted",
+        count: count(row.submission_count),
+      }]
     } else if (input.target === "site") {
       if (ids.length !== 1 || ids[0] !== input.siteId) return { data: null, error: "Invalid site deletion target" }
       const result = await db.execute<{

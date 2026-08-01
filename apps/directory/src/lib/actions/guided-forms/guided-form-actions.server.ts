@@ -446,6 +446,36 @@ export async function archiveGuidedFormsImpl(ids: string[]) {
   }
 }
 
+export async function deleteGuidedFormsImpl(ids: string[]) {
+  try {
+    if (!ids.length) return { success: false, error: 'No forms selected' }
+    if (ids.some((id) => !UUID_REGEX.test(id))) return { success: false, error: 'Invalid form ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const rows = await db.select({ id: guidedForms.id, siteId: guidedForms.siteId }).from(guidedForms).where(inArray(guidedForms.id, ids))
+    if (rows.length !== ids.length) return { success: false, error: 'Forms not found' }
+
+    const siteIds = [...new Set(rows.map((row) => row.siteId))]
+    const ownedSites = await db.select({ id: sites.id }).from(sites).where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
+    if (ownedSites.length !== siteIds.length) return { success: false, error: 'Access denied' }
+
+    // Submissions point at the version they were answered against with an
+    // `onDelete: 'restrict'`, so cascading from the form alone would be
+    // refused. Clear the rows in dependency order inside one transaction.
+    await db.transaction(async (tx) => {
+      await tx.delete(guidedFormSubmissions).where(inArray(guidedFormSubmissions.formId, ids))
+      await tx.delete(guidedFormVersions).where(inArray(guidedFormVersions.formId, ids))
+      await tx.delete(guidedForms).where(inArray(guidedForms.id, ids))
+    })
+    return { success: true, error: null }
+  } catch (error) {
+    console.error('deleteGuidedForms error:', error)
+    return { success: false, error: 'Failed to delete forms' }
+  }
+}
+
 export async function getGuidedFormSubmissionsImpl(formId: string, options?: { page?: number; pageSize?: number }) {
   try {
     const access = await requireOwnedContentRow<typeof guidedForms.$inferSelect>(guidedForms as any, formId, 'Form')

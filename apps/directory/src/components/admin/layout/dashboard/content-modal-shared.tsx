@@ -13,7 +13,8 @@
  * unchanged; only the duplicated state logic and field markup live here.
  */
 
-import { useState, type ReactNode } from "react"
+import { useId, useState, type ReactNode } from "react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -292,6 +293,7 @@ export function MetaDescriptionField({ value, onChange, placeholder, description
 interface FeaturedImageFieldProps {
   imageUrl: string
   onChange: (imageUrl: string) => void
+  label?: string
   emptyLabel?: string
 }
 
@@ -304,46 +306,60 @@ interface FeaturedImageFieldProps {
 export function FeaturedImageField({
   imageUrl,
   onChange,
+  label = "Featured Image",
   emptyLabel = "Click to select featured image",
 }: FeaturedImageFieldProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const pickerId = useId()
 
   return (
     <Field className="w-48">
+      <FieldLabel htmlFor={pickerId}>{label}</FieldLabel>
       {imageUrl ? (
-        <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted">
-          <img
-            src={imageUrl}
-            alt="Featured image preview"
-            className="h-full w-full object-contain"
-          />
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="absolute top-2 right-2 p-1 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/90 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <div
-            className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-            onClick={() => setShowImagePicker(true)}
-          >
-            <div className="text-white text-center">
-              <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-              <p className="text-sm font-medium">Click to change image</p>
-            </div>
+        <div className="relative">
+          <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted">
+            <img
+              src={imageUrl}
+              alt="Featured image preview"
+              className="h-full w-full object-cover"
+            />
+            <button
+              type="button"
+              id={pickerId}
+              onClick={() => setShowImagePicker(true)}
+              className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 outline-none transition-opacity hover:opacity-100 focus-visible:opacity-100"
+            >
+              <span className="text-center text-white">
+                <ImageIcon className="mx-auto mb-2 h-8 w-8" />
+                <span className="block text-sm font-medium">Click to change image</span>
+              </span>
+            </button>
           </div>
+          {/* Custom Shell's remove badge (ringed so it reads over any photo), tucked
+              mostly onto the photo corner rather than straddling it halfway. It lives
+              outside the overflow-hidden frame so the frame doesn't clip it. */}
+          <Button
+            variant="destructive"
+            size="icon-sm"
+            aria-label="Remove image"
+            className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 rounded-full shadow-md ring-2 ring-white/70"
+            onClick={() => onChange("")}
+          >
+            <X className="size-4" />
+          </Button>
         </div>
       ) : (
-        <div
-          className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+        <button
+          type="button"
+          id={pickerId}
           onClick={() => setShowImagePicker(true)}
+          className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 outline-none transition-all hover:border-muted-foreground/40 hover:bg-muted/70 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <div className="text-center">
+          <span className="text-center">
             <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-            <p className="mt-2 text-sm text-muted-foreground">{emptyLabel}</p>
-          </div>
-        </div>
+            <span className="mt-2 block text-sm text-muted-foreground">{emptyLabel}</span>
+          </span>
+        </button>
       )}
       <MediaPicker
         open={showImagePicker}

@@ -9,7 +9,6 @@ import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   TableRightActions,
@@ -20,6 +19,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -316,31 +317,21 @@ export default function NewsletterContactTagsPage() {
                         <TableCell column="mutedMeta">{tag.contact_count.toLocaleString()}</TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={tag.last_used_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Tag settings"
                               onClick={() => openRenameModal(tag)}
-                              title="Rename Tag"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Rename Tag</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete tag"
                               onClick={() => {
                                 tagSelection.selectOnly([tag.id])
                                 setDeleteConfirmOpen(true)
                               }}
-                              title="Delete Tag"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Tag</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

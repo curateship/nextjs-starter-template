@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
+import Archive from "lucide-react/dist/esm/icons/archive.js"
 import ArchiveRestore from "lucide-react/dist/esm/icons/archive-restore.js"
 import BadgeDollarSign from "lucide-react/dist/esm/icons/badge-dollar-sign.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
-import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
@@ -35,7 +36,7 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminSortButton, AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate, useAdminSort } from "@/components/admin/layout/list"
+import { AdminRowAction, AdminRowActions, AdminSortButton, AdminTableShell, AdminListPending, AdminListFooter, formatShortDate as formatDate, useAdminSort } from "@/components/admin/layout/list"
 import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -493,29 +494,19 @@ export default function DirectoryMonetizationPage() {
                             }
                           </TableCell>
                           <TableCell column="meta">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
+                            <AdminRowActions>
+                              <AdminRowAction
+                                icon={Settings}
+                                label="Plan settings"
                                 onClick={() => { setPlanFieldMissing(null); dismissErrorToast(); setPlanDraft(planToDraft(plan)) }}
-                                title="Plan settings"
-                              >
-                                <Settings className="h-4 w-4" />
-                                <span className="sr-only">Plan settings</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => handleArchivePlan(plan)}
+                              />
+                              <AdminRowAction
+                                icon={plan.is_active ? Archive : ArchiveRestore}
+                                label={plan.is_active ? "Archive plan" : "Restore plan"}
                                 disabled={archivingPlanId === plan.id}
-                                title={plan.is_active ? "Archive plan" : "Restore plan"}
-                              >
-                                {plan.is_active ? <Trash2 className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
-                                <span className="sr-only">{plan.is_active ? "Archive plan" : "Restore plan"}</span>
-                              </Button>
-                            </div>
+                                onClick={() => handleArchivePlan(plan)}
+                              />
+                            </AdminRowActions>
                           </TableCell>
                         </TableRow>
                       ))
@@ -546,31 +537,21 @@ export default function DirectoryMonetizationPage() {
                             </div>
                           </TableCell>
                           <TableCell column="meta">
-                            <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                                <a
-                                  href={`/directory/${entitlement.directory_slug}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title="View Listing"
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                  <span className="sr-only">View Listing</span>
-                                </a>
-                              </Button>
+                            <AdminRowActions>
+                              <AdminRowAction
+                                icon={Eye}
+                                external
+                                href={`/directory/${entitlement.directory_slug}`}
+                                label="Preview listing"
+                              />
                               {entitlement.status === "active" ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
+                                <AdminRowAction
+                                  icon={Trash2}
+                                  label="Revoke placement"
                                   onClick={() => setSelectedEntitlement(entitlement)}
-                                  title="Revoke placement"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Revoke placement</span>
-                                </Button>
+                                />
                               ) : null}
-                            </div>
+                            </AdminRowActions>
                           </TableCell>
                         </TableRow>
                       ))

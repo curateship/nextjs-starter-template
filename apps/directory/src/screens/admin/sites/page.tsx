@@ -22,6 +22,8 @@ import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingS
 import {
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -406,42 +408,31 @@ export default function SitesPage() {
                         <TableCell column="mutedMeta"><RelativeDate date={site.created_at} /></TableCell>
                         <TableCell column="meta">{getStatusBadge(site.status)}</TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center space-x-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <a href={getSiteUrl(site)} target="_blank" rel="noopener noreferrer" title="Preview Site">
-                                <Eye className="h-4 w-4" />
-                                <span className="sr-only">Preview Site</span>
-                              </a>
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <Link href={`/admin/settings?site=${site.id}`} title="Site Settings">
-                                <Settings className="h-4 w-4" />
-                                <span className="sr-only">Site Settings</span>
-                              </Link>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => openDuplicateDialog(site)}
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Site settings"
+                              href={`/admin/settings?site=${site.id}`}
+                            />
+                            <AdminRowAction
+                              icon={Eye}
+                              external
+                              href={getSiteUrl(site)}
+                              label="Preview site"
+                            />
+                            <AdminRowAction
+                              icon={Copy}
+                              label="Duplicate site"
                               disabled={duplicating}
-                              title="Duplicate Site"
-                            >
-                              <Copy className="h-4 w-4" />
-                              <span className="sr-only">Duplicate Site</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                              onClick={() => { setError(null); setDeleteConfirm({ id: site.id, name: site.name }) }}
+                              onClick={() => openDuplicateDialog(site)}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete site"
                               disabled={deleting === site.id}
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </div>
+                              onClick={() => { setError(null); setDeleteConfirm({ id: site.id, name: site.name }) }}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

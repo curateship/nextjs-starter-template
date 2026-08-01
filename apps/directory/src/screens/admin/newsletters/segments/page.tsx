@@ -17,6 +17,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -327,31 +329,21 @@ export default function SegmentsPage() {
                         </TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={segment.updated_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Segment settings"
                               onClick={() => openEditModal(segment)}
-                              title="Edit Segment"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit Segment</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete segment"
                               onClick={() => {
                                 segmentSelection.selectOnly([segment.id])
                                 setMassDeleteConfirmOpen(true)
                               }}
-                              title="Delete Segment"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Segment</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

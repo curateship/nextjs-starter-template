@@ -17,6 +17,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -589,28 +591,18 @@ export default function ContactsPage() {
                         <TableCell column="mutedMeta"><RelativeDate date={contact.created_at} /></TableCell>
                         <TableCell column="mutedMeta"><RelativeDate date={contact.last_engaged_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Contact settings"
                               onClick={() => openEditModal(contact)}
-                              title="Edit Contact"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit Contact</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete contact"
                               onClick={() => handleDelete(contact.id)}
-                              title="Delete Contact"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Contact</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

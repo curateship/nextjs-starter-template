@@ -10,12 +10,13 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSelectionBanner,
   AdminSortableHead,
   AdminSortButton,
@@ -411,16 +412,13 @@ export default function OrdersPage() {
                           )}
                         </TableCell>
                         <TableCell column="meta">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                            onClick={() => promptDelete([order.id])}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete order"
+                              onClick={() => promptDelete([order.id])}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

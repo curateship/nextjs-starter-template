@@ -14,11 +14,12 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminTableShell,
   ConfirmDestructive,
@@ -215,28 +216,22 @@ export default function DirectoryCustomBlocksPage() {
                           <RelativeDate date={template.updated_at} />
                         </TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <Link href={`/admin/directory/custom-blocks/${template.id}`}>
-                                <Pencil className="h-3.5 w-3.5" />
-                                <span className="sr-only">Edit {template.name}</span>
-                              </Link>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Pencil}
+                              href={`/admin/directory/custom-blocks/${template.id}`}
+                              label={`Edit ${template.name}`}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
                               disabled={deletingId === template.id || (template.used_in_count || 0) > 0}
                               onClick={() => {
                                 setDeleteError(null)
                                 setTemplateToDelete(template)
                               }}
-                              aria-label={`Delete ${template.name}`}
-                              title={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

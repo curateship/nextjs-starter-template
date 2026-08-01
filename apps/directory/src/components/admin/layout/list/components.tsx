@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
+import AppLink from "@/components/app-link";
 import ChevronLeft from "lucide-react/dist/esm/icons/chevron-left.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import ChevronsLeft from "lucide-react/dist/esm/icons/chevrons-left.js"
@@ -193,6 +194,90 @@ export function AdminSortableHead<TColumn extends string>({
         {children}
       </AdminSortButton>
     </TableHead>
+  );
+}
+
+/**
+ * The action-icon group that ends every admin table row.
+ *
+ * One set, one order, everywhere — screen-specific actions first, then
+ * settings, preview, duplicate, edit, send, archive, and delete always last.
+ * A screen that cannot do one of them simply leaves it out; the rest keep their
+ * relative order. See `workspace/docs/ui-rules.md` for the full table.
+ */
+export function AdminRowActions({ children }: { children: ReactNode }) {
+  return <div className="flex items-center">{children}</div>;
+}
+
+/**
+ * One icon button inside `AdminRowActions`.
+ *
+ * `label` is required and becomes both the hover tooltip and the screen-reader
+ * name, so a row action cannot ship without either. A disabled button gets its
+ * tooltip from the wrapper, because a disabled control takes no pointer events
+ * and would otherwise never show one.
+ */
+export function AdminRowAction({
+  className,
+  disabled = false,
+  external = false,
+  href,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  /** Layout or visibility only — never a different look for the button itself. */
+  className?: string;
+  disabled?: boolean;
+  /** Opens in a new tab. */
+  external?: boolean;
+  href?: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <Icon className="h-4 w-4" />
+      <span className="sr-only">{label}</span>
+    </>
+  );
+
+  if (href && !disabled) {
+    return (
+      <Button variant="ghost" size="icon" className={className} asChild>
+        {external ? (
+          <a href={href} target="_blank" rel="noopener noreferrer" title={label}>
+            {content}
+          </a>
+        ) : (
+          <AppLink href={href} title={label}>
+            {content}
+          </AppLink>
+        )}
+      </Button>
+    );
+  }
+
+  const button = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={className}
+      disabled={disabled}
+      onClick={onClick}
+      title={label}
+    >
+      {content}
+    </Button>
+  );
+
+  return disabled ? (
+    <span className="inline-flex" title={label}>
+      {button}
+    </span>
+  ) : (
+    button
   );
 }
 

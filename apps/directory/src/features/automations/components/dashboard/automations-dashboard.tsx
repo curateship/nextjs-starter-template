@@ -17,6 +17,8 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortButton,
   AdminTableShell, AdminListPending,
   RelativeDate,
@@ -288,12 +290,13 @@ export function AutomationsDashboard() {
                     <TableCell column="mutedMeta">{item.lastRunAt ? formatDateTime(item.lastRunAt) : "Never"}</TableCell>
                     <TableCell column="mutedMeta">{formatDateTime(item.nextRunAt, item.status === "active" ? "Not scheduled" : "—")}</TableCell>
                     <TableCell column="meta">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleRun(item)} disabled={working} aria-label={`Run ${item.name}`} title="Run now">{working ? <Loader2 className="animate-spin" /> : <Play />}</Button>
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleStatus(item)} disabled={working} aria-label={`${item.status === "active" ? "Pause" : "Activate"} ${item.name}`} title={item.status === "active" ? "Pause" : "Activate"}>{item.status === "active" ? <Pause /> : <Workflow />}</Button>
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleDuplicate(item)} disabled={working} aria-label={`Duplicate ${item.name}`} title="Duplicate"><Copy /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => setDeleteIds([item.id])} disabled={working} aria-label={`Delete ${item.name}`} title="Delete"><Trash2 /></Button>
-                      </div>
+                      <AdminRowActions>
+                        <AdminRowAction icon={working ? Loader2 : Play} className={working ? "[&_svg]:animate-spin" : undefined} label="Run now" disabled={working} onClick={() => void handleRun(item)} />
+                        <AdminRowAction icon={item.status === "active" ? Pause : Workflow} label={item.status === "active" ? "Pause" : "Activate"} disabled={working} onClick={() => void handleStatus(item)} />
+                        <AdminRowAction icon={Copy} label="Duplicate" disabled={working} onClick={() => void handleDuplicate(item)} />
+                        {/* Red until task 24 settles one look for a row delete. */}
+                        <AdminRowAction icon={Trash2} className="text-destructive hover:text-destructive" label="Delete" disabled={working} onClick={() => setDeleteIds([item.id])} />
+                      </AdminRowActions>
                     </TableCell>
                   </TableRow>
                 )

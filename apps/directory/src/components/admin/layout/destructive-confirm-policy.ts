@@ -17,6 +17,7 @@ export const DESTRUCTIVE_ACTION_POLICIES = {
   "delete-contact": { level: 1, consequence: "The contact and its audience memberships are permanently deleted." },
   "delete-directory-custom-block": { level: 1, consequence: "The custom block definition is permanently deleted." },
   "delete-event": { level: 1, consequence: "The event and its configured content are permanently deleted." },
+  "delete-form": { level: 2, consequence: "The form, its published versions, and every submission it has collected are permanently deleted." },
   "delete-listing": { level: 2, consequence: "The listing, saved-list references, claims, and Featured placements are permanently deleted." },
   "delete-media": { level: 1, consequence: "The media file is permanently removed from the library." },
   "delete-newsletter": { level: 1, consequence: "The newsletter and its configured content are permanently deleted." },

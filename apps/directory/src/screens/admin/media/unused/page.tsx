@@ -25,6 +25,8 @@ import {
   AdminBulkDeleteButton,
   AdminListFooter,
   AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
@@ -39,8 +41,8 @@ import type { MediaData } from "@/lib/actions/media/media-actions"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import ImageOff from "lucide-react/dist/esm/icons/image-off.js"
-import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import VideoIcon from "lucide-react/dist/esm/icons/video.js"
@@ -291,32 +293,23 @@ export default function UnusedMediaPage() {
                           <TableCell column="mutedMeta">{formatFileSize(media.file_size)}</TableCell>
                           <TableCell column="mutedMeta"><RelativeDate date={media.created_at} /></TableCell>
                           <TableCell column="meta">
-                            <div className="flex items-center space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => window.open(media.public_url, "_blank")}
-                                title="View Original"
-                              >
-                                <ImageIcon className="h-4 w-4" />
-                                <span className="sr-only">View Original</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            <AdminRowActions>
+                              <AdminRowAction
+                                icon={Eye}
+                                external
+                                href={media.public_url}
+                                label="Preview original"
+                              />
+                              <AdminRowAction
+                                icon={Trash2}
+                                label="Delete file"
+                                disabled={isDeleting}
                                 onClick={() => {
                                   setDeleteError(null)
                                   setMediaToDelete(media)
                                 }}
-                                disabled={isDeleting}
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Delete</span>
-                              </Button>
-                            </div>
+                              />
+                            </AdminRowActions>
                           </TableCell>
                         </TableRow>
                       )
