@@ -52,6 +52,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { showErrorToast } from "@/lib/error-toast"
 import { cn } from "@/lib/utils"
 import {
   isShellEntryNamed,
@@ -180,6 +181,67 @@ function updateSection(
   )
 }
 
+/**
+ * Why this address will not work, in the words the user gets told, or null when
+ * it is fine. It checks the shape only — a path inside the app, or a full web
+ * address — never whether the route exists, and it never blocks a save. A dead
+ * address is a warning, the same as a bad hex colour in Styling settings.
+ *
+ * A blank address is only a problem once the link has a name. A brand new link
+ * starts blank on purpose and stays out of the sidebar until it is named.
+ *
+ * `href` is typed as required, but stored sections come back from jsonb with
+ * only an Array.isArray check, so a legacy or hand-edited row can arrive
+ * without one — same reason `isShellEntryNamed` guards its label.
+ */
+function getShellHrefProblem(href: string | undefined, isNamed: boolean) {
+  if (!href) {
+    return isNamed ? "Give this link an address, like /admin/media." : null
+  }
+
+  if (/\s/.test(href)) {
+    return "An address cannot contain spaces. Try /admin/media."
+  }
+
+  if (href.startsWith("/")) return null
+
+  if (/^https?:\/\//i.test(href)) {
+    try {
+      new URL(href)
+      return null
+    } catch {
+      return "That is not a complete web address. Try https://example.com."
+    }
+  }
+
+  return "An address has to start with / — like /admin/media — or be a full web address, like https://example.com."
+}
+
+/**
+ * The props that turn an address box into a checked one. Both address boxes —
+ * the link's and its children's — spread this, so the two can never drift into
+ * warning about different things.
+ *
+ * The red ring on a *blank* address waits until you have actually been in the
+ * box: naming a brand new link would otherwise redden an address field you have
+ * not reached yet. Anything already typed is wrong on sight, so a link saved
+ * before this check existed shows its problem the moment its editor opens. The
+ * message itself is a toast on leaving the field, never per keystroke.
+ */
+function useCheckedAddress(href: string | undefined, isNamed: boolean) {
+  const [touched, setTouched] = React.useState(false)
+  const problem = getShellHrefProblem(href, isNamed)
+
+  return {
+    "aria-invalid":
+      (Boolean(problem) && (Boolean(href) || touched)) || undefined,
+    onBlur: () => {
+      setTouched(true)
+      if (problem) showErrorToast(problem)
+    },
+  }
+}
+
 function DividerPreview({ entry }: { entry: ShellEntry }) {
   if (isShellItem(entry)) {
     return null
@@ -193,7 +255,9 @@ function DividerPreview({ entry }: { entry: ShellEntry }) {
 }
 
 function SortableChild({ child, isNew, onChange, onDelete }: SortableChildProps) {
-  const childName = isShellEntryNamed(child) ? child.label : "child link"
+  const isNamed = isShellEntryNamed(child)
+  const childName = isNamed ? child.label : "child link"
+  const addressCheck = useCheckedAddress(child.href, isNamed)
   const {
     attributes,
     listeners,
@@ -249,6 +313,7 @@ function SortableChild({ child, isNew, onChange, onDelete }: SortableChildProps)
         placeholder="/admin/example"
         aria-label="Child URL"
         className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
+        {...addressCheck}
       />
       <Button
         type="button"
@@ -286,6 +351,7 @@ function SortableSidebarItem({
   // text, the accessible names, the dialog title and where focus lands.
   const isNamed = isShellEntryNamed(item)
   const itemName = isNamed ? item.label : "sidebar link"
+  const addressCheck = useCheckedAddress(item.href, isNamed)
   const {
     attributes,
     listeners,
@@ -440,6 +506,7 @@ function SortableSidebarItem({
                     }
                     placeholder="/admin/example"
                     aria-label="Sidebar link URL"
+                    {...addressCheck}
                   />
                 </div>
 
