@@ -1,5 +1,10 @@
 import * as React from "react"
-import { createFileRoute, Link, redirect } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useLocation,
+} from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
@@ -17,6 +22,7 @@ import {
   loadSignInOptions,
   requestPasswordReset,
 } from "@/lib/api/auth"
+import { carriedEmail } from "@/lib/carried-email"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/forgot-password")({
@@ -35,7 +41,11 @@ export const Route = createFileRoute("/forgot-password")({
 
 function ForgotPasswordRoute() {
   const { siteKey } = Route.useLoaderData()
-  const [email, setEmail] = React.useState("")
+  // Whatever the sign-in page had typed, checked again here because history
+  // state can be hand-edited. Read once as the field's starting value so it
+  // stays an ordinary editable field afterwards.
+  const carried = useLocation({ select: (location) => location.state.email })
+  const [email, setEmail] = React.useState(() => carriedEmail(carried) ?? "")
   const [sent, setSent] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const humanCheckRef = React.useRef<HumanCheckHandle>(null)
