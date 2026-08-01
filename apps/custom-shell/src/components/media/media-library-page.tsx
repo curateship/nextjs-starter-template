@@ -51,6 +51,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   getAdminMediaErrorMessage,
   deleteMediaAsAdminAction,
   loadAdminMediaPage,
@@ -94,8 +99,9 @@ const sortableColumns: {
 
 /**
  * One toast for the whole pick, whatever happened: a plain success, or the red
- * one naming the files that did not make it. A single file keeps exactly the
- * wording it had before there was a queue.
+ * one naming the files that did not make it. The success wording names where
+ * the files went, because this page lists everyone's files but uploads only
+ * ever land in the signed-in admin's own library.
  */
 function showUploadSummary(
   done: number,
@@ -103,7 +109,11 @@ function showUploadSummary(
   failures: { name: string; reason: string }[]
 ) {
   if (!failures.length) {
-    toast.success(done === 1 ? "Media uploaded." : `${done} files uploaded.`)
+    toast.success(
+      done === 1
+        ? "Uploaded to your library."
+        : `${done} files uploaded to your library.`
+    )
     return
   }
 
@@ -129,7 +139,8 @@ function showUploadSummary(
 /**
  * Every account's media in one place, with an owner column and filter. Storage
  * accounting and orphan cleanup live on their own page. Uploads still land in
- * the signed-in admin's own library.
+ * the signed-in admin's own library — the Upload button's tooltip and the
+ * success toast say so, so nobody has to find that out by uploading.
  */
 export function MediaLibraryPage({
   initialData,
@@ -326,6 +337,16 @@ export function MediaLibraryPage({
   const selectedCount = selectedIds.size
   const isFiltered = Boolean(search.trim()) || ownerId !== "all" || typeFilter !== "all"
 
+  // Filtering to someone else's files is the moment an upload is most likely to
+  // surprise, so the button says so there instead of only in general terms.
+  const filteredOwnerName =
+    ownerId !== "all" && ownerId !== currentUserId
+      ? data.owners.find((owner) => owner.userId === ownerId)?.name
+      : undefined
+  const uploadHint = filteredOwnerName
+    ? `New files are added to your own library. Filtering by ${filteredOwnerName} does not change that.`
+    : "New files are added to your own library."
+
   const mediaControls = (
     <>
       {selectedIds.size > 0 ? (
@@ -415,18 +436,23 @@ export function MediaLibraryPage({
           {upload.done} of {upload.total} uploaded…
         </span>
       ) : null}
-      <DashboardToolbarButton
-        type="button"
-        disabled={Boolean(upload)}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        {upload ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
-          <UploadIcon className="size-4" />
-        )}
-        Upload Media
-      </DashboardToolbarButton>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DashboardToolbarButton
+            type="button"
+            disabled={Boolean(upload)}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {upload ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <UploadIcon className="size-4" />
+            )}
+            Upload Media
+          </DashboardToolbarButton>
+        </TooltipTrigger>
+        <TooltipContent>{uploadHint}</TooltipContent>
+      </Tooltip>
     </>
   )
 

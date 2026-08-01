@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   getNotificationErrorMessage,
   listNotificationPage,
@@ -140,41 +141,6 @@ function notificationPreview(item: NotificationItem) {
         : (item.feedback_message ?? "")
 
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
-}
-
-function NotificationTabs({
-  activeFilter,
-  unreadCount,
-  onFilterChange,
-}: {
-  activeFilter: NotificationFilter
-  unreadCount: number
-  onFilterChange: (filter: NotificationFilter) => void
-}) {
-  const tabs: { label: string; value: NotificationFilter }[] = [
-    { label: `Unread (${unreadCount})`, value: "unread" },
-    { label: "View all", value: "all" },
-  ]
-
-  return (
-    <div className="flex rounded-lg bg-muted p-1">
-      {tabs.map((tab) => (
-        <Button
-          key={tab.value}
-          type="button"
-          variant={activeFilter === tab.value ? "outline" : "ghost"}
-          size="sm"
-          className={cn(
-            "h-8 rounded-md px-3",
-            activeFilter === tab.value && "bg-background shadow-sm"
-          )}
-          onClick={() => onFilterChange(tab.value)}
-        >
-          {tab.label}
-        </Button>
-      ))}
-    </div>
-  )
 }
 
 type NotificationCenterProps = {
@@ -386,11 +352,15 @@ export function NotificationCenter({
       >
         <div className="flex flex-wrap items-center gap-3 p-4">
           <h2 className="mr-auto text-xl font-semibold">Notifications</h2>
-          <NotificationTabs
-            activeFilter={filter}
-            unreadCount={unreadCount}
-            onFilterChange={setFilter}
-          />
+          <Tabs
+            value={filter}
+            onValueChange={(value) => setFilter(value as NotificationFilter)}
+          >
+            <TabsList>
+              <TabsTrigger value="unread">Unread ({unreadCount})</TabsTrigger>
+              <TabsTrigger value="all">View all</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
         <Separator />
 
