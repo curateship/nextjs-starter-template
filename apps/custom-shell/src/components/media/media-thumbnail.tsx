@@ -84,13 +84,16 @@ function PlayBadge({
   return (
     <span
       className={cn(
-        "pointer-events-none absolute grid place-items-center rounded-full bg-black/50",
+        "pointer-events-none absolute grid place-items-center rounded-full bg-foreground/60",
         compact ? "p-1" : "p-2",
         className
       )}
     >
       <PlayIcon
-        className={cn("fill-white text-white", compact ? "size-3" : "size-5")}
+        className={cn(
+          "fill-background text-background",
+          compact ? "size-3" : "size-5"
+        )}
       />
     </span>
   )

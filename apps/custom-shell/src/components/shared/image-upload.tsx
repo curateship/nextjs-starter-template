@@ -79,7 +79,7 @@ export function ImageUpload({
             type="button"
             variant="destructive"
             size="icon-sm"
-            className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-md ring-2 ring-white/70"
+            className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-md ring-2 ring-background"
             onClick={(event) => {
               event.stopPropagation()
               onChange("")

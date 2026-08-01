@@ -75,6 +75,15 @@ function getSectionIdFromDropId(id: string) {
     : null
 }
 
+/**
+ * What the delete confirmation is about. Only the ids are held — the link and
+ * child are looked up in the live sections when the dialog renders, so it can
+ * never name something that has already moved or gone.
+ */
+type PendingDelete =
+  | { kind: "link"; itemId: string }
+  | { kind: "child"; itemId: string; childId: string }
+
 type SidebarSettingsProps = {
   /** The list being edited — the admin's own, or the one members get. */
   sections: ShellSection[]
@@ -640,6 +649,9 @@ export function SidebarSettings({
   const [pendingDeleteSectionId, setPendingDeleteSectionId] = React.useState<
     string | null
   >(null)
+  const [pendingDelete, setPendingDelete] = React.useState<PendingDelete | null>(
+    null
+  )
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -1042,6 +1054,43 @@ export function SidebarSettings({
     sections.find((section) => section.id === pendingDeleteSectionId) ??
     null
 
+  const pendingDeleteLocation = pendingDelete
+    ? findItemLocation(pendingDelete.itemId)
+    : null
+  const pendingDeleteEntry = pendingDeleteLocation
+    ? pendingDeleteLocation.section.entries[pendingDeleteLocation.itemIndex]
+    : null
+  const pendingDeleteItem =
+    pendingDeleteEntry && isShellItem(pendingDeleteEntry)
+      ? pendingDeleteEntry
+      : null
+  const pendingDeleteChild =
+    pendingDelete?.kind === "child" && pendingDeleteItem
+      ? ((pendingDeleteItem.children ?? []).find(
+          (child) => child.id === pendingDelete.childId
+        ) ?? null)
+      : null
+  const isDeletingChild = pendingDelete?.kind === "child"
+  // The dialog opens off what was actually found, not off the pending ids, so
+  // an entry that is already gone can never put an empty confirm on screen.
+  const pendingDeleteTarget = isDeletingChild
+    ? pendingDeleteChild
+    : pendingDeleteItem
+
+  const handleConfirmDelete = () => {
+    if (!pendingDelete || !pendingDeleteLocation) return
+
+    const sectionId = pendingDeleteLocation.section.id
+    setPendingDelete(null)
+
+    if (pendingDelete.kind === "child") {
+      handleChildDelete(sectionId, pendingDelete.itemId, pendingDelete.childId)
+      return
+    }
+
+    handleItemDelete(sectionId, pendingDelete.itemId)
+  }
+
   return (
     <>
       <DndContext
@@ -1071,10 +1120,14 @@ export function SidebarSettings({
                 resetLabel={reset.label}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
-                onItemDelete={handleItemDelete}
+                onItemDelete={(_sectionId, itemId) =>
+                  setPendingDelete({ kind: "link", itemId })
+                }
                 onChildAdd={handleChildAdd}
                 onChildChange={handleChildChange}
-                onChildDelete={handleChildDelete}
+                onChildDelete={(_sectionId, itemId, childId) =>
+                  setPendingDelete({ kind: "child", itemId, childId })
+                }
                 onChildDragEnd={handleChildDragEnd}
                 onSaveConfig={onSaveConfig}
               />
@@ -1119,6 +1172,25 @@ export function SidebarSettings({
           handleSectionDelete(pendingDeleteSection.id)
         }}
       />
+
+      {/* One dialog for both link and child deletes. It lives out here rather
+          than inside the rows so a dragging or re-rendering row cannot take it
+          down mid-question, and it stacks above the link's own edit modal the
+          way the feedback comments modal's delete confirm does. */}
+      <ConfirmDialog
+        open={Boolean(pendingDeleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        title={isDeletingChild ? "Delete Child Link" : "Delete Link"}
+        description={
+          isDeletingChild
+            ? describeChildDelete(pendingDeleteChild)
+            : describeLinkDelete(pendingDeleteItem)
+        }
+        confirmLabel={isDeletingChild ? "Delete child link" : "Delete link"}
+        onConfirm={handleConfirmDelete}
+      />
     </>
   )
 }
@@ -1134,4 +1206,31 @@ function describeSectionDelete(section: ShellSection | null) {
         : ` and its ${linkCount} links`
 
   return `"${name}"${links} will be removed from the sidebar. This cannot be undone.`
+}
+
+function describeLinkDelete(item: ShellItem | null) {
+  // A link you never named has nothing to quote, so it is described rather than
+  // shown as an empty pair of quotes.
+  const name =
+    item && isShellEntryNamed(item)
+      ? `"${item.label.trim()}"`
+      : "This unnamed link"
+  const childCount = item?.children?.length ?? 0
+  const children =
+    childCount === 0
+      ? ""
+      : childCount === 1
+        ? " and its child link"
+        : ` and its ${childCount} child links`
+
+  return `${name}${children} will be removed from the sidebar. This cannot be undone.`
+}
+
+function describeChildDelete(child: ShellChildItem | null) {
+  const name =
+    child && isShellEntryNamed(child)
+      ? `"${child.label.trim()}"`
+      : "This unnamed child link"
+
+  return `${name} will be removed from the sidebar. This cannot be undone.`
 }

@@ -4,6 +4,7 @@ import {
   GridIcon,
   ImageIcon,
   ListIcon,
+  Loader2Icon,
   SettingsIcon,
   Trash2Icon,
   UploadIcon,
@@ -92,6 +93,40 @@ const sortableColumns: {
 ]
 
 /**
+ * One toast for the whole pick, whatever happened: a plain success, or the red
+ * one naming the files that did not make it. A single file keeps exactly the
+ * wording it had before there was a queue.
+ */
+function showUploadSummary(
+  done: number,
+  picked: number,
+  failures: { name: string; reason: string }[]
+) {
+  if (!failures.length) {
+    toast.success(done === 1 ? "Media uploaded." : `${done} files uploaded.`)
+    return
+  }
+
+  if (picked === 1) {
+    showErrorToast(failures[0].reason)
+    return
+  }
+
+  // A folder's worth of rejected files would otherwise fill the screen with
+  // names, so only the first few are read out.
+  const shown = failures.slice(0, 5).map((failure) => failure.name)
+  const names =
+    failures.length > shown.length
+      ? `${shown.join(", ")} and ${failures.length - shown.length} more`
+      : shown.join(", ")
+  // The same reason usually explains every skipped file, so say it once.
+  const reasons = Array.from(new Set(failures.map((failure) => failure.reason)))
+  showErrorToast(
+    `${done} uploaded, ${failures.length} failed: ${names} — ${reasons.join(" ")}`
+  )
+}
+
+/**
  * Every account's media in one place, with an owner column and filter. Storage
  * accounting and orphan cleanup live on their own page. Uploads still land in
  * the signed-in admin's own library.
@@ -115,7 +150,9 @@ export function MediaLibraryPage({
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
   const [sort, setSort] = React.useState<AdminMediaSort>("created")
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
-  const [uploading, setUploading] = React.useState(false)
+  const [upload, setUpload] = React.useState<{ done: number; total: number } | null>(
+    null
+  )
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [openMedia, setOpenMedia] = React.useState<AdminMediaItem | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
@@ -145,6 +182,14 @@ export function MediaLibraryPage({
       setError(getAdminMediaErrorMessage(loadError))
     }
   }, [query])
+
+  // A queue of uploads runs for minutes, and the filters stay live the whole
+  // time. Reloading through a ref means the reload at the end asks for whatever
+  // is on screen now, not the filters that were set when the pick started.
+  const refreshRef = React.useRef(refresh)
+  React.useEffect(() => {
+    refreshRef.current = refresh
+  }, [refresh])
 
   // The route already loaded the first page at the configured rows-per-page.
   // Anything else — a filter, a page, a different size — refetches.
@@ -212,29 +257,42 @@ export function MediaLibraryPage({
     setPage(1)
   }
 
+  /**
+   * One pick can be many files. They go up one at a time — the same single-file
+   * upload, repeated — so a failure part way through leaves the files before it
+   * saved and keeps going with the ones after it.
+   */
   async function handleUploadSelect(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const input = event.target
+    const files = Array.from(input.files ?? [])
+    // Cleared straight away so picking the same files again still fires a change.
+    input.value = ""
+    if (!files.length) return
 
-    const uploadError = getMediaUploadError(file, true)
-    if (uploadError) {
-      showErrorToast(uploadError)
-      event.target.value = ""
-      return
-    }
-
-    setUploading(true)
     dismissErrorToast()
-    try {
-      await uploadMedia(file)
-      toast.success("Media uploaded.")
-      await refresh()
-    } catch (uploadError) {
-      showErrorToast(getMediaErrorMessage(uploadError))
-    } finally {
-      setUploading(false)
-      event.target.value = ""
+    setUpload({ done: 0, total: files.length })
+
+    let done = 0
+    const failures: { name: string; reason: string }[] = []
+    for (const file of files) {
+      const invalid = getMediaUploadError(file, true)
+      if (invalid) {
+        failures.push({ name: file.name, reason: invalid })
+        continue
+      }
+
+      try {
+        await uploadMedia(file)
+        done += 1
+        setUpload({ done, total: files.length })
+      } catch (uploadError) {
+        failures.push({ name: file.name, reason: getMediaErrorMessage(uploadError) })
+      }
     }
+
+    setUpload(null)
+    if (done) await refreshRef.current()
+    showUploadSummary(done, files.length, failures)
   }
 
   async function handleConfirmDelete() {
@@ -352,12 +410,21 @@ export function MediaLibraryPage({
           <GridIcon className="size-4" />
         </DashboardToolbarButton>
       </div>
+      {upload ? (
+        <span className="text-sm text-muted-foreground" role="status">
+          {upload.done} of {upload.total} uploaded…
+        </span>
+      ) : null}
       <DashboardToolbarButton
         type="button"
-        disabled={uploading}
+        disabled={Boolean(upload)}
         onClick={() => fileInputRef.current?.click()}
       >
-        <UploadIcon className="size-4" />
+        {upload ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
+          <UploadIcon className="size-4" />
+        )}
         Upload Media
       </DashboardToolbarButton>
     </>
@@ -390,6 +457,7 @@ export function MediaLibraryPage({
         ref={fileInputRef}
         type="file"
         className="hidden"
+        multiple
         accept={mediaAccept(true)}
         onChange={handleUploadSelect}
       />
@@ -589,7 +657,7 @@ function MediaDetailsDialog({
                     // over range requests rather than downloading in full.
                     <video
                       src={item.url}
-                      className="mx-auto max-h-[50vh] w-full rounded-lg bg-black object-contain"
+                      className="mx-auto max-h-[50vh] w-full rounded-lg bg-muted object-contain"
                       controls
                       playsInline
                       preload="metadata"
@@ -775,7 +843,7 @@ function GalleryItem({
     <div
       className={cn(
         "group relative overflow-hidden rounded-lg border bg-muted",
-        selected && "border-destructive ring-2 ring-destructive/25"
+        selected && "border-primary ring-3 ring-primary/15"
       )}
     >
       <button
