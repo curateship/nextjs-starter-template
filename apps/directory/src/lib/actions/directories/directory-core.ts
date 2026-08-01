@@ -102,9 +102,46 @@ export function getDirectoryCoreMenuDefaultIcon(type?: string): QuickLinkIconNam
   return DIRECTORY_CORE_MENU_TYPES[type ?? ""]?.icon ?? "link"
 }
 
+function formatDirectoryCorePhoneValue(value: string): string {
+  const withoutScheme = value.replace(/^tel:/i, "").trim()
+  const digits = withoutScheme.replace(/\D/g, "")
+  const localDigits = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits
+  if (localDigits.length === 10) {
+    return `(${localDigits.slice(0, 3)}) ${localDigits.slice(3, 6)}-${localDigits.slice(6)}`
+  }
+  return withoutScheme
+}
+
+function formatDirectoryCoreWebsiteValue(value: string): string {
+  const host = value
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .split(/[/?#]/)[0]
+  return host || value
+}
+
 export function getDirectoryCoreMenuLabel(link: DirectoryCoreMenuLink): string {
   const label = link.label?.trim()
   if (label) return label
+
+  // No custom label: show the real value instead of the type name. Claim and
+  // custom rows keep the type fallback — claim is an action, and a custom
+  // link's value is an arbitrary URL or path, not a readable detail.
+  const value = link.value?.trim() || ""
+  if (value) {
+    switch (link.type) {
+      case "phone":
+        return formatDirectoryCorePhoneValue(value)
+      case "website":
+        return formatDirectoryCoreWebsiteValue(value)
+      case "email":
+        return value.replace(/^mailto:/i, "")
+      case "directions":
+        if (!value.includes(":") && !value.startsWith("//")) return value
+        break
+    }
+  }
+
   return getDirectoryCoreMenuTypeLabel(link.type)
 }
 

@@ -75,7 +75,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
       className={ACTION_ROW_CLASS}
     >
       {renderQuickLinkIcon(iconName, "h-5 w-5 shrink-0")}
-      <span className="min-w-0 wrap-break-word text-base leading-snug">{label}</span>
+      <span className="min-w-0 truncate text-base leading-snug" title={label}>{label}</span>
     </a>
   )
 }
