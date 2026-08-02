@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { ColorSwatch } from "@/components/ui/color-swatch"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -112,13 +113,10 @@ export function StylingSettings({
           }
         />
 
-        <div className="grid gap-3">
-          <div className="grid gap-0.5">
-            <Label>Border color</Label>
-            <p className="text-xs text-muted-foreground">
-              The color of card and table borders.
-            </p>
-          </div>
+        <FieldGroup
+          label="Border color"
+          description="The color of card and table borders."
+        >
           <BackgroundField
             idPrefix="card-border-color"
             value={styling.cardBorderColor}
@@ -126,10 +124,9 @@ export function StylingSettings({
             defaultHint="A subtle default border that adapts to light and dark."
             onChange={updateBorderColor}
           />
-        </div>
+        </FieldGroup>
 
-        <div className="grid gap-2">
-          <Label>Preview</Label>
+        <FieldGroup label="Preview" className="gap-2">
           <div
             data-content-styling=""
             data-flat={isFlat ? "true" : undefined}
@@ -165,7 +162,7 @@ export function StylingSettings({
               </CardContent>
             </Card>
           </div>
-        </div>
+        </FieldGroup>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
@@ -181,8 +178,7 @@ export function StylingSettings({
           onChange={updateDividerColor}
         />
 
-        <div className="grid gap-2">
-          <Label>Preview</Label>
+        <FieldGroup label="Preview" className="gap-2">
           <div className="max-w-lg overflow-hidden rounded-lg border">
             <div className="border-b bg-muted/30 px-4 py-2 text-sm font-medium">
               Section header
@@ -194,7 +190,7 @@ export function StylingSettings({
               The last row has no divider under it.
             </div>
           </div>
-        </div>
+        </FieldGroup>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
@@ -249,15 +245,14 @@ export function StylingSettings({
           help="Padding between the modal edge and its content."
         />
 
-        <div className="grid gap-3">
-          <Label>Background</Label>
+        <FieldGroup label="Background">
           <BackgroundField
             idPrefix="modal-bg"
             value={modal.background}
             defaultHint="Uses the theme's popover surface."
             onChange={updateModalBackground}
           />
-        </div>
+        </FieldGroup>
 
         <SliderRow
           label="Border"
@@ -269,8 +264,7 @@ export function StylingSettings({
           help="Modal border thickness. 0 removes it."
         />
 
-        <div className="grid gap-3">
-          <Label>Border color</Label>
+        <FieldGroup label="Border color">
           <BackgroundField
             idPrefix="modal-border"
             value={modal.borderColor}
@@ -278,7 +272,7 @@ export function StylingSettings({
             defaultHint="A subtle default border."
             onChange={updateModalBorderColor}
           />
-        </div>
+        </FieldGroup>
 
         <ModalPreview modal={modal} />
       </CollapsibleSettingsCard>
@@ -289,15 +283,14 @@ export function StylingSettings({
         description="The bordered sections within a modal (like the feedback list)."
         contentClassName="space-y-6"
       >
-        <div className="grid gap-3">
-          <Label>Background</Label>
+        <FieldGroup label="Background">
           <BackgroundField
             idPrefix="modal-card-bg"
             value={modal.cardBackground}
             defaultHint="Uses the theme's card surface."
             onChange={updateModalCardBackground}
           />
-        </div>
+        </FieldGroup>
 
         <SliderRow
           label="Border"
@@ -311,8 +304,7 @@ export function StylingSettings({
           help="Border thickness of cards inside the modal. 0 removes it."
         />
 
-        <div className="grid gap-3">
-          <Label>Border color</Label>
+        <FieldGroup label="Border color">
           <BackgroundField
             idPrefix="modal-card-border"
             value={modal.cardBorderColor}
@@ -320,7 +312,7 @@ export function StylingSettings({
             defaultHint="A subtle default border."
             onChange={updateModalCardBorderColor}
           />
-        </div>
+        </FieldGroup>
 
         <ModalPreview modal={modal} />
       </CollapsibleSettingsCard>
@@ -330,8 +322,7 @@ export function StylingSettings({
 
 function ModalPreview({ modal }: { modal: ShellModalStyling }) {
   return (
-    <div className="grid gap-2">
-      <Label>Preview</Label>
+    <FieldGroup label="Preview" className="gap-2">
       <div className="relative max-w-lg overflow-hidden rounded-lg bg-muted/40 p-4">
         <div
           className="pointer-events-none absolute inset-0"
@@ -365,7 +356,7 @@ function ModalPreview({ modal }: { modal: ShellModalStyling }) {
           </div>
         </div>
       </div>
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -375,7 +366,7 @@ const BACKGROUND_MODE_LABELS: Record<ShellBackgroundMode, string> = {
   custom: "Custom color",
 }
 
-/** The only hex shape the native <input type="color"> swatch accepts. */
+/** The only hex shape the colour swatch accepts. */
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
 
 function BackgroundField({
@@ -391,7 +382,7 @@ function BackgroundField({
   defaultHint: string
   onChange: (patch: Partial<ShellBackground>) => void
 }) {
-  // The native swatch only accepts #rrggbb, so it has to fall back to white on
+  // The swatch only accepts #rrggbb, so it has to fall back to white on
   // anything else. That fallback used to be the only feedback you got; the
   // error reported on blur is what makes it not a silent reset.
   const hexValid = HEX_COLOR_PATTERN.test(value.color)
@@ -450,13 +441,11 @@ function BackgroundField({
             Color
           </FieldLabel>
           <div className="flex items-center gap-2">
-            <input
+            <ColorSwatch
               id={`${idPrefix}-color`}
-              type="color"
               value={color}
               disabled={disabled}
               onChange={(event) => onChange({ color: event.target.value })}
-              className="h-8 w-12 cursor-pointer rounded-md border border-border bg-background p-1 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="Pick a color"
             />
             <Input
@@ -503,16 +492,37 @@ function SliderRow({
   onChange: (value: number) => void
   help?: string
 }) {
+  const fieldId = React.useId()
+  const labelId = `${fieldId}-label`
+  const helpId = `${fieldId}-help`
+  const thumbRef = React.useRef<HTMLSpanElement>(null)
+
   return (
     <div className="grid gap-2">
       <div className="grid max-w-sm gap-2">
         <div className="flex items-center justify-between">
-          <Label>{label}</Label>
+          {/* `htmlFor` would do nothing here: the element with role="slider" is
+              the thumb, a <span>, and a label can only point at a form control.
+              So the name is wired with aria-labelledby and the click is passed
+              on by hand — both landing on the thumb, not the wrapper. */}
+          <Label
+            id={labelId}
+            className="cursor-pointer"
+            onClick={() => thumbRef.current?.focus()}
+          >
+            {label}
+          </Label>
           <span className="text-xs tabular-nums text-muted-foreground">
             {valueLabel}
           </span>
         </div>
         <Slider
+          thumbRef={thumbRef}
+          aria-labelledby={labelId}
+          aria-describedby={help ? helpId : undefined}
+          // "24px", "10%" or "Off" — what the row already shows, so a screen
+          // reader reads the same thing as the eye instead of a bare number.
+          aria-valuetext={valueLabel}
           min={min}
           max={max}
           step={step}
@@ -521,7 +531,50 @@ function SliderRow({
           onValueChange={(next) => onChange(next[0] ?? min)}
         />
       </div>
-      {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}
+      {help ? (
+        <p id={helpId} className="text-xs text-muted-foreground">
+          {help}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * A heading over a whole group of controls — "Background", "Border color",
+ * "Preview". Deliberately not a `Label`: a label names one control, and a
+ * `<label>` pointing at nothing is announced as nothing. Naming a set of
+ * controls is what `role="group"` and `aria-labelledby` are for, and it looks
+ * exactly the same on screen.
+ */
+function FieldGroup({
+  label,
+  description,
+  className,
+  children,
+}: {
+  label: string
+  description?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  const labelId = React.useId()
+
+  return (
+    <div
+      role="group"
+      aria-labelledby={labelId}
+      className={cn("grid gap-3", className)}
+    >
+      <div className="grid gap-0.5">
+        <span id={labelId} className="text-sm leading-none font-medium">
+          {label}
+        </span>
+        {description ? (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      {children}
     </div>
   )
 }

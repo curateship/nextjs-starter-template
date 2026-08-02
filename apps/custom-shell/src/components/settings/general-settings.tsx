@@ -101,7 +101,8 @@ export function GeneralSettings({
           <Label htmlFor="workspace-subheader">Workspace subheader</Label>
           <Input
             id="workspace-subheader"
-            value={config.workspacePlan}            onChange={(event) =>
+            value={config.workspacePlan}
+            onChange={(event) =>
               onConfigChange({
                 ...config,
                 workspacePlan: event.target.value,
@@ -120,7 +121,8 @@ export function GeneralSettings({
           </FieldLabel>
           <Input
             id="admin-route"
-            value={config.adminRoute}            onChange={(event) =>
+            value={config.adminRoute}
+            onChange={(event) =>
               onConfigChange({
                 ...config,
                 adminRoute: event.target.value,
@@ -135,7 +137,8 @@ export function GeneralSettings({
             Default dashboard rows per page
           </Label>
           <Select
-            value={String(config.dashboardRowsPerPage)}            onValueChange={(value) =>
+            value={String(config.dashboardRowsPerPage)}
+            onValueChange={(value) =>
               onConfigChange({
                 ...config,
                 dashboardRowsPerPage: Number(value),
@@ -267,10 +270,7 @@ function MaintenanceSettingsCard({
  * the config — writing a clamped number back mid-keystroke would rewrite "9"
  * to "60" while the user was still typing "90".
  */
-function ToastSecondsField({
-  config,
-  onConfigChange,
-}: GeneralSettingsProps) {
+function ToastSecondsField({ config, onConfigChange }: GeneralSettingsProps) {
   const [draft, setDraft] = React.useState(() => String(config.toastSeconds))
   const [lastSaved, setLastSaved] = React.useState(config.toastSeconds)
 

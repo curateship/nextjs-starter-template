@@ -6,6 +6,14 @@ import {
   useOpenAccount,
   type AccountTab,
 } from "@/components/account/account-dialog"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { loadShellBootstrap } from "@/lib/api/shell"
 import { configuredRouteTarget, withAccountTab } from "@/lib/home-route"
 
@@ -55,12 +63,38 @@ function requestedAccountTab(search: unknown): AccountTab | undefined {
 function MemberHome() {
   const openAccount = useOpenAccount()
   const { account } = useSearch({ from: "/_authenticated" })
+  // Arriving here opens the account window, once. Watching `account` and
+  // reopening whenever it is missing put the window in a loop: Cancel, the X
+  // and Escape all took it away and this put it straight back, so it could not
+  // be closed at all — and while an admin was viewing the app as a member, its
+  // backdrop sat over the only ways to stop viewing.
+  //
+  // The arrival counts as handled either way, including when a link brought its
+  // own tab. Otherwise closing a window that opened on Billing would count as
+  // "nothing open yet" and pop Profile up in its place.
+  const handledArrivalRef = React.useRef(false)
 
   React.useEffect(() => {
+    if (handledArrivalRef.current) return
+    handledArrivalRef.current = true
     // Only fall back to Profile when nothing was asked for, or a link that
     // arrived asking for Billing gets overruled on the doorstep.
     if (!account) openAccount("profile")
   }, [account, openAccount])
 
-  return null
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Your account</CardTitle>
+        <CardDescription>
+          Your profile, billing and security all live in one window.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button type="button" onClick={() => openAccount("profile")}>
+          Open account
+        </Button>
+      </CardContent>
+    </Card>
+  )
 }

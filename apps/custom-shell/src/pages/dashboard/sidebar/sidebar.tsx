@@ -36,6 +36,8 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user: AuthUser
   plan: PlanSummary
   workspaces: WorkspaceItem[]
+  /** True while an admin is looking at the app as this member. */
+  viewingAsMember: boolean
   onLogout: () => void
 }
 
@@ -121,6 +123,7 @@ export function AppSidebar({
   user,
   plan,
   workspaces,
+  viewingAsMember,
   onLogout,
   ...props
 }: AppSidebarProps) {
@@ -147,7 +150,7 @@ export function AppSidebar({
         <WorkspaceSwitcher
           workspaces={workspaces}
           workspaceName={config.workspaceName}
-          workspacePlan={config.workspacePlan || plan.planName}
+          workspaceSubheader={config.workspacePlan}
           favicon={config.favicon}
         />
       </SidebarHeader>
@@ -169,6 +172,7 @@ export function AppSidebar({
       <SidebarFooter>
         <UserDropdown
           onLogout={onLogout}
+          viewingAsMember={viewingAsMember}
           isAdmin={user.role === "admin"}
           showUpgrade={!plan.isPaid}
           user={{

@@ -9,6 +9,7 @@ import {
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
 import {
+  ANNOUNCEMENT_LEVELS,
   DEFAULT_ANNOUNCEMENT_LEVEL,
   isAnnouncementLevel,
   MAX_ANNOUNCEMENT_BODY_LENGTH,
@@ -249,7 +250,16 @@ export async function loadUserAnnouncements(
         level: isAnnouncementLevel(row.level)
           ? row.level
           : DEFAULT_ANNOUNCEMENT_LEVEL,
-      })),
+      }))
+      // The loudest one goes on top: an outage outranks a heads-up, which
+      // outranks today's news, whatever order they were posted in. The query
+      // already handed these over newest first and this sort keeps equal levels
+      // in that order, so within one level the newest is still first.
+      .sort(
+        (a, b) =>
+          ANNOUNCEMENT_LEVELS.indexOf(b.level) -
+          ANNOUNCEMENT_LEVELS.indexOf(a.level)
+      ),
     noticesCreated,
   }
 }

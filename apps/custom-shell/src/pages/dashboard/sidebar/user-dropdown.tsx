@@ -24,11 +24,14 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useStopViewingAs } from "@/lib/use-stop-viewing-as"
 import {
   BadgeCheckIcon,
   BellIcon,
   ChevronsUpDownIcon,
   CreditCardIcon,
+  EyeOffIcon,
+  Loader2Icon,
   LogOutIcon,
   SettingsIcon,
   ShieldCheckIcon,
@@ -61,6 +64,7 @@ function UserAvatar({
 export function UserDropdown({
   user,
   onLogout,
+  viewingAsMember,
   isAdmin,
   showUpgrade,
 }: {
@@ -70,11 +74,14 @@ export function UserDropdown({
     avatar: string
   }
   onLogout: () => void
+  /** True while an admin is looking at the app as the person shown here. */
+  viewingAsMember: boolean
   isAdmin: boolean
   showUpgrade: boolean
 }) {
   const { isMobile } = useSidebar()
   const openAccount = useOpenAccount()
+  const { leaving, stopViewing } = useStopViewingAs()
   const initials = React.useMemo(() => {
     const source = user.name || user.email || "User"
 
@@ -167,10 +174,36 @@ export function UserDropdown({
               ) : null}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onLogout}>
-              <LogOutIcon />
-              Log out
-            </DropdownMenuItem>
+            {/* This menu is showing the member's name, email and photo while
+                the admin is the one clicking it, so "Log out" here would end
+                the admin's own session — their real one — on a menu that reads
+                as somebody else's. The last item becomes the way out of the
+                view instead, which is also the only exit that was previously
+                reachable from the reminder alone. Ordinary sign-out is
+                untouched for everybody else. */}
+            {viewingAsMember ? (
+              <DropdownMenuItem
+                disabled={leaving}
+                onSelect={(event) => {
+                  // Keep the menu open while the request runs; the page is
+                  // about to reload anyway.
+                  event.preventDefault()
+                  void stopViewing()
+                }}
+              >
+                {leaving ? (
+                  <Loader2Icon className="animate-spin" />
+                ) : (
+                  <EyeOffIcon />
+                )}
+                Stop viewing
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={onLogout}>
+                <LogOutIcon />
+                Log out
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

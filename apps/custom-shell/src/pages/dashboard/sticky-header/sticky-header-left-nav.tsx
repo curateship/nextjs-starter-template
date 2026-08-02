@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { ChevronDownIcon } from "lucide-react"
-import { useNavigate } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -39,11 +39,136 @@ function isExternalHref(href?: string) {
   )
 }
 
-export function StickyHeaderLeftNav({
-  navLinks,
-}: StickyHeaderLeftNavProps) {
+/**
+ * The router's `Link` takes a path, a query and a hash separately, while a
+ * sidebar link is one string an admin typed — so split it here. Without this a
+ * link like `/admin/media?tab=images` would be asked for as a page whose name
+ * literally contains a question mark, which is not the page.
+ */
+function toLinkProps(href: string) {
+  const [beforeHash, hash] = href.split("#")
+  const [pathname, query] = beforeHash.split("?")
+
+  return {
+    to: pathname,
+    search: query ? Object.fromEntries(new URLSearchParams(query)) : undefined,
+    hash: hash || undefined,
+  }
+}
+
+const navLinkClassName =
+  "inline-flex h-8 items-center gap-1.5 rounded-md text-sm font-medium transition-all"
+
+function NavLinkBody({ link }: { link: StickyHeaderLeftNavLink }) {
+  return (
+    <>
+      {link.icon ? (
+        <span className="flex h-3.5 w-3.5 items-center justify-center">
+          {link.icon}
+        </span>
+      ) : null}
+      {link.label}
+    </>
+  )
+}
+
+/**
+ * One top-bar link.
+ *
+ * An in-app destination uses the router's own `Link`, which builds a real
+ * `href` and navigates itself — so the page is fetched ahead of the click, and
+ * middle-click and open-in-new-tab work like they do anywhere else on the web.
+ * They did not before, when every link was a bare `<a>` whose click was
+ * cancelled in favour of a manual navigate.
+ *
+ * Whether a link is the page you are on is decided once, by the shell
+ * (`isActiveShellHref`), and handed down as `active`. The router could work
+ * that out itself through `activeProps`, but then the top bar and the sidebar
+ * would answer the same question two different ways, so it stays where it is.
+ */
+function NavLink({
+  link,
+  className,
+}: {
+  link: StickyHeaderLeftNavLink
+  className?: string
+}) {
+  const classes = cn(
+    navLinkClassName,
+    link.active ? "bg-muted text-foreground" : "hover:bg-muted",
+    className
+  )
+
+  if (!link.href) {
+    return (
+      <button
+        type="button"
+        onClick={
+          link.onClick as React.MouseEventHandler<HTMLButtonElement> | undefined
+        }
+        className={classes}
+      >
+        <NavLinkBody link={link} />
+      </button>
+    )
+  }
+
+  if (link.external || isExternalHref(link.href)) {
+    return (
+      <a
+        href={link.href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={link.onClick}
+        className={classes}
+      >
+        <NavLinkBody link={link} />
+      </a>
+    )
+  }
+
+  return (
+    <Link {...toLinkProps(link.href)} onClick={link.onClick} className={classes}>
+      <NavLinkBody link={link} />
+    </Link>
+  )
+}
+
+/** The same link inside the phone menu, wearing the menu row's own styling. */
+function MenuNavLink({
+  link,
+}: {
+  link: StickyHeaderLeftNavLink & { href: string }
+}) {
+  const className = cn(link.active && "bg-accent text-accent-foreground")
+
+  if (link.external || isExternalHref(link.href)) {
+    return (
+      <a
+        href={link.href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={link.onClick}
+        className={className}
+      >
+        <NavLinkBody link={link} />
+      </a>
+    )
+  }
+
+  return (
+    <Link
+      {...toLinkProps(link.href)}
+      onClick={link.onClick}
+      className={className}
+    >
+      <NavLinkBody link={link} />
+    </Link>
+  )
+}
+
+export function StickyHeaderLeftNav({ navLinks }: StickyHeaderLeftNavProps) {
   const isMobile = useIsMobile()
-  const navigate = useNavigate()
 
   if (!navLinks.length) {
     return null
@@ -51,63 +176,7 @@ export function StickyHeaderLeftNav({
 
   if (isMobile) {
     if (navLinks.length === 1) {
-      const link = navLinks[0]
-
-      if (link.href) {
-        return (
-          <a
-            href={link.href}
-            target={
-              link.external || isExternalHref(link.href) ? "_blank" : undefined
-            }
-            rel={
-              link.external || isExternalHref(link.href)
-                ? "noreferrer"
-                : undefined
-            }
-            onClick={(event) => {
-              link.onClick?.(event)
-              if (!isExternalHref(link.href)) {
-                event.preventDefault()
-                navigate({ href: link.href })
-              }
-            }}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-all",
-              link.active
-                ? "bg-muted text-foreground"
-                : "hover:bg-muted"
-            )}
-          >
-            {link.icon ? (
-              <span className="flex h-3.5 w-3.5 items-center justify-center">
-                {link.icon}
-              </span>
-            ) : null}
-            {link.label}
-          </a>
-        )
-      }
-
-      return (
-        <button
-          type="button"
-          onClick={link.onClick as React.MouseEventHandler<HTMLButtonElement> | undefined}
-          className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-all",
-            link.active
-              ? "bg-muted text-foreground"
-              : "hover:bg-muted"
-          )}
-        >
-          {link.icon ? (
-            <span className="flex h-3.5 w-3.5 items-center justify-center">
-              {link.icon}
-            </span>
-          ) : null}
-          {link.label}
-        </button>
-      )
+      return <NavLink link={navLinks[0]} className="px-2.5" />
     }
 
     const activeLink = navLinks.find((link) => link.active) ?? navLinks[0]
@@ -129,47 +198,19 @@ export function StickyHeaderLeftNav({
           {navLinks.map((link) =>
             link.href ? (
               <DropdownMenuItem key={`${link.href}-${link.label}`} asChild>
-                <a
-                  href={link.href}
-                  className={cn(
-                    link.active && "bg-accent text-accent-foreground"
-                  )}
-                  target={
-                    link.external || isExternalHref(link.href)
-                      ? "_blank"
-                      : undefined
-                  }
-                  rel={
-                    link.external || isExternalHref(link.href)
-                      ? "noreferrer"
-                      : undefined
-                  }
-                  onClick={(event) => {
-                    link.onClick?.(event)
-                    if (!isExternalHref(link.href)) {
-                      event.preventDefault()
-                      navigate({ href: link.href })
-                    }
-                  }}
-                >
-                  {link.icon ? <span className="mr-2">{link.icon}</span> : null}
-                  {link.label}
-                </a>
+                <MenuNavLink link={{ ...link, href: link.href }} />
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem
                 key={`${link.href}-${link.label}`}
-                className={cn(
-                  link.active && "bg-accent text-accent-foreground"
-                )}
+                className={cn(link.active && "bg-accent text-accent-foreground")}
                 onClick={
                   link.onClick as
                     | React.MouseEventHandler<HTMLDivElement>
                     | undefined
                 }
               >
-                {link.icon ? <span className="mr-2">{link.icon}</span> : null}
-                {link.label}
+                <NavLinkBody link={link} />
               </DropdownMenuItem>
             )
           )}
@@ -179,74 +220,14 @@ export function StickyHeaderLeftNav({
   }
 
   return (
-    <div className="inline-flex h-8 items-center rounded-md gap-1">
-      {navLinks.map((link) =>
-        link.href ? (
-          <a
-            key={`${link.href}-${link.label}`}
-            href={link.href}
-            target={link.external || isExternalHref(link.href) ? "_blank" : undefined}
-            rel={link.external || isExternalHref(link.href) ? "noreferrer" : undefined}
-            aria-label={isMobile ? link.label : undefined}
-            onClick={(event) => {
-              link.onClick?.(event)
-              if (!isExternalHref(link.href)) {
-                event.preventDefault()
-                navigate({ href: link.href })
-              }
-            }}
-            title={isMobile ? link.label : undefined}
-            className={cn(
-              "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
-              !isMobile && "px-3",
-              isMobile && "bg-muted",
-              link.active
-                ? "bg-muted text-foreground rounded-md"
-                : "hover:bg-muted rounded-md"
-            )}
-          >
-            {link.icon ? (
-              <span
-                className={cn(
-                  "flex h-3.5 w-3.5 items-center justify-center",
-                  !isMobile && "mr-1.5"
-                )}
-              >
-                {link.icon}
-              </span>
-            ) : null}
-            {(!isMobile || !link.icon) ? <span>{link.label}</span> : null}
-          </a>
-        ) : (
-          <button
-            key={`${link.href}-${link.label}`}
-            type="button"
-            aria-label={isMobile ? link.label : undefined}
-            onClick={link.onClick as React.MouseEventHandler<HTMLButtonElement> | undefined}
-            title={isMobile ? link.label : undefined}
-            className={cn(
-              "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
-              !isMobile && "px-3",
-              isMobile && "bg-muted",
-              link.active
-                ? "bg-muted text-foreground rounded-md"
-                : "hover:bg-muted rounded-md"
-            )}
-          >
-            {link.icon ? (
-              <span
-                className={cn(
-                  "flex h-3.5 w-3.5 items-center justify-center",
-                  !isMobile && "mr-1.5"
-                )}
-              >
-                {link.icon}
-              </span>
-            ) : null}
-            {(!isMobile || !link.icon) ? <span>{link.label}</span> : null}
-          </button>
-        )
-      )}
+    <div className="inline-flex h-8 items-center gap-1 rounded-md">
+      {navLinks.map((link) => (
+        <NavLink
+          key={`${link.href}-${link.label}`}
+          link={link}
+          className="px-3"
+        />
+      ))}
     </div>
   )
 }

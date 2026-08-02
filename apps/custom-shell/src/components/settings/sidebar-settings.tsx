@@ -29,6 +29,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -53,8 +54,13 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { showErrorToast } from "@/lib/error-toast"
+import {
+  collapseStorageKey,
+  useRememberedCollapse,
+} from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 import {
+  UNTITLED_SECTION_LABEL,
   isShellEntryNamed,
   isShellItem,
   renderShellIcon,
@@ -90,6 +96,8 @@ type SidebarSettingsProps = {
   sections: ShellSection[]
   onSectionsChange: (sections: ShellSection[]) => void
   onSaveConfig: () => Promise<boolean>
+  /** The card the sections sit in. Add section and Reset stay outside it. */
+  card: { storageId: string; title: string; description: string }
   /** What the Reset button does, and what it warns it will do. */
   reset: { label: string; description: string; onReset: () => void }
 }
@@ -125,6 +133,8 @@ type SortableItemProps = {
 
 type SortableChildProps = {
   child: ShellChildItem
+  /** Where the row sits, which is what names a child that has no name yet. */
+  position: number
   /** True for the child link "Add child" just made, which takes the cursor. */
   isNew: boolean
   onChange: (childId: string, patch: Partial<ShellChildItem>) => void
@@ -134,6 +144,8 @@ type SortableChildProps = {
 type SortableSectionProps = {
   section: ShellSection
   isDraggingItem: boolean
+  /** True for the section "Add section" just made, which takes the cursor. */
+  isNew: boolean
   /** Which link's editor is open, and the new child link — see the parent. */
   openItemId: string | null
   onOpenItemChange: (itemId: string | null) => void
@@ -254,9 +266,18 @@ function DividerPreview({ entry }: { entry: ShellEntry }) {
   )
 }
 
-function SortableChild({ child, isNew, onChange, onDelete }: SortableChildProps) {
+function SortableChild({
+  child,
+  position,
+  isNew,
+  onChange,
+  onDelete,
+}: SortableChildProps) {
   const isNamed = isShellEntryNamed(child)
-  const childName = isNamed ? child.label : "child link"
+  // Six children with no names would otherwise be six rows called "child link",
+  // and a screen reader could not tell which one it was in. Where the row sits
+  // is the only thing that tells them apart until one is typed.
+  const childName = isNamed ? child.label : `child link ${position}`
   const addressCheck = useCheckedAddress(child.href, isNamed)
   const {
     attributes,
@@ -304,14 +325,14 @@ function SortableChild({ child, isNew, onChange, onDelete }: SortableChildProps)
         value={child.label}
         onChange={(event) => onChange(child.id, { label: event.target.value })}
         placeholder="Child label"
-        aria-label="Child label"
+        aria-label={`${childName} label`}
         className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
       />
       <Input
         value={child.href}
         onChange={(event) => onChange(child.id, { href: event.target.value })}
         placeholder="/admin/example"
-        aria-label="Child URL"
+        aria-label={`${childName} URL`}
         className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
         {...addressCheck}
       />
@@ -546,10 +567,11 @@ function SortableSidebarItem({
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="space-y-2">
-                        {children.map((child) => (
+                        {children.map((child, childIndex) => (
                           <SortableChild
                             key={child.id}
                             child={child}
+                            position={childIndex + 1}
                             isNew={child.id === newChildId}
                             onChange={(childId, patch) =>
                               onChildChange(sectionId, item.id, childId, patch)
@@ -593,6 +615,7 @@ function SortableSidebarItem({
 function SortableSectionCard({
   section,
   isDraggingItem,
+  isNew,
   openItemId,
   onOpenItemChange,
   newChildId,
@@ -607,7 +630,7 @@ function SortableSectionCard({
   onChildDragEnd,
   onSaveConfig,
 }: SortableSectionProps) {
-  const sectionName = section.title?.trim() || "sidebar section"
+  const sectionName = section.title?.trim() || UNTITLED_SECTION_LABEL
   const {
     attributes,
     listeners,
@@ -647,12 +670,16 @@ function SortableSectionCard({
             <GripVertical className="h-4 w-4" />
           </button>
           <div className="min-w-0 flex-1 basis-40">
+            {/* "Add section" makes the card and the cursor lands here, which
+                also scrolls it into view at the bottom of a long page.
+                Mount-only, so an existing section never grabs focus later. */}
             <Input
+              autoFocus={isNew}
               value={section.title}
               onChange={(event) =>
                 onSectionTitleChange(section.id, event.target.value)
               }
-              placeholder="Untitled Section"
+              placeholder={UNTITLED_SECTION_LABEL}
               aria-label="Sidebar section label"
               className="h-8 max-w-xs border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:bg-muted/40 focus-visible:bg-background"
             />
@@ -736,14 +763,22 @@ export function SidebarSettings({
   sections,
   onSectionsChange,
   onSaveConfig,
+  card,
   reset,
 }: SidebarSettingsProps) {
+  // Held here, not in the card, because "Add section" sits outside the card and
+  // has to open it — a new section made behind a shut card looks like a button
+  // that did nothing. Same storage key, so the choice is still remembered.
+  const [cardOpen, setCardOpen, cardNoFlashKey] = useRememberedCollapse(
+    collapseStorageKey.settingsCard(card.storageId)
+  )
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
   // Which link's editor is open, and which child link was just added. Both are
   // held here rather than in the rows because that is the only way "Add" can
   // hand the thing it has just made straight to the user, ready to type in.
   const [openItemId, setOpenItemId] = React.useState<string | null>(null)
   const [newChildId, setNewChildId] = React.useState<string | null>(null)
+  const [newSectionId, setNewSectionId] = React.useState<string | null>(null)
   const [resetOpen, setResetOpen] = React.useState(false)
   const [pendingDeleteSectionId, setPendingDeleteSectionId] = React.useState<
     string | null
@@ -851,14 +886,18 @@ export function SidebarSettings({
   }
 
   const handleAddSection = () => {
-    onSectionsChange([
-      ...sections,
-      {
-        id: createShellId("section"),
-        title: "New Section",
-        entries: [],
-      },
-    ])
+    // Blank, like a new link and a new child link. A starting title is text you
+    // have to select and delete before you can type your own, and the
+    // placeholder says what an unnamed section is called anyway.
+    const section: ShellSection = {
+      id: createShellId("section"),
+      title: "",
+      entries: [],
+    }
+
+    setNewSectionId(section.id)
+    setCardOpen(true)
+    onSectionsChange([...sections, section])
   }
 
   const handleSectionTitleChange = (sectionId: string, title: string) => {
@@ -1203,59 +1242,73 @@ export function SidebarSettings({
 
   return (
     <>
-      <DndContext
-        id="custom-shell-sidebar-sections"
-        sensors={sensors}
-        collisionDetection={collisionDetection}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <SortableContext
-          items={sections.map((section) => section.id)}
-          strategy={verticalListSortingStrategy}
+      <CardGroup>
+        <CollapsibleSettingsCard
+          storageId={card.storageId}
+          title={card.title}
+          description={card.description}
+          collapse={{
+            open: cardOpen,
+            onOpenChange: setCardOpen,
+            noFlashKey: cardNoFlashKey,
+          }}
         >
-          <CardGroup>
-            {sections.map((section) => (
-              <SortableSectionCard
-                key={section.id}
-                section={section}
-                isDraggingItem={isDraggingItem}
-                openItemId={openItemId}
-                onOpenItemChange={handleOpenItemChange}
-                newChildId={newChildId}
-                onSectionTitleChange={handleSectionTitleChange}
-                onSectionDelete={(sectionId) =>
-                  setPendingDeleteSectionId(sectionId)
-                }
-                onItemAdd={handleAddItem}
-                onItemChange={handleItemChange}
-                onItemDelete={(_sectionId, itemId) =>
-                  setPendingDelete({ kind: "link", itemId })
-                }
-                onChildAdd={handleChildAdd}
-                onChildChange={handleChildChange}
-                onChildDelete={(_sectionId, itemId, childId) =>
-                  setPendingDelete({ kind: "child", itemId, childId })
-                }
-                onChildDragEnd={handleChildDragEnd}
-                onSaveConfig={onSaveConfig}
-              />
-            ))}
-          </CardGroup>
-        </SortableContext>
-      </DndContext>
+          <DndContext
+            id="custom-shell-sidebar-sections"
+            sensors={sensors}
+            collisionDetection={collisionDetection}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <SortableContext
+              items={sections.map((section) => section.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <CardGroup>
+                {sections.map((section) => (
+                  <SortableSectionCard
+                    key={section.id}
+                    section={section}
+                    isDraggingItem={isDraggingItem}
+                    isNew={section.id === newSectionId}
+                    openItemId={openItemId}
+                    onOpenItemChange={handleOpenItemChange}
+                    newChildId={newChildId}
+                    onSectionTitleChange={handleSectionTitleChange}
+                    onSectionDelete={(sectionId) =>
+                      setPendingDeleteSectionId(sectionId)
+                    }
+                    onItemAdd={handleAddItem}
+                    onItemChange={handleItemChange}
+                    onItemDelete={(_sectionId, itemId) =>
+                      setPendingDelete({ kind: "link", itemId })
+                    }
+                    onChildAdd={handleChildAdd}
+                    onChildChange={handleChildChange}
+                    onChildDelete={(_sectionId, itemId, childId) =>
+                      setPendingDelete({ kind: "child", itemId, childId })
+                    }
+                    onChildDragEnd={handleChildDragEnd}
+                    onSaveConfig={onSaveConfig}
+                  />
+                ))}
+              </CardGroup>
+            </SortableContext>
+          </DndContext>
+        </CollapsibleSettingsCard>
+      </CardGroup>
       {/* The tab's own actions, and the only reset on the page — it wipes the
           whole sidebar, so it is the last button in the row and the only red
           one, instead of being repeated on every section card next to
-          "Add link" where it read as a per-section reset. */}
+          "Add link" where it read as a per-section reset.
+
+          Outside the card on purpose: they act on the whole sidebar, not on
+          anything inside the card, and inside they read as one more control
+          belonging to the last section. */}
       <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleAddSection}
-        >
+        <Button type="button" variant="outline" onClick={handleAddSection}>
           <PlusIcon className="h-4 w-4" />
           Add section
         </Button>
@@ -1319,7 +1372,9 @@ export function SidebarSettings({
 }
 
 function describeSectionDelete(section: ShellSection | null) {
-  const name = section?.title?.trim() || "Untitled Section"
+  // Unlike a link, a section with no name still shows in the sidebar — under
+  // this name — so the confirmation quotes what is actually on screen.
+  const name = section?.title?.trim() || UNTITLED_SECTION_LABEL
   const linkCount = section?.entries.filter(isShellItem).length ?? 0
   const links =
     linkCount === 0

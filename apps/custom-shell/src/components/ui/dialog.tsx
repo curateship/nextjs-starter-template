@@ -151,6 +151,25 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/**
+ * A strip that stays put between the header and the scrolling body — a search
+ * field, a filter, an add button.
+ *
+ * It sits outside `DialogBody` on purpose. Inside, it scrolls away with the
+ * very content it filters, and the only other way to hold it still is a second
+ * scroll area nested inside the body's — which never scrolls, so the window
+ * drags the search box out of view instead.
+ */
+function DialogToolbar({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-toolbar"
+      className={cn("flex shrink-0 items-center gap-2", className)}
+      {...props}
+    />
+  )
+}
+
 function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   const contentVariant = React.useContext(DialogContentVariantContext)
 
@@ -262,5 +281,6 @@ export {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
+  DialogToolbar,
   DialogTrigger,
 }

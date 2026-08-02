@@ -93,6 +93,17 @@ export function AccountDialog({
     saved: false,
     dirty: false,
   })
+  // The window keeps showing the tab it was on the whole way out.
+  //
+  // `tab` comes from the URL and is gone the instant `?account=` is dropped,
+  // but the window is still on screen for the length of its fade. Rendering
+  // straight from `tab` hid the body, unmounted the panel and dropped the
+  // footer at that moment, so the window visibly collapsed to a small empty
+  // header before it disappeared. Only whether it is open reads `tab` now.
+  const [shownTab, setShownTab] = React.useState<AccountTab>(tab ?? "profile")
+  if (tab && tab !== shownTab) {
+    setShownTab(tab)
+  }
 
   return (
     // Only the Profile tab holds a form. Its unsaved name or photo is asked
@@ -113,7 +124,7 @@ export function AccountDialog({
           aria-describedby={undefined}
         >
           <Tabs
-            value={tab ?? "profile"}
+            value={shownTab}
             onValueChange={(value) => onTabChange(value as AccountTab)}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
@@ -147,7 +158,7 @@ export function AccountDialog({
                 value="profile"
                 className="min-w-0"
                 forceMount
-                hidden={tab !== "profile"}
+                hidden={shownTab !== "profile"}
               >
                 <AccountProfilePage
                   user={user}
@@ -167,7 +178,7 @@ export function AccountDialog({
               </TabsContent>
             </DialogBody>
 
-            {tab === "profile" ? (
+            {shownTab === "profile" ? (
               // The "Saved" note takes the hard-left slot this window has no
               // Delete for, so Cancel and the primary stay where they are in
               // every other window.
