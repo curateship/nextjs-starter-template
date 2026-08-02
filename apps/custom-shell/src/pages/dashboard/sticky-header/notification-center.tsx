@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
   CheckCheckIcon,
+  GitMergeIcon,
   Loader2Icon,
   MegaphoneIcon,
   MessageSquareIcon,
@@ -94,6 +95,17 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
     )
   }
 
+  // The reader's item was folded into another one; the line below quotes the
+  // surviving item, and clicking opens it.
+  if (item.type === "feedback_merged") {
+    return (
+      <>
+        <strong>{item.actor_name}</strong> merged your feedback into another
+        item
+      </>
+    )
+  }
+
   return (
     <>
       <strong>{item.actor_name}</strong> commented on your feedback
@@ -107,6 +119,9 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   }
   if (item.type === "announcement") {
     return <MegaphoneIcon className="h-3.5 w-3.5" />
+  }
+  if (item.type === "feedback_merged") {
+    return <GitMergeIcon className="h-3.5 w-3.5" />
   }
 
   return item.type === "feedback_vote" ? (

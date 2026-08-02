@@ -158,12 +158,23 @@ export const customShellFeedback = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     type: varchar("type", { length: 50 }).notNull(),
+    /** Where the item sits on the roadmap; every new item starts open. */
+    status: varchar("status", { length: 20 }).notNull().default("open"),
     message: text("message").notNull(),
     // What the item is about, from the fixed list in `lib/feedback-tags.ts`.
     tags: text("tags")
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * One optional screenshot, kept as a media row under the author's account.
+     * Deleting that media row only clears this — the feedback survives its
+     * picture — while deleting the feedback takes the file with it.
+     */
+    attachmentMediaId: varchar("attachment_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -173,11 +184,16 @@ export const customShellFeedback = pgTable(
       sql`${table.type} in ('suggestion', 'bug_report', 'question', 'praise')`
     ),
     check(
+      "feedback_status_check",
+      sql`${table.status} in ('open', 'planned', 'in_progress', 'done')`
+    ),
+    check(
       "feedback_tags_check",
       sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
     index("ix_feedback_type").on(table.type),
+    index("ix_feedback_attachment_media_id").on(table.attachmentMediaId),
   ]
 )
 
@@ -267,7 +283,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'changelog', 'announcement')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,

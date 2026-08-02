@@ -4,6 +4,7 @@ import { z } from "zod"
 export type NotificationType =
   | "feedback_vote"
   | "feedback_comment"
+  | "feedback_merged"
   | "changelog"
   | "announcement"
 
@@ -16,6 +17,7 @@ export type NotificationType =
 export const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
+  feedback_merged: "Merged",
   changelog: "Update",
   announcement: "Announcement",
 }
@@ -75,6 +77,7 @@ const adminListQuerySchema = z.object({
       "all",
       "feedback_vote",
       "feedback_comment",
+      "feedback_merged",
       "changelog",
       "announcement",
     ])

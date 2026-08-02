@@ -54,7 +54,14 @@ import {
   type FeedbackType,
 } from "@/lib/api/feedback"
 import { FeedbackTagsSelect } from "@/components/feedback/feedback-tags-select"
+import { ImageUpload } from "@/components/shared/image-upload"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import {
+  FEEDBACK_STATUSES,
+  feedbackStatusClassNames,
+  feedbackStatusLabels,
+  type FeedbackStatus,
+} from "@/lib/feedback-status"
 import {
   FEEDBACK_TAGS,
   feedbackTagLabels,
@@ -120,6 +127,7 @@ function submitOnCommandEnter(
 
 type FeedbackFilter = "all" | FeedbackType
 type FeedbackTagFilter = "all" | FeedbackTag
+type FeedbackStatusFilter = "all" | FeedbackStatus
 
 const feedbackSortLabels: Record<FeedbackSort, string> = {
   recent: "Recent",
@@ -143,7 +151,7 @@ function EmptyFeedback({ filtered }: { filtered: boolean }) {
         </p>
         <p className="mt-1">
           {filtered
-            ? "Set the type and tag back to All to see everything else."
+            ? "Set the type, tag, and status back to All to see everything else."
             : "Be the first — say what you'd like changed in the box above."}
         </p>
       </div>
@@ -170,6 +178,9 @@ export function FeedbackModal({
   const [feedbackType, setFeedbackType] =
     React.useState<FeedbackType>("suggestion")
   const [composerTags, setComposerTags] = React.useState<FeedbackTag[]>([])
+  // The screenshot going along with the next post — a media URL the picker
+  // already uploaded and persisted, or "" for none.
+  const [composerAttachment, setComposerAttachment] = React.useState("")
   const [message, setMessage] = React.useState("")
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -177,6 +188,8 @@ export function FeedbackModal({
   const [feedbackFilter, setFeedbackFilter] =
     React.useState<FeedbackFilter>("all")
   const [feedbackTag, setFeedbackTag] = React.useState<FeedbackTagFilter>("all")
+  const [feedbackStatus, setFeedbackStatus] =
+    React.useState<FeedbackStatusFilter>("all")
   const [feedbackSort, setFeedbackSort] = React.useState<FeedbackSort>("recent")
   const [loadingFeedback, setLoadingFeedback] = React.useState(false)
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set())
@@ -244,6 +257,7 @@ export function FeedbackModal({
       setJustPostedId(null)
       setFeedbackFilter("all")
       setFeedbackTag("all")
+      setFeedbackStatus("all")
       setFeedbackSort("recent")
       setLoadingThreadId(targetId)
     }
@@ -280,7 +294,12 @@ export function FeedbackModal({
           listFeedback(
             freshView
               ? {}
-              : { type: feedbackFilter, tag: feedbackTag, sort: feedbackSort }
+              : {
+                  type: feedbackFilter,
+                  tag: feedbackTag,
+                  status: feedbackStatus,
+                  sort: feedbackSort,
+                }
           ),
           Promise.all(
             threadIds.map(
@@ -319,6 +338,7 @@ export function FeedbackModal({
     targetFeedbackId,
     feedbackFilter,
     feedbackTag,
+    feedbackStatus,
     feedbackSort,
   ])
 
@@ -364,11 +384,14 @@ export function FeedbackModal({
         type: feedbackType,
         tags: composerTags,
         message: trimmedMessage,
+        attachmentUrl: composerAttachment || undefined,
       })
       setFeedback((current) => [created, ...current])
       setMessage("")
       // The chosen type and tags stay put — filing three bug reports about
-      // Media in a row should not mean picking them three times.
+      // Media in a row should not mean picking them three times. The
+      // screenshot clears: it belonged to the report just sent.
+      setComposerAttachment("")
       setJustPostedId(created.id)
       // A filter that hides what was just written makes the post look lost.
       setFeedbackFilter((current) =>
@@ -376,6 +399,9 @@ export function FeedbackModal({
       )
       setFeedbackTag((current) =>
         current === "all" || created.tags.includes(current) ? current : "all"
+      )
+      setFeedbackStatus((current) =>
+        current === "all" || current === created.status ? current : "all"
       )
       onMutated?.()
     } catch (submitError) {
@@ -586,18 +612,39 @@ export function FeedbackModal({
               compose area sits straight on the modal surface and sends from
               where you are typing. */}
             <div className="space-y-2">
-              <Textarea
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder="What's on your mind?"
-                aria-label="Your feedback"
-                className="min-h-32 resize-none bg-background text-base"
-                disabled={isSubmitting}
-                autoFocus={!targetFeedbackId}
-                onKeyDown={(event) =>
-                  submitOnCommandEnter(event, () => void handleSubmit())
-                }
-              />
+              {/* One field, two things inside: the words on top, the
+                screenshot in the bottom corner. The frame and the focus ring
+                live on this wrapper — the box inside is borderless — so
+                clicking or tabbing into either part lights up the whole
+                field as one. */}
+              <div className="rounded-md border border-input bg-background shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 dark:bg-input/30">
+                <Textarea
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder="What's on your mind?"
+                  aria-label="Your feedback"
+                  className="min-h-32 resize-none border-0 bg-transparent text-base shadow-none focus-visible:ring-0 dark:bg-transparent"
+                  disabled={isSubmitting}
+                  autoFocus={!targetFeedbackId}
+                  onKeyDown={(event) =>
+                    submitOnCommandEnter(event, () => void handleSubmit())
+                  }
+                />
+                {/* A picture when words are not enough — one screenshot per
+                  report, kept small so the writing stays the main thing.
+                  Only the author and admins will ever see it on the board. */}
+                <div className="px-3 pb-3">
+                  <ImageUpload
+                    label="Screenshot"
+                    showLabel={false}
+                    value={composerAttachment}
+                    onChange={(url) => setComposerAttachment(url)}
+                    emptyLabel="Screenshot"
+                    disabled={isSubmitting}
+                    className="max-w-24"
+                  />
+                </div>
+              </div>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -710,6 +757,24 @@ export function FeedbackModal({
                       </SelectContent>
                     </Select>
                     <Select
+                      value={feedbackStatus}
+                      onValueChange={(value) =>
+                        setFeedbackStatus(value as FeedbackStatusFilter)
+                      }
+                    >
+                      <SelectTrigger aria-label="Filter feedback by status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        {FEEDBACK_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {feedbackStatusLabels[status]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
                       value={feedbackSort}
                       onValueChange={(value) =>
                         setFeedbackSort(value as FeedbackSort)
@@ -756,7 +821,9 @@ export function FeedbackModal({
                   <CardContent>
                     <EmptyFeedback
                       filtered={
-                        feedbackFilter !== "all" || feedbackTag !== "all"
+                        feedbackFilter !== "all" ||
+                        feedbackTag !== "all" ||
+                        feedbackStatus !== "all"
                       }
                     />
                   </CardContent>
@@ -818,17 +885,31 @@ export function FeedbackModal({
                                       {formatRelativeTime(item.created_at)}
                                     </CardDescription>
                                   </div>
-                                  <Badge
-                                    variant={
-                                      feedbackTypeBadgeVariants[item.type]
-                                    }
-                                    className={cn(
-                                      "shrink-0",
-                                      feedbackTypeClassNames[item.type]
-                                    )}
-                                  >
-                                    {feedbackTypeLabels[item.type]}
-                                  </Badge>
+                                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                                    {/* Where the item stands on the roadmap.
+                                      "Open" is every item's resting state, so
+                                      only movement earns a badge. */}
+                                    {item.status !== "open" ? (
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          feedbackStatusClassNames[item.status]
+                                        }
+                                      >
+                                        {feedbackStatusLabels[item.status]}
+                                      </Badge>
+                                    ) : null}
+                                    <Badge
+                                      variant={
+                                        feedbackTypeBadgeVariants[item.type]
+                                      }
+                                      className={
+                                        feedbackTypeClassNames[item.type]
+                                      }
+                                    >
+                                      {feedbackTypeLabels[item.type]}
+                                    </Badge>
+                                  </div>
                                 </div>
                                 <CardTitle className="max-w-3xl text-sm leading-6 font-normal whitespace-pre-wrap text-foreground">
                                   {message}
@@ -860,6 +941,28 @@ export function FeedbackModal({
                                     </Badge>
                                   ))}
                                 </div>
+                              ) : null}
+                              {/* The server only sends this to the item's own
+                                author and to admins; for everyone else it is
+                                null and nothing renders. */}
+                              {item.attachment_url ? (
+                                <a
+                                  href={item.attachment_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={cn(
+                                    "block w-fit rounded-lg",
+                                    focusRing
+                                  )}
+                                  title="Open the screenshot at full size"
+                                >
+                                  <img
+                                    src={item.attachment_url}
+                                    alt="Screenshot attached to this feedback"
+                                    loading="lazy"
+                                    className="max-h-48 max-w-full rounded-lg border"
+                                  />
+                                </a>
                               ) : null}
                               <div className="flex flex-wrap items-center gap-2">
                                 {/* Never disabled: the count has already moved,

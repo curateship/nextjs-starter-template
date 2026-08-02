@@ -17,6 +17,8 @@ type ImageUploadProps = {
   description?: string
   showVideos?: boolean
   showLabel?: boolean
+  /** Locks the field while the form around it is submitting. */
+  disabled?: boolean
   className?: string
 }
 
@@ -36,6 +38,7 @@ export function ImageUpload({
   description,
   showVideos = false,
   showLabel = true,
+  disabled = false,
   className,
 }: ImageUploadProps) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
@@ -50,7 +53,8 @@ export function ImageUpload({
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          className="block w-full cursor-pointer overflow-hidden rounded-lg border-2 border-dashed outline-none transition-colors focus-visible:border-ring"
+          disabled={disabled}
+          className="block w-full cursor-pointer overflow-hidden rounded-lg border-2 border-dashed outline-none transition-colors focus-visible:border-ring disabled:cursor-default disabled:opacity-50"
           aria-label={value ? `Change ${label.toLowerCase()}` : `Select ${label.toLowerCase()}`}
         >
           {value ? (
@@ -79,6 +83,7 @@ export function ImageUpload({
             type="button"
             variant="destructive"
             size="icon-sm"
+            disabled={disabled}
             className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-md ring-2 ring-background"
             onClick={(event) => {
               event.stopPropagation()

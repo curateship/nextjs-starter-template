@@ -94,6 +94,16 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
       link: feedbackLink,
     }
   }
+  if (item.type === "feedback_merged") {
+    // The detail quotes the surviving item — the duplicate is already gone.
+    return {
+      ...event,
+      text: `merged ${owner} feedback into another item`,
+      detail: item.feedback_message,
+      kind: "Merged",
+      link: feedbackLink,
+    }
+  }
   if (item.type === "announcement") {
     return {
       ...event,

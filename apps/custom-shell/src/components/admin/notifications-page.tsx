@@ -2,6 +2,7 @@ import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
+  GitMergeIcon,
   MegaphoneIcon,
   MessageSquareIcon,
   SparklesIcon,
@@ -401,6 +402,7 @@ export function NotificationsPage({
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
+                <SelectItem value="feedback_merged">Merged</SelectItem>
                 <SelectItem value="changelog">Updates</SelectItem>
                 <SelectItem value="announcement">Announcements</SelectItem>
               </SelectContent>
@@ -511,6 +513,8 @@ export function NotificationsPage({
                     <SparklesIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "announcement" ? (
                     <MegaphoneIcon className="size-4 text-muted-foreground" />
+                  ) : item.type === "feedback_merged" ? (
+                    <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (
                     <ThumbsUpIcon className="size-4 text-muted-foreground" />
                   ) : (
