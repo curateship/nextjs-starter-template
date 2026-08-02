@@ -41,6 +41,12 @@ export type FeedbackCommentItem = {
   updated_at: string
   can_edit: boolean
   can_delete: boolean
+  /**
+   * The signed-in person wrote this one. `can_edit` cannot stand in for it: an
+   * admin can edit everybody's comments, so it is true on comments that are
+   * not theirs.
+   */
+  is_own: boolean
 }
 
 type FeedbackListResponse = {
@@ -718,5 +724,6 @@ function serializeFeedbackCommentRow(
     updated_at: row.updatedAt.toISOString(),
     can_edit: canManage,
     can_delete: canManage,
+    is_own: row.userId === currentUser.id,
   }
 }

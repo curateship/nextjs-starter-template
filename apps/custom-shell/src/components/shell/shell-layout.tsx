@@ -503,6 +503,7 @@ export function ShellLayout({
           open={feedbackOpen}
           onOpenChange={handleFeedbackOpenChange}
           targetFeedbackId={targetFeedbackId}
+          currentUserName={user.name}
           onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
         />
         <AccountDialog
