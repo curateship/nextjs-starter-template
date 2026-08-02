@@ -261,6 +261,14 @@ export function isShellEntryNamed(entry: { label?: string }) {
 }
 
 /**
+ * What a sidebar section with no name is called. Unlike a link, a nameless
+ * section still shows in the sidebar, so it needs a name to show — and the
+ * sidebar, the settings placeholder and the delete confirmation all have to
+ * use the same one, which is why it lives here instead of in all three.
+ */
+export const UNTITLED_SECTION_LABEL = "Untitled section"
+
+/**
  * Is this link the page we are on? Both the sidebar and the header's shortcut
  * row ask, so the rule lives here once — two copies drifted apart and the
  * header's kept the bug the sidebar's had already fixed.

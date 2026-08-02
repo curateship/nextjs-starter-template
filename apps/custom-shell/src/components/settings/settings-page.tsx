@@ -1,10 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
@@ -132,6 +127,14 @@ export function SettingsPage({
               onConfigChange({ ...config, sections })
             }
             onSaveConfig={onSaveConfig}
+            card={{
+              storageId: "sidebar",
+              // Not just "Sidebar": the rail already says that, and the twin
+              // card under Members names itself the same way.
+              title: "Your sidebar",
+              description:
+                "The links you see in your own sidebar, in the order you put them. What members see is on the Members → Sidebar tab.",
+            }}
             reset={{
               label: "Reset all to defaults",
               description:

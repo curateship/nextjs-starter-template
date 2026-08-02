@@ -28,6 +28,17 @@ type CollapsibleSettingsCardProps = {
   children: React.ReactNode
   className?: string
   contentClassName?: string
+  /**
+   * Open/closed held by the caller instead of the card, for a page with a button
+   * outside the card that has to reveal what it just made — the sidebar tab's
+   * "Add section". Build it with `useRememberedCollapse` on the same storage key
+   * so the choice is still remembered. Left off, the card holds its own.
+   */
+  collapse?: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    noFlashKey: string | undefined
+  }
 }
 
 /**
@@ -43,10 +54,12 @@ export function CollapsibleSettingsCard({
   children,
   className,
   contentClassName,
+  collapse,
 }: CollapsibleSettingsCardProps) {
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(
-    collapseStorageKey.settingsCard(storageId)
-  )
+  const own = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
+  const [open, setOpen, noFlashKey] = collapse
+    ? [collapse.open, collapse.onOpenChange, collapse.noFlashKey]
+    : own
 
   return (
     <Card className={className}>

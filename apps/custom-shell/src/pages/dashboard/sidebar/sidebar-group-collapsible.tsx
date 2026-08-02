@@ -19,6 +19,7 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { UNTITLED_SECTION_LABEL } from "@/lib/custom-shell"
 import {
   collapseStorageKey,
   useRememberedCollapse,
@@ -106,7 +107,7 @@ export function SidebarCollapsible({
           className="group/section-label cursor-pointer justify-between pr-1"
         >
           <CollapsibleTrigger>
-            <span className="truncate">{title || "Untitled Section"}</span>
+            <span className="truncate">{title || UNTITLED_SECTION_LABEL}</span>
             <ChevronRight className="opacity-0 transition-[opacity,transform] duration-200 group-hover/section-label:opacity-100 group-focus-visible/section-label:opacity-100 group-data-[state=open]/section-label:rotate-90" />
           </CollapsibleTrigger>
         </SidebarGroupLabel>

@@ -15,6 +15,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogToolbar,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { showErrorToast } from "@/lib/error-toast"
@@ -25,7 +26,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getShellIconLabel,
   iconMeta,
@@ -128,61 +128,63 @@ export function ShellIconPicker({
             </DialogDescription>
           </DialogHeader>
 
-          <DialogBody>
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  className="pl-9"
-                  placeholder="Search icons"
-                />
-              </div>
-              <Popover open={customIconOpen} onOpenChange={setCustomIconOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Add Lucide icon"
-                    title="Add Lucide icon"
-                  >
-                    <PlusIcon className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80">
-                  <PopoverHeader>
-                    <PopoverTitle>Add Lucide icon</PopoverTitle>
-                  </PopoverHeader>
-                  <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
-                    <Input
-                      autoFocus
-                      value={customIconName}
-                      onChange={(event) => setCustomIconName(event.target.value)}
-                      placeholder="octagon-x"
-                    />
-                    {customLucideIcon ? (
-                      <p className="text-xs text-muted-foreground">
-                        Found {getShellIconLabel(customLucideIcon)}.
-                      </p>
-                    ) : null}
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setCustomIconOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit">Use icon</Button>
-                    </div>
-                  </form>
-                </PopoverContent>
-              </Popover>
+          {/* Pinned above the grid: the search box and the add button are how
+              you drive the grid, so they must not scroll away with it. */}
+          <DialogToolbar>
+            <div className="relative min-w-0 flex-1">
+              <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="pl-9"
+                placeholder="Search icons"
+              />
             </div>
+            <Popover open={customIconOpen} onOpenChange={setCustomIconOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Add Lucide icon"
+                  title="Add Lucide icon"
+                >
+                  <PlusIcon className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80">
+                <PopoverHeader>
+                  <PopoverTitle>Add Lucide icon</PopoverTitle>
+                </PopoverHeader>
+                <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
+                  <Input
+                    autoFocus
+                    value={customIconName}
+                    onChange={(event) => setCustomIconName(event.target.value)}
+                    placeholder="octagon-x"
+                  />
+                  {customLucideIcon ? (
+                    <p className="text-xs text-muted-foreground">
+                      Found {getShellIconLabel(customLucideIcon)}.
+                    </p>
+                  ) : null}
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCustomIconOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">Use icon</Button>
+                  </div>
+                </form>
+              </PopoverContent>
+            </Popover>
+          </DialogToolbar>
 
+          <DialogBody>
             <LucideIconGrid
               value={value}
               icons={filteredIcons}
@@ -231,49 +233,61 @@ function LucideIconGrid({
   allowEmpty: boolean
   onSelect: (icon: ShellIcon | undefined) => void
 }) {
-  if (!icons.length && !allowEmpty) {
-    return <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
-  }
-
+  // No scroll area of its own: the window body is already one, and a scroll
+  // area inside a scroll area never scrolls — the outer one moves instead,
+  // which is what used to drag the search box off the top of the window.
   return (
-    <ScrollArea className="pr-2">
-      <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
-        {allowEmpty ? (
-          <button
-            type="button"
-            onClick={() => onSelect(undefined)}
-            className={cn(
-              "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors hover:bg-muted/50",
-              !value && "bg-primary/5"
-            )}
-            aria-label="Use no icon"
-          >
-            {!value ? <SelectedMark /> : null}
-            <ImageIcon className="h-5 w-5" />
-            <span className="line-clamp-2 text-[11px] leading-tight">None</span>
-          </button>
-        ) : null}
-        {icons.map((option) => {
-          const isSelected = option.value === value
-          return (
+    <>
+      {allowEmpty || icons.length ? (
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
+          {allowEmpty ? (
             <button
-              key={option.value}
               type="button"
-              onClick={() => onSelect(option.value)}
+              onClick={() => onSelect(undefined)}
               className={cn(
                 "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors hover:bg-muted/50",
-                isSelected && "bg-primary/5"
+                !value && "bg-primary/5"
               )}
-              aria-label={`Choose ${option.label} icon`}
+              aria-label="Use no icon"
             >
-              {isSelected ? <SelectedMark /> : null}
-              {renderShellIcon(option.value, "h-5 w-5")}
-              <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
+              {!value ? <SelectedMark /> : null}
+              <ImageIcon className="h-5 w-5" />
+              <span className="line-clamp-2 text-[11px] leading-tight">
+                None
+              </span>
             </button>
-          )
-        })}
-      </div>
-    </ScrollArea>
+          ) : null}
+          {icons.map((option) => {
+            const isSelected = option.value === value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onSelect(option.value)}
+                className={cn(
+                  "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors hover:bg-muted/50",
+                  isSelected && "bg-primary/5"
+                )}
+                aria-label={`Choose ${option.label} icon`}
+              >
+                {isSelected ? <SelectedMark /> : null}
+                {renderShellIcon(option.value, "h-5 w-5")}
+                <span className="line-clamp-2 text-[11px] leading-tight">
+                  {option.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+      {/* Said in both kinds of picker. Where "None" is allowed, a lone None
+          tile and nothing else reads as a broken grid, not a dead search. */}
+      {!icons.length ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No icons match that search.
+        </p>
+      ) : null}
+    </>
   )
 }
 

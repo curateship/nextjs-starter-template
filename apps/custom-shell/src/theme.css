@@ -240,6 +240,14 @@
   padding-bottom: var(--shell-modal-padding, 1.5rem);
 }
 
+/* The pinned strip between the header and the body. The header owns the space
+   above it, so it only pays for its own sides and the gap down to the body. */
+[data-slot="dialog-toolbar"] {
+  padding-left: var(--shell-modal-padding, 1.5rem);
+  padding-right: var(--shell-modal-padding, 1.5rem);
+  padding-bottom: var(--shell-modal-padding, 1.5rem);
+}
+
 [data-slot="dialog-body"] {
   padding: var(--shell-modal-padding, 1.5rem);
   /* Inner spacing also drives the gap between the modal's stacked cards. */
