@@ -3,6 +3,7 @@ import { ExternalLinkIcon } from "lucide-react"
 
 import { showErrorToast } from "@/lib/error-toast"
 
+import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,7 +29,7 @@ import {
 import {
   getBillingErrorMessage,
   openBillingPortal,
-  startCheckout,
+  openPlanChange,
   type BillingInvoice,
   type BillingOverview,
   type PlanOption,
@@ -106,19 +107,27 @@ export function AccountBillingPage({
   )
   const [busyPlanSlug, setBusyPlanSlug] = React.useState<string | null>(null)
   const [openingPortal, setOpeningPortal] = React.useState(false)
+  // Someone already paying through Stripe changes plan or period in the portal,
+  // never through a second checkout — see `openPlanChange`. The same flag names
+  // the button, so what it says and where it goes stay in step.
+  const manageInStripe = overview.isPaid && overview.hasStripeCustomer
 
   const handleSelect = React.useCallback(
     async (plan: PlanOption, selectedInterval: BillingInterval) => {
       setBusyPlanSlug(plan.slug)
       try {
-        const { url } = await startCheckout(plan.slug, selectedInterval)
+        const { url } = await openPlanChange(
+          manageInStripe,
+          plan.slug,
+          selectedInterval
+        )
         window.location.href = url
       } catch (checkoutError) {
         showErrorToast(getBillingErrorMessage(checkoutError))
         setBusyPlanSlug(null)
       }
     },
-    []
+    [manageInStripe]
   )
 
   const handlePortal = React.useCallback(async () => {
@@ -167,23 +176,17 @@ export function AccountBillingPage({
       </Card>
 
       {!overview.billingEnabled ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Payments are off</CardTitle>
-            <CardDescription>
-              Upgrades are unavailable until billing is switched on.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <PaymentsOffCard />
       ) : (
         <PricingTable
           plans={overview.plans}
           currentPlanSlug={overview.planSlug}
+          currentInterval={overview.interval}
           interval={interval}
           onIntervalChange={setInterval}
           onSelect={handleSelect}
           busyPlanSlug={busyPlanSlug}
-          actionLabel={overview.isPaid ? "Switch plan" : "Upgrade"}
+          actionLabel={manageInStripe ? "Change in Stripe" : "Upgrade"}
         />
       )}
 

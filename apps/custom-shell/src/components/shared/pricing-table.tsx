@@ -13,7 +13,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatMoney } from "@/lib/money"
 import type { PlanOption } from "@/lib/api/billing"
-import type { PlanFeatures } from "@/lib/plan-features"
+import { describePlanFeatures } from "@/lib/plan-features"
 
 export type BillingInterval = "monthly" | "yearly"
 
@@ -26,21 +26,25 @@ export type BillingInterval = "monthly" | "yearly"
 export function PricingTable({
   plans,
   currentPlanSlug,
+  currentInterval,
   interval,
   onIntervalChange,
   onSelect,
   busyPlanSlug,
   actionLabel = "Upgrade",
-  disabled,
 }: {
   plans: PlanOption[]
   currentPlanSlug?: string
+  /**
+   * How the person already pays. A plan is only theirs on the period they are
+   * actually on, so a monthly subscriber's yearly card stays buyable.
+   */
+  currentInterval?: BillingInterval | null
   interval: BillingInterval
   onIntervalChange: (interval: BillingInterval) => void
   onSelect: (plan: PlanOption, interval: BillingInterval) => void
   busyPlanSlug?: string | null
   actionLabel?: string
-  disabled?: boolean
 }) {
   const hasYearly = plans.some((plan) => plan.priceYearlyCents > 0)
 
@@ -66,9 +70,9 @@ export function PricingTable({
             key={plan.id}
             plan={plan}
             interval={interval}
-            current={plan.slug === currentPlanSlug}
+            currentPlanSlug={currentPlanSlug}
+            currentInterval={currentInterval}
             busy={busyPlanSlug === plan.slug}
-            disabled={disabled}
             actionLabel={actionLabel}
             onSelect={onSelect}
           />
@@ -81,17 +85,17 @@ export function PricingTable({
 function PlanCard({
   plan,
   interval,
-  current,
+  currentPlanSlug,
+  currentInterval,
   busy,
-  disabled,
   actionLabel,
   onSelect,
 }: {
   plan: PlanOption
   interval: BillingInterval
-  current: boolean
+  currentPlanSlug?: string
+  currentInterval?: BillingInterval | null
   busy?: boolean
-  disabled?: boolean
   actionLabel: string
   onSelect: (plan: PlanOption, interval: BillingInterval) => void
 }) {
@@ -99,14 +103,36 @@ function PlanCard({
     interval === "yearly" ? plan.priceYearlyCents : plan.priceMonthlyCents
   const purchasable =
     interval === "yearly" ? plan.canCheckoutYearly : plan.canCheckoutMonthly
-  const features = describeFeatures(plan.features)
+  const soldOnOtherPeriod =
+    interval === "yearly" ? plan.canCheckoutMonthly : plan.canCheckoutYearly
+  const features = describePlanFeatures(plan.features)
+
+  // A paid card is only "yours" on the period you actually pay — otherwise a
+  // monthly subscriber's yearly card is greyed out with no way to buy it. Two
+  // cases sit outside that rule: the free plan is not billed, so it has no
+  // period to match; and a caller that gives no period is telling us it does
+  // not know, where claiming the other period is buyable is the worse guess.
+  const free = plan.isDefault || priceCents === 0
+  const onThisPlan = plan.slug === currentPlanSlug
+  const current =
+    onThisPlan && (free || currentInterval == null || interval === currentInterval)
 
   return (
     <Card className="flex flex-col">
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle>{plan.name}</CardTitle>
-          {current ? <Badge variant="secondary">Current plan</Badge> : null}
+          {current ? (
+            <Badge variant="secondary" className="shrink-0">
+              Current plan
+            </Badge>
+          ) : onThisPlan ? (
+            // Same plan, other period: say which period they are on so the
+            // live button below reads as a switch rather than a second buy.
+            <Badge variant="outline" className="shrink-0">
+              {currentInterval === "yearly" ? "Yours, yearly" : "Yours, monthly"}
+            </Badge>
+          ) : null}
         </div>
         {plan.description ? (
           <CardDescription>{plan.description}</CardDescription>
@@ -142,22 +168,24 @@ function PlanCard({
         ) : null}
       </CardContent>
       <CardFooter>
-        {plan.isDefault || priceCents === 0 ? (
-          <Button variant="outline" className="w-full" disabled>
-            {current ? "Your plan" : "Included"}
-          </Button>
+        {free ? (
+          // There is nothing to buy here, so this is a label, not a button. The
+          // header badge above already says whether it is the plan they are on.
+          <Badge variant="secondary">Included</Badge>
         ) : (
           <Button
             className="w-full"
-            disabled={Boolean(disabled) || current || !purchasable || busy}
+            disabled={current || !purchasable || busy}
             onClick={() => onSelect(plan, interval)}
           >
             {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-            {current
-              ? "Your plan"
-              : purchasable
-                ? actionLabel
-                : "Not available yet"}
+            {planActionLabel({
+              current,
+              purchasable,
+              soldOnOtherPeriod,
+              interval,
+              actionLabel,
+            })}
           </Button>
         )}
       </CardFooter>
@@ -165,22 +193,30 @@ function PlanCard({
   )
 }
 
-/** Turns the plan's free-form features JSON into readable bullet points. */
-function describeFeatures(features: PlanFeatures) {
-  return Object.entries(features)
-    .filter(([, value]) => value !== false && value !== null && value !== "")
-    .map(([key, value]) => {
-      const label = key
-        .replace(/[_-]/g, " ")
-        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-        .toLowerCase()
-
-      if (value === true) return capitalize(label)
-      if (typeof value === "number") return `${value} ${label}`
-      return `${capitalize(label)}: ${String(value)}`
-    })
-}
-
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1)
+/**
+ * What the card's button is allowed to promise.
+ *
+ * A plan with no Stripe price for the period on show cannot be bought however
+ * the button is styled, so it names the period that does work rather than the
+ * old dead-end "Not available yet".
+ */
+function planActionLabel({
+  current,
+  purchasable,
+  soldOnOtherPeriod,
+  interval,
+  actionLabel,
+}: {
+  current: boolean
+  purchasable: boolean
+  soldOnOtherPeriod: boolean
+  interval: BillingInterval
+  actionLabel: string
+}) {
+  if (current) return "Your plan"
+  if (purchasable) return actionLabel
+  if (soldOnOtherPeriod) {
+    return interval === "yearly" ? "Sold monthly only" : "Sold yearly only"
+  }
+  return "Not on sale yet"
 }

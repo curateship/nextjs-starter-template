@@ -104,10 +104,22 @@ export type PlanSummary = {
   isPaid: boolean
 }
 
-const loadPublicPlansFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<PlanOption[]> => {
+/**
+ * What the public pricing page can be told without a session.
+ *
+ * Whether payments are on comes with the plans rather than being guessed:
+ * a signed-out visitor has no billing overview to read it from, and assuming
+ * "on" is how they ended up looking at a grid of buttons that do nothing.
+ */
+type PublicPricing = {
+  billingEnabled: boolean
+  plans: PlanOption[]
+}
+
+const loadPublicPricingFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublicPricing> => {
     const plans = await listPurchasablePlans()
-    return plans.map(toPlanOption)
+    return { billingEnabled: billingEnabled(), plans: plans.map(toPlanOption) }
   }
 )
 
@@ -162,19 +174,34 @@ export function loadBillingOverview() {
   return loadBillingOverviewFn()
 }
 
-export function loadPublicPlans() {
-  return loadPublicPlansFn()
-}
-
-export function startCheckout(
-  planSlug: string,
-  interval: "monthly" | "yearly"
-) {
-  return startCheckoutFn({ data: { planSlug, interval } })
+export function loadPublicPricing() {
+  return loadPublicPricingFn()
 }
 
 export function openBillingPortal() {
   return openBillingPortalFn()
+}
+
+/**
+ * Where clicking a plan card sends someone, and the one place that rule lives.
+ *
+ * Checkout starts a subscription. Someone who already has one must never be put
+ * through it again — that leaves them paying for two at once. Stripe's own
+ * portal is what moves an existing subscription to another plan or billing
+ * period, so that is where they go until the in-app switch with proration
+ * (`workspace/tasks/features/billing/in-app-plan-switch-proration.md`) exists.
+ *
+ * Both plan surfaces call this, so the label they show and the place the click
+ * lands cannot drift apart.
+ */
+export function openPlanChange(
+  hasSubscription: boolean,
+  planSlug: string,
+  interval: "monthly" | "yearly"
+) {
+  return hasSubscription
+    ? openBillingPortalFn()
+    : startCheckoutFn({ data: { planSlug, interval } })
 }
 
 export function loadBillingPage() {
