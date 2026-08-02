@@ -7,6 +7,9 @@ import {
 } from "@tanstack/react-router"
 
 import "@/styles.css"
+// Side-effect import: puts every server function in the SSR graph so the RSC
+// build registers them all. See src/lib/server-action-registry.ts.
+import "@/lib/server-action-registry"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import NotFound from "@/screens/not-found"
 

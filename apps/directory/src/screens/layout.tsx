@@ -96,16 +96,10 @@ export default async function RootLayout({
   // One saved number drives every non-error toast, on admin and public pages
   // alike. Unset falls back to the default inside the store.
   const toastSeconds = clampToastSeconds(adminSettings?.settings?.toast_seconds)
-  const rootStyle = fonts || siteCardStyleVars
-    ? {
-        ...(fonts ? {
-          ['--font-primary' as string]: fonts.fontPrimary,
-          ['--font-secondary' as string]: fonts.fontSecondary,
-          ['--font-sans' as string]: fonts.fontSecondary
-        } : {}),
-        ...siteCardStyleVars
-      }
-    : undefined
+  // The font variables are emitted on :root inside the font stylesheet below, not
+  // here — this wrapper sits inside <body>, and <body> is the element that carries
+  // the `font-sans` class, so from here it could never read them.
+  const rootStyle = siteCardStyleVars
 
   return (
     <div

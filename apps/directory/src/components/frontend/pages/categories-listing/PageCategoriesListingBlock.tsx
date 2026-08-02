@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react"
 import Link from "@/components/app-link"
-import { Badge } from "@/components/ui/badge"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { CHIP_CLASS, CHIP_ROW_CLASS, CHIP_SIZE_CLASS } from "@/lib/utils/chip"
+import { cn } from "@/lib/utils/tailwind"
 import {
   getCategoriesListingData,
   type CategoriesListingData,
@@ -97,18 +98,21 @@ export function PageCategoriesListingBlock({
       customWidth={customWidth}
     >
       {showChips && categories.length > 0 && (
-        <div className="flex flex-wrap gap-2 md:gap-3">
+        <div className={CHIP_ROW_CLASS}>
           {categories.map((category) => (
-            <Badge
+            // The same chip as a listing's tags, minus the tick — a tick reads as
+            // "this place has this", and these are links you click to browse.
+            <Link
               key={category.id}
-              asChild
-              variant="outline"
-              className="rounded-full px-3 py-1.5 text-xs font-medium md:px-4 md:text-sm"
+              href={`/categories/${category.slug}`}
+              className={cn(
+                CHIP_CLASS,
+                CHIP_SIZE_CLASS,
+                "transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              )}
             >
-              <Link href={`/categories/${category.slug}`}>
-                {category.title}
-              </Link>
-            </Badge>
+              {category.title}
+            </Link>
           ))}
         </div>
       )}
