@@ -35,6 +35,9 @@ export function useWideScreen() {
     const media = window.matchMedia(WIDE_QUERY)
     const update = () => {
       setWide(media.matches)
+      // Only when it has actually changed. Left alone this rewrites, on every
+      // single open, a cookie already saying the same thing.
+      if (readWideCookie() === media.matches) return
       document.cookie = `${COOKIE_NAME}=${media.matches ? "1" : "0"}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`
     }
     update()
