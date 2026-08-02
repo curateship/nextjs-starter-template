@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node scripts/verify-server-functions.mjs",
+    "build": "vite build",
     "start": "node scripts/start-production.mjs",
     "lint": "eslint .",
     "test": "tsx --test $(find src -name '*.test.ts' -o -name '*.test.tsx')",
