@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AiSettings } from "@/components/settings/ai-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
@@ -21,6 +22,7 @@ const settingsTabs = [
   { id: "sidebar", label: "Sidebar" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
+  { id: "ai", label: "AI" },
 ] as const
 
 /**
@@ -160,6 +162,7 @@ export function SettingsPage({
             sessionPolicyBusy={sessionPolicyBusy}
           />
         ) : null}
+        {activeTab === "ai" ? <AiSettings /> : null}
       </div>
     </div>
   )

@@ -564,6 +564,20 @@ export const customShellChangelogEntries = pgTable(
   ]
 )
 
+/**
+ * One API key per AI provider ("anthropic" | "openai"), app-wide. `apiKey` is
+ * never the key as typed: it is the AES-256-GCM output of
+ * `encryptSecret` (`src/server/encryption.ts`), stored as
+ * base64(iv).base64(tag).base64(ciphertext), so a stolen database backup does
+ * not contain a usable key.
+ */
+export const customShellAiProviderKeys = pgTable("ai_provider_keys", {
+  provider: varchar("provider", { length: 20 }).primaryKey(),
+  apiKey: text("api_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
