@@ -599,8 +599,13 @@ export function MediaLibraryPage({
         </DashboardTable>
       )}
 
+      {/* The details window steps aside while the confirmation is up — two
+          windows on top of each other means two focus traps and an Escape that
+          only closes the top one. It is hidden rather than thrown away, so
+          cancelling brings it back exactly as it was, typed alt text and all. */}
       <MediaDetailsDialog
         key={openMedia?.id ?? "closed"}
+        open={Boolean(openMedia) && !deleteIds}
         item={openMedia}
         editable={openMedia?.owner_id === currentUserId}
         onClose={() => setOpenMedia(null)}
@@ -633,12 +638,14 @@ export function MediaLibraryPage({
  * on your own files. Someone else's file opens read-only, with delete.
  */
 function MediaDetailsDialog({
+  open,
   item,
   editable,
   onClose,
   onDelete,
   onSaved,
 }: {
+  open: boolean
   item: AdminMediaItem | null
   editable: boolean
   onClose: () => void
@@ -667,7 +674,7 @@ function MediaDetailsDialog({
   }
 
   return (
-    <FormDialog open={Boolean(item)} dirty={dirty} busy={saving} onClose={onClose}>
+    <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
       {(requestClose) => (
         <DialogContent variant="admin">
           <DialogHeader>

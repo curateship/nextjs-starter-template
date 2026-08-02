@@ -35,6 +35,7 @@ import {
 } from "@/lib/api/media"
 import { formatFileSize } from "@/lib/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
+import { quoteOneLine } from "@/lib/quote-text"
 import { cn } from "@/lib/utils"
 
 type MediaFilter = "all" | MediaFileType
@@ -58,6 +59,9 @@ export function MediaPicker({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
+  // What the server was last asked for. Kept apart from what is typed so the
+  // box stays responsive while the request waits out the pause below.
+  const [searchTerm, setSearchTerm] = React.useState("")
   const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(null)
   const [filterType, setFilterType] = React.useState<MediaFilter>("all")
   const [currentPage, setCurrentPage] = React.useState(1)
@@ -89,19 +93,22 @@ export function MediaPicker({
           ? undefined
           : filterType
         : "image"
-      setData(await listMedia({ page: currentPage, pageSize, fileType }))
+      setData(
+        await listMedia({ page: currentPage, pageSize, search: searchTerm, fileType })
+      )
       setPlayingId(null)
     } catch (loadError) {
       setError(getMediaErrorMessage(loadError))
     } finally {
       setLoading(false)
     }
-  }, [currentPage, filterType, pageSize, showVideos])
+  }, [currentPage, filterType, pageSize, searchTerm, showVideos])
 
   React.useEffect(() => {
     if (!open) {
       setCurrentPage(1)
       setSearchQuery("")
+      setSearchTerm("")
       setSelectedMedia(null)
       setPlayingId(null)
       clearUpload()
@@ -111,22 +118,30 @@ export function MediaPicker({
     loadCurrentMedia()
   }, [loadCurrentMedia, open])
 
+  // The same quarter-second pause the media library and notifications pages
+  // use, so one request goes out per word rather than per letter. Opening the
+  // picker is not delayed: only a change to what is typed starts the clock.
+  React.useEffect(() => {
+    const typed = searchQuery.trim()
+    if (!open || typed === searchTerm) return
+
+    const timer = setTimeout(() => {
+      setCurrentPage(1)
+      setSearchTerm(typed)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [open, searchQuery, searchTerm])
+
   const mediaItems = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    return (data?.media ?? [])
-      .filter((item) => {
-        if (!showVideos && item.file_type === "video") return false
-        if (!query) return true
-        return `${item.original_name} ${item.filename} ${item.alt_text ?? ""}`
-          .toLowerCase()
-          .includes(query)
-      })
-      .sort((a, b) => {
-        if (currentMediaUrl && a.url === currentMediaUrl) return -1
-        if (currentMediaUrl && b.url === currentMediaUrl) return 1
-        return 0
-      })
-  }, [currentMediaUrl, data?.media, searchQuery, showVideos])
+    // The server already holds the type filter and the search, so the only work
+    // left is floating the file this field is already using to the front.
+    if (!currentMediaUrl) return data?.media ?? []
+    return [...(data?.media ?? [])].sort((a, b) => {
+      if (a.url === currentMediaUrl) return -1
+      if (b.url === currentMediaUrl) return 1
+      return 0
+    })
+  }, [currentMediaUrl, data?.media])
 
   React.useEffect(() => {
     if (!open || selectedMedia || !currentMediaUrl) return
@@ -181,6 +196,15 @@ export function MediaPicker({
     }
   }
 
+  // An empty library and an empty filter are different things, so the message
+  // names what is actually missing rather than saying "media" every time.
+  const emptyKind =
+    !showVideos || filterType === "image"
+      ? "images"
+      : filterType === "video"
+        ? "videos"
+        : "media"
+
   // Takes the item rather than reading the selection, so a double-click can
   // pick a tile in the same gesture that selects it.
   function chooseMedia(item: MediaItem) {
@@ -204,6 +228,9 @@ export function MediaPicker({
                 name="media-picker-search"
                 aria-label="Search media"
                 placeholder="Search media"
+                // The same cap the search takes on the way in, so the box can
+                // never hold more than what is actually being searched for.
+                maxLength={120}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
@@ -304,9 +331,22 @@ export function MediaPicker({
                 </div>
               ) : mediaItems.length === 0 ? (
                 <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
-                  <div>
-                    <ImageIcon className="mx-auto mb-3 size-10" />
-                    <p>No media found.</p>
+                  <div className="grid justify-items-center gap-3">
+                    <ImageIcon className="size-10" />
+                    {searchTerm ? (
+                      <>
+                        <p>Nothing matched {quoteOneLine(searchTerm)}.</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setSearchQuery("")}
+                        >
+                          Clear search
+                        </Button>
+                      </>
+                    ) : (
+                      <p>No {emptyKind} yet. Upload a file to get started.</p>
+                    )}
                   </div>
                 </div>
               ) : (

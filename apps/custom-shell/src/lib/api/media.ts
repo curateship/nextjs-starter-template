@@ -33,6 +33,7 @@ const listMediaSchema = z
   .object({
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
+    search: z.string().trim().max(120).default(""),
     fileType: z.enum(["image", "video"]).optional(),
     mimeType: z.enum(["image/svg+xml"]).optional(),
     sortBy: z.enum(["created_at", "original_name", "file_size", "file_type"]).optional(),
@@ -63,6 +64,7 @@ const listMediaFn = createServerFn({ method: "GET" })
       userId: user.id,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
+      search: data?.search,
       fileType: data?.fileType,
       mimeType: data?.mimeType,
       sortBy: data?.sortBy,
@@ -219,6 +221,7 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
 export function listMedia({
   page = 1,
   pageSize = 20,
+  search,
   fileType,
   mimeType,
   sortBy,
@@ -226,12 +229,15 @@ export function listMedia({
 }: {
   page?: number
   pageSize?: number
+  search?: string
   fileType?: MediaFileType
   mimeType?: "image/svg+xml"
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 } = {}) {
-  return listMediaFn({ data: { page, pageSize, fileType, mimeType, sortBy, sortDirection } })
+  return listMediaFn({
+    data: { page, pageSize, search, fileType, mimeType, sortBy, sortDirection },
+  })
 }
 
 export function uploadMedia(file: File, altText?: string) {
