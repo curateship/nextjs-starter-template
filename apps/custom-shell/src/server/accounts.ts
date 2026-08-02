@@ -15,9 +15,12 @@ import {
 import { PENDING_DELETION } from "@/lib/account-deletion"
 import {
   markAccountsForDeletion,
+  purgeExpiredDeletions,
   restoreAccounts,
 } from "@/server/account-deletion"
+import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
+import { sendAuthEmail } from "@/server/email"
 import { subscriptionIsActive } from "@/server/entitlements"
 import { getDefaultPlan, getPlan } from "@/server/plans"
 import {
@@ -26,7 +29,12 @@ import {
   customShellSubscriptions,
   customShellUsers,
 } from "@/server/schema"
-import { now, uuid } from "@/server/security"
+import {
+  createAuthToken,
+  findUserByEmail,
+  now,
+  uuid,
+} from "@/server/security"
 
 export type AccountSort = "name" | "email" | "role" | "plan" | "created"
 
@@ -49,6 +57,12 @@ export type AccountRow = {
   /** When this account was marked for deletion, and null when it was not. */
   deletedAt: string | null
   emailVerified: boolean
+  /**
+   * False for an account that has never had a password set. Together with an
+   * unverified email that is the invited-but-not-arrived state — the table
+   * says so instead of showing a person who looks ready to sign in.
+   */
+  hasPassword: boolean
   planName: string
   planSlug: string
   planIsPaid: boolean
@@ -152,6 +166,7 @@ function toAccountRow(
     status: row.user.status,
     deletedAt: row.user.deletedAt?.toISOString() ?? null,
     emailVerified: Boolean(row.user.emailVerifiedAt),
+    hasPassword: Boolean(row.user.passwordHash),
     planName: paid && row.plan ? row.plan.name : (defaultPlan?.name ?? "Free"),
     planSlug: paid && row.plan ? row.plan.slug : (defaultPlan?.slug ?? "free"),
     planIsPaid: paid,
@@ -201,6 +216,81 @@ export async function loadNewestAccounts(
 
   const timestamp = now()
   return rows.map((row) => toAccountRow(row, defaultPlan, timestamp))
+}
+
+/**
+ * Adds a person directly, instead of waiting for them to register themselves.
+ *
+ * The account starts with no password at all — nothing typed can match a null
+ * hash, so nobody can sign in to it until the emailed link has set one. The
+ * link is the same one a password reset sends, and spending it does two things
+ * at once: sets the password, and marks the email verified, because opening a
+ * link that was mailed to the address proves the inbox is theirs.
+ */
+export async function createAccountByAdmin(
+  email: string,
+  name: string,
+  role: "admin" | "member",
+  database: CustomShellDb = db
+) {
+  // An address stays taken while a deleted account holding it can still be
+  // restored, and frees up the moment that account is really gone — the same
+  // order registration checks in.
+  await purgeExpiredDeletions(database)
+
+  if (await findUserByEmail(email, database)) {
+    throw new Error("ACCOUNT_EXISTS")
+  }
+
+  const createdAt = now()
+  const { userId, token } = await database.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(customShellUsers)
+      .values({
+        id: uuid(),
+        email,
+        name,
+        role,
+        status: "active",
+        passwordHash: null,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning({ id: customShellUsers.id })
+
+    return {
+      userId: user.id,
+      token: await createAuthToken(user.id, "reset_password", tx),
+    }
+  })
+
+  let delivered: boolean
+  try {
+    delivered = (
+      await sendAuthEmail({
+        to: email,
+        subject: "Set your password",
+        heading: "An account was created for you",
+        message:
+          "Set a password to start using it. This link expires in one hour — if it has, use “Forgot your password?” on the sign-in page to get a fresh one.",
+        action: "Set your password",
+        actionUrl: appUrlFor(`/reset-password?token=${encodeURIComponent(token)}`),
+      })
+    ).delivered
+  } catch (deliveryError) {
+    // The mail never went out, so the person could never get in. Dropping the
+    // fresh row lets the admin simply try again, instead of being told the
+    // account already exists when nobody can reach it.
+    await database
+      .delete(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+    throw deliveryError
+  }
+
+  // `delivered` is false only in development with email switched off, where
+  // the link is printed to the server log instead — the dialog says which
+  // happened so nobody waits on a mail that is not coming.
+  return { id: userId, delivered }
 }
 
 export async function countOtherActiveAdmins(

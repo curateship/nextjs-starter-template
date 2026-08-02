@@ -3,6 +3,7 @@ import { getRouteApi, Link } from "@tanstack/react-router"
 import {
   EyeIcon,
   Loader2Icon,
+  PlusIcon,
   RotateCcwIcon,
   SettingsIcon,
   Trash2Icon,
@@ -21,6 +22,7 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { AddAccountDialog } from "@/components/admin/add-account-dialog"
 import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
 import { showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
@@ -129,6 +131,7 @@ export function AdminUsersDashboard({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [adding, setAdding] = React.useState(false)
   const [editing, setEditing] = React.useState<AccountRow | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
@@ -362,6 +365,10 @@ export function AdminUsersDashboard({
                 </SelectItem>
               </SelectContent>
             </Select>
+            <DashboardToolbarButton type="button" onClick={() => setAdding(true)}>
+              <PlusIcon className="size-4" />
+              Add account
+            </DashboardToolbarButton>
           </>
         }
         header={
@@ -465,9 +472,15 @@ export function AdminUsersDashboard({
                 </span>
               ) : account.status === "suspended" ? (
                 <span className="ml-2 text-xs text-destructive">Suspended</span>
-              ) : account.emailVerified ? null : (
+              ) : account.emailVerified ? null : account.hasPassword ? (
                 <span className="ml-2 text-xs text-muted-foreground">
                   Not verified
+                </span>
+              ) : (
+                // No password and no verified email: an invited account whose
+                // set-password link has not been used yet.
+                <span className="ml-2 text-xs text-muted-foreground">
+                  Invited — hasn't set a password
                 </span>
               )}
             </TableCell>
@@ -565,6 +578,18 @@ export function AdminUsersDashboard({
           </TableRow>
         ))}
       </DashboardTable>
+
+      <AddAccountDialog
+        // Remounts on every open, so the last invite's fields never linger.
+        // Prefixed so it never collides with the edit dialog's "closed" key.
+        key={adding ? "add-open" : "add-closed"}
+        open={adding}
+        onClose={() => setAdding(false)}
+        onCreated={async () => {
+          setAdding(false)
+          await refresh()
+        }}
+      />
 
       <EditAccountDialog
         key={editing?.id ?? "closed"}

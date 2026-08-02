@@ -14,6 +14,7 @@ import {
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
   countOtherActiveAdmins,
+  createAccountByAdmin,
   deleteUserAccounts,
   grantManualPlan,
   listAccounts,
@@ -660,6 +661,55 @@ describe("admin account management", () => {
     await expect(
       setUserStatus(admin.id, "suspended", database)
     ).rejects.toThrow("LAST_ADMIN")
+  })
+
+  it("creates an invited account that cannot sign in until the link sets a password", async () => {
+    // Email is unconfigured in tests, so the link is logged; keep it quiet.
+    const info = vi.spyOn(console, "info").mockImplementation(() => {})
+    try {
+      const result = await createAccountByAdmin(
+        "invited@example.test",
+        "Invited Person",
+        "member",
+        database
+      )
+      expect(result.delivered).toBe(false)
+
+      const [created] = await database
+        .select()
+        .from(customShellUsers)
+        .where(eq(customShellUsers.id, result.id))
+
+      expect(created.role).toBe("member")
+      expect(created.status).toBe("active")
+      expect(created.emailVerifiedAt).toBeNull()
+      expect(created.passwordHash).toBeNull()
+      // Nothing typed can match an account with no password.
+      expect(await verifyPassword(created.passwordHash, "anything")).toBe(false)
+
+      // The set-password link is a reset token, so the reset page can spend it
+      // — and completing a reset is what marks the email verified.
+      const [tokenRow] = await database
+        .select()
+        .from(customShellAuthTokens)
+        .where(eq(customShellAuthTokens.userId, created.id))
+      expect(tokenRow.purpose).toBe("reset_password")
+    } finally {
+      info.mockRestore()
+    }
+  })
+
+  it("refuses to invite an email that already has an account", async () => {
+    await createUser({ email: "taken@example.test" })
+
+    await expect(
+      createAccountByAdmin(
+        "taken@example.test",
+        "Someone Else",
+        "member",
+        database
+      )
+    ).rejects.toThrow("ACCOUNT_EXISTS")
   })
 
   it("refuses to delete the last admin, and leaves them active", async () => {
