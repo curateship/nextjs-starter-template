@@ -1,12 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
 import {
   cleanAltText,
   cleanOriginalName,
-  clearAvatarsForStoragePaths,
   getMediaFileType,
   getOwnedMedia,
   listOwnedMedia,
@@ -42,15 +41,9 @@ const listMediaSchema = z
   })
   .optional()
 
-const mediaIdSchema = z.object({ mediaId: z.string().min(1) })
-
 const updateMediaSchema = z.object({
   mediaId: z.string().min(1),
   altText: z.string(),
-})
-
-const bulkDeleteMediaSchema = z.object({
-  mediaIds: z.array(z.string().min(1)).min(1).max(100),
 })
 
 export function getMediaErrorMessage(error: unknown) {
@@ -173,62 +166,6 @@ const updateMediaFn = createServerFn({ method: "POST" })
     return serializeMedia(row)
   })
 
-const deleteMediaFn = createServerFn({ method: "POST" })
-  .inputValidator(mediaIdSchema)
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireUser()
-    const row = await getOwnedMedia(user.id, data.mediaId)
-    await deleteFromR2(row.storagePath)
-    await db
-      .delete(customShellMedia)
-      .where(
-        and(
-          eq(customShellMedia.id, data.mediaId),
-          eq(customShellMedia.userId, user.id)
-        )
-      )
-    await clearAvatarsForStoragePaths([row.storagePath])
-  })
-
-const bulkDeleteMediaFn = createServerFn({ method: "POST" })
-  .inputValidator(bulkDeleteMediaSchema)
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireUser()
-    const uniqueIds = Array.from(new Set(data.mediaIds))
-    const rows = await db
-      .select()
-      .from(customShellMedia)
-      .where(
-        and(
-          eq(customShellMedia.userId, user.id),
-          inArray(customShellMedia.id, uniqueIds)
-        )
-      )
-
-    for (const row of rows) {
-      await deleteFromR2(row.storagePath)
-    }
-
-    if (rows.length) {
-      await db
-        .delete(customShellMedia)
-        .where(
-          and(
-            eq(customShellMedia.userId, user.id),
-            inArray(
-              customShellMedia.id,
-              rows.map((row) => row.id)
-            )
-          )
-        )
-      await clearAvatarsForStoragePaths(rows.map((row) => row.storagePath))
-    }
-
-    return { deleted_count: rows.length }
-  })
-
 export function listMedia({
   page = 1,
   pageSize = 20,
@@ -262,14 +199,6 @@ export function uploadMedia(file: File, altText?: string) {
 
 export function updateMedia(mediaId: string, altText: string) {
   return updateMediaFn({ data: { mediaId, altText } })
-}
-
-export function deleteMedia(mediaId: string) {
-  return deleteMediaFn({ data: { mediaId } })
-}
-
-export function bulkDeleteMedia(mediaIds: string[]) {
-  return bulkDeleteMediaFn({ data: { mediaIds } })
 }
 
 async function requireUser() {

@@ -857,7 +857,6 @@ export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
 })
 
 export type CustomShellUser = typeof customShellUsers.$inferSelect
-export type CustomShellPasskey = typeof customShellPasskeys.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect
