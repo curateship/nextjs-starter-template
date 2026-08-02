@@ -60,9 +60,11 @@ import {
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
+  createDefaultTopRightNavigation,
   isActiveShellHref,
   normalizeMaintenance,
   normalizeSessionPolicy,
+  normalizeTopRightNavigation,
   resolveMaintenanceMessage,
   type ShellItem,
   type ShellSection,
@@ -3269,6 +3271,184 @@ describe("member sidebar", () => {
   })
 })
 
+describe("top right menu", () => {
+  async function seedPeople() {
+    const createdAt = now()
+    const adminId = uuid()
+    const memberId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: adminId,
+        email: "menu-admin@internal.dev",
+        name: "Menu Admin",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: memberId,
+        email: "menu-member@internal.dev",
+        name: "Menu Member",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    return { adminId, memberId }
+  }
+
+  /** Replaces the app-wide member menu, the way the settings page does. */
+  async function saveMemberMenu(items: unknown) {
+    const timestamp = now()
+    await database
+      .insert(customShellSettings)
+      .values({
+        key: "default",
+        settings: { memberTopRightNavigation: items },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .onConflictDoUpdate({
+        target: customShellSettings.key,
+        set: {
+          settings: { memberTopRightNavigation: items },
+          updatedAt: timestamp,
+        },
+      })
+  }
+
+  it("reads a row saved in the old { id, visible } shape as the same built-ins", () => {
+    // Saved before links existed: order and the show/hide switch must survive.
+    const normalized = normalizeTopRightNavigation([
+      { id: "theme", visible: false },
+      { id: "feedback", visible: true },
+    ])
+
+    expect(normalized).toEqual([
+      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "feedback", visible: true },
+      // Never saved, so it is appended rather than lost.
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+  })
+
+  it("keeps a well-formed link where it was saved and drops junk", () => {
+    const link = {
+      type: "link",
+      id: "top-right-link-1",
+      label: "Docs",
+      href: "/changelog",
+      icon: "bookOpen",
+    }
+
+    const normalized = normalizeTopRightNavigation([
+      { id: "feedback", visible: true },
+      link,
+      // Neither a known built-in nor a well-formed link: all dropped.
+      { type: "link", id: "half-made" },
+      { id: "mystery", visible: true },
+      "garbage",
+      null,
+    ])
+
+    expect(normalized).toEqual([
+      { type: "builtIn", id: "feedback", visible: true },
+      link,
+      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+  })
+
+  it("gives a member the admin-built menu and an admin their own", async () => {
+    const { adminId, memberId } = await seedPeople()
+    const testDb = database as unknown as CustomShellDb
+
+    const memberMenu = [
+      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "feedback", visible: false },
+      { type: "builtIn", id: "notifications", visible: true },
+      {
+        type: "link",
+        id: "top-right-link-help",
+        label: "Help",
+        href: "/changelog",
+        icon: "sparkles",
+      },
+    ]
+    await saveMemberMenu(memberMenu)
+
+    const memberConfig = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(memberConfig.topRightNavigation).toEqual(memberMenu)
+
+    // The admin still gets their own workspace's row — the starter set, not
+    // the member menu with Feedback switched off.
+    const adminConfig = await readShellSettings(
+      { id: adminId, role: "admin" },
+      testDb
+    )
+    expect(adminConfig.topRightNavigation).toEqual(
+      createDefaultTopRightNavigation()
+    )
+  })
+
+  it("keeps a saved member menu as saved, and fills in an unset one", () => {
+    // A row that has never held a member menu hands out the starter set.
+    expect(parseShellGlobals({ appName: "x" }).memberTopRightNavigation).toEqual(
+      createDefaultTopRightNavigation()
+    )
+
+    // Saved is saved: switching everything off must stick on read, the same
+    // rule the member sidebar follows.
+    const allOff = [
+      { type: "builtIn", id: "feedback", visible: false },
+      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "notifications", visible: false },
+    ]
+    expect(
+      parseShellGlobals({ memberTopRightNavigation: allOff })
+        .memberTopRightNavigation
+    ).toEqual(allOff)
+  })
+
+  it("carries the member menu through a save and back", () => {
+    // Only the fields `pickShellGlobals` names reach the app-wide row. Forget
+    // this one and the member menu would be silently dropped on every save.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      memberTopRightNavigation: [
+        { type: "builtIn", id: "notifications", visible: true },
+      ],
+    })
+
+    expect(parseShellGlobals(saved).memberTopRightNavigation).toEqual([
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+  })
+
+  it("never lets a member see a link to an admin page", () => {
+    const link = {
+      type: "link" as const,
+      id: "top-right-link-users",
+      label: "Users",
+      href: "/admin/users",
+      icon: "users",
+    }
+
+    // The list is returned as saved, but the header must never draw it for a
+    // member — the same guard the sidebar renders by.
+    expect(canSeeShellEntry(link, "member")).toBe(false)
+    expect(canSeeShellEntry(link, "admin")).toBe(true)
+  })
+})
+
+describe("view as member", () => {
   async function seedAdminAndMember() {
     const createdAt = now()
     const adminId = uuid()

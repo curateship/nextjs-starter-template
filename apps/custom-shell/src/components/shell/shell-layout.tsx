@@ -462,6 +462,7 @@ export function ShellLayout({
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
               rightNavItems={config.topRightNavigation}
+              role={user.role}
               unreadNotifications={unreadNotifications}
               saveStatus={pageSaveStatus ?? saveStatus}
               maintenanceOn={
@@ -550,6 +551,9 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     favicon: settings.favicon ?? fallback.favicon,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
+    ),
+    memberTopRightNavigation: normalizeTopRightNavigation(
+      settings.memberTopRightNavigation
     ),
     sections: stripRetiredAccountEntries(
       Array.isArray(settings.sections) ? settings.sections : fallback.sections

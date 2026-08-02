@@ -6,11 +6,13 @@ import { MemberSettings } from "@/components/settings/member-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
+import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { focusRing } from "@/lib/focus-ring"
 import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
+  createDefaultTopRightNavigation,
   type ShellConfig,
   type ShellMaintenance,
   type ShellSessionPolicy,
@@ -20,6 +22,7 @@ import {
 const settingsTabs = [
   { id: "general", label: "General settings" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "top-right", label: "Top right menu" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
   { id: "ai", label: "AI" },
@@ -28,9 +31,11 @@ const settingsTabs = [
 /**
  * Settings an admin decides on a member's behalf. Their own card in the rail,
  * so it is obvious at a glance which of these change somebody else's screen.
- * Only the sidebar so far; the rest go in this list.
  */
-const memberSettingsTabs = [{ id: "member-sidebar", label: "Sidebar" }] as const
+const memberSettingsTabs = [
+  { id: "member-sidebar", label: "Sidebar" },
+  { id: "member-top-right", label: "Top right menu" },
+] as const
 
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
@@ -142,6 +147,56 @@ export function SettingsPage({
               description:
                 "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone.",
               onReset: () => onConfigChange(createDefaultShellConfig()),
+            }}
+          />
+        ) : null}
+        {activeTab === "top-right" ? (
+          <TopRightSettings
+            items={config.topRightNavigation}
+            onItemsChange={(topRightNavigation) =>
+              onConfigChange({ ...config, topRightNavigation })
+            }
+            onSaveConfig={onSaveConfig}
+            card={{
+              storageId: "top-right",
+              title: "Your top right menu",
+              description:
+                "The buttons in the top right of your own header, in the order you put them. What members see is on the Members → Top right menu tab.",
+            }}
+            reset={{
+              label: "Reset top right menu",
+              description:
+                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
+              onReset: () =>
+                onConfigChange({
+                  ...config,
+                  topRightNavigation: createDefaultTopRightNavigation(),
+                }),
+            }}
+          />
+        ) : null}
+        {activeTab === "member-top-right" ? (
+          <TopRightSettings
+            items={config.memberTopRightNavigation}
+            onItemsChange={(memberTopRightNavigation) =>
+              onConfigChange({ ...config, memberTopRightNavigation })
+            }
+            onSaveConfig={onSaveConfig}
+            card={{
+              storageId: "member-top-right",
+              title: "Member top right menu",
+              description:
+                "The buttons every member sees in the top right of their header, in the order you put them. Your own menu is on the Top right menu tab and is not affected.",
+            }}
+            reset={{
+              label: "Reset member menu",
+              description:
+                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
+              onReset: () =>
+                onConfigChange({
+                  ...config,
+                  memberTopRightNavigation: createDefaultTopRightNavigation(),
+                }),
             }}
           />
         ) : null}

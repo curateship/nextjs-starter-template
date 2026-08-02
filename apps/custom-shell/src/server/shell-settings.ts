@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import {
   createDefaultMemberSections,
   createDefaultShellConfig,
+  createDefaultTopRightNavigation,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   normalizeMaintenance,
   normalizeSessionPolicy,
@@ -77,7 +78,11 @@ export async function readShellSettings(
     workspaceName: workspace.name,
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
-    topRightNavigation: workspaceSettings.topRightNavigation,
+    // Same rule as the sidebar below: an admin sees and edits their own row,
+    // everybody else gets the one an admin built for them.
+    topRightNavigation: isAdmin(user)
+      ? workspaceSettings.topRightNavigation
+      : globals.memberTopRightNavigation,
     sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
     styling: workspaceSettings.styling,
   }
@@ -124,6 +129,11 @@ export function parseShellGlobals(value: unknown) {
     memberSections: Array.isArray(settings.memberSections)
       ? settings.memberSections
       : createDefaultMemberSections(),
+    // Same rule as memberSections: saved is saved, empty included. The starter
+    // set only fills a row that has never held a member top-right menu at all.
+    memberTopRightNavigation: Array.isArray(settings.memberTopRightNavigation)
+      ? settings.memberTopRightNavigation
+      : createDefaultTopRightNavigation(),
     maintenance: normalizeMaintenance(settings.maintenance),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
   }
@@ -139,6 +149,7 @@ export function pickShellGlobals(settings: ShellConfig) {
     adminRoute: settings.adminRoute,
     memberHomeRoute: settings.memberHomeRoute,
     memberSections: settings.memberSections,
+    memberTopRightNavigation: settings.memberTopRightNavigation,
     maintenance: settings.maintenance,
     sessionPolicy: settings.sessionPolicy,
   }

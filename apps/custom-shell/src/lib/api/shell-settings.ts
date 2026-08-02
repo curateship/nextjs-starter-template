@@ -60,6 +60,26 @@ const shellSectionSchema = z.object({
   entries: z.array(shellEntrySchema),
 })
 
+/**
+ * Both header rows are the same shape — the admin's own, and the members'. The
+ * client normalizes what it reads (normalizeTopRightNavigation), so a save only
+ * ever carries the two-way union, never the old `{ id, visible }` rows.
+ */
+const shellTopRightItemSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("builtIn"),
+    id: z.enum(["feedback", "theme", "notifications"]),
+    visible: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("link"),
+    id: z.string().min(1),
+    label: z.string(),
+    href: z.string(),
+    icon: shellIconSchema,
+  }),
+])
+
 const shellBackgroundSchema = z.object({
   mode: z.enum(["default", "muted", "custom"]),
   strength: z.number().int().min(0).max(100),
@@ -107,12 +127,8 @@ const shellConfigSchema = z.object({
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
-  topRightNavigation: z.array(
-    z.object({
-      id: z.enum(["feedback", "theme", "notifications"]),
-      visible: z.boolean(),
-    })
-  ),
+  topRightNavigation: z.array(shellTopRightItemSchema),
+  memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
   maintenance: z.object({

@@ -36,6 +36,8 @@ type StickyHeaderProps = {
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
   rightNavItems?: ShellTopRightNavigationItem[]
+  /** Who is looking, for the top-right row's admin-link guard. */
+  role?: string
   unreadNotifications?: number
   saveStatus?: SaveStatus
   /** Admins only: the app is closed to members and this is the reminder. */
@@ -53,6 +55,7 @@ export function StickyHeader({
   navLinks,
   navContent,
   rightNavItems,
+  role,
   unreadNotifications,
   saveStatus,
   maintenanceOn,
@@ -103,6 +106,7 @@ export function StickyHeader({
           <SaveStatusIndicator status={saveStatus} />
           <StickyHeaderRightNav
             items={rightNavItems}
+            role={role}
             unreadNotifications={unreadNotifications}
             onOpenFeedback={onOpenFeedback}
             onOpenFeedbackThread={onOpenFeedbackThread}

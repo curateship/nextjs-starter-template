@@ -30,6 +30,11 @@ import {
 } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import {
+  createShellId,
+  DRAG_HANDLE_CLASS,
+  useCheckedAddress,
+} from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -53,7 +58,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { showErrorToast } from "@/lib/error-toast"
 import {
   collapseStorageKey,
   useRememberedCollapse,
@@ -71,14 +75,6 @@ import {
 } from "@/lib/custom-shell"
 
 const sectionDropPrefix = "section-drop:"
-
-/**
- * The grab handle on a section, a link and a child link. All three are the same
- * control, so all three look and behave the same: an open hand on hover that
- * closes while you drag, and the row lighting up so it reads as grabbable.
- */
-const DRAG_HANDLE_CLASS =
-  "flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
 
 function getSectionDropId(sectionId: string) {
   return `${sectionDropPrefix}${sectionId}`
@@ -183,14 +179,6 @@ type SortableSectionProps = {
   onSaveConfig: () => Promise<boolean>
 }
 
-function createShellId(prefix: string) {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`
-  }
-
-  return `${prefix}-${Date.now()}`
-}
-
 function updateSection(
   sections: ShellSection[],
   sectionId: string,
@@ -199,67 +187,6 @@ function updateSection(
   return sections.map((section) =>
     section.id === sectionId ? update(section) : section
   )
-}
-
-/**
- * Why this address will not work, in the words the user gets told, or null when
- * it is fine. It checks the shape only — a path inside the app, or a full web
- * address — never whether the route exists, and it never blocks a save. A dead
- * address is a warning, the same as a bad hex colour in Styling settings.
- *
- * A blank address is only a problem once the link has a name. A brand new link
- * starts blank on purpose and stays out of the sidebar until it is named.
- *
- * `href` is typed as required, but stored sections come back from jsonb with
- * only an Array.isArray check, so a legacy or hand-edited row can arrive
- * without one — same reason `isShellEntryNamed` guards its label.
- */
-function getShellHrefProblem(href: string | undefined, isNamed: boolean) {
-  if (!href) {
-    return isNamed ? "Give this link an address, like /admin/media." : null
-  }
-
-  if (/\s/.test(href)) {
-    return "An address cannot contain spaces. Try /admin/media."
-  }
-
-  if (href.startsWith("/")) return null
-
-  if (/^https?:\/\//i.test(href)) {
-    try {
-      new URL(href)
-      return null
-    } catch {
-      return "That is not a complete web address. Try https://example.com."
-    }
-  }
-
-  return "An address has to start with / — like /admin/media — or be a full web address, like https://example.com."
-}
-
-/**
- * The props that turn an address box into a checked one. Both address boxes —
- * the link's and its children's — spread this, so the two can never drift into
- * warning about different things.
- *
- * The red ring on a *blank* address waits until you have actually been in the
- * box: naming a brand new link would otherwise redden an address field you have
- * not reached yet. Anything already typed is wrong on sight, so a link saved
- * before this check existed shows its problem the moment its editor opens. The
- * message itself is a toast on leaving the field, never per keystroke.
- */
-function useCheckedAddress(href: string | undefined, isNamed: boolean) {
-  const [touched, setTouched] = React.useState(false)
-  const problem = getShellHrefProblem(href, isNamed)
-
-  return {
-    "aria-invalid":
-      (Boolean(problem) && (Boolean(href) || touched)) || undefined,
-    onBlur: () => {
-      setTouched(true)
-      if (problem) showErrorToast(problem)
-    },
-  }
 }
 
 function DividerPreview({ entry }: { entry: ShellEntry }) {
