@@ -103,7 +103,34 @@ export function formatTimeAgo(value: string | Date | null) {
   return "Just now"
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+export const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Midnight at the start of a date, in the reader's own timezone.
+ *
+ * Everything that asks "was this today, or yesterday" has to compare whole
+ * days rather than moments, or 11pm and 1am read as a day apart when they are
+ * an hour apart.
+ */
+function startOfDay(date: Date) {
+  const copy = new Date(date)
+  copy.setHours(0, 0, 0, 0)
+  return copy
+}
+
+/** Whole days between two moments, counting from the start of each day. */
+export function daysBetween(from: Date, to: Date) {
+  return Math.floor(
+    (startOfDay(to).getTime() - startOfDay(from).getTime()) / DAY_MS
+  )
+}
+
+/** "Jul 30, 2025", or "Jul 28, 2025 – Jul 30, 2025" when they differ. */
+export function dayRangeText(from: string | Date, to: string | Date) {
+  const start = formatDate(from)
+  const end = formatDate(to)
+  return start === end ? start : `${start} – ${end}`
+}
 
 /**
  * How an activity stream says when: "Just now", "5 minutes ago", "2 hours ago"

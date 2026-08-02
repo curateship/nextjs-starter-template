@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
+  DEFAULT_ADMIN_ROUTE,
   configuredRouteTarget,
   firstSidebarRoute,
   withAccountTab,
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/")({
     // `settings.sections` is already the sidebar this person actually gets —
     // the server hands an admin their own and everybody else the member one.
     const target = isAdmin
-      ? (configuredRouteTarget(settings?.adminRoute) ?? "/admin/settings")
+      ? (configuredRouteTarget(settings?.adminRoute) ?? DEFAULT_ADMIN_ROUTE)
       : (configuredRouteTarget(settings?.memberHomeRoute) ??
         firstSidebarRoute(settings?.sections, user?.role ?? "member"))
 

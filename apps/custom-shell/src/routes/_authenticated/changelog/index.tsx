@@ -11,7 +11,7 @@ import { readOpenSearch } from "@/lib/use-open-from-link"
  * rendering a <Navigate> means they never paint an empty page first.
  */
 export const Route = createFileRoute("/_authenticated/changelog/")({
-  // `?open=<id>` is how the feeds dashboard links to one update.
+  // `?open=<id>` is how the Overview links to one update.
   validateSearch: readOpenSearch,
   loader: async () => {
     const { entries } = await loadAdminChangelog()

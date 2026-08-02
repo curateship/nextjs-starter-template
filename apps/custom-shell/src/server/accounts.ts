@@ -119,35 +119,88 @@ export async function listAccounts(
   const defaultPlan = await getDefaultPlan(database)
   const timestamp = now()
 
-  const accounts: AccountRow[] = rows.map((row) => {
-    const paid =
-      Boolean(row.plan) && subscriptionIsActive(row.subscription, timestamp)
-
-    return {
-      id: row.user.id,
-      email: row.user.email,
-      name: row.user.name,
-      role: row.user.role,
-      status: row.user.status,
-      deletedAt: row.user.deletedAt?.toISOString() ?? null,
-      emailVerified: Boolean(row.user.emailVerifiedAt),
-      planName: paid && row.plan ? row.plan.name : (defaultPlan?.name ?? "Free"),
-      planSlug: paid && row.plan ? row.plan.slug : (defaultPlan?.slug ?? "free"),
-      planIsPaid: paid,
-      subscriptionStatus: paid ? (row.subscription?.status ?? null) : null,
-      subscriptionSource: paid ? (row.subscription?.source ?? null) : null,
-      currentPeriodEnd:
-        paid && row.subscription?.currentPeriodEnd
-          ? row.subscription.currentPeriodEnd.toISOString()
-          : null,
-      cancelAtPeriodEnd: paid
-        ? Boolean(row.subscription?.cancelAtPeriodEnd)
-        : false,
-      createdAt: row.user.createdAt.toISOString(),
-    }
-  })
+  const accounts = rows.map((row) => toAccountRow(row, defaultPlan, timestamp))
 
   return { accounts, total: totals?.total ?? 0 }
+}
+
+/** One joined user row as the admin tables read it. */
+type AccountJoin = {
+  user: typeof customShellUsers.$inferSelect
+  subscription: typeof customShellSubscriptions.$inferSelect | null
+  plan: typeof customShellPlans.$inferSelect | null
+}
+
+/**
+ * The one place a joined row becomes an `AccountRow`. Somebody without a live
+ * paid subscription reads as being on the default plan, whether or not they
+ * have a subscription row at all.
+ */
+function toAccountRow(
+  row: AccountJoin,
+  defaultPlan: { name: string; slug: string } | null | undefined,
+  timestamp: Date
+): AccountRow {
+  const paid =
+    Boolean(row.plan) && subscriptionIsActive(row.subscription, timestamp)
+
+  return {
+    id: row.user.id,
+    email: row.user.email,
+    name: row.user.name,
+    role: row.user.role,
+    status: row.user.status,
+    deletedAt: row.user.deletedAt?.toISOString() ?? null,
+    emailVerified: Boolean(row.user.emailVerifiedAt),
+    planName: paid && row.plan ? row.plan.name : (defaultPlan?.name ?? "Free"),
+    planSlug: paid && row.plan ? row.plan.slug : (defaultPlan?.slug ?? "free"),
+    planIsPaid: paid,
+    subscriptionStatus: paid ? (row.subscription?.status ?? null) : null,
+    subscriptionSource: paid ? (row.subscription?.source ?? null) : null,
+    currentPeriodEnd:
+      paid && row.subscription?.currentPeriodEnd
+        ? row.subscription.currentPeriodEnd.toISOString()
+        : null,
+    cancelAtPeriodEnd: paid
+      ? Boolean(row.subscription?.cancelAtPeriodEnd)
+      : false,
+    createdAt: row.user.createdAt.toISOString(),
+  }
+}
+
+/**
+ * The newest accounts, for the Overview's table.
+ *
+ * Deliberately not `listAccounts` with a page size of five: that is three
+ * round trips — the rows, then `count(*)`, then the default plan — and the
+ * Overview needs neither the count nor a second plan read, because the page
+ * has already read every plan. This is one query.
+ */
+export async function loadNewestAccounts(
+  limit: number,
+  defaultPlan: { name: string; slug: string } | null | undefined,
+  database: CustomShellDb = db
+): Promise<AccountRow[]> {
+  const rows = await database
+    .select({
+      user: customShellUsers,
+      subscription: customShellSubscriptions,
+      plan: customShellPlans,
+    })
+    .from(customShellUsers)
+    .leftJoin(
+      customShellSubscriptions,
+      eq(customShellSubscriptions.userId, customShellUsers.id)
+    )
+    .leftJoin(
+      customShellPlans,
+      eq(customShellPlans.id, customShellSubscriptions.planId)
+    )
+    .orderBy(desc(customShellUsers.createdAt))
+    .limit(limit)
+
+  const timestamp = now()
+  return rows.map((row) => toAccountRow(row, defaultPlan, timestamp))
 }
 
 export async function countOtherActiveAdmins(

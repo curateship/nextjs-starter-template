@@ -12,7 +12,7 @@ import { TableSurface } from "@/components/ui/table"
  * Every admin route builds its error component from this one call, passing the
  * message helper for whatever it loads:
  *
- *   errorComponent: routeErrorComponent(getFeedsErrorMessage)
+ *   errorComponent: routeErrorComponent(getAdminOverviewErrorMessage)
  */
 export function routeErrorComponent(getMessage: (error: unknown) => string) {
   return function RouteError({ error }: ErrorComponentProps) {

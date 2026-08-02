@@ -118,6 +118,8 @@ import { describeDevice } from "@/lib/device-label"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
+  addOverviewLink,
+  foldFeedsIntoOverview,
   createUserWorkspace,
   deleteUserWorkspace,
   deleteUserWorkspaces,
@@ -1003,14 +1005,8 @@ describe("custom shell workspaces", () => {
     expect(adminEntries(defaultSettings)).toMatchObject([
       {
         type: "item",
-        label: "Membership",
-        href: "/admin/membership",
-        visible: true,
-      },
-      {
-        type: "item",
-        label: "Feeds",
-        href: "/admin/feeds",
+        label: "Overview",
+        href: "/admin/dashboard",
         visible: true,
         children: [
           { label: "Announcements", href: "/admin/announcements" },
@@ -1018,6 +1014,12 @@ describe("custom shell workspaces", () => {
           { label: "Changelog", href: "/changelog" },
           { label: "Feedback", href: "/admin/feedback" },
         ],
+      },
+      {
+        type: "item",
+        label: "Membership",
+        href: "/admin/membership",
+        visible: true,
       },
     ])
 
@@ -1227,7 +1229,7 @@ describe("custom shell workspaces", () => {
   })
 
   it("still gives a brand new workspace the default sidebar links", () => {
-    // Audit and the changelog live under the Feeds parent now, so the walk has
+    // The feed links live under the Overview now, so the walk has
     // to look one level down as well.
     const hrefs = parseWorkspaceSettings(undefined).sections.flatMap((section) =>
       section.entries.flatMap((entry) => [
@@ -1238,9 +1240,12 @@ describe("custom shell workspaces", () => {
       ])
     )
 
-    expect(hrefs).toContain("/admin/feeds")
+    expect(hrefs).toContain("/admin/dashboard")
+    expect(hrefs).toContain("/admin/announcements")
     expect(hrefs).toContain("/admin/automations")
     expect(hrefs).toContain("/changelog")
+    // The Feeds page is gone; its links hang off the Overview now.
+    expect(hrefs).not.toContain("/admin/feeds")
   })
 })
 
@@ -1405,15 +1410,16 @@ describe("membership section", () => {
     )
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     // One load applied every restructure: Users, Plans and Revenue grouped
-    // under Membership, the audit link grouped under Feeds, and then the
-    // retired audit link taken out again.
+    // under Membership, the audit link grouped under Feeds, the retired audit
+    // link taken out again, the Overview handed out, and Feeds folded into it.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
       "item-admin-membership",
-      "item-admin-feeds",
     ])
-    expect(
-      (upgraded.sections[0].entries[1] as ShellItem).children
-    ).toEqual([])
+    // Feeds held nothing but the audit link, which was taken out a step
+    // earlier — so the Overview came out of the fold with no children at all,
+    // not with an empty list.
+    expect("children" in upgraded.sections[0].entries[0]).toBe(false)
 
     // Delete it the way Settings → Sidebar would, then load again. Reading must
     // never hand it back.
@@ -1442,8 +1448,10 @@ describe("membership section", () => {
         )
       ).settings
     )
+    // The Overview stays: it was handed out by the same upgrade, and it is
+    // not what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
-      "item-admin-feeds",
+      "item-admin-overview",
     ])
   })
 
@@ -1525,6 +1533,484 @@ describe("membership section", () => {
     expect(
       summary.planMembership.reduce((total, row) => total + row.people, 0)
     ).toBe(summary.revenue.totalUsers)
+  })
+})
+
+describe("overview link", () => {
+  /** A sidebar as a workspace saved it before the Overview page existed. */
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-membership",
+            label: "Membership",
+            href: "/admin/membership",
+            icon: "id-card",
+            visible: true,
+          },
+        ],
+      },
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  function idsIn(sections: ShellSection[], index: number) {
+    return sections[index].entries.map((entry) => entry.id)
+  }
+
+  it("puts the Overview at the top of the section Membership sits in", () => {
+    const sections = addOverviewLink(savedSections())
+
+    expect(idsIn(sections, 0)).toEqual([
+      "item-admin-overview",
+      "item-admin-membership",
+    ])
+    expect(idsIn(sections, 1)).toEqual(["item-settings"])
+    expect(sections[0].entries[0]).toMatchObject({
+      href: "/admin/dashboard",
+      icon: "layoutDashboard",
+      roles: ["admin"],
+      visible: true,
+    })
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addOverviewLink(savedSections())
+    const twice = addOverviewLink(once)
+
+    expect(idsIn(twice, 0)).toEqual([
+      "item-admin-overview",
+      "item-admin-membership",
+    ])
+    // Nothing changed, so nothing to write back.
+    expect(twice).toBe(once)
+  })
+
+  it("leaves a link somebody rebuilt by hand alone", () => {
+    const sections = savedSections()
+    sections[1].entries.push({
+      type: "item",
+      id: "my-own-overview",
+      label: "Home",
+      href: "/admin/dashboard",
+      icon: "layoutDashboard",
+      visible: true,
+    })
+
+    expect(addOverviewLink(sections)).toBe(sections)
+  })
+
+  it("counts a hidden Overview link as already there", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-overview",
+      label: "Overview",
+      href: "/admin/dashboard",
+      icon: "layoutDashboard",
+      visible: false,
+    })
+
+    expect(addOverviewLink(sections)).toBe(sections)
+  })
+
+  it("counts one nested under another link as already there", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "item-admin-overview", label: "Overview", href: "/admin/dashboard" },
+    ]
+
+    expect(addOverviewLink(sections)).toBe(sections)
+  })
+
+  it("finds the section by its id, not the name somebody gave it", () => {
+    const sections = savedSections()
+    sections[0].title = "Ops"
+
+    expect(idsIn(addOverviewLink(sections), 0)).toEqual([
+      "item-admin-overview",
+      "item-admin-membership",
+    ])
+  })
+
+  it("falls back to the first section when Administration is gone", () => {
+    const sections = savedSections().slice(1)
+
+    expect(idsIn(addOverviewLink(sections), 0)).toEqual([
+      "item-admin-overview",
+      "item-settings",
+    ])
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addOverviewLink([])).toEqual([])
+  })
+
+  it("brings a saved sidebar forward once, and never hands it back", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "overview@example.com",
+      name: "Overview Admin",
+      passwordHash: "hash",
+      role: "admin",
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellWorkspaces).values({
+      id: uuid(),
+      userId,
+      name: "Saved",
+      // Everything before this upgrade has already run for this workspace.
+      settings: { icon: "briefcaseBusiness", navVersion: 5, sections: savedSections() },
+      isDefault: true,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const upgraded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    expect(idsIn(upgraded.sections, 0)).toEqual([
+      "item-admin-overview",
+      "item-admin-membership",
+    ])
+
+    // Delete it the way Settings → Sidebar would, then load again. Reading
+    // must never hand it back.
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...upgraded,
+          sections: upgraded.sections.map((section) => ({
+            ...section,
+            entries: section.entries.filter(
+              (entry) => entry.id !== "item-admin-overview"
+            ),
+          })),
+        },
+      })
+      .where(eq(customShellWorkspaces.userId, userId))
+
+    const reloaded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-membership"])
+  })
+})
+
+describe("feeds folds into the overview", () => {
+  /**
+   * A navVersion-6 sidebar: the Overview handed out childless, and Feeds still
+   * holding its four. Changelog is renamed and Notifications has lost its icon,
+   * so both "what the admin did survives" rules get exercised.
+   */
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-overview",
+            label: "Overview",
+            href: "/admin/dashboard",
+            icon: "layoutDashboard",
+            visible: true,
+          },
+          {
+            type: "item",
+            id: "item-admin-membership",
+            label: "Membership",
+            href: "/admin/membership",
+            icon: "id-card",
+            visible: true,
+          },
+          {
+            type: "item",
+            id: "item-admin-feeds",
+            label: "Feeds",
+            href: "/admin/feeds",
+            icon: "rss",
+            visible: true,
+            children: [
+              {
+                id: "item-admin-announcements",
+                label: "Announcements",
+                href: "/admin/announcements",
+                icon: "megaphone",
+                roles: ["admin"],
+              },
+              {
+                id: "item-notifications",
+                label: "Notifications",
+                href: "/admin/notifications",
+              },
+              { id: "item-changelog", label: "Ship log", href: "/changelog" },
+              {
+                id: "item-feedback",
+                label: "Feedback",
+                href: "/admin/feedback",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  const topLevel = (sections: ShellSection[], index: number) =>
+    sections[index].entries.map((entry) => entry.id)
+
+  const overviewIn = (sections: ShellSection[]) =>
+    sections[0].entries.find(
+      (entry) => entry.id === "item-admin-overview"
+    ) as ShellItem
+
+  it("hands the four to the Overview and takes the parent away", () => {
+    const sections = foldFeedsIntoOverview(savedSections())
+
+    expect(topLevel(sections, 0)).toEqual([
+      "item-admin-overview",
+      "item-admin-membership",
+    ])
+    expect(overviewIn(sections).children?.map((child) => child.id)).toEqual([
+      "item-admin-announcements",
+      "item-notifications",
+      "item-changelog",
+      "item-feedback",
+    ])
+    // Saved as the admin left them, not rebuilt from the defaults.
+    expect(
+      overviewIn(sections).children?.find(
+        (child) => child.id === "item-changelog"
+      )?.label
+    ).toBe("Ship log")
+  })
+
+  it("appends behind anything already hanging off the Overview", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "mine", label: "My page", href: "/admin/media" },
+    ]
+
+    expect(
+      overviewIn(foldFeedsIntoOverview(sections)).children?.map(
+        (child) => child.id
+      )
+    ).toEqual([
+      "mine",
+      "item-admin-announcements",
+      "item-notifications",
+      "item-changelog",
+      "item-feedback",
+    ])
+  })
+
+  it("recognises a parent somebody rebuilt by hand, by its address", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[2] as ShellItem).id = "item-my-own-feeds"
+
+    const folded = foldFeedsIntoOverview(sections)
+    expect(topLevel(folded, 0)).toEqual([
+      "item-admin-overview",
+      "item-admin-membership",
+    ])
+    expect(overviewIn(folded).children).toHaveLength(4)
+  })
+
+  it("recognises an Overview somebody rebuilt by hand, by its address", () => {
+    const sections = savedSections()
+    sections[0].entries[0].id = "item-my-own-overview"
+
+    const folded = foldFeedsIntoOverview(sections)
+    const overview = folded[0].entries[0] as ShellItem
+    expect(overview.id).toBe("item-my-own-overview")
+    expect(overview.children).toHaveLength(4)
+  })
+
+  it("stands the four up on their own when the Overview has been deleted", () => {
+    const sections = savedSections()
+    sections[0].entries.shift()
+
+    const folded = foldFeedsIntoOverview(sections)
+    // Exactly where the Feeds parent stood, not appended to the end.
+    expect(topLevel(folded, 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-announcements",
+      "item-notifications",
+      "item-changelog",
+      "item-feedback",
+    ])
+    const promoted = folded[0].entries[1] as ShellItem
+    expect(promoted).toMatchObject({
+      type: "item",
+      href: "/admin/announcements",
+      icon: "megaphone",
+      visible: true,
+      roles: ["admin"],
+    })
+    // A child with no icon of its own wears the parent's.
+    expect((folded[0].entries[2] as ShellItem).icon).toBe("rss")
+  })
+
+  it("leaves a switched-off section switched off", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[2] as ShellItem).visible = false
+
+    const folded = foldFeedsIntoOverview(sections)
+    // Nothing the admin turned off comes back on: they stand on their own,
+    // still hidden, rather than reappearing under a switched-on Overview.
+    expect(overviewIn(folded).children).toBeUndefined()
+    expect(
+      folded[0].entries
+        .filter((entry) => entry.id.startsWith("item-admin-announ"))
+        .map((entry) => (entry as ShellItem).visible)
+    ).toEqual([false])
+  })
+
+  it("does not take four links away by moving them into a hidden Overview", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).visible = false
+
+    const folded = foldFeedsIntoOverview(sections)
+    expect(overviewIn(folded).children).toBeUndefined()
+    expect((folded[0].entries[2] as ShellItem).visible).toBe(true)
+  })
+
+  it("stands them up when the only Overview is somebody's child", () => {
+    const sections = savedSections()
+    sections[0].entries.shift()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "nested", label: "Overview", href: "/admin/dashboard" },
+    ]
+
+    expect(topLevel(foldFeedsIntoOverview(sections), 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-announcements",
+      "item-notifications",
+      "item-changelog",
+      "item-feedback",
+    ])
+  })
+
+  it("takes a childless parent away without growing an empty list", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[2] as ShellItem).children = []
+
+    const folded = foldFeedsIntoOverview(sections)
+    expect(topLevel(folded, 0)).toEqual([
+      "item-admin-overview",
+      "item-admin-membership",
+    ])
+    expect("children" in overviewIn(folded)).toBe(false)
+  })
+
+  it("keeps one link per page", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "item-admin-announcements", label: "Broadcasts", href: "/admin/announcements" },
+      { id: "rebuilt-changelog", label: "Updates", href: "/changelog" },
+    ]
+
+    const children = overviewIn(foldFeedsIntoOverview(sections))
+    // Matched by id and by address, and the copy already there is the one kept.
+    expect(children.children?.map((child) => child.id)).toEqual([
+      "item-admin-announcements",
+      "rebuilt-changelog",
+      "item-notifications",
+      "item-feedback",
+    ])
+    expect(children.children?.[0]?.label).toBe("Broadcasts")
+  })
+
+  it("does not stand up a link that is already somewhere else", () => {
+    const sections = savedSections()
+    sections[0].entries.shift()
+    // Feedback already sits under Membership, so it needs no second copy.
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "item-feedback", label: "Feedback", href: "/admin/feedback" },
+    ]
+
+    expect(topLevel(foldFeedsIntoOverview(sections), 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-announcements",
+      "item-notifications",
+      "item-changelog",
+    ])
+  })
+
+  it("takes a stray Feeds link out wherever it sits", () => {
+    const sections = savedSections()
+    sections[0].entries.pop()
+    ;(sections[0].entries[1] as ShellItem).children = [
+      { id: "stray", label: "Feeds", href: "/admin/feeds" },
+    ]
+
+    const folded = foldFeedsIntoOverview(sections)
+    expect((folded[0].entries[1] as ShellItem).children).toEqual([])
+  })
+
+  it("changes nothing when Feeds is already gone", () => {
+    const sections = savedSections()
+    sections[0].entries.pop()
+
+    expect(foldFeedsIntoOverview(sections)).toBe(sections)
+  })
+
+  it("runs once, however many times it runs", () => {
+    const once = foldFeedsIntoOverview(savedSections())
+    expect(foldFeedsIntoOverview(once)).toBe(once)
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(foldFeedsIntoOverview([])).toEqual([])
   })
 })
 
@@ -1847,18 +2333,30 @@ describe("feeds section", () => {
     )
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
       "item-admin-membership",
-      "item-admin-feeds",
     ])
-    // Only the feeds restructure ran: Membership's children were not rebuilt.
+    // Grouped under Feeds, then handed on to the Overview when Feeds went.
+    // No Feedback link: this sidebar predates it. What's new and the audit
+    // link were both taken out on the way through.
     expect(
       (upgraded.sections[0].entries[0] as ShellItem).children?.map(
         (child) => child.id
       )
+    ).toEqual([
+      "item-admin-announcements",
+      "item-notifications",
+      "item-changelog",
+    ])
+    // Only the feeds restructure ran: Membership's children were not rebuilt.
+    expect(
+      (upgraded.sections[0].entries[1] as ShellItem).children?.map(
+        (child) => child.id
+      )
     ).toEqual(["item-admin-users"])
 
-    // Delete Feeds the way Settings → Sidebar would, then load again. Reading
-    // must never hand it back.
+    // Delete the Overview the way Settings → Sidebar would, then load again.
+    // Reading must never hand it, or the links it carries, back.
     await database
       .update(customShellWorkspaces)
       .set({
@@ -1867,7 +2365,7 @@ describe("feeds section", () => {
           sections: upgraded.sections.map((section) => ({
             ...section,
             entries: section.entries.filter(
-              (entry) => entry.id !== "item-admin-feeds"
+              (entry) => entry.id !== "item-admin-overview"
             ),
           })),
         },
@@ -2092,14 +2590,17 @@ describe("feeds section", () => {
     )
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     // Feedback folded in, and every retired link — comments, the admin's
-    // What's new, and the activity log — is gone.
-    const feeds = upgraded.sections[0].entries[0] as ShellItem
-    expect(feeds.children?.map((child) => child.id)).toEqual([
+    // What's new, and the activity log — is gone. Feeds then handed the four
+    // it was holding to the Overview and went itself.
+    const overview = upgraded.sections[0].entries[0] as ShellItem
+    expect(overview.id).toBe("item-admin-overview")
+    expect(overview.children?.map((child) => child.id)).toEqual([
       "item-admin-announcements",
       "item-notifications",
       "item-changelog",
       "item-feedback",
     ])
+    expect(allLinkIds(upgraded.sections)).not.toContain("item-admin-feeds")
     expect(allLinkIds(upgraded.sections)).not.toContain(
       "item-feedback-comments"
     )

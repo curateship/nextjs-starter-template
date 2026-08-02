@@ -21,9 +21,10 @@ import {
 import { now } from "@/server/security"
 
 /**
- * The numbers behind /admin/feeds. Nothing here is new data: every figure is
- * read from the same tables the Announcements, Notifications, Changelog and
- * Feedback pages read, so a tile and the page it links to can never disagree.
+ * The numbers behind the announcements, notices, changelog and feedback the
+ * admin Overview shows. Nothing here is new data: every figure is read from
+ * the same tables those four pages read, so a figure and the page it links to
+ * can never disagree.
  */
 
 /** How many recent rows each list card shows. */

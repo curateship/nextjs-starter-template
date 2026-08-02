@@ -30,7 +30,7 @@ type AnnouncementsSearch = {
 }
 
 /**
- * `?open=<id>` is how the feeds dashboard links to one announcement; the rest
+ * `?open=<id>` is how the Overview links to one announcement; the rest
  * is the list state, so Back returns the exact list you left. Every value is
  * checked before use.
  */
