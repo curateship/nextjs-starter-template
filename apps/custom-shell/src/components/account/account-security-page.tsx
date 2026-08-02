@@ -17,6 +17,7 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import {
   Table,
   TableBody,
@@ -40,6 +41,8 @@ import {
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatTimeAgo } from "@/lib/format-time"
+
+const MISMATCH_MESSAGE = "Those passwords do not match."
 
 export function AccountSecurityPage({ user }: { user: AuthUser }) {
   const router = useRouter()
@@ -79,8 +82,16 @@ function ChangePasswordCard({
   const [currentPassword, setCurrentPassword] = React.useState("")
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
+  const [confirmTouched, setConfirmTouched] = React.useState(false)
   const [saved, setSaved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+
+  const confirmMismatches =
+    confirmPassword.length > 0 && confirmPassword !== newPassword
+  // Only show the red ring once the confirm field has been visited, so it
+  // appears as the user types the second password rather than the instant they
+  // enter the first character.
+  const mismatch = confirmTouched && confirmMismatches
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -89,7 +100,8 @@ function ChangePasswordCard({
       setSaved(false)
 
       if (newPassword !== confirmPassword) {
-        showErrorToast("Those passwords do not match.")
+        setConfirmTouched(true)
+        showErrorToast(MISMATCH_MESSAGE)
         return
       }
 
@@ -102,6 +114,7 @@ function ChangePasswordCard({
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
+        setConfirmTouched(false)
         setSaved(true)
         onPasswordChanged()
       } catch (changeError) {
@@ -134,12 +147,16 @@ function ChangePasswordCard({
           {hasPassword ? (
             <div className="grid gap-2">
               <Label htmlFor="current-password">Current password</Label>
-              <Input
+              <PasswordInput
                 id="current-password"
-                type="password"
                 autoComplete="current-password"
                 value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
+                onChange={(event) => {
+                  // Drop the "Password updated" note the moment a new change
+                  // starts, so it cannot be read as the answer to this one.
+                  setSaved(false)
+                  setCurrentPassword(event.target.value)
+                }}
                 required
               />
             </div>
@@ -148,27 +165,41 @@ function ChangePasswordCard({
             <FieldLabel htmlFor="new-password" hint={PASSWORD_RULE_HINT}>
               {hasPassword ? "New password" : "Password"}
             </FieldLabel>
-            <Input
+            <PasswordInput
               id="new-password"
-              type="password"
               autoComplete="new-password"
               minLength={8}
               value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
+              onChange={(event) => {
+                setSaved(false)
+                setNewPassword(event.target.value)
+              }}
               required
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="confirm-new-password">
+            <FieldLabel
+              htmlFor="confirm-new-password"
+              hint="Type the same password again."
+            >
               {hasPassword ? "Confirm new password" : "Confirm password"}
-            </Label>
-            <Input
+            </FieldLabel>
+            <PasswordInput
               id="confirm-new-password"
-              type="password"
               autoComplete="new-password"
               minLength={8}
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              onChange={(event) => {
+                setSaved(false)
+                setConfirmPassword(event.target.value)
+              }}
+              onBlur={() => {
+                setConfirmTouched(true)
+                // Report on leaving the field, never per keystroke — a toast on
+                // every character typed would be unreadable.
+                if (confirmMismatches) showErrorToast(MISMATCH_MESSAGE)
+              }}
+              aria-invalid={mismatch || undefined}
               required
             />
           </div>
@@ -265,16 +296,19 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
                 <TableRow>
                   {/* The flexible column, but without the dashboard `main`
                       column's 320px floor — this table lives in a modal that is
-                      only as wide as a phone. */}
-                  <TableHead className="w-full">Device</TableHead>
+                      only as wide as a phone. Same treatment the Invoices table
+                      in this window uses, so the two match. */}
+                  <TableHead column="main" className="min-w-0">
+                    Device
+                  </TableHead>
                   {/* The address is the first thing to go on a phone: the
                       browser name and when it was last used are what somebody
                       spots a stranger by. */}
-                  <TableHead className="hidden sm:table-cell">
+                  <TableHead column="meta" className="hidden sm:table-cell">
                     Signed in from
                   </TableHead>
-                  <TableHead>Last active</TableHead>
-                  <TableHead className="text-right">
+                  <TableHead column="meta">Last active</TableHead>
+                  <TableHead column="meta" className="text-right">
                     <span className="sr-only">Sign out</span>
                   </TableHead>
                 </TableRow>
@@ -438,22 +472,34 @@ function DeleteAccountCard({
           <CardContent>
             <div className="grid gap-2">
               {hasPassword ? (
-                <Label htmlFor="delete-confirmation">Password</Label>
+                <>
+                  <Label htmlFor="delete-confirmation">Password</Label>
+                  {/* Revealed the same way as every other password box: this is
+                      the one box you cannot undo getting wrong. */}
+                  <PasswordInput
+                    id="delete-confirmation"
+                    autoComplete="current-password"
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                  />
+                </>
               ) : (
-                <FieldLabel
-                  htmlFor="delete-confirmation"
-                  hint={`Type ${email} to confirm. You sign in with Google, so there is no password to ask for.`}
-                >
-                  Email address
-                </FieldLabel>
+                <>
+                  <FieldLabel
+                    htmlFor="delete-confirmation"
+                    hint={`Type ${email} to confirm. You sign in with Google, so there is no password to ask for.`}
+                  >
+                    Email address
+                  </FieldLabel>
+                  <Input
+                    id="delete-confirmation"
+                    type="email"
+                    autoComplete="email"
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                  />
+                </>
               )}
-              <Input
-                id="delete-confirmation"
-                type={hasPassword ? "password" : "email"}
-                autoComplete={hasPassword ? "current-password" : "email"}
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-              />
             </div>
           </CardContent>
         </Card>

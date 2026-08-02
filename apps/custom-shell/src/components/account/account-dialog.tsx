@@ -209,7 +209,21 @@ export function AccountDialog({
                   Save changes
                 </Button>
               </DialogFooter>
-            ) : null}
+            ) : (
+              // Billing and Security save nothing of their own — every action on
+              // them applies as it is clicked. So they end with a single "Done"
+              // and no Cancel, and it leaves by the same path as the X so a
+              // half-typed Profile is still asked about.
+              <DialogFooter>
+                <Button
+                  type="button"
+                  disabled={profileStatus.saving}
+                  onClick={requestClose}
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            )}
           </Tabs>
         </DialogContent>
       )}
