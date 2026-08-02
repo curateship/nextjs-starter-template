@@ -159,6 +159,11 @@ export const customShellFeedback = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     type: varchar("type", { length: 50 }).notNull(),
     message: text("message").notNull(),
+    // What the item is about, from the fixed list in `lib/feedback-tags.ts`.
+    tags: text("tags")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -166,6 +171,10 @@ export const customShellFeedback = pgTable(
     check(
       "feedback_type_check",
       sql`${table.type} in ('suggestion', 'bug_report', 'question', 'praise')`
+    ),
+    check(
+      "feedback_tags_check",
+      sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
     index("ix_feedback_type").on(table.type),

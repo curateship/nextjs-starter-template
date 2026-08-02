@@ -16,12 +16,27 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { findCurrentUser, now, uuid } from "@/server/security"
+import {
+  FEEDBACK_TAGS,
+  MAX_FEEDBACK_TAGS,
+  type FeedbackTag,
+} from "@/lib/feedback-tags"
 
 export type FeedbackType = "suggestion" | "bug_report" | "question" | "praise"
+
+/** The orders the board can list in, decided by the server's query. */
+export type FeedbackSort = "recent" | "most_votes" | "most_comments"
+
+export type FeedbackListOptions = {
+  type?: FeedbackType | "all"
+  tag?: FeedbackTag | "all"
+  sort?: FeedbackSort
+}
 
 export type FeedbackItem = {
   id: string
   type: FeedbackType
+  tags: FeedbackTag[]
   message: string
   author_name: string
   created_at: string
@@ -60,6 +75,7 @@ type FeedbackCommentListResponse = {
 
 type FeedbackCreatePayload = {
   type: FeedbackType
+  tags: FeedbackTag[]
   message: string
 }
 
@@ -77,9 +93,20 @@ type FeedbackCommentUpdatePayload = {
   message: string
 }
 
+const feedbackTagsSchema = z.array(z.enum(FEEDBACK_TAGS)).max(MAX_FEEDBACK_TAGS)
+
 const createFeedbackSchema = z.object({
   type: z.enum(["suggestion", "bug_report", "question", "praise"]),
+  tags: feedbackTagsSchema,
   message: z.string().min(1).max(5000),
+})
+
+const listFeedbackSchema = z.object({
+  type: z
+    .enum(["all", "suggestion", "bug_report", "question", "praise"])
+    .default("all"),
+  tag: z.enum(["all", ...FEEDBACK_TAGS]).default("all"),
+  sort: z.enum(["recent", "most_votes", "most_comments"]).default("recent"),
 })
 
 const updateFeedbackSchema = createFeedbackSchema.extend({
@@ -116,17 +143,42 @@ export function getFeedbackErrorMessage(error: unknown) {
   return message || "Feedback request failed."
 }
 
-const listFeedbackFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<FeedbackListResponse> => {
+const listFeedbackFn = createServerFn({ method: "GET" })
+  .inputValidator(listFeedbackSchema)
+  .handler(async ({ data }): Promise<FeedbackListResponse> => {
     const user = await requireUser()
+
+    const filters = []
+    if (data.type !== "all") {
+      filters.push(eq(customShellFeedback.type, data.type))
+    }
+    if (data.tag !== "all") {
+      filters.push(
+        sql`${customShellFeedback.tags} @> ARRAY[${data.tag}]::text[]`
+      )
+    }
+
+    // The counts are counted here, in the query, so the order is the
+    // database's answer — the board must not need every row shipped over
+    // just to know which has the most votes. Ties fall back to newest first,
+    // so the order never shuffles between reloads.
+    const voteCount = sql<number>`(select count(*) from ${customShellFeedbackVotes} where ${customShellFeedbackVotes.feedbackId} = ${customShellFeedback.id})`
+    const commentCount = sql<number>`(select count(*) from ${customShellFeedbackComments} where ${customShellFeedbackComments.feedbackId} = ${customShellFeedback.id})`
+    const order =
+      data.sort === "most_votes"
+        ? [desc(voteCount), desc(customShellFeedback.createdAt)]
+        : data.sort === "most_comments"
+          ? [desc(commentCount), desc(customShellFeedback.createdAt)]
+          : [desc(customShellFeedback.createdAt)]
+
     const rows = await db
       .select()
       .from(customShellFeedback)
-      .orderBy(desc(customShellFeedback.createdAt))
+      .where(filters.length ? and(...filters) : undefined)
+      .orderBy(...order)
 
     return { feedback: await serializeFeedbackRows(rows, user.id) }
-  }
-)
+  })
 
 const createFeedbackFn = createServerFn({ method: "POST" })
   .inputValidator(createFeedbackSchema)
@@ -149,6 +201,7 @@ const createFeedbackFn = createServerFn({ method: "POST" })
       id: uuid(),
       userId: user.id,
       type: data.type,
+      tags: dedupeTags(data.tags),
       message,
       createdAt,
       updatedAt: createdAt,
@@ -171,7 +224,12 @@ const updateFeedbackFn = createServerFn({ method: "POST" })
 
     const [row] = await db
       .update(customShellFeedback)
-      .set({ type: data.type, message, updatedAt: now() })
+      .set({
+        type: data.type,
+        tags: dedupeTags(data.tags),
+        message,
+        updatedAt: now(),
+      })
       .where(eq(customShellFeedback.id, data.feedbackId))
       .returning()
 
@@ -426,8 +484,14 @@ const deleteFeedbackCommentFn = createServerFn({ method: "POST" })
     }
   )
 
-export function listFeedback() {
-  return listFeedbackFn()
+export function listFeedback(options: FeedbackListOptions = {}) {
+  return listFeedbackFn({
+    data: {
+      type: options.type ?? "all",
+      tag: options.tag ?? "all",
+      sort: options.sort ?? "recent",
+    },
+  })
 }
 
 export function createFeedback(payload: FeedbackCreatePayload) {
@@ -573,9 +637,7 @@ async function serializeFeedbackRows(
       .groupBy(customShellFeedbackComments.feedbackId),
   ])
 
-  const voteCounts = new Map(
-    voteRows.map((row) => [row.feedbackId, row.count])
-  )
+  const voteCounts = new Map(voteRows.map((row) => [row.feedbackId, row.count]))
   const commentCounts = new Map(
     commentRows.map((row) => [row.feedbackId, row.count])
   )
@@ -701,6 +763,11 @@ async function getFeedbackCommentCount(feedbackId: string) {
   return commentCount?.count ?? 0
 }
 
+/** The same tag twice says nothing twice; the database's cap counts copies. */
+function dedupeTags(tags: FeedbackTag[]) {
+  return Array.from(new Set(tags))
+}
+
 function serializeFeedbackRow(
   row: CustomShellFeedback,
   authorName: string,
@@ -711,6 +778,7 @@ function serializeFeedbackRow(
   return {
     id: row.id,
     type: row.type as FeedbackType,
+    tags: row.tags as FeedbackTag[],
     message: row.message,
     author_name: authorName,
     created_at: row.createdAt.toISOString(),

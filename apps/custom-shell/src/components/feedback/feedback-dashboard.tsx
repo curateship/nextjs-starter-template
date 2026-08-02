@@ -12,12 +12,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -63,25 +58,25 @@ import {
   type FeedbackType,
 } from "@/lib/api/feedback"
 import { FeedbackCommentsModal } from "@/components/feedback/feedback-comments-modal"
+import { FeedbackTagsSelect } from "@/components/feedback/feedback-tags-select"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
+import { feedbackTagLabels, type FeedbackTag } from "@/lib/feedback-tags"
 import {
   feedbackTypeBadgeVariants,
   feedbackTypeClassNames,
   feedbackTypeLabels,
 } from "@/lib/feedback-type"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import {
-  useListSearchNavigate,
-  useSearchBoxText,
-} from "@/lib/list-search"
+import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 const feedbackRoute = getRouteApi("/_authenticated/admin/feedback")
 
-type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
+type FeedbackSortColumn =
+  "message" | "type" | "author" | "created" | "comments" | "votes"
 
 type FeedbackDashboardProps = {
   refreshToken: number
@@ -177,12 +172,23 @@ export function FeedbackDashboard({
 
     const direction = sortDirection === "asc" ? 1 : -1
     return matches.sort((a, b) => {
-      if (sortColumn === "message") return a.message.localeCompare(b.message) * direction
-      if (sortColumn === "type") return feedbackTypeLabels[a.type].localeCompare(feedbackTypeLabels[b.type]) * direction
-      if (sortColumn === "author") return a.author_name.localeCompare(b.author_name) * direction
-      if (sortColumn === "comments") return (a.comment_count - b.comment_count) * direction
-      if (sortColumn === "votes") return (a.vote_count - b.vote_count) * direction
-      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
+      if (sortColumn === "message")
+        return a.message.localeCompare(b.message) * direction
+      if (sortColumn === "type")
+        return (
+          feedbackTypeLabels[a.type].localeCompare(feedbackTypeLabels[b.type]) *
+          direction
+        )
+      if (sortColumn === "author")
+        return a.author_name.localeCompare(b.author_name) * direction
+      if (sortColumn === "comments")
+        return (a.comment_count - b.comment_count) * direction
+      if (sortColumn === "votes")
+        return (a.vote_count - b.vote_count) * direction
+      return (
+        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) *
+        direction
+      )
     })
   }, [feedback, searchQuery, sortColumn, sortDirection, typeFilter])
 
@@ -279,7 +285,9 @@ export function FeedbackDashboard({
     try {
       const result = await deleteFeedbackMany(ids)
       const deletedIds = new Set(result.feedbackIds)
-      setFeedback((current) => current.filter((item) => !deletedIds.has(item.id)))
+      setFeedback((current) =>
+        current.filter((item) => !deletedIds.has(item.id))
+      )
       toast.success("Feedback deleted.")
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
@@ -358,9 +366,7 @@ export function FeedbackDashboard({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Filter by type"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Filter by type">
                 <SelectValue placeholder="Type" />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -373,66 +379,85 @@ export function FeedbackDashboard({
               </SelectContent>
             </Select>
 
-            <DashboardToolbarButton
-              type="button"
-              onClick={onOpenFeedback}
-            >
+            <DashboardToolbarButton type="button" onClick={onOpenFeedback}>
               <MessageSquarePlusIcon className="size-4" />
               New feedback
             </DashboardToolbarButton>
           </>
         }
         header={
-            <TableHeader>
-              <TableRow>
-                <TableHead column="select">
-                  <Checkbox
-                    checked={
-                      visibleSelected
-                        ? true
-                        : visiblePartiallySelected
-                          ? "indeterminate"
-                          : false
-                    }
-                    onCheckedChange={toggleVisibleSelection}
-                    aria-label="Select visible feedback"
-                  />
-                </TableHead>
-                <TableHead column="main">
-                  <TableSortButton active={sortColumn === "message"} direction={sortDirection} onClick={() => toggleSort("message")}>
-                    Feedback
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
-                    Type
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta" className="hidden md:table-cell">
-                  <TableSortButton active={sortColumn === "author"} direction={sortDirection} onClick={() => toggleSort("author")}>
-                    Author
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta" className="hidden lg:table-cell">
-                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
-                    Created
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "comments"} direction={sortDirection} onClick={() => toggleSort("comments")}>
-                    Comments
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sortColumn === "votes"} direction={sortDirection} onClick={() => toggleSort("votes")}>
-                    Votes
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  Actions
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead column="select">
+                <Checkbox
+                  checked={
+                    visibleSelected
+                      ? true
+                      : visiblePartiallySelected
+                        ? "indeterminate"
+                        : false
+                  }
+                  onCheckedChange={toggleVisibleSelection}
+                  aria-label="Select visible feedback"
+                />
+              </TableHead>
+              <TableHead column="main">
+                <TableSortButton
+                  active={sortColumn === "message"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("message")}
+                >
+                  Feedback
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "type"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("type")}
+                >
+                  Type
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden md:table-cell">
+                <TableSortButton
+                  active={sortColumn === "author"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("author")}
+                >
+                  Author
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
+                <TableSortButton
+                  active={sortColumn === "created"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("created")}
+                >
+                  Created
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "comments"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("comments")}
+                >
+                  Comments
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sortColumn === "votes"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("votes")}
+                >
+                  Votes
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
         }
         isEmpty={!loading && paginatedFeedback.length === 0}
         emptyText="No feedback found matching your filters."
@@ -459,7 +484,7 @@ export function FeedbackDashboard({
             <TableCell column="main">
               <button
                 type="button"
-                className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
+                className="line-clamp-2 max-w-full text-left text-xs font-medium whitespace-normal group-hover:underline sm:text-sm"
                 onClick={() => setEditingFeedback(item)}
                 title={item.message}
               >
@@ -467,12 +492,19 @@ export function FeedbackDashboard({
               </button>
             </TableCell>
             <TableCell column="meta">
-              <Badge
-                variant={feedbackTypeBadgeVariants[item.type]}
-                className={feedbackTypeClassNames[item.type]}
-              >
-                {feedbackTypeLabels[item.type]}
-              </Badge>
+              <div className="flex flex-wrap items-center gap-1">
+                <Badge
+                  variant={feedbackTypeBadgeVariants[item.type]}
+                  className={feedbackTypeClassNames[item.type]}
+                >
+                  {feedbackTypeLabels[item.type]}
+                </Badge>
+                {item.tags.map((tag) => (
+                  <Badge key={tag} variant="outline">
+                    {feedbackTagLabels[tag]}
+                  </Badge>
+                ))}
+              </div>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden md:table-cell">
               {item.author_name}
@@ -555,7 +587,10 @@ export function FeedbackDashboard({
           setFeedback((current) =>
             current.map((item) =>
               item.id === feedbackId
-                ? { ...item, comment_count: Math.max(0, item.comment_count - 1) }
+                ? {
+                    ...item,
+                    comment_count: Math.max(0, item.comment_count - 1),
+                  }
                 : item
             )
           )
@@ -606,6 +641,7 @@ function EditFeedbackModal({
 }) {
   const [feedbackType, setFeedbackType] =
     React.useState<FeedbackType>("suggestion")
+  const [feedbackTags, setFeedbackTags] = React.useState<FeedbackTag[]>([])
   const [message, setMessage] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
@@ -614,6 +650,7 @@ function EditFeedbackModal({
   React.useEffect(() => {
     if (!feedback) return
     setFeedbackType(feedback.type)
+    setFeedbackTags(feedback.tags)
     setMessage(feedback.message)
     setConfirmingDelete(false)
   }, [feedback])
@@ -632,6 +669,7 @@ function EditFeedbackModal({
       const updated = await updateFeedback({
         feedbackId: feedback.id,
         type: feedbackType,
+        tags: feedbackTags,
         message: trimmedMessage,
       })
       onUpdated(updated)
@@ -666,7 +704,10 @@ function EditFeedbackModal({
 
   const busy = saving || deleting
   const dirty = feedback
-    ? message !== feedback.message || feedbackType !== feedback.type
+    ? message !== feedback.message ||
+      feedbackType !== feedback.type ||
+      // Compared as sets: picking the same tags in another order is no change.
+      [...feedbackTags].sort().join() !== [...feedback.tags].sort().join()
     : false
 
   return (
@@ -693,37 +734,54 @@ function EditFeedbackModal({
                   <CardTitle>Feedback</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="feedback-message">Feedback</Label>
-                <Textarea
-                  id="feedback-message"
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  rows={1}
-                  disabled={busy}
-                  autoFocus
-                />
-              </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="feedback-message">Feedback</Label>
+                    <Textarea
+                      id="feedback-message"
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      rows={1}
+                      disabled={busy}
+                      autoFocus
+                    />
+                  </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="feedback-type">Type</Label>
-                <Select
-                  value={feedbackType}
-                  onValueChange={(value) => setFeedbackType(value as FeedbackType)}
-                  disabled={busy}
-                >
-                  <SelectTrigger id="feedback-type" className="w-full sm:w-fit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(feedbackTypeLabels).map(([type, label]) => (
-                      <SelectItem key={type} value={type}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="feedback-type">Type</Label>
+                    <Select
+                      value={feedbackType}
+                      onValueChange={(value) =>
+                        setFeedbackType(value as FeedbackType)
+                      }
+                      disabled={busy}
+                    >
+                      <SelectTrigger
+                        id="feedback-type"
+                        className="w-full sm:w-fit"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(feedbackTypeLabels).map(
+                          ([type, label]) => (
+                            <SelectItem key={type} value={type}>
+                              {label}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label id="feedback-tags-label">Tags</Label>
+                    <FeedbackTagsSelect
+                      value={feedbackTags}
+                      onChange={setFeedbackTags}
+                      disabled={busy}
+                      className="w-full sm:w-fit"
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </DialogBody>
