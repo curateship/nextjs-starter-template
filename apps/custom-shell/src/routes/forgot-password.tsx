@@ -119,6 +119,10 @@ function ForgotPasswordRoute() {
             <Loader2Icon className="animate-spin" />
             Sending...
           </>
+        ) : sent ? (
+          // A link can go missing or be left too long, so the button stays
+          // usable and says what pressing it now would do.
+          "Send again"
         ) : (
           "Send reset link"
         )}
