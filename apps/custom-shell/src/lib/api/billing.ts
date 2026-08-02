@@ -11,6 +11,7 @@ import {
 import { loadEntitlements } from "@/server/entitlements"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/plans"
 import { requireAppOrigin } from "@/server/origin"
+import { enforceRateLimit } from "@/server/rate-limit"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { requireUser } from "@/server/security"
 
@@ -54,6 +55,8 @@ const billingErrorMessages: Record<string, string> = {
   CHECKOUT_FAILED: "Stripe could not start the checkout. Please try again.",
   SUBSCRIPTION_NOT_FOUND: "There is no subscription to manage yet.",
   AUTH_REQUIRED: "Please sign in again.",
+  RATE_LIMITED:
+    "Too many checkout attempts. Please wait a few minutes and try again.",
 }
 
 export function getBillingErrorMessage(error: unknown) {
@@ -133,6 +136,11 @@ const startCheckoutFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
+
+    await enforceRateLimit(`checkout-start:${user.id}`, {
+      maxAttempts: 10,
+      windowSeconds: 15 * 60,
+    })
 
     // The browser picks a plan by slug; the price always comes from the row.
     const plan = await getPlanBySlug(data.planSlug)

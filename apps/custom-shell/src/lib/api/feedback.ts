@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
+import { enforceRateLimit } from "@/server/rate-limit"
 import {
   customShellFeedback,
   customShellFeedbackComments,
@@ -108,7 +109,11 @@ const feedbackCommentIdSchema = z.object({
 })
 
 export function getFeedbackErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Feedback request failed."
+  const message = error instanceof Error ? error.message : ""
+  if (message.includes("RATE_LIMITED")) {
+    return "You're posting quickly. Please wait a few minutes and try again."
+  }
+  return message || "Feedback request failed."
 }
 
 const listFeedbackFn = createServerFn({ method: "GET" }).handler(
@@ -133,6 +138,11 @@ const createFeedbackFn = createServerFn({ method: "POST" })
     if (!message) {
       throw new Error("Message is required")
     }
+
+    await enforceRateLimit(`feedback-create:${user.id}`, {
+      maxAttempts: 10,
+      windowSeconds: 10 * 60,
+    })
 
     const createdAt = now()
     const row = {
@@ -315,6 +325,11 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
     if (!message) {
       throw new Error("Comment is required")
     }
+
+    await enforceRateLimit(`feedback-comment:${user.id}`, {
+      maxAttempts: 20,
+      windowSeconds: 10 * 60,
+    })
 
     const feedback = await requireFeedback(data.feedbackId)
 
