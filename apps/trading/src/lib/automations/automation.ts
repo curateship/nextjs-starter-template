@@ -502,6 +502,8 @@ export type AutomationDcaConfig = {
   sizeMultiplier: number
   /** true: size off the current balance (compound); false: off the starting balance (fixed bet). */
   compound: boolean
+  /** Liquidity guard: cap each buy at this % of the coin's rolling 24h dollar volume. 0 = off. */
+  maxOrderVolPct: number
   /** Market-buy on confirmation (default) or rest a limit at each rung's level. */
   rungEntry: DcaRungEntry
   /** Only buy a rung once the last two candles both closed green. */
@@ -733,6 +735,9 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     // Defaults to true (compound) so ladders saved before this field keep their
     // current behavior — sizing off the live balance.
     compound: z.boolean().default(true),
+    // Liquidity guard: cap each buy at this % of rolling 24h volume. Defaults
+    // to 0 (off) so every ladder saved before it behaves identically.
+    maxOrderVolPct: z.number().min(0).max(5).default(0),
     // Defaults to "market" (reactive confirmation + fail-safe) for ladders saved
     // before this field existed.
     rungEntry: z.enum(["market", "limit"]).default("market"),
@@ -934,6 +939,9 @@ const automationDcaConfigSchema: z.ZodType<AutomationDcaConfig> = z.object({
   maxPositionPct: z.number().positive().max(100),
   sizeMultiplier: z.number().min(1).max(10).default(1),
   compound: z.boolean().default(true),
+    // Liquidity guard: cap each buy at this % of rolling 24h volume. Defaults
+    // to 0 (off) so every ladder saved before it behaves identically.
+    maxOrderVolPct: z.number().min(0).max(5).default(0),
   rungEntry: z.enum(["market", "limit"]).default("market"),
   requireTwoGreen: z.boolean().default(false),
   basePeriods: z.number().int().min(4).max(500),
@@ -1686,6 +1694,7 @@ export function compileAutomationGraph(input: {
         maxPositionPct: dcaNode.maxPositionPct,
         sizeMultiplier: dcaNode.sizeMultiplier,
         compound: dcaNode.compound,
+        maxOrderVolPct: dcaNode.maxOrderVolPct,
         rungEntry: dcaNode.rungEntry,
         requireTwoGreen: dcaNode.requireTwoGreen,
         basePeriods: baseParams.basePeriods,

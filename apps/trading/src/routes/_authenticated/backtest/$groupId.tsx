@@ -11,7 +11,8 @@ export const Route = createFileRoute("/_authenticated/backtest/$groupId")({
 })
 
 function RunHistoryRoute() {
-  const { runs, groupMetrics, groupCurve } = Route.useLoaderData()
+  const { runs, groupMetrics, groupCurve, groupOpenPositions } =
+    Route.useLoaderData()
   const { groupId } = Route.useParams()
   return (
     <RunHistoryDashboard
@@ -19,6 +20,7 @@ function RunHistoryRoute() {
       groupId={groupId}
       groupMetrics={groupMetrics}
       groupCurve={groupCurve}
+      openPositions={groupOpenPositions}
     />
   )
 }

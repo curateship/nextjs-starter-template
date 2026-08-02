@@ -204,12 +204,26 @@ export async function getBotDetail(
     .from(tradingBotState)
     .where(eq(tradingBotState.botId, botId))
 
-  const trades = await database
+  const tradeRows = await database
     .select()
     .from(tradingBotTrades)
     .where(eq(tradingBotTrades.botId, botId))
     .orderBy(desc(tradingBotTrades.fillTime))
     .limit(200)
+
+  // The limit price each fill's order was resting at, for the slippage column
+  // (fill px vs intended px). Keyed by cloid — the one id both rows share.
+  const orderPxRows = await database
+    .select({ cloid: tradingBotOrders.cloid, px: tradingBotOrders.px })
+    .from(tradingBotOrders)
+    .where(eq(tradingBotOrders.botId, botId))
+  const orderPxByCloid = new Map(
+    orderPxRows.map((row) => [row.cloid, row.px])
+  )
+  const trades = tradeRows.map((trade) => ({
+    ...trade,
+    orderPx: trade.cloid ? (orderPxByCloid.get(trade.cloid) ?? null) : null,
+  }))
 
   const openOrders = await database
     .select()

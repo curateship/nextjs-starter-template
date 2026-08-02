@@ -487,6 +487,7 @@ function DcaFields({
     field:
       | "maxPositionPct"
       | "sizeMultiplier"
+      | "maxOrderVolPct"
       | "trendMaBars",
     label: string,
     opts: {
@@ -689,6 +690,12 @@ function DcaFields({
             max: 10,
             step: 0.1,
             info: "How much bigger each buy is than the one above it. 1 = every buy the same size; 2 = each buy is double the last, so you buy far more the deeper price drops.",
+          })}
+          {number("maxOrderVolPct", "Max order (% of 24h volume)", {
+            min: 0,
+            max: 5,
+            step: 0.05,
+            info: "Liquidity guard: no single buy bigger than this share of the coin's last-24-hours trading volume, so thin coins get small orders automatically. 0 = off.",
           })}
         </div>
         <div className="grid gap-1.5">

@@ -22,7 +22,9 @@ import { buildBotRungLines } from "@/components/bots/bot-rung-lines"
 import { buildBotMarketRows } from "@/components/bots/bot-market-rows"
 import { buildBotResult } from "@/components/bots/bot-result"
 import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
+import { BotPositionsTable } from "@/components/bots/bot-positions-table"
 import { useBotLive } from "@/components/bots/use-bot-live"
+import { useMarketRows } from "@/lib/hl/hooks"
 import { BotSettingsBanner } from "@/components/bots/bot-settings-banner"
 import { WorkerOfflineBanner } from "@/components/bots/worker-offline-banner"
 import { ViewSwitcher } from "@/components/automations/automation-view-switcher"
@@ -148,6 +150,13 @@ export function BotWorkspace({
   }, [bot.markets, selectedMarket, setSelectedMarket])
 
   const live = useBotLive(data, selectedMarket)
+  // Live marks for EVERY market, for the cross-market Positions tab.
+  const allMarketRows = useMarketRows(live.network)
+  const priceOf = React.useCallback(
+    (market: string) =>
+      Number(allMarketRows.find((row) => row.coin === market)?.markPx ?? 0),
+    [allMarketRows]
+  )
   const [focusedTradeN, setFocusedTradeN] = React.useState<number | null>(null)
   const marketSort = useMarketSort("net")
 
@@ -523,6 +532,19 @@ export function BotWorkspace({
                   onSelectTrade={(trade) => setFocusedTradeN(trade?.n ?? null)}
                   toggles={panelToggles}
                   extraTabs={[
+                    {
+                      value: "positions",
+                      label: "Positions",
+                      content: (
+                        <BotPositionsTable
+                          states={data.states}
+                          trades={data.trades}
+                          priceOf={priceOf}
+                          selectedMarket={selectedMarket}
+                          onSelectMarket={setSelectedMarket}
+                        />
+                      ),
+                    },
                     {
                       value: "events",
                       label: "Events",
