@@ -1,13 +1,16 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { BellIcon, MegaphoneIcon, PencilLineIcon } from "lucide-react"
+import { BellIcon, GaugeIcon, MegaphoneIcon, PencilLineIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { titleLink } from "@/lib/title-link"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { NotificationItem } from "@/lib/api/notification"
+import {
+  isAiLimitNotification,
+  type NotificationItem,
+} from "@/lib/api/notification"
 import { focusRingInset } from "@/lib/focus-ring"
 import {
   dayRangeText,
@@ -102,6 +105,21 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
       detail: item.feedback_message,
       kind: "Merged",
       link: feedbackLink,
+    }
+  }
+  // Somebody ran into their monthly AI ceiling. The one useful click here is
+  // the AI dashboard, but this line has no per-person filter to hand it, so
+  // the words carry the who and the what on their own.
+  if (isAiLimitNotification(item.type)) {
+    return {
+      ...event,
+      who: item.recipient_name,
+      text:
+        item.type === "ai_limit_warning"
+          ? "passed 80% of their monthly AI allowance"
+          : "used up their monthly AI allowance",
+      kind: item.type === "ai_limit_warning" ? "AI warning" : "AI limit",
+      icon: GaugeIcon,
     }
   }
   if (item.type === "announcement") {

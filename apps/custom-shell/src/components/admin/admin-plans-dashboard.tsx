@@ -61,6 +61,7 @@ import {
   useListSearchNavigate,
   useSearchBoxText,
 } from "@/lib/list-search"
+import { AI_ALLOWANCE_FEATURE_KEY } from "@/lib/ai-models"
 import { formatPlanPrice } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
@@ -96,6 +97,8 @@ type PlanDraft = {
   stripePriceIdMonthly: string
   stripePriceIdYearly: string
   trialDays: string
+  /** Dollars of AI a month, its own field so nobody has to hand-edit JSON. */
+  aiDollars: string
   features: string
   isDefault: boolean
   isPublic: boolean
@@ -113,6 +116,7 @@ const emptyDraft: PlanDraft = {
   stripePriceIdMonthly: "",
   stripePriceIdYearly: "",
   trialDays: "0",
+  aiDollars: "",
   features: "{}",
   isDefault: false,
   isPublic: true,
@@ -580,6 +584,19 @@ function PlanDialog({
       return
     }
 
+    // The AI allowance field writes the same features key it was read from.
+    // A filled field wins over anything typed into the JSON; an empty field
+    // leaves the JSON alone, so the escape hatch still works.
+    const aiText = draft.aiDollars.trim()
+    if (aiText !== "") {
+      const aiValue = Number(aiText)
+      if (!Number.isFinite(aiValue) || aiValue < 0) {
+        showErrorToast("The AI allowance must be a dollar amount, 0 or more.")
+        return
+      }
+      features = { ...features, [AI_ALLOWANCE_FEATURE_KEY]: aiValue }
+    }
+
     const input = {
       slug: draft.slug.trim().toLowerCase(),
       name: draft.name,
@@ -774,6 +791,22 @@ function PlanDialog({
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
+                <Field
+                  label="AI allowance ($ a month)"
+                  htmlFor="plan-ai-dollars"
+                  help="Empty means no ceiling. 0 means this plan gets no AI at all."
+                >
+                  <Input
+                    id="plan-ai-dollars"
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    placeholder="No ceiling"
+                    value={draft.aiDollars}
+                    onChange={(event) => update("aiDollars", event.target.value)}
+                  />
+                </Field>
                 <Field label="Features" htmlFor="plan-features">
                   <Textarea
                     id="plan-features"
@@ -882,6 +915,14 @@ function CheckboxRow({
 }
 
 function toDraft(plan: AdminPlan): PlanDraft {
+  // The AI allowance gets its own field, so a number under its key comes out
+  // of the JSON and into that field. Anything else under the key is left in
+  // the JSON where it can be seen and fixed.
+  const { [AI_ALLOWANCE_FEATURE_KEY]: aiValue, ...otherFeatures } =
+    plan.features
+  const aiIsNumber =
+    typeof aiValue === "number" && Number.isFinite(aiValue) && aiValue >= 0
+
   return {
     slug: plan.slug,
     name: plan.name,
@@ -892,7 +933,12 @@ function toDraft(plan: AdminPlan): PlanDraft {
     stripePriceIdMonthly: plan.stripePriceIdMonthly ?? "",
     stripePriceIdYearly: plan.stripePriceIdYearly ?? "",
     trialDays: plan.trialDays.toString(),
-    features: JSON.stringify(plan.features, null, 2),
+    aiDollars: aiIsNumber ? aiValue.toString() : "",
+    features: JSON.stringify(
+      aiIsNumber ? otherFeatures : plan.features,
+      null,
+      2
+    ),
     isDefault: plan.isDefault,
     isPublic: plan.isPublic,
     sortOrder: plan.sortOrder.toString(),

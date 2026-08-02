@@ -283,7 +283,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -705,6 +705,57 @@ export const customShellAiUsageEvents = pgTable(
     index("ix_ai_usage_events_month_created").on(
       table.monthStart,
       table.createdAt
+    ),
+  ]
+)
+
+/**
+ * One row per person with their own monthly AI allowance instead of their
+ * plan's. No row means "follow the plan"; zero is a real ceiling of nothing.
+ */
+export const customShellAiAllowanceOverrides = pgTable(
+  "ai_allowance_overrides",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    monthlyCents: integer("monthly_cents").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ai_allowance_overrides_cents_check",
+      sql`${table.monthlyCents} >= 0`
+    ),
+  ]
+)
+
+/**
+ * One row per AI-allowance warning actually sent. The unique index is the
+ * whole point: a burst of calls crossing 80% at once all try to insert the
+ * same row, one wins, and only the winner sends the notification.
+ */
+export const customShellAiUsageAlerts = pgTable(
+  "ai_usage_alerts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    monthStart: date("month_start").notNull(),
+    level: varchar("level", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ai_usage_alerts_level_check",
+      sql`${table.level} in ('warning', 'reached')`
+    ),
+    uniqueIndex("ux_ai_usage_alerts_user_month_level").on(
+      table.userId,
+      table.monthStart,
+      table.level
     ),
   ]
 )

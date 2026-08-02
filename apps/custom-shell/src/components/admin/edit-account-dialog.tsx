@@ -37,6 +37,8 @@ import {
   updateAccountStatus,
   type AssignablePlan,
 } from "@/lib/api/admin-users"
+import { saveAiAllowanceOverride } from "@/lib/api/ai"
+import { Input } from "@/components/ui/input"
 import {
   isPendingDeletion,
   PENDING_DELETION,
@@ -59,6 +61,8 @@ export type EditableAccount = {
   planSlug: string
   subscriptionSource: string | null
   currentPeriodEnd: string | null
+  /** Their own monthly AI ceiling in cents, null when they follow their plan. */
+  aiOverrideCents: number | null
 }
 
 /** Role, status and a granted plan live here, not as controls inside the table. */
@@ -92,12 +96,19 @@ export function EditAccountDialog({
       ? "suspended"
       : "active"
 
+  // Cents in the row, dollars in the field — empty means "follow the plan".
+  const initialAiDollars =
+    account?.aiOverrideCents != null
+      ? String(account.aiOverrideCents / 100)
+      : ""
+
   const [role, setRole] = React.useState<"admin" | "member">(
     account?.role === "admin" ? "admin" : "member"
   )
   const [status, setStatus] = React.useState<AccountStatus>(initialStatus)
   const [planId, setPlanId] = React.useState(grantedPlanId)
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
+  const [aiDollars, setAiDollars] = React.useState(initialAiDollars)
   const [saving, setSaving] = React.useState(false)
 
   // What the window opened with. Held from the first render so the save can
@@ -107,6 +118,7 @@ export function EditAccountDialog({
     status: initialStatus,
     planId: grantedPlanId,
     endsOn: grantedEndsOn,
+    aiDollars: initialAiDollars,
   }))
 
   // A window that was only looked at still closes on the first click outside;
@@ -115,12 +127,23 @@ export function EditAccountDialog({
     role !== initial.role ||
     status !== initial.status ||
     planId !== initial.planId ||
-    endsOn !== initial.endsOn
+    endsOn !== initial.endsOn ||
+    aiDollars !== initial.aiDollars
 
   const handleSave = React.useCallback(async () => {
     if (!account) return
 
     dismissErrorToast()
+
+    // Read the allowance field before anything is sent, so a typo cannot
+    // leave the save half done.
+    const aiText = aiDollars.trim()
+    const aiValue = aiText === "" ? null : Number(aiText)
+    if (aiValue !== null && (!Number.isFinite(aiValue) || aiValue < 0)) {
+      showErrorToast("The AI allowance must be a dollar amount, 0 or more.")
+      return
+    }
+
     setSaving(true)
     try {
       // Only send what changed, so a no-op save writes no audit rows.
@@ -139,6 +162,12 @@ export function EditAccountDialog({
           endsOn ? new Date(`${endsOn}T23:59:59`).toISOString() : null
         )
       }
+      if (aiDollars !== initial.aiDollars) {
+        await saveAiAllowanceOverride(
+          account.id,
+          aiValue === null ? null : Math.round(aiValue * 100)
+        )
+      }
 
       toast.success("Account updated.")
       await onSaved()
@@ -147,7 +176,7 @@ export function EditAccountDialog({
     } finally {
       setSaving(false)
     }
-  }, [account, endsOn, initial, onSaved, planId, role, status])
+  }, [account, aiDollars, endsOn, initial, onSaved, planId, role, status])
 
   return (
     <FormDialog
@@ -288,6 +317,37 @@ export function EditAccountDialog({
                       />
                     </DisabledReason>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>AI allowance</CardTitle>
+                <CardDescription>
+                  How much AI use this account gets each month, in dollars.
+                  Their plan sets it unless you type a number here.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="account-ai-dollars"
+                    hint="Empty follows the plan. 0 blocks AI for this account entirely."
+                  >
+                    Their own limit ($ a month)
+                  </FieldLabel>
+                  <Input
+                    id="account-ai-dollars"
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    placeholder="Follows the plan"
+                    className="w-full sm:w-40"
+                    value={aiDollars}
+                    onChange={(event) => setAiDollars(event.target.value)}
+                  />
                 </div>
               </CardContent>
             </Card>

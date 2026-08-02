@@ -2,6 +2,7 @@ import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
+  GaugeIcon,
   GitMergeIcon,
   MegaphoneIcon,
   MessageSquareIcon,
@@ -39,9 +40,11 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
+  aiLimitNotificationText,
   clearAdminNotifications,
   deleteAdminNotifications,
   getNotificationErrorMessage,
+  isAiLimitNotification,
   listAdminNotifications,
   notificationTypeLabels,
   type NotificationItem,
@@ -73,6 +76,11 @@ type NotificationSortColumn =
  * order — see `subjectExpression` in `src/server/notifications.ts`.
  */
 function notificationSubject(item: NotificationItem) {
+  // An AI-allowance notice carries its own words — there is no thing it is
+  // about to borrow a title from.
+  if (isAiLimitNotification(item.type)) {
+    return aiLimitNotificationText[item.type].message
+  }
   return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
 }
 
@@ -83,6 +91,9 @@ function notificationSubject(item: NotificationItem) {
  */
 function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
+  if (isAiLimitNotification(item.type)) {
+    return `${subject}\n\n${aiLimitNotificationText[item.type].detail}`
+  }
   return item.announcement_body
     ? `${subject}\n\n${item.announcement_body}`
     : subject
@@ -405,6 +416,8 @@ export function NotificationsPage({
                 <SelectItem value="feedback_merged">Merged</SelectItem>
                 <SelectItem value="changelog">Updates</SelectItem>
                 <SelectItem value="announcement">Announcements</SelectItem>
+                <SelectItem value="ai_limit_warning">AI warnings</SelectItem>
+                <SelectItem value="ai_limit_reached">AI limit reached</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -513,6 +526,8 @@ export function NotificationsPage({
                     <SparklesIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "announcement" ? (
                     <MegaphoneIcon className="size-4 text-muted-foreground" />
+                  ) : isAiLimitNotification(item.type) ? (
+                    <GaugeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_merged" ? (
                     <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (

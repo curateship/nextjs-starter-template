@@ -1,9 +1,11 @@
 import { desc, eq, sql } from "drizzle-orm"
 
+import { aiAllowanceCentsFromFeatures } from "@/lib/ai-models"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadEntitlements } from "@/server/entitlements"
 import { loadAccountStorage, type AccountStorage } from "@/server/media"
 import {
+  customShellAiAllowanceOverrides,
   customShellFeedback,
   customShellFeedbackComments,
   customShellFeedbackVotes,
@@ -53,9 +55,18 @@ type AccountFeedbackItem = {
   comments: number
 }
 
+/** This person's monthly AI ceiling: their own number, their plan's, or none. */
+type AccountAiAllowance = {
+  /** Set just for them, in cents. Null when they follow their plan. */
+  overrideCents: number | null
+  /** What their plan gives, in cents. Null when the plan sets no ceiling. */
+  planCents: number | null
+}
+
 export type AccountDetail = {
   profile: AccountProfile
   subscription: AccountSubscription
+  aiAllowance: AccountAiAllowance
   storage: AccountStorage
   feedback: AccountFeedbackItem[]
   /** Capped list; the flag says a dashboard holds more than is shown here. */
@@ -97,6 +108,13 @@ export async function loadAccountDetail(
     loadAccountStorage(userId, database),
   ])
   const feedback = await listAccountFeedback(userId, database)
+  const [aiOverride] = await database
+    .select({
+      monthlyCents: customShellAiAllowanceOverrides.monthlyCents,
+    })
+    .from(customShellAiAllowanceOverrides)
+    .where(eq(customShellAiAllowanceOverrides.userId, userId))
+    .limit(1)
 
   return {
     profile: {
@@ -120,6 +138,10 @@ export async function loadAccountDetail(
       cancelAtPeriodEnd: entitlements.cancelAtPeriodEnd,
       trialEndsAt: entitlements.trialEndsAt?.toISOString() ?? null,
       source: entitlements.source,
+    },
+    aiAllowance: {
+      overrideCents: aiOverride?.monthlyCents ?? null,
+      planCents: aiAllowanceCentsFromFeatures(entitlements.features),
     },
     storage,
     feedback: feedback.slice(0, ACCOUNT_FEEDBACK_LIMIT),

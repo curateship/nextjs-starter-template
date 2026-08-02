@@ -17,11 +17,15 @@ import {
 } from "@/server/ai-keys"
 import {
   loadAiUsageDashboard as loadAiUsageDashboardQuery,
+  loadMyAiUsage as loadMyAiUsageQuery,
+  setAiAllowanceOverride,
   type AiUsageDashboard,
   type AiUsagePersonRow,
+  type MyAiRecentCall,
+  type MyAiUsage,
 } from "@/server/ai-usage"
 import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin } from "@/server/security"
+import { requireAdmin, requireUser } from "@/server/security"
 
 export { AI_USAGE_RANGES }
 export type {
@@ -31,6 +35,8 @@ export type {
   AiUsageDashboard,
   AiUsagePersonRow,
   AiUsageRange,
+  MyAiRecentCall,
+  MyAiUsage,
 }
 
 const aiErrorMessages: Record<string, string> = {
@@ -42,6 +48,8 @@ const aiErrorMessages: Record<string, string> = {
     "The saved key can't be read back because the server's scrambling secret changed. Paste the key again to fix it.",
   EMPTY_KEY: "Paste a key before saving.",
   NO_KEY: "There's no key to test yet — paste one first.",
+  AI_LIMIT_REACHED:
+    "This month's AI allowance is used up. It starts fresh on the 1st.",
 }
 
 export function getAiErrorMessage(error: unknown) {
@@ -132,4 +140,42 @@ export function testAiProviderKey(provider: AiProvider, apiKey?: string) {
   return testAiKeyFn({
     data: { provider, apiKey: apiKey?.trim() ? apiKey : undefined },
   })
+}
+
+// Setting one person's own AI ceiling. Admin-only: the ceiling decides what
+// an account can spend. There is no read twin — the accounts list and the
+// account page already carry the override on their rows.
+const saveAiAllowanceOverrideFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      userId: z.string().min(1).max(36),
+      // Cents so nothing downstream rounds; null takes the override away.
+      monthlyCents: z.number().int().min(0).max(100_000_000).nullable(),
+    })
+  )
+  .handler(async ({ data }): Promise<void> => {
+    requireAppOrigin()
+    await requireAdmin()
+    await setAiAllowanceOverride(data.userId, data.monthlyCents)
+  })
+
+export function saveAiAllowanceOverride(
+  userId: string,
+  monthlyCents: number | null
+) {
+  return saveAiAllowanceOverrideFn({ data: { userId, monthlyCents } })
+}
+
+// The signed-in person's own usage. The ordinary member guard, and no input
+// at all: the account it reads is the one the session says, so a hand-made
+// request cannot name somebody else.
+const loadMyAiUsageFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<MyAiUsage> => {
+    const user = await requireUser()
+    return loadMyAiUsageQuery(user.id)
+  }
+)
+
+export function loadMyAiUsage() {
+  return loadMyAiUsageFn()
 }

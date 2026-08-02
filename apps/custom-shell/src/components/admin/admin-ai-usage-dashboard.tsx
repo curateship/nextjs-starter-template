@@ -227,7 +227,14 @@ function SpendChart({ daily }: { daily: AiUsageDashboard["daily"] }) {
 
 // --- By person -------------------------------------------------------------
 
-type PersonSort = "person" | "calls" | "tokens" | "spend" | "share" | "last"
+type PersonSort =
+  | "person"
+  | "calls"
+  | "tokens"
+  | "spend"
+  | "share"
+  | "allowance"
+  | "last"
 
 const personColumns: {
   by: PersonSort
@@ -240,6 +247,7 @@ const personColumns: {
   { by: "tokens", label: "Tokens", column: "meta" },
   { by: "spend", label: "Spend", column: "meta" },
   { by: "share", label: "Share", column: "meta", className: "hidden lg:table-cell" },
+  { by: "allowance", label: "Allowance", column: "meta", className: "hidden md:table-cell" },
   { by: "last", label: "Last used", column: "meta", className: "hidden sm:table-cell" },
 ]
 
@@ -340,7 +348,7 @@ function PersonTable({
           ? "Nobody matches that search."
           : "Nothing has used AI yet."
       }
-      emptyColSpan={6}
+      emptyColSpan={7}
       footer={{
         type: "pagination",
         page: currentPage,
@@ -379,6 +387,9 @@ function PersonTable({
           <TableCell column="mutedMeta" className="hidden lg:table-cell">
             {formatShare(row.costCents, totalCostCents)}
           </TableCell>
+          <TableCell column="mutedMeta" className="hidden md:table-cell">
+            {formatAllowance(row)}
+          </TableCell>
           <TableCell column="mutedMeta" className="hidden sm:table-cell">
             {formatDate(row.lastUsedAt)}
           </TableCell>
@@ -388,13 +399,32 @@ function PersonTable({
   )
 }
 
+/**
+ * Used against allowed. Always this month's spend — the ceiling is monthly,
+ * whatever range the rest of the table is showing — so at 30 or 90 days the
+ * Spend and Allowance columns can honestly disagree.
+ */
+function formatAllowance(row: AiUsagePersonRow) {
+  if (row.allowanceCents === null) return "No limit"
+  return `${formatMoney(row.monthSpentCents)} of ${formatMoney(row.allowanceCents)}`
+}
+
 function comparePeople(a: AiUsagePersonRow, b: AiUsagePersonRow, sort: PersonSort) {
   if (sort === "calls") return a.calls - b.calls
   if (sort === "tokens") return a.tokens - b.tokens
   // Share orders the same way spend does; both compare cents.
   if (sort === "spend" || sort === "share") return a.costCents - b.costCents
+  // Closest to their ceiling first (descending). No ceiling sorts as furthest
+  // from trouble, which is what "sort by allowance" is really asking about.
+  if (sort === "allowance") return allowanceUsedShare(a) - allowanceUsedShare(b)
   if (sort === "last") return a.lastUsedAt.getTime() - b.lastUsedAt.getTime()
   return a.name.localeCompare(b.name)
+}
+
+function allowanceUsedShare(row: AiUsagePersonRow) {
+  if (row.allowanceCents === null) return -1
+  if (row.allowanceCents === 0) return Number.MAX_SAFE_INTEGER
+  return row.monthSpentCents / row.allowanceCents
 }
 
 // --- By feature / by model ---------------------------------------------------

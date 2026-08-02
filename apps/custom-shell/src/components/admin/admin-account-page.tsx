@@ -35,6 +35,7 @@ import {
 } from "@/lib/feedback-type"
 import { formatFileSize } from "@/lib/format-bytes"
 import { formatDate, formatDateTime } from "@/lib/format-time"
+import { formatMoney } from "@/lib/money"
 import { pageGutter } from "@/lib/shell-gutter"
 
 /**
@@ -226,6 +227,10 @@ export function AdminAccountPage({
                   : "Not on a trial"
               }
             />
+            <DetailRow
+              label="AI allowance"
+              value={aiAllowanceText(detail.aiAllowance)}
+            />
           </CardContent>
         </Card>
 
@@ -354,6 +359,7 @@ export function AdminAccountPage({
                 planSlug: subscription.planSlug,
                 subscriptionSource: subscription.source,
                 currentPeriodEnd: subscription.currentPeriodEnd,
+                aiOverrideCents: detail.aiAllowance.overrideCents,
               }
             : null
         }
@@ -401,6 +407,23 @@ function FeedbackKindBadge({ type }: { type: string }) {
       {known ? feedbackTypeLabels[known] : type}
     </Badge>
   )
+}
+
+/**
+ * The ceiling this account actually runs under, and where it comes from —
+ * their own number beats their plan's, and no number anywhere means no limit.
+ */
+function aiAllowanceText(allowance: {
+  overrideCents: number | null
+  planCents: number | null
+}) {
+  if (allowance.overrideCents !== null) {
+    return `${formatMoney(allowance.overrideCents)} a month, set just for them`
+  }
+  if (allowance.planCents !== null) {
+    return `${formatMoney(allowance.planCents)} a month, from their plan`
+  }
+  return "No limit"
 }
 
 /** Stripe's own words, said the way somebody reading a support ticket would. */

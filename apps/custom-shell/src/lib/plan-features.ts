@@ -19,6 +19,8 @@ type FeatureWording = {
   count?: { one: string; many: string }
   /** What a word is a kind of: `support: "priority"` → "Priority support". */
   kindOf?: string
+  /** What a monthly dollar amount buys: `aiDollars: 20` → "$20 of AI use a month". */
+  dollarsAMonth?: string
 }
 
 /**
@@ -35,6 +37,7 @@ const FEATURE_WORDING: Record<string, FeatureWording> = {
   workspaces: { count: { one: "workspace", many: "workspaces" } },
   sso: { on: "Single sign-on" },
   support: { kindOf: "support" },
+  aiDollars: { dollarsAMonth: "of AI use" },
 }
 
 /** Turns a plan's free-form features JSON into readable bullet points. */
@@ -51,6 +54,9 @@ function describeFeature(key: string, value: PlanFeatureValue) {
     if (typeof value === "number" && wording.count) {
       const noun = value === 1 ? wording.count.one : wording.count.many
       return `${formatCount(value)} ${noun}`
+    }
+    if (typeof value === "number" && wording.dollarsAMonth) {
+      return `$${formatCount(value)} ${wording.dollarsAMonth} a month`
     }
     if (value === true && wording.on) return wording.on
     if (typeof value === "string" && wording.kindOf) {

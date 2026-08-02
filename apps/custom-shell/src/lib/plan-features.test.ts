@@ -57,4 +57,15 @@ describe("plan feature bullets", () => {
       describePlanFeatures({ sso: false, seats: null, region: "" })
     ).toEqual([])
   })
+
+  it("says a monthly AI allowance as money a month", () => {
+    expect(describePlanFeatures({ aiDollars: 20 })).toEqual([
+      "$20 of AI use a month",
+    ])
+    // A non-number under the key falls through to the plain fallback rather
+    // than pretending to be an amount.
+    expect(describePlanFeatures({ aiDollars: "lots" })).toEqual([
+      "Ai dollars: lots",
+    ])
+  })
 })

@@ -24,6 +24,7 @@ import { sendAuthEmail } from "@/server/email"
 import { subscriptionIsActive } from "@/server/entitlements"
 import { getDefaultPlan, getPlan } from "@/server/plans"
 import {
+  customShellAiAllowanceOverrides,
   customShellPlans,
   customShellSessions,
   customShellSubscriptions,
@@ -70,6 +71,8 @@ export type AccountRow = {
   subscriptionSource: string | null
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
+  /** Their own monthly AI ceiling in cents, null when they follow their plan. */
+  aiOverrideCents: number | null
   createdAt: string
 }
 
@@ -110,8 +113,13 @@ export async function listAccounts(
       user: customShellUsers,
       subscription: customShellSubscriptions,
       plan: customShellPlans,
+      aiOverride: customShellAiAllowanceOverrides,
     })
     .from(customShellUsers)
+    .leftJoin(
+      customShellAiAllowanceOverrides,
+      eq(customShellAiAllowanceOverrides.userId, customShellUsers.id)
+    )
     .leftJoin(
       customShellSubscriptions,
       eq(customShellSubscriptions.userId, customShellUsers.id)
@@ -143,6 +151,7 @@ type AccountJoin = {
   user: typeof customShellUsers.$inferSelect
   subscription: typeof customShellSubscriptions.$inferSelect | null
   plan: typeof customShellPlans.$inferSelect | null
+  aiOverride?: typeof customShellAiAllowanceOverrides.$inferSelect | null
 }
 
 /**
@@ -179,6 +188,7 @@ function toAccountRow(
     cancelAtPeriodEnd: paid
       ? Boolean(row.subscription?.cancelAtPeriodEnd)
       : false,
+    aiOverrideCents: row.aiOverride?.monthlyCents ?? null,
     createdAt: row.user.createdAt.toISOString(),
   }
 }

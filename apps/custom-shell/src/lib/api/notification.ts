@@ -7,6 +7,8 @@ export type NotificationType =
   | "feedback_merged"
   | "changelog"
   | "announcement"
+  | "ai_limit_warning"
+  | "ai_limit_reached"
 
 /**
  * What each kind of notice is called on screen. Kept here rather than in the
@@ -20,6 +22,38 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_merged: "Merged",
   changelog: "Update",
   announcement: "Announcement",
+  ai_limit_warning: "AI warning",
+  ai_limit_reached: "AI limit reached",
+}
+
+export type AiLimitNotificationType = "ai_limit_warning" | "ai_limit_reached"
+
+export function isAiLimitNotification(
+  type: NotificationType
+): type is AiLimitNotificationType {
+  return type === "ai_limit_warning" || type === "ai_limit_reached"
+}
+
+/**
+ * The words an AI-allowance notice carries. It is about the reader's own
+ * account rather than a thing with a page, so — like an announcement — the
+ * notice IS the message, and every place that shows one (the tray, the admin
+ * table, the activity card) reads the same words from here.
+ */
+export const aiLimitNotificationText: Record<
+  AiLimitNotificationType,
+  { message: string; detail: string }
+> = {
+  ai_limit_warning: {
+    message: "Your AI allowance is almost used up",
+    detail:
+      "You've passed 80% of this month's AI allowance. AI features pause when it runs out, and start fresh on the 1st.",
+  },
+  ai_limit_reached: {
+    message: "Your AI allowance is used up",
+    detail:
+      "AI features are paused until the 1st, when next month's allowance starts.",
+  },
 }
 
 export type NotificationItem = {
@@ -80,6 +114,8 @@ const adminListQuerySchema = z.object({
       "feedback_merged",
       "changelog",
       "announcement",
+      "ai_limit_warning",
+      "ai_limit_reached",
     ])
     .default("all"),
   page: z.number().int().min(1).default(1),
