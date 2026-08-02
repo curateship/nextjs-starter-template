@@ -545,6 +545,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
       settings.sidebarWidth ?? fallback.sidebarWidth
     ),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
+    memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
     favicon: settings.favicon ?? fallback.favicon,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation

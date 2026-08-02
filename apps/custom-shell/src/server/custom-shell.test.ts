@@ -67,6 +67,7 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
+import { firstSidebarRoute } from "@/lib/home-route"
 import { loadMembershipSummary } from "@/server/membership"
 import { startViewingAs, stopViewingAs } from "@/server/view-as"
 import { loadAccountDetail } from "@/server/account-detail"
@@ -2484,6 +2485,22 @@ describe("member sidebar", () => {
     ])
   })
 
+  it("carries the member home route through a save and back", () => {
+    // Same trap as the member sidebar above: a global the settings page saves
+    // has to be named in `pickShellGlobals` or it is dropped on every save,
+    // and members would silently go back to landing on their first link.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      memberHomeRoute: "/changelog/whats-new",
+    })
+
+    expect(parseShellGlobals(saved).memberHomeRoute).toBe(
+      "/changelog/whats-new"
+    )
+    // A row written before the setting existed reads as "not set", not junk.
+    expect(parseShellGlobals({ appName: "x" }).memberHomeRoute).toBe("")
+  })
+
   it("still refuses to show a member an admin page put on their list", async () => {
     const { memberId } = await seedPeople()
 
@@ -4255,6 +4272,92 @@ describe("custom shell active link matching", () => {
     expect(isActiveShellHref("   ", "/admin/users")).toBe(false)
     expect(isActiveShellHref(undefined, "/admin/users")).toBe(false)
     expect(isActiveShellHref("", "/")).toBe(false)
+  })
+})
+
+/**
+ * Where home sends somebody who has not been given a home route of their own.
+ * Getting this wrong strands a member on a blank page or drops them somewhere
+ * their role cannot open.
+ */
+describe("custom shell first sidebar route", () => {
+  function section(entries: ShellSection["entries"]): ShellSection[] {
+    return [{ id: "section-1", title: "Section", entries }]
+  }
+
+  function item(overrides: Partial<ShellItem> = {}): ShellItem {
+    return {
+      type: "item",
+      id: "item-1",
+      label: "What's new",
+      href: "/changelog/whats-new",
+      icon: "sparkles",
+      visible: true,
+      ...overrides,
+    }
+  }
+
+  it("takes the first link in the list", () => {
+    expect(
+      firstSidebarRoute(
+        section([
+          item({ id: "a", label: "Updates", href: "/changelog" }),
+          item({ id: "b", label: "Feedback", href: "/feedback" }),
+        ]),
+        "member"
+      )
+    ).toBe("/changelog")
+  })
+
+  it("skips what the sidebar itself skips", () => {
+    expect(
+      firstSidebarRoute(
+        section([
+          { type: "divider", id: "d", label: "Updates" },
+          item({ id: "hidden", href: "/hidden", visible: false }),
+          item({ id: "unnamed", label: "   ", href: "/unnamed" }),
+          item({ id: "no-href", href: "" }),
+          item({ id: "admins-only", href: "/admin/media", roles: ["admin"] }),
+          item({ id: "real", href: "/changelog/whats-new" }),
+        ]),
+        "member"
+      )
+    ).toBe("/changelog/whats-new")
+  })
+
+  it("falls to a child when the parent has no page of its own", () => {
+    expect(
+      firstSidebarRoute(
+        section([
+          item({
+            id: "parent",
+            label: "Updates",
+            href: "",
+            children: [
+              { id: "child", label: "What's new", href: "/changelog/whats-new" },
+            ],
+          }),
+        ]),
+        "member"
+      )
+    ).toBe("/changelog/whats-new")
+  })
+
+  /**
+   * Home would bounce to itself forever. An admin can type either of these into
+   * a sidebar link, so the guard has to hold here and not only on the setting.
+   */
+  it("never sends anybody back to home", () => {
+    expect(firstSidebarRoute(section([item({ href: "/" })]), "member")).toBeNull()
+    expect(
+      firstSidebarRoute(section([item({ href: "/admin" })]), "admin")
+    ).toBeNull()
+  })
+
+  it("has no answer for an empty sidebar", () => {
+    expect(firstSidebarRoute([], "member")).toBeNull()
+    expect(firstSidebarRoute(null, "member")).toBeNull()
+    expect(firstSidebarRoute(section([]), "member")).toBeNull()
   })
 })
 

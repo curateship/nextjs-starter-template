@@ -322,8 +322,13 @@ export type ShellConfig = {
   toastSeconds: number
   // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
   sidebarWidth: number
-  /** Route the home page (/) and /admin open; empty = Settings. */
+  /** Route the home page (/) and /admin open for an admin; empty = Settings. */
   adminRoute: string
+  /**
+   * Route the home page opens for everybody else. Empty falls back to the first
+   * link in the sidebar an admin built for them.
+   */
+  memberHomeRoute: string
   favicon: string
   topRightNavigation: ShellTopRightNavigationItem[]
   /** The signed-in admin's own sidebar, saved on their workspace. */
@@ -739,6 +744,7 @@ export function createDefaultShellConfig(): ShellConfig {
     toastSeconds: DEFAULT_TOAST_SECONDS,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     adminRoute: "",
+    memberHomeRoute: "",
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
