@@ -95,6 +95,7 @@ export default defineConfig({
   ssr: {
     external: [
       "@aws-sdk/client-s3",
+      "drizzle-orm",
       "isomorphic-dompurify",
       "pg",
       "sanitize-html",

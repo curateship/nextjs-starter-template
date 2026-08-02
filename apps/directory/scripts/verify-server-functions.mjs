@@ -1,28 +1,22 @@
 #!/usr/bin/env node
 /**
- * Reports how many server functions the built server can actually run.
+ * Fails the build when the production server cannot run a server function the
+ * browser is able to call.
  *
- * Run it by hand after a build: `node scripts/verify-server-functions.mjs`.
+ * The RSC build writes its server-function lookup table part-way through, from
+ * an earlier scan. Anything reached only through the wildcard screen loader in
+ * src/lib/page-renderer.tsx is transformed after that and never makes it in.
+ * The server then answers `Server function info not found for <id>` with a bare
+ * HTTP 500, before any of our code runs, and the screen shows nothing. A build
+ * shipped on 1 Aug 2026 registering 19 of 314 and every admin list in production
+ * was empty while public pages looked perfectly fine.
  *
- * THIS IS A DIAGNOSTIC FOR A LIVE, UNFIXED BUG. The RSC build writes its
- * server-function lookup table part-way through, from an earlier scan. Anything
- * reached only through the wildcard screen loader in src/lib/page-renderer.tsx
- * is transformed after that and never makes it in. Calling one of those in
- * production throws before the handler runs: the browser gets a bare HTTP 500
- * and the screen shows nothing. Today that is 19 of 314, which is why every
- * admin list screen is empty in production while public pages are fine.
+ * Nothing about that build looked wrong: it exited 0. This check is the only
+ * thing between that bug and a deployed, dead admin. Keep it in `npm run build`.
  *
- * It is NOT wired into `npm run build`, deliberately. The obvious fix — a module
- * that globs every action file so they all land in the SSR graph — was tried and
- * is worse: it reorders the server bundle so drizzle-orm's chunk initialises
- * before what it extends, and EVERY page 500s with "Class extends value
- * undefined". That took the whole site down on 1 Aug 2026 and was reverted. A
- * real fix has to get the modules registered without dragging them into the root
- * chunk — most likely statically discoverable screen imports in page-renderer,
- * replacing the glob.
- *
- * Do not re-enable this as a build gate until that fix exists, or the build will
- * simply refuse to produce any image at all.
+ * The fix it guards is src/lib/server-action-registry.ts, which only works with
+ * `drizzle-orm` in `ssr.external` — read the note in that file before touching
+ * either, because the obvious version of the fix takes the whole site down.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
@@ -89,7 +83,7 @@ if (missing.length > 0) {
   console.error(`${missing.length} would return HTTP 500 with no explanation:\n`)
   for (const id of missing.slice(0, 10)) console.error(`  ${id}`)
   if (missing.length > 10) console.error(`  …and ${missing.length - 10} more`)
-  fail("see the note at the top of this file — this is the known unfixed bug, not a new one")
+  fail("check that src/lib/server-action-registry.ts is imported from src/routes/__root.tsx, and that drizzle-orm is still in ssr.external")
 }
 
 console.log(

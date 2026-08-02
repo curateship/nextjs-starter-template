@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router"
 
 import "@/styles.css"
+import "@/lib/server-action-registry"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import NotFound from "@/screens/not-found"
 
