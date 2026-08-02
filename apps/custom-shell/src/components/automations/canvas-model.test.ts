@@ -38,13 +38,76 @@ describe("canvas-model", () => {
     expect(flowBounds([])).toBeNull()
   })
 
-  it("fits the viewport with padding and a fixed zoom", () => {
-    const viewport = fitViewport([node("a", 100, 50)], 800, 600)
-    expect(viewport.zoom).toBe(0.9)
-    expect(viewport.x).toBe(48 - 100 * 0.9)
-    expect(viewport.y).toBe(48 - 50 * 0.9)
-    // No nodes: park at the padding origin.
-    expect(fitViewport([], 800, 600)).toEqual({ x: 48, y: 48, zoom: 0.9 })
+  describe("fitViewport", () => {
+    // Every corner of every node, in screen coordinates.
+    function screenBox(
+      nodes: AutomationNode[],
+      width: number,
+      height: number
+    ) {
+      const viewport = fitViewport(nodes, width, height)
+      const bounds = flowBounds(nodes)!
+      return {
+        viewport,
+        left: bounds.minX * viewport.zoom + viewport.x,
+        top: bounds.minY * viewport.zoom + viewport.y,
+        right: bounds.maxX * viewport.zoom + viewport.x,
+        bottom: bounds.maxY * viewport.zoom + viewport.y,
+      }
+    }
+
+    it("keeps a single node at 100% and centres it", () => {
+      const { viewport, left, top, right, bottom } = screenBox(
+        [node("a", 100, 50)],
+        800,
+        600
+      )
+      expect(viewport.zoom).toBe(1)
+      expect(left + right).toBeCloseTo(800)
+      expect(top + bottom).toBeCloseTo(600)
+    })
+
+    it("shrinks a wide flow until it fits the width", () => {
+      const nodes = [node("a", 0, 0), node("b", 1200, 0)]
+      const { viewport, left, right, top, bottom } = screenBox(nodes, 800, 600)
+      expect(viewport.zoom).toBeLessThan(1)
+      expect(left).toBeGreaterThanOrEqual(48 - 0.001)
+      expect(right).toBeLessThanOrEqual(800 - 48 + 0.001)
+      expect(top).toBeGreaterThanOrEqual(0)
+      expect(bottom).toBeLessThanOrEqual(600)
+    })
+
+    it("shrinks a tall flow until it fits the height", () => {
+      const nodes = [node("a", 0, 0), node("b", 0, 1000)]
+      const { viewport, left, right, top, bottom } = screenBox(nodes, 800, 600)
+      expect(viewport.zoom).toBeLessThan(1)
+      expect(top).toBeGreaterThanOrEqual(48 - 0.001)
+      expect(bottom).toBeLessThanOrEqual(600 - 48 + 0.001)
+      expect(left).toBeGreaterThanOrEqual(0)
+      expect(right).toBeLessThanOrEqual(800)
+    })
+
+    it("puts thirty nodes on screen in a narrow window", () => {
+      const nodes = Array.from({ length: 30 }, (_, index) =>
+        node(`n${index}`, (index % 3) * 320, Math.floor(index / 3) * 200)
+      )
+      const { viewport, left, right, top, bottom } = screenBox(nodes, 420, 700)
+      expect(viewport.zoom).toBeGreaterThanOrEqual(MIN_ZOOM)
+      expect(viewport.zoom).toBeLessThanOrEqual(MAX_ZOOM)
+      expect(left).toBeGreaterThanOrEqual(0)
+      expect(top).toBeGreaterThanOrEqual(0)
+      expect(right).toBeLessThanOrEqual(420)
+      expect(bottom).toBeLessThanOrEqual(700)
+    })
+
+    it("never zooms past the limits, however cramped the window", () => {
+      const nodes = [node("a", 0, 0), node("b", 40000, 40000)]
+      expect(fitViewport(nodes, 200, 120).zoom).toBe(MIN_ZOOM)
+    })
+
+    it("parks at the padding origin with no nodes", () => {
+      expect(fitViewport([], 800, 600)).toEqual({ x: 48, y: 48, zoom: 1 })
+    })
   })
 
   it("anchors ports on the node edges", () => {

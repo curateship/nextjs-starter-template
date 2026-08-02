@@ -10,9 +10,10 @@ export function AutomationActivityLog({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-card">
-      {/* Same 44px header height as the palette's tab row. The panel collapses
-          to exactly this row, so the title stays readable while it's shut. */}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
+      {/* Same 44px header height and hairline as the palette's tab row and the
+          inspector. The panel collapses to exactly this row, so the title stays
+          readable while it's shut. */}
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-foreground/10 px-4">
         <h2 className="text-xs font-semibold tracking-wide uppercase">
           Activity log
         </h2>

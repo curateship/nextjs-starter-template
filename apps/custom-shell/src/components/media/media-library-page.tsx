@@ -70,6 +70,7 @@ import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { formatFileSize } from "@/lib/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { formatDate } from "@/lib/format-time"
+import { useLastValue } from "@/lib/use-last-value"
 import {
   MEDIA_VIEW_STORAGE_KEY,
   useRememberedChoice,
@@ -179,6 +180,9 @@ export function MediaLibraryPage({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [openMedia, setOpenMedia] = React.useState<AdminMediaItem | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
+  // The confirmation is still on screen while it fades out, after the selection
+  // has been cleared — so it keeps counting what it opened with, not "0 files".
+  const closingDeleteCount = useLastValue(deleteIds)?.length ?? 0
   const [deleting, setDeleting] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
@@ -623,9 +627,9 @@ export function MediaLibraryPage({
         onOpenChange={(open) => {
           if (!open && !deleting) setDeleteIds(null)
         }}
-        title={`Delete ${deleteIds?.length ?? 0} ${(deleteIds?.length ?? 0) === 1 ? "file" : "files"}?`}
+        title={`Delete ${closingDeleteCount} ${closingDeleteCount === 1 ? "file" : "files"}?`}
         description="The file is erased from storage and removed from its owner's library. This cannot be undone."
-        confirmLabel={(deleteIds?.length ?? 0) === 1 ? "Delete file" : "Delete files"}
+        confirmLabel={closingDeleteCount === 1 ? "Delete file" : "Delete files"}
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
       />

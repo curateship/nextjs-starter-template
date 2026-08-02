@@ -179,6 +179,16 @@
   );
 }
 
+/*
+ * A panel collapsed to nothing. It is zero wide, but a box with no width still
+ * paints its left and right borders — they land on top of each other and leave
+ * a stray hairline down the workspace. Declared here, not as a Tailwind class,
+ * because the rule above would otherwise put the border straight back.
+ */
+[data-slot="workspace-panel"][data-collapsed="true"] {
+  border-width: 0;
+}
+
 /* gutter = 0 → flat mode: no card chrome. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
 [data-content-styling][data-flat="true"] [data-slot="table-surface"] {

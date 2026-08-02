@@ -46,6 +46,8 @@ import {
 } from "@/lib/api/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDate } from "@/lib/format-time"
+import { quoteOneLine } from "@/lib/quote-text"
+import { useLastValue } from "@/lib/use-last-value"
 
 type SortColumn = "name" | "steps" | "updated"
 
@@ -66,6 +68,9 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [deleteTarget, setDeleteTarget] =
     React.useState<AutomationListItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+  // The confirmation is still on screen while it fades out, after Cancel has
+  // already cleared the target — so its heading reads the name it opened with.
+  const closingDeleteTarget = useLastValue(deleteTarget)
 
   const toggleSort = (column: SortColumn) => {
     if (column === sort) {
@@ -317,7 +322,11 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null)
         }}
-        title={`Delete "${deleteTarget?.name}"?`}
+        title={
+          closingDeleteTarget
+            ? `Delete ${quoteOneLine(closingDeleteTarget.name)}?`
+            : "Delete this automation?"
+        }
         description="The flow and its canvas are permanently removed. This cannot be undone."
         confirmLabel="Delete automation"
         loading={deleting}

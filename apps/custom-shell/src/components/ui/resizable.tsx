@@ -68,11 +68,29 @@ const BOTTOM_COLLAPSED_HEIGHT = "46px"
 
 function WorkspacePanel({
   className,
+  collapsed,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & {
+  /**
+   * The panel this sits in has been collapsed **to nothing** (`collapsedSize`
+   * of `0%`). A box with no width still paints its left and right borders,
+   * which land on top of each other and leave a stray hairline down the
+   * workspace, so the card is taken away entirely while the panel is shut.
+   *
+   * Never pass this for a panel that collapses to its own header, like the
+   * bottom panel on `BOTTOM_COLLAPSED_HEIGHT` — that header is still on screen
+   * and still needs its card.
+   *
+   * The border comes off in `theme.css`, on the `data-collapsed` attribute
+   * below: the styling rule there sets the border width from the user's
+   * settings and would put it straight back over any class written here.
+   */
+  collapsed?: boolean
+}) {
   return (
     <div
       data-slot="workspace-panel"
+      data-collapsed={collapsed ? "true" : undefined}
       className={cn(
         // A REAL border, not a ring: these panels sit flush inside
         // resizable-panel containers that clip anything drawn outside the box
