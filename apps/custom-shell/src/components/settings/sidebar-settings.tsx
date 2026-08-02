@@ -572,7 +572,7 @@ function SortableSidebarItem({
           </DialogBody>
           {/* Edits here save themselves as you type, so there is nothing for a
               Cancel to undo — this window ends with a single Done. */}
-          <DialogFooter variant="plain">
+          <DialogFooter>
             <Button
               type="button"
               onClick={async () => {

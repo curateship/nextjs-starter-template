@@ -14,6 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { focusRingInset } from "@/lib/focus-ring"
 import {
   collapseStorageKey,
   useRememberedCollapse,
@@ -53,7 +54,12 @@ export function CollapsibleSettingsCard({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="group/trigger flex w-full cursor-pointer select-none items-start justify-between gap-3 px-4 text-left outline-none group-data-[size=sm]/card:px-3"
+            className={cn(
+              "group/trigger flex w-full cursor-pointer select-none items-start justify-between gap-3 rounded-md px-4 text-left group-data-[size=sm]/card:px-3",
+              // The header runs the full width of the card, and a card hides
+              // what overflows it, so the ring has to be drawn inside.
+              focusRingInset
+            )}
           >
             <div className="grid gap-1">
               <CardTitle>{title}</CardTitle>

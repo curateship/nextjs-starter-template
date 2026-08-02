@@ -10,6 +10,7 @@ import { MemberSettings } from "@/components/settings/member-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
+import { focusRing } from "@/lib/focus-ring"
 import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
 import {
@@ -172,14 +173,25 @@ function SettingsTabLink({
 }) {
   const className = cn(
     "rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+    focusRing,
     active
       ? "bg-muted text-foreground"
       : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
   )
+  // The shaded tab is the one you are on. Saying so out loud is what tells a
+  // screen reader apart from the shading, which it cannot see.
+  const current = active ? ("page" as const) : undefined
 
   if (tabId === "general") {
     return (
-      <Link to="/admin/settings" className={className}>
+      // Exact, or the router counts "/admin/settings" as current on every tab
+      // below it and a screen reader is told two tabs are the one you are on.
+      <Link
+        to="/admin/settings"
+        activeOptions={{ exact: true }}
+        className={className}
+        aria-current={current}
+      >
         {label}
       </Link>
     )
@@ -190,6 +202,7 @@ function SettingsTabLink({
       to="/admin/settings/$tab"
       params={{ tab: tabId }}
       className={className}
+      aria-current={current}
     >
       {label}
     </Link>

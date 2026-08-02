@@ -11,6 +11,7 @@ import {
 
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { WorkspaceFormDialog } from "@/components/shared/workspace-form-dialog"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,13 +103,12 @@ export function WorkspaceSwitcher({
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="rounded-md border-0 p-2 outline-none transition-colors hover:bg-muted focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=open]:bg-muted"
-                  >
-                    <ChevronsUpDownIcon className="h-4 w-4" />
+                  {/* The shared Button already draws the app's focus ring and
+                      shades itself while the menu is open (`aria-expanded`). */}
+                  <Button variant="ghost" size="icon-sm">
+                    <ChevronsUpDownIcon />
                     <span className="sr-only">Change workspace</span>
-                  </button>
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   className="w-72 rounded-lg"

@@ -1,12 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { formatClockTime } from "@/lib/format-time"
 
 import type { AutomationLogEntry } from "./automation-log"
-
-const timeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-  second: "2-digit",
-})
 
 export function AutomationActivityLog({
   entries,
@@ -33,20 +28,23 @@ export function AutomationActivityLog({
               logged.
             </p>
           ) : (
-            entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-start gap-3 rounded-md border bg-muted/20 px-3 py-2"
-              >
-                <time
-                  dateTime={new Date(entry.time).toISOString()}
-                  className="shrink-0 font-mono text-muted-foreground"
+            entries.map((entry) => {
+              const at = new Date(entry.time)
+              return (
+                <div
+                  key={entry.id}
+                  className="flex items-start gap-3 rounded-md border bg-muted/20 px-3 py-2"
                 >
-                  {timeFormatter.format(entry.time)}
-                </time>
-                <span>{entry.message}</span>
-              </div>
-            ))
+                  <time
+                    dateTime={at.toISOString()}
+                    className="shrink-0 font-mono text-muted-foreground"
+                  >
+                    {formatClockTime(at, { seconds: true })}
+                  </time>
+                  <span>{entry.message}</span>
+                </div>
+              )
+            })
           )}
         </div>
       </ScrollArea>

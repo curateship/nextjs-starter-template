@@ -199,25 +199,16 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
  * - **Titles are sentence case**: "Edit workspace", not "Edit Workspace".
  *   Confirmations ask a question: "Delete this workspace?".
  */
-function DialogFooter({
-  className,
-  variant = "default",
-  ...props
-}: React.ComponentProps<"div"> & {
-  variant?: "default" | "plain"
-}) {
-  const contentVariant = React.useContext(DialogContentVariantContext)
-  const isAdminPlain = contentVariant === "admin" && variant === "plain"
-
+function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
-      data-variant={variant}
       className={cn(
         // The footer sits directly on the modal surface: no band, no divider.
-        "flex flex-row items-center justify-end gap-2 **:data-[slot=button]:h-9",
-        !isAdminPlain && "px-6 pt-0 pb-5",
-        isAdminPlain && "px-6 pb-6",
+        // One spacing for every window, so the buttons land in the same place
+        // in all of them. It mirrors the padding `theme.css` sets from
+        // `--shell-modal-padding`, which is what actually reaches the screen.
+        "flex flex-row items-center justify-end gap-2 px-6 pt-0 pb-6 **:data-[slot=button]:h-9",
         className
       )}
       {...props}

@@ -64,7 +64,7 @@ export function ConfirmDialog({
           <DialogDescription>{description}</DialogDescription>
           {children}
         </DialogBody>
-        <DialogFooter variant="plain">
+        <DialogFooter>
           <Button
             type="button"
             variant="outline"

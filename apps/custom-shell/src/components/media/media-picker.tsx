@@ -349,7 +349,7 @@ export function MediaPicker({
           </div>
         </DialogBody>
 
-        <DialogFooter variant="plain">
+        <DialogFooter>
           {currentMediaUrl ? (
             <Button
               type="button"

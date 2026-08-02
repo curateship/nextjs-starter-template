@@ -27,7 +27,13 @@ import type {
   FeedsSummary,
 } from "@/lib/api/feeds"
 import { feedbackTypeLabels } from "@/lib/feedback-type"
-import { formatTimeAgo } from "@/lib/format-time"
+import { focusRing, focusRingInset } from "@/lib/focus-ring"
+import {
+  formatClockTime,
+  formatDate,
+  formatTimeAgo,
+  formatUtcDate,
+} from "@/lib/format-time"
 import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
 
@@ -110,7 +116,10 @@ function ViewAllLink({ to }: { to: string }) {
   return (
     <Link
       to={to}
-      className="shrink-0 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:underline"
+      className={cn(
+        "shrink-0 rounded-sm text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:underline",
+        focusRing
+      )}
     >
       View all
     </Link>
@@ -121,8 +130,7 @@ function ViewAllLink({ to }: { to: string }) {
  * A title that opens the thing it names. Every list here links the same way —
  * to the record's own page, with `?open=` so the page opens it on arrival.
  */
-const titleLink =
-  "min-w-0 truncate rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+const titleLink = cn("min-w-0 truncate rounded-sm hover:underline", focusRing)
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return (
@@ -306,7 +314,9 @@ function ThisWeekCard({ summary }: { summary: FeedsSummary }) {
             key={figure.label}
             to={figure.to}
             className={cn(
-              "flex min-w-0 flex-col gap-1 p-4 transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5",
+              "flex min-w-0 flex-col gap-1 p-4 transition-colors hover:bg-accent/40 sm:p-5",
+              // Each square runs to the card's edge, so the ring goes inside.
+              focusRingInset,
               index % 2 === 0 && "border-r",
               index < 2 && "border-b"
             )}
@@ -353,16 +363,6 @@ type ActivityEvent = {
   createdAt: Date
   read: boolean
 }
-
-const timeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-})
-
-const dayFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-})
 
 function toActivityEvent(item: FeedsSummary["notifications"]["latest"][number]) {
   const actor = item.actor_name ?? "Someone"
@@ -604,8 +604,8 @@ function ActivityCard({ summary }: { summary: FeedsSummary }) {
                       </span>
                       <span className="text-xs text-muted-foreground tabular-nums">
                         {group.index < 2
-                          ? timeFormatter.format(event.createdAt)
-                          : dayFormatter.format(event.createdAt)}
+                          ? formatClockTime(event.createdAt)
+                          : formatDate(event.createdAt)}
                       </span>
                     </div>
                   </div>
@@ -624,7 +624,11 @@ function ActivityCard({ summary }: { summary: FeedsSummary }) {
 
       <Link
         to="/admin/notifications"
-        className="flex items-center justify-center border-t px-4 py-3 text-sm font-medium transition-colors hover:bg-accent/40 sm:px-5"
+        className={cn(
+          "flex items-center justify-center border-t px-4 py-3 text-sm font-medium transition-colors hover:bg-accent/40 sm:px-5",
+          // Runs to the card's edge, same as the squares above.
+          focusRingInset
+        )}
       >
         View all notifications
       </Link>
@@ -739,9 +743,7 @@ function ChangelogCard({
                 </Badge>
               )}
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {dayFormatter.format(
-                  new Date(entry.publishedAt ?? entry.createdAt)
-                )}
+                {formatDate(entry.publishedAt ?? entry.createdAt)}
               </span>
             </li>
           ))}
@@ -773,7 +775,10 @@ function FeedbackCard({ feedback }: { feedback: FeedsSummary["feedback"] }) {
                 <Link
                   to="/admin/feedback"
                   search={{ open: item.id }}
-                  className="line-clamp-2 rounded-sm text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className={cn(
+                    "line-clamp-2 rounded-sm text-sm font-medium hover:underline",
+                    focusRing
+                  )}
                   title={item.message}
                 >
                   {item.message}
@@ -789,7 +794,7 @@ function FeedbackCard({ feedback }: { feedback: FeedsSummary["feedback"] }) {
                   {" · "}
                   {item.authorName}
                   {" · "}
-                  {dayFormatter.format(new Date(item.createdAt))}
+                  {formatDate(item.createdAt)}
                 </p>
               </div>
               <span
@@ -816,16 +821,6 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 const RELATIVE_DAYS = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" })
 
-/**
- * The window in words, the way the announcements page says it: dates are whole
- * days, kept in UTC so they never shift.
- */
-const windowFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "UTC",
-  month: "short",
-  day: "numeric",
-})
-
 function plural(count: number, word: string) {
   return count === 1 ? word : `${word}s`
 }
@@ -842,14 +837,14 @@ function countUnread(events: ActivityEvent[]) {
 
 /** The one day a group covers, or the days it runs between. */
 function groupDates(events: ActivityEvent[]) {
-  const newest = dayFormatter.format(events[0]!.createdAt)
-  const oldest = dayFormatter.format(events.at(-1)!.createdAt)
+  const newest = formatDate(events[0]!.createdAt)
+  const oldest = formatDate(events.at(-1)!.createdAt)
   return newest === oldest ? newest : `${oldest} – ${newest}`
 }
 
-/** "Jul 25 – Aug 1" — the stretch of days a figure counts over. */
+/** "Jul 25, 2025 – Aug 1, 2025" — the stretch of days a figure counts over. */
 function rangeText(from: string, to: string) {
-  return `${dayFormatter.format(new Date(from))} – ${dayFormatter.format(new Date(to))}`
+  return `${formatDate(from)} – ${formatDate(to)}`
 }
 
 /** How long the longest-waiting unopened notice has been sitting there. */
@@ -881,11 +876,11 @@ function weekOnWeekText(thisWeek: number, lastWeek: number) {
   return change > 0 ? `, up ${change}` : `, down ${Math.abs(change)}`
 }
 
-/** "Aug 6 – Aug 30", or just when it starts if it never ends. */
+/** "Aug 6, 2025 – Aug 30, 2025", or just when it starts if it never ends. */
 function scheduleText(announcement: FeedsAnnouncementRow) {
-  const from = windowFormatter.format(new Date(announcement.startsAt))
+  const from = formatUtcDate(announcement.startsAt)
   return announcement.endsAt
-    ? `${from} – ${windowFormatter.format(new Date(announcement.endsAt))}`
+    ? `${from} – ${formatUtcDate(announcement.endsAt)}`
     : `from ${from}`
 }
 
@@ -896,13 +891,13 @@ function windowText(announcement: {
   endsAt: string | null
 }) {
   if (announcement.status === "scheduled") {
-    return `starts ${windowFormatter.format(new Date(announcement.startsAt))}`
+    return `starts ${formatUtcDate(announcement.startsAt)}`
   }
   // Only a window with an end date can have ended, so this always has one.
   if (announcement.status === "ended" && announcement.endsAt) {
-    return `ended ${windowFormatter.format(new Date(announcement.endsAt))}`
+    return `ended ${formatUtcDate(announcement.endsAt)}`
   }
   return announcement.endsAt
-    ? `ends ${windowFormatter.format(new Date(announcement.endsAt))}`
+    ? `ends ${formatUtcDate(announcement.endsAt)}`
     : "no end date"
 }

@@ -708,7 +708,7 @@ function EditFeedbackModal({
                 </CardContent>
               </Card>
             </DialogBody>
-            <DialogFooter variant="plain">
+            <DialogFooter>
               {/* Delete asks first, exactly as the row's trash icon does — the
                   spinner lives on the confirmation that is running the delete. */}
               <Button

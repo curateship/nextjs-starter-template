@@ -196,7 +196,7 @@ export function ShellIconPicker({
 
           {/* Picking an icon from the grid applies it and closes, so there is
               no primary button to press — only the two ways out. */}
-          <DialogFooter variant="plain">
+          <DialogFooter>
             {allowEmpty && value ? (
               <Button
                 type="button"
