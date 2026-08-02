@@ -115,9 +115,9 @@ export function GeneralSettings({
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="admin-route"
-            hint="Where the home page and /admin open, for example /admin/media. Empty opens Settings. It has to be a real route — an unknown path will 404."
+            hint="Where the home page and /admin open for admins, for example /admin/media. Empty opens Settings. It has to be a real route — an unknown path will 404."
           >
-            Home route
+            Admin home route
           </FieldLabel>
           <Input
             id="admin-route"
@@ -129,6 +129,26 @@ export function GeneralSettings({
               })
             }
             placeholder="Leave empty for Settings"
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="member-home-route"
+            hint="Where the home page opens for everybody who is not an admin, for example /changelog/whats-new. Empty sends them to the first link in their sidebar. It has to be a real route — an unknown path will 404."
+          >
+            Member home route
+          </FieldLabel>
+          <Input
+            id="member-home-route"
+            value={config.memberHomeRoute}
+            onChange={(event) =>
+              onConfigChange({
+                ...config,
+                memberHomeRoute: event.target.value,
+              })
+            }
+            placeholder="Leave empty for their first sidebar link"
           />
         </div>
 

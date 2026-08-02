@@ -29,6 +29,8 @@ import {
   TableRow,
   TableSurface,
 } from "@/components/ui/table"
+import { focusRing } from "@/lib/focus-ring"
+import { cn } from "@/lib/utils"
 
 const defaultPageSizeOptions = [10, 25, 50]
 
@@ -71,6 +73,16 @@ type DashboardTableBaseProps = {
   error?: DashboardTableError | null
   selectedCount?: number
   onClearSelection?: () => void
+  /**
+   * Lets the toolbar chip offer the rest of the matches, so the selection is
+   * reported in one place instead of a second strip under the table. `total`
+   * is every row the current search and filters match, not just the page on
+   * screen; the offer hides itself once they are all selected.
+   */
+  selectAll?: {
+    total: number
+    onSelectAll: () => void
+  }
   footer: DashboardTableFooter
   /**
    * The first load has not answered yet, so `count` and the footer totals are
@@ -109,6 +121,7 @@ export function DashboardTable(props: DashboardTableProps) {
     error,
     selectedCount = 0,
     onClearSelection,
+    selectAll,
     footer,
     countsPending = false,
   } = props
@@ -127,13 +140,14 @@ export function DashboardTable(props: DashboardTableProps) {
             {countsPending ? "—" : count.toLocaleString()}
           </Badge>
           {selectedCount && onClearSelection ? (
-            <button
-              type="button"
-              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              onClick={onClearSelection}
-            >
-              Clear {selectedCount} selected
-            </button>
+            <ToolbarChipButton onClick={onClearSelection}>
+              Clear {selectedCount.toLocaleString()} selected
+            </ToolbarChipButton>
+          ) : null}
+          {selectedCount && selectAll && selectAll.total > selectedCount ? (
+            <ToolbarChipButton onClick={selectAll.onSelectAll}>
+              Select all {selectAll.total.toLocaleString()}
+            </ToolbarChipButton>
           ) : null}
         </DashboardToolbarTitle>
 
@@ -173,6 +187,29 @@ export function DashboardTable(props: DashboardTableProps) {
 
       <DashboardTableFooter footer={footer} countsPending={countsPending} />
     </TableSurface>
+  )
+}
+
+// The toolbar's selection chips read as quiet text, not buttons, so they sit
+// beside the count without competing with the toolbar's real controls.
+function ToolbarChipButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "rounded-sm text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground",
+        focusRing
+      )}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   )
 }
 

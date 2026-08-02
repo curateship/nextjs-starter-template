@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  CheckIcon,
   Loader2Icon,
   MessageSquareIcon,
   PencilIcon,
@@ -58,12 +59,43 @@ import {
   feedbackTypeClassNames,
   feedbackTypeLabels,
 } from "@/lib/feedback-type"
+import { focusRing } from "@/lib/focus-ring"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 import { cn } from "@/lib/utils"
 
 function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"
+}
+
+/**
+ * The initial in a circle. Your own — your comments and the box you type a
+ * reply into — is the dark one, so you can pick yourself out of a thread at a
+ * glance.
+ */
+function Avatar({
+  name,
+  isOwn = false,
+  className,
+}: {
+  name: string
+  isOwn?: boolean
+  className?: string
+}) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+        isOwn
+          ? "bg-foreground text-background"
+          : "bg-muted text-muted-foreground",
+        className
+      )}
+    >
+      {getInitial(name)}
+    </div>
+  )
 }
 
 /**
@@ -116,6 +148,8 @@ type FeedbackModalProps = {
   onOpenChange: (open: boolean) => void
   targetFeedbackId?: string | null
   onMutated?: () => void
+  /** Whoever is signed in — their initial sits on the reply box. */
+  currentUserName: string
 }
 
 export function FeedbackModal({
@@ -123,6 +157,7 @@ export function FeedbackModal({
   onOpenChange,
   targetFeedbackId,
   onMutated,
+  currentUserName,
 }: FeedbackModalProps) {
   const [feedbackType, setFeedbackType] =
     React.useState<FeedbackType>("suggestion")
@@ -535,12 +570,16 @@ export function FeedbackModal({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
+          {/* This window is a writing box on top of a feed, not a form, so the
+              compose area sits straight on the modal surface and sends from
+              where you are typing. */}
           <div className="space-y-2">
             <Textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               placeholder="What's on your mind?"
-              className="min-h-32 resize-none text-base"
+              aria-label="Your feedback"
+              className="min-h-32 resize-none bg-background text-base"
               disabled={isSubmitting}
               autoFocus={!targetFeedbackId}
               onKeyDown={(event) =>
@@ -549,8 +588,18 @@ export function FeedbackModal({
             />
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {FEEDBACK_TYPES.map((type) => (
+              {/* Every kind keeps its colour, so the colour still teaches what
+                  it means, and the chosen one is marked with a tick. The mark
+                  used to be `ring-ring` — the app's focus colour — so a chosen
+                  chip and a keyboard-focused one looked alike. */}
+              <div
+                role="group"
+                aria-label="Feedback type"
+                className="flex flex-wrap gap-2"
+              >
+                {FEEDBACK_TYPES.map((type) => {
+                  const chosen = feedbackType === type
+                  return (
                     <Button
                       key={type}
                       type="button"
@@ -558,17 +607,17 @@ export function FeedbackModal({
                       size="sm"
                       className={cn(
                         feedbackTypeClassNames[type],
-                        feedbackType === type
-                          ? "ring-2 ring-ring ring-offset-2"
-                          : "opacity-70 hover:opacity-100"
+                        !chosen && "opacity-60 hover:opacity-100"
                       )}
                       onClick={() => setFeedbackType(type)}
                       disabled={isSubmitting}
-                      aria-pressed={feedbackType === type}
+                      aria-pressed={chosen}
                     >
+                      {chosen ? <CheckIcon className="size-3.5" /> : null}
                       {feedbackTypeLabels[type]}
                     </Button>
-                ))}
+                  )
+                })}
               </div>
               <Button
                 type="button"
@@ -577,32 +626,37 @@ export function FeedbackModal({
                 className="self-start sm:self-auto"
               >
                 {isSubmitting ? (
-                  <Loader2Icon className="h-4 w-4 animate-spin" />
+                  <Loader2Icon className="size-4 animate-spin" />
                 ) : (
-                  <SendIcon className="h-4 w-4" />
+                  <SendIcon className="size-4" />
                 )}
                 Send
               </Button>
             </div>
           </div>
 
-          <Card className="rounded-md bg-muted/50">
+          {/* The count strip is a card of its own and the messages are cards of
+              their own, all sitting straight on the window's grey. Wrapping the
+              lot in one more card only drew a box around a box. */}
+          <CardGroup>
+          <Card size="sm">
+            {/* The header is a two-row grid because the action spans both
+                rows. Left to itself the title sits in the short first row and
+                rides above the dropdowns' middle, so it spans both rows too
+                and centres against them. */}
             <CardHeader>
-              <CardTitle>
+              <CardTitle className="row-span-2 self-center">
                 {feedbackListTitle}{" "}
                 <Badge variant="secondary">{filteredFeedback.length}</Badge>
               </CardTitle>
-              <CardAction className="flex gap-2">
+              <CardAction className="flex gap-2 self-center">
                 <Select
                   value={feedbackFilter}
                   onValueChange={(value) =>
                     setFeedbackFilter(value as FeedbackFilter)
                   }
                 >
-                  <SelectTrigger
-                    className="h-8 text-xs"
-                    aria-label="Filter feedback"
-                  >
+                  <SelectTrigger aria-label="Filter feedback">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -618,7 +672,7 @@ export function FeedbackModal({
                   value={feedbackSort}
                   onValueChange={(value) => setFeedbackSort(value as FeedbackSort)}
                 >
-                  <SelectTrigger className="h-8 text-xs" aria-label="Sort feedback">
+                  <SelectTrigger aria-label="Sort feedback">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -631,306 +685,371 @@ export function FeedbackModal({
                 </Select>
               </CardAction>
             </CardHeader>
+          </Card>
 
-            <CardContent>
-              {loadingFeedback ? (
-                <LoadingRow label="Loading feedback…" />
-              ) : loadError ? (
+            {loadingFeedback ? (
+              <Card size="sm">
+                <CardContent>
+                  <LoadingRow label="Loading feedback…" />
+                </CardContent>
+              </Card>
+            ) : loadError ? (
+              // The banner is a flat, square band. On its own it would be the
+              // one square-cornered thing among the cards, so it takes a card
+              // of its own with no padding and is clipped to the same corners.
+              <Card className="py-0">
                 <ErrorBanner
                   message={loadError}
                   onRetry={() => setReloads((count) => count + 1)}
                 />
-              ) : filteredFeedback.length === 0 ? (
-                <EmptyFeedback
-                  // An empty list and a filter that matched nothing look the
-                  // same but mean different things, and only one of them is
-                  // fixed by changing the dropdown.
-                  filterLabel={
-                    feedbackFilter === "all"
-                      ? null
-                      : feedbackTypeLabels[feedbackFilter]
-                  }
-                />
-              ) : (
-                <CardGroup>
-                  {filteredFeedback.map((item) => {
-                    const words = item.message.trim().split(/\s+/)
-                    const isLong = words.length > 40
-                    const isExpanded = expandedIds.has(item.id)
-                    const message =
-                      isLong && !isExpanded
-                        ? words.slice(0, 40).join(" ")
-                        : item.message
-                    const isThreadOpen = openThreadIds.has(item.id)
-                    const comments = commentThreads[item.id] ?? []
+              </Card>
+            ) : filteredFeedback.length === 0 ? (
+              <Card size="sm">
+                <CardContent>
+                  <EmptyFeedback
+                    // An empty list and a filter that matched nothing look
+                    // the same but mean different things, and only one of
+                    // them is fixed by changing the dropdown.
+                    filterLabel={
+                      feedbackFilter === "all"
+                        ? null
+                        : feedbackTypeLabels[feedbackFilter]
+                    }
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {filteredFeedback.map((item) => {
+                  const words = item.message.trim().split(/\s+/)
+                  const isLong = words.length > 40
+                  const isExpanded = expandedIds.has(item.id)
+                  const message =
+                    isLong && !isExpanded
+                      ? words.slice(0, 40).join(" ")
+                      : item.message
+                  const isThreadOpen = openThreadIds.has(item.id)
+                  const comments = commentThreads[item.id] ?? []
 
-                    return (
-                      <Card
-                        key={item.id}
-                        className="rounded-md bg-card py-4 ring-foreground/10"
-                      >
-                        <CardHeader className="gap-4 px-4">
-                          <div className="flex min-w-0 items-start gap-3">
-                            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
-                              {getInitial(item.author_name)}
-                            </div>
-                            <div className="min-w-0 flex-1 space-y-3">
-                              <div className="flex min-w-0 items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold text-foreground">
-                                    {item.author_name}
-                                  </p>
-                                  <CardDescription
-                                    title={formatDateTime(item.created_at)}
-                                  >
-                                    {formatRelativeTime(item.created_at)}
-                                  </CardDescription>
-                                </div>
-                                <Badge
-                                  variant={feedbackTypeBadgeVariants[item.type]}
-                                  className={cn(
-                                    "shrink-0",
-                                    feedbackTypeClassNames[item.type]
-                                  )}
+                  return (
+                    <Card key={item.id} size="sm">
+                      <CardContent>
+                        <div className="flex min-w-0 items-start gap-3">
+                          <Avatar name={item.author_name} className="size-10 text-sm" />
+                          <div className="min-w-0 flex-1 space-y-3">
+                            {/* The top of the message opens its comments and
+                                closes them again, so the whole block is a
+                                target and not just the small button below.
+                                The "N Comments" button is still the one that
+                                a keyboard and a screen reader use, so this
+                                adds a shortcut without taking one away. */}
+                            <div
+                              className="cursor-pointer space-y-3"
+                              onClick={(event) => {
+                                // A click that landed on a control of its
+                                // own — "More…", the type badge's link — is
+                                // that control's, and highlighting the text
+                                // is reading, not clicking.
+                                if (
+                                  (event.target as HTMLElement).closest(
+                                    "button, a, input, textarea"
+                                  ) ||
+                                  window.getSelection()?.toString()
+                                ) {
+                                  return
+                                }
+                                void toggleThread(item.id)
+                              }}
+                            >
+                            <div className="flex min-w-0 items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-foreground">
+                                  {item.author_name}
+                                </p>
+                                <CardDescription
+                                  title={formatDateTime(item.created_at)}
                                 >
-                                  {feedbackTypeLabels[item.type]}
-                                </Badge>
+                                  {formatRelativeTime(item.created_at)}
+                                </CardDescription>
                               </div>
-                              <CardTitle className="max-w-3xl whitespace-pre-wrap text-sm leading-6 font-normal text-foreground">
-                                {message}
-                                {isLong && !isExpanded ? " " : null}
-                                {isLong && !isExpanded ? (
-                                  <button
-                                    type="button"
-                                    className="ml-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                                    onClick={() => toggleExpanded(item.id)}
-                                  >
-                                    More...
-                                  </button>
-                                ) : null}
-                              </CardTitle>
+                              <Badge
+                                variant={feedbackTypeBadgeVariants[item.type]}
+                                className={cn(
+                                  "shrink-0",
+                                  feedbackTypeClassNames[item.type]
+                                )}
+                              >
+                                {feedbackTypeLabels[item.type]}
+                              </Badge>
                             </div>
-                          </div>
-                          <div className="ml-[52px] flex flex-wrap items-center gap-2">
-                            {/* Never disabled: the count has already moved, so
-                                greying the button out would be the only slow
-                                part left. A repeat click is dropped in the
-                                handler instead. */}
-                            <Button
-                              type="button"
-                              variant={item.has_voted ? "default" : "secondary"}
-                              size="sm"
-                              className="h-8 w-auto rounded-md px-3"
-                              onClick={() => void handleVote(item)}
-                              aria-pressed={item.has_voted}
-                              aria-label={
-                                item.has_voted
-                                  ? "Remove feedback vote"
-                                  : "Upvote feedback"
-                              }
-                            >
-                              <ThumbsUpIcon className="h-3.5 w-3.5" />
-                              {item.vote_count}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={isThreadOpen ? "default" : "secondary"}
-                              size="sm"
-                              className="h-8 w-auto rounded-md px-3"
-                              onClick={() => void toggleThread(item.id)}
-                              aria-label="Toggle feedback comments"
-                            >
-                              <MessageSquareIcon className="h-3.5 w-3.5" />
-                              {item.comment_count} Comment
-                              {item.comment_count === 1 ? "" : "s"}
-                            </Button>
-                          </div>
-                        </CardHeader>
-                        {isThreadOpen ? (
-                          <CardContent className="mx-4 mt-1 space-y-4 border-t px-0 pt-4">
-                            {loadingThreadId === item.id ? (
-                              <LoadingRow label="Loading comments…" />
-                            ) : comments.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">
-                                No comments yet.
-                              </p>
-                            ) : (
-                              <div className="space-y-4">
-                                <h3 className="text-sm font-medium text-foreground">
-                                  Comments
-                                </h3>
-                                {comments.map((comment) => (
-                                  <div
-                                    key={comment.id}
-                                    className="grid grid-cols-[2rem_1fr] gap-3"
-                                  >
-                                    <div className="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                                      {getInitial(comment.author_name)}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <div className="mb-2 flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                          <p className="text-sm font-semibold text-foreground">
-                                            {comment.author_name}
-                                          </p>
-                                          <p
-                                            className="text-xs text-muted-foreground"
-                                            title={formatDateTime(
-                                              comment.created_at
-                                            )}
-                                          >
-                                            {formatRelativeTime(
-                                              comment.created_at
-                                            )}
-                                          </p>
-                                        </div>
-                                        {comment.can_edit || comment.can_delete ? (
-                                          <div className="flex shrink-0 gap-1">
-                                            {comment.can_edit ? (
-                                              <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon-xs"
-                                                className="rounded-md"
-                                                onClick={() =>
-                                                  startEditingComment(comment)
-                                                }
-                                                disabled={
-                                                  busyCommentId === comment.id
-                                                }
-                                                aria-label="Edit comment"
-                                              >
-                                                <PencilIcon className="h-3.5 w-3.5" />
-                                              </Button>
-                                            ) : null}
-                                            {comment.can_delete ? (
-                                              <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon-xs"
-                                                className="rounded-md"
-                                                onClick={() =>
-                                                  setDeletingComment(comment)
-                                                }
-                                                disabled={
-                                                  busyCommentId === comment.id
-                                                }
-                                                aria-label="Delete comment"
-                                              >
-                                                <Trash2Icon className="h-3.5 w-3.5" />
-                                              </Button>
-                                            ) : null}
-                                          </div>
-                                        ) : null}
-                                      </div>
-
-                                      {editingCommentId === comment.id ? (
-                                        <div className="space-y-2">
-                                          <Textarea
-                                            value={editingCommentMessage}
-                                            onChange={(event) =>
-                                              setEditingCommentMessage(
-                                                event.target.value
-                                              )
-                                            }
-                                            className="min-h-20 resize-none rounded-md text-sm"
-                                            disabled={busyCommentId === comment.id}
-                                            onKeyDown={(event) =>
-                                              submitOnCommandEnter(event, () =>
-                                                void handleCommentUpdate(comment)
-                                              )
-                                            }
-                                          />
-                                          <div className="flex justify-end gap-2">
-                                            <Button
-                                              type="button"
-                                              variant="outline"
-                                              size="sm"
-                                              className="rounded-md"
-                                              onClick={() => {
-                                                setEditingCommentId(null)
-                                                setEditingCommentMessage("")
-                                              }}
-                                              disabled={
-                                                busyCommentId === comment.id
-                                              }
-                                            >
-                                              Cancel
-                                            </Button>
-                                            <Button
-                                              type="button"
-                                              size="sm"
-                                              className="rounded-md"
-                                              onClick={() =>
-                                                void handleCommentUpdate(comment)
-                                              }
-                                              disabled={
-                                                busyCommentId === comment.id
-                                              }
-                                            >
-                                              {busyCommentId === comment.id ? (
-                                                <Loader2Icon className="animate-spin" />
-                                              ) : null}
-                                              Save
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <p className="max-w-2xl whitespace-pre-wrap text-xs leading-5 text-foreground sm:text-sm">
-                                          {comment.message}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="space-y-2">
-                              <Textarea
-                                value={commentInputs[item.id] ?? ""}
-                                onChange={(event) =>
-                                  setCommentInputs((current) => ({
-                                    ...current,
-                                    [item.id]: event.target.value,
-                                  }))
-                                }
-                                placeholder="Add a comment…"
-                                className="min-h-20 resize-none rounded-md bg-background text-sm"
-                                disabled={submittingCommentId === item.id}
-                                onKeyDown={(event) =>
-                                  submitOnCommandEnter(event, () =>
-                                    void handleCommentSubmit(item.id)
-                                  )
-                                }
-                              />
-                              <div className="flex justify-end">
-                                <Button
+                            <CardTitle className="max-w-3xl whitespace-pre-wrap text-sm leading-6 font-normal text-foreground">
+                              {message}
+                              {isLong ? (
+                                <button
                                   type="button"
-                                  size="sm"
-                                  className="rounded-md"
-                                  onClick={() => void handleCommentSubmit(item.id)}
-                                  disabled={submittingCommentId === item.id}
-                                >
-                                  {submittingCommentId === item.id ? (
-                                    <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <SendIcon className="h-3.5 w-3.5" />
+                                  className={cn(
+                                    "ml-1 rounded-sm text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground",
+                                    focusRing
                                   )}
-                                  Comment
-                                </Button>
-                              </div>
+                                  onClick={() => toggleExpanded(item.id)}
+                                  aria-expanded={isExpanded}
+                                  aria-label={
+                                    isExpanded
+                                      ? "Show less of this message"
+                                      : "Show the rest of this message"
+                                  }
+                                >
+                                  {isExpanded ? "Less" : "More…"}
+                                </button>
+                              ) : null}
+                            </CardTitle>
                             </div>
-                          </CardContent>
-                        ) : null}
-                      </Card>
-                    )
-                  })}
-                </CardGroup>
-              )}
-            </CardContent>
-          </Card>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Never disabled: the count has already moved,
+                                  so greying the button out would be the only
+                                  slow part left. A repeat click is dropped in
+                                  the handler instead. */}
+                              <Button
+                                type="button"
+                                variant={
+                                  item.has_voted ? "default" : "secondary"
+                                }
+                                onClick={() => void handleVote(item)}
+                                aria-pressed={item.has_voted}
+                                aria-label={
+                                  item.has_voted
+                                    ? "Remove feedback vote"
+                                    : "Upvote feedback"
+                                }
+                              >
+                                <ThumbsUpIcon className="size-4" />
+                                {item.vote_count}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={isThreadOpen ? "default" : "secondary"}
+                                onClick={() => void toggleThread(item.id)}
+                                aria-expanded={isThreadOpen}
+                                aria-label="Toggle feedback comments"
+                              >
+                                <MessageSquareIcon className="size-4" />
+                                {item.comment_count} Comment
+                                {item.comment_count === 1 ? "" : "s"}
+                              </Button>
+                            </div>
+                            {isThreadOpen ? (
+                              // The thread hangs off a line down the left, so
+                              // a reply is visibly part of the message above
+                              // it and not the next one along. The line is a
+                              // gradient rather than a border so it fades in
+                              // and out at both ends instead of stopping
+                              // dead against the buttons above and the reply
+                              // box below.
+                              <div
+                                role="group"
+                                aria-label="Comments"
+                                className="relative space-y-4 pl-4 before:absolute before:top-0 before:left-0 before:h-full before:w-px before:bg-linear-to-b before:from-transparent before:via-border before:to-transparent before:content-['']"
+                              >
+                                {loadingThreadId === item.id ? (
+                                  <LoadingRow label="Loading comments…" />
+                                ) : comments.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground">
+                                    No comments yet.
+                                  </p>
+                                ) : (
+                                  <div className="space-y-4">
+                                    {comments.map((comment) => (
+                                      <div
+                                        key={comment.id}
+                                        className="grid grid-cols-[1.75rem_1fr] gap-3"
+                                      >
+                                        <Avatar
+                                          name={comment.author_name}
+                                          isOwn={comment.is_own}
+                                        />
+                                        <div className="min-w-0">
+                                          {/* As tall as the avatar beside it, so
+                                              the two share a middle line. */}
+                                          <div className="mb-1 flex min-h-7 min-w-0 items-center gap-2">
+                                            <p className="truncate text-sm font-medium text-foreground">
+                                              {comment.author_name}
+                                            </p>
+                                            {comment.is_own ? (
+                                              <Badge
+                                                variant="secondary"
+                                                className="shrink-0"
+                                              >
+                                                You
+                                              </Badge>
+                                            ) : null}
+                                            <p
+                                              className="shrink-0 text-xs text-muted-foreground"
+                                              title={formatDateTime(
+                                                comment.created_at
+                                              )}
+                                            >
+                                              {formatRelativeTime(
+                                                comment.created_at
+                                              )}
+                                            </p>
+                                            {comment.can_edit || comment.can_delete ? (
+                                              <div className="ml-auto flex shrink-0 gap-1">
+                                                {comment.can_edit ? (
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon-xs"
+                                                    className="rounded-md"
+                                                    onClick={() =>
+                                                      startEditingComment(comment)
+                                                    }
+                                                    disabled={
+                                                      busyCommentId === comment.id
+                                                    }
+                                                    aria-label="Edit comment"
+                                                  >
+                                                    <PencilIcon className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                ) : null}
+                                                {comment.can_delete ? (
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon-xs"
+                                                    className="rounded-md"
+                                                    onClick={() =>
+                                                      setDeletingComment(comment)
+                                                    }
+                                                    disabled={
+                                                      busyCommentId === comment.id
+                                                    }
+                                                    aria-label="Delete comment"
+                                                  >
+                                                    <Trash2Icon className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                ) : null}
+                                              </div>
+                                            ) : null}
+                                          </div>
 
+                                          {editingCommentId === comment.id ? (
+                                            <div className="space-y-2">
+                                              <Textarea
+                                                value={editingCommentMessage}
+                                                onChange={(event) =>
+                                                  setEditingCommentMessage(
+                                                    event.target.value
+                                                  )
+                                                }
+                                                rows={1}
+                                                disabled={busyCommentId === comment.id}
+                                                onKeyDown={(event) =>
+                                                  submitOnCommandEnter(event, () =>
+                                                    void handleCommentUpdate(comment)
+                                                  )
+                                                }
+                                              />
+                                              <div className="flex justify-end gap-2">
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                  onClick={() => {
+                                                    setEditingCommentId(null)
+                                                    setEditingCommentMessage("")
+                                                  }}
+                                                  disabled={
+                                                    busyCommentId === comment.id
+                                                  }
+                                                >
+                                                  Cancel
+                                                </Button>
+                                                <Button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    void handleCommentUpdate(comment)
+                                                  }
+                                                  disabled={
+                                                    busyCommentId === comment.id
+                                                  }
+                                                >
+                                                  {busyCommentId === comment.id ? (
+                                                    <Loader2Icon className="animate-spin" />
+                                                  ) : null}
+                                                  Save
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <p className="max-w-2xl whitespace-pre-wrap text-xs leading-5 text-foreground sm:text-sm">
+                                              {comment.message}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Your avatar, then one line to type on. The box
+                                    still grows with a long reply; the send button
+                                    rides its bottom-right corner. */}
+                                <div className="grid grid-cols-[1.75rem_1fr] gap-3">
+                                  {/* Centred on the box's first line — as tall as
+                                      the box is at rest — so it stays put rather
+                                      than drifting down as a long reply grows. */}
+                                  <div className="flex h-9 items-center">
+                                    <Avatar name={currentUserName} isOwn />
+                                  </div>
+                                  <div className="relative">
+                                    <Textarea
+                                      rows={1}
+                                      value={commentInputs[item.id] ?? ""}
+                                      onChange={(event) =>
+                                        setCommentInputs((current) => ({
+                                          ...current,
+                                          [item.id]: event.target.value,
+                                        }))
+                                      }
+                                      placeholder="Add a comment…"
+                                      aria-label="Add a comment"
+                                      className="resize-none rounded-3xl bg-background py-1.5 pr-11 pl-4"
+                                      disabled={submittingCommentId === item.id}
+                                      onKeyDown={(event) =>
+                                        submitOnCommandEnter(event, () =>
+                                          void handleCommentSubmit(item.id)
+                                        )
+                                      }
+                                    />
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      className="absolute right-1 bottom-1 size-7 rounded-full"
+                                      onClick={() =>
+                                        void handleCommentSubmit(item.id)
+                                      }
+                                      disabled={submittingCommentId === item.id}
+                                      title="Post comment"
+                                      aria-label="Post comment"
+                                    >
+                                      {submittingCommentId === item.id ? (
+                                        <Loader2Icon className="size-4 animate-spin" />
+                                      ) : (
+                                        <SendIcon className="size-4" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </>
+            )}
+          </CardGroup>
           </DialogBody>
         </DialogContent>
       </Dialog>

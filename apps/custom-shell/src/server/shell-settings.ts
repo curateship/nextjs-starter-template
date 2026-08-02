@@ -114,6 +114,10 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.adminRoute === "string"
         ? settings.adminRoute
         : fallback.adminRoute,
+    memberHomeRoute:
+      typeof settings.memberHomeRoute === "string"
+        ? settings.memberHomeRoute
+        : fallback.memberHomeRoute,
     // Saved is saved, empty included: an admin who deletes every member link
     // means it, and handing the starter set back on read would undo that. The
     // starter only fills in a row that has never had a member sidebar at all.
@@ -133,6 +137,7 @@ export function pickShellGlobals(settings: ShellConfig) {
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     adminRoute: settings.adminRoute,
+    memberHomeRoute: settings.memberHomeRoute,
     memberSections: settings.memberSections,
     maintenance: settings.maintenance,
     sessionPolicy: settings.sessionPolicy,

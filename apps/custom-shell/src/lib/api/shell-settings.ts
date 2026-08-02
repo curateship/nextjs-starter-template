@@ -106,6 +106,7 @@ const shellConfigSchema = z.object({
   // loader (workspace settings default it), so a plain required field is fine.
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   adminRoute: z.string().catch(""),
+  memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
   topRightNavigation: z.array(
     z.object({

@@ -306,6 +306,10 @@ export function FeedbackDashboard({
         }
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
+        selectAll={{
+          total: filteredFeedbackIds.length,
+          onSelectAll: () => setSelectedIds(new Set(filteredFeedbackIds)),
+        }}
         controls={
           <>
             {selectedIds.size ? (
@@ -507,21 +511,6 @@ export function FeedbackDashboard({
           </TableRow>
         ))}
       </DashboardTable>
-      {visibleSelected &&
-      filteredFeedbackIds.length > paginatedFeedbackIds.length ? (
-        <div className="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {paginatedFeedbackIds.length} feedback item
-          {paginatedFeedbackIds.length === 1 ? "" : "s"} on this page are
-          selected.{" "}
-          <button
-            type="button"
-            className="font-medium text-foreground underline underline-offset-2"
-            onClick={() => setSelectedIds(new Set(filteredFeedbackIds))}
-          >
-            Select all {filteredFeedbackIds.length}
-          </button>
-        </div>
-      ) : null}
       <EditFeedbackModal
         feedback={editingFeedback}
         open={Boolean(editingFeedback)}

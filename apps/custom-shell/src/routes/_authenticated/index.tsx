@@ -1,5 +1,5 @@
-import * as React from "react"
-import { createFileRoute, redirect, useSearch } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
+import { CompassIcon } from "lucide-react"
 
 import {
   isAccountTab,
@@ -7,44 +7,51 @@ import {
   type AccountTab,
 } from "@/components/account/account-dialog"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { loadShellBootstrap } from "@/lib/api/shell"
-import { configuredRouteTarget, withAccountTab } from "@/lib/home-route"
+import {
+  configuredRouteTarget,
+  firstSidebarRoute,
+  withAccountTab,
+} from "@/lib/home-route"
 
 /**
- * Home forwards admins to the configured route. Members have no dashboard pages
- * of their own, so home opens their account, which now lives in a modal.
+ * Home is a signpost, not a page: it forwards everybody to their first real
+ * screen. An admin goes to the route they configured; everybody else goes to
+ * theirs, and with none set, to the first link in the sidebar an admin built
+ * for them.
  *
  * Either way, a link that arrives asking for a tab (`?account=billing`, from
  * the pricing page) gets that tab. Home is on the way through, not the
  * destination, so it must not overrule the ask.
+ *
+ * Only somebody with nowhere at all to go stays here, and they are told so —
+ * home used to open the account window at them instead, which read as a page
+ * that would not go away.
  */
 export const Route = createFileRoute("/_authenticated/")({
-  // Deliberately no `loaderDeps` for the tab. An admin is always redirected
-  // away, so this loader runs fresh on every arrival and has no value to watch.
-  // A member does stay, and their own effect below sets `?account=profile` —
-  // which as a dep counts as a change and refetches the whole shell a second
-  // time on every visit home, for nothing.
+  // Deliberately no `loaderDeps` for the tab: the account tab only rides along
+  // with the redirect, and watching it would refetch the whole shell a second
+  // time on every visit home for nothing.
   loader: async ({ location }) => {
     const { user, settings } = await loadShellBootstrap()
-    if (user?.role === "admin") {
+    const isAdmin = user?.role === "admin"
+    // `settings.sections` is already the sidebar this person actually gets —
+    // the server hands an admin their own and everybody else the member one.
+    const target = isAdmin
+      ? (configuredRouteTarget(settings?.adminRoute) ?? "/admin/settings")
+      : (configuredRouteTarget(settings?.memberHomeRoute) ??
+        firstSidebarRoute(settings?.sections, user?.role ?? "member"))
+
+    if (target) {
       throw redirect({
-        href: withAccountTab(
-          configuredRouteTarget(settings?.adminRoute) ?? "/admin/settings",
-          requestedAccountTab(location.search)
-        ),
+        href: withAccountTab(target, requestedAccountTab(location.search)),
       })
     }
 
     return null
   },
-  component: MemberHome,
+  component: NowhereToGo,
 })
 
 /**
@@ -60,37 +67,23 @@ function requestedAccountTab(search: unknown): AccountTab | undefined {
   return isAccountTab(value) ? value : undefined
 }
 
-function MemberHome() {
+/**
+ * Nobody reaches this with a sidebar: an admin always has a route to go to, and
+ * a member only lands here when every link has been hidden or deleted. Said the
+ * way the empty sidebar says it — whose decision this was, and the one place
+ * they can still go.
+ */
+function NowhereToGo() {
   const openAccount = useOpenAccount()
-  const { account } = useSearch({ from: "/_authenticated" })
-  // Arriving here opens the account window, once. Watching `account` and
-  // reopening whenever it is missing put the window in a loop: Cancel, the X
-  // and Escape all took it away and this put it straight back, so it could not
-  // be closed at all — and while an admin was viewing the app as a member, its
-  // backdrop sat over the only ways to stop viewing.
-  //
-  // The arrival counts as handled either way, including when a link brought its
-  // own tab. Otherwise closing a window that opened on Billing would count as
-  // "nothing open yet" and pop Profile up in its place.
-  const handledArrivalRef = React.useRef(false)
-
-  React.useEffect(() => {
-    if (handledArrivalRef.current) return
-    handledArrivalRef.current = true
-    // Only fall back to Profile when nothing was asked for, or a link that
-    // arrived asking for Billing gets overruled on the doorstep.
-    if (!account) openAccount("profile")
-  }, [account, openAccount])
 
   return (
     <Card size="sm">
-      <CardHeader>
-        <CardTitle>Your account</CardTitle>
-        <CardDescription>
-          Your profile, billing and security all live in one window.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="grid place-items-center gap-3 py-10 text-center text-sm text-muted-foreground">
+        <CompassIcon className="size-10" aria-hidden />
+        <div>
+          <p className="font-medium text-foreground">Nothing here yet</p>
+          <p className="mt-1">An admin decides which pages appear for you.</p>
+        </div>
         <Button type="button" onClick={() => openAccount("profile")}>
           Open account
         </Button>

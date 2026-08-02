@@ -503,6 +503,7 @@ export function ShellLayout({
           open={feedbackOpen}
           onOpenChange={handleFeedbackOpenChange}
           targetFeedbackId={targetFeedbackId}
+          currentUserName={user.name}
           onMutated={() => setFeedbackRefreshToken((current) => current + 1)}
         />
         <AccountDialog
@@ -545,6 +546,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
       settings.sidebarWidth ?? fallback.sidebarWidth
     ),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
+    memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
     favicon: settings.favicon ?? fallback.favicon,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation

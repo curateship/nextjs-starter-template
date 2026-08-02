@@ -204,6 +204,7 @@ export async function listOwnedMedia({
   userId,
   page,
   pageSize,
+  search,
   fileType,
   mimeType,
   sortBy = "created_at",
@@ -212,6 +213,7 @@ export async function listOwnedMedia({
   userId: string
   page: number
   pageSize: number
+  search?: string
   fileType?: MediaFileType
   mimeType?: "image/svg+xml"
   sortBy?: MediaSortBy
@@ -219,17 +221,26 @@ export async function listOwnedMedia({
 }): Promise<MediaListResponse> {
   const normalizedPage = Math.max(1, page)
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
-  const ownerWhere = eq(customShellMedia.userId, userId)
-  const typeWhere = fileType ? eq(customShellMedia.fileType, fileType) : null
-  const mimeWhere = mimeType ? eq(customShellMedia.mimeType, mimeType) : null
-  const where =
-    typeWhere && mimeWhere
-      ? and(ownerWhere, typeWhere, mimeWhere)
-      : typeWhere
-        ? and(ownerWhere, typeWhere)
-        : mimeWhere
-          ? and(ownerWhere, mimeWhere)
-          : ownerWhere
+  // The filters are collected rather than nested, so adding one does not mean
+  // another layer of and(a, b) ? … : … guesswork.
+  const filters: SQL[] = [eq(customShellMedia.userId, userId)]
+  if (fileType) filters.push(eq(customShellMedia.fileType, fileType))
+  if (mimeType) filters.push(eq(customShellMedia.mimeType, mimeType))
+
+  // Searched on the same three things the picker used to read on the page:
+  // the name it was uploaded under, the name it is stored as, and its alt text.
+  const term = search?.trim()
+  if (term) {
+    const pattern = `%${term}%`
+    const match = or(
+      ilike(customShellMedia.originalName, pattern),
+      ilike(customShellMedia.filename, pattern),
+      ilike(customShellMedia.altText, pattern)
+    )
+    if (match) filters.push(match)
+  }
+
+  const where = and(...filters)
 
   const [totalRow] = await db
     .select({ count: sql<number>`count(*)::int` })

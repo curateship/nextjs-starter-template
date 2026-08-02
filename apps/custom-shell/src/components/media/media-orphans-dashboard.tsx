@@ -571,7 +571,11 @@ function OrphanDialogs({
 
   return (
     <>
+      {/* The details window steps aside while the confirmation is up rather than
+          sitting under it — two windows means two focus traps and an Escape that
+          only closes the top one. Cancelling brings the details back. */}
       <OrphanDetailsDialog
+        open={Boolean(openOrphan) && !confirmKeys}
         orphan={openOrphan}
         onClose={onCloseDetails}
         onDelete={onDeleteFromDetails}
@@ -801,16 +805,18 @@ function OrphanPreview({
 
 /** There is nothing to edit on an orphan, so the modal explains and deletes. */
 function OrphanDetailsDialog({
+  open,
   orphan,
   onClose,
   onDelete,
 }: {
+  open: boolean
   orphan: MediaOrphan | null
   onClose: () => void
   onDelete: () => void
 }) {
   return (
-    <Dialog open={Boolean(orphan)} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           {/* A file name is the whole point of this header, so it wraps rather
