@@ -357,8 +357,11 @@ export function AdminAccountPage({
                 role: profile.role,
                 status: profile.status,
                 planSlug: subscription.planSlug,
+                planName: subscription.planName,
+                planIsPaid: subscription.isPaid,
                 subscriptionSource: subscription.source,
                 currentPeriodEnd: subscription.currentPeriodEnd,
+                cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
                 aiOverrideCents: detail.aiAllowance.overrideCents,
               }
             : null

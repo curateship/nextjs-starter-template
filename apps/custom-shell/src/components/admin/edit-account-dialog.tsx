@@ -1,6 +1,6 @@
 import * as React from "react"
 import { format } from "date-fns"
-import { Loader2Icon } from "lucide-react"
+import { BanIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
+import { CancelSubscriptionDialog } from "@/components/admin/cancel-subscription-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import {
@@ -45,6 +46,7 @@ import {
 } from "@/lib/account-deletion"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { formatDate } from "@/lib/format-time"
 
 type AccountStatus = "active" | "suspended" | typeof PENDING_DELETION
 
@@ -59,8 +61,11 @@ export type EditableAccount = {
   role: string
   status: string
   planSlug: string
+  planName: string
+  planIsPaid: boolean
   subscriptionSource: string | null
   currentPeriodEnd: string | null
+  cancelAtPeriodEnd: boolean
   /** Their own monthly AI ceiling in cents, null when they follow their plan. */
   aiOverrideCents: number | null
 }
@@ -110,6 +115,7 @@ export function EditAccountDialog({
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
   const [aiDollars, setAiDollars] = React.useState(initialAiDollars)
   const [saving, setSaving] = React.useState(false)
+  const [cancellingPlan, setCancellingPlan] = React.useState(false)
 
   // What the window opened with. Held from the first render so the save can
   // send only what changed, and so closing can tell edits from a look.
@@ -179,6 +185,7 @@ export function EditAccountDialog({
   }, [account, aiDollars, endsOn, initial, onSaved, planId, role, status])
 
   return (
+    <>
     <FormDialog
       open={Boolean(account)}
       dirty={dirty}
@@ -321,6 +328,41 @@ export function EditAccountDialog({
               </CardContent>
             </Card>
 
+            {/* Only accounts actually on a paid plan have something to cancel;
+                for everyone else this card would be a button with nothing to
+                do, so it is not shown at all. */}
+            {account?.planIsPaid ? (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Paid plan</CardTitle>
+                  <CardDescription>
+                    {account.name} is on {account.planName}
+                    {account.subscriptionSource === "manual"
+                      ? ", granted by an admin."
+                      : ", paid through Stripe."}
+                    {account.cancelAtPeriodEnd
+                      ? ` It is already set to end${
+                          account.currentPeriodEnd
+                            ? ` on ${formatDate(account.currentPeriodEnd)}`
+                            : ""
+                        } and will not renew.`
+                      : ""}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-fit text-destructive hover:text-destructive"
+                    onClick={() => setCancellingPlan(true)}
+                  >
+                    <BanIcon className="size-4" />
+                    Cancel their paid plan
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
+
             <Card size="sm">
               <CardHeader>
                 <CardTitle>AI allowance</CardTitle>
@@ -370,5 +412,19 @@ export function EditAccountDialog({
         </DialogContent>
       )}
     </FormDialog>
+
+    <CancelSubscriptionDialog
+      // Remounts per opening so the when-it-ends choice never carries over.
+      key={cancellingPlan ? "cancel-open" : "cancel-closed"}
+      account={cancellingPlan && account ? account : null}
+      onClose={() => setCancellingPlan(false)}
+      onDone={async () => {
+        // The plan this window opened with is gone, so it closes with the
+        // cancel rather than showing stale plan facts.
+        setCancellingPlan(false)
+        await onSaved()
+      }}
+    />
+    </>
   )
 }

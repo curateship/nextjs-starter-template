@@ -39,7 +39,9 @@ const listQuerySchema = z.object({
     .default("all"),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
-  sort: z.enum(["name", "email", "role", "plan", "created"]).default("created"),
+  sort: z
+    .enum(["name", "email", "role", "status", "plan", "created"])
+    .default("created"),
   direction: z.enum(["asc", "desc"]).default("desc"),
 })
 

@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm"
+import { inArray, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellRateLimits } from "@/server/schema"
@@ -71,4 +71,15 @@ export async function clearRateLimit(
   await database
     .delete(customShellRateLimits)
     .where(sql`${customShellRateLimits.key} = ${key.slice(0, 200)}`)
+}
+
+/** An admin lifting blocks by hand from the locked-out panel, one or several. */
+export async function clearRateLimits(
+  keys: string[],
+  database: CustomShellDb = db
+) {
+  if (!keys.length) return
+  await database
+    .delete(customShellRateLimits)
+    .where(inArray(customShellRateLimits.key, keys.map((key) => key.slice(0, 200))))
 }

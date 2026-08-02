@@ -1,12 +1,12 @@
 import * as React from "react"
 import { getRouteApi, Link } from "@tanstack/react-router"
 import {
-  BanIcon,
   EyeIcon,
   Loader2Icon,
   PlusIcon,
   RotateCcwIcon,
   SettingsIcon,
+  ShieldBanIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
@@ -24,7 +24,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AddAccountDialog } from "@/components/admin/add-account-dialog"
-import { CancelSubscriptionDialog } from "@/components/admin/cancel-subscription-dialog"
+import { LockedOutDialog } from "@/components/admin/locked-out-dialog"
 import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
 import { showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
@@ -135,9 +135,7 @@ export function AdminUsersDashboard({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [adding, setAdding] = React.useState(false)
   const [editing, setEditing] = React.useState<AccountRow | null>(null)
-  const [cancelTarget, setCancelTarget] = React.useState<AccountRow | null>(
-    null
-  )
+  const [lockedOutOpen, setLockedOutOpen] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
@@ -370,6 +368,14 @@ export function AdminUsersDashboard({
                 </SelectItem>
               </SelectContent>
             </Select>
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              onClick={() => setLockedOutOpen(true)}
+            >
+              <ShieldBanIcon className="size-4" />
+              Locked out
+            </DashboardToolbarButton>
             <DashboardToolbarButton type="button" onClick={() => setAdding(true)}>
               <PlusIcon className="size-4" />
               Add account
@@ -417,6 +423,15 @@ export function AdminUsersDashboard({
               </TableHead>
               <TableHead column="meta">
                 <TableSortButton
+                  active={sort === "status"}
+                  direction={direction}
+                  onClick={() => toggleSort("status")}
+                >
+                  Status
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
                   active={sort === "plan"}
                   direction={direction}
                   onClick={() => toggleSort("plan")}
@@ -439,7 +454,7 @@ export function AdminUsersDashboard({
         }
         isEmpty={!loading && accounts.length === 0}
         emptyText="No accounts match those filters."
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{
           type: "pagination",
           page,
@@ -471,23 +486,6 @@ export function AdminUsersDashboard({
               >
                 {account.name}
               </Link>
-              {isPendingDeletion(account) && account.deletedAt ? (
-                <span className="ml-2 text-xs text-destructive">
-                  Deletes {formatDate(restoreDeadline(account.deletedAt))}
-                </span>
-              ) : account.status === "suspended" ? (
-                <span className="ml-2 text-xs text-destructive">Suspended</span>
-              ) : account.emailVerified ? null : account.hasPassword ? (
-                <span className="ml-2 text-xs text-muted-foreground">
-                  Not verified
-                </span>
-              ) : (
-                // No password and no verified email: an invited account whose
-                // set-password link has not been used yet.
-                <span className="ml-2 text-xs text-muted-foreground">
-                  Invited — hasn't set a password
-                </span>
-              )}
             </TableCell>
             <TableCell column="meta" className="max-w-56">
               <span className="block truncate" title={account.email}>
@@ -500,17 +498,14 @@ export function AdminUsersDashboard({
               </Badge>
             </TableCell>
             <TableCell column="meta">
-              <div className="flex items-center gap-1.5">
-                <Badge variant={account.planIsPaid ? "default" : "secondary"}>
-                  {account.planName}
-                </Badge>
-                {account.subscriptionSource === "manual" ? (
-                  <Badge variant="outline">Granted</Badge>
-                ) : null}
-                {account.cancelAtPeriodEnd ? (
-                  <Badge variant="outline">Ending</Badge>
-                ) : null}
-              </div>
+              <AccountStatusBadge account={account} />
+            </TableCell>
+            {/* Just the plan's name: whether it was granted or is already
+                ending lives in the account window, not as extra badges. */}
+            <TableCell column="meta">
+              <Badge variant={account.planIsPaid ? "default" : "secondary"}>
+                {account.planName}
+              </Badge>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {formatDate(account.createdAt)}
@@ -555,21 +550,6 @@ export function AdminUsersDashboard({
                     aria-label={`Restore ${account.name}`}
                   >
                     <RotateCcwIcon className="size-4" />
-                  </Button>
-                ) : null}
-                {/* Only rows that are actually on a paid plan get the cancel:
-                    everyone else has nothing to cancel, and the server would
-                    say so anyway. */}
-                {account.planIsPaid ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setCancelTarget(account)}
-                    title="Cancel their paid plan"
-                    aria-label={`Cancel the paid plan of ${account.name}`}
-                  >
-                    <BanIcon className="size-4" />
                   </Button>
                 ) : null}
                 <Button
@@ -622,17 +602,7 @@ export function AdminUsersDashboard({
         }}
       />
 
-      <CancelSubscriptionDialog
-        // Remounts per account so the when-it-ends choice never carries over.
-        // Prefixed so it cannot collide with the edit dialog's keys.
-        key={`cancel-${cancelTarget?.id ?? "closed"}`}
-        account={cancelTarget}
-        onClose={() => setCancelTarget(null)}
-        onDone={async () => {
-          setCancelTarget(null)
-          await refresh()
-        }}
-      />
+      <LockedOutDialog open={lockedOutOpen} onOpenChange={setLockedOutOpen} />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
@@ -745,4 +715,34 @@ export function AdminUsersDashboard({
       />
     </>
   )
+}
+
+/**
+ * The one place a row's standing becomes a word. An account with nothing wrong
+ * says "Active" instead of saying nothing, so a blank cell can never be
+ * mistaken for a missing value.
+ */
+function AccountStatusBadge({ account }: { account: AccountRow }) {
+  if (isPendingDeletion(account) && account.deletedAt) {
+    return (
+      <Badge variant="destructive">
+        Deletes {formatDate(restoreDeadline(account.deletedAt))}
+      </Badge>
+    )
+  }
+  if (account.status === "suspended") {
+    return <Badge variant="destructive">Suspended</Badge>
+  }
+  if (!account.emailVerified) {
+    // No password and no verified email: an invited account whose
+    // set-password link has not been used yet.
+    return account.hasPassword ? (
+      <Badge variant="secondary">Not verified</Badge>
+    ) : (
+      <Badge variant="secondary" title="Invited — hasn't set a password">
+        Invited
+      </Badge>
+    )
+  }
+  return <Badge variant="outline">Active</Badge>
 }

@@ -37,7 +37,13 @@ import {
   uuid,
 } from "@/server/security"
 
-export type AccountSort = "name" | "email" | "role" | "plan" | "created"
+export type AccountSort =
+  | "name"
+  | "email"
+  | "role"
+  | "status"
+  | "plan"
+  | "created"
 
 export type AccountListQuery = {
   search: string
@@ -104,6 +110,17 @@ export async function listAccounts(
     name: customShellUsers.name,
     email: customShellUsers.email,
     role: customShellUsers.role,
+    // The Status column shows a computed standing (active, not verified,
+    // invited, suspended, deleting), so its sort ranks the same ladder rather
+    // than the raw status word.
+    status: sql`case
+      when ${customShellUsers.status} = 'pending_deletion' then 4
+      when ${customShellUsers.status} = 'suspended' then 3
+      when ${customShellUsers.emailVerifiedAt} is null
+        and coalesce(${customShellUsers.passwordHash}, '') = '' then 2
+      when ${customShellUsers.emailVerifiedAt} is null then 1
+      else 0
+    end`,
     plan: customShellPlans.name,
     created: customShellUsers.createdAt,
   }[query.sort]
