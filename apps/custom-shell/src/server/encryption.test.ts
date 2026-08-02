@@ -19,9 +19,9 @@ describe("secret encryption", () => {
   })
 
   it("round-trips a value", () => {
-    const stored = encryptSecret("sk-ant-example-1234")
-    expect(stored).not.toContain("sk-ant-example-1234")
-    expect(decryptSecret(stored)).toBe("sk-ant-example-1234")
+    const stored = encryptSecret("example-api-key-1234")
+    expect(stored).not.toContain("example-api-key-1234")
+    expect(decryptSecret(stored)).toBe("example-api-key-1234")
   })
 
   it("never produces the same ciphertext twice for one value", () => {
@@ -29,7 +29,7 @@ describe("secret encryption", () => {
   })
 
   it("rejects a tampered value", () => {
-    const stored = encryptSecret("sk-ant-example-1234")
+    const stored = encryptSecret("example-api-key-1234")
     const [iv, tag, data] = stored.split(".")
     const flipped =
       data[0] === "A" ? `B${data.slice(1)}` : `A${data.slice(1)}`
@@ -39,20 +39,20 @@ describe("secret encryption", () => {
   })
 
   it("rejects a stored value that is not in the encrypted format", () => {
-    expect(() => decryptSecret("sk-ant-plaintext-row")).toThrow(
+    expect(() => decryptSecret("a-plaintext-row")).toThrow(
       "SECRET_UNREADABLE"
     )
   })
 
   it("cannot decrypt after the encryption secret changes", () => {
-    const stored = encryptSecret("sk-ant-example-1234")
+    const stored = encryptSecret("example-api-key-1234")
     process.env[ENV_NAME] = "a-different-secret"
     expect(() => decryptSecret(stored)).toThrow("SECRET_UNREADABLE")
   })
 
   it("fails loudly with no encryption secret configured", () => {
     delete process.env[ENV_NAME]
-    expect(() => encryptSecret("sk-ant-example-1234")).toThrow(
+    expect(() => encryptSecret("example-api-key-1234")).toThrow(
       "ENCRYPTION_NOT_CONFIGURED"
     )
     const stored = "x.y.z"

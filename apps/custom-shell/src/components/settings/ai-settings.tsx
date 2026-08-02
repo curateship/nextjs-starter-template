@@ -32,14 +32,14 @@ const PROVIDERS: {
   {
     id: "anthropic",
     name: "Anthropic",
-    hint: "The key from console.anthropic.com → API keys — it starts with sk-ant-. It is scrambled before it is stored, and only its last four characters are ever shown again.",
-    placeholder: "sk-ant-…",
+    hint: "The key from console.anthropic.com → API keys. It is scrambled before it is stored, and only its last four characters are ever shown again.",
+    placeholder: "Paste your Anthropic API key",
   },
   {
     id: "openai",
     name: "OpenAI",
-    hint: "The key from platform.openai.com → API keys — it starts with sk-. It is scrambled before it is stored, and only its last four characters are ever shown again.",
-    placeholder: "sk-…",
+    hint: "The key from platform.openai.com → API keys. It is scrambled before it is stored, and only its last four characters are ever shown again.",
+    placeholder: "Paste your OpenAI API key",
   },
 ]
 
