@@ -1,7 +1,8 @@
 import * as React from "react"
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router"
+import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { CheckCircle2Icon } from "lucide-react"
 
+import { useOpenAccount } from "@/components/account/account-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/_authenticated/account/billing_/success")
 function BillingSuccessRoute() {
   const { overview } = Route.useLoaderData()
   const router = useRouter()
+  const openAccount = useOpenAccount()
   const [planName, setPlanName] = React.useState(overview.planName)
   const [confirmed, setConfirmed] = React.useState(overview.isPaid)
   const [waiting, setWaiting] = React.useState(!overview.isPaid)
@@ -90,11 +92,10 @@ function BillingSuccessRoute() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button asChild>
-          <Link to="/" search={{ account: "billing" }}>
-            Go to billing
-          </Link>
-        </Button>
+        {/* Opens Billing right here rather than asking home to open it. Home
+            sends a member to Profile and an admin somewhere else entirely, so
+            the trip through it is what used to lose the tab. */}
+        <Button onClick={() => openAccount("billing")}>Go to billing</Button>
       </CardContent>
     </Card>
   )
