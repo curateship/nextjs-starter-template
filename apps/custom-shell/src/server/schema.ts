@@ -760,6 +760,102 @@ export const customShellAiUsageAlerts = pgTable(
   ]
 )
 
+/**
+ * The traffic tracker's permanent memory: one tiny counter row per UTC day.
+ * Written only by `recordVisit` (src/server/traffic.ts). `uniqueVisitors` is
+ * frozen in here as each day happens, so the hash rows it was counted from
+ * can be thrown away when the day ends.
+ */
+export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
+  day: date("day").primaryKey(),
+  views: integer("views").notNull().default(0),
+  memberViews: integer("member_views").notNull().default(0),
+  visitorViews: integer("visitor_views").notNull().default(0),
+  uniqueVisitors: integer("unique_visitors").notNull().default(0),
+})
+
+/**
+ * Per-day view counts by page, referrer site and device, merged into one
+ * table so there is one upsert shape and one index. The write path caps how
+ * many distinct keys a day can have — overflow lands in '(other)' — so a bot
+ * spraying URLs cannot grow this.
+ */
+export const customShellTrafficDailyFacts = pgTable(
+  "traffic_daily_facts",
+  {
+    day: date("day").notNull(),
+    dimension: varchar("dimension", { length: 20 }).notNull(),
+    key: varchar("key", { length: 160 }).notNull(),
+    views: integer("views").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "traffic_daily_facts_pk",
+      columns: [table.day, table.dimension, table.key],
+    }),
+    check(
+      "traffic_daily_facts_dimension_check",
+      sql`${table.dimension} in ('path', 'referrer', 'device')`
+    ),
+  ]
+)
+
+/**
+ * The 7-day log of individual visits, swept by `pruneTrafficData`.
+ * Deliberately no user id, IP, user agent or visitor hash — nothing on a row
+ * can be tied back to a person once the day's salt is gone.
+ */
+export const customShellTrafficVisits = pgTable(
+  "traffic_visits",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    path: varchar("path", { length: 160 }).notNull(),
+    referrerDomain: varchar("referrer_domain", { length: 100 }).notNull(),
+    device: varchar("device", { length: 10 }).notNull(),
+    audience: varchar("audience", { length: 10 }).notNull(),
+  },
+  (table) => [
+    check(
+      "traffic_visits_device_check",
+      sql`${table.device} in ('phone', 'tablet', 'computer')`
+    ),
+    check(
+      "traffic_visits_audience_check",
+      sql`${table.audience} in ('member', 'visitor')`
+    ),
+    index("ix_traffic_visits_occurred_at").on(table.occurredAt),
+  ]
+)
+
+/**
+ * One row per visitor hash per day — insert-on-conflict-do-nothing is the
+ * unique-visitor dedup. Swept once the day has passed; the count survives in
+ * the totals row.
+ */
+export const customShellTrafficVisitors = pgTable(
+  "traffic_visitors",
+  {
+    day: date("day").notNull(),
+    visitorHash: varchar("visitor_hash", { length: 64 }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "traffic_visitors_pk",
+      columns: [table.day, table.visitorHash],
+    }),
+  ]
+)
+
+/**
+ * The random ingredient in each day's visitor hashes, swept with the day —
+ * which is what makes an old hash truly unrecoverable.
+ */
+export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
+  day: date("day").primaryKey(),
+  salt: varchar("salt", { length: 64 }).notNull(),
+})
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellPasskey = typeof customShellPasskeys.$inferSelect
 export type CustomShellChangelogEntry =

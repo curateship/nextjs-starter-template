@@ -119,6 +119,7 @@ import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   addOverviewLink,
+  addTrafficLink,
   foldFeedsIntoOverview,
   createUserWorkspace,
   deleteUserWorkspace,
@@ -1027,6 +1028,12 @@ describe("custom shell workspaces", () => {
         href: "/admin/ai",
         visible: true,
       },
+      {
+        type: "item",
+        label: "Traffic",
+        href: "/admin/traffic",
+        visible: true,
+      },
     ])
 
     const secondWorkspace = await createUserWorkspace(
@@ -1418,11 +1425,12 @@ describe("membership section", () => {
     // One load applied every restructure: Users, Plans and Revenue grouped
     // under Membership, the audit link grouped under Feeds, the retired audit
     // link taken out again, the Overview handed out, Feeds folded into it,
-    // and the AI usage link handed out beside Membership.
+    // the AI usage link handed out beside Membership, and Traffic after it.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-membership",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
     // Feeds held nothing but the audit link, which was taken out a step
     // earlier — so the Overview came out of the fold with no children at all,
@@ -1456,11 +1464,12 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The Overview and AI usage links stay: both were handed out by the same
-    // upgrade, and neither is what was deleted.
+    // The Overview, AI usage, and Traffic links stay: all were handed out by
+    // the same upgrade, and none is what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
   })
 
@@ -1708,6 +1717,10 @@ describe("overview link", () => {
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
       "item-admin-membership",
+      // navVersions 8 and 9 hand the AI usage and Traffic links to every
+      // older workspace.
+      "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -1735,7 +1748,214 @@ describe("overview link", () => {
         )
       ).settings
     )
-    expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-membership"])
+    expect(idsIn(reloaded.sections, 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+  })
+})
+
+describe("traffic link", () => {
+  /** A sidebar as a workspace saved it before the Traffic page existed. */
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-ai-usage",
+            label: "AI usage",
+            href: "/admin/ai",
+            icon: "sparkles",
+            visible: true,
+          },
+        ],
+      },
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  function idsIn(sections: ShellSection[], index: number) {
+    return sections[index].entries.map((entry) => entry.id)
+  }
+
+  it("puts Traffic right after the AI usage link", () => {
+    const sections = addTrafficLink(savedSections())
+
+    expect(idsIn(sections, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+    expect(idsIn(sections, 1)).toEqual(["item-settings"])
+    expect(sections[0].entries[1]).toMatchObject({
+      href: "/admin/traffic",
+      icon: "chart-line",
+      roles: ["admin"],
+      visible: true,
+    })
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addTrafficLink(savedSections())
+    const twice = addTrafficLink(once)
+
+    expect(idsIn(twice, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+    // Nothing changed, so nothing to write back.
+    expect(twice).toBe(once)
+  })
+
+  it("leaves a link somebody rebuilt by hand alone", () => {
+    const sections = savedSections()
+    sections[1].entries.push({
+      type: "item",
+      id: "my-own-traffic",
+      label: "Visits",
+      href: "/admin/traffic",
+      icon: "chart-line",
+      visible: true,
+    })
+
+    expect(addTrafficLink(sections)).toBe(sections)
+  })
+
+  it("counts a hidden Traffic link as already there", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-traffic",
+      label: "Traffic",
+      href: "/admin/traffic",
+      icon: "chart-line",
+      visible: false,
+    })
+
+    expect(addTrafficLink(sections)).toBe(sections)
+  })
+
+  it("counts one nested under another link as already there", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "item-admin-traffic", label: "Traffic", href: "/admin/traffic" },
+    ]
+
+    expect(addTrafficLink(sections)).toBe(sections)
+  })
+
+  it("falls back to the end of Administration when AI usage is gone", () => {
+    const sections = savedSections()
+    sections[0].entries = [
+      {
+        type: "item",
+        id: "item-admin-membership",
+        label: "Membership",
+        href: "/admin/membership",
+        icon: "id-card",
+        visible: true,
+      },
+    ]
+
+    expect(idsIn(addTrafficLink(sections), 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-traffic",
+    ])
+  })
+
+  it("falls back to the first section when Administration is gone", () => {
+    const sections = savedSections().slice(1)
+
+    expect(idsIn(addTrafficLink(sections), 0)).toEqual([
+      "item-settings",
+      "item-admin-traffic",
+    ])
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addTrafficLink([])).toEqual([])
+  })
+
+  it("brings a saved sidebar forward once, and never hands it back", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "traffic@example.com",
+      name: "Traffic Admin",
+      passwordHash: "hash",
+      role: "admin",
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellWorkspaces).values({
+      id: uuid(),
+      userId,
+      name: "Saved",
+      // Everything before this upgrade has already run for this workspace.
+      settings: { icon: "briefcaseBusiness", navVersion: 8, sections: savedSections() },
+      isDefault: true,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const upgraded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    expect(idsIn(upgraded.sections, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+
+    // Delete it the way Settings → Sidebar would, then load again. Reading
+    // must never hand it back.
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...upgraded,
+          sections: upgraded.sections.map((section) => ({
+            ...section,
+            entries: section.entries.filter(
+              (entry) => entry.id !== "item-admin-traffic"
+            ),
+          })),
+        },
+      })
+      .where(eq(customShellWorkspaces.userId, userId))
+
+    const reloaded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-ai-usage"])
   })
 })
 
@@ -2345,6 +2565,7 @@ describe("feeds section", () => {
       "item-admin-overview",
       "item-admin-membership",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
     // Grouped under Feeds, then handed on to the Overview when Feeds went.
     // No Feedback link: this sidebar predates it. What's new and the audit
@@ -2393,6 +2614,7 @@ describe("feeds section", () => {
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-membership",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
   })
 
@@ -3047,7 +3269,6 @@ describe("member sidebar", () => {
   })
 })
 
-describe("view as member", () => {
   async function seedAdminAndMember() {
     const createdAt = now()
     const adminId = uuid()
