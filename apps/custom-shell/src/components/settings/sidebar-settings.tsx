@@ -125,7 +125,7 @@ type SortableItemProps = {
 
 type SortableChildProps = {
   child: ShellChildItem
-  /** True for the child link "Add Child" just made, which takes the cursor. */
+  /** True for the child link "Add child" just made, which takes the cursor. */
   isNew: boolean
   onChange: (childId: string, patch: Partial<ShellChildItem>) => void
   onDelete: (childId: string) => void
@@ -296,7 +296,7 @@ function SortableChild({ child, isNew, onChange, onDelete }: SortableChildProps)
         onValueChange={(icon) => onChange(child.id, { icon })}
       />
       {/* A child row has no editor of its own, so "ready to type" is the cursor
-          landing here the moment "Add Child" makes the row — which also scrolls
+          landing here the moment "Add child" makes the row — which also scrolls
           it into view at the bottom of a long list. Mount-only, so an existing
           child never takes focus when the link's editor is reopened. */}
       <Input
@@ -344,7 +344,7 @@ function SortableSidebarItem({
 }: SortableItemProps) {
   const labelInputRef = React.useRef<HTMLInputElement>(null)
   // Whether this row's editor is open is the parent's business, not the row's:
-  // it is the only way "Add Link" can open the editor of the link it has just
+  // it is the only way "Add link" can open the editor of the link it has just
   // made. It also means a row remounting mid-drag cannot lose or reopen it.
   const dialogOpen = openItemId === item.id
   // One source of truth for "has this link been named yet" — it drives the row
@@ -527,7 +527,7 @@ function SortableSidebarItem({
                     onClick={() => onChildAdd(sectionId, item.id)}
                   >
                     <PlusIcon className="h-4 w-4" />
-                    Add Child
+                    Add child
                   </Button>
                 </CardAction>
               </CardHeader>
@@ -665,7 +665,7 @@ function SortableSectionCard({
               onClick={() => onItemAdd(section.id)}
             >
               <PlusIcon className="h-4 w-4" />
-              Add Link
+              Add link
             </Button>
             {/* Must be the destructive variant, not an outline button with a
                 red hover class: the outline variant's own dark:hover:bg-input/50
@@ -678,7 +678,7 @@ function SortableSectionCard({
               aria-label={`Delete ${sectionName}`}
             >
               <MinusIcon className="h-4 w-4" />
-              Delete Section
+              Delete section
             </Button>
           </div>
         </div>
@@ -1249,7 +1249,7 @@ export function SidebarSettings({
       {/* The tab's own actions, and the only reset on the page — it wipes the
           whole sidebar, so it is the last button in the row and the only red
           one, instead of being repeated on every section card next to
-          "Add Link" where it read as a per-section reset. */}
+          "Add link" where it read as a per-section reset. */}
       <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
         <Button
           type="button"
@@ -1257,7 +1257,7 @@ export function SidebarSettings({
           onClick={handleAddSection}
         >
           <PlusIcon className="h-4 w-4" />
-          Add Section
+          Add section
         </Button>
         <Button
           type="button"

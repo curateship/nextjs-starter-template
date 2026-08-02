@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -293,7 +294,7 @@ export function AdminUsersDashboard({
             <DashboardToolbarSearch
               name="user-search"
               aria-label="Search accounts"
-              placeholder="Search name or email..."
+              placeholder="Search name or email…"
               value={search}
               onChange={(event) => {
                 setPage(1)
@@ -476,29 +477,34 @@ export function AdminUsersDashboard({
             </TableCell>
             <TableCell column="meta">
               <div className="flex items-center">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  // Members only, and only ones who can actually sign in. The
-                  // server refuses the rest again; this just says so first.
+                <DisabledReason
                   disabled={
                     account.role === "admin" || account.status !== "active"
                   }
-                  onClick={() => setViewAsTarget(account)}
-                  title={
+                  reason={
                     account.role === "admin"
-                      ? "You cannot view the app as another admin"
+                      ? "You cannot view the app as another admin. Only members can be viewed as."
                       : isPendingDeletion(account)
-                        ? "This account is scheduled for deletion"
-                        : account.status !== "active"
-                          ? "This account is suspended"
-                          : "View the app as this member"
+                        ? "This account is scheduled for deletion. Restore it first."
+                        : "This account is suspended. Set it back to active first."
                   }
-                  aria-label={`View the app as ${account.name}`}
                 >
-                  <EyeIcon className="size-4" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    // Members only, and only ones who can actually sign in. The
+                    // server refuses the rest again; this just says so first.
+                    disabled={
+                      account.role === "admin" || account.status !== "active"
+                    }
+                    onClick={() => setViewAsTarget(account)}
+                    title="View the app as this member"
+                    aria-label={`View the app as ${account.name}`}
+                  >
+                    <EyeIcon className="size-4" />
+                  </Button>
+                </DisabledReason>
                 {isPendingDeletion(account) ? (
                   <Button
                     type="button"

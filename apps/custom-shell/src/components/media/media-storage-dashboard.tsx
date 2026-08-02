@@ -117,7 +117,7 @@ export function MediaStorageDashboard({
           <DashboardToolbarSearch
             name="storage-search"
             aria-label="Search people"
-            placeholder="Search name or email..."
+            placeholder="Search name or email…"
             value={search}
             onChange={(event) => {
               setPage(1)

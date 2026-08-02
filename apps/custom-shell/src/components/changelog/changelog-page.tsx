@@ -55,7 +55,7 @@ export function ChangelogPage({
         <DashboardToolbarSearch
           name="changelog-search"
           aria-label="Search updates"
-          placeholder="Search updates..."
+          placeholder="Search updates…"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
         />

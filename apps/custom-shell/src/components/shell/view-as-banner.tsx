@@ -3,8 +3,10 @@ import { EyeIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { announcementLevelBannerClassNames } from "@/lib/announcement"
 import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/view-as"
 import { showErrorToast } from "@/lib/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
  * The strip that says whose screen you are looking at. It is on every page for
@@ -13,7 +15,9 @@ import { showErrorToast } from "@/lib/error-toast"
  *
  * Like the announcement banner it is a plain `Card` rendered straight into
  * `DashboardContent`, so it sits on the content gutter and takes the
- * workspace's own card border, rounding and flat mode.
+ * workspace's own card border, rounding and flat mode. It borrows that
+ * banner's "heads-up" colours too, rather than keeping its own copy of them,
+ * so retuning the warning look moves both at once.
  */
 export function ViewAsBanner({
   member,
@@ -43,7 +47,7 @@ export function ViewAsBanner({
       size="sm"
       role="region"
       aria-label={`Viewing the app as ${member.name}`}
-      className="shrink-0 bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-50"
+      className={cn("shrink-0", announcementLevelBannerClassNames.warning)}
     >
       <CardContent className="flex items-start gap-2 text-sm">
         <EyeIcon className="mt-0.5 size-4 shrink-0" aria-hidden />

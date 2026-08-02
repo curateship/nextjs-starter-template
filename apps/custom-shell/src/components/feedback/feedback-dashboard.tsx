@@ -64,6 +64,7 @@ import {
 import { FeedbackCommentsModal } from "@/components/feedback/feedback-comments-modal"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { quoteOneLine } from "@/lib/quote-text"
 import {
   feedbackTypeBadgeVariants,
   feedbackTypeClassNames,
@@ -321,7 +322,7 @@ export function FeedbackDashboard({
             <DashboardToolbarSearch
               name="feedback-search"
               aria-label="Search feedback"
-              placeholder="Search feedback..."
+              placeholder="Search feedback…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -333,7 +334,7 @@ export function FeedbackDashboard({
                 <SelectValue placeholder="Type" />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="all">All types</SelectItem>
                 {Object.entries(feedbackTypeLabels).map(([type, label]) => (
                   <SelectItem key={type} value={type}>
                     {label}
@@ -550,7 +551,7 @@ export function FeedbackDashboard({
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedIds.size} feedback item${selectedIds.size === 1 ? "" : "s"}?`}
-        description="This action cannot be undone."
+        description="Their comments and votes go with them, and the people who wrote them are not told. This cannot be undone."
         confirmLabel={selectedIds.size === 1 ? "Delete item" : "Delete items"}
         loading={massDeleting}
         disabled={selectedIds.size === 0}
@@ -562,7 +563,11 @@ export function FeedbackDashboard({
           if (!open) setDeletingFeedback(null)
         }}
         title="Delete this feedback item?"
-        description="This action cannot be undone."
+        description={
+          deletingFeedback
+            ? `${quoteOneLine(deletingFeedback.message)} goes, along with its comments and votes. ${deletingFeedback.author_name} is not told. This cannot be undone.`
+            : null
+        }
         confirmLabel="Delete item"
         loading={quickDeleting}
         disabled={!deletingFeedback}
@@ -745,7 +750,11 @@ function EditFeedbackModal({
         open={confirmingDelete}
         onOpenChange={setConfirmingDelete}
         title="Delete this feedback item?"
-        description="This action cannot be undone."
+        description={
+          feedback
+            ? `${quoteOneLine(feedback.message)} goes, along with its comments and votes. ${feedback.author_name} is not told. This cannot be undone.`
+            : null
+        }
         confirmLabel="Delete item"
         loading={deleting}
         disabled={!feedback}

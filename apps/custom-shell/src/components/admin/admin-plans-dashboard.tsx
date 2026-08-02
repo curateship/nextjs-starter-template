@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
   TableCell,
@@ -280,7 +281,7 @@ export function AdminPlansDashboard({
             <DashboardToolbarSearch
               name="plan-search"
               aria-label="Search plans"
-              placeholder="Search plans..."
+              placeholder="Search plans…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -427,17 +428,26 @@ export function AdminPlansDashboard({
                 >
                   <SettingsIcon className="size-4" />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
+                <DisabledReason
                   disabled={plan.isDefault || !plan.active}
-                  onClick={() => setArchiveTarget(plan)}
-                  title="Archive plan"
-                  aria-label={`Archive ${plan.name}`}
+                  reason={
+                    plan.isDefault
+                      ? "This is the default plan, which everyone falls back to. Make another plan the default first."
+                      : "This plan is already archived."
+                  }
                 >
-                  <Trash2Icon className="size-4" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={plan.isDefault || !plan.active}
+                    onClick={() => setArchiveTarget(plan)}
+                    title="Archive plan"
+                    aria-label={`Archive ${plan.name}`}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </DisabledReason>
               </div>
             </TableCell>
           </TableRow>
@@ -519,6 +529,7 @@ function PlanDialog({
     plan ? toDraft(plan) : emptyDraft
   )
   const [saving, setSaving] = React.useState(false)
+  const nameInputRef = React.useRef<HTMLInputElement>(null)
 
   // What the window opened with, so closing it can tell real edits from a
   // window that was only looked at.
@@ -584,7 +595,17 @@ function PlanDialog({
     // before the X, the overlay or Escape can throw them away.
     <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
       {(requestClose) => (
-        <DialogContent variant="admin">
+        <DialogContent
+          variant="admin"
+          // A new plan opens with the cursor in Name so you can just type.
+          // Editing an existing one keeps the window's normal focus, since
+          // landing in a filled field invites a stray edit.
+          onOpenAutoFocus={(event) => {
+            if (plan) return
+            event.preventDefault()
+            nameInputRef.current?.focus()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{plan ? "Edit plan" : "New plan"}</DialogTitle>
             <DialogDescription>
@@ -592,6 +613,15 @@ function PlanDialog({
               decide what they are actually charged.
             </DialogDescription>
           </DialogHeader>
+          {/* Enter from any of the text fields saves. None of them is a
+              `type="number"` box, so there is no spinner for Enter to disturb. */}
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSave()
+            }}
+          >
           <DialogBody>
             <Card size="sm">
               <CardHeader>
@@ -602,6 +632,7 @@ function PlanDialog({
                   <Field label="Name" htmlFor="plan-name">
                     <Input
                       id="plan-name"
+                      ref={nameInputRef}
                       value={draft.name}
                       onChange={(event) => update("name", event.target.value)}
                     />
@@ -674,7 +705,7 @@ function PlanDialog({
                   >
                     <Input
                       id="plan-stripe-monthly"
-                      placeholder="price_..."
+                      placeholder="price_…"
                       value={draft.stripePriceIdMonthly}
                       onChange={(event) =>
                         update("stripePriceIdMonthly", event.target.value)
@@ -687,7 +718,7 @@ function PlanDialog({
                   >
                     <Input
                       id="plan-stripe-yearly"
-                      placeholder="price_..."
+                      placeholder="price_…"
                       value={draft.stripePriceIdYearly}
                       onChange={(event) =>
                         update("stripePriceIdYearly", event.target.value)
@@ -760,14 +791,20 @@ function PlanDialog({
             </Card>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={requestClose} disabled={saving}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={requestClose}
+              disabled={saving}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button type="submit" disabled={saving}>
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               {plan ? "Save changes" : "Create plan"}
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
       )}
     </FormDialog>

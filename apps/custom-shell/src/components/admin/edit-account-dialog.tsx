@@ -41,6 +41,7 @@ import {
   isPendingDeletion,
   PENDING_DELETION,
 } from "@/lib/account-deletion"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 type AccountStatus = "active" | "suspended" | typeof PENDING_DELETION
@@ -163,6 +164,16 @@ export function EditAccountDialog({
               {account?.email ?? "Change what this person can do and pays for."}
             </DialogDescription>
           </DialogHeader>
+          {/* No autofocus here on purpose: this window only ever edits an
+              account that already exists, and its first control is a dropdown,
+              not something you type into. */}
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSave()
+            }}
+          >
           <DialogBody>
             <Card size="sm">
               <CardHeader>
@@ -261,28 +272,41 @@ export function EditAccountDialog({
                     >
                       Ends on
                     </FieldLabel>
-                    <DatePicker
-                      id="account-ends-on"
-                      value={endsOn ? new Date(`${endsOn}T00:00:00`) : undefined}
+                    <DisabledReason
                       disabled={planId === "none"}
-                      onChange={(date) =>
-                        setEndsOn(date ? format(date, "yyyy-MM-dd") : "")
-                      }
-                    />
+                      reason="There is no granted plan to end. Pick a plan first."
+                    >
+                      <DatePicker
+                        id="account-ends-on"
+                        value={
+                          endsOn ? new Date(`${endsOn}T00:00:00`) : undefined
+                        }
+                        disabled={planId === "none"}
+                        onChange={(date) =>
+                          setEndsOn(date ? format(date, "yyyy-MM-dd") : "")
+                        }
+                      />
+                    </DisabledReason>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={requestClose} disabled={saving}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={requestClose}
+              disabled={saving}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button type="submit" disabled={saving}>
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Save changes
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
       )}
     </FormDialog>

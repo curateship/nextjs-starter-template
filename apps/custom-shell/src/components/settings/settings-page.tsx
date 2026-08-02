@@ -22,7 +22,7 @@ import {
 
 /** Settings that are about the app, and about the admin's own shell. */
 const settingsTabs = [
-  { id: "general", label: "General Settings" },
+  { id: "general", label: "General settings" },
   { id: "sidebar", label: "Sidebar" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },

@@ -6,7 +6,7 @@ import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 
 function Toaster({ ...props }: ToasterProps) {
   const { theme } = useTheme()
-  // Set in General Settings; error toasts override it with Infinity.
+  // Set in General settings; error toasts override it with Infinity.
   const duration = useToastDurationMs()
 
   return (

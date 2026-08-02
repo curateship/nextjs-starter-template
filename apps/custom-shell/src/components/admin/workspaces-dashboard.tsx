@@ -32,6 +32,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   renderShellIcon,
 } from "@/lib/custom-shell"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -214,7 +215,7 @@ export function WorkspacesDashboard({
             <DashboardToolbarSearch
               name="workspace-search"
               aria-label="Search workspaces"
-              placeholder="Search workspaces..."
+              placeholder="Search workspaces…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -325,17 +326,22 @@ export function WorkspacesDashboard({
                 >
                   <SettingsIcon className="size-4" />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
+                <DisabledReason
                   disabled={workspaces.length <= 1}
-                  onClick={() => setPendingDelete(workspace)}
-                  aria-label={`Delete ${workspace.name}`}
-                  title={`Delete ${workspace.name}`}
+                  reason="This is your last workspace, and the app needs one. Make another before deleting this."
                 >
-                  <Trash2Icon className="size-4" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={workspaces.length <= 1}
+                    onClick={() => setPendingDelete(workspace)}
+                    aria-label={`Delete ${workspace.name}`}
+                    title={`Delete ${workspace.name}`}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </DisabledReason>
               </div>
             </TableCell>
           </TableRow>

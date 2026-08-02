@@ -374,7 +374,7 @@ export function MediaLibraryPage({
       <DashboardToolbarSearch
         name="media-search"
         aria-label="Search media"
-        placeholder="Search files or people..."
+        placeholder="Search files or people…"
         value={search}
         onChange={(event) => {
           setPage(1)

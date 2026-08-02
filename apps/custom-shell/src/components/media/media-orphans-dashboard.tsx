@@ -254,7 +254,7 @@ export function MediaOrphansDashboard({
         : null
 
   const emptyText = scanning
-    ? "Checking every file in storage..."
+    ? "Checking every file in storage…"
     : data.scanError
       ? "Storage could not be read, so orphans are unknown."
       : isFiltered
@@ -308,7 +308,7 @@ export function MediaOrphansDashboard({
             <DashboardToolbarSearch
               name="orphan-search"
               aria-label="Search orphans"
-              placeholder="Search files or people..."
+              placeholder="Search files or people…"
               value={search}
               onChange={(event) => {
                 setPage(1)

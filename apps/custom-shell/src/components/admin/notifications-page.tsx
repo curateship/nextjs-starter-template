@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner"
 
 import { describeBulkResult } from "@/lib/bulk-result"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { Badge } from "@/components/ui/badge"
@@ -71,6 +72,27 @@ function notificationSubject(item: NotificationItem) {
 /** Who caused it. An update or a broadcast has nobody behind it. */
 function notificationActor(item: NotificationItem) {
   return item.actor_name ?? "—"
+}
+
+/**
+ * What is about to be deleted, in words. Naming the kind is the only check on
+ * having ticked the wrong rows, so say it whenever the selection is all one
+ * kind; a mixed pile has no one name and only gets the consequence.
+ */
+function describeSelection(items: NotificationItem[]) {
+  const consequence =
+    "so anybody who has not opened them never will. This cannot be undone."
+  const kinds = new Set(items.map((item) => item.type))
+  const [only] = [...kinds]
+
+  if (kinds.size !== 1 || !only) {
+    return `They go from the trays they were sent to, ${consequence}`
+  }
+
+  const kind = notificationTypeLabels[only].toLowerCase()
+  return items.length === 1
+    ? `This ${kind} notice goes from the tray it was sent to, ${consequence}`
+    : `All ${items.length} are ${kind} notices, and they go from the trays they were sent to, ${consequence}`
 }
 
 type NotificationsPageProps = {
@@ -279,15 +301,24 @@ export function NotificationsPage({
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarButton
-              type="button"
-              variant="destructive"
+            <DisabledReason
               disabled={deleting || (total === 0 && !filtersActive)}
-              onClick={() => setClearAllOpen(true)}
+              reason={
+                deleting
+                  ? "Wait for the delete that is already running to finish."
+                  : "There are no notifications to clear."
+              }
             >
-              <Trash2Icon className="size-4" />
-              Clear all
-            </DashboardToolbarButton>
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                disabled={deleting || (total === 0 && !filtersActive)}
+                onClick={() => setClearAllOpen(true)}
+              >
+                <Trash2Icon className="size-4" />
+                Clear all
+              </DashboardToolbarButton>
+            </DisabledReason>
             <DashboardToolbarSearch
               name="notification-search"
               value={search}
@@ -296,7 +327,7 @@ export function NotificationsPage({
                 setSearch(event.target.value)
               }}
               aria-label="Search notifications"
-              placeholder="Search notifications..."
+              placeholder="Search notifications…"
             />
             <Select
               value={readFilter}
@@ -488,7 +519,9 @@ export function NotificationsPage({
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedIds.size} notification${selectedIds.size === 1 ? "" : "s"}?`}
-        description="This cannot be undone."
+        description={describeSelection(
+          notifications.filter((item) => selectedIds.has(item.id))
+        )}
         confirmLabel={selectedIds.size === 1 ? "Delete notification" : "Delete notifications"}
         loading={deleting}
         onConfirm={() => void deleteSelected()}
