@@ -200,6 +200,16 @@
   --font-primary: system-ui, sans-serif;
   --font-secondary: system-ui, sans-serif;
   --font-sans: system-ui, sans-serif;
+  font-family: system-ui, sans-serif;
+}
+
+/* Dropdowns and dialogs portal to <body>, outside .admin-layout, so they cannot
+   read the overrides above. The shared Select and DropdownMenu look for the
+   admin font at the document root instead (see their font class); publish it
+   there whenever an admin screen is on the page. Higher specificity than the
+   site's own :root font block, so document order cannot decide the winner. */
+:root:has(.admin-layout) {
+  --admin-font-secondary: system-ui, sans-serif;
 }
 
 .admin-layout *:not([class*="font-"]) {
