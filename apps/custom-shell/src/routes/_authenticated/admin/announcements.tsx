@@ -1,20 +1,56 @@
-import { createFileRoute, useRouter, type ErrorComponentProps } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 
 import { AdminAnnouncementsDashboard } from "@/components/admin/admin-announcements-dashboard"
-import { ErrorBanner } from "@/components/ui/error-banner"
-import { TableSurface } from "@/components/ui/table"
 import {
   getAnnouncementErrorMessage,
   loadAdminAnnouncements,
 } from "@/lib/api/announcements"
+import {
+  readDirection,
+  readOneOf,
+  readPage,
+  readSearchText,
+} from "@/lib/list-search"
 import { readOpenSearch } from "@/lib/use-open-from-link"
+import { routeErrorComponent } from "@/components/shell/route-error"
 
-/** `?open=<id>` is how the feeds dashboard links to one announcement. */
+export const ANNOUNCEMENT_SORT_COLUMNS = [
+  "title",
+  "where",
+  "status",
+  "shows",
+] as const
+
+type AnnouncementsSearch = {
+  open?: string
+  q?: string
+  sort?: (typeof ANNOUNCEMENT_SORT_COLUMNS)[number]
+  direction?: "asc" | "desc"
+  page?: number
+}
+
+/**
+ * `?open=<id>` is how the feeds dashboard links to one announcement; the rest
+ * is the list state, so Back returns the exact list you left. Every value is
+ * checked before use.
+ */
+function readAnnouncementsSearch(
+  search: Record<string, unknown>
+): AnnouncementsSearch {
+  return {
+    ...readOpenSearch(search),
+    q: readSearchText(search.q),
+    sort: readOneOf(search.sort, ANNOUNCEMENT_SORT_COLUMNS),
+    direction: readDirection(search.direction),
+    page: readPage(search.page),
+  }
+}
+
 export const Route = createFileRoute("/_authenticated/admin/announcements")({
-  validateSearch: readOpenSearch,
+  validateSearch: readAnnouncementsSearch,
   loader: () => loadAdminAnnouncements(),
   component: AdminAnnouncementsRoute,
-  errorComponent: AdminAnnouncementsErrorRoute,
+  errorComponent: routeErrorComponent(getAnnouncementErrorMessage),
 })
 
 function AdminAnnouncementsRoute() {
@@ -23,19 +59,5 @@ function AdminAnnouncementsRoute() {
 
   return (
     <AdminAnnouncementsDashboard announcements={announcements} openId={open} />
-  )
-}
-
-/** A database that would not answer. Say so and leave a way to try again. */
-function AdminAnnouncementsErrorRoute({ error }: ErrorComponentProps) {
-  const router = useRouter()
-
-  return (
-    <TableSurface>
-      <ErrorBanner
-        message={getAnnouncementErrorMessage(error)}
-        onRetry={() => void router.invalidate()}
-      />
-    </TableSurface>
   )
 }

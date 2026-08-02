@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
   MegaphoneIcon,
@@ -47,7 +47,13 @@ import {
   type NotificationType,
 } from "@/lib/api/notification"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import {
+  useListSearchNavigate,
+  useSearchBoxText,
+} from "@/lib/list-search"
 import { cn } from "@/lib/utils"
+
+const notificationsRoute = getRouteApi("/_authenticated/admin/notifications")
 
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
@@ -67,6 +73,18 @@ type NotificationSortColumn =
  */
 function notificationSubject(item: NotificationItem) {
   return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
+}
+
+/**
+ * The hover text for that column. An announcement has no page to open, so its
+ * own words have to be readable from the row itself — the title alone is only
+ * the headline.
+ */
+function notificationSubjectDetail(item: NotificationItem) {
+  const subject = notificationSubject(item)
+  return item.announcement_body
+    ? `${subject}\n\n${item.announcement_body}`
+    : subject
 }
 
 /** Who caused it. An update or a broadcast has nobody behind it. */
@@ -111,7 +129,24 @@ export function NotificationsPage({
   const navigate = useNavigate()
   const [notifications, setNotifications] = React.useState(initialNotifications)
   const [total, setTotal] = React.useState(initialTotal)
-  const [page, setPage] = React.useState(1)
+  // Search, filters, sort and page live in the address, so opening a record
+  // and pressing Back returns this exact list — see `lib/list-search.ts`.
+  const listSearch = notificationsRoute.useSearch()
+  const setListSearch = useListSearchNavigate()
+  const search = listSearch.q ?? ""
+  const readFilter: ReadFilter = listSearch.read ?? "all"
+  const typeFilter: TypeFilter = listSearch.type ?? "all"
+  const sort: NotificationSortColumn = listSearch.sort ?? "created"
+  const direction: TableSortDirection = listSearch.direction ?? "desc"
+  const page = listSearch.page ?? 1
+  const setPage = React.useCallback(
+    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
+    [setListSearch]
+  )
+  const [searchText, setSearchText] = useSearchBoxText(search, (text) =>
+    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
+  )
+
   const [pageSize, setPageSize] = React.useState(defaultPageSize)
   const [loading, setLoading] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
@@ -119,11 +154,6 @@ export function NotificationsPage({
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [clearAllOpen, setClearAllOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [search, setSearch] = React.useState("")
-  const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
-  const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all")
-  const [sort, setSort] = React.useState<NotificationSortColumn>("created")
-  const [direction, setDirection] = React.useState<TableSortDirection>("desc")
 
   const refresh = React.useCallback(async () => {
     setLoading(true)
@@ -154,7 +184,7 @@ export function NotificationsPage({
     }
 
     setLoading(false)
-  }, [direction, page, pageSize, readFilter, search, sort, typeFilter])
+  }, [direction, page, pageSize, readFilter, search, setPage, sort, typeFilter])
 
   // The route loader already fetched page one, so the first render has its rows
   // and must not ask again.
@@ -258,25 +288,31 @@ export function NotificationsPage({
     }
   }
 
+  // An announcement notice has nowhere to go — it is the words themselves — so
+  // its row must not claim to be a button. Only rows that really open
+  // something get the role, the hand cursor and the handlers.
+  function notificationDestination(item: NotificationItem) {
+    if (item.type === "changelog") return "changelog" as const
+    return item.feedback_id ? ("feedback" as const) : null
+  }
+
   function openNotification(item: NotificationItem) {
-    if (item.type === "changelog") {
+    const destination = notificationDestination(item)
+    if (destination === "changelog") {
       void navigate({ to: "/changelog/whats-new" })
       return
     }
-    if (item.feedback_id) {
+    if (destination === "feedback" && item.feedback_id) {
       onOpenFeedbackThread(item.feedback_id)
     }
   }
 
   const toggleSort = (column: NotificationSortColumn) => {
-    setPage(1)
-    if (sort === column) {
-      setDirection((current) => (current === "asc" ? "desc" : "asc"))
-      return
-    }
-
-    setSort(column)
-    setDirection("asc")
+    setListSearch(
+      sort === column
+        ? { direction: direction === "asc" ? "desc" : "asc", page: undefined }
+        : { sort: column, direction: "asc", page: undefined }
+    )
   }
 
   return (
@@ -285,6 +321,7 @@ export function NotificationsPage({
         title="Notifications"
         icon={<BellIcon className="text-muted-foreground" />}
         count={total}
+        busy={loading}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -321,20 +358,19 @@ export function NotificationsPage({
             </DisabledReason>
             <DashboardToolbarSearch
               name="notification-search"
-              value={search}
-              onChange={(event) => {
-                setPage(1)
-                setSearch(event.target.value)
-              }}
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
               aria-label="Search notifications"
               placeholder="Search notifications…"
             />
             <Select
               value={readFilter}
-              onValueChange={(value) => {
-                setPage(1)
-                setReadFilter(value as ReadFilter)
-              }}
+              onValueChange={(value) =>
+                setListSearch({
+                  read: value === "all" ? undefined : value,
+                  page: undefined,
+                })
+              }
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Read filter"
@@ -349,10 +385,12 @@ export function NotificationsPage({
             </Select>
             <Select
               value={typeFilter}
-              onValueChange={(value) => {
-                setPage(1)
-                setTypeFilter(value as TypeFilter)
-              }}
+              onValueChange={(value) =>
+                setListSearch({
+                  type: value === "all" ? undefined : value,
+                  page: undefined,
+                })
+              }
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
@@ -436,84 +474,91 @@ export function NotificationsPage({
           },
         }}
       >
-        {notifications.map((item) => (
-          <TableRow
-            key={item.id}
-            role="button"
-            tabIndex={0}
-            className="cursor-pointer"
-            onClick={() => openNotification(item)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                openNotification(item)
+        {notifications.map((item) => {
+          const opens = notificationDestination(item) !== null
+          return (
+            <TableRow
+              key={item.id}
+              role={opens ? "button" : undefined}
+              tabIndex={opens ? 0 : undefined}
+              className={opens ? "cursor-pointer" : undefined}
+              onClick={opens ? () => openNotification(item) : undefined}
+              onKeyDown={
+                opens
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        openNotification(item)
+                      }
+                    }
+                  : undefined
               }
-            }}
-          >
-            <TableCell
-              column="select"
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
             >
-              <Checkbox
-                checked={selectedIds.has(item.id)}
-                onCheckedChange={() => toggleNotificationSelection(item.id)}
-                aria-label={`Select ${notificationTypeLabels[item.type]} notification`}
-              />
-            </TableCell>
-            <TableCell column="main">
-              <div className="flex items-center gap-2">
-                {item.type === "changelog" ? (
-                  <SparklesIcon className="size-4 text-muted-foreground" />
-                ) : item.type === "announcement" ? (
-                  <MegaphoneIcon className="size-4 text-muted-foreground" />
-                ) : item.type === "feedback_vote" ? (
-                  <ThumbsUpIcon className="size-4 text-muted-foreground" />
-                ) : (
-                  <MessageSquareIcon className="size-4 text-muted-foreground" />
-                )}
-                <div>
-                  <p className="text-sm font-medium">
-                    {notificationTypeLabels[item.type]}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {notificationActor(item)}
-                  </p>
+              <TableCell
+                column="select"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                <Checkbox
+                  checked={selectedIds.has(item.id)}
+                  onCheckedChange={() => toggleNotificationSelection(item.id)}
+                  aria-label={`Select ${notificationTypeLabels[item.type]} notification`}
+                />
+              </TableCell>
+              <TableCell column="main">
+                <div className="flex items-center gap-2">
+                  {item.type === "changelog" ? (
+                    <SparklesIcon className="size-4 text-muted-foreground" />
+                  ) : item.type === "announcement" ? (
+                    <MegaphoneIcon className="size-4 text-muted-foreground" />
+                  ) : item.type === "feedback_vote" ? (
+                    <ThumbsUpIcon className="size-4 text-muted-foreground" />
+                  ) : (
+                    <MessageSquareIcon className="size-4 text-muted-foreground" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">
+                      {notificationTypeLabels[item.type]}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {notificationActor(item)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </TableCell>
-            <TableCell column="preview">
-              <span
-                className="block truncate"
-                title={notificationSubject(item)}
+              </TableCell>
+              <TableCell column="preview">
+                <span
+                  className="block truncate"
+                  title={notificationSubjectDetail(item)}
+                >
+                  {notificationSubject(item)}
+                </span>
+              </TableCell>
+              <TableCell column="mutedMeta">
+                {item.recipient_name}
+              </TableCell>
+              <TableCell column="meta">
+                <Badge variant="secondary">
+                  {notificationTypeLabels[item.type]}
+                </Badge>
+              </TableCell>
+              <TableCell column="meta">
+                <Badge
+                  variant={item.read_at ? "secondary" : "default"}
+                  className={cn(!item.read_at && "bg-primary")}
+                >
+                  {item.read_at ? "Read" : "Unread"}
+                </Badge>
+              </TableCell>
+              <TableCell
+                column="mutedMeta"
+                title={formatDateTime(item.created_at)}
               >
-                {notificationSubject(item)}
-              </span>
-            </TableCell>
-            <TableCell column="mutedMeta">
-              {item.recipient_name}
-            </TableCell>
-            <TableCell column="meta">
-              <Badge variant="secondary">
-                {notificationTypeLabels[item.type]}
-              </Badge>
-            </TableCell>
-            <TableCell column="meta">
-              <Badge
-                variant={item.read_at ? "secondary" : "default"}
-                className={cn(!item.read_at && "bg-primary")}
-              >
-                {item.read_at ? "Read" : "Unread"}
-              </Badge>
-            </TableCell>
-            <TableCell
-              column="mutedMeta"
-              title={formatDateTime(item.created_at)}
-            >
-              {formatRelativeTime(item.created_at, formatDateTime)}
-            </TableCell>
-          </TableRow>
-        ))}
+                {formatRelativeTime(item.created_at, formatDateTime)}
+              </TableCell>
+            </TableRow>
+          )
+        })}
       </DashboardTable>
       <ConfirmDialog
         open={massDeleteOpen}

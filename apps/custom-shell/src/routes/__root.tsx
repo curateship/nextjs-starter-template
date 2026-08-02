@@ -4,9 +4,14 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useRouter,
+  type ErrorComponentProps,
 } from "@tanstack/react-router"
 
 import "@/styles.css"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { getPageErrorMessage } from "@/components/shell/route-error"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadAppName } from "@/lib/api/shell"
@@ -30,7 +35,44 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootComponent,
+  errorComponent: RootErrorComponent,
 })
+
+/**
+ * The last resort, for a failure that escaped every page's own error strip.
+ * There is no shell around this one — the shell itself may be what failed — so
+ * it stands on its own and offers the two ways out: try again, or go home.
+ */
+function RootErrorComponent({ error }: ErrorComponentProps) {
+  const router = useRouter()
+
+  return (
+    <RootDocument>
+      <div className="grid min-h-screen place-items-center bg-muted/60 p-6">
+        <div className="w-full max-w-md">
+          <Card size="sm">
+            <CardContent className="grid gap-4">
+              <div className="grid gap-1">
+                <p className="text-sm font-medium">Something went wrong</p>
+                <p className="text-sm text-muted-foreground">
+                  {getPageErrorMessage(error)}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" onClick={() => void router.invalidate()}>
+                  Try again
+                </Button>
+                <Button asChild variant="outline">
+                  <a href="/">Go home</a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </RootDocument>
+  )
+}
 
 function RootComponent() {
   useDismissErrorToastOnNavigate()

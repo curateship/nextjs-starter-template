@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { AutomationEditor } from "@/components/automations/automation-editor"
-import { getAutomation, loadAutomationFavorites } from "@/lib/api/automations"
+import {
+  getAutomation,
+  getAutomationLoadErrorMessage,
+  loadAutomationFavorites,
+} from "@/lib/api/automations"
+import { routeErrorComponent } from "@/components/shell/route-error"
 
 export const Route = createFileRoute(
   "/_authenticated/admin/automations_/$automationId"
@@ -14,6 +19,7 @@ export const Route = createFileRoute(
     return { automation, favoriteNodeKeys: favorites.favoriteNodeKeys }
   },
   component: AdminAutomationEditorRoute,
+  errorComponent: routeErrorComponent(getAutomationLoadErrorMessage),
 })
 
 function AdminAutomationEditorRoute() {

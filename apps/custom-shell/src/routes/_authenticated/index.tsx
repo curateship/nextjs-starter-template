@@ -8,7 +8,6 @@ import {
 } from "@/components/account/account-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { loadShellBootstrap } from "@/lib/api/shell"
 import {
   configuredRouteTarget,
   firstSidebarRoute,
@@ -30,11 +29,11 @@ import {
  * that would not go away.
  */
 export const Route = createFileRoute("/_authenticated/")({
-  // Deliberately no `loaderDeps` for the tab: the account tab only rides along
-  // with the redirect, and watching it would refetch the whole shell a second
-  // time on every visit home for nothing.
-  loader: async ({ location }) => {
-    const { user, settings } = await loadShellBootstrap()
+  loader: async ({ location, parentMatchPromise }) => {
+    // The shell above has already loaded all of this. Asking the server again
+    // just to decide where to forward costs a second full wait on a database
+    // that takes a second or two — see the note in `src/lib/api/shell.ts`.
+    const { user, settings } = (await parentMatchPromise).loaderData ?? {}
     const isAdmin = user?.role === "admin"
     // `settings.sections` is already the sidebar this person actually gets —
     // the server hands an admin their own and everybody else the member one.

@@ -14,6 +14,11 @@ const authenticatedRoute = getRouteApi("/_authenticated")
  * same rule on its own, which is what actually protects the data.
  */
 export const Route = createFileRoute("/_authenticated/admin")({
+  // Hands the shell the parent already loaded straight down, so `/admin`'s
+  // redirect can read the configured route without a second round trip. A
+  // loader can only reach its own parent's data, and the shell is two up.
+  loader: ({ parentMatchPromise }) =>
+    parentMatchPromise.then((match) => match.loaderData),
   component: AdminLayout,
 })
 

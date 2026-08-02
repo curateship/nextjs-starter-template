@@ -24,7 +24,13 @@ import {
   YAxis,
 } from "recharts"
 
-import { Card, CardContent } from "@/components/ui/card"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
@@ -39,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { MembershipSummary } from "@/lib/api/membership"
+import { pageGutter } from "@/lib/shell-gutter"
 import { formatMoney } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
@@ -73,12 +80,17 @@ export function AdminMembershipDashboard({
     <>
       <HeadlineFigures summary={summary} />
 
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
+      {/* Two proportional columns rather than a pinned pixel width, so the
+          split holds at every wide size and both gaps are the site gutter. */}
+      <div
+        className="grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-stretch"
+        style={{ gap: pageGutter }}
+      >
         <JoiningChart summary={summary} />
         <RevenueByPlanChart summary={summary} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid lg:grid-cols-3" style={{ gap: pageGutter }}>
         <ArpuCard summary={summary} />
         <SubscriptionsCard summary={summary} />
         <PeopleByPlanCard summary={summary} />
@@ -218,8 +230,9 @@ function peopleFooter(summary: MembershipSummary) {
 }
 
 // ---------------------------------------------------------------------------
-// The chart cards. Each is a Card with its own flat header row, matching the
-// reference: a bordered icon button, the title, and controls on the right.
+// The chart cards. Each is a Card with a flat header row built from the shared
+// card header parts — a bordered icon button, the title in the shared heading
+// font, and controls on the right — so they match every other admin card.
 
 function ChartCard({
   icon: Icon,
@@ -238,22 +251,26 @@ function ChartCard({
 }) {
   return (
     <Card className={cn("flex min-w-0 flex-col gap-0 py-0", className)}>
-      <div className="flex min-h-14 flex-col gap-2 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex items-center gap-2.5">
+      <CardHeader className="min-h-14 items-center gap-2 border-b pt-4 has-data-[slot=card-action]:grid-cols-1 sm:px-5 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
+        <CardTitle className="flex min-w-0 items-center gap-2.5">
           <span
             className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted/40"
             aria-hidden
           >
             <Icon className="size-4 text-muted-foreground" />
           </span>
-          <h2 className="text-sm font-medium sm:text-base">{title}</h2>
-        </div>
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          {legend}
-          {control}
-        </div>
-      </div>
-      <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">{children}</div>
+          <span className="truncate">{title}</span>
+        </CardTitle>
+        {legend || control ? (
+          <CardAction className="col-start-1 row-start-2 flex min-w-0 items-center gap-3 self-center justify-self-start sm:col-start-2 sm:row-start-1 sm:justify-self-end sm:gap-4">
+            {legend}
+            {control}
+          </CardAction>
+        ) : null}
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-4 py-4 sm:px-5 sm:py-5">
+        {children}
+      </CardContent>
     </Card>
   )
 }
@@ -315,7 +332,6 @@ function JoiningChart({ summary }: { summary: MembershipSummary }) {
     <ChartCard
       icon={LineChartIcon}
       title="People joining"
-      className="flex-1"
       legend={
         <div className="hidden items-center gap-4 lg:flex">
           <LegendDot
@@ -422,7 +438,6 @@ function RevenueByPlanChart({ summary }: { summary: MembershipSummary }) {
     <ChartCard
       icon={BarChart3Icon}
       title="Revenue by plan"
-      className="xl:w-[410px]"
     >
       {paidPlans.length === 0 ? (
         <EmptyChart message="No paid plans are bringing anything in yet." />

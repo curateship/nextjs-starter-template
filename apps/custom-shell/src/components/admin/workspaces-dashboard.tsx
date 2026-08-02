@@ -28,18 +28,13 @@ import {
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
 import { describeBulkResult } from "@/lib/bulk-result"
-import {
-  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  renderShellIcon,
-} from "@/lib/custom-shell"
+import { renderShellIcon } from "@/lib/custom-shell"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type WorkspaceSortColumn = "name" | "status"
-
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 export function WorkspacesDashboard({
   initialWorkspaces: workspaces,
@@ -270,7 +265,6 @@ export function WorkspacesDashboard({
             setCurrentPage(1)
             setPageSize(nextSize)
           },
-          pageSizeOptions,
         }}
       >
         {paginatedWorkspaces.map((workspace) => (

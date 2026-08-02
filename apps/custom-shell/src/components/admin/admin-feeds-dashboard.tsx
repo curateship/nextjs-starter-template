@@ -18,7 +18,12 @@ import {
 } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import {
+  Card,
+  CardAction,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
@@ -76,7 +81,9 @@ export function AdminFeedsDashboard({ summary }: { summary: FeedsSummary }) {
 
 // ---------------------------------------------------------------------------
 // The pieces every card shares: a hairline header row with an icon, a title,
-// a quiet count beside it, and whatever belongs on the right.
+// a quiet count beside it, and whatever belongs on the right. It is built from
+// the shared card header parts, so these six titles are the same heading font
+// and size as every other admin card rather than a second look.
 
 function FeedCard({ className, ...props }: React.ComponentProps<"div">) {
   return <Card className={cn("min-w-0 gap-0 py-0", className)} {...props} />
@@ -96,19 +103,21 @@ function CardTop({
   action?: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4 py-2 sm:px-5">
-      <div className="flex min-w-0 items-center gap-2.5">
+    <CardHeader className="min-h-14 items-center border-b pt-4 sm:px-5">
+      <CardTitle className="flex min-w-0 items-center gap-2.5">
         <Icon
           className={cn("size-4 shrink-0 text-muted-foreground", iconClassName)}
           aria-hidden
         />
-        <h2 className="truncate text-sm font-medium sm:text-base">{title}</h2>
+        <span className="truncate">{title}</span>
         {meta ? (
-          <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
+          <span className="shrink-0 text-xs font-normal text-muted-foreground">
+            {meta}
+          </span>
         ) : null}
-      </div>
-      {action}
-    </div>
+      </CardTitle>
+      {action ? <CardAction className="self-center">{action}</CardAction> : null}
+    </CardHeader>
   )
 }
 
@@ -241,7 +250,10 @@ function NeedsYouCard({ summary }: { summary: FeedsSummary }) {
                 >
                   {item.title}
                 </Link>
-                <p className="w-full truncate text-xs text-muted-foreground">
+                <p
+                  className="w-full truncate text-xs text-muted-foreground"
+                  title={item.detail}
+                >
                   {item.detail}
                 </p>
               </div>
@@ -262,6 +274,18 @@ function NeedsYouCard({ summary }: { summary: FeedsSummary }) {
 
 // ---------------------------------------------------------------------------
 // This week: the four figures, in a square, each one a way into its own page.
+
+/**
+ * Where each of the four tiles draws its hairlines, per column count: one
+ * column, then two, then four. The old `index % 2` baked the two-column
+ * assumption into the borders, so a stray edge appeared at any other width.
+ */
+const weekTileDividers = [
+  "border-b @md:border-r @2xl:border-b-0",
+  "border-b @2xl:border-r @2xl:border-b-0",
+  "border-b @md:border-r @md:border-b-0",
+  "",
+]
 
 function ThisWeekCard({ summary }: { summary: FeedsSummary }) {
   const { announcements, notifications, changelog, feedback } = summary
@@ -308,31 +332,38 @@ function ThisWeekCard({ summary }: { summary: FeedsSummary }) {
           </span>
         }
       />
-      <div className="grid grid-cols-2">
-        {figures.map((figure, index) => (
-          <Link
-            key={figure.label}
-            to={figure.to}
-            className={cn(
-              "flex min-w-0 flex-col gap-1 p-4 transition-colors hover:bg-accent/40 sm:p-5",
-              // Each square runs to the card's edge, so the ring goes inside.
-              focusRingInset,
-              index % 2 === 0 && "border-r",
-              index < 2 && "border-b"
-            )}
-          >
-            <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              <figure.icon className="size-4 shrink-0" aria-hidden />
-              <span className="truncate">{figure.label}</span>
-            </span>
-            {/* Mono and tabular so the figures line up and do not jump about
-                as they change. */}
-            <p className="font-mono text-2xl leading-tight font-semibold tracking-tight tabular-nums sm:text-[28px]">
-              {figure.value}
-            </p>
-            <p className="text-xs text-muted-foreground">{figure.footer}</p>
-          </Link>
-        ))}
+      {/* The tiles follow the width of the card, not the window: this card
+          sits in a narrow right-hand column on a wide screen, so a window
+          breakpoint would put four cramped tiles in a 440px box. The wrapper
+          carries the container, because `@container` sizes what is *inside* an
+          element — on the grid itself, the grid's own column count would be
+          measured against its parent instead. */}
+      <div className="@container">
+        <div className="grid grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-4">
+          {figures.map((figure, index) => (
+            <Link
+              key={figure.label}
+              to={figure.to}
+              className={cn(
+                "flex min-w-0 flex-col gap-1 p-4 transition-colors hover:bg-accent/40 sm:p-5",
+                // Each square runs to the card's edge, so the ring goes inside.
+                focusRingInset,
+                weekTileDividers[index]
+              )}
+            >
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                <figure.icon className="size-4 shrink-0" aria-hidden />
+                <span className="truncate">{figure.label}</span>
+              </span>
+              {/* Mono and tabular so the figures line up and do not jump about
+                  as they change. */}
+              <p className="font-mono text-2xl leading-tight font-semibold tracking-tight tabular-nums sm:text-[28px]">
+                {figure.value}
+              </p>
+              <p className="text-xs text-muted-foreground">{figure.footer}</p>
+            </Link>
+          ))}
+        </div>
       </div>
     </FeedCard>
   )
@@ -566,7 +597,10 @@ function ActivityCard({ summary }: { summary: FeedsSummary }) {
                     />
                     <ActivityAvatar event={event} />
                     <div className="flex min-w-0 flex-1 flex-col items-start pt-1">
-                      <p className="w-full truncate text-sm">
+                      <p
+                        className="w-full truncate text-sm"
+                        title={`${event.who} ${event.text}`}
+                      >
                         <span className="font-medium">{event.who}</span>{" "}
                         {event.text}
                       </p>

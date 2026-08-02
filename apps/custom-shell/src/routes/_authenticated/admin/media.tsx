@@ -1,7 +1,11 @@
 import { createFileRoute, getRouteApi } from "@tanstack/react-router"
 
 import { MediaLibraryPage } from "@/components/media/media-library-page"
-import { loadAdminMediaPage } from "@/lib/api/admin-media"
+import {
+  getAdminMediaErrorMessage,
+  loadAdminMediaPage,
+} from "@/lib/api/admin-media"
+import { routeErrorComponent } from "@/components/shell/route-error"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
 
@@ -22,6 +26,7 @@ export const Route = createFileRoute("/_authenticated/admin/media")({
   loader: ({ deps }) =>
     loadAdminMediaPage({ page: 1, ownerId: deps.owner ?? "all" }),
   component: AdminMediaRoute,
+  errorComponent: routeErrorComponent(getAdminMediaErrorMessage),
 })
 
 function AdminMediaRoute() {

@@ -54,15 +54,12 @@ import {
   updateAdminChangelogEntry,
   type ChangelogEntry,
 } from "@/lib/api/changelog"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDate } from "@/lib/format-time"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 
 type ChangelogSortColumn = "title" | "status" | "published"
-
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 function compareEntries(
   a: ChangelogEntry,
@@ -305,7 +302,6 @@ export function ChangelogAdminDashboard({
             setCurrentPage(1)
             setPageSize(nextSize)
           },
-          pageSizeOptions,
         }}
       >
         {paginatedEntries.map((entry) => (

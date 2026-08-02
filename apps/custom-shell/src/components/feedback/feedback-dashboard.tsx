@@ -1,4 +1,5 @@
 import * as React from "react"
+import { getRouteApi } from "@tanstack/react-router"
 import { toast } from "sonner"
 import {
   Loader2Icon,
@@ -70,12 +71,15 @@ import {
   feedbackTypeClassNames,
   feedbackTypeLabels,
 } from "@/lib/feedback-type"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import {
+  useListSearchNavigate,
+  useSearchBoxText,
+} from "@/lib/list-search"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
+const feedbackRoute = getRouteApi("/_authenticated/admin/feedback")
 
 type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
 
@@ -93,11 +97,22 @@ export function FeedbackDashboard({
 }: FeedbackDashboardProps) {
   const { config } = useShellRuntime()
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [typeFilter, setTypeFilter] = React.useState<string>("all")
-  const [sortColumn, setSortColumn] = React.useState<FeedbackSortColumn>("created")
-  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
-  const [currentPage, setCurrentPage] = React.useState(1)
+  // Search, filter, sort and page live in the address, so opening a record and
+  // pressing Back returns this exact list — see `lib/list-search.ts`.
+  const listSearch = feedbackRoute.useSearch()
+  const setListSearch = useListSearchNavigate()
+  const searchQuery = listSearch.q ?? ""
+  const typeFilter: string = listSearch.type ?? "all"
+  const sortColumn: FeedbackSortColumn = listSearch.sort ?? "created"
+  const sortDirection: TableSortDirection = listSearch.direction ?? "desc"
+  const currentPage = listSearch.page ?? 1
+  const setCurrentPage = React.useCallback(
+    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
+    [setListSearch]
+  )
+  const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
+    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
+  )
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -190,9 +205,11 @@ export function FeedbackDashboard({
   const visiblePartiallySelected =
     !visibleSelected && paginatedFeedbackIds.some((id) => selectedIds.has(id))
 
+  // Changing how many rows fit can leave you past the end; the address already
+  // drops the page when the search, filter or sort changes.
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, sortColumn, sortDirection, typeFilter, pageSize])
+  }, [pageSize, setCurrentPage])
 
   useClearSelectionOnListChange(
     setSelectedIds,
@@ -200,13 +217,14 @@ export function FeedbackDashboard({
   )
 
   const toggleSort = (column: FeedbackSortColumn) => {
-    if (sortColumn === column) {
-      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
-      return
-    }
-
-    setSortColumn(column)
-    setSortDirection("asc")
+    setListSearch(
+      sortColumn === column
+        ? {
+            direction: sortDirection === "asc" ? "desc" : "asc",
+            page: undefined,
+          }
+        : { sort: column, direction: "asc", page: undefined }
+    )
   }
 
   const goToPage = (page: number) => {
@@ -327,11 +345,19 @@ export function FeedbackDashboard({
               name="feedback-search"
               aria-label="Search feedback"
               placeholder="Search feedback…"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
             />
 
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select
+              value={typeFilter}
+              onValueChange={(value) =>
+                setListSearch({
+                  type: value === "all" ? undefined : value,
+                  page: undefined,
+                })
+              }
+            >
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by type"
               >
@@ -417,7 +443,6 @@ export function FeedbackDashboard({
           pageSize,
           total: filteredFeedback.length,
           totalPages,
-          pageSizeOptions,
           onPageChange: goToPage,
           onPageSizeChange: setPageSize,
         }}

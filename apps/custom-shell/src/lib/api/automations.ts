@@ -80,16 +80,29 @@ const automationErrorMessages: Record<string, string> = {
   COPY_LIMIT: "Could not find a free name for the copy.",
 }
 
-export function getAutomationErrorMessage(error: unknown) {
+function describeAutomationError(error: unknown, fallback: string) {
   const message =
     typeof error === "string" ? error : error instanceof Error ? error.message : ""
   const matched = Object.keys(automationErrorMessages).find((code) =>
     message.includes(code)
   )
 
-  return matched
-    ? automationErrorMessages[matched]
-    : "We could not save that change. Please try again."
+  return matched ? automationErrorMessages[matched] : fallback
+}
+
+export function getAutomationErrorMessage(error: unknown) {
+  return describeAutomationError(
+    error,
+    "We could not save that change. Please try again."
+  )
+}
+
+/** The same codes, said the way a page that would not open needs them said. */
+export function getAutomationLoadErrorMessage(error: unknown) {
+  return describeAutomationError(
+    error,
+    "We could not load your automations. Please try again."
+  )
 }
 
 const loadAutomationsPageFn = createServerFn({ method: "GET" }).handler(
