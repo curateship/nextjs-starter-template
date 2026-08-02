@@ -97,6 +97,8 @@ export type BotDetailResponse = {
     fee: string
     closed_pnl: string | null
     fill_time: string
+    /** The resting order's limit price behind this fill, for slippage. */
+    order_px: string | null
   }[]
   open_orders: {
     id: string
@@ -218,6 +220,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         fee: trade.fee,
         closed_pnl: trade.closedPnl,
         fill_time: trade.fillTime.toISOString(),
+        order_px: trade.orderPx,
       })),
       open_orders: detail.openOrders.map((order) => ({
         id: order.id,

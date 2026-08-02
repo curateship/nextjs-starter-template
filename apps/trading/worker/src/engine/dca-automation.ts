@@ -367,6 +367,16 @@ function marketExit(sz: number): DesiredOrder {
   }
 }
 
+/** Milliseconds per automation candle, for the rolling-24h volume window. */
+const BAR_MS: Record<string, number> = {
+  "1m": 60_000,
+  "5m": 300_000,
+  "15m": 900_000,
+  "1h": 3_600_000,
+  "4h": 14_400_000,
+  "1d": 86_400_000,
+}
+
 /**
  * DCA ladder strategy: on a base crack it rests a ladder of buys anchored a set
  * percent below the base, sized to split a max-position cap by rung weight. The
@@ -1244,6 +1254,20 @@ export function createDcaAutomationStrategy(
 
       const walletEquity = Number(ctx.equity)
       const midPx = Number(ctx.mid)
+      // Liquidity cap: no single buy bigger than maxOrderVolPct of the coin's
+      // rolling 24h dollar volume — computed from the SAME candles in backtest
+      // and live, so both size identically. 0 = off.
+      const volCapUsd = (() => {
+        if (!(dca.maxOrderVolPct > 0)) return null
+        const barMs = BAR_MS[config.interval] ?? 86_400_000
+        const bars = Math.max(1, Math.round(86_400_000 / barMs))
+        let notional = 0
+        for (const candle of ctx.candles(config.interval, bars))
+          notional += Number(candle.v) * Number(candle.c)
+        return notional > 0 ? (notional * dca.maxOrderVolPct) / 100 : null
+      })()
+      const clampBudget = (dollars: number) =>
+        volCapUsd !== null ? Math.min(dollars, volCapUsd) : dollars
       const exposurePct = (px: number, sz: number) =>
         walletEquity > 0 ? ((px * sz) / walletEquity) * 100 : 0
       // Reserve what this market has SPENT — its cost basis — not what the
@@ -1288,7 +1312,7 @@ export function createDcaAutomationStrategy(
         // the rung it is putting back, like every other buy in the ladder.
         const rung = state.active.rungs.find((r) => r.index === watch.index)
         const budget = rung
-          ? (state.active.frozenEquity * rung.allocationPct) / 100
+          ? clampBudget((state.active.frozenEquity * rung.allocationPct) / 100)
           : null
         const sz =
           budget !== null && midPx > 0
@@ -1355,7 +1379,7 @@ export function createDcaAutomationStrategy(
           midPx <= rung.plannedPx &&
           openPx <= rung.plannedPx
         ) {
-          const dollars = (active.frozenEquity * rung.allocationPct) / 100
+          const dollars = clampBudget((active.frozenEquity * rung.allocationPct) / 100)
           const sz = dollars / midPx
           if (
             sz > EPSILON &&
@@ -1380,7 +1404,7 @@ export function createDcaAutomationStrategy(
         // pre-reserved — only filled exposure counts, same as market mode.
         const next = active.rungs[active.armedIndex]
         if (next && !next.entryComplete && state.confirmed) {
-          const dollars = (active.frozenEquity * next.allocationPct) / 100
+          const dollars = clampBudget((active.frozenEquity * next.allocationPct) / 100)
           const sz = dollars / next.plannedPx
           if (
             sz > EPSILON &&
@@ -1411,7 +1435,7 @@ export function createDcaAutomationStrategy(
         for (const rung of active.rungs) {
           if (rung.entryComplete || rung.entrySubmitted) continue
           if (rung.plannedPx < midPx) continue // not confirmed by this close
-          const dollars = (active.frozenEquity * rung.allocationPct) / 100
+          const dollars = clampBudget((active.frozenEquity * rung.allocationPct) / 100)
           const sz = dollars / midPx
           if (sz <= EPSILON) continue
           if (filledExposurePct + exposurePct(midPx, sz) > roomPct + 1e-9) break

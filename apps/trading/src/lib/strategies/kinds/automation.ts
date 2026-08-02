@@ -165,6 +165,14 @@ export function automationInputRows(
             label: "DCA maximum position",
             value: `${config.dca.maxPositionPct}%`,
           },
+          ...(config.dca.maxOrderVolPct > 0
+            ? [
+                {
+                  label: "DCA liquidity guard",
+                  value: `orders ≤ ${config.dca.maxOrderVolPct}% of 24h volume`,
+                },
+              ]
+            : []),
           {
             label: "DCA size ramp",
             value:

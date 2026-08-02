@@ -357,7 +357,7 @@ export function BacktestDashboard({
             {summaryOpen ? (
             <ResizablePanel id="summary" defaultSize="20%" minSize="13%">
               <WorkspacePanel>
-                <BacktestSummary result={result} />
+                <BacktestSummary result={result} run={run} groupRuns={groupRuns} />
               </WorkspacePanel>
             </ResizablePanel>
             ) : null}
