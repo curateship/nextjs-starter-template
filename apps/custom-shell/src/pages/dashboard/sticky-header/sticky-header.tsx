@@ -3,12 +3,15 @@
 import * as React from "react"
 import {
   CheckIcon,
+  EyeIcon,
   Loader2Icon,
   PanelLeftIcon,
   TriangleAlertIcon,
 } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { announcementLevelBannerClassNames } from "@/lib/announcement"
+import { useStopViewingAs } from "@/lib/use-stop-viewing-as"
 import { Button } from "@/components/ui/button"
 import { StickyHeaderRightNav } from "@/pages/dashboard/sticky-header/sticky-header-right-nav"
 import {
@@ -21,6 +24,13 @@ import type { ShellTopRightNavigationItem } from "@/lib/custom-shell"
 
 export type SaveStatus = "idle" | "saving" | "saved" | "blocked"
 
+/** Who an admin is viewing the app as, and who they really are. */
+export type ViewingAsSummary = {
+  memberName: string
+  memberEmail: string
+  adminName: string
+}
+
 type StickyHeaderProps = {
   className?: string
   navLinks?: StickyHeaderLeftNavLink[]
@@ -31,6 +41,8 @@ type StickyHeaderProps = {
   /** Admins only: the app is closed to members and this is the reminder. */
   maintenanceOn?: boolean
   maintenanceBusy?: boolean
+  /** Set while an admin is looking at the app as somebody else. */
+  viewingAs?: ViewingAsSummary | null
   onTurnOffMaintenance?: () => void
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
@@ -45,6 +57,7 @@ export function StickyHeader({
   saveStatus,
   maintenanceOn,
   maintenanceBusy,
+  viewingAs,
   onTurnOffMaintenance,
   onOpenFeedback,
   onOpenFeedbackThread,
@@ -80,6 +93,7 @@ export function StickyHeader({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {viewingAs ? <ViewAsBadge viewingAs={viewingAs} /> : null}
           {maintenanceOn && onTurnOffMaintenance ? (
             <MaintenanceBadge
               busy={Boolean(maintenanceBusy)}
@@ -150,6 +164,77 @@ function MaintenanceBadge({
           <Loader2Icon className="size-4 animate-spin" />
         ) : (
           <TriangleAlertIcon className="size-4" />
+        )}
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * The reminder that you are looking at somebody else's screen.
+ *
+ * It sits in the header, beside the maintenance reminder and for the same
+ * reason: an admin must never be able to forget they are somebody else, because
+ * from here on every click is that person's. As a card in the page it scrolled
+ * out of sight partway down the first long table, and every click after that
+ * was made silently as the member.
+ *
+ * It borrows the announcement banner's "heads-up" colours rather than keeping
+ * its own copy of them, so retuning the warning look moves both at once.
+ *
+ * A phone header has room for one control, not two, so below `sm` the words and
+ * the button collapse into a single button that does the same job and carries
+ * the member's name in its label — the name is what would have wrapped.
+ *
+ * The two reminders never appear together: while the view is on, the app treats
+ * you as the member, and the maintenance reminder is admins-only.
+ */
+function ViewAsBadge({ viewingAs }: { viewingAs: ViewingAsSummary }) {
+  const { leaving, stopViewing } = useStopViewingAs()
+  const { memberName, memberEmail, adminName } = viewingAs
+  // The email and your own name will not fit up here, so they are one hover
+  // away instead of gone.
+  const fullSentence = `Viewing as ${memberName} (${memberEmail}). Everything you do here is done as them. You are signed in as ${adminName}.`
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* The announcement is the words, not the button beside them — a live
+          region wrapped around a control re-reads the control every time. */}
+      <span
+        role="status"
+        title={fullSentence}
+        className={cn(
+          "hidden max-w-56 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium sm:inline-flex",
+          announcementLevelBannerClassNames.warning
+        )}
+      >
+        <EyeIcon className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="truncate">Viewing as {memberName}</span>
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        className="hidden sm:inline-flex"
+        disabled={leaving}
+        onClick={() => void stopViewing()}
+      >
+        {leaving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        Stop viewing
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={cn("sm:hidden", announcementLevelBannerClassNames.warning)}
+        title={fullSentence}
+        aria-label={`${fullSentence} Stop viewing.`}
+        disabled={leaving}
+        onClick={() => void stopViewing()}
+      >
+        {leaving ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
+          <EyeIcon className="size-4" />
         )}
       </Button>
     </div>

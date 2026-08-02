@@ -13,13 +13,14 @@ import {
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -40,43 +41,36 @@ function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"
 }
 
+/**
+ * Two circles, not five colours.
+ *
+ * Something the app sent — a published update or an announcement — wears the
+ * theme's secondary colour and the mark of what it is. Something a person did
+ * keeps the plain avatar circle and their initial. Which kind of thing a person
+ * did (a thumbs up or a reply) is never told by colour: the row beside it
+ * carries its own icon and says so in words.
+ *
+ * They used to be fixed amber, blue and green pairs, which ignored the
+ * workspace's own styling and told two of the four kinds apart by colour alone.
+ */
 function NotificationAvatar({ item }: { item: NotificationItem }) {
-  // A published update has no person behind it, so it gets the product's own
-  // mark rather than an initial.
-  if (item.type === "changelog") {
+  if (item.type === "changelog" || item.type === "announcement") {
     return (
       <Avatar size="lg">
-        <AvatarFallback className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-          <SparklesIcon className="h-4 w-4" />
+        <AvatarFallback className="bg-secondary text-secondary-foreground">
+          {item.type === "changelog" ? (
+            <SparklesIcon className="h-4 w-4" />
+          ) : (
+            <MegaphoneIcon className="h-4 w-4" />
+          )}
         </AvatarFallback>
       </Avatar>
     )
   }
-
-  // Same for an announcement — it comes from the app, not from a person.
-  if (item.type === "announcement") {
-    return (
-      <Avatar size="lg">
-        <AvatarFallback className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
-          <MegaphoneIcon className="h-4 w-4" />
-        </AvatarFallback>
-      </Avatar>
-    )
-  }
-
-  const isVote = item.type === "feedback_vote"
 
   return (
     <Avatar size="lg">
-      <AvatarFallback
-        className={
-          isVote
-            ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300"
-            : "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
-        }
-      >
-        {getInitial(item.actor_name ?? "")}
-      </AvatarFallback>
+      <AvatarFallback>{getInitial(item.actor_name ?? "")}</AvatarFallback>
     </Avatar>
   )
 }
@@ -361,8 +355,13 @@ export function NotificationCenter({
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
+    // A popover, not a menu. The library gives a menu's container a menu role,
+    // which tells a screen reader to expect arrow keys and type-to-jump — and
+    // none of what is inside here is a menu item, so none of that ever worked.
+    // A popover is the primitive for a panel of mixed content: it still closes
+    // on Escape and on a click outside, and still hands focus back to the bell.
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
@@ -378,23 +377,33 @@ export function NotificationCenter({
             // A circle at one digit that stretches into a pill at two or three,
             // capped at 99+ so a big number can never widen past the button.
             // The count is in the button's own label, so this is decoration to
-            // a screen reader.
-            <span
+            // a screen reader. The shared badge's destructive treatment is the
+            // theme's own alarm colour, so it follows the workspace's styling
+            // and has a dark mode, which the baked-in red never did.
+            <Badge
+              variant="destructive"
               aria-hidden
-              className="absolute -top-1 -right-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full border-2 border-background bg-red-500 px-1 text-[0.625rem] leading-none font-semibold text-white tabular-nums"
+              className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
+            </Badge>
           ) : null}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
+      </PopoverTrigger>
+      <PopoverContent
         align="end"
         collisionPadding={16}
         sideOffset={12}
-        className="w-[calc(100vw-2rem)] max-w-[26rem] overflow-hidden p-0 sm:w-[26rem]"
+        // As tall as the window leaves room for and no taller, so the footer
+        // below is always on screen — it used to be a flat 28rem of list plus
+        // tabs plus footer, which ran off the bottom of a laptop screen and put
+        // "Mark all as read" out of reach.
+        style={{
+          maxHeight: "var(--radix-popover-content-available-height)",
+        }}
+        className="flex w-[calc(100vw-2rem)] max-w-[26rem] flex-col gap-0 overflow-hidden p-0 sm:w-[26rem]"
       >
-        <div className="flex flex-wrap items-center gap-3 p-4">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 p-4">
           <h2 className="mr-auto text-xl font-semibold">Notifications</h2>
           <Tabs
             value={filter}
@@ -408,8 +417,14 @@ export function NotificationCenter({
         </div>
         <Separator />
 
-        <div ref={scrollAreaRootRef}>
-          <ScrollArea className="h-[28rem]">
+        <div ref={scrollAreaRootRef} className="min-h-0 flex-1">
+          {/* A comfortable height on a big screen, but never more than the
+              window leaves once the tabs above and the footer below have had
+              their share — so the footer is always on screen. The height has to
+              be a real height, not just a cap: the scrolling area sizes its own
+              viewport from it, and left to grow it would run straight over the
+              footer. */}
+          <ScrollArea className="h-[28rem] max-h-[calc(var(--radix-popover-content-available-height)-9.5rem)]">
             <div className="px-4 py-4">
               {/* Only the very first open has nothing to show. Later opens keep
                   the rows already in hand while they refresh, rather than
@@ -435,7 +450,7 @@ export function NotificationCenter({
                     >
                       <div className="pt-5">
                         {!item.read_at ? (
-                          <span className="block size-2 rounded-full bg-red-500" />
+                          <span className="block size-2 rounded-full bg-destructive" />
                         ) : null}
                       </div>
                       <NotificationAvatar item={item} />
@@ -518,7 +533,7 @@ export function NotificationCenter({
           </ScrollArea>
         </div>
         <Separator />
-        <div className="flex flex-wrap items-center gap-2 p-4">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 p-4">
           <Button
             type="button"
             variant="ghost"
@@ -533,7 +548,7 @@ export function NotificationCenter({
             Mark all as read
           </Button>
         </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }

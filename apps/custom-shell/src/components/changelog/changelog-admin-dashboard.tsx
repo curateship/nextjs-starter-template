@@ -662,9 +662,17 @@ function PreviewDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
-            {entry?.body ?? ""}
-          </p>
+          {/* The white card is what puts this on the same surface the What's
+              new page uses, so the words are set the same way there and here.
+              The text classes match `changelog-page.tsx` exactly — change one
+              and change the other. */}
+          <Card size="sm">
+            <CardContent>
+              <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
+                {entry?.body ?? ""}
+              </p>
+            </CardContent>
+          </Card>
         </DialogBody>
         {/* Read-only: nothing to save, so a single Done rather than
             Cancel-and-primary. */}

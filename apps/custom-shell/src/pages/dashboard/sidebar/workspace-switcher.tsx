@@ -32,15 +32,23 @@ import {
 } from "@/lib/api/workspaces"
 import { renderShellIcon } from "@/lib/custom-shell"
 
+/**
+ * The line under a workspace's name is the workspace subheader an admin writes
+ * in Settings — the same words for every row in the list, because that setting
+ * is one value for the whole app rather than one per workspace. It used to be
+ * the reader's billing plan on the row they were in and the literal word
+ * "Project" on all the others, which made one list say two different things
+ * about neighbouring rows.
+ */
 export function WorkspaceSwitcher({
   workspaces,
   workspaceName,
-  workspacePlan,
+  workspaceSubheader,
   favicon,
 }: {
   workspaces: WorkspaceItem[]
   workspaceName: string
-  workspacePlan: string
+  workspaceSubheader: string
   favicon: string
 }) {
   const router = useRouter()
@@ -48,7 +56,7 @@ export function WorkspaceSwitcher({
   const activeWorkspace =
     workspaces.find((workspace) => workspace.active) ?? workspaces[0]
   const activeWorkspaceName = workspaceName.trim() || activeWorkspace?.name || ""
-  const activeWorkspacePlan = workspacePlan.trim() || "Project"
+  const subheader = workspaceSubheader.trim() || "Project"
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
   const [createOpen, setCreateOpen] = React.useState(false)
   const [busyWorkspaceId, setBusyWorkspaceId] = React.useState<string | null>(
@@ -98,7 +106,7 @@ export function WorkspaceSwitcher({
                   {activeWorkspaceName}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {activeWorkspacePlan}
+                  {subheader}
                 </span>
               </Link>
               <DropdownMenu>
@@ -123,9 +131,6 @@ export function WorkspaceSwitcher({
                     const displayName = workspace.active
                       ? activeWorkspaceName
                       : workspace.name
-                    const displayPlan = workspace.active
-                      ? activeWorkspacePlan
-                      : "Project"
                     const workspaceFavicon = workspace.active
                       ? activeFavicon
                       : workspace.favicon
@@ -148,7 +153,7 @@ export function WorkspaceSwitcher({
                         <div className="flex-1">
                           <div className="font-medium">{displayName}</div>
                           <div className="text-xs text-muted-foreground">
-                            {displayPlan}
+                            {subheader}
                           </div>
                         </div>
                         {busy ? (

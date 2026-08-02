@@ -13,7 +13,6 @@ import { AnnouncementBanners } from "@/components/shell/announcement-banner"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { ViewAsBanner } from "@/components/shell/view-as-banner"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import {
   StickyHeader,
@@ -456,6 +455,7 @@ export function ShellLayout({
             user={user}
             plan={plan}
             workspaces={workspaces.workspaces}
+            viewingAsMember={Boolean(viewedBy)}
             onLogout={handleLogout}
           />
           <SidebarInset>
@@ -468,6 +468,15 @@ export function ShellLayout({
                 user.role === "admin" && config.maintenance.enabled
               }
               maintenanceBusy={maintenanceBusy}
+              viewingAs={
+                viewedBy
+                  ? {
+                      memberName: user.name,
+                      memberEmail: user.email,
+                      adminName: viewedBy.name,
+                    }
+                  : null
+              }
               onTurnOffMaintenance={() =>
                 void handleMaintenanceChange({
                   ...config.maintenance,
@@ -478,11 +487,6 @@ export function ShellLayout({
               onOpenFeedbackThread={openFeedback}
             />
             <DashboardContent styling={config.styling}>
-              {/* Above the broadcasts: whose screen this is outranks what is
-                  being announced on it. */}
-              {viewedBy ? (
-                <ViewAsBanner member={user} admin={viewedBy} />
-              ) : null}
               {/* First cards on the page, so a broadcast rides the content
                   gutter and the workspace's own card styling. Remounted per set
                   of ids so a fresh load after one is retired starts from the
