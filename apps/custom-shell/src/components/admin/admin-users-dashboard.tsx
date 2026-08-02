@@ -1,6 +1,7 @@
 import * as React from "react"
 import { getRouteApi, Link } from "@tanstack/react-router"
 import {
+  BanIcon,
   EyeIcon,
   Loader2Icon,
   PlusIcon,
@@ -23,6 +24,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AddAccountDialog } from "@/components/admin/add-account-dialog"
+import { CancelSubscriptionDialog } from "@/components/admin/cancel-subscription-dialog"
 import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
 import { showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
@@ -133,6 +135,9 @@ export function AdminUsersDashboard({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [adding, setAdding] = React.useState(false)
   const [editing, setEditing] = React.useState<AccountRow | null>(null)
+  const [cancelTarget, setCancelTarget] = React.useState<AccountRow | null>(
+    null
+  )
   const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
@@ -552,6 +557,21 @@ export function AdminUsersDashboard({
                     <RotateCcwIcon className="size-4" />
                   </Button>
                 ) : null}
+                {/* Only rows that are actually on a paid plan get the cancel:
+                    everyone else has nothing to cancel, and the server would
+                    say so anyway. */}
+                {account.planIsPaid ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCancelTarget(account)}
+                    title="Cancel their paid plan"
+                    aria-label={`Cancel the paid plan of ${account.name}`}
+                  >
+                    <BanIcon className="size-4" />
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
@@ -598,6 +618,18 @@ export function AdminUsersDashboard({
         onClose={() => setEditing(null)}
         onSaved={async () => {
           setEditing(null)
+          await refresh()
+        }}
+      />
+
+      <CancelSubscriptionDialog
+        // Remounts per account so the when-it-ends choice never carries over.
+        // Prefixed so it cannot collide with the edit dialog's keys.
+        key={`cancel-${cancelTarget?.id ?? "closed"}`}
+        account={cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onDone={async () => {
+          setCancelTarget(null)
           await refresh()
         }}
       />

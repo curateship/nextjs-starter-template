@@ -23,7 +23,7 @@ import {
   setUserStatus,
   updateUserRole,
 } from "@/server/accounts"
-import { applyStripeEvent } from "@/server/billing"
+import { applyStripeEvent, cancelSubscriptionByAdmin } from "@/server/billing"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import {
   hasFeature,
@@ -647,6 +647,159 @@ describe("stripe webhooks", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].userId).toBe(user.id)
     expect(rows[0].status).toBe("past_due")
+  })
+})
+
+describe("admin cancels subscriptions", () => {
+  const periodEndSeconds = Math.floor(new Date("2027-01-01").getTime() / 1_000)
+
+  /** What Stripe answers after a cancel call, shaped like its real payloads. */
+  function stripeAnswer(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "sub_cancel",
+      status: "active",
+      cancel_at_period_end: true,
+      items: { data: [{ current_period_end: periodEndSeconds }] },
+      ...overrides,
+    } as never
+  }
+
+  const neverCallsStripe = {
+    cancelNow: () => {
+      throw new Error("stripe was called")
+    },
+    stopRenewal: () => {
+      throw new Error("stripe was called")
+    },
+  }
+
+  async function seedStripeSubscription(
+    userId: string,
+    overrides: Partial<typeof customShellSubscriptions.$inferInsert> = {}
+  ) {
+    const plan = await getPlanBySlug("pro", database)
+    const timestamp = now()
+    const [row] = await database
+      .insert(customShellSubscriptions)
+      .values({
+        id: uuid(),
+        userId,
+        planId: plan!.id,
+        stripeCustomerId: `cus_${userId.slice(0, 8)}`,
+        stripeSubscriptionId: "sub_cancel",
+        status: "active",
+        interval: "monthly",
+        source: "stripe",
+        currentPeriodEnd: new Date("2027-01-01"),
+        cancelAtPeriodEnd: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...overrides,
+      })
+      .returning()
+
+    return row
+  }
+
+  it("stops the renewal at period end and keeps access until then", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+
+    const result = await cancelSubscriptionByAdmin(
+      user.id,
+      "period_end",
+      database,
+      {
+        ...neverCallsStripe,
+        stopRenewal: async () => stripeAnswer(),
+      }
+    )
+
+    expect(result.mode).toBe("period_end")
+    expect(result.endsAt).toBe(new Date("2027-01-01").toISOString())
+
+    const { entitlements } = await loadEntitlements(user.id, database)
+    expect(entitlements.isPaid).toBe(true)
+    expect(entitlements.cancelAtPeriodEnd).toBe(true)
+  })
+
+  it("ends it immediately and drops them to the free plan", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+
+    const result = await cancelSubscriptionByAdmin(
+      user.id,
+      "immediate",
+      database,
+      {
+        ...neverCallsStripe,
+        cancelNow: async () =>
+          stripeAnswer({ status: "canceled", cancel_at_period_end: false }),
+      }
+    )
+
+    expect(result.endsAt).toBeNull()
+
+    const { entitlements } = await loadEntitlements(user.id, database)
+    expect(entitlements.isPaid).toBe(false)
+    expect(entitlements.planSlug).toBe("free")
+  })
+
+  it("ends a granted plan without talking to Stripe", async () => {
+    const user = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+    await grantManualPlan(user.id, plan!.id, null, database)
+
+    const result = await cancelSubscriptionByAdmin(
+      user.id,
+      "period_end",
+      database,
+      neverCallsStripe
+    )
+
+    // A grant has no billing period, so whichever mode was asked for it ends now.
+    expect(result.mode).toBe("immediate")
+
+    const rows = await database
+      .select()
+      .from(customShellSubscriptions)
+      .where(eq(customShellSubscriptions.userId, user.id))
+    expect(rows).toHaveLength(0)
+  })
+
+  it("refuses a second period-end cancel but still allows ending it now", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id, { cancelAtPeriodEnd: true })
+
+    await expect(
+      cancelSubscriptionByAdmin(user.id, "period_end", database, neverCallsStripe)
+    ).rejects.toThrow("ALREADY_ENDING")
+
+    const result = await cancelSubscriptionByAdmin(
+      user.id,
+      "immediate",
+      database,
+      {
+        ...neverCallsStripe,
+        cancelNow: async () =>
+          stripeAnswer({ status: "canceled", cancel_at_period_end: false }),
+      }
+    )
+    expect(result.mode).toBe("immediate")
+  })
+
+  it("says so when there is nothing to cancel", async () => {
+    const user = await createUser()
+
+    await expect(
+      cancelSubscriptionByAdmin(user.id, "period_end", database, neverCallsStripe)
+    ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
+
+    // A subscription that already ran out is nothing to cancel either.
+    await seedStripeSubscription(user.id, { status: "canceled" })
+    await expect(
+      cancelSubscriptionByAdmin(user.id, "immediate", database, neverCallsStripe)
+    ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
   })
 })
 

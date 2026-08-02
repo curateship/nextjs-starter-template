@@ -15,12 +15,18 @@ import {
   type AccountRow,
   type RevenueSummary,
 } from "@/server/accounts"
+import {
+  cancelSubscriptionByAdmin,
+  type CancelSubscriptionMode,
+} from "@/server/billing"
 import { listPlans } from "@/server/plans"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin } from "@/server/security"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
-export type { AccountDetail, AccountRow, RevenueSummary }
+// Types only — a runtime value re-exported from @/server/* would drag the
+// database driver into the browser bundle and kill hydration app-wide.
+export type { AccountDetail, AccountRow, CancelSubscriptionMode, RevenueSummary }
 
 /** Plans an admin can hand out by hand, as the account modal lists them. */
 export type AssignablePlan = { id: string; name: string; slug: string }
@@ -50,6 +56,11 @@ const adminUserErrorMessages: Record<string, string> = {
   LAST_ADMIN: "You cannot remove the last admin.",
   CANNOT_DELETE_SELF: "You cannot delete your own account here.",
   PLAN_NOT_FOUND: "That plan no longer exists.",
+  SUBSCRIPTION_NOT_FOUND: "This account has no paid plan to cancel.",
+  ALREADY_ENDING:
+    "This plan is already set to end when the paid period runs out.",
+  BILLING_NOT_CONFIGURED:
+    "Stripe is not set up here, so this subscription cannot be cancelled from this screen.",
   ACCOUNT_PENDING_DELETION:
     "That account is scheduled for deletion. Restore it first.",
   RESTORE_WINDOW_PASSED:
@@ -176,6 +187,19 @@ const grantPlanFn = createServerFn({ method: "POST" })
     )
   })
 
+const cancelSubscriptionFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      userId: z.string().min(1).max(36),
+      mode: z.enum(["period_end", "immediate"]),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    await requireAdmin()
+    return cancelSubscriptionByAdmin(data.userId, data.mode)
+  })
+
 const deleteAccountFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
   .handler(async ({ data }) => {
@@ -248,6 +272,13 @@ export function grantAccountPlan(
   expiresAt: string | null = null
 ) {
   return grantPlanFn({ data: { userId, planId, expiresAt } })
+}
+
+export function cancelAccountSubscription(
+  userId: string,
+  mode: CancelSubscriptionMode
+) {
+  return cancelSubscriptionFn({ data: { userId, mode } })
 }
 
 export function deleteAccountAsAdmin(userId: string) {
