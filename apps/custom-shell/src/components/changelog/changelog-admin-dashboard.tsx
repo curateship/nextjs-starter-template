@@ -55,18 +55,13 @@ import {
 } from "@/lib/api/changelog"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { formatDate } from "@/lib/format-time"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 
 type ChangelogSortColumn = "title" | "status" | "published"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 function compareEntries(
   a: ChangelogEntry,
@@ -343,11 +338,8 @@ export function ChangelogAdminDashboard({
                 <Badge variant="outline">Draft</Badge>
               )}
             </TableCell>
-            <TableCell column="meta">
-              {entry.publishedAt
-                ? dateFormatter.format(new Date(entry.publishedAt))
-                : "—"}
-            </TableCell>
+            {/* A draft has no date; `formatDate` writes the em dash for it. */}
+            <TableCell column="meta">{formatDate(entry.publishedAt)}</TableCell>
             <TableCell column="meta">
               <div className="flex items-center">
                 <Button
@@ -632,7 +624,7 @@ function PreviewDialog({
           <DialogTitle>{entry?.title ?? "Preview"}</DialogTitle>
           <DialogDescription>
             {entry?.publishedAt
-              ? `Published ${dateFormatter.format(new Date(entry.publishedAt))}`
+              ? `Published ${formatDate(entry.publishedAt)}`
               : "Draft — not published yet"}
           </DialogDescription>
         </DialogHeader>
@@ -643,7 +635,7 @@ function PreviewDialog({
         </DialogBody>
         {/* Read-only: nothing to save, so a single Done rather than
             Cancel-and-primary. */}
-        <DialogFooter variant="plain">
+        <DialogFooter>
           <Button type="button" onClick={onClose}>
             Done
           </Button>

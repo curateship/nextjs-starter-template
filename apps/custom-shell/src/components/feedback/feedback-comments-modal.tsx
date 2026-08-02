@@ -191,7 +191,7 @@ export function FeedbackCommentsModal({
           </DialogBody>
           {/* Comments save themselves as they are added or deleted, so there is
               nothing to cancel — a single Done closes the window. */}
-          <DialogFooter variant="plain">
+          <DialogFooter>
             <Button type="button" onClick={() => onOpenChange(false)}>
               Done
             </Button>

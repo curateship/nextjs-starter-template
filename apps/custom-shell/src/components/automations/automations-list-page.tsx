@@ -291,7 +291,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               </CardContent>
             </Card>
           </DialogBody>
-          <DialogFooter variant="plain">
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"

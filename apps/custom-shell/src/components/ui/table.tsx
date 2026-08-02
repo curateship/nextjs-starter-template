@@ -7,6 +7,7 @@ import {
   ChevronsUpDownIcon,
 } from "lucide-react"
 
+import { focusRingInset } from "@/lib/focus-ring"
 import { cn } from "@/lib/utils"
 
 type TableHeadProps = React.ComponentProps<"th"> & {
@@ -97,6 +98,10 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
       data-slot="table-row"
       className={cn(
         "border-0 transition-colors has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        // Only some tables make their rows focusable, but where they do the
+        // row has to show it. Inside, because a wide table scrolls and a `<tr>`
+        // cannot paint a ring — see `focusRingInset`.
+        focusRingInset,
         className
       )}
       {...props}

@@ -2,25 +2,75 @@
  * Every date and time the app shows a person. They used to live in `money.ts`,
  * where nobody looking for a date formatter would think to check — which is how
  * six screens ended up hand-rolling their own `Intl.DateTimeFormat`.
+ *
+ * Every formatter below is built once, here, and reused. Building an
+ * `Intl.DateTimeFormat` is far more expensive than using one, and these are
+ * called once per row per render on tables that list hundreds of them.
  */
+
+const DAY = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" })
+
+const DAY_AND_TIME = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+})
+
+const DAY_IN_UTC = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  dateStyle: "medium",
+})
+
+const CLOCK_TIME = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+})
+
+const CLOCK_TIME_TO_THE_SECOND = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+})
 
 /** "Jul 30, 2025" — a day, where the clock time carries no meaning. */
 export function formatDate(value: string | Date | null) {
   if (!value) return "—"
-  const date = typeof value === "string" ? new Date(value) : value
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-  }).format(date)
+  return DAY.format(typeof value === "string" ? new Date(value) : value)
 }
 
 /** Same date, plus the clock time — for logs where the order of events matters. */
 export function formatDateTime(value: string | Date | null) {
   if (!value) return "—"
-  const date = typeof value === "string" ? new Date(value) : value
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date)
+  return DAY_AND_TIME.format(typeof value === "string" ? new Date(value) : value)
+}
+
+/**
+ * "Aug 6, 2025" for a whole day picked off a calendar, read back in the same
+ * timezone it was written in.
+ *
+ * An announcement's window is stored as midnight UTC of the day chosen in the
+ * date picker. Read in the reader's own timezone, midnight UTC on Aug 6 is
+ * still Aug 5 for everyone west of Greenwich — so the page would show the day
+ * before the one that was typed in. Reading it back in UTC is what makes
+ * "pick Aug 6" say "Aug 6" everywhere.
+ */
+export function formatUtcDate(value: string | Date | null) {
+  if (!value) return "—"
+  return DAY_IN_UTC.format(typeof value === "string" ? new Date(value) : value)
+}
+
+/**
+ * "3:42 PM" — the clock on its own, for a row in a list that already says
+ * which day it is covering. Pass `seconds` for a live log, where two entries a
+ * moment apart would otherwise read as the same time.
+ */
+export function formatClockTime(
+  value: string | Date | null,
+  { seconds = false } = {}
+) {
+  if (!value) return "—"
+  return (seconds ? CLOCK_TIME_TO_THE_SECOND : CLOCK_TIME).format(
+    typeof value === "string" ? new Date(value) : value
+  )
 }
 
 const RELATIVE_TIME = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" })

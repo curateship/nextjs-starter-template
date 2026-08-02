@@ -223,7 +223,7 @@ export function WorkspaceFormDialog({
                 </CardContent>
               </Card>
             </DialogBody>
-            <DialogFooter variant="plain">
+            <DialogFooter>
               <Button
                 type="button"
                 variant="outline"

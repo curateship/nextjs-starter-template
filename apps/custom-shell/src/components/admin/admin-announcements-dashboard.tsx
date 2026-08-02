@@ -72,6 +72,7 @@ import {
 } from "@/lib/api/announcements"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { formatUtcDate } from "@/lib/format-time"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 
@@ -94,13 +95,6 @@ const statusLabels: Record<AnnouncementStatus, string> = {
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "UTC",
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-
 function announcementStatus(
   announcement: Announcement,
   nowMs: number
@@ -121,9 +115,9 @@ function channelLabels(announcement: Announcement) {
 
 /** The window in words: dates are whole days, kept in UTC so they never shift. */
 function windowText(announcement: Announcement) {
-  const from = dateFormatter.format(new Date(announcement.startsAt))
+  const from = formatUtcDate(announcement.startsAt)
   return announcement.endsAt
-    ? `${from} – ${dateFormatter.format(new Date(announcement.endsAt))}`
+    ? `${from} – ${formatUtcDate(announcement.endsAt)}`
     : `${from} – until retired`
 }
 

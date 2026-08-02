@@ -8,12 +8,7 @@ import {
   loadChangelog,
   type ChangelogEntry,
 } from "@/lib/api/changelog"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
+import { formatDate } from "@/lib/format-time"
 
 /**
  * What's new: every published update, newest first, in full. This is what a
@@ -73,7 +68,7 @@ export function ChangelogPage({
                 <h2 className="text-sm font-medium">{entry.title}</h2>
                 <p className="text-xs text-muted-foreground">
                   {entry.publishedAt
-                    ? dateFormatter.format(new Date(entry.publishedAt))
+                    ? formatDate(entry.publishedAt)
                     : null}
                 </p>
                 <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
