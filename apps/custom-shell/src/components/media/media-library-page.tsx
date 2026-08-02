@@ -66,7 +66,6 @@ import {
   type MediaOwner,
 } from "@/lib/api/admin-media"
 import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { formatFileSize } from "@/lib/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { formatDate } from "@/lib/format-time"
@@ -77,8 +76,6 @@ import {
 } from "@/lib/remembered-choice"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { cn } from "@/lib/utils"
-
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type ViewMode = "list" | "gallery"
 
@@ -478,7 +475,6 @@ export function MediaLibraryPage({
     pageSize,
     total: data.media.total,
     totalPages: data.media.total_pages,
-    pageSizeOptions,
     onPageChange: setPage,
     onPageSizeChange: (size: number) => {
       setPageSize(size)
