@@ -1,4 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
+import { requireUser, isAdmin, requireAdmin } from "@/server/security"
+import { listPublishedChangelogEntries, serializeChangelogEntry, listChangelogEntries, createChangelogEntry, updateChangelogEntry, deleteChangelogEntries } from "@/server/changelog"
+import { requireAppOrigin } from "@/server/origin"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 export type ChangelogEntry = {
@@ -16,24 +20,14 @@ export type ChangelogEntry = {
  */
 const CHANGELOG_PAGE_LIMIT = 200
 
-const changelogErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-  CHANGELOG_ENTRY_NOT_FOUND: "That update no longer exists.",
-  CHANGELOG_TITLE_REQUIRED: "Give the update a title.",
-  CHANGELOG_BODY_REQUIRED: "Write what changed.",
-}
-
-export function getChangelogErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(changelogErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? changelogErrorMessages[matched]
-    : "We could not load the updates. Please try again."
-}
+export const getChangelogErrorMessage = createErrorMessage(
+  {
+    CHANGELOG_ENTRY_NOT_FOUND: "That update no longer exists.",
+    CHANGELOG_TITLE_REQUIRED: "Give the update a title.",
+    CHANGELOG_BODY_REQUIRED: "Write what changed.",
+  },
+  "We could not load the updates. Please try again."
+)
 
 const entryInputSchema = z.object({
   title: z.string().trim().min(1, "CHANGELOG_TITLE_REQUIRED").max(200),
@@ -49,10 +43,6 @@ export type ChangelogEntryFormInput = z.input<typeof entryInputSchema>
  */
 const listFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ entries: ChangelogEntry[] }> => {
-    const { requireUser } = await import("@/server/security")
-    const { listPublishedChangelogEntries, serializeChangelogEntry } =
-      await import("@/server/changelog")
-
     await requireUser()
     const entries = await listPublishedChangelogEntries(CHANGELOG_PAGE_LIMIT)
     return { entries: entries.map(serializeChangelogEntry) }
@@ -66,11 +56,6 @@ const listFn = createServerFn({ method: "GET" }).handler(
  */
 const listAdminFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ entries: ChangelogEntry[] | null }> => {
-    const { isAdmin, requireUser } = await import("@/server/security")
-    const { listChangelogEntries, serializeChangelogEntry } = await import(
-      "@/server/changelog"
-    )
-
     const user = await requireUser()
     if (!isAdmin(user)) return { entries: null }
 
@@ -82,12 +67,6 @@ const listAdminFn = createServerFn({ method: "GET" }).handler(
 const createEntryFn = createServerFn({ method: "POST" })
   .inputValidator(entryInputSchema)
   .handler(async ({ data }): Promise<ChangelogEntry> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { createChangelogEntry, serializeChangelogEntry } = await import(
-      "@/server/changelog"
-    )
-
     requireAppOrigin()
     await requireAdmin()
     return serializeChangelogEntry(await createChangelogEntry(data))
@@ -98,12 +77,6 @@ const updateEntryFn = createServerFn({ method: "POST" })
     z.object({ entryId: z.string().min(1).max(36), entry: entryInputSchema })
   )
   .handler(async ({ data }): Promise<ChangelogEntry> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { updateChangelogEntry, serializeChangelogEntry } = await import(
-      "@/server/changelog"
-    )
-
     requireAppOrigin()
     await requireAdmin()
     return serializeChangelogEntry(
@@ -118,10 +91,6 @@ const deleteEntriesFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<{ count: number }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { deleteChangelogEntries } = await import("@/server/changelog")
-
     requireAppOrigin()
     await requireAdmin()
     return deleteChangelogEntries(data.entryIds)

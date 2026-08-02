@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import type { PlanFeatures } from "@/lib/plan-features"
@@ -31,34 +32,24 @@ export type AdminPlan = {
   createdAt: string
 }
 
-const planErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-  PLAN_NOT_FOUND: "That plan no longer exists.",
-  PLAN_SLUG_REQUIRED: "Give the plan a short id, like `pro`.",
-  PLAN_NAME_REQUIRED: "Give the plan a name.",
-  DEFAULT_PLAN_MUST_BE_FREE: "The default plan everyone starts on must cost nothing.",
-  DEFAULT_PLAN_REQUIRED: "You cannot archive the default plan.",
-  PLAN_STRIPE_PRICE_REQUIRED:
-    "A public paid plan needs at least one Stripe price id.",
-  PLAN_MONTHLY_PRICE_REQUIRED:
-    "Add the Stripe price id for the monthly price, or set the monthly price to 0.",
-  PLAN_YEARLY_PRICE_REQUIRED:
-    "Add the Stripe price id for the yearly price, or set the yearly price to 0.",
-  FEATURES_INVALID: "Features must be valid JSON, like {\"seats\": 3}.",
-  duplicate: "Another plan already uses that id or Stripe price.",
-}
-
-export function getPlanErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(planErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? planErrorMessages[matched]
-    : "We could not save that plan. Please try again."
-}
+export const getPlanErrorMessage = createErrorMessage(
+  {
+    PLAN_NOT_FOUND: "That plan no longer exists.",
+    PLAN_SLUG_REQUIRED: "Give the plan a short id, like `pro`.",
+    PLAN_NAME_REQUIRED: "Give the plan a name.",
+    DEFAULT_PLAN_MUST_BE_FREE: "The default plan everyone starts on must cost nothing.",
+    DEFAULT_PLAN_REQUIRED: "You cannot archive the default plan.",
+    PLAN_STRIPE_PRICE_REQUIRED:
+      "A public paid plan needs at least one Stripe price id.",
+    PLAN_MONTHLY_PRICE_REQUIRED:
+      "Add the Stripe price id for the monthly price, or set the monthly price to 0.",
+    PLAN_YEARLY_PRICE_REQUIRED:
+      "Add the Stripe price id for the yearly price, or set the yearly price to 0.",
+    FEATURES_INVALID: "Features must be valid JSON, like {\"seats\": 3}.",
+    duplicate: "Another plan already uses that id or Stripe price.",
+  },
+  "We could not save that plan. Please try again."
+)
 
 const planInputSchema = z.object({
   slug: z

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import {
@@ -58,25 +59,14 @@ const cleanOrphansSchema = z.object({
   storagePaths: z.array(z.string().min(1).max(512)).max(500).default([]),
 })
 
-const adminMediaErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-  R2_NOT_CONFIGURED:
-    "File storage is not set up. Add the CUSTOM_SHELL_R2_* environment variables first.",
-  SCAN_FAILED: "Storage could not be read, so orphans are unknown right now.",
-}
-
-export function getAdminMediaErrorMessage(error: unknown) {
-  const message =
-    typeof error === "string" ? error : error instanceof Error ? error.message : ""
-  const matched = Object.keys(adminMediaErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? adminMediaErrorMessages[matched]
-    : "We could not complete that request. Please try again."
-}
+export const getAdminMediaErrorMessage = createErrorMessage(
+  {
+    R2_NOT_CONFIGURED:
+      "File storage is not set up. Add the CUSTOM_SHELL_R2_* environment variables first.",
+    SCAN_FAILED: "Storage could not be read, so orphans are unknown right now.",
+  },
+  "We could not complete that request. Please try again."
+)
 
 /** Storage is unusable without R2, so say that instead of "try again". */
 function asStorageError(error: unknown): never {

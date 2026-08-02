@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
+import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications"
+import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"
 
 export type NotificationType =
@@ -146,19 +148,14 @@ export function getNotificationErrorMessage(error: unknown) {
 const listNotificationsPageFn = createServerFn({ method: "GET" })
   .inputValidator(listNotificationsSchema)
   .handler(async ({ data }): Promise<NotificationListResponse> => {
-    const { listCurrentUserNotificationPage } = await import(
-      "@/server/notifications"
-    )
     return listCurrentUserNotificationPage(data)
   })
 
 const listAdminNotificationsFn = createServerFn({ method: "GET" })
   .inputValidator(adminListQuerySchema)
   .handler(async ({ data }) => {
-    const { listAdminNotifications, requireAdminNotificationUser } =
-      await import("@/server/notifications")
     await requireAdminNotificationUser()
-    return listAdminNotifications(data)
+    return listAdminNotificationRows(data)
   })
 
 /**
@@ -171,32 +168,22 @@ const listAdminNotificationsFn = createServerFn({ method: "GET" })
 const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
   .inputValidator(adminListQuerySchema.omit({ pageSize: true }))
   .handler(async ({ data }) => {
-    const { listAdminNotifications, requireAdminNotificationUser } =
-      await import("@/server/notifications")
-    const { readDashboardRowsPerPage } = await import("@/server/shell-settings")
-
     await requireAdminNotificationUser()
     const pageSize = await readDashboardRowsPerPage()
 
-    return { ...(await listAdminNotifications({ ...data, pageSize })), pageSize }
+    return { ...(await listAdminNotificationRows({ ...data, pageSize })), pageSize }
   })
 
 const markNotificationReadFn = createServerFn({ method: "POST" })
   .inputValidator(notificationIdSchema)
   .handler(
     async ({ data }): Promise<{ notificationId: string; readAt: string }> => {
-      const { markCurrentUserNotificationRead } = await import(
-        "@/server/notifications"
-      )
       return markCurrentUserNotificationRead(data.notificationId)
     }
   )
 
 const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ notificationIds: string[]; readAt: string }> => {
-    const { markAllCurrentUserNotificationsRead } = await import(
-      "@/server/notifications"
-    )
     return markAllCurrentUserNotificationsRead()
   }
 )
@@ -204,17 +191,11 @@ const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(
 const deleteAdminNotificationsFn = createServerFn({ method: "POST" })
   .inputValidator(deleteNotificationsSchema)
   .handler(async ({ data }): Promise<{ count: number }> => {
-    const { deleteAdminNotificationRows } = await import(
-      "@/server/notifications"
-    )
     return deleteAdminNotificationRows(data.notificationIds)
   })
 
 const clearAdminNotificationsFn = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ count: number }> => {
-    const { clearAdminNotificationRows } = await import(
-      "@/server/notifications"
-    )
     return clearAdminNotificationRows()
   }
 )

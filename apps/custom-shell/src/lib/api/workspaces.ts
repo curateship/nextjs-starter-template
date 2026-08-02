@@ -1,4 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
+import { requireAppOrigin } from "@/server/origin"
+import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/workspaces"
+import { findCurrentUser } from "@/server/security"
 import { z } from "zod"
 
 import { iconMeta, type IconKey } from "@/lib/custom-shell"
@@ -65,8 +68,6 @@ const loadWorkspacesFn = createServerFn({ method: "GET" }).handler(
 const createWorkspaceFn = createServerFn({ method: "POST" })
   .inputValidator(createWorkspaceSchema)
   .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { createUserWorkspace } = await import("@/server/workspaces")
     requireAppOrigin()
     const user = await requireUser()
     await createUserWorkspace(user.id, data.name, { icon: data.icon })
@@ -76,8 +77,6 @@ const createWorkspaceFn = createServerFn({ method: "POST" })
 const switchWorkspaceFn = createServerFn({ method: "POST" })
   .inputValidator(switchWorkspaceSchema)
   .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { switchUserWorkspace } = await import("@/server/workspaces")
     requireAppOrigin()
     const user = await requireUser()
     await switchUserWorkspace(user.id, data.workspaceId)
@@ -87,8 +86,6 @@ const switchWorkspaceFn = createServerFn({ method: "POST" })
 const updateWorkspaceFn = createServerFn({ method: "POST" })
   .inputValidator(updateWorkspaceSchema)
   .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { updateUserWorkspace } = await import("@/server/workspaces")
     requireAppOrigin()
     const user = await requireUser()
     await updateUserWorkspace(user.id, data.workspaceId, {
@@ -101,8 +98,6 @@ const updateWorkspaceFn = createServerFn({ method: "POST" })
 const deleteWorkspaceFn = createServerFn({ method: "POST" })
   .inputValidator(deleteWorkspaceSchema)
   .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { deleteUserWorkspace } = await import("@/server/workspaces")
     requireAppOrigin()
     const user = await requireUser()
     await deleteUserWorkspace(user.id, data.workspaceId)
@@ -112,8 +107,6 @@ const deleteWorkspaceFn = createServerFn({ method: "POST" })
 const deleteWorkspacesFn = createServerFn({ method: "POST" })
   .inputValidator(deleteWorkspacesSchema)
   .handler(async ({ data }): Promise<WorkspaceBulkDeleteResponse> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { deleteUserWorkspaces } = await import("@/server/workspaces")
     requireAppOrigin()
     const user = await requireUser()
     const result = await deleteUserWorkspaces(user.id, data.workspaceIds)
@@ -149,7 +142,6 @@ export function deleteWorkspaces(workspaceIds: string[]) {
 }
 
 async function requireUser() {
-  const { findCurrentUser } = await import("@/server/security")
   const user = await findCurrentUser()
   if (!user) {
     throw new Error("Missing Custom Shell session")
@@ -160,9 +152,6 @@ async function requireUser() {
 async function workspaceListForUser(
   userId: string
 ): Promise<WorkspaceListResponse> {
-  const { listUserWorkspaces, serializeWorkspace } = await import(
-    "@/server/workspaces"
-  )
   const { workspaces, currentWorkspaceId } = await listUserWorkspaces(userId)
   return {
     workspaces: workspaces.map((row) =>

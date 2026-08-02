@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { getOrCreateCurrentWorkspace, parseWorkspaceSettings } from "@/server/workspaces"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -154,8 +155,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const user = await requireAdmin()
 
     const updatedAt = now()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const workspaceName = data.workspaceName.trim()
@@ -252,8 +251,6 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
     const settings = parseWorkspaceSettings(workspace.settings)
 

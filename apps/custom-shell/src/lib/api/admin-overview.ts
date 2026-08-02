@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { createErrorMessage } from "./error-message"
 
 import {
   loadAdminOverview,
@@ -18,21 +19,10 @@ export type {
   OverviewAutomation,
 }
 
-const overviewErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-}
-
-export function getAdminOverviewErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(overviewErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? overviewErrorMessages[matched]
-    : "We could not load the overview. Please try again."
-}
+export const getAdminOverviewErrorMessage = createErrorMessage(
+  {},
+  "We could not load the overview. Please try again."
+)
 
 const loadAdminOverviewFn = createServerFn({ method: "GET" }).handler(
   async () => {

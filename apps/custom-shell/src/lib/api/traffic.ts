@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import {
@@ -28,21 +29,10 @@ export function readTrafficRange(value: unknown): TrafficRange | undefined {
     : undefined
 }
 
-const trafficErrorMessages: Record<string, string> = {
-  FORBIDDEN: "Only an admin can see the traffic numbers.",
-  AUTH_REQUIRED: "Please sign in again.",
-}
-
-export function getTrafficErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(trafficErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? trafficErrorMessages[matched]
-    : "The traffic numbers could not be loaded. Please try again."
-}
+export const getTrafficErrorMessage = createErrorMessage(
+  { FORBIDDEN: "Only an admin can see the traffic numbers." },
+  "The traffic numbers could not be loaded. Please try again."
+)
 
 const loadTrafficSummaryFn = createServerFn({ method: "GET" })
   .inputValidator(

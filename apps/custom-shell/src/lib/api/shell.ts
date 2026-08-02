@@ -1,4 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
+import { loadUserAnnouncements } from "@/server/announcements"
+import { loadEntitlements } from "@/server/entitlements"
+import { countUnreadNotifications } from "@/server/notifications"
+import { findSessionContext } from "@/server/security"
+import { readAppName, readShellSettings } from "@/server/shell-settings"
+import { readWorkspaceList } from "@/server/workspaces"
 
 import type { UserAnnouncement } from "@/lib/announcement"
 import { serializeUser, type AuthUser } from "@/lib/api/auth"
@@ -30,7 +36,6 @@ export type ShellBootstrap = {
  */
 const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<ShellBootstrap> => {
-    const { findSessionContext } = await import("@/server/security")
     const session = await findSessionContext()
 
     if (!session) {
@@ -49,20 +54,6 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     // as a member that IS the member — same sidebar, same plan, same notices —
     // which is the whole point.
     const { user, viewedBy } = session
-
-    const [
-      { readShellSettings },
-      { readWorkspaceList },
-      { loadEntitlements },
-      { countUnreadNotifications },
-      { loadUserAnnouncements },
-    ] = await Promise.all([
-      import("@/server/shell-settings"),
-      import("@/server/workspaces"),
-      import("@/server/entitlements"),
-      import("@/server/notifications"),
-      import("@/server/announcements"),
-    ])
 
     const [settings, workspaces, { entitlements }, unreadCount, announcements] =
       await Promise.all([
@@ -110,7 +101,6 @@ export function loadShellBootstrap() {
  */
 const loadAppNameFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ appName: string }> => {
-    const { readAppName } = await import("@/server/shell-settings")
     return { appName: await readAppName() }
   }
 )

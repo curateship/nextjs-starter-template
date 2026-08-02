@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import { loadAccountDetail, type AccountDetail } from "@/server/account-detail"
@@ -47,38 +48,28 @@ const listQuerySchema = z.object({
 
 export type AccountListQueryInput = z.input<typeof listQuerySchema>
 
-const adminUserErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-  USER_NOT_FOUND: "That account no longer exists.",
-  ACCOUNT_EXISTS: "An account already exists for this email.",
-  EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
-  EMAIL_DELIVERY_FAILED:
-    "We could not send the set-password email, so the account was not created. Please try again.",
-  LAST_ADMIN: "You cannot remove the last admin.",
-  CANNOT_DELETE_SELF: "You cannot delete your own account here.",
-  PLAN_NOT_FOUND: "That plan no longer exists.",
-  SUBSCRIPTION_NOT_FOUND: "This account has no paid plan to cancel.",
-  ALREADY_ENDING:
-    "This plan is already set to end when the paid period runs out.",
-  BILLING_NOT_CONFIGURED:
-    "Stripe is not set up here, so this subscription cannot be cancelled from this screen.",
-  ACCOUNT_PENDING_DELETION:
-    "That account is scheduled for deletion. Restore it first.",
-  RESTORE_WINDOW_PASSED:
-    "That account was deleted too long ago to bring back.",
-}
-
-export function getAdminUserErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(adminUserErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? adminUserErrorMessages[matched]
-    : "We could not complete that request. Please try again."
-}
+export const getAdminUserErrorMessage = createErrorMessage(
+  {
+    USER_NOT_FOUND: "That account no longer exists.",
+    ACCOUNT_EXISTS: "An account already exists for this email.",
+    EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
+    EMAIL_DELIVERY_FAILED:
+      "We could not send the set-password email, so the account was not created. Please try again.",
+    LAST_ADMIN: "You cannot remove the last admin.",
+    CANNOT_DELETE_SELF: "You cannot delete your own account here.",
+    PLAN_NOT_FOUND: "That plan no longer exists.",
+    SUBSCRIPTION_NOT_FOUND: "This account has no paid plan to cancel.",
+    ALREADY_ENDING:
+      "This plan is already set to end when the paid period runs out.",
+    BILLING_NOT_CONFIGURED:
+      "Stripe is not set up here, so this subscription cannot be cancelled from this screen.",
+    ACCOUNT_PENDING_DELETION:
+      "That account is scheduled for deletion. Restore it first.",
+    RESTORE_WINDOW_PASSED:
+      "That account was deleted too long ago to bring back.",
+  },
+  "We could not complete that request. Please try again."
+)
 
 const listAccountsFn = createServerFn({ method: "GET" })
   .inputValidator(listQuerySchema)

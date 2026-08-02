@@ -1,12 +1,10 @@
-import { readdir, readFile } from "node:fs/promises"
-
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
 import { eq, inArray, sql } from "drizzle-orm"
-import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { setDbForTests, type CustomShellDb } from "@/server/db"
+import { type CustomShellDb } from "@/server/db"
+import { createTestDatabase, type TestDatabase } from "@/server/test-support"
 import {
   cleanAltText,
   cleanOriginalName,
@@ -139,7 +137,6 @@ import {
   updateUserWorkspace,
 } from "@/server/workspaces"
 import { loadFeedsSummary } from "@/server/feeds"
-import * as schema from "@/server/schema"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
 function platformEntries(settings: { sections: { id: string; entries: unknown[] }[] }) {
@@ -155,7 +152,7 @@ function adminEntries(settings: { sections: { id: string; entries: unknown[] }[]
 }
 
 let client: PGlite
-let database: ReturnType<typeof drizzle<typeof schema>>
+let database: TestDatabase
 const hadOriginalCustomShellR2PublicUrl = Object.prototype.hasOwnProperty.call(
   process.env,
   "CUSTOM_SHELL_R2_PUBLIC_URL"
@@ -165,19 +162,9 @@ const originalCustomShellR2PublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
 beforeEach(async () => {
   process.env.CUSTOM_SHELL_R2_PUBLIC_URL =
     "https://custom-shell-media.example.test"
-  client = new PGlite()
-  // Replay every migration in order, the way setup-database.mjs does, so the
-  // test schema cannot drift from the real one.
-  const folder = new URL("../../drizzle/", import.meta.url)
-  const migrations = (await readdir(folder))
-    .filter((file) => file.endsWith(".sql"))
-    .sort()
-
-  for (const migration of migrations) {
-    await client.exec(await readFile(new URL(migration, folder), "utf8"))
-  }
-  database = drizzle(client, { schema })
-  setDbForTests(database as unknown as CustomShellDb)
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
 })
 
 afterEach(async () => {

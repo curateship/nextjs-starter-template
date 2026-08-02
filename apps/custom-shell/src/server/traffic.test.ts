@@ -1,11 +1,8 @@
-import { readdir, readFile } from "node:fs/promises"
-
 import { PGlite } from "@electric-sql/pglite"
 import { asc, eq } from "drizzle-orm"
-import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { setDbForTests, type CustomShellDb } from "@/server/db"
+import { type CustomShellDb } from "@/server/db"
 import {
   customShellTrafficDailyFacts,
   customShellTrafficDailyTotals,
@@ -13,7 +10,7 @@ import {
   customShellTrafficVisitors,
   customShellTrafficVisits,
 } from "@/server/schema"
-import * as schema from "@/server/schema"
+import { createTestDatabase } from "@/server/test-support"
 import {
   classifyDevice,
   FACT_KEY_CAPS,
@@ -35,22 +32,10 @@ import {
 let client: PGlite
 let database: CustomShellDb
 
-async function applyMigrations(target: PGlite) {
-  const folder = new URL("../../drizzle/", import.meta.url)
-  const files = (await readdir(folder))
-    .filter((file) => file.endsWith(".sql"))
-    .sort()
-
-  for (const file of files) {
-    await target.exec(await readFile(new URL(file, folder), "utf8"))
-  }
-}
-
 beforeEach(async () => {
-  client = new PGlite()
-  await applyMigrations(client)
-  database = drizzle(client, { schema }) as unknown as CustomShellDb
-  setDbForTests(database)
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db as unknown as CustomShellDb
   resetTrafficSweepForTests()
 })
 

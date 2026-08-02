@@ -1,8 +1,5 @@
-import { readdir, readFile } from "node:fs/promises"
-
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
-import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
@@ -11,7 +8,8 @@ import {
   purgeExpiredDeletions,
   restoreOwnAccount,
 } from "@/server/account-deletion"
-import { setDbForTests, type CustomShellDb } from "@/server/db"
+import { type CustomShellDb } from "@/server/db"
+import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   countOtherActiveAdmins,
   createAccountByAdmin,
@@ -60,44 +58,19 @@ import {
   customShellSubscriptions,
   customShellUsers,
 } from "@/server/schema"
-import * as schema from "@/server/schema"
 
 let client: PGlite
 // Typed as the app's database so the modules under test take it directly.
 let database: CustomShellDb
 
-async function applyMigrations(target: PGlite) {
-  const folder = new URL("../../drizzle/", import.meta.url)
-  const files = (await readdir(folder))
-    .filter((file) => file.endsWith(".sql"))
-    .sort()
-
-  for (const file of files) {
-    await target.exec(await readFile(new URL(file, folder), "utf8"))
-  }
-}
-
 async function createUser(
   overrides: Partial<typeof customShellUsers.$inferInsert> = {}
 ) {
-  const timestamp = now()
-  const [user] = await database
-    .insert(customShellUsers)
-    .values({
-      id: uuid(),
-      email: `${uuid()}@example.test`,
-      name: "Test Person",
-      role: "member",
-      status: "active",
-      passwordHash: await hashPassword("password123"),
-      emailVerifiedAt: timestamp,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      ...overrides,
-    })
-    .returning()
-
-  return user
+  // This file's accounts carry a working password, unlike the shared default.
+  return insertUser(database, {
+    passwordHash: await hashPassword("password123"),
+    ...overrides,
+  })
 }
 
 function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
@@ -121,10 +94,9 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
 }
 
 beforeEach(async () => {
-  client = new PGlite()
-  await applyMigrations(client)
-  database = drizzle(client, { schema }) as unknown as CustomShellDb
-  setDbForTests(database)
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db as unknown as CustomShellDb
 })
 
 afterEach(async () => {

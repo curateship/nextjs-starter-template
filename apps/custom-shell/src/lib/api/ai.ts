@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import {
@@ -39,29 +40,20 @@ export type {
   MyAiUsage,
 }
 
-const aiErrorMessages: Record<string, string> = {
-  FORBIDDEN: "Only an admin can manage AI keys.",
-  AUTH_REQUIRED: "Please sign in again.",
-  ENCRYPTION_NOT_CONFIGURED:
-    "The server can't store keys yet: its CUSTOM_SHELL_SECRET_ENCRYPTION_KEY setting is missing. Nothing was saved — keys are never stored unscrambled.",
-  SECRET_UNREADABLE:
-    "The saved key can't be read back because the server's scrambling secret changed. Paste the key again to fix it.",
-  EMPTY_KEY: "Paste a key before saving.",
-  NO_KEY: "There's no key to test yet — paste one first.",
-  AI_LIMIT_REACHED:
-    "This month's AI allowance is used up. It starts fresh on the 1st.",
-}
-
-export function getAiErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(aiErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? aiErrorMessages[matched]
-    : "Something went wrong with the AI features. Please try again."
-}
+export const getAiErrorMessage = createErrorMessage(
+  {
+    FORBIDDEN: "Only an admin can manage AI keys.",
+    ENCRYPTION_NOT_CONFIGURED:
+      "The server can't store keys yet: its CUSTOM_SHELL_SECRET_ENCRYPTION_KEY setting is missing. Nothing was saved — keys are never stored unscrambled.",
+    SECRET_UNREADABLE:
+      "The saved key can't be read back because the server's scrambling secret changed. Paste the key again to fix it.",
+    EMPTY_KEY: "Paste a key before saving.",
+    NO_KEY: "There's no key to test yet — paste one first.",
+    AI_LIMIT_REACHED:
+      "This month's AI allowance is used up. It starts fresh on the 1st.",
+  },
+  "Something went wrong with the AI features. Please try again."
+)
 
 const loadAiUsageDashboardFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ range: z.enum(AI_USAGE_RANGES) }))
