@@ -28,6 +28,8 @@ import {
   type AutomationDetail,
 } from "@/lib/api/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useEffectBeforePaint } from "@/lib/use-effect-before-paint"
+import { useWideScreen } from "@/lib/wide-screen"
 import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 
@@ -68,7 +70,10 @@ export function AutomationEditor({
     height: 0,
   })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
-  const [desktop, setDesktop] = React.useState(false)
+  // Known before the first render on both sides, so the editor opens in the
+  // layout it is going to keep instead of painting the phone version — a
+  // full-width canvas with no palette and no inspector — and rebuilding itself.
+  const desktop = useWideScreen()
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
   const [logEntries, setLogEntries] = React.useState<AutomationLogEntry[]>([])
@@ -228,14 +233,6 @@ export function AutomationEditor({
   React.useEffect(() => {
     return () => reportSaveStatus(null)
   }, [reportSaveStatus])
-
-  React.useEffect(() => {
-    const media = window.matchMedia("(min-width: 1280px)")
-    const update = () => setDesktop(media.matches)
-    update()
-    media.addEventListener("change", update)
-    return () => media.removeEventListener("change", update)
-  }, [])
 
   const compiled = React.useMemo(() => compileAutomationGraph(graph), [graph])
   const selectedNode =
@@ -434,7 +431,7 @@ export function AutomationEditor({
         maxSize="26%"
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel>
+        <WorkspacePanel collapsed={paletteCollapsed}>
           <AutomationPalette
             favoriteNodeKeys={favoriteNodeKeys}
             onSelect={previewPaletteNode}
@@ -467,17 +464,30 @@ export function AutomationEditor({
         maxSize="34%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel>{inspector}</WorkspacePanel>
+        <WorkspacePanel collapsed={inspectorCollapsed}>{inspector}</WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
-    <WorkspacePanel className="flex">{canvas}</WorkspacePanel>
+    // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
+    // a width to fill it shrinks to its content — the canvas has no width of
+    // its own, so the whole panel collapsed to its two border edges and read as
+    // a stray line down the page.
+    <WorkspacePanel className="flex min-w-0 flex-1">{canvas}</WorkspacePanel>
   )
 
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
       style={{ gap: "var(--shell-gutter, 0.75rem)" }}
+      onKeyDown={(event) => {
+        // Escape backs out of a node picked in the palette but not yet added.
+        // It calls what the panel's Cancel button calls, so there is one way to
+        // back out rather than two that could drift apart. It lives out here
+        // because the key can arrive from the palette card you just clicked as
+        // easily as from the panel itself.
+        if (event.key !== "Escape" || !previewNode) return
+        deleteNode(previewNode.id)
+      }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <ResizablePanelGroup
@@ -521,12 +531,12 @@ function useAutomationLayout(key: string) {
   const [defaultLayout, setDefaultLayout] = React.useState<Layout>()
   const [loaded, setLoaded] = React.useState(false)
 
-  React.useEffect(() => {
+  useEffectBeforePaint(() => {
     // localStorage is only readable after hydration, so the saved layout has
-    // to land via state — the same pattern the trading editor uses.
+    // to land via state — the same pattern the trading editor uses. Before the
+    // paint, so the panel groups are keyed once and never rebuilt on screen.
     try {
       const saved = localStorage.getItem(key)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDefaultLayout(saved ? (JSON.parse(saved) as Layout) : undefined)
     } catch {
       setDefaultLayout(undefined)

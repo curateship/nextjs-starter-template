@@ -16,6 +16,7 @@ import { ImageUpload } from "@/components/shared/image-upload"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import {
   cancelPendingEmailChange,
   getAuthErrorMessage,
@@ -326,9 +327,8 @@ function EmailCard({
                   >
                     Current password
                   </FieldLabel>
-                  <Input
+                  <PasswordInput
                     id="email-change-password"
-                    type="password"
                     autoComplete="current-password"
                     aria-invalid={invalid === "password" || undefined}
                     value={currentPassword}

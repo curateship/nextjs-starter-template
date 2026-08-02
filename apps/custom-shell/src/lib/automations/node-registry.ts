@@ -5,6 +5,7 @@ import type {
   AutomationNodePort,
   AutomationPaletteGroup,
 } from "./node-descriptor"
+import { aiStepNode } from "./nodes/ai-step"
 import { placeholderNode } from "./nodes/placeholder"
 
 export type {
@@ -15,6 +16,7 @@ export type {
 
 /** Every node kind this app ships, one descriptor module each under `nodes/`. */
 const AUTOMATION_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
+  aiStepNode,
   placeholderNode,
 ]
 
@@ -26,6 +28,7 @@ export const AUTOMATION_PALETTE_GROUPS: readonly AutomationPaletteGroup[] = [
   "Triggers",
   "Actions",
   "Flow",
+  "AI",
   "Steps",
 ]
 

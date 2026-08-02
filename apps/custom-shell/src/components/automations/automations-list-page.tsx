@@ -11,7 +11,10 @@ import {
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+} from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -46,6 +49,9 @@ import {
 } from "@/lib/api/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDate } from "@/lib/format-time"
+import { quoteOneLine } from "@/lib/quote-text"
+import { useLastValue } from "@/lib/use-last-value"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type SortColumn = "name" | "steps" | "updated"
 
@@ -59,6 +65,10 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [automations, setAutomations] = React.useState(initial.automations)
   const [sort, setSort] = React.useState<SortColumn>("updated")
   const [direction, setDirection] = React.useState<TableSortDirection>("desc")
+  const [search, setSearch] = React.useState("")
+  const [page, setPage] = React.useState(1)
+  const { config } = useShellRuntime()
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
   const [creating, setCreating] = React.useState(false)
@@ -66,6 +76,9 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [deleteTarget, setDeleteTarget] =
     React.useState<AutomationListItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+  // The confirmation is still on screen while it fades out, after Cancel has
+  // already cleared the target — so its heading reads the name it opened with.
+  const closingDeleteTarget = useLastValue(deleteTarget)
 
   const toggleSort = (column: SortColumn) => {
     if (column === sort) {
@@ -76,14 +89,34 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
     setDirection("asc")
   }
 
+  // The loader brings the whole list in one go, so finding and paging happen
+  // here. If it ever grows past that, this wants a server parameter instead.
   const sorted = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
-    return [...automations].sort((left, right) => {
-      if (sort === "name") return factor * left.name.localeCompare(right.name)
-      if (sort === "steps") return factor * (left.nodeCount - right.nodeCount)
-      return factor * left.updated_at.localeCompare(right.updated_at)
-    })
-  }, [automations, direction, sort])
+    const query = search.trim().toLowerCase()
+    return automations
+      .filter(
+        (item) =>
+          !query ||
+          item.name.toLowerCase().includes(query) ||
+          item.summary.toLowerCase().includes(query)
+      )
+      .sort((left, right) => {
+        if (sort === "name") return factor * left.name.localeCompare(right.name)
+        if (sort === "steps") return factor * (left.nodeCount - right.nodeCount)
+        return factor * left.updated_at.localeCompare(right.updated_at)
+      })
+  }, [automations, direction, search, sort])
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const visible = React.useMemo(
+    () => sorted.slice((page - 1) * pageSize, page * pageSize),
+    [page, pageSize, sorted]
+  )
+
+  React.useEffect(() => {
+    setPage(1)
+  }, [search, sort, direction, pageSize])
 
   const openEditor = (automationId: string) =>
     navigate({
@@ -146,12 +179,21 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       <DashboardTable
         title="Automations"
         icon={<WorkflowIcon />}
-        count={automations.length}
+        count={sorted.length}
         controls={
-          <DashboardToolbarButton onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="size-4" />
-            New automation
-          </DashboardToolbarButton>
+          <>
+            <DashboardToolbarSearch
+              name="automation-search"
+              aria-label="Search automations"
+              placeholder="Search automations…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <DashboardToolbarButton onClick={() => setCreateOpen(true)}>
+              <PlusIcon className="size-4" />
+              New automation
+            </DashboardToolbarButton>
+          </>
         }
         header={
           <TableHeader>
@@ -183,18 +225,31 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   Updated
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
-                <span className="sr-only">Actions</span>
-              </TableHead>
+              <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
-        isEmpty={automations.length === 0}
-        emptyText="No automations yet. Create the first one."
+        isEmpty={sorted.length === 0}
+        emptyText={
+          search.trim()
+            ? "No automations match that search."
+            : "No automations yet. Create the first one."
+        }
         emptyColSpan={4}
-        footer={{ type: "summary", count: automations.length, label: "automations" }}
+        footer={{
+          type: "pagination",
+          page,
+          pageSize,
+          total: sorted.length,
+          totalPages,
+          onPageChange: (next) => setPage(Math.max(1, Math.min(next, totalPages))),
+          onPageSizeChange: (next) => {
+            setPage(1)
+            setPageSize(next)
+          },
+        }}
       >
-        {sorted.map((automation) => (
+        {visible.map((automation) => (
           <TableRow key={automation.id}>
             <TableCell column="main">
               <Link
@@ -215,11 +270,11 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               {formatDate(automation.updated_at)}
             </TableCell>
             <TableCell column="meta">
-              <div className="flex items-center justify-end gap-1">
+              <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label={`Duplicate ${automation.name}`}
                   disabled={duplicatingId !== null}
                   onClick={() => void handleDuplicate(automation)}
@@ -233,7 +288,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label={`Open ${automation.name} in the editor`}
                   onClick={() => void openEditor(automation.id)}
                 >
@@ -242,7 +297,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label={`Delete ${automation.name}`}
                   onClick={() => setDeleteTarget(automation)}
                 >
@@ -317,7 +372,11 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null)
         }}
-        title={`Delete "${deleteTarget?.name}"?`}
+        title={
+          closingDeleteTarget
+            ? `Delete ${quoteOneLine(closingDeleteTarget.name)}?`
+            : "Delete this automation?"
+        }
         description="The flow and its canvas are permanently removed. This cannot be undone."
         confirmLabel="Delete automation"
         loading={deleting}

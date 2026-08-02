@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { format } from "date-fns"
 import {
   EyeOffIcon,
@@ -70,13 +70,18 @@ import {
   updateAdminAnnouncement,
   type Announcement,
 } from "@/lib/api/announcements"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatUtcDate } from "@/lib/format-time"
+import {
+  useListSearchNavigate,
+  useSearchBoxText,
+} from "@/lib/list-search"
 import { quoteOneLine } from "@/lib/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
+
+const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
 
 type AnnouncementSortColumn = "title" | "where" | "status" | "shows"
 
@@ -94,8 +99,6 @@ const statusLabels: Record<AnnouncementStatus, string> = {
   scheduled: "Scheduled",
   ended: "Ended",
 }
-
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 function announcementStatus(
   announcement: Announcement,
@@ -165,11 +168,23 @@ export function AdminAnnouncementsDashboard({
 }) {
   const { config } = useShellRuntime()
   const router = useRouter()
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [currentPage, setCurrentPage] = React.useState(1)
+  // Search, sort and page live in the address, so Back returns this exact
+  // list — see `lib/list-search.ts`.
+  const listSearch = announcementsRoute.useSearch()
+  const setListSearch = useListSearchNavigate()
+  const searchQuery = listSearch.q ?? ""
+  const currentPage = listSearch.page ?? 1
+  const setCurrentPage = React.useCallback(
+    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
+    [setListSearch]
+  )
+  const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
+    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
+  )
+
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [sort, setSort] = React.useState<AnnouncementSortColumn>("shows")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const sort: AnnouncementSortColumn = listSearch.sort ?? "shows"
+  const direction = listSearch.direction ?? "desc"
   const [editing, setEditing] = React.useState<Announcement | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [retireTargets, setRetireTargets] = React.useState<Announcement[]>([])
@@ -206,9 +221,11 @@ export function AdminAnnouncementsDashboard({
     return sortedAnnouncements.slice(startIndex, startIndex + pageSize)
   }, [currentPage, pageSize, sortedAnnouncements])
 
+  // Changing how many rows fit can leave you past the end; the address already
+  // drops the page when the search or sort changes.
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, sort, direction, pageSize])
+  }, [pageSize, setCurrentPage])
 
   useClearSelectionOnListChange(
     setSelectedIds,
@@ -246,14 +263,13 @@ export function AdminAnnouncementsDashboard({
 
   const toggleSort = React.useCallback(
     (column: AnnouncementSortColumn) => {
-      if (sort === column) {
-        setDirection(direction === "asc" ? "desc" : "asc")
-        return
-      }
-      setSort(column)
-      setDirection("asc")
+      setListSearch(
+        sort === column
+          ? { direction: direction === "asc" ? "desc" : "asc", page: undefined }
+          : { sort: column, direction: "asc", page: undefined }
+      )
     },
-    [direction, sort]
+    [direction, setListSearch, sort]
   )
 
   // Re-running the route loader is the refresh, not a fetch of our own. The
@@ -313,8 +329,8 @@ export function AdminAnnouncementsDashboard({
               name="announcement-search"
               aria-label="Search announcements"
               placeholder="Search announcements…"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
             />
             <DashboardToolbarButton
               type="button"
@@ -396,7 +412,6 @@ export function AdminAnnouncementsDashboard({
             setCurrentPage(1)
             setPageSize(nextSize)
           },
-          pageSizeOptions,
         }}
       >
         {paginatedAnnouncements.map((announcement) => {

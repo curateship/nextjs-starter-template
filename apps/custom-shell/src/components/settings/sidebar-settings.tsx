@@ -72,6 +72,14 @@ import {
 
 const sectionDropPrefix = "section-drop:"
 
+/**
+ * The grab handle on a section, a link and a child link. All three are the same
+ * control, so all three look and behave the same: an open hand on hover that
+ * closes while you drag, and the row lighting up so it reads as grabbable.
+ */
+const DRAG_HANDLE_CLASS =
+  "flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+
 function getSectionDropId(sectionId: string) {
   return `${sectionDropPrefix}${sectionId}`
 }
@@ -304,7 +312,7 @@ function SortableChild({
         type="button"
         {...attributes}
         {...listeners}
-        className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        className={DRAG_HANDLE_CLASS}
         aria-label={`Reorder ${childName}`}
       >
         <GripVertical className="h-4 w-4" />
@@ -406,7 +414,7 @@ function SortableSidebarItem({
           type="button"
           {...attributes}
           {...listeners}
-          className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+          className={cn(DRAG_HANDLE_CLASS, "h-9 shrink-0")}
           aria-label={`Reorder ${itemName}`}
         >
           <GripVertical className="h-4 w-4" />
@@ -664,7 +672,7 @@ function SortableSectionCard({
             type="button"
             {...attributes}
             {...listeners}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+            className={cn(DRAG_HANDLE_CLASS, "shrink-0")}
             aria-label={`Reorder ${sectionName}`}
           >
             <GripVertical className="h-4 w-4" />

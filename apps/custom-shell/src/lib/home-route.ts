@@ -8,6 +8,15 @@ import {
 const HOME_ROUTE_BASE = "http://custom-shell.local"
 const HOME_REDIRECT_LOOPS = new Set(["/", "/admin", "/admin/"])
 
+/**
+ * Where an admin lands when they have not chosen a page of their own — what
+ * an empty `adminRoute` setting means.
+ *
+ * Kept here rather than written out at each redirect, because there are two of
+ * them and the copy on Settings → General has to say the same thing.
+ */
+export const DEFAULT_ADMIN_ROUTE = "/admin/dashboard"
+
 /** A normalized internal home target, excluding routes that redirect to home. */
 export function configuredRouteTarget(
   adminRoute: string | null | undefined

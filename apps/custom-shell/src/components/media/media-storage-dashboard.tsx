@@ -20,12 +20,9 @@ import {
   type StorageDashboard,
   type StorageUserRow,
 } from "@/lib/api/admin-media"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { formatFileSize } from "@/lib/format-bytes"
 
 type StorageSort = "person" | "files" | "storage" | "orphans" | "share"
-
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 const sortableColumns: {
   by: StorageSort
@@ -126,6 +123,7 @@ export function MediaStorageDashboard({
           />
           <DashboardToolbarButton
             type="button"
+            variant="outline"
             disabled={loading}
             onClick={() => void refresh()}
           >
@@ -179,7 +177,6 @@ export function MediaStorageDashboard({
         pageSize,
         total: sorted.length,
         totalPages,
-        pageSizeOptions,
         onPageChange: setPage,
         onPageSizeChange: (size) => {
           setPageSize(size)

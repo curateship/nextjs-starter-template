@@ -4,8 +4,16 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
-import { getAuthErrorMessage, loadCurrentUser, verifyEmail } from "@/lib/api/auth"
-import { showErrorToast } from "@/lib/error-toast"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  getAuthErrorMessage,
+  loadCurrentUser,
+  resendVerification,
+  verifyEmail,
+} from "@/lib/api/auth"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 export const Route = createFileRoute("/verify-email")({
   validateSearch: z.object({ token: z.string().optional() }),
@@ -80,21 +88,83 @@ function VerifyEmailRoute() {
     )
   }
 
+  return <RequestNewLink />
+}
+
+/**
+ * The dead-link page asks for the email itself rather than sending anyone to
+ * hunt for a resend elsewhere — the link carries no address, so this form is
+ * where it gets one.
+ */
+function RequestNewLink() {
+  const [email, setEmail] = React.useState("")
+  const [sent, setSent] = React.useState(false)
+  const [sending, setSending] = React.useState(false)
+
+  const handleSubmit = React.useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      dismissErrorToast()
+      setSending(true)
+      try {
+        await resendVerification(email)
+        setSent(true)
+      } catch (resendError) {
+        showErrorToast(getAuthErrorMessage(resendError))
+      } finally {
+        setSending(false)
+      }
+    },
+    [email]
+  )
+
   return (
     <AuthShell
       title="We could not verify that link"
+      notice={
+        sent
+          ? "If that email has an account waiting on verification, a new link is on its way."
+          : null
+      }
+      onSubmit={handleSubmit}
       footer={
         <p>
           <Link to="/login" className={authLinkClassName}>
             Back to sign in
-          </Link>{" "}
-          to request a new link.
+          </Link>
         </p>
       }
     >
       <p className="text-sm text-muted-foreground">
         Verification links expire after 24 hours and can only be used once.
+        Enter your email and we will send you a fresh one.
       </p>
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          autoComplete="email"
+          autoFocus
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
+      </div>
+      <Button type="submit" className="w-full" disabled={sending}>
+        {sending ? (
+          <>
+            <Loader2Icon className="animate-spin" />
+            Sending...
+          </>
+        ) : sent ? (
+          // A link can go missing or be left too long, so the button stays
+          // usable and says what pressing it now would do.
+          "Send again"
+        ) : (
+          "Send a new verification link"
+        )}
+      </Button>
     </AuthShell>
   )
 }

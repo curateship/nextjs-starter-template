@@ -47,7 +47,12 @@ export function AutomationPalette({
   onDragStart: (key: string) => void
   onDragEnd: () => void
 }) {
-  const [tab, setTab] = React.useState<"fav" | "all">("fav")
+  // Opening on Fav with nothing starred means the first thing anyone ever sees
+  // is the "no favourites yet" line instead of the nodes. Read once, on mount:
+  // starring your first node then moves the tab out from under you mid-edit.
+  const [tab, setTab] = React.useState<"fav" | "all">(
+    favoriteNodeKeys.length > 0 ? "fav" : "all"
+  )
 
   return (
     <Tabs

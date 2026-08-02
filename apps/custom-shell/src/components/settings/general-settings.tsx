@@ -115,7 +115,7 @@ export function GeneralSettings({
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="admin-route"
-            hint="Where the home page and /admin open for admins, for example /admin/media. Empty opens Settings. It has to be a real route — an unknown path will 404."
+            hint="Where the home page and /admin open for admins, for example /admin/media. Empty opens the Overview dashboard. It has to be a real route — an unknown path will 404."
           >
             Admin home route
           </FieldLabel>
@@ -128,7 +128,7 @@ export function GeneralSettings({
                 adminRoute: event.target.value,
               })
             }
-            placeholder="Leave empty for Settings"
+            placeholder="Leave empty for the Overview"
           />
         </div>
 

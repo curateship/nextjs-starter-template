@@ -4,7 +4,11 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
-import { confirmEmailChange, getAuthErrorMessage } from "@/lib/api/auth"
+import {
+  confirmEmailChange,
+  getAuthErrorMessage,
+  loadCurrentUser,
+} from "@/lib/api/auth"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { showErrorToast } from "@/lib/error-toast"
 
@@ -14,15 +18,18 @@ import { showErrorToast } from "@/lib/error-toast"
  * Unlike the other link pages it does not send a signed-in browser away: the
  * person asking for the change is normally signed in already, and the link may
  * equally be opened in a browser that has never been. The single-use token is
- * the proof either way.
+ * the proof either way. The loader only notes which case this is, so the way
+ * out points into the app for a signed-in browser and at sign-in otherwise.
  */
 export const Route = createFileRoute("/change-email")({
   validateSearch: z.object({ token: z.string().optional() }),
+  loader: async () => ({ signedIn: Boolean(await loadCurrentUser()) }),
   component: ChangeEmailRoute,
 })
 
 function ChangeEmailRoute() {
   const { token } = Route.useSearch()
+  const { signedIn } = Route.useLoaderData()
   const [email, setEmail] = React.useState<string | null>(null)
   const [failed, setFailed] = React.useState(!token)
   // The link a browser has already tried. It is single-use, so a second attempt
@@ -64,9 +71,15 @@ function ChangeEmailRoute() {
         description="Your account is now under the new address."
         footer={
           <p>
-            <Link to="/login" className={authLinkClassName}>
-              Sign in
-            </Link>
+            {signedIn ? (
+              <Link to="/" className={authLinkClassName}>
+                Back to the app
+              </Link>
+            ) : (
+              <Link to="/login" className={authLinkClassName}>
+                Sign in
+              </Link>
+            )}
           </p>
         }
       >
@@ -83,12 +96,21 @@ function ChangeEmailRoute() {
       <AuthShell
         title="We could not confirm that address"
         footer={
-          <p>
-            <Link to="/login" className={authLinkClassName}>
-              Sign in
-            </Link>{" "}
-            and ask for a new link from Account &rarr; Profile.
-          </p>
+          signedIn ? (
+            <p>
+              <Link to="/" className={authLinkClassName}>
+                Back to the app
+              </Link>{" "}
+              to ask for a new link from Account &rarr; Profile.
+            </p>
+          ) : (
+            <p>
+              <Link to="/login" className={authLinkClassName}>
+                Sign in
+              </Link>{" "}
+              and ask for a new link from Account &rarr; Profile.
+            </p>
+          )
         }
       >
         <p className="text-sm text-muted-foreground">

@@ -1,8 +1,9 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import {
   EyeIcon,
   Loader2Icon,
+  PlusIcon,
   RotateCcwIcon,
   SettingsIcon,
   Trash2Icon,
@@ -21,6 +22,7 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { AddAccountDialog } from "@/components/admin/add-account-dialog"
 import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
 import { showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
@@ -56,10 +58,16 @@ import {
   startViewingAsMember,
 } from "@/lib/api/view-as"
 import { formatDate } from "@/lib/format-time"
+import {
+  useListSearchNavigate,
+  useSearchBoxText,
+} from "@/lib/list-search"
+
+const usersRoute = getRouteApi("/_authenticated/admin/users")
 
 type SortColumn = "name" | "email" | "role" | "plan" | "created"
 
-type StatusFilter = "all" | "active" | "suspended" | "pending_deletion"
+
 
 /**
  * What deleting these accounts did, said plainly. The same button both marks an
@@ -99,18 +107,31 @@ export function AdminUsersDashboard({
   currentUserId: string
   defaultPageSize: number
 }) {
+  // Search, filters, sort and page live in the address, so opening an account
+  // and pressing Back returns this exact list — see `lib/list-search.ts`.
+  const listSearch = usersRoute.useSearch()
+  const setListSearch = useListSearchNavigate()
+  const search = listSearch.q ?? ""
+  const role = listSearch.role ?? "all"
+  const status = listSearch.status ?? "all"
+  const sort: SortColumn = listSearch.sort ?? "created"
+  const direction = listSearch.direction ?? "desc"
+  const page = listSearch.page ?? 1
+  const setPage = React.useCallback(
+    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
+    [setListSearch]
+  )
+  const [searchText, setSearchText] = useSearchBoxText(search, (text) =>
+    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
+  )
+
   const [accounts, setAccounts] = React.useState(initialAccounts)
   const [total, setTotal] = React.useState(initialTotal)
-  const [search, setSearch] = React.useState("")
-  const [role, setRole] = React.useState<"all" | "admin" | "member">("all")
-  const [status, setStatus] = React.useState<StatusFilter>("all")
-  const [sort, setSort] = React.useState<SortColumn>("created")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
-  const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(defaultPageSize)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [adding, setAdding] = React.useState(false)
   const [editing, setEditing] = React.useState<AccountRow | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
@@ -119,7 +140,10 @@ export function AdminUsersDashboard({
   const [restoreTarget, setRestoreTarget] = React.useState<AccountRow | null>(
     null
   )
+  // One flag per button: a row's restore confirmation and the toolbar's bulk
+  // restore are separate actions, so neither may grey the other out.
   const [restoring, setRestoring] = React.useState(false)
+  const [massRestoring, setMassRestoring] = React.useState(false)
   const [viewAsTarget, setViewAsTarget] = React.useState<AccountRow | null>(null)
   const [startingViewAs, setStartingViewAs] = React.useState(false)
 
@@ -163,14 +187,13 @@ export function AdminUsersDashboard({
 
   const toggleSort = React.useCallback(
     (column: SortColumn) => {
-      if (sort === column) {
-        setDirection(direction === "asc" ? "desc" : "asc")
-        return
-      }
-      setSort(column)
-      setDirection("asc")
+      setListSearch(
+        sort === column
+          ? { direction: direction === "asc" ? "desc" : "asc" }
+          : { sort: column, direction: "asc" }
+      )
     },
-    [direction, sort]
+    [direction, setListSearch, sort]
   )
 
   const runAction = React.useCallback(
@@ -242,13 +265,13 @@ export function AdminUsersDashboard({
   )
 
   const restoreSelected = React.useCallback(async () => {
-    setRestoring(true)
+    setMassRestoring(true)
     const ok = await runAction(
       () => restoreAccountsAsAdmin(selectedDeletedIds),
       ({ restored }) =>
         `${restored} ${restored === 1 ? "account" : "accounts"} restored.`
     )
-    setRestoring(false)
+    setMassRestoring(false)
     if (ok) setSelectedIds(new Set())
   }, [runAction, selectedDeletedIds])
 
@@ -260,6 +283,7 @@ export function AdminUsersDashboard({
         title="Users"
         icon={<UsersIcon />}
         count={total}
+        busy={loading}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -280,10 +304,10 @@ export function AdminUsersDashboard({
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
-                disabled={restoring}
+                disabled={massRestoring}
                 onClick={() => void restoreSelected()}
               >
-                {restoring ? (
+                {massRestoring ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : (
                   <RotateCcwIcon className="size-4" />
@@ -295,18 +319,17 @@ export function AdminUsersDashboard({
               name="user-search"
               aria-label="Search accounts"
               placeholder="Search name or email…"
-              value={search}
-              onChange={(event) => {
-                setPage(1)
-                setSearch(event.target.value)
-              }}
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
             />
             <Select
               value={role}
-              onValueChange={(value) => {
-                setPage(1)
-                setRole(value as typeof role)
-              }}
+              onValueChange={(value) =>
+                setListSearch({
+                  role: value === "all" ? undefined : value,
+                  page: undefined,
+                })
+              }
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by role"
@@ -321,10 +344,12 @@ export function AdminUsersDashboard({
             </Select>
             <Select
               value={status}
-              onValueChange={(value) => {
-                setPage(1)
-                setStatus(value as typeof status)
-              }}
+              onValueChange={(value) =>
+                setListSearch({
+                  status: value === "all" ? undefined : value,
+                  page: undefined,
+                })
+              }
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by status"
@@ -340,6 +365,10 @@ export function AdminUsersDashboard({
                 </SelectItem>
               </SelectContent>
             </Select>
+            <DashboardToolbarButton type="button" onClick={() => setAdding(true)}>
+              <PlusIcon className="size-4" />
+              Add account
+            </DashboardToolbarButton>
           </>
         }
         header={
@@ -443,9 +472,15 @@ export function AdminUsersDashboard({
                 </span>
               ) : account.status === "suspended" ? (
                 <span className="ml-2 text-xs text-destructive">Suspended</span>
-              ) : account.emailVerified ? null : (
+              ) : account.emailVerified ? null : account.hasPassword ? (
                 <span className="ml-2 text-xs text-muted-foreground">
                   Not verified
+                </span>
+              ) : (
+                // No password and no verified email: an invited account whose
+                // set-password link has not been used yet.
+                <span className="ml-2 text-xs text-muted-foreground">
+                  Invited — hasn't set a password
                 </span>
               )}
             </TableCell>
@@ -543,6 +578,18 @@ export function AdminUsersDashboard({
           </TableRow>
         ))}
       </DashboardTable>
+
+      <AddAccountDialog
+        // Remounts on every open, so the last invite's fields never linger.
+        // Prefixed so it never collides with the edit dialog's "closed" key.
+        key={adding ? "add-open" : "add-closed"}
+        open={adding}
+        onClose={() => setAdding(false)}
+        onCreated={async () => {
+          setAdding(false)
+          await refresh()
+        }}
+      />
 
       <EditAccountDialog
         key={editing?.id ?? "closed"}

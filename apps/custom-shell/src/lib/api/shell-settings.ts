@@ -20,7 +20,6 @@ import {
 import {
   parseShellGlobals,
   pickShellGlobals,
-  readShellSettings,
 } from "@/server/shell-settings"
 import { now, requireAdmin, requireUser } from "@/server/security"
 
@@ -132,13 +131,6 @@ export function getShellSettingsErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Shell settings request failed."
 }
 
-const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const user = await requireUser()
-    return { settings: await readShellSettings(user) }
-  }
-)
-
 const saveShellSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(shellConfigSchema)
   .handler(async ({ data }) => {
@@ -223,10 +215,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
 
     return { settings: data }
   })
-
-export function loadShellSettings() {
-  return loadShellSettingsFn()
-}
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })

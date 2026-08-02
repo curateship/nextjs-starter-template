@@ -45,17 +45,42 @@ const MEDIA_CHILD_LINKS: ShellChildItem[] = [
 ]
 
 /**
+ * The admin's front door — what needs doing, what has happened, and how the
+ * app is going, above the pages that go into each of those in full.
+ */
+const OVERVIEW_LINK_ID = "item-admin-overview"
+const OVERVIEW_HREF = "/admin/dashboard"
+
+function overviewLink(children?: ShellChildItem[]): ShellItem {
+  return {
+    type: "item",
+    id: OVERVIEW_LINK_ID,
+    label: "Overview",
+    href: OVERVIEW_HREF,
+    icon: "layoutDashboard",
+    visible: true,
+    roles: ["admin"],
+    // Only when it is handed some. `addOverviewLink` hands out a bare link and
+    // the fold below fills it from the links the admin actually has, renames
+    // and all — so an empty `children: []` here would be a key nothing asked
+    // for, on a link that is meant to have none yet.
+    ...(children ? { children } : {}),
+  }
+}
+
+/**
  * Everything about members and money hangs off one parent. The three pages
  * already existed on their own; this is the section they now live under.
  */
 const MEMBERSHIP_LINK_ID = "item-admin-membership"
+const MEMBERSHIP_HREF = "/admin/membership"
 
 function membershipLink(children: ShellChildItem[]): ShellItem {
   return {
     type: "item",
     id: MEMBERSHIP_LINK_ID,
     label: "Membership",
-    href: "/admin/membership",
+    href: MEMBERSHIP_HREF,
     icon: "id-card",
     visible: true,
     roles: ["admin"],
@@ -97,20 +122,39 @@ const MEMBERSHIP_CHILD_IDS: readonly string[] = membershipChildLinks().map(
   (child) => child.id
 )
 
+const AI_USAGE_LINK_ID = "item-admin-ai-usage"
+const AI_USAGE_HREF = "/admin/ai"
+
+function aiUsageLink(): ShellItem {
+  return {
+    type: "item",
+    id: AI_USAGE_LINK_ID,
+    label: "AI usage",
+    href: AI_USAGE_HREF,
+    icon: "sparkles",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
 /**
- * Every running stream of "what happened" hangs off one parent: broadcasts
- * going out, notices landing in trays, changelog entries, and the admin
- * activity record. The five pages already existed on their own; this is the
- * section they now live under.
+ * The retired Feeds parent. Its page is gone — the Overview shows what it
+ * showed — and its four links hang off the Overview now.
+ *
+ * The id, the address and the two builders below stay here anyway, the same
+ * way `AUDIT_LINK_ID` did: a sidebar saved before any of this ran through the
+ * whole chain in one pass, and the second step still *creates* this parent
+ * from loose links before the last step takes it away again.
  */
 const FEEDS_LINK_ID = "item-admin-feeds"
+const FEEDS_HREF = "/admin/feeds"
 
 function feedsLink(children: ShellChildItem[]): ShellItem {
   return {
     type: "item",
     id: FEEDS_LINK_ID,
     label: "Feeds",
-    href: "/admin/feeds",
+    href: FEEDS_HREF,
     icon: "rss",
     visible: true,
     roles: ["admin"],
@@ -119,6 +163,10 @@ function feedsLink(children: ShellChildItem[]): ShellItem {
 }
 
 /**
+ * The four feed links. These are the Overview's children now, and they are
+ * still what the old grouping step gathers under the retired Feeds parent —
+ * one list, so the two can never drift apart.
+ *
  * Built fresh per call, like `membershipChildLinks`: a shared array would be
  * handed to every workspace to save into its own settings. The changelog pair
  * is deliberately not role-gated — What's new is the page a changelog notice
@@ -194,7 +242,7 @@ const AUTOMATIONS_LINK: ShellItem = {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 5
+export const NAVIGATION_VERSION = 8
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -522,6 +570,19 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 5) {
     sections = removeAuditLinks(sections)
   }
+  // Last, so the steps above have finished rearranging before this one looks
+  // for where the new link belongs.
+  if (settings.navVersion < 6) {
+    sections = addOverviewLink(sections)
+  }
+  // Last, and after the Overview link exists: this is the step that hands the
+  // feed links to it, so the link it hands them to has to be there first.
+  if (settings.navVersion < 7) {
+    sections = foldFeedsIntoOverview(sections)
+  }
+  if (settings.navVersion < 8) {
+    sections = addAiUsageLink(sections)
+  }
 
   const [updated] = await database
     .update(customShellWorkspaces)
@@ -812,6 +873,263 @@ export function groupFeedbackIntoFeeds(
 }
 
 /**
+ * Puts the Overview link in a sidebar saved before the page existed.
+ *
+ * Every step before this one moved a link an admin already had, or took one
+ * away. This is the first that hands out a new one — which is the thing
+ * reading a sidebar must never do, so it is a write, it runs once per
+ * workspace, and the navVersion stamp is what stops it running again. Delete
+ * the link afterwards and it stays deleted, exactly like every other default.
+ */
+export function addOverviewLink(sections: ShellSection[]): ShellSection[] {
+  // An admin who emptied their sidebar meant it. This must not be the one
+  // upgrade that hands something back.
+  if (!sections.length) return sections
+
+  const isOverview = (link: { id: string; href?: string }) =>
+    link.id === OVERVIEW_LINK_ID || link.href === OVERVIEW_HREF
+
+  // The address, not only the id, so a link somebody deleted and rebuilt by
+  // hand under a made-up id is still recognised. Hidden counts as present —
+  // a switched-off Overview link is still one, and doubling it would put a
+  // second copy on screen.
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isOverview(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isOverview))
+    )
+  )
+  if (alreadyThere) return sections
+
+  // Where it belongs, in order: beside Membership, then the Administration
+  // section, then the top of the sidebar. Matched by id and address rather
+  // than by title, so a renamed "Administration" is still found.
+  const besideMembership = sections.findIndex((section) =>
+    section.entries.some(
+      (entry) =>
+        entry.id === MEMBERSHIP_LINK_ID ||
+        (isShellItem(entry) && entry.href === MEMBERSHIP_HREF)
+    )
+  )
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+
+  // `findIndex` gives -1 for "nowhere", and the last fallback is the first
+  // section — so a sidebar with neither anchor still gets the link.
+  const index = besideMembership >= 0 ? besideMembership : Math.max(0, administration)
+
+  return sections.map((section, at) =>
+    at === index
+      ? { ...section, entries: [overviewLink(), ...section.entries] }
+      : section
+  )
+}
+
+/**
+ * Puts the AI usage link in a sidebar saved before the page existed. Same
+ * shape and same rules as `addOverviewLink` above: an emptied sidebar stays
+ * empty, a link that is already there (by id or address, hidden included) is
+ * never doubled, and it runs once per workspace on the navVersion stamp.
+ */
+export function addAiUsageLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isAiUsage = (link: { id: string; href?: string }) =>
+    link.id === AI_USAGE_LINK_ID || link.href === AI_USAGE_HREF
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isAiUsage(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isAiUsage))
+    )
+  )
+  if (alreadyThere) return sections
+
+  // Where it belongs, in order: right after Membership (money next to money),
+  // then the Administration section, then the first section.
+  const sectionIndex = sections.findIndex((section) =>
+    section.entries.some(
+      (entry) =>
+        entry.id === MEMBERSHIP_LINK_ID ||
+        (isShellItem(entry) && entry.href === MEMBERSHIP_HREF)
+    )
+  )
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  const index = sectionIndex >= 0 ? sectionIndex : Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const membershipAt = section.entries.findIndex(
+      (entry) =>
+        entry.id === MEMBERSHIP_LINK_ID ||
+        (isShellItem(entry) && entry.href === MEMBERSHIP_HREF)
+    )
+    const entries = [...section.entries]
+    entries.splice(
+      membershipAt >= 0 ? membershipAt + 1 : entries.length,
+      0,
+      aiUsageLink()
+    )
+    return { ...section, entries }
+  })
+}
+
+/**
+ * Folds the Feeds section into the Overview: the four links it held become the
+ * Overview's children, and the parent goes, because its page has been deleted
+ * — the Overview shows what it showed.
+ *
+ * The four have to keep hanging off one parent rather than become loose
+ * top-level links. The strip along the top of the page draws the sidebar link
+ * you are on together with its children, and only a link that has children can
+ * be the one drawn — so four orphans would each show a single chip where a row
+ * of five used to be.
+ *
+ * They only move into the Overview when they come out as visible as they went
+ * in: both links switched on, and the Overview at the top level. A hidden
+ * parent hides its children with it, so moving those under a switched-on
+ * Overview would put four links back on screen that the admin turned off — the
+ * thing `groupMembershipLinks` refuses to do. A hidden Overview would do the
+ * reverse and take four away. In those cases, and when the Overview has been
+ * deleted, the four are promoted to top-level links standing where the Feeds
+ * parent stood, wearing the visibility it had. Nothing appears, nothing
+ * vanishes, and each one can still be thrown away on its own afterwards.
+ */
+export function foldFeedsIntoOverview(
+  sections: ShellSection[]
+): ShellSection[] {
+  const isFeeds = (link: { id: string; href?: string }) =>
+    link.id === FEEDS_LINK_ID || link.href === FEEDS_HREF
+  const isOverview = (link: { id: string; href?: string }) =>
+    link.id === OVERVIEW_LINK_ID || link.href === OVERVIEW_HREF
+
+  const entriesOf = (list: ShellSection[]) =>
+    list.flatMap((section) => section.entries)
+
+  // The parent as it was saved, wherever it sits. Matched by address as well
+  // as by id, so one somebody deleted and rebuilt by hand is still recognised.
+  const feeds = entriesOf(sections).find(
+    (entry) => isShellItem(entry) && isFeeds(entry)
+  ) as ShellItem | undefined
+
+  // A Feeds link dragged in under another parent holds no children of its own
+  // — the rail only nests one level — but it still points at a page that is
+  // gone, so it goes too, the way the audit links did.
+  const stray = entriesOf(sections).some(
+    (entry) => isShellItem(entry) && (entry.children ?? []).some(isFeeds)
+  )
+
+  // Nothing to do — including an emptied sidebar, which this step could never
+  // have added to anyway.
+  if (!feeds && !stray) return sections
+
+  // Top level only: a child cannot hold children, so an Overview somebody
+  // nested under another link is not somewhere these four can go.
+  const overview = entriesOf(sections).find(
+    (entry) => isShellItem(entry) && isOverview(entry)
+  ) as ShellItem | undefined
+
+  const moveIn = Boolean(feeds?.visible && overview?.visible)
+
+  // Copied as they were saved, never rebuilt from `feedsChildLinks()`, so a
+  // rename, a swapped icon and a role all survive the move.
+  const carried = (feeds?.children ?? [])
+    .filter((child) => !isFeeds(child))
+    .map((child) => ({ ...child }))
+
+  // One link per page, checked against the list they are joining: the
+  // Overview's own children when they move in, the top-level links when they
+  // are promoted. Two entries sharing an id is a duplicate row in Settings →
+  // Sidebar and a duplicate key in the rail.
+  const taken = new Set<string>()
+  const remember = (link: { id: string; href?: string }) => {
+    taken.add(link.id)
+    if (link.href) taken.add(link.href)
+  }
+  if (moveIn) {
+    for (const child of overview?.children ?? []) remember(child)
+  } else {
+    // Everywhere a promoted link could already be, children included: one that
+    // already sits under some other parent is still reachable, so putting a
+    // second copy at the top level would be two rows to the same page.
+    for (const entry of entriesOf(sections)) {
+      if (entry === feeds) continue
+      remember(entry)
+      if (isShellItem(entry)) {
+        for (const child of entry.children ?? []) remember(child)
+      }
+    }
+  }
+
+  const arriving: ShellChildItem[] = []
+  for (const child of carried) {
+    if (taken.has(child.id) || taken.has(child.href)) continue
+    remember(child)
+    arriving.push(child)
+  }
+
+  // What stands where the parent stood when the four cannot move into the
+  // Overview. Built here, where the parent is known to exist.
+  const standingIn = feeds
+    ? arriving.map((child) => promoteFeedsChild(child, feeds))
+    : []
+
+  const withoutFeeds = sections.map((section) => ({
+    ...section,
+    entries: section.entries.flatMap((entry) => {
+      // The parent itself: gone, leaving either nothing or the links it held
+      // standing in its place.
+      if (entry === feeds) return moveIn ? [] : standingIn
+      // A second copy of it, and any Feeds link nested under something else.
+      if (isShellItem(entry) && isFeeds(entry)) return []
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isFeeds(child))
+      return children.length === entry.children.length
+        ? [entry]
+        : [{ ...entry, children }]
+    }),
+  }))
+
+  if (!moveIn || !arriving.length) return withoutFeeds
+
+  // Appended, not put in front: whatever an admin has already hung off the
+  // Overview themselves keeps the place they gave it.
+  return withoutFeeds.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) =>
+      entry === overview
+        ? { ...entry, children: [...(entry.children ?? []), ...arriving] }
+        : entry
+    ),
+  }))
+}
+
+/**
+ * A child link standing on its own. A child's icon is optional and an item's
+ * is not, so one that never had its own wears the parent's — which means it
+ * inherits a swapped icon the same way it keeps a rename.
+ */
+function promoteFeedsChild(
+  child: ShellChildItem,
+  parent: ShellItem
+): ShellItem {
+  return {
+    type: "item",
+    id: child.id,
+    label: child.label,
+    href: child.href,
+    icon: child.icon ?? parent.icon,
+    visible: Boolean(parent.visible),
+    ...(child.roles ? { roles: child.roles } : {}),
+  }
+}
+
+/**
  * Takes the Activity log link out wherever it sits — the feature is gone from
  * the app entirely, page and database table both, so a link to it would only
  * show "not found".
@@ -1058,8 +1376,9 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       id: "section-administration",
       title: "Administration",
       entries: [
+        overviewLink(feedsChildLinks()),
         membershipLink(membershipChildLinks()),
-        feedsLink(feedsChildLinks()),
+        aiUsageLink(),
       ],
     },
     {

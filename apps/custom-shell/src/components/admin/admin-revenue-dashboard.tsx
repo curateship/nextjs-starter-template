@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import type { RevenueSummary } from "@/lib/api/admin-users"
 import { formatMoney } from "@/lib/money"
+import { pageGutter } from "@/lib/shell-gutter"
 
 type SortColumn = "plan" | "subscribers" | "monthly"
 
@@ -57,7 +58,10 @@ export function AdminRevenueDashboard({
 
   return (
     <>
-      <div className="grid gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
+      <div
+        className="grid md:grid-cols-2 xl:grid-cols-4"
+        style={{ gap: pageGutter }}
+      >
         <StatCard
           label="Monthly recurring revenue"
           value={formatMoney(summary.monthlyRecurringCents, summary.currency)}

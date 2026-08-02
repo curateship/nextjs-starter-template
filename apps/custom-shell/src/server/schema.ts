@@ -7,6 +7,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -158,6 +159,11 @@ export const customShellFeedback = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     type: varchar("type", { length: 50 }).notNull(),
     message: text("message").notNull(),
+    // What the item is about, from the fixed list in `lib/feedback-tags.ts`.
+    tags: text("tags")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -165,6 +171,10 @@ export const customShellFeedback = pgTable(
     check(
       "feedback_type_check",
       sql`${table.type} in ('suggestion', 'bug_report', 'question', 'praise')`
+    ),
+    check(
+      "feedback_tags_check",
+      sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
     index("ix_feedback_type").on(table.type),
@@ -564,7 +574,127 @@ export const customShellChangelogEntries = pgTable(
   ]
 )
 
+/**
+ * One API key per AI provider ("anthropic" | "openai"), app-wide. `apiKey` is
+ * never the key as typed: it is the AES-256-GCM output of
+ * `encryptSecret` (`src/server/encryption.ts`), stored as
+ * base64(iv).base64(tag).base64(ciphertext), so a stolen database backup does
+ * not contain a usable key.
+ */
+export const customShellAiProviderKeys = pgTable("ai_provider_keys", {
+  provider: varchar("provider", { length: 20 }).primaryKey(),
+  apiKey: text("api_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * One registered passkey (WebAuthn credential). `publicKey` is exactly that —
+ * public — so unlike a password hash there is nothing on this row a database
+ * thief could sign in with.
+ */
+export const customShellPasskeys = pgTable(
+  "passkeys",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The authenticator's own id for the credential, base64url, world-unique. */
+    credentialId: text("credential_id").notNull().unique(),
+    /** The COSE public key, base64url. */
+    publicKey: text("public_key").notNull(),
+    /**
+     * The authenticator's use count. A signature arriving with a count no
+     * higher than this one is a replay or a cloned credential, and is refused.
+     * Many platform authenticators always report 0, which the check allows.
+     */
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
+    /** How the browser reached the authenticator (JSON array), or null. */
+    transports: text("transports"),
+    name: varchar("name", { length: 80 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (table) => [index("ix_passkeys_user_id").on(table.userId)]
+)
+
+/**
+ * A passkey ceremony in flight: the random challenge the browser must sign.
+ * Spent on first use, so a captured response can never be replayed. `userId`
+ * is set while registering and null for a sign-in, where nobody is known yet.
+ */
+export const customShellPasskeyChallenges = pgTable(
+  "passkey_challenges",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    challenge: text("challenge").notNull(),
+    type: varchar("type", { length: 20 }).notNull(),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "passkey_challenges_type_check",
+      sql`${table.type} in ('registration', 'authentication')`
+    ),
+    index("ix_passkey_challenges_expires_at").on(table.expiresAt),
+  ]
+)
+
+/**
+ * One row per AI call — the meter on the only pipe in this app that spends
+ * money per click. Written by `recordAiUsage` (src/server/ai-usage.ts) and
+ * never anywhere else; every call site goes through `runAiCall`, which
+ * records failures too, so nothing runs unmeasured.
+ *
+ * `userId` is kept but not cascaded: deleting an account must not erase what
+ * it spent, so the rows go anonymous instead. `costCents` is whole cents from
+ * the price list in src/lib/ai-models.ts. `monthStart` is the first day of
+ * the UTC month the call belongs to, always via `aiUsageMonthStart` —
+ * indexed both ways the dashboard task will read it.
+ */
+export const customShellAiUsageEvents = pgTable(
+  "ai_usage_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    provider: varchar("provider", { length: 20 }).notNull(),
+    model: varchar("model", { length: 120 }).notNull(),
+    feature: varchar("feature", { length: 50 }).notNull(),
+    inputTokens: integer("input_tokens").notNull(),
+    outputTokens: integer("output_tokens").notNull(),
+    costCents: integer("cost_cents").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    monthStart: date("month_start").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ai_usage_events_status_check",
+      sql`${table.status} in ('success', 'failed', 'blocked')`
+    ),
+    index("ix_ai_usage_events_user_month").on(table.userId, table.monthStart),
+    index("ix_ai_usage_events_month_created").on(
+      table.monthStart,
+      table.createdAt
+    ),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
+export type CustomShellPasskey = typeof customShellPasskeys.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect

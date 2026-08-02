@@ -1,8 +1,18 @@
 import * as React from "react"
-import { ImageIcon, Loader2Icon, PlayIcon, UploadIcon, XIcon } from "lucide-react"
+import {
+  ImageIcon,
+  Loader2Icon,
+  PlayIcon,
+  UploadIcon,
+  XIcon,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  ImageCropStep,
+  type CropAspectKey,
+} from "@/components/media/image-crop-step"
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -33,6 +43,7 @@ import {
   type MediaItem,
   type MediaListResponse,
 } from "@/lib/api/media"
+import { isCroppableImage } from "@/lib/crop-image"
 import { formatFileSize } from "@/lib/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { quoteOneLine } from "@/lib/quote-text"
@@ -46,6 +57,8 @@ type MediaPickerProps = {
   onSelectMedia: (mediaUrl: string, altText?: string) => void
   currentMediaUrl?: string
   showVideos?: boolean
+  /** Which crop shape starts selected when an uploaded image is cropped. */
+  defaultCropAspect?: CropAspectKey
 }
 
 export function MediaPicker({
@@ -54,6 +67,7 @@ export function MediaPicker({
   onSelectMedia,
   currentMediaUrl,
   showVideos = true,
+  defaultCropAspect,
 }: MediaPickerProps) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
@@ -62,10 +76,17 @@ export function MediaPicker({
   // What the server was last asked for. Kept apart from what is typed so the
   // box stays responsive while the request waits out the pause below.
   const [searchTerm, setSearchTerm] = React.useState("")
-  const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(null)
+  const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(
+    null
+  )
   const [filterType, setFilterType] = React.useState<MediaFilter>("all")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [upload, setUpload] = React.useState<{
+    file: File
+    previewUrl: string
+  } | null>(null)
+  /** A just-picked raster image waiting in the crop step before it uploads. */
+  const [cropFile, setCropFile] = React.useState<{
     file: File
     previewUrl: string
   } | null>(null)
@@ -84,6 +105,15 @@ export function MediaPicker({
     return () => URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
 
+  // The crop step's preview address follows the same rule. It is created in
+  // the file-select handler, never during a render: a render can run more than
+  // once, and a second run would leak addresses or revoke the one in use.
+  const cropPreviewUrl = cropFile?.previewUrl
+  React.useEffect(() => {
+    if (!cropPreviewUrl) return
+    return () => URL.revokeObjectURL(cropPreviewUrl)
+  }, [cropPreviewUrl])
+
   const loadCurrentMedia = React.useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -94,7 +124,12 @@ export function MediaPicker({
           : filterType
         : "image"
       setData(
-        await listMedia({ page: currentPage, pageSize, search: searchTerm, fileType })
+        await listMedia({
+          page: currentPage,
+          pageSize,
+          search: searchTerm,
+          fileType,
+        })
       )
       setPlayingId(null)
     } catch (loadError) {
@@ -111,6 +146,7 @@ export function MediaPicker({
       setSearchTerm("")
       setSelectedMedia(null)
       setPlayingId(null)
+      setCropFile(null)
       clearUpload()
       return
     }
@@ -173,10 +209,22 @@ export function MediaPicker({
       return
     }
 
-    setUpload({ file, previewUrl: URL.createObjectURL(file) })
-    setAltText("")
     dismissErrorToast()
     event.target.value = ""
+    // Croppable images pause in the crop step first. Videos, SVGs, and GIFs
+    // go straight to the upload panel — there is nothing a canvas could
+    // faithfully crop there.
+    if (isCroppableImage(file)) {
+      setCropFile({ file, previewUrl: URL.createObjectURL(file) })
+      return
+    }
+    stageUpload(file)
+  }
+
+  /** Puts a file in the upload panel, ready for alt text and the send. */
+  function stageUpload(file: File) {
+    setUpload({ file, previewUrl: URL.createObjectURL(file) })
+    setAltText("")
   }
 
   async function handleUpload() {
@@ -212,208 +260,264 @@ export function MediaPicker({
     onOpenChange(false)
   }
 
+  // While the crop step is up, Escape, the X, and the backdrop back out of
+  // the crop and return to the picker instead of tearing the whole thing down.
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen && cropFile) {
+      setCropFile(null)
+      return
+    }
+    onOpenChange(nextOpen)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>{showVideos ? "Select media" : "Select image"}</DialogTitle>
-        </DialogHeader>
+        {cropFile ? (
+          <ImageCropStep
+            file={cropFile.file}
+            previewUrl={cropFile.previewUrl}
+            defaultAspect={defaultCropAspect}
+            onDone={(file) => {
+              stageUpload(file)
+              setCropFile(null)
+            }}
+            onCancel={() => setCropFile(null)}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {showVideos ? "Select media" : "Select image"}
+              </DialogTitle>
+            </DialogHeader>
 
-        <DialogBody>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <DashboardToolbarSearch
-                className="min-w-0 sm:flex-1"
-                inputClassName="sm:w-full lg:w-full"
-                name="media-picker-search"
-                aria-label="Search media"
-                placeholder="Search media"
-                // The same cap the search takes on the way in, so the box can
-                // never hold more than what is actually being searched for.
-                maxLength={120}
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-
-              {showVideos ? (
-                <Select value={filterType} onValueChange={handleFilterChange}>
-                  <SelectTrigger className="w-full sm:w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="image">Images</SelectItem>
-                    <SelectItem value="video">Videos</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : null}
-
-              <Button asChild>
-                <label>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept={mediaAccept(showVideos)}
-                    onChange={handleFileSelect}
+            <DialogBody>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <DashboardToolbarSearch
+                    className="min-w-0 sm:flex-1"
+                    inputClassName="sm:w-full lg:w-full"
+                    name="media-picker-search"
+                    aria-label="Search media"
+                    placeholder="Search media"
+                    // The same cap the search takes on the way in, so the box can
+                    // never hold more than what is actually being searched for.
+                    maxLength={120}
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
                   />
-                  <UploadIcon className="size-4" />
-                  Upload
-                </label>
-              </Button>
-            </div>
 
-            {error ? (
-              <ErrorBanner
-                message={error}
-                onRetry={() => void loadCurrentMedia()}
-              />
-            ) : null}
+                  {showVideos ? (
+                    <Select
+                      value={filterType}
+                      onValueChange={handleFilterChange}
+                    >
+                      <SelectTrigger className="w-full sm:w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="image">Images</SelectItem>
+                        <SelectItem value="video">Videos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : null}
 
-            {upload ? (
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <div className="flex gap-3">
-                  <MediaThumbnail
-                    url={upload.previewUrl}
-                    fileType={
-                      upload.file.type.startsWith("video/") ? "video" : "image"
-                    }
-                    alt={upload.file.name}
-                    className="size-20 shrink-0 rounded-md bg-background"
-                    compact
-                  />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{upload.file.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatFileSize(upload.file.size)}</p>
-                      </div>
-                      <Button type="button" variant="ghost" size="icon-sm" onClick={clearUpload}>
-                        <XIcon className="size-4" />
-                        <span className="sr-only">Clear upload</span>
-                      </Button>
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="media-picker-alt-text">
-                        {upload.file.type.startsWith("video/") ? "Description" : "Alt text"}
-                      </Label>
-                      <Input
-                        id="media-picker-alt-text"
-                        value={altText}
-                        onChange={(event) => setAltText(event.target.value)}
-                        placeholder="Optional"
+                  <Button asChild>
+                    <label>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept={mediaAccept(showVideos)}
+                        onChange={handleFileSelect}
                       />
-                    </div>
-                    <Button type="button" onClick={handleUpload} disabled={uploading}>
-                      {uploading ? (
-                        <Loader2Icon className="size-4 animate-spin" />
-                      ) : (
-                        <UploadIcon className="size-4" />
-                      )}
-                      Upload and select
-                    </Button>
-                  </div>
+                      <UploadIcon className="size-4" />
+                      Upload
+                    </label>
+                  </Button>
                 </div>
-              </div>
-            ) : null}
 
-            {/* No scroll box of its own: the dialog body is already a
-                ScrollArea, and a second one would trap the wheel. */}
-            <div className="min-h-[260px] rounded-lg border p-3">
-              {loading ? (
-                <div
-                  className="grid h-56 place-items-center text-sm text-muted-foreground"
-                  role="status"
-                >
-                  <span className="flex items-center gap-2">
-                    <Loader2Icon className="size-4 animate-spin" />
-                    Loading…
-                  </span>
-                </div>
-              ) : mediaItems.length === 0 ? (
-                <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
-                  <div className="grid justify-items-center gap-3">
-                    <ImageIcon className="size-10" />
-                    {searchTerm ? (
-                      <>
-                        <p>Nothing matched {quoteOneLine(searchTerm)}.</p>
+                {error ? (
+                  <ErrorBanner
+                    message={error}
+                    onRetry={() => void loadCurrentMedia()}
+                  />
+                ) : null}
+
+                {upload ? (
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <div className="flex gap-3">
+                      <MediaThumbnail
+                        url={upload.previewUrl}
+                        fileType={
+                          upload.file.type.startsWith("video/")
+                            ? "video"
+                            : "image"
+                        }
+                        alt={upload.file.name}
+                        className="size-20 shrink-0 rounded-md bg-background"
+                        compact
+                      />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">
+                              {upload.file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(upload.file.size)}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={clearUpload}
+                          >
+                            <XIcon className="size-4" />
+                            <span className="sr-only">Clear upload</span>
+                          </Button>
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="media-picker-alt-text">
+                            {upload.file.type.startsWith("video/")
+                              ? "Description"
+                              : "Alt text"}
+                          </Label>
+                          <Input
+                            id="media-picker-alt-text"
+                            value={altText}
+                            onChange={(event) => setAltText(event.target.value)}
+                            placeholder="Optional"
+                          />
+                        </div>
                         <Button
                           type="button"
-                          variant="outline"
-                          onClick={() => setSearchQuery("")}
+                          onClick={handleUpload}
+                          disabled={uploading}
                         >
-                          Clear search
+                          {uploading ? (
+                            <Loader2Icon className="size-4 animate-spin" />
+                          ) : (
+                            <UploadIcon className="size-4" />
+                          )}
+                          Upload and select
                         </Button>
-                      </>
-                    ) : (
-                      <p>No {emptyKind} yet. Upload a file to get started.</p>
-                    )}
+                      </div>
+                    </div>
                   </div>
+                ) : null}
+
+                {/* No scroll box of its own: the dialog body is already a
+                ScrollArea, and a second one would trap the wheel. */}
+                <div className="min-h-[260px] rounded-lg border p-3">
+                  {loading ? (
+                    <div
+                      className="grid h-56 place-items-center text-sm text-muted-foreground"
+                      role="status"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Loader2Icon className="size-4 animate-spin" />
+                        Loading…
+                      </span>
+                    </div>
+                  ) : mediaItems.length === 0 ? (
+                    <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
+                      <div className="grid justify-items-center gap-3">
+                        <ImageIcon className="size-10" />
+                        {searchTerm ? (
+                          <>
+                            <p>Nothing matched {quoteOneLine(searchTerm)}.</p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setSearchQuery("")}
+                            >
+                              Clear search
+                            </Button>
+                          </>
+                        ) : (
+                          <p>
+                            No {emptyKind} yet. Upload a file to get started.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                      {mediaItems.map((item) => (
+                        <MediaTile
+                          key={item.id}
+                          item={item}
+                          selected={
+                            selectedMedia?.id === item.id ||
+                            currentMediaUrl === item.url
+                          }
+                          isCurrent={currentMediaUrl === item.url}
+                          playing={playingId === item.id}
+                          onSelect={() => setSelectedMedia(item)}
+                          onChoose={() => chooseMedia(item)}
+                          onPlay={() => {
+                            setSelectedMedia(item)
+                            setPlayingId(item.id)
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {mediaItems.map((item) => (
-                    <MediaTile
-                      key={item.id}
-                      item={item}
-                      selected={
-                        selectedMedia?.id === item.id || currentMediaUrl === item.url
+
+                {data && data.total_pages > 1 ? (
+                  <div className="overflow-hidden rounded-lg">
+                    <DashboardTablePagination
+                      page={currentPage}
+                      pageSize={pageSize}
+                      total={data.total}
+                      totalPages={data.total_pages}
+                      onPageChange={(page) =>
+                        setCurrentPage(
+                          Math.max(1, Math.min(page, data.total_pages))
+                        )
                       }
-                      isCurrent={currentMediaUrl === item.url}
-                      playing={playingId === item.id}
-                      onSelect={() => setSelectedMedia(item)}
-                      onChoose={() => chooseMedia(item)}
-                      onPlay={() => {
-                        setSelectedMedia(item)
-                        setPlayingId(item.id)
-                      }}
+                      pageSizeOptions={[pageSize]}
                     />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {data && data.total_pages > 1 ? (
-              <div className="overflow-hidden rounded-lg">
-                <DashboardTablePagination
-                  page={currentPage}
-                  pageSize={pageSize}
-                  total={data.total}
-                  totalPages={data.total_pages}
-                  onPageChange={(page) =>
-                    setCurrentPage(Math.max(1, Math.min(page, data.total_pages)))
-                  }
-                  pageSizeOptions={[pageSize]}
-                />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-        </DialogBody>
+            </DialogBody>
 
-        <DialogFooter>
-          {currentMediaUrl ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="mr-auto"
-              onClick={() => {
-                onSelectMedia("")
-                onOpenChange(false)
-              }}
-            >
-              Remove
-            </Button>
-          ) : null}
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!selectedMedia}
-            onClick={() => selectedMedia && chooseMedia(selectedMedia)}
-          >
-            Select
-          </Button>
-        </DialogFooter>
+            <DialogFooter>
+              {currentMediaUrl ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mr-auto"
+                  onClick={() => {
+                    onSelectMedia("")
+                    onOpenChange(false)
+                  }}
+                >
+                  Remove
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={!selectedMedia}
+                onClick={() => selectedMedia && chooseMedia(selectedMedia)}
+              >
+                Select
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -484,7 +588,7 @@ function MediaTile({
             // Only the badge plays, so the rest of the tile still just picks.
             <button
               type="button"
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/60 p-2 outline-none transition hover:bg-foreground/80 focus-visible:ring-2 focus-visible:ring-ring"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/60 p-2 transition outline-none hover:bg-foreground/80 focus-visible:ring-2 focus-visible:ring-ring"
               onClick={onPlay}
               aria-label={`Play ${item.original_name}`}
             >

@@ -29,10 +29,15 @@ import {
   TableRow,
   TableSurface,
 } from "@/components/ui/table"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { focusRing } from "@/lib/focus-ring"
 import { cn } from "@/lib/utils"
 
-const defaultPageSizeOptions = [10, 25, 50]
+/**
+ * The same four choices Settings offers, so a table that forgets to pass its
+ * own list still shows the number actually in use.
+ */
+const defaultPageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type DashboardTableError = {
   message: string
@@ -63,6 +68,12 @@ type DashboardTableFooter =
       type: "summary"
       count: number
       label?: string
+      /**
+       * Something to do about the count — typically a link to the full list
+       * when this one is trimmed, so the rest is one click away rather than a
+       * sentence telling you to go and find it.
+       */
+      action?: React.ReactNode
     }
 
 type DashboardTableBaseProps = {
@@ -91,6 +102,13 @@ type DashboardTableBaseProps = {
    * screen and must not blank them out.
    */
   countsPending?: boolean
+  /**
+   * A search or filter is being fetched while the previous rows are still on
+   * screen. They dim so a slow round trip reads as working rather than
+   * broken, and settle the moment the new rows land. Not for the first load,
+   * which has no rows to dim.
+   */
+  busy?: boolean
 }
 
 type DashboardTableProps = DashboardTableBaseProps & (
@@ -124,7 +142,13 @@ export function DashboardTable(props: DashboardTableProps) {
     selectAll,
     footer,
     countsPending = false,
+    busy = false,
   } = props
+
+  const busyClassName = cn(
+    "transition-opacity duration-150",
+    busy && "opacity-50"
+  )
 
   return (
     <TableSurface>
@@ -161,12 +185,14 @@ export function DashboardTable(props: DashboardTableProps) {
       ) : null}
 
       {"content" in props ? (
-        <div>{props.content}</div>
+        <div aria-busy={busy || undefined} className={busyClassName}>
+          {props.content}
+        </div>
       ) : (
         <ScrollArea className="w-full">
           <Table>
             {props.header}
-            <TableBody>
+            <TableBody aria-busy={busy || undefined} className={busyClassName}>
               {props.isEmpty ? (
                 <TableRow>
                   <TableCell
@@ -311,8 +337,11 @@ function DashboardTableFooter({
     footer.count === 1 && plural.endsWith("s") ? plural.slice(0, -1) : plural
 
   return (
-    <div className="flex items-center bg-muted/50 p-4 text-sm text-muted-foreground">
-      {countsPending ? "—" : `${footer.count.toLocaleString()} ${label}`}
+    <div className="flex items-center gap-3 bg-muted/50 p-4 text-sm text-muted-foreground">
+      <span className="min-w-0 flex-1">
+        {countsPending ? "—" : `${footer.count.toLocaleString()} ${label}`}
+      </span>
+      {footer.action}
     </div>
   )
 }

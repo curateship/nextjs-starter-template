@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { useEffectBeforePaint } from "@/lib/use-effect-before-paint"
+
 // Choices this browser remembers between visits — which sections are collapsed,
 // which way the media page is showing files. They are kept in localStorage,
 // which only the browser can read, so every key lives here in one place: the
@@ -15,16 +17,12 @@ export const collapseStorageKey = {
 
 export const MEDIA_VIEW_STORAGE_KEY = "custom-shell-media-view"
 
+/** Whether the automation canvas still shows its "scroll to zoom" hint. */
+export const CANVAS_HINT_STORAGE_KEY = "custom-shell-automation-canvas-hint"
+
 const OPEN = "open"
 const CLOSED = "closed"
 const COLLAPSE_CHOICES = [OPEN, CLOSED] as const
-
-// A layout effect lands before the browser paints, so a remembered value
-// replaces the fallback in the same frame and the fallback is never seen. The
-// server has no painting to do, so use the plain effect there instead of making
-// React complain about a layout effect it cannot run.
-const useEffectBeforePaint =
-  typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 
 /**
  * State that starts at `fallback` and switches to whatever this browser chose

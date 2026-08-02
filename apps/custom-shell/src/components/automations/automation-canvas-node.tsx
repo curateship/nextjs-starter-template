@@ -64,7 +64,7 @@ export function AutomationCanvasNode({
         onMoveStart(event)
       }}
       className={cn(
-        "pointer-events-auto absolute top-0 left-0 box-border cursor-grab rounded-xl border border-foreground/5 bg-card shadow-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "pointer-events-auto absolute top-0 left-0 box-border cursor-grab rounded-xl border border-foreground/5 bg-card shadow-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing",
         unsupported && "border-dashed border-muted-foreground/40 bg-muted/40",
         selected && "border-primary ring-3 ring-primary/15",
         invalid && "border-destructive"

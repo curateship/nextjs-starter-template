@@ -22,6 +22,7 @@ import {
 } from "@/server/media"
 import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
+import { enforceRateLimit } from "@/server/rate-limit"
 import { customShellMedia } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
 import { uuid } from "@/server/security"
@@ -53,7 +54,11 @@ const bulkDeleteMediaSchema = z.object({
 })
 
 export function getMediaErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Media request failed."
+  const message = error instanceof Error ? error.message : ""
+  if (message.includes("RATE_LIMITED")) {
+    return "You've uploaded a lot just now. Please wait a few minutes and try again."
+  }
+  return message || "Media request failed."
 }
 
 const listMediaFn = createServerFn({ method: "GET" })
@@ -93,6 +98,12 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     const user = await requireUser()
     const mimeType = data.file.type || "application/octet-stream"
     validateMediaFile(mimeType, data.file.size)
+
+    // Generous enough for a big drag-and-drop batch; only sustained hammering hits it.
+    await enforceRateLimit(`media-upload:${user.id}`, {
+      maxAttempts: 60,
+      windowSeconds: 10 * 60,
+    })
 
     const rawFileData = new Uint8Array(await data.file.arrayBuffer())
     if (!rawFileData.byteLength) {

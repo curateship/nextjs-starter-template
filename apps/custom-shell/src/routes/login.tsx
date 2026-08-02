@@ -4,8 +4,8 @@ import { Loader2Icon, RotateCcwIcon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
 import { GoogleSignIn } from "@/components/shell/google-sign-in"
+import { PasskeySignIn } from "@/components/shell/passkey-sign-in"
 import { Button } from "@/components/ui/button"
-import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -184,9 +184,7 @@ function LoginRoute() {
         />
       </div>
       <div className="grid gap-2">
-        <FieldLabel htmlFor="password" hint="At least 8 characters.">
-          Password
-        </FieldLabel>
+        <Label htmlFor="password">Password</Label>
         <PasswordInput
           id="password"
           autoComplete="current-password"
@@ -250,6 +248,12 @@ function LoginRoute() {
           redirectTo={safeRedirectPath(redirectTo)}
         />
       ) : null}
+      <PasskeySignIn
+        redirectTo={safeRedirectPath(redirectTo)}
+        // Google's block already draws the divider that separates the other
+        // ways in from the password form; only draw one when it is absent.
+        withDivider={!google}
+      />
     </AuthShell>
   )
 }

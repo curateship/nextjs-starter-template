@@ -1,4 +1,5 @@
 import * as React from "react"
+import { getRouteApi } from "@tanstack/react-router"
 import {
   Loader2Icon,
   PackageIcon,
@@ -56,15 +57,18 @@ import {
   type AdminPlan,
 } from "@/lib/api/admin-plans"
 import { describeBulkResult } from "@/lib/bulk-result"
-import { formatMoney } from "@/lib/money"
+import {
+  useListSearchNavigate,
+  useSearchBoxText,
+} from "@/lib/list-search"
+import { formatPlanPrice } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
-type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
+const plansRoute = getRouteApi("/_authenticated/admin/plans")
 
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
+type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
 
 function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
   switch (column) {
@@ -123,11 +127,23 @@ export function AdminPlansDashboard({
 }) {
   const { config } = useShellRuntime()
   const [plans, setPlans] = React.useState(initialPlans)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [currentPage, setCurrentPage] = React.useState(1)
+  // Search, sort and page live in the address, so Back returns this exact
+  // list — see `lib/list-search.ts`.
+  const listSearch = plansRoute.useSearch()
+  const setListSearch = useListSearchNavigate()
+  const searchQuery = listSearch.q ?? ""
+  const currentPage = listSearch.page ?? 1
+  const setCurrentPage = React.useCallback(
+    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
+    [setListSearch]
+  )
+  const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
+    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
+  )
+
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [sort, setSort] = React.useState<PlanSortColumn>("name")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("asc")
+  const sort: PlanSortColumn = listSearch.sort ?? "name"
+  const direction = listSearch.direction ?? "asc"
   const [editing, setEditing] = React.useState<AdminPlan | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [archiveTarget, setArchiveTarget] = React.useState<AdminPlan | null>(null)
@@ -156,9 +172,11 @@ export function AdminPlansDashboard({
     return sortedPlans.slice(startIndex, startIndex + pageSize)
   }, [currentPage, pageSize, sortedPlans])
 
+  // Changing how many rows fit can leave you past the end; the address already
+  // drops the page when the search, sort or filters change.
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, sort, direction, pageSize])
+  }, [pageSize, setCurrentPage])
 
   useClearSelectionOnListChange(
     setSelectedIds,
@@ -201,14 +219,13 @@ export function AdminPlansDashboard({
 
   const toggleSort = React.useCallback(
     (column: PlanSortColumn) => {
-      if (sort === column) {
-        setDirection(direction === "asc" ? "desc" : "asc")
-        return
-      }
-      setSort(column)
-      setDirection("asc")
+      setListSearch(
+        sort === column
+          ? { direction: direction === "asc" ? "desc" : "asc", page: undefined }
+          : { sort: column, direction: "asc", page: undefined }
+      )
     },
-    [direction, sort]
+    [direction, setListSearch, sort]
   )
 
   const refresh = React.useCallback(async () => {
@@ -282,8 +299,8 @@ export function AdminPlansDashboard({
               name="plan-search"
               aria-label="Search plans"
               placeholder="Search plans…"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
             />
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
@@ -371,7 +388,6 @@ export function AdminPlansDashboard({
             setCurrentPage(1)
             setPageSize(nextSize)
           },
-          pageSizeOptions,
         }}
       >
         {paginatedPlans.map((plan) => (
@@ -397,10 +413,18 @@ export function AdminPlansDashboard({
               </span>
             </TableCell>
             <TableCell column="meta">
-              {formatMoney(plan.priceMonthlyCents, plan.currency)}
+              {formatPlanPrice(
+                plan.priceMonthlyCents,
+                plan.priceYearlyCents,
+                plan.currency
+              )}
             </TableCell>
             <TableCell column="meta">
-              {formatMoney(plan.priceYearlyCents, plan.currency)}
+              {formatPlanPrice(
+                plan.priceYearlyCents,
+                plan.priceMonthlyCents,
+                plan.currency
+              )}
             </TableCell>
             <TableCell column="meta">
               {plan.stripePriceIdMonthly || plan.stripePriceIdYearly ? (

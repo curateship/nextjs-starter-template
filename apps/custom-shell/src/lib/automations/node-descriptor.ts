@@ -2,9 +2,14 @@ import type { z } from "zod"
 
 import type { AutomationNode, AutomationSourcePort } from "./graph"
 
-export type AutomationPaletteGroup = "Triggers" | "Actions" | "Flow" | "Steps"
+export type AutomationPaletteGroup =
+  | "Triggers"
+  | "Actions"
+  | "Flow"
+  | "AI"
+  | "Steps"
 
-export type AutomationNodeIconName = "squareDashed" | "circleHelp"
+export type AutomationNodeIconName = "squareDashed" | "circleHelp" | "sparkles"
 
 export type AutomationNodePort = {
   id: AutomationSourcePort

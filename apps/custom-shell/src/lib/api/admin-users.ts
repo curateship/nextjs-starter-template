@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { loadAccountDetail, type AccountDetail } from "@/server/account-detail"
 import {
+  createAccountByAdmin,
   deleteUserAccount,
   deleteUserAccounts,
   grantManualPlan,
@@ -42,6 +43,10 @@ const adminUserErrorMessages: Record<string, string> = {
   FORBIDDEN: "You do not have access to that.",
   AUTH_REQUIRED: "Please sign in again.",
   USER_NOT_FOUND: "That account no longer exists.",
+  ACCOUNT_EXISTS: "An account already exists for this email.",
+  EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
+  EMAIL_DELIVERY_FAILED:
+    "We could not send the set-password email, so the account was not created. Please try again.",
   LAST_ADMIN: "You cannot remove the last admin.",
   CANNOT_DELETE_SELF: "You cannot delete your own account here.",
   PLAN_NOT_FOUND: "That plan no longer exists.",
@@ -110,6 +115,22 @@ function toAssignablePlans(
     .filter((plan) => plan.active && !plan.isDefault)
     .map((plan) => ({ id: plan.id, name: plan.name, slug: plan.slug }))
 }
+
+const createAccountFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      // Mirrors the registration form's email rule, lowercasing included, so
+      // the duplicate check compares like with like.
+      email: z.string().trim().toLowerCase().min(3).max(255).email(),
+      name: z.string().trim().min(1).max(255),
+      role: z.enum(["admin", "member"]),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    await requireAdmin()
+    return createAccountByAdmin(data.email, data.name, data.role)
+  })
 
 const updateRoleFn = createServerFn({ method: "POST" })
   .inputValidator(
@@ -200,6 +221,14 @@ export function loadAdminAccountDetail(userId: string) {
 
 export function listAdminAccounts(query: AccountListQueryInput) {
   return listAccountsFn({ data: query })
+}
+
+export function createAccountAsAdmin(
+  email: string,
+  name: string,
+  role: "admin" | "member"
+) {
+  return createAccountFn({ data: { email, name, role } })
 }
 
 export function updateAccountRole(userId: string, role: "admin" | "member") {

@@ -23,6 +23,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSortButton,
 } from "@/components/ui/table"
 import { isPendingDeletion, restoreDeadline } from "@/lib/account-deletion"
 import type { FeedbackType } from "@/lib/api/feedback"
@@ -44,6 +45,8 @@ import { pageGutter } from "@/lib/shell-gutter"
  * Each panel links to the dashboard it came from rather than growing its own
  * controls, which keeps one place to edit anything.
  */
+type FeedbackSortColumn = "votes" | "comments" | "created"
+
 export function AdminAccountPage({
   detail,
   plans,
@@ -54,7 +57,32 @@ export function AdminAccountPage({
   onSaved: () => Promise<void>
 }) {
   const [editing, setEditing] = React.useState(false)
+  const [sort, setSort] = React.useState<FeedbackSortColumn>("created")
+  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
   const { profile, subscription, storage } = detail
+
+  const toggleSort = (column: FeedbackSortColumn) => {
+    if (sort === column) {
+      setDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+    setSort(column)
+    setDirection("asc")
+  }
+
+  // A noisy account needs the most-discussed item brought to the top. The list
+  // is already here and already trimmed, so this sorts what is on screen.
+  const sortedFeedback = React.useMemo(() => {
+    const factor = direction === "asc" ? 1 : -1
+    return [...detail.feedback].sort((a, b) => {
+      if (sort === "votes") return (a.votes - b.votes) * factor
+      if (sort === "comments") return (a.comments - b.comments) * factor
+      return (
+        (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
+        factor
+      )
+    })
+  }, [detail.feedback, direction, sort])
 
   return (
     <>
@@ -233,15 +261,37 @@ export function AdminAccountPage({
         header={
           <TableHeader>
             <TableRow>
+              {/* Message and Kind stay plain: neither is a value you would
+                  ever want this list ordered by. */}
               <TableHead column="main">Message</TableHead>
               <TableHead column="meta">Kind</TableHead>
               <TableHead column="meta" className="hidden lg:table-cell">
-                Votes
+                <TableSortButton
+                  active={sort === "votes"}
+                  direction={direction}
+                  onClick={() => toggleSort("votes")}
+                >
+                  Votes
+                </TableSortButton>
               </TableHead>
               <TableHead column="meta" className="hidden lg:table-cell">
-                Replies
+                <TableSortButton
+                  active={sort === "comments"}
+                  direction={direction}
+                  onClick={() => toggleSort("comments")}
+                >
+                  Replies
+                </TableSortButton>
               </TableHead>
-              <TableHead column="meta">Posted</TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sort === "created"}
+                  direction={direction}
+                  onClick={() => toggleSort("created")}
+                >
+                  Posted
+                </TableSortButton>
+              </TableHead>
             </TableRow>
           </TableHeader>
         }
@@ -251,12 +301,20 @@ export function AdminAccountPage({
         footer={{
           type: "summary",
           count: detail.feedback.length,
-          label: detail.feedbackTruncated
-            ? "most recent items — see the feedback page for the rest"
-            : "items",
+          label: detail.feedbackTruncated ? "most recent items" : "items",
+          // Only when the list is trimmed is there a rest to go and see. The
+          // Feedback page has no owner filter, so this carries their name into
+          // its search box — which is what that search already matches on.
+          action: detail.feedbackTruncated ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/feedback" search={{ q: profile.name }}>
+                See all their feedback
+              </Link>
+            </Button>
+          ) : null,
         }}
       >
-        {detail.feedback.map((item) => (
+        {sortedFeedback.map((item) => (
           <TableRow key={item.id}>
             <TableCell column="main">
               <span

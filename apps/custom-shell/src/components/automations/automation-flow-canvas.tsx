@@ -1,13 +1,18 @@
 import * as React from "react"
-import { Maximize2Icon, MinusIcon, PlusIcon } from "lucide-react"
+import { Maximize2Icon, MinusIcon, PlusIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import type {
   AutomationGraph,
   AutomationSourcePort,
   AutomationValidationError,
 } from "@/lib/automations/graph"
 import { automationNodeName } from "@/lib/automations/node-registry"
+import {
+  CANVAS_HINT_STORAGE_KEY,
+  useRememberedChoice,
+} from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 import {
@@ -16,6 +21,8 @@ import {
   edgePath,
   fitViewport,
   flowBounds,
+  MAX_ZOOM,
+  MIN_ZOOM,
   NODE_HEIGHT,
   NODE_WIDTH,
   portIn,
@@ -27,6 +34,8 @@ import { AutomationCanvasNode } from "./automation-canvas-node"
 
 const MINIMAP_WIDTH = 164
 const MINIMAP_HEIGHT = 100
+
+const HINT_CHOICES = ["shown", "hidden"] as const
 
 type ConnectDraft = {
   from: string
@@ -69,6 +78,11 @@ export function AutomationFlowCanvas({
   const dragRef = React.useRef<DragState | null>(null)
   const [connect, setConnect] = React.useState<ConnectDraft | null>(null)
   const [panning, setPanning] = React.useState(false)
+  const [hint, setHint] = useRememberedChoice(
+    CANVAS_HINT_STORAGE_KEY,
+    "shown",
+    HINT_CHOICES
+  )
   const currentRef = React.useRef({ graph, connect })
   React.useEffect(() => {
     currentRef.current = { graph, connect }
@@ -280,6 +294,11 @@ export function AutomationFlowCanvas({
       )
     : 0
 
+  // Floating-point zoom never lands exactly on a limit, so compare with a hair
+  // of slack — otherwise the button that has nothing left to do still looks live.
+  const atMinZoom = graph.viewport.zoom <= MIN_ZOOM + 0.001
+  const atMaxZoom = graph.viewport.zoom >= MAX_ZOOM - 0.001
+
   const zoomByFactor = (factor: number) => {
     const rect = canvasRef.current?.getBoundingClientRect()
     const current = graph.viewport
@@ -415,6 +434,15 @@ export function AutomationFlowCanvas({
                     onSelectEdge(edge.id)
                     onSelectNode(null)
                   }}
+                  onKeyDown={(event) => {
+                    // Enter and Space select, the same as on a box. Delete and
+                    // Backspace are deliberately left alone: they travel up to
+                    // the canvas, which is the one place that removes things.
+                    if (event.key !== "Enter" && event.key !== " ") return
+                    event.preventDefault()
+                    onSelectEdge(edge.id)
+                    onSelectNode(null)
+                  }}
                   onPointerDown={(event) => {
                     event.stopPropagation()
                     onSelectEdge(edge.id)
@@ -528,43 +556,72 @@ export function AutomationFlowCanvas({
         className="absolute bottom-3 left-3 flex items-center rounded-lg border bg-card/90 p-0.5 shadow-sm backdrop-blur-sm"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Zoom out"
-          onClick={() => zoomByFactor(1 / 1.2)}
+        <DisabledReason
+          reason={`Already at the smallest size, ${Math.round(MIN_ZOOM * 100)}%.`}
+          disabled={atMinZoom}
         >
-          <MinusIcon className="size-3.5" />
-        </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Zoom out"
+            disabled={atMinZoom}
+            onClick={() => zoomByFactor(1 / 1.2)}
+          >
+            <MinusIcon className="size-3.5" />
+          </Button>
+        </DisabledReason>
         <span className="w-11 text-center font-mono text-[10px] text-muted-foreground">
           {Math.round(graph.viewport.zoom * 100)}%
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Zoom in"
-          onClick={() => zoomByFactor(1.2)}
+        <DisabledReason
+          reason={`Already at the largest size, ${Math.round(MAX_ZOOM * 100)}%.`}
+          disabled={atMaxZoom}
         >
-          <PlusIcon className="size-3.5" />
-        </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Zoom in"
+            disabled={atMaxZoom}
+            onClick={() => zoomByFactor(1.2)}
+          >
+            <PlusIcon className="size-3.5" />
+          </Button>
+        </DisabledReason>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          className="h-7 gap-1 px-2 text-xs"
+          size="xs"
           aria-label="Fit automation to view"
           onClick={fitToView}
         >
-          <Maximize2Icon className="size-3.5" />
+          <Maximize2Icon />
           Fit
         </Button>
       </div>
 
-      <div className="pointer-events-none absolute top-3 left-3 hidden rounded-md border bg-card/90 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur-sm md:block">
-        Scroll to zoom · Drag to pan · Select ports to connect
-      </div>
+      {/* Shown on every screen, not just wide ones: scroll-to-zoom and
+          drag-to-pan are least obvious on a phone, which is exactly where this
+          used to be hidden. It can be closed, and stays closed on this browser,
+          so it cannot sit on top of a box parked in the corner forever. */}
+      {hint === "shown" ? (
+        <div className="pointer-events-none absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-1 rounded-md border bg-card/90 py-0.5 pr-0.5 pl-2 text-[10px] text-muted-foreground backdrop-blur-sm">
+          <span className="min-w-0">
+            Scroll to zoom · Drag to pan · Select ports to connect
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Hide canvas tips"
+            className="pointer-events-auto"
+            onClick={() => setHint("hidden")}
+          >
+            <XIcon />
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

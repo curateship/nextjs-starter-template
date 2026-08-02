@@ -262,6 +262,25 @@ export async function requireSessionOwner(database: CustomShellDb = db) {
   return context.viewedBy ?? context.user
 }
 
+/**
+ * The signed-in account, and only when the browser really is that person.
+ *
+ * `requireUser` answers with the member an admin is *looking at the app as*,
+ * which is right for reading their screen and wrong for changing how their
+ * account is signed in to. This refuses instead, so an admin has to leave the
+ * view — and be themselves — before credentials on either account can change.
+ */
+export async function requireOwnAccount(database: CustomShellDb = db) {
+  const context = await findSessionContext(database)
+  if (!context) {
+    throw new Error("AUTH_REQUIRED")
+  }
+  if (context.viewedBy) {
+    throw new Error("VIEW_AS_ACTIVE")
+  }
+  return context.user
+}
+
 export async function requireAdmin(database: CustomShellDb = db) {
   const user = await requireUser(database)
   if (!isAdmin(user)) {

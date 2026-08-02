@@ -101,6 +101,9 @@ export function ImageUpload({
         onSelectMedia={(mediaUrl, altText) => onChange(mediaUrl, altText)}
         currentMediaUrl={value}
         showVideos={showVideos}
+        // The crop step starts on the shape this field needs — square for
+        // favicons, logos, and avatars; wide for covers and banners.
+        defaultCropAspect={aspect === "square" ? "square" : "wide"}
       />
     </div>
   )

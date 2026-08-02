@@ -1,14 +1,9 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import {
-  ArrowDownRightIcon,
-  ArrowUpRightIcon,
   BarChart3Icon,
   CircleDollarSignIcon,
   LayersIcon,
   LineChartIcon,
-  UserPlusIcon,
-  UsersIcon,
 } from "lucide-react"
 import {
   Area,
@@ -24,6 +19,12 @@ import {
   YAxis,
 } from "recharts"
 
+import {
+  ChartCard,
+  EmptyChart,
+  LegendDot,
+} from "@/components/shared/chart-card"
+import { StatStrip } from "@/components/shared/stat-strip"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   ChartContainer,
@@ -39,6 +40,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { MembershipSummary } from "@/lib/api/membership"
+import { seriesColour, shade } from "@/lib/chart-colours"
+import { buildMembershipFigures } from "@/lib/membership-figures"
+import { pageGutter } from "@/lib/shell-gutter"
 import { formatMoney } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
@@ -51,19 +55,6 @@ import { cn } from "@/lib/utils"
  * today's picture and says so on the card rather than inventing a trend.
  */
 
-// One colour, mixed down. Everything derives from the theme's primary so the
-// charts follow whatever the workspace is styled to, in both themes.
-const shade = (percent: number) =>
-  `color-mix(in oklch, var(--primary) ${percent}%, var(--background))`
-
-const planColours = [
-  "var(--primary)",
-  shade(80),
-  shade(60),
-  shade(42),
-  shade(30),
-]
-
 export function AdminMembershipDashboard({
   summary,
 }: {
@@ -71,205 +62,24 @@ export function AdminMembershipDashboard({
 }) {
   return (
     <>
-      <HeadlineFigures summary={summary} />
+      <StatStrip figures={buildMembershipFigures(summary)} />
 
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
+      {/* Two proportional columns rather than a pinned pixel width, so the
+          split holds at every wide size and both gaps are the site gutter. */}
+      <div
+        className="grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-stretch"
+        style={{ gap: pageGutter }}
+      >
         <JoiningChart summary={summary} />
         <RevenueByPlanChart summary={summary} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid lg:grid-cols-3" style={{ gap: pageGutter }}>
         <ArpuCard summary={summary} />
         <SubscriptionsCard summary={summary} />
         <PeopleByPlanCard summary={summary} />
       </div>
     </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// The headline row: one card, the figures side by side, hairlines between them.
-
-function HeadlineFigures({ summary }: { summary: MembershipSummary }) {
-  const { revenue } = summary
-
-  const figures = [
-    {
-      to: "/admin/users",
-      icon: UsersIcon,
-      label: "People",
-      value: revenue.totalUsers.toLocaleString(),
-      // The only honest month-on-month figure in the app: joining dates are on
-      // the row, so last month's total can be counted back to.
-      before: `${summary.accountsLastMonth.toLocaleString()} at the end of last month`,
-      change: percentChange(summary.accountsLastMonth, revenue.totalUsers),
-      footer: peopleFooter(summary),
-    },
-    {
-      to: "/admin/users",
-      icon: UserPlusIcon,
-      label: "Joined this month",
-      value: summary.newThisMonth.toLocaleString(),
-      before: `${summary.newLastMonth.toLocaleString()} joined last month`,
-      change: percentChange(summary.newLastMonth, summary.newThisMonth),
-      footer: null,
-    },
-    {
-      to: "/admin/billing",
-      icon: BarChart3Icon,
-      label: "Paying",
-      value: revenue.paidSubscribers.toLocaleString(),
-      before: null,
-      change: null,
-      footer: `${revenue.trialing} on a trial, ${revenue.cancelling} ending`,
-    },
-    {
-      to: "/admin/plans",
-      icon: CircleDollarSignIcon,
-      label: "Revenue a month",
-      value: formatMoney(revenue.monthlyRecurringCents, revenue.currency),
-      before: null,
-      change: null,
-      footer: `${summary.paidPlans} of ${summary.livePlans} plans cost money`,
-    },
-  ]
-
-  return (
-    <Card>
-      <CardContent className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-4 lg:gap-0">
-        {figures.map((figure, index) => (
-          <div key={figure.label} className="flex items-start">
-            <Link
-              to={figure.to}
-              className="group/figure -m-2 min-w-0 flex-1 space-y-1 rounded-lg p-2 transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <figure.icon className="size-4 shrink-0" aria-hidden />
-                <span className="truncate text-xs font-medium sm:text-sm">
-                  {figure.label}
-                </span>
-              </div>
-              <p className="h-4 text-xs text-muted-foreground/70 tabular-nums">
-                {figure.before}
-              </p>
-              {/* Mono and tabular so the figures line up across the row and do
-                  not jump about as they change. */}
-              <p className="font-mono text-2xl leading-tight font-semibold tracking-tight tabular-nums lg:text-[28px]">
-                {figure.value}
-              </p>
-              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
-                {figure.change ? (
-                  <ChangeBadge change={figure.change} />
-                ) : null}
-                <span className="text-muted-foreground">{figure.footer}</span>
-              </div>
-            </Link>
-            {index < figures.length - 1 ? (
-              <div
-                className="mx-4 hidden h-full w-px shrink-0 bg-border lg:block xl:mx-6"
-                aria-hidden
-              />
-            ) : null}
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  )
-}
-
-type Change = { percent: number; up: boolean }
-
-/** Null when there is nothing to compare against — never a made-up 0%. */
-function percentChange(before: number, after: number): Change | null {
-  if (!before) return null
-  const percent = ((after - before) / before) * 100
-  return { percent: Math.abs(percent), up: after >= before }
-}
-
-function ChangeBadge({ change }: { change: Change }) {
-  const Icon = change.up ? ArrowUpRightIcon : ArrowDownRightIcon
-  return (
-    // Never colour alone: the arrow points the way the number went.
-    <span
-      className={cn(
-        "flex items-center gap-0.5 font-medium whitespace-nowrap tabular-nums",
-        change.up
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-destructive"
-      )}
-    >
-      <Icon className="size-3 shrink-0" aria-hidden />
-      {change.up ? "+" : "-"}
-      {Math.round(change.percent)}%
-      <span className="ml-1 font-normal text-muted-foreground">
-        vs last month
-      </span>
-    </span>
-  )
-}
-
-function peopleFooter(summary: MembershipSummary) {
-  const parts = [
-    `${summary.members} ${summary.members === 1 ? "member" : "members"}`,
-    `${summary.admins} ${summary.admins === 1 ? "admin" : "admins"}`,
-  ]
-  if (summary.suspended > 0) parts.push(`${summary.suspended} suspended`)
-  return parts.join(", ")
-}
-
-// ---------------------------------------------------------------------------
-// The chart cards. Each is a Card with its own flat header row, matching the
-// reference: a bordered icon button, the title, and controls on the right.
-
-function ChartCard({
-  icon: Icon,
-  title,
-  legend,
-  control,
-  children,
-  className,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  legend?: React.ReactNode
-  control?: React.ReactNode
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <Card className={cn("flex min-w-0 flex-col gap-0 py-0", className)}>
-      <div className="flex min-h-14 flex-col gap-2 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted/40"
-            aria-hidden
-          >
-            <Icon className="size-4 text-muted-foreground" />
-          </span>
-          <h2 className="text-sm font-medium sm:text-base">{title}</h2>
-        </div>
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          {legend}
-          {control}
-        </div>
-      </div>
-      <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">{children}</div>
-    </Card>
-  )
-}
-
-function LegendDot({ colour, label }: { colour: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5 whitespace-nowrap">
-      <span
-        className="size-2 shrink-0 rounded-full sm:size-2.5"
-        style={{ backgroundColor: colour }}
-        aria-hidden
-      />
-      <span className="text-[10px] text-muted-foreground sm:text-xs">
-        {label}
-      </span>
-    </span>
   )
 }
 
@@ -315,7 +125,6 @@ function JoiningChart({ summary }: { summary: MembershipSummary }) {
     <ChartCard
       icon={LineChartIcon}
       title="People joining"
-      className="flex-1"
       legend={
         <div className="hidden items-center gap-4 lg:flex">
           <LegendDot
@@ -422,7 +231,6 @@ function RevenueByPlanChart({ summary }: { summary: MembershipSummary }) {
     <ChartCard
       icon={BarChart3Icon}
       title="Revenue by plan"
-      className="xl:w-[410px]"
     >
       {paidPlans.length === 0 ? (
         <EmptyChart message="No paid plans are bringing anything in yet." />
@@ -469,7 +277,7 @@ function RevenueByPlanChart({ summary }: { summary: MembershipSummary }) {
                 {paidPlans.map((plan, index) => (
                   <Cell
                     key={plan.planId}
-                    fill={planColours[index % planColours.length]}
+                    fill={seriesColour(index)}
                   />
                 ))}
               </Bar>
@@ -523,14 +331,6 @@ function MiniCard({
         <p className="text-[10px] text-muted-foreground sm:text-xs">{footer}</p>
       </CardContent>
     </Card>
-  )
-}
-
-function EmptyChart({ message }: { message: string }) {
-  return (
-    <div className="flex h-full min-h-[144px] items-center justify-center">
-      <p className="text-center text-sm text-muted-foreground">{message}</p>
-    </div>
   )
 }
 
@@ -634,7 +434,7 @@ function SubscriptionsCard({ summary }: { summary: MembershipSummary }) {
               {data.map((row, index) => (
                 <Cell
                   key={row.stage}
-                  fill={planColours[index % planColours.length]}
+                  fill={seriesColour(index)}
                 />
               ))}
             </Bar>
@@ -654,7 +454,7 @@ function PeopleByPlanCard({ summary }: { summary: MembershipSummary }) {
     .map((plan, index) => ({
       name: plan.planName,
       people: plan.people,
-      colour: planColours[index % planColours.length],
+      colour: seriesColour(index),
     }))
 
   const everyone = slices.reduce((sum, slice) => sum + slice.people, 0)

@@ -56,7 +56,6 @@ import {
   type MediaOrphan,
   type OrphanDashboard,
 } from "@/lib/api/admin-media"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatFileSize } from "@/lib/format-bytes"
 import { formatDate } from "@/lib/format-time"
@@ -65,8 +64,6 @@ import { cn } from "@/lib/utils"
 type OrphanSort = "file" | "problem" | "owner" | "size" | "created"
 type ProblemFilter = "all" | MediaOrphan["kind"]
 type ViewMode = "list" | "gallery"
-
-const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 /** Matches the per-request cap on the clean-up server function. */
 const CLEAN_BATCH_SIZE = 500
@@ -267,7 +264,6 @@ export function MediaOrphansDashboard({
     pageSize,
     total: sorted.length,
     totalPages,
-    pageSizeOptions,
     onPageChange: setPage,
     onPageSizeChange: (size: number) => {
       setPageSize(size)
@@ -378,6 +374,7 @@ export function MediaOrphansDashboard({
             </div>
             <DashboardToolbarButton
               type="button"
+              variant="outline"
               disabled={scanning}
               onClick={() => void rescan()}
             >

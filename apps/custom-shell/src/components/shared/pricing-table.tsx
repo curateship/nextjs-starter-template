@@ -107,12 +107,18 @@ function PlanCard({
     interval === "yearly" ? plan.canCheckoutMonthly : plan.canCheckoutYearly
   const features = describePlanFeatures(plan.features)
 
+  // Zero means "not sold on this period" whenever the other period carries a
+  // price — printing "$0 forever" there would advertise a paid plan as free.
+  const notSoldThisPeriod =
+    priceCents === 0 &&
+    (interval === "yearly" ? plan.priceMonthlyCents : plan.priceYearlyCents) > 0
+
   // A paid card is only "yours" on the period you actually pay — otherwise a
   // monthly subscriber's yearly card is greyed out with no way to buy it. Two
   // cases sit outside that rule: the free plan is not billed, so it has no
   // period to match; and a caller that gives no period is telling us it does
   // not know, where claiming the other period is buyable is the worse guess.
-  const free = plan.isDefault || priceCents === 0
+  const free = plan.isDefault || (priceCents === 0 && !notSoldThisPeriod)
   const onThisPlan = plan.slug === currentPlanSlug
   const current =
     onThisPlan && (free || currentInterval == null || interval === currentInterval)
@@ -141,14 +147,18 @@ function PlanCard({
       <CardContent className="flex flex-1 flex-col gap-4">
         <p className="flex items-baseline gap-1">
           <span className="text-2xl font-semibold">
-            {formatMoney(priceCents, plan.currency)}
+            {notSoldThisPeriod ? "—" : formatMoney(priceCents, plan.currency)}
           </span>
           <span className="text-sm text-muted-foreground">
-            {priceCents === 0
-              ? "forever"
-              : interval === "yearly"
-                ? "per year"
-                : "per month"}
+            {notSoldThisPeriod
+              ? interval === "yearly"
+                ? "not sold yearly"
+                : "not sold monthly"
+              : priceCents === 0
+                ? "forever"
+                : interval === "yearly"
+                  ? "per year"
+                  : "per month"}
           </span>
         </p>
         {plan.trialDays > 0 && priceCents > 0 ? (

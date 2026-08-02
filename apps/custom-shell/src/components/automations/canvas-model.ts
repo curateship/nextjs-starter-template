@@ -86,21 +86,39 @@ export function clampZoom(zoom: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
 }
 
+/** The padding kept between the flow and the canvas edges when fitting. */
+const FIT_PADDING = 48
+
+/**
+ * The viewport that puts the whole flow on screen: the zoom is whichever of the
+ * two axes runs out of room first, and the flow is then centred in what is left.
+ *
+ * Never zooms past 100% — a flow of one box would otherwise be blown up to the
+ * maximum, which is not what "fit to view" means to anyone pressing it.
+ */
 export function fitViewport(
   nodes: AutomationNode[],
   width: number,
   height: number
 ) {
   const bounds = flowBounds(nodes)
-  const padding = 48
-  const zoom = 0.9
   if (!bounds || width <= 0 || height <= 0) {
-    return { x: padding, y: padding, zoom }
+    return { x: FIT_PADDING, y: FIT_PADDING, zoom: 1 }
   }
 
+  const spanX = Math.max(1, bounds.maxX - bounds.minX)
+  const spanY = Math.max(1, bounds.maxY - bounds.minY)
+  const zoom = clampZoom(
+    Math.min(
+      1,
+      (width - FIT_PADDING * 2) / spanX,
+      (height - FIT_PADDING * 2) / spanY
+    )
+  )
+
   return {
-    x: padding - bounds.minX * zoom,
-    y: padding - bounds.minY * zoom,
+    x: (width - spanX * zoom) / 2 - bounds.minX * zoom,
+    y: (height - spanY * zoom) / 2 - bounds.minY * zoom,
     zoom,
   }
 }
