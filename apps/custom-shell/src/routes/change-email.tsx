@@ -101,7 +101,7 @@ function ChangeEmailRoute() {
   }
 
   return (
-    <AuthShell title="Confirming your new email" description="One moment...">
+    <AuthShell title="Confirming your new email" description="One moment…">
       <div className="flex items-center justify-center gap-2 py-2 text-sm text-muted-foreground">
         <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden />
         <span>We are checking your link.</span>

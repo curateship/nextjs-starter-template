@@ -30,6 +30,7 @@ import {
 } from "@/lib/api/feedback"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { quoteOneLine } from "@/lib/quote-text"
 
 /**
  * The comments behind one feedback row, opened from its Comments count. The
@@ -204,7 +205,11 @@ export function FeedbackCommentsModal({
           if (!nextOpen) setDeletingComment(null)
         }}
         title="Delete this comment?"
-        description="This action cannot be undone."
+        description={
+          deletingComment
+            ? `${quoteOneLine(deletingComment.message)} by ${deletingComment.author_name} goes. This cannot be undone.`
+            : null
+        }
         confirmLabel="Delete comment"
         loading={deleting}
         onConfirm={handleDelete}

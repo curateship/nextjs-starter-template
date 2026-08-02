@@ -52,41 +52,15 @@ import {
   type FeedbackType,
 } from "@/lib/api/feedback"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import {
+  FEEDBACK_TYPES,
+  feedbackTypeBadgeVariants,
+  feedbackTypeClassNames,
+  feedbackTypeLabels,
+} from "@/lib/feedback-type"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { quoteOneLine } from "@/lib/quote-text"
 import { cn } from "@/lib/utils"
-
-const feedbackTypes: Array<{ type: FeedbackType; label: string }> = [
-  { type: "suggestion", label: "Suggestion" },
-  { type: "bug_report", label: "Bug Report" },
-  { type: "question", label: "Question" },
-  { type: "praise", label: "Praise" },
-]
-
-const feedbackTypeLabels: Record<FeedbackType, string> = {
-  suggestion: "Suggestion",
-  bug_report: "Bug Report",
-  question: "Question",
-  praise: "Praise",
-}
-
-const feedbackTypeBadgeVariants: Record<
-  FeedbackType,
-  React.ComponentProps<typeof Badge>["variant"]
-> = {
-  suggestion: "default",
-  bug_report: "destructive",
-  question: "outline",
-  praise: "secondary",
-}
-
-const feedbackTypeClassNames: Record<FeedbackType, string> = {
-  suggestion: "",
-  bug_report: "",
-  question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
-  praise:
-    "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
-}
 
 function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"
@@ -110,8 +84,8 @@ type FeedbackSort = "recent" | "most_votes" | "most_comments"
 
 const feedbackSortLabels: Record<FeedbackSort, string> = {
   recent: "Recent",
-  most_votes: "Most Votes",
-  most_comments: "Most Comments",
+  most_votes: "Most votes",
+  most_comments: "Most comments",
 }
 
 /**
@@ -129,7 +103,7 @@ function EmptyFeedback({ filterLabel }: { filterLabel: string | null }) {
         </p>
         <p className="mt-1">
           {filterLabel
-            ? "Switch the filter to All Types to see everything else."
+            ? "Switch the filter to All types to see everything else."
             : "Be the first — say what you'd like changed in the box above."}
         </p>
       </div>
@@ -184,7 +158,7 @@ export function FeedbackModal({
   const [busyCommentId, setBusyCommentId] = React.useState<string | null>(null)
   const [deletingComment, setDeletingComment] =
     React.useState<FeedbackCommentItem | null>(null)
-  // The item just posted, pinned to the top of the list so filing a Bug Report
+  // The item just posted, pinned to the top of the list so filing a Bug report
   // while the list is sorted by votes still shows what you wrote.
   const [justPostedId, setJustPostedId] = React.useState<string | null>(null)
   // Bumped by "Try again" on a failed load. The deep link is unchanged, so the
@@ -308,8 +282,8 @@ export function FeedbackModal({
     })
 
     // One item is pinned to the top: the one a notification linked to, or the
-    // one just posted. Without this a new Bug Report lands at the bottom under
-    // "Most Votes" and looks like nothing happened.
+    // one just posted. Without this a new Bug report lands at the bottom under
+    // "Most votes" and looks like nothing happened.
     const pinnedId = targetFeedbackId ?? justPostedId
     if (!pinnedId) {
       return sorted
@@ -350,7 +324,7 @@ export function FeedbackModal({
       setFeedback((current) => [created, ...current])
       setMessage("")
       // The chosen type stays put — filing three bug reports in a row should
-      // not mean picking "Bug Report" three times.
+      // not mean picking "Bug report" three times.
       setJustPostedId(created.id)
       // A filter that hides what was just written makes the post look lost.
       setFeedbackFilter((current) =>
@@ -576,23 +550,23 @@ export function FeedbackModal({
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2">
-                {feedbackTypes.map((item) => (
+                {FEEDBACK_TYPES.map((type) => (
                     <Button
-                      key={item.type}
+                      key={type}
                       type="button"
-                      variant={feedbackTypeBadgeVariants[item.type]}
+                      variant={feedbackTypeBadgeVariants[type]}
                       size="sm"
                       className={cn(
-                        feedbackTypeClassNames[item.type],
-                        feedbackType === item.type
+                        feedbackTypeClassNames[type],
+                        feedbackType === type
                           ? "ring-2 ring-ring ring-offset-2"
                           : "opacity-70 hover:opacity-100"
                       )}
-                      onClick={() => setFeedbackType(item.type)}
+                      onClick={() => setFeedbackType(type)}
                       disabled={isSubmitting}
-                      aria-pressed={feedbackType === item.type}
+                      aria-pressed={feedbackType === type}
                     >
-                      {item.label}
+                      {feedbackTypeLabels[type]}
                     </Button>
                 ))}
               </div>
@@ -632,7 +606,7 @@ export function FeedbackModal({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="all">All types</SelectItem>
                     {Object.entries(feedbackTypeLabels).map(([type, label]) => (
                       <SelectItem key={type} value={type}>
                         {label}
@@ -921,7 +895,7 @@ export function FeedbackModal({
                                     [item.id]: event.target.value,
                                   }))
                                 }
-                                placeholder="Add a comment..."
+                                placeholder="Add a comment…"
                                 className="min-h-20 resize-none rounded-md bg-background text-sm"
                                 disabled={submittingCommentId === item.id}
                                 onKeyDown={(event) =>
@@ -968,7 +942,11 @@ export function FeedbackModal({
           if (!nextOpen) setDeletingComment(null)
         }}
         title="Delete this comment?"
-        description="This action cannot be undone."
+        description={
+          deletingComment
+            ? `${quoteOneLine(deletingComment.message)} by ${deletingComment.author_name} goes. This cannot be undone.`
+            : null
+        }
         confirmLabel="Delete comment"
         loading={busyCommentId !== null && busyCommentId === deletingComment?.id}
         onConfirm={handleCommentDelete}

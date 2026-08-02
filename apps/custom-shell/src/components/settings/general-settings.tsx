@@ -50,7 +50,7 @@ export function GeneralSettings({
     <CardGroup>
       <CollapsibleSettingsCard
         storageId="general"
-        title="General Settings"
+        title="General settings"
         description="Set the app and workspace names and the favicon used by the shell."
         contentClassName="space-y-6"
       >

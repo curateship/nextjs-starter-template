@@ -29,7 +29,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DatePicker } from "@/components/ui/date-picker"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -38,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -71,8 +71,10 @@ import {
   type Announcement,
 } from "@/lib/api/announcements"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatUtcDate } from "@/lib/format-time"
+import { quoteOneLine } from "@/lib/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 
@@ -310,7 +312,7 @@ export function AdminAnnouncementsDashboard({
             <DashboardToolbarSearch
               name="announcement-search"
               aria-label="Search announcements"
-              placeholder="Search announcements..."
+              placeholder="Search announcements…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -447,18 +449,23 @@ export function AdminAnnouncementsDashboard({
               </TableCell>
               <TableCell column="meta">
                 <div className="flex items-center">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    // Nothing to take down once it is over.
+                  <DisabledReason
                     disabled={status === "ended"}
-                    onClick={() => setRetireTargets([announcement])}
-                    title="Retire now"
-                    aria-label={`Retire ${announcement.title}`}
+                    reason="This announcement has already ended, so there is nothing to take down."
                   >
-                    <EyeOffIcon className="size-4" />
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      // Nothing to take down once it is over.
+                      disabled={status === "ended"}
+                      onClick={() => setRetireTargets([announcement])}
+                      title="Retire now"
+                      aria-label={`Retire ${announcement.title}`}
+                    >
+                      <EyeOffIcon className="size-4" />
+                    </Button>
+                  </DisabledReason>
                   <Button
                     type="button"
                     variant="ghost"
@@ -511,7 +518,11 @@ export function AdminAnnouncementsDashboard({
             ? "Take this announcement down?"
             : `Take ${retireTargets.length} announcements down?`
         }
-        description="The banner disappears for everyone straight away. Notices already in people's trays stay there, and you can put it back up by giving it a new end date."
+        description={
+          retireTargets.length === 1 && retireTargets[0]
+            ? `${quoteOneLine(retireTargets[0].title)} disappears from everyone's banner straight away. Notices already in people's trays stay there, and you can put it back up by giving it a new end date.`
+            : "The banners disappear for everyone straight away. Notices already in people's trays stay there, and you can put them back up by giving them a new end date."
+        }
         confirmLabel="Retire"
         // Nothing is lost — the announcement stays and can go back up — so this
         // is not one of the red buttons.
@@ -549,7 +560,11 @@ export function AdminAnnouncementsDashboard({
             ? "Delete this announcement?"
             : `Delete ${deleteTargets.length} announcements?`
         }
-        description="It disappears from everyone's banner and from their notification tray. This cannot be undone."
+        description={
+          deleteTargets.length === 1 && deleteTargets[0]
+            ? `${quoteOneLine(deleteTargets[0].title)} disappears from everyone's banner and from their notification tray. This cannot be undone.`
+            : "They disappear from everyone's banner and from their notification tray. This cannot be undone."
+        }
         confirmLabel={
           deleteTargets.length === 1
             ? "Delete announcement"
@@ -610,6 +625,7 @@ function AnnouncementDialog({
     toDateField(announcement?.endsAt ?? null)
   )
   const [saving, setSaving] = React.useState(false)
+  const titleInputRef = React.useRef<HTMLInputElement>(null)
   // Flagged per field and only when Create/Save is pressed. A new announcement
   // opens empty, so complaining as focus passes through a field would tell the
   // writer off before they have had a chance to type in it.
@@ -670,14 +686,32 @@ function AnnouncementDialog({
     title,
   ])
 
+  // What the window opened holding. Anything different from this is work a
+  // stray click outside would throw away, so the window asks first.
+  const dirty =
+    title !== (announcement?.title ?? "") ||
+    body !== (announcement?.body ?? "") ||
+    level !== (announcement?.level ?? DEFAULT_ANNOUNCEMENT_LEVEL) ||
+    showBanner !== (announcement?.showBanner ?? true) ||
+    notify !== (announcement?.notify ?? false) ||
+    startsOn !== toDateField(announcement?.startsAt ?? null) ||
+    endsOn !== toDateField(announcement?.endsAt ?? null)
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen && !saving) onClose()
-      }}
-    >
-      <DialogContent variant="admin" className="sm:max-w-lg">
+    <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
+      {(requestClose) => (
+      <DialogContent
+        variant="admin"
+        className="sm:max-w-lg"
+        // A new announcement opens with the cursor in Title so you can just
+        // type. Editing an existing one keeps the window's normal focus, since
+        // landing in a filled field invites a stray edit.
+        onOpenAutoFocus={(event) => {
+          if (announcement) return
+          event.preventDefault()
+          titleInputRef.current?.focus()
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {announcement ? "Edit announcement" : "New announcement"}
@@ -686,6 +720,13 @@ function AnnouncementDialog({
             Everyone signed in sees this, whichever plan they are on.
           </DialogDescription>
         </DialogHeader>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSave()
+          }}
+        >
         <DialogBody>
           <Card size="sm">
             <CardHeader>
@@ -730,6 +771,7 @@ function AnnouncementDialog({
                   </FieldLabel>
                   <Input
                     id="announcement-title"
+                    ref={titleInputRef}
                     value={title}
                     onChange={(event) => {
                       setTitle(event.target.value)
@@ -840,15 +882,22 @@ function AnnouncementDialog({
           </Card>
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={requestClose}
+            disabled={saving}
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button type="submit" disabled={saving}>
             {saving ? <Loader2Icon className="animate-spin" /> : null}
             {announcement ? "Save changes" : "Create announcement"}
           </Button>
         </DialogFooter>
+        </form>
       </DialogContent>
-    </Dialog>
+      )}
+    </FormDialog>
   )
 }

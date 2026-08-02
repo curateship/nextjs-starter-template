@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -229,7 +230,7 @@ export function ChangelogAdminDashboard({
             <DashboardToolbarSearch
               name="changelog-search"
               aria-label="Search updates"
-              placeholder="Search updates..."
+              placeholder="Search updates…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
@@ -471,6 +472,7 @@ function ChangelogDialog({
   const [body, setBody] = React.useState(entry?.body ?? "")
   const [published, setPublished] = React.useState(Boolean(entry?.publishedAt))
   const [saving, setSaving] = React.useState(false)
+  const titleInputRef = React.useRef<HTMLInputElement>(null)
   // Flagged per field and only when Create/Save is pressed. A new entry opens
   // empty, so complaining as focus passes through a field would tell the writer
   // off before they have had a chance to type in it.
@@ -515,14 +517,30 @@ function ChangelogDialog({
     }
   }, [body, entry, onSaved, published, title])
 
+  // What the window opened holding. Anything different is unsaved work, so the
+  // backdrop, Escape, the X and Cancel all ask before throwing it away — and
+  // `busy` refuses to close at all while the save is in flight, which the old
+  // unguarded `onOpenChange` did not.
+  const dirty =
+    title !== (entry?.title ?? "") ||
+    body !== (entry?.body ?? "") ||
+    published !== Boolean(entry?.publishedAt)
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) onClose()
-      }}
-    >
-      <DialogContent variant="admin" className="sm:max-w-lg">
+    <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>
+      {(requestClose) => (
+      <DialogContent
+        variant="admin"
+        className="sm:max-w-lg"
+        // A new update opens with the cursor in Title so you can just type.
+        // Editing an existing one keeps the window's normal focus, since
+        // landing in a filled field invites a stray edit.
+        onOpenAutoFocus={(event) => {
+          if (entry) return
+          event.preventDefault()
+          titleInputRef.current?.focus()
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{entry ? "Edit update" : "New update"}</DialogTitle>
           <DialogDescription>
@@ -530,6 +548,13 @@ function ChangelogDialog({
             put a dot on the header button until they read them.
           </DialogDescription>
         </DialogHeader>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSave()
+          }}
+        >
         <DialogBody>
           <Card size="sm">
             <CardHeader>
@@ -545,6 +570,7 @@ function ChangelogDialog({
                 </FieldLabel>
                 <Input
                   id="changelog-title"
+                  ref={titleInputRef}
                   value={title}
                   onChange={(event) => {
                     setTitle(event.target.value)
@@ -587,16 +613,23 @@ function ChangelogDialog({
           </Card>
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={requestClose}
+            disabled={saving}
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button type="submit" disabled={saving}>
             {saving ? <Loader2Icon className="animate-spin" /> : null}
             {entry ? "Save changes" : "Create update"}
           </Button>
         </DialogFooter>
+        </form>
       </DialogContent>
-    </Dialog>
+      )}
+    </FormDialog>
   )
 }
 
