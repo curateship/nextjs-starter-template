@@ -13,6 +13,21 @@ function placeholder(id: string, note = "") {
   return { id, kind: "placeholder", x: 0, y: 0, settings: { note } }
 }
 
+function aiStep(id: string, settings: Record<string, unknown> = {}) {
+  return {
+    id,
+    kind: "aiStep",
+    x: 0,
+    y: 0,
+    settings: {
+      provider: "anthropic",
+      model: "claude-opus-5",
+      instructions: "Summarise the feedback in two sentences.",
+      ...settings,
+    },
+  }
+}
+
 function edge(id: string, from: string, to: string, sourcePort = "then") {
   return { id, from, sourcePort, to }
 }
@@ -83,6 +98,49 @@ describe("compileAutomationGraph", () => {
       (error) => error.code === "invalid_settings"
     )
     expect(settingsError?.nodeId).toBe("a")
+  })
+
+  it("compiles an AI step and keeps its settings in the config", () => {
+    const result = compileAutomationGraph({
+      nodes: [placeholder("a"), aiStep("b")],
+      edges: [edge("e1", "a", "b")],
+      viewport,
+    })
+    expect(result.errors).toEqual([])
+    expect(result.config?.nodes.b).toEqual({
+      kind: "aiStep",
+      settings: {
+        provider: "anthropic",
+        model: "claude-opus-5",
+        instructions: "Summarise the feedback in two sentences.",
+      },
+    })
+  })
+
+  it("refuses to compile an AI step with no instructions", () => {
+    const result = compileAutomationGraph({
+      nodes: [aiStep("a", { instructions: "   " })],
+      edges: [],
+      viewport,
+    })
+    expect(result.config).toBeNull()
+    const settingsError = result.errors.find(
+      (error) => error.code === "invalid_settings"
+    )
+    expect(settingsError?.nodeId).toBe("a")
+    expect(settingsError?.message).toContain("instructions")
+  })
+
+  it("refuses to compile an AI step with an unknown provider", () => {
+    const result = compileAutomationGraph({
+      nodes: [aiStep("a", { provider: "acme-ai" })],
+      edges: [],
+      viewport,
+    })
+    expect(result.config).toBeNull()
+    expect(result.errors.map((error) => error.code)).toContain(
+      "invalid_settings"
+    )
   })
 
   it("rejects self connections, missing endpoints, and invalid ports", () => {

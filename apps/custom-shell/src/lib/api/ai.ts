@@ -1,15 +1,14 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { AI_PROVIDERS, type AiProvider } from "@/lib/ai-models"
 import {
-  AI_PROVIDERS,
   getAiKeyStatuses,
   removeAiKey,
   setAiKey,
   testAiKey,
   type AiKeyStatus,
   type AiKeyTestResult,
-  type AiProvider,
 } from "@/server/ai-keys"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin } from "@/server/security"

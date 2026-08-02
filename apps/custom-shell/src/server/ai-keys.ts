@@ -5,12 +5,12 @@ import { decryptSecret, encryptSecret } from "@/server/encryption"
 import { customShellAiProviderKeys } from "@/server/schema"
 import { now } from "@/server/security"
 
+import { AI_PROVIDERS, type AiProvider } from "@/lib/ai-models"
+
 // The app-wide AI provider key store. Auth lives in the API layer
 // (src/lib/api/ai.ts): every caller there is behind requireAdmin, and the
 // writes behind requireAppOrigin, matching how the other stores are guarded.
-
-export const AI_PROVIDERS = ["anthropic", "openai"] as const
-export type AiProvider = (typeof AI_PROVIDERS)[number]
+// The provider list itself lives in src/lib/ai-models.ts, shared with the UI.
 
 // Env var that backs each provider when no key is saved in Settings. A saved
 // key always wins, so an admin can override the deployment's key from the UI.
