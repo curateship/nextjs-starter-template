@@ -42,3 +42,60 @@ export function isAiProvider(value: unknown): value is AiProvider {
     typeof value === "string" && (AI_PROVIDERS as readonly string[]).includes(value)
   )
 }
+
+/**
+ * What each model costs, in dollars per million tokens, straight off the
+ * providers' price pages. THE ONLY PLACE PRICES MAY APPEAR — everything that
+ * needs a cost goes through `aiCostCents()` below.
+ *
+ * Last checked: 2026-08-02 (Anthropic from their published API pricing;
+ * OpenAI's worth re-checking against platform.openai.com/pricing).
+ */
+export const AI_MODEL_PRICES: Record<
+  string,
+  { inputPerMillion: number; outputPerMillion: number }
+> = {
+  "claude-opus-5": { inputPerMillion: 5, outputPerMillion: 25 },
+  "claude-sonnet-5": { inputPerMillion: 3, outputPerMillion: 15 },
+  "claude-haiku-4-5": { inputPerMillion: 1, outputPerMillion: 5 },
+  "gpt-5.1": { inputPerMillion: 1.25, outputPerMillion: 10 },
+  "gpt-5": { inputPerMillion: 1.25, outputPerMillion: 10 },
+  "gpt-5-mini": { inputPerMillion: 0.25, outputPerMillion: 2 },
+}
+
+/**
+ * The model the "Test this key" button spends its one tiny call on — each
+ * provider's cheapest, because the point is proving the key, not the model.
+ */
+export const AI_KEY_TEST_MODEL: Record<AiProvider, string> = {
+  anthropic: "claude-haiku-4-5",
+  openai: "gpt-5-mini",
+}
+
+/**
+ * What a call cost, in whole cents, so thousands of rows add up without
+ * drifting. A model missing from the price list costs 0 rather than losing
+ * the row — the tokens still get recorded and the price list gets fixed.
+ */
+export function aiCostCents(
+  model: string,
+  inputTokens: number,
+  outputTokens: number
+): number {
+  const price = AI_MODEL_PRICES[model]
+  if (!price) return 0
+  const dollars =
+    (inputTokens * price.inputPerMillion +
+      outputTokens * price.outputPerMillion) /
+    1_000_000
+  return Math.round(dollars * 100)
+}
+
+/**
+ * The windows the AI usage dashboard can show. Living here — not in
+ * server/ai-usage.ts — keeps the constant importable by the browser: a runtime
+ * value re-exported out of a `@/server/*` module drags the database driver
+ * into the client bundle and kills hydration app-wide.
+ */
+export const AI_USAGE_RANGES = ["month", "30d", "90d"] as const
+export type AiUsageRange = (typeof AI_USAGE_RANGES)[number]

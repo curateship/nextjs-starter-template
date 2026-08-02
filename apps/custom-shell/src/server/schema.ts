@@ -7,6 +7,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -633,6 +634,53 @@ export const customShellPasskeyChallenges = pgTable(
       sql`${table.type} in ('registration', 'authentication')`
     ),
     index("ix_passkey_challenges_expires_at").on(table.expiresAt),
+  ]
+)
+
+/**
+ * One row per AI call — the meter on the only pipe in this app that spends
+ * money per click. Written by `recordAiUsage` (src/server/ai-usage.ts) and
+ * never anywhere else; every call site goes through `runAiCall`, which
+ * records failures too, so nothing runs unmeasured.
+ *
+ * `userId` is kept but not cascaded: deleting an account must not erase what
+ * it spent, so the rows go anonymous instead. `costCents` is whole cents from
+ * the price list in src/lib/ai-models.ts. `monthStart` is the first day of
+ * the UTC month the call belongs to, always via `aiUsageMonthStart` —
+ * indexed both ways the dashboard task will read it.
+ */
+export const customShellAiUsageEvents = pgTable(
+  "ai_usage_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    provider: varchar("provider", { length: 20 }).notNull(),
+    model: varchar("model", { length: 120 }).notNull(),
+    feature: varchar("feature", { length: 50 }).notNull(),
+    inputTokens: integer("input_tokens").notNull(),
+    outputTokens: integer("output_tokens").notNull(),
+    costCents: integer("cost_cents").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    monthStart: date("month_start").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ai_usage_events_status_check",
+      sql`${table.status} in ('success', 'failed', 'blocked')`
+    ),
+    index("ix_ai_usage_events_user_month").on(table.userId, table.monthStart),
+    index("ix_ai_usage_events_month_created").on(
+      table.monthStart,
+      table.createdAt
+    ),
   ]
 )
 

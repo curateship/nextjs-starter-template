@@ -5,7 +5,12 @@ import { decryptSecret, encryptSecret } from "@/server/encryption"
 import { customShellAiProviderKeys } from "@/server/schema"
 import { now } from "@/server/security"
 
-import { AI_PROVIDERS, type AiProvider } from "@/lib/ai-models"
+import {
+  AI_KEY_TEST_MODEL,
+  AI_PROVIDERS,
+  type AiProvider,
+} from "@/lib/ai-models"
+import { runAiCall, type AiCallUsage } from "@/server/ai-usage"
 
 // The app-wide AI provider key store. Auth lives in the API layer
 // (src/lib/api/ai.ts): every caller there is behind requireAdmin, and the
@@ -146,48 +151,132 @@ export type AiKeyTestResult =
   | { result: "unreachable" }
   | { result: "error"; status: number }
 
-// The cheapest real authenticated call each provider has: list models. It
-// proves the key without spending tokens.
-const TEST_REQUEST: Record<AiProvider, { url: string; headers: (key: string) => Record<string, string> }> = {
+/** A test verdict travelling as a throw, so `runAiCall` records a failed row. */
+class AiKeyTestFailure extends Error {
+  readonly verdict: AiKeyTestResult
+
+  constructor(verdict: AiKeyTestResult) {
+    super(`AI key test: ${verdict.result}`)
+    this.verdict = verdict
+  }
+}
+
+// One tiny real generation per provider — a couple of tokens on the cheapest
+// model — so the test proves the key the way real features will use it, and
+// puts a genuine row on the usage meter.
+const TEST_CALL: Record<
+  AiProvider,
+  {
+    url: string
+    headers: (key: string) => Record<string, string>
+    body: (model: string) => string
+    usage: (payload: Record<string, unknown>) => AiCallUsage
+  }
+> = {
   anthropic: {
-    url: "https://api.anthropic.com/v1/models?limit=1",
+    url: "https://api.anthropic.com/v1/messages",
     headers: (key) => ({
       "x-api-key": key,
       "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
     }),
+    body: (model) =>
+      JSON.stringify({
+        model,
+        max_tokens: 1,
+        messages: [{ role: "user", content: "Say OK." }],
+      }),
+    usage: (payload) => {
+      const usage = (payload.usage ?? {}) as Record<string, unknown>
+      return {
+        inputTokens: asTokenCount(usage.input_tokens),
+        outputTokens: asTokenCount(usage.output_tokens),
+      }
+    },
   },
   openai: {
-    url: "https://api.openai.com/v1/models",
-    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+    url: "https://api.openai.com/v1/chat/completions",
+    headers: (key) => ({
+      Authorization: `Bearer ${key}`,
+      "content-type": "application/json",
+    }),
+    body: (model) =>
+      JSON.stringify({
+        model,
+        max_completion_tokens: 16,
+        messages: [{ role: "user", content: "Say OK." }],
+      }),
+    usage: (payload) => {
+      const usage = (payload.usage ?? {}) as Record<string, unknown>
+      return {
+        inputTokens: asTokenCount(usage.prompt_tokens),
+        outputTokens: asTokenCount(usage.completion_tokens),
+      }
+    },
   },
+}
+
+/** A provider's token count, or 0 when the response shape surprises us. */
+function asTokenCount(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.round(value)
+    : 0
 }
 
 /**
  * Makes one tiny real call with `candidateKey` if given (a pasted key being
  * checked before saving), otherwise with the saved/env key. Throws NO_KEY when
- * there is nothing to test.
+ * there is nothing to test. Runs through `runAiCall`, so every press of the
+ * button — good key or bad — lands on the usage meter under "key-test".
  */
 export async function testAiKey(
   provider: AiProvider,
+  userId: string,
   candidateKey?: string
 ): Promise<AiKeyTestResult> {
   const key = candidateKey?.trim() || (await getAiKey(provider))
   if (!key) throw new Error("NO_KEY")
 
-  const request = TEST_REQUEST[provider]
-  let response: Response
+  const model = AI_KEY_TEST_MODEL[provider]
+  const request = TEST_CALL[provider]
   try {
-    response = await fetch(request.url, {
-      headers: request.headers(key),
-      signal: AbortSignal.timeout(10_000),
-    })
-  } catch {
-    return { result: "unreachable" }
+    return await runAiCall<AiKeyTestResult>(
+      {
+        userId,
+        provider,
+        model,
+        feature: "key-test",
+        metadata: { source: candidateKey?.trim() ? "pasted" : "saved" },
+      },
+      async () => {
+        let response: Response
+        try {
+          response = await fetch(request.url, {
+            method: "POST",
+            headers: request.headers(key),
+            body: request.body(model),
+            signal: AbortSignal.timeout(15_000),
+          })
+        } catch {
+          throw new AiKeyTestFailure({ result: "unreachable" })
+        }
+        if (response.status === 401 || response.status === 403) {
+          throw new AiKeyTestFailure({ result: "rejected" })
+        }
+        if (!response.ok) {
+          throw new AiKeyTestFailure({
+            result: "error",
+            status: response.status,
+          })
+        }
+        const payload = (await response.json()) as Record<string, unknown>
+        return { result: { result: "ok" }, usage: request.usage(payload) }
+      }
+    )
+  } catch (error) {
+    // A bad key or an unreachable provider is the test's answer, not a crash
+    // — the failed row is already on the meter; hand the verdict back.
+    if (error instanceof AiKeyTestFailure) return error.verdict
+    throw error
   }
-
-  if (response.ok) return { result: "ok" }
-  if (response.status === 401 || response.status === 403) {
-    return { result: "rejected" }
-  }
-  return { result: "error", status: response.status }
 }

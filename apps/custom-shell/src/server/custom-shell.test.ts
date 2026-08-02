@@ -1021,6 +1021,12 @@ describe("custom shell workspaces", () => {
         href: "/admin/membership",
         visible: true,
       },
+      {
+        type: "item",
+        label: "AI usage",
+        href: "/admin/ai",
+        visible: true,
+      },
     ])
 
     const secondWorkspace = await createUserWorkspace(
@@ -1411,10 +1417,12 @@ describe("membership section", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     // One load applied every restructure: Users, Plans and Revenue grouped
     // under Membership, the audit link grouped under Feeds, the retired audit
-    // link taken out again, the Overview handed out, and Feeds folded into it.
+    // link taken out again, the Overview handed out, Feeds folded into it,
+    // and the AI usage link handed out beside Membership.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-membership",
+      "item-admin-ai-usage",
     ])
     // Feeds held nothing but the audit link, which was taken out a step
     // earlier — so the Overview came out of the fold with no children at all,
@@ -1448,10 +1456,11 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The Overview stays: it was handed out by the same upgrade, and it is
-    // not what was deleted.
+    // The Overview and AI usage links stay: both were handed out by the same
+    // upgrade, and neither is what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
+      "item-admin-ai-usage",
     ])
   })
 
@@ -2335,6 +2344,7 @@ describe("feeds section", () => {
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-membership",
+      "item-admin-ai-usage",
     ])
     // Grouped under Feeds, then handed on to the Overview when Feeds went.
     // No Feedback link: this sidebar predates it. What's new and the audit
@@ -2382,6 +2392,7 @@ describe("feeds section", () => {
     )
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-membership",
+      "item-admin-ai-usage",
     ])
   })
 

@@ -122,6 +122,21 @@ const MEMBERSHIP_CHILD_IDS: readonly string[] = membershipChildLinks().map(
   (child) => child.id
 )
 
+const AI_USAGE_LINK_ID = "item-admin-ai-usage"
+const AI_USAGE_HREF = "/admin/ai"
+
+function aiUsageLink(): ShellItem {
+  return {
+    type: "item",
+    id: AI_USAGE_LINK_ID,
+    label: "AI usage",
+    href: AI_USAGE_HREF,
+    icon: "sparkles",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
 /**
  * The retired Feeds parent. Its page is gone — the Overview shows what it
  * showed — and its four links hang off the Overview now.
@@ -227,7 +242,7 @@ const AUTOMATIONS_LINK: ShellItem = {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 7
+export const NAVIGATION_VERSION = 8
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -564,6 +579,9 @@ async function applyNavigationUpgrade(
   // feed links to it, so the link it hands them to has to be there first.
   if (settings.navVersion < 7) {
     sections = foldFeedsIntoOverview(sections)
+  }
+  if (settings.navVersion < 8) {
+    sections = addAiUsageLink(sections)
   }
 
   const [updated] = await database
@@ -907,6 +925,58 @@ export function addOverviewLink(sections: ShellSection[]): ShellSection[] {
       ? { ...section, entries: [overviewLink(), ...section.entries] }
       : section
   )
+}
+
+/**
+ * Puts the AI usage link in a sidebar saved before the page existed. Same
+ * shape and same rules as `addOverviewLink` above: an emptied sidebar stays
+ * empty, a link that is already there (by id or address, hidden included) is
+ * never doubled, and it runs once per workspace on the navVersion stamp.
+ */
+export function addAiUsageLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isAiUsage = (link: { id: string; href?: string }) =>
+    link.id === AI_USAGE_LINK_ID || link.href === AI_USAGE_HREF
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isAiUsage(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isAiUsage))
+    )
+  )
+  if (alreadyThere) return sections
+
+  // Where it belongs, in order: right after Membership (money next to money),
+  // then the Administration section, then the first section.
+  const sectionIndex = sections.findIndex((section) =>
+    section.entries.some(
+      (entry) =>
+        entry.id === MEMBERSHIP_LINK_ID ||
+        (isShellItem(entry) && entry.href === MEMBERSHIP_HREF)
+    )
+  )
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  const index = sectionIndex >= 0 ? sectionIndex : Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const membershipAt = section.entries.findIndex(
+      (entry) =>
+        entry.id === MEMBERSHIP_LINK_ID ||
+        (isShellItem(entry) && entry.href === MEMBERSHIP_HREF)
+    )
+    const entries = [...section.entries]
+    entries.splice(
+      membershipAt >= 0 ? membershipAt + 1 : entries.length,
+      0,
+      aiUsageLink()
+    )
+    return { ...section, entries }
+  })
 }
 
 /**
@@ -1308,6 +1378,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       entries: [
         overviewLink(feedsChildLinks()),
         membershipLink(membershipChildLinks()),
+        aiUsageLink(),
       ],
     },
     {

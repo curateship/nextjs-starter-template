@@ -70,6 +70,12 @@ export function AiSettings() {
   // Which button is running, as "provider:action" — the others grey out, the
   // active one spins. Null means nothing is running.
   const [runningId, setRunningId] = React.useState<string | null>(null)
+  // The provider whose auto-save is in flight. Deliberately NOT part of
+  // `busy`: clicking "Test this key" right after typing blurs the field,
+  // the blur starts the save, and a save that disabled the buttons would
+  // swallow that very click. Testing a pasted key is independent of saving
+  // it, so the two may run side by side.
+  const [savingId, setSavingId] = React.useState<AiProvider | null>(null)
   // The last test's verdict, per provider, already worded for the user.
   const [testResults, setTestResults] = React.useState<Record<string, string>>(
     {}
@@ -128,7 +134,7 @@ export function AiSettings() {
   const save = async (provider: AiProvider, value: string) => {
     const key = value.trim()
     if (!key) return
-    setRunningId(`${provider}:save`)
+    setSavingId(provider)
     setSaveStatus("saving")
     dismissErrorToast()
     try {
@@ -144,7 +150,7 @@ export function AiSettings() {
       setSaveStatus("idle")
       showErrorToast(getAiErrorMessage(error))
     } finally {
-      setRunningId(null)
+      setSavingId(null)
     }
   }
 
@@ -160,7 +166,7 @@ export function AiSettings() {
   const flushSave = (provider: AiProvider) => {
     clearTimeout(timers.current[provider])
     const value = drafts[provider] ?? ""
-    if (!value.trim() || busy) return
+    if (!value.trim() || savingId !== null) return
     void save(provider, value)
   }
 
@@ -275,10 +281,13 @@ export function AiSettings() {
                       Test this key
                     </Button>
                     {status?.source === "settings" ? (
+                      // Unlike Test, Remove waits out an in-flight save: a
+                      // delete racing the save's upsert could resurrect the
+                      // key that was just removed.
                       <Button
                         type="button"
                         variant="outline"
-                        disabled={busy}
+                        disabled={busy || savingId !== null}
                         onClick={() => setRemoving(id)}
                       >
                         Remove

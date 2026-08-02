@@ -1,0 +1,531 @@
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import {
+  CpuIcon,
+  HashIcon,
+  LineChartIcon,
+  TriangleAlertIcon,
+  UsersIcon,
+  WalletIcon,
+  WorkflowIcon,
+  ZapIcon,
+} from "lucide-react"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+
+import { ChartCard, EmptyChart } from "@/components/shared/chart-card"
+import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
+import { StatStrip, type StatFigure } from "@/components/shared/stat-strip"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
+import type {
+  AiUsageDashboard,
+  AiUsagePersonRow,
+  AiUsageRange,
+} from "@/lib/api/ai"
+import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
+import { formatDate } from "@/lib/format-time"
+import { formatMoney } from "@/lib/money"
+import { pageGutter } from "@/lib/shell-gutter"
+
+/**
+ * Settings → the sidebar's AI usage page: what AI cost, who spent it, and
+ * which features and models burned the money. Reads the meter written by
+ * `runAiCall` — every figure here is a sum over `ai_usage_events`.
+ */
+
+const RANGE_LABELS: Record<AiUsageRange, string> = {
+  month: "This month",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+}
+
+const spendConfig: ChartConfig = {
+  spend: { label: "Spend", color: "var(--primary)" },
+}
+
+export function AdminAiUsageDashboard({
+  data,
+  range,
+  searchText,
+  defaultPageSize,
+}: {
+  data: AiUsageDashboard
+  range: AiUsageRange
+  searchText: string
+  defaultPageSize: number
+}) {
+  const navigate = useListSearchNavigate()
+  const hasAnyUsage = data.totals.calls > 0
+
+  const figures: StatFigure[] = [
+    {
+      key: "spend",
+      icon: WalletIcon,
+      label: "Spend",
+      value: formatMoney(data.totals.costCents),
+      footer: RANGE_LABELS[range].toLowerCase(),
+    },
+    {
+      key: "calls",
+      icon: ZapIcon,
+      label: "AI calls",
+      value: data.totals.calls.toLocaleString(),
+      footer: RANGE_LABELS[range].toLowerCase(),
+    },
+    {
+      key: "tokens",
+      icon: HashIcon,
+      label: "Tokens",
+      value: formatTokens(data.totals.tokens),
+      footer: "in and out together",
+    },
+    {
+      key: "failed",
+      icon: TriangleAlertIcon,
+      label: "Failed calls",
+      value: data.totals.failed.toLocaleString(),
+      footer: data.totals.failed ? "recorded, never dropped" : "none recorded",
+    },
+  ]
+
+  return (
+    <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
+      <StatStrip figures={figures} />
+
+      <ChartCard
+        icon={LineChartIcon}
+        title="Daily spend"
+        control={
+          <Tabs
+            value={range}
+            onValueChange={(value) =>
+              navigate({ range: value === "month" ? undefined : value })
+            }
+          >
+            <TabsList className="h-8 p-[3px]">
+              {(Object.keys(RANGE_LABELS) as AiUsageRange[]).map((key) => (
+                <TabsTrigger key={key} value={key} className="h-full">
+                  {RANGE_LABELS[key]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        }
+      >
+        {hasAnyUsage ? (
+          <SpendChart daily={data.daily} />
+        ) : (
+          <EmptyChart message="Nothing has used AI yet." />
+        )}
+      </ChartCard>
+
+      <PersonTable
+        rows={data.byPerson}
+        totalCostCents={data.totals.costCents}
+        searchText={searchText}
+        onSearch={(text) => navigate({ q: text || undefined })}
+        defaultPageSize={defaultPageSize}
+      />
+
+      <div
+        className="grid min-w-0 items-start lg:grid-cols-2"
+        style={{ gap: pageGutter }}
+      >
+        <BreakdownTable
+          title="By feature"
+          icon={<WorkflowIcon className="text-muted-foreground" />}
+          nameLabel="Feature"
+          rows={data.byFeature.map((row) => ({
+            key: row.feature,
+            name: row.feature,
+            calls: row.calls,
+            tokens: row.tokens,
+            costCents: row.costCents,
+          }))}
+        />
+        <BreakdownTable
+          title="By model"
+          icon={<CpuIcon className="text-muted-foreground" />}
+          nameLabel="Model"
+          rows={data.byModel.map((row) => ({
+            key: `${row.provider}:${row.model}`,
+            name: row.model,
+            note: row.provider,
+            calls: row.calls,
+            tokens: row.tokens,
+            costCents: row.costCents,
+          }))}
+        />
+      </div>
+    </div>
+  )
+}
+
+function SpendChart({ daily }: { daily: AiUsageDashboard["daily"] }) {
+  const data = daily.map((point) => ({
+    label: new Date(`${point.day}T00:00:00Z`).toLocaleDateString("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+    }),
+    spend: point.costCents / 100,
+  }))
+
+  return (
+    <div className="h-[200px] w-full min-w-0 sm:h-[240px]">
+      <ChartContainer config={spendConfig} className="h-full w-full">
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="0" vertical={false} />
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 10 }}
+            dy={8}
+            // A month of days is too many labels to read; a quarter even more so.
+            interval={data.length > 45 ? 13 : data.length > 20 ? 5 : 2}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 10, dx: -5 }}
+            width={44}
+            allowDecimals={false}
+            tickFormatter={(value: number) => formatMoney(value * 100)}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+              />
+            }
+          />
+          <Bar
+            dataKey="spend"
+            fill="var(--color-spend)"
+            radius={[3, 3, 0, 0]}
+            maxBarSize={28}
+          />
+        </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+// --- By person -------------------------------------------------------------
+
+type PersonSort = "person" | "calls" | "tokens" | "spend" | "share" | "last"
+
+const personColumns: {
+  by: PersonSort
+  label: string
+  column: "main" | "meta"
+  className?: string
+}[] = [
+  { by: "person", label: "Person", column: "main" },
+  { by: "calls", label: "Calls", column: "meta" },
+  { by: "tokens", label: "Tokens", column: "meta" },
+  { by: "spend", label: "Spend", column: "meta" },
+  { by: "share", label: "Share", column: "meta", className: "hidden lg:table-cell" },
+  { by: "last", label: "Last used", column: "meta", className: "hidden sm:table-cell" },
+]
+
+function PersonTable({
+  rows,
+  totalCostCents,
+  searchText,
+  onSearch,
+  defaultPageSize,
+}: {
+  rows: AiUsagePersonRow[]
+  totalCostCents: number
+  searchText: string
+  onSearch: (text: string) => void
+  defaultPageSize: number
+}) {
+  // The box types instantly; the address (and the filter) settles just after,
+  // exactly like the other dashboards' search fields.
+  const [text, setText] = useSearchBoxText(searchText, onSearch)
+  const [sort, setSort] = React.useState<PersonSort>("spend")
+  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const [page, setPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(defaultPageSize)
+
+  const sorted = React.useMemo(() => {
+    const query = searchText.trim().toLowerCase()
+    const matching = rows.filter(
+      (row) =>
+        !query || `${row.name} ${row.email}`.toLowerCase().includes(query)
+    )
+    const factor = direction === "asc" ? 1 : -1
+    return matching.sort((a, b) => factor * comparePeople(a, b, sort))
+  }, [rows, searchText, sort, direction])
+
+  const totalPages = sorted.length ? Math.ceil(sorted.length / pageSize) : 0
+  const currentPage = Math.min(page, Math.max(1, totalPages))
+  const visible = sorted.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  )
+
+  function toggleSort(by: PersonSort) {
+    setDirection((current) =>
+      sort === by ? (current === "asc" ? "desc" : "asc") : by === "person" ? "asc" : "desc"
+    )
+    setSort(by)
+    setPage(1)
+  }
+
+  return (
+    <DashboardTable
+      title="By person"
+      icon={<UsersIcon className="text-muted-foreground" />}
+      count={sorted.length}
+      controls={
+        <DashboardToolbarSearch
+          name="ai-usage-search"
+          aria-label="Search people"
+          placeholder="Search name or email…"
+          value={text}
+          onChange={(event) => {
+            setPage(1)
+            setText(event.target.value)
+          }}
+        />
+      }
+      header={
+        <TableHeader>
+          <TableRow>
+            {personColumns.map((column) => (
+              <TableHead
+                key={column.by}
+                column={column.column}
+                className={column.className}
+                aria-sort={
+                  sort === column.by
+                    ? direction === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : "none"
+                }
+              >
+                <TableSortButton
+                  active={sort === column.by}
+                  direction={direction}
+                  onClick={() => toggleSort(column.by)}
+                >
+                  {column.label}
+                </TableSortButton>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+      }
+      isEmpty={visible.length === 0}
+      emptyText={
+        searchText.trim()
+          ? "Nobody matches that search."
+          : "Nothing has used AI yet."
+      }
+      emptyColSpan={6}
+      footer={{
+        type: "pagination",
+        page: currentPage,
+        pageSize,
+        total: sorted.length,
+        totalPages,
+        onPageChange: setPage,
+        onPageSizeChange: (size) => {
+          setPageSize(size)
+          setPage(1)
+        },
+      }}
+    >
+      {visible.map((row) => (
+        <TableRow key={row.userId ?? "deleted"} className="group">
+          <TableCell column="main">
+            {row.userId ? (
+              <Link
+                to="/admin/users/$userId"
+                params={{ userId: row.userId }}
+                className="block max-w-full truncate text-sm font-medium group-hover:underline"
+                title={row.email}
+              >
+                {row.name}
+              </Link>
+            ) : (
+              // Nobody to open: the account is gone, only its spend is left.
+              <span className="text-sm font-medium text-muted-foreground">
+                {row.name}
+              </span>
+            )}
+          </TableCell>
+          <TableCell column="mutedMeta">{row.calls.toLocaleString()}</TableCell>
+          <TableCell column="mutedMeta">{formatTokens(row.tokens)}</TableCell>
+          <TableCell column="meta">{formatMoney(row.costCents)}</TableCell>
+          <TableCell column="mutedMeta" className="hidden lg:table-cell">
+            {formatShare(row.costCents, totalCostCents)}
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden sm:table-cell">
+            {formatDate(row.lastUsedAt)}
+          </TableCell>
+        </TableRow>
+      ))}
+    </DashboardTable>
+  )
+}
+
+function comparePeople(a: AiUsagePersonRow, b: AiUsagePersonRow, sort: PersonSort) {
+  if (sort === "calls") return a.calls - b.calls
+  if (sort === "tokens") return a.tokens - b.tokens
+  // Share orders the same way spend does; both compare cents.
+  if (sort === "spend" || sort === "share") return a.costCents - b.costCents
+  if (sort === "last") return a.lastUsedAt.getTime() - b.lastUsedAt.getTime()
+  return a.name.localeCompare(b.name)
+}
+
+// --- By feature / by model ---------------------------------------------------
+
+type BreakdownRow = {
+  key: string
+  name: string
+  /** A quiet second line — the model's provider. */
+  note?: string
+  calls: number
+  tokens: number
+  costCents: number
+}
+
+type BreakdownSort = "name" | "calls" | "tokens" | "spend"
+
+const breakdownColumns: { by: BreakdownSort; column: "main" | "meta" }[] = [
+  { by: "name", column: "main" },
+  { by: "calls", column: "meta" },
+  { by: "tokens", column: "meta" },
+  { by: "spend", column: "meta" },
+]
+
+function BreakdownTable({
+  title,
+  icon,
+  nameLabel,
+  rows,
+}: {
+  title: string
+  icon: React.ReactNode
+  nameLabel: string
+  rows: BreakdownRow[]
+}) {
+  const [sort, setSort] = React.useState<BreakdownSort>("spend")
+  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+
+  const sorted = React.useMemo(() => {
+    const factor = direction === "asc" ? 1 : -1
+    return [...rows].sort((a, b) => {
+      if (sort === "calls") return factor * (a.calls - b.calls)
+      if (sort === "tokens") return factor * (a.tokens - b.tokens)
+      if (sort === "spend") return factor * (a.costCents - b.costCents)
+      return factor * a.name.localeCompare(b.name)
+    })
+  }, [rows, sort, direction])
+
+  function toggleSort(by: BreakdownSort) {
+    setDirection((current) =>
+      sort === by ? (current === "asc" ? "desc" : "asc") : by === "name" ? "asc" : "desc"
+    )
+    setSort(by)
+  }
+
+  const labels: Record<BreakdownSort, string> = {
+    name: nameLabel,
+    calls: "Calls",
+    tokens: "Tokens",
+    spend: "Spend",
+  }
+
+  return (
+    <DashboardTable
+      title={title}
+      icon={icon}
+      count={sorted.length}
+      header={
+        <TableHeader>
+          <TableRow>
+            {breakdownColumns.map((column) => (
+              <TableHead
+                key={column.by}
+                column={column.column}
+                aria-sort={
+                  sort === column.by
+                    ? direction === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : "none"
+                }
+              >
+                <TableSortButton
+                  active={sort === column.by}
+                  direction={direction}
+                  onClick={() => toggleSort(column.by)}
+                >
+                  {labels[column.by]}
+                </TableSortButton>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+      }
+      isEmpty={sorted.length === 0}
+      emptyText="Nothing has used AI yet."
+      emptyColSpan={4}
+      footer={{ type: "summary", count: sorted.length }}
+    >
+      {sorted.map((row) => (
+        <TableRow key={row.key}>
+          <TableCell column="main">
+            <span className="block max-w-full truncate text-sm font-medium">
+              {row.name}
+            </span>
+            {row.note ? (
+              <span className="block text-xs text-muted-foreground">
+                {row.note}
+              </span>
+            ) : null}
+          </TableCell>
+          <TableCell column="mutedMeta">{row.calls.toLocaleString()}</TableCell>
+          <TableCell column="mutedMeta">{formatTokens(row.tokens)}</TableCell>
+          <TableCell column="meta">{formatMoney(row.costCents)}</TableCell>
+        </TableRow>
+      ))}
+    </DashboardTable>
+  )
+}
+
+// --- Formatting ---------------------------------------------------------------
+
+/** 1234 → "1,234"; 1,234,567 → "1.2M" — big token counts read as magnitude. */
+function formatTokens(tokens: number) {
+  if (tokens < 100_000) return tokens.toLocaleString()
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(tokens)
+}
+
+function formatShare(costCents: number, totalCostCents: number) {
+  if (!totalCostCents) return "0%"
+  return `${Math.round((costCents / totalCostCents) * 100)}%`
+}

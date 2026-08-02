@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { AI_PROVIDERS, type AiProvider } from "@/lib/ai-models"
+import {
+  AI_PROVIDERS,
+  AI_USAGE_RANGES,
+  type AiProvider,
+  type AiUsageRange,
+} from "@/lib/ai-models"
 import {
   getAiKeyStatuses,
   removeAiKey,
@@ -10,10 +15,23 @@ import {
   type AiKeyStatus,
   type AiKeyTestResult,
 } from "@/server/ai-keys"
+import {
+  loadAiUsageDashboard as loadAiUsageDashboardQuery,
+  type AiUsageDashboard,
+  type AiUsagePersonRow,
+} from "@/server/ai-usage"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin } from "@/server/security"
 
-export type { AiKeyStatus, AiKeyTestResult, AiProvider }
+export { AI_USAGE_RANGES }
+export type {
+  AiKeyStatus,
+  AiKeyTestResult,
+  AiProvider,
+  AiUsageDashboard,
+  AiUsagePersonRow,
+  AiUsageRange,
+}
 
 const aiErrorMessages: Record<string, string> = {
   FORBIDDEN: "Only an admin can manage AI keys.",
@@ -34,7 +52,18 @@ export function getAiErrorMessage(error: unknown) {
 
   return matched
     ? aiErrorMessages[matched]
-    : "Something went wrong with the AI key settings. Please try again."
+    : "Something went wrong with the AI features. Please try again."
+}
+
+const loadAiUsageDashboardFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ range: z.enum(AI_USAGE_RANGES) }))
+  .handler(async ({ data }): Promise<AiUsageDashboard> => {
+    await requireAdmin()
+    return loadAiUsageDashboardQuery(data.range)
+  })
+
+export function loadAiUsageDashboard(range: AiUsageRange) {
+  return loadAiUsageDashboardFn({ data: { range } })
 }
 
 const providerSchema = z.enum(AI_PROVIDERS)
@@ -95,8 +124,8 @@ const testAiKeyFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<AiKeyTestResult> => {
     requireAppOrigin()
-    await requireAdmin()
-    return testAiKey(data.provider, data.apiKey)
+    const user = await requireAdmin()
+    return testAiKey(data.provider, user.id, data.apiKey)
   })
 
 export function testAiProviderKey(provider: AiProvider, apiKey?: string) {
