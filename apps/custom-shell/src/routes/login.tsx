@@ -4,6 +4,7 @@ import { Loader2Icon, RotateCcwIcon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
 import { GoogleSignIn } from "@/components/shell/google-sign-in"
+import { PasskeySignIn } from "@/components/shell/passkey-sign-in"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -247,6 +248,12 @@ function LoginRoute() {
           redirectTo={safeRedirectPath(redirectTo)}
         />
       ) : null}
+      <PasskeySignIn
+        redirectTo={safeRedirectPath(redirectTo)}
+        // Google's block already draws the divider that separates the other
+        // ways in from the password form; only draw one when it is absent.
+        withDivider={!google}
+      />
     </AuthShell>
   )
 }

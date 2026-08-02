@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { Loader2Icon, LogOutIcon } from "lucide-react"
+import { startRegistration } from "@simplewebauthn/browser"
+import { Loader2Icon, LogOutIcon, Trash2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,9 +39,18 @@ import {
   type AuthUser,
   type SessionList,
 } from "@/lib/api/auth"
+import {
+  beginPasskeyRegistration,
+  finishPasskeyRegistration,
+  loadPasskeys,
+  removePasskey,
+  type PasskeyListItem,
+} from "@/lib/api/passkeys"
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatTimeAgo } from "@/lib/format-time"
+import { useLastValue } from "@/lib/use-last-value"
+import { useBrowserSupportsWebAuthn } from "@/lib/use-webauthn-support"
 
 const MISMATCH_MESSAGE = "Those passwords do not match."
 
@@ -61,6 +71,7 @@ export function AccountSecurityPage({ user }: { user: AuthUser }) {
           void router.invalidate()
         }}
       />
+      <PasskeysCard />
       <SessionsCard devicesChanged={devicesChanged} />
       <DeleteAccountCard hasPassword={user.hasPassword} email={user.email} />
     </CardGroup>
@@ -220,6 +231,246 @@ function ChangePasswordCard({
       </form>
     </Card>
   )
+}
+
+/**
+ * The passkeys this account can sign in with: add one, see when each was last
+ * used, take one away. Removing the last one is fine — the password stays.
+ */
+function PasskeysCard() {
+  const [list, setList] = React.useState<PasskeyListItem[] | null>(null)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
+  const supported = useBrowserSupportsWebAuthn()
+  const [name, setName] = React.useState("")
+  const [adding, setAdding] = React.useState(false)
+  const [removing, setRemoving] = React.useState(false)
+  // The passkey the confirmation is asking about, or null when it is closed.
+  const [pendingRemove, setPendingRemove] =
+    React.useState<PasskeyListItem | null>(null)
+  const shownRemove = useLastValue(pendingRemove)
+  const [result, setResult] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    loadPasskeys()
+      .then((next) => {
+        if (cancelled) return
+        setList(next)
+        setLoadError(null)
+      })
+      .catch((listError) => {
+        if (!cancelled) setLoadError(getAuthErrorMessage(listError))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reloads])
+
+  const handleAdd = React.useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      dismissErrorToast()
+      setResult(null)
+      setAdding(true)
+
+      try {
+        const { options, challengeId } = await beginPasskeyRegistration()
+        // The browser takes over here: fingerprint, face, or device PIN.
+        const response = await startRegistration({ optionsJSON: options })
+        await finishPasskeyRegistration({
+          challengeId,
+          response,
+          name: name.trim(),
+        })
+        setName("")
+        setResult("Passkey added.")
+        setReloads((count) => count + 1)
+      } catch (addError) {
+        showErrorToast(describeAddPasskeyError(addError))
+      } finally {
+        setAdding(false)
+      }
+    },
+    [name]
+  )
+
+  const handleRemove = React.useCallback(async () => {
+    if (!pendingRemove) return
+    dismissErrorToast()
+    setResult(null)
+    setRemoving(true)
+
+    try {
+      await removePasskey(pendingRemove.id)
+      setPendingRemove(null)
+      setResult("Passkey removed. You can still sign in with your password.")
+      setReloads((count) => count + 1)
+    } catch (removeError) {
+      showErrorToast(getAuthErrorMessage(removeError))
+    } finally {
+      setRemoving(false)
+    }
+  }, [pendingRemove])
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Passkeys</CardTitle>
+        <CardDescription>
+          Sign in with your fingerprint, face, or device PIN instead of typing
+          your password. Your password keeps working either way.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <TableSurface>
+          {loadError ? (
+            <ErrorBanner
+              message={loadError}
+              onRetry={() => setReloads((count) => count + 1)}
+            />
+          ) : !list ? (
+            <div className="flex justify-center p-6">
+              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : list.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">
+              No passkeys yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {/* Same treatment as the Devices table below: the modal is
+                      only as wide as a phone, so no 320px floor. */}
+                  <TableHead column="main" className="min-w-0">
+                    Name
+                  </TableHead>
+                  <TableHead column="meta" className="hidden sm:table-cell">
+                    Added
+                  </TableHead>
+                  <TableHead column="meta">Last used</TableHead>
+                  <TableHead column="meta" className="text-right">
+                    <span className="sr-only">Remove</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {list.map((passkey) => (
+                  <TableRow key={passkey.id}>
+                    <TableCell className="whitespace-normal">
+                      {passkey.name}
+                    </TableCell>
+                    <TableCell
+                      column="mutedMeta"
+                      className="hidden sm:table-cell"
+                      title={formatDateTime(passkey.createdAt)}
+                    >
+                      {formatTimeAgo(passkey.createdAt)}
+                    </TableCell>
+                    <TableCell
+                      column="mutedMeta"
+                      title={
+                        passkey.lastUsedAt
+                          ? formatDateTime(passkey.lastUsedAt)
+                          : undefined
+                      }
+                    >
+                      {passkey.lastUsedAt
+                        ? formatTimeAgo(passkey.lastUsedAt)
+                        : "Never"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={adding || removing}
+                        title="Remove this passkey"
+                        aria-label={`Remove ${passkey.name}`}
+                        onClick={() => setPendingRemove(passkey)}
+                      >
+                        <Trash2Icon className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TableSurface>
+
+        {supported ? (
+          <form onSubmit={handleAdd} className="flex flex-col gap-4">
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="new-passkey-name"
+                hint="A name to tell your passkeys apart — usually the device it lives on, like “Work laptop”. Left empty, it is saved as “Passkey”."
+              >
+                Name
+              </FieldLabel>
+              <Input
+                id="new-passkey-name"
+                maxLength={80}
+                value={name}
+                onChange={(event) => {
+                  setResult(null)
+                  setName(event.target.value)
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={adding || removing}>
+                {adding ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : null}
+                Add a passkey
+              </Button>
+              {result ? (
+                <span role="status" className="text-sm text-muted-foreground">
+                  {result}
+                </span>
+              ) : null}
+            </div>
+          </form>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            This browser cannot create passkeys, so there is nothing to add
+            from here. Your existing passkeys still work on the devices that
+            hold them.
+          </p>
+        )}
+      </CardContent>
+
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemove(null)
+        }}
+        title={`Remove “${shownRemove?.name ?? ""}”?`}
+        description="This passkey stops working for signing in here. It stays on the device itself until you delete it there, and you can always sign in with your password."
+        confirmLabel="Remove passkey"
+        loading={removing}
+        onConfirm={() => void handleRemove()}
+      />
+    </Card>
+  )
+}
+
+/**
+ * The two refusals the browser itself raises get their own words — the shared
+ * error map has never heard of them.
+ */
+function describeAddPasskeyError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.name === "NotAllowedError") {
+      return "The passkey prompt was closed before it finished. Nothing was saved."
+    }
+    if (error.name === "InvalidStateError") {
+      return "This device already holds a passkey for your account."
+    }
+  }
+  return getAuthErrorMessage(error)
 }
 
 function SessionsCard({ devicesChanged }: { devicesChanged: number }) {

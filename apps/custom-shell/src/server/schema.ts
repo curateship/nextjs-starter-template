@@ -578,7 +578,66 @@ export const customShellAiProviderKeys = pgTable("ai_provider_keys", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
+/**
+ * One registered passkey (WebAuthn credential). `publicKey` is exactly that —
+ * public — so unlike a password hash there is nothing on this row a database
+ * thief could sign in with.
+ */
+export const customShellPasskeys = pgTable(
+  "passkeys",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The authenticator's own id for the credential, base64url, world-unique. */
+    credentialId: text("credential_id").notNull().unique(),
+    /** The COSE public key, base64url. */
+    publicKey: text("public_key").notNull(),
+    /**
+     * The authenticator's use count. A signature arriving with a count no
+     * higher than this one is a replay or a cloned credential, and is refused.
+     * Many platform authenticators always report 0, which the check allows.
+     */
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
+    /** How the browser reached the authenticator (JSON array), or null. */
+    transports: text("transports"),
+    name: varchar("name", { length: 80 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (table) => [index("ix_passkeys_user_id").on(table.userId)]
+)
+
+/**
+ * A passkey ceremony in flight: the random challenge the browser must sign.
+ * Spent on first use, so a captured response can never be replayed. `userId`
+ * is set while registering and null for a sign-in, where nobody is known yet.
+ */
+export const customShellPasskeyChallenges = pgTable(
+  "passkey_challenges",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    challenge: text("challenge").notNull(),
+    type: varchar("type", { length: 20 }).notNull(),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "passkey_challenges_type_check",
+      sql`${table.type} in ('registration', 'authentication')`
+    ),
+    index("ix_passkey_challenges_expires_at").on(table.expiresAt),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
+export type CustomShellPasskey = typeof customShellPasskeys.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect

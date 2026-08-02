@@ -41,13 +41,13 @@ import {
   deleteUserSession,
   describeRequestOrigin,
   findCurrentUser,
-  findSessionContext,
   findUserByEmail,
   getSessionToken,
   hashPassword,
   hashSessionToken,
   listUserSessions,
   now,
+  requireOwnAccount,
   requireSessionOwner,
   signOutOtherDevices,
   requireUser,
@@ -187,6 +187,13 @@ const authErrorMessages: Record<string, string> = {
     "You are looking at the app as someone else. Leave that view first.",
   AVATAR_NOT_FOUND:
     "That picture is no longer in your media library. Pick another one.",
+  PASSKEY_ATTEMPT_EXPIRED:
+    "That passkey attempt took too long. Please try again.",
+  PASSKEY_NOT_RECOGNISED:
+    "That passkey is not linked to an account here. Sign in with your password, then add it under Account → Security.",
+  PASSKEY_FAILED: "That passkey could not be checked. Please try again.",
+  PASSKEY_EXISTS: "That passkey is already saved to an account.",
+  PASSKEY_NOT_FOUND: "That passkey is already removed.",
 }
 
 /**
@@ -871,25 +878,6 @@ export function signOutOtherSessions() {
 
 export function deleteAccount(confirmation: string) {
   return deleteAccountFn({ data: { confirmation } })
-}
-
-/**
- * The signed-in account, and only when the browser really is that person.
- *
- * `requireUser` answers with the member an admin is *looking at the app as*,
- * which is right for reading their screen and wrong for changing the address
- * their account is reached at. This refuses instead, so an admin has to leave
- * the view — and be themselves — before either account can be moved.
- */
-async function requireOwnAccount() {
-  const context = await findSessionContext()
-  if (!context) {
-    throw new Error("AUTH_REQUIRED")
-  }
-  if (context.viewedBy) {
-    throw new Error("VIEW_AS_ACTIVE")
-  }
-  return context.user
 }
 
 /**
