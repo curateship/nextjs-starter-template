@@ -264,6 +264,9 @@ function PeopleCard({
       <CardTop
         icon={current.icon}
         title={current.title}
+        // Dropped rather than truncating the heading once the tabs and this
+        // count no longer both fit — which is most widths in this column.
+        metaClassName="hidden 2xl:inline"
         meta={
           tab === "joining"
             ? `${membership.newLastMonth.toLocaleString()} last month`

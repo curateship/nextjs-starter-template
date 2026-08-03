@@ -68,8 +68,8 @@ export function AdminMembershipDashboard({
       <StatStrip figures={buildMembershipFigures(summary)} />
 
       {/* Proportions rather than pinned widths, so the split holds at every
-          wide size. The right column is the wider one because it carries the
-          tables.
+          wide size. The same 11/9 as the Overview, so moving between the two
+          admin pages does not shift the columns under you.
 
           From `xl` up the grid takes the height the stat strip leaves and the
           two columns share it, so the page itself never scrolls — the long
@@ -82,7 +82,7 @@ export function AdminMembershipDashboard({
           `shrink-0` is the narrow-screen behaviour; from `xl` each block says
           for itself what share of the column it takes. */}
       <div
-        className="grid shrink-0 items-start xl:min-h-0 xl:shrink xl:basis-0 xl:grow xl:grid-cols-[minmax(0,9fr)_minmax(0,11fr)] xl:items-stretch"
+        className="grid shrink-0 items-start xl:min-h-0 xl:shrink xl:basis-0 xl:grow xl:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] xl:items-stretch"
         style={gutter}
       >
         <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
@@ -173,18 +173,22 @@ function JoiningChart({ summary }: { summary: MembershipSummary }) {
       icon={LineChartIcon}
       title="People joining"
       className="shrink-0 xl:min-h-56 xl:shrink xl:basis-0 xl:grow-[4]"
+      // Just "26 joined" — the period picker beside it already says over what,
+      // and the longer wording pushed the heading into an ellipsis.
       meta={
         <span className="whitespace-nowrap">
           <span className="font-mono text-base font-semibold tabular-nums text-foreground">
             {total.toLocaleString()}
           </span>{" "}
-          {showingYear
-            ? "joined in the last 12 months"
-            : "joined so far this month"}
+          joined
         </span>
       }
       legend={
-        <div className="hidden items-center gap-4 lg:flex">
+        // The legend is the first thing to go when the header runs out of room:
+        // the title and the total both have to survive, and hovering the chart
+        // names either line anyway. Below `2xl` this column is too narrow to
+        // hold all four without truncating the heading.
+        <div className="hidden items-center gap-4 2xl:flex">
           <LegendDot
             colour="var(--primary)"
             label={showingYear ? "This year" : "This month"}
