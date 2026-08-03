@@ -12,7 +12,6 @@ import {
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 import { db } from "@/server/db"
-import { requireAppOrigin } from "@/server/origin"
 import {
   customShellSettings,
   customShellWorkspaces,
@@ -22,7 +21,8 @@ import {
   parseShellGlobals,
   pickShellGlobals,
 } from "@/server/shell-settings"
-import { now, requireAdmin, requireUser } from "@/server/security"
+import { adminPost, userPost } from "@/server/guards"
+import { now } from "@/server/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
 
@@ -149,13 +149,11 @@ export function getShellSettingsErrorMessage(error: unknown) {
 }
 
 const saveShellSettingsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(shellConfigSchema)
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-
+  .handler(async ({ data, context }) => {
     const updatedAt = now()
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
@@ -180,7 +178,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         .where(
           and(
             eq(customShellWorkspaces.id, workspace.id),
-            eq(customShellWorkspaces.userId, user.id)
+            eq(customShellWorkspaces.userId, context.user.id)
           )
         )
 
@@ -239,6 +237,7 @@ export function saveShellSettings(settings: ShellConfig) {
 // shell save this is not admin-gated — any signed-in user can persist their own
 // workspace's sidebar width by dragging the rail.
 const saveSidebarWidthFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(
     z.object({
       sidebarWidth: z
@@ -248,10 +247,8 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
         .max(MAX_SIDEBAR_WIDTH),
     })
   )
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireUser()
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+  .handler(async ({ data, context }) => {
+    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
     const settings = parseWorkspaceSettings(workspace.settings)
 
     const [updated] = await db
@@ -263,7 +260,7 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
       .where(
         and(
           eq(customShellWorkspaces.id, workspace.id),
-          eq(customShellWorkspaces.userId, user.id)
+          eq(customShellWorkspaces.userId, context.user.id)
         )
       )
       .returning({ id: customShellWorkspaces.id })

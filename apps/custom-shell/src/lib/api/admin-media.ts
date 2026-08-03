@@ -20,8 +20,7 @@ import {
   type StorageUserRow,
 } from "@/server/media"
 import { R2StorageNotConfiguredError } from "@/server/media-storage"
-import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin } from "@/server/security"
+import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 export type {
@@ -85,9 +84,9 @@ function asStorageError(error: unknown): never {
  * screen and the footer's "1-10 of N" agreeing on first paint.
  */
 const loadAdminMediaPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(listQuerySchema)
   .handler(async ({ data }) => {
-    await requireAdmin()
     const pageSize = data.pageSize ?? (await readDashboardRowsPerPage())
     const [media, owners] = await Promise.all([
       listAllMedia({ ...data, pageSize }).catch(asStorageError),
@@ -96,33 +95,29 @@ const loadAdminMediaPageFn = createServerFn({ method: "GET" })
     return { media, owners, pageSize }
   })
 
-const loadStorageDashboardFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    await requireAdmin()
+const loadStorageDashboardFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async () => {
     return loadStorageDashboard()
-  }
-)
+  })
 
-const loadOrphanDashboardFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    await requireAdmin()
+const loadOrphanDashboardFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async () => {
     return loadOrphanDashboard()
-  }
-)
+  })
 
 const deleteAdminMediaFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(deleteSchema)
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return deleteMediaAsAdmin(data.mediaIds).catch(asStorageError)
   })
 
 const cleanOrphansFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(cleanOrphansSchema)
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return cleanMediaOrphans(data).catch(asStorageError)
   })
 

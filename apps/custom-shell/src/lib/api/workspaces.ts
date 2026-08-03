@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireAppOrigin } from "@/server/origin"
 import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/workspaces"
-import { findCurrentUser } from "@/server/security"
+import { userGet, userPost } from "@/server/guards"
 import { z } from "zod"
 
 import { iconMeta, type IconKey } from "@/lib/custom-shell"
@@ -58,59 +57,56 @@ export function getWorkspaceErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Workspace request failed."
 }
 
-const loadWorkspacesFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<WorkspaceListResponse> => {
-    const user = await requireUser()
-    return workspaceListForUser(user.id)
-  }
-)
+const loadWorkspacesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<WorkspaceListResponse> => {
+    return workspaceListForUser(context.user.id)
+  })
 
 const createWorkspaceFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(createWorkspaceSchema)
-  .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    requireAppOrigin()
-    const user = await requireUser()
-    await createUserWorkspace(user.id, data.name, { icon: data.icon })
-    return workspaceListForUser(user.id)
+  .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    await createUserWorkspace(context.user.id, data.name, { icon: data.icon })
+    return workspaceListForUser(context.user.id)
   })
 
 const switchWorkspaceFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(switchWorkspaceSchema)
-  .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    requireAppOrigin()
-    const user = await requireUser()
-    await switchUserWorkspace(user.id, data.workspaceId)
-    return workspaceListForUser(user.id)
+  .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    await switchUserWorkspace(context.user.id, data.workspaceId)
+    return workspaceListForUser(context.user.id)
   })
 
 const updateWorkspaceFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(updateWorkspaceSchema)
-  .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    requireAppOrigin()
-    const user = await requireUser()
-    await updateUserWorkspace(user.id, data.workspaceId, {
+  .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    await updateUserWorkspace(context.user.id, data.workspaceId, {
       name: data.name,
       settings: { icon: data.icon },
     })
-    return workspaceListForUser(user.id)
+    return workspaceListForUser(context.user.id)
   })
 
 const deleteWorkspaceFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(deleteWorkspaceSchema)
-  .handler(async ({ data }): Promise<WorkspaceListResponse> => {
-    requireAppOrigin()
-    const user = await requireUser()
-    await deleteUserWorkspace(user.id, data.workspaceId)
-    return workspaceListForUser(user.id)
+  .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    await deleteUserWorkspace(context.user.id, data.workspaceId)
+    return workspaceListForUser(context.user.id)
   })
 
 const deleteWorkspacesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(deleteWorkspacesSchema)
-  .handler(async ({ data }): Promise<WorkspaceBulkDeleteResponse> => {
-    requireAppOrigin()
-    const user = await requireUser()
-    const result = await deleteUserWorkspaces(user.id, data.workspaceIds)
-    return { ...(await workspaceListForUser(user.id)), ...result }
+  .handler(async ({ data, context }): Promise<WorkspaceBulkDeleteResponse> => {
+    const result = await deleteUserWorkspaces(
+      context.user.id,
+      data.workspaceIds
+    )
+    return { ...(await workspaceListForUser(context.user.id)), ...result }
   })
 
 export function loadWorkspaces() {
@@ -139,14 +135,6 @@ export function deleteWorkspace(workspaceId: string) {
 
 export function deleteWorkspaces(workspaceIds: string[]) {
   return deleteWorkspacesFn({ data: { workspaceIds } })
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing Custom Shell session")
-  }
-  return user
 }
 
 async function workspaceListForUser(

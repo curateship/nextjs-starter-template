@@ -7,7 +7,7 @@ import {
   type OverviewAutomation,
 } from "@/server/admin-overview"
 import type { FeedsAnnouncementRow, FeedsSummary } from "@/server/feeds"
-import { requireAdmin } from "@/server/security"
+import { adminGet } from "@/server/guards"
 
 // The feeds types come out through here now that the Overview is the only page
 // reading them. Browser code reaches a server type through a `lib/api` module
@@ -24,12 +24,11 @@ export const getAdminOverviewErrorMessage = createErrorMessage(
   "We could not load the overview. Please try again."
 )
 
-const loadAdminOverviewFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const user = await requireAdmin()
-    return loadAdminOverview(user.id)
-  }
-)
+const loadAdminOverviewFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }) => {
+    return loadAdminOverview(context.user.id)
+  })
 
 export function loadAdminOverviewPage() {
   return loadAdminOverviewFn()

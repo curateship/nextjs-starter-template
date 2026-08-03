@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin } from "@/server/security"
+import { adminPost } from "@/server/guards"
 import { setSessionPolicy } from "@/server/session-policy"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
@@ -13,6 +12,7 @@ export const getSessionPolicyErrorMessage = createErrorMessage(
 )
 
 const setSessionPolicyFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       maxAgeDays: z.number().int().min(0).max(3650),
@@ -20,8 +20,6 @@ const setSessionPolicyFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<ShellSessionPolicy> => {
-    requireAppOrigin()
-    await requireAdmin()
     return setSessionPolicy(data)
   })
 

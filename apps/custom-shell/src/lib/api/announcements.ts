@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireAdmin, requireUser } from "@/server/security"
 import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement } from "@/server/announcements"
-import { requireAppOrigin } from "@/server/origin"
+import { adminGet, adminPost, userPost } from "@/server/guards"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
@@ -65,23 +64,22 @@ const idListSchema = z.object({
   announcementIds: z.array(z.string().min(1).max(36)).min(1).max(200),
 })
 
-const listAdminFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ announcements: Announcement[] }> => {
-    await requireAdmin()
+const listAdminFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async (): Promise<{ announcements: Announcement[] }> => {
     const announcements = await listAnnouncements()
     return { announcements: announcements.map(serializeAnnouncement) }
-  }
-)
+  })
 
 const createFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(announcementInputSchema)
   .handler(async ({ data }): Promise<Announcement> => {
-    requireAppOrigin()
-    await requireAdmin()
     return serializeAnnouncement(await createAnnouncement(data))
   })
 
 const updateFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       announcementId: z.string().min(1).max(36),
@@ -89,36 +87,31 @@ const updateFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<Announcement> => {
-    requireAppOrigin()
-    await requireAdmin()
     return serializeAnnouncement(
       await updateAnnouncement(data.announcementId, data.announcement)
     )
   })
 
 const retireFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(idListSchema)
   .handler(async ({ data }): Promise<{ count: number }> => {
-    requireAppOrigin()
-    await requireAdmin()
     return retireAnnouncements(data.announcementIds)
   })
 
 const deleteFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(idListSchema)
   .handler(async ({ data }): Promise<{ count: number }> => {
-    requireAppOrigin()
-    await requireAdmin()
     return deleteAnnouncements(data.announcementIds)
   })
 
 /** Anyone signed in can hide a banner — for themselves and nobody else. */
 const dismissFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(z.object({ announcementId: z.string().min(1).max(36) }))
-  .handler(async ({ data }): Promise<{ announcementId: string }> => {
-    requireAppOrigin()
-    const user = await requireUser()
-    return dismissAnnouncement(user.id, data.announcementId)
+  .handler(async ({ data, context }): Promise<{ announcementId: string }> => {
+    return dismissAnnouncement(context.user.id, data.announcementId)
   })
 
 export function loadAdminAnnouncements() {

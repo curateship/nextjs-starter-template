@@ -10,8 +10,7 @@ import {
   listPlans,
   updatePlan,
 } from "@/server/plans"
-import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin } from "@/server/security"
+import { adminGet, adminPost } from "@/server/guards"
 
 export type AdminPlan = {
   id: string
@@ -80,48 +79,45 @@ const planInputSchema = z.object({
 
 export type PlanFormInput = z.input<typeof planInputSchema>
 
-const listPlansFn = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin()
-  const plans = await listPlans()
-  return plans.map(serializePlan)
-})
+const listPlansFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async () => {
+    const plans = await listPlans()
+    return plans.map(serializePlan)
+  })
 
 const createPlanFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(planInputSchema)
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     const plan = await createPlan(data)
     return serializePlan(plan)
   })
 
 const updatePlanFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({ planId: z.string().min(1).max(36), plan: planInputSchema })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     const { plan } = await updatePlan(data.planId, data.plan)
     return serializePlan(plan)
   })
 
 const archivePlanFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(z.object({ planId: z.string().min(1).max(36) }))
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     const plan = await archivePlan(data.planId)
     return serializePlan(plan)
   })
 
 const archivePlansFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({ planIds: z.array(z.string().min(1).max(36)).min(1).max(100) })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return archivePlans(data.planIds)
   })
 

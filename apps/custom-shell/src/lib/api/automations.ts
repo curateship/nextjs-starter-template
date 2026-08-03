@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireAdmin } from "@/server/security"
+import { adminGet, adminPost } from "@/server/guards"
 import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomation, inspectAutomation } from "@/server/automations"
-import { requireAppOrigin } from "@/server/origin"
 import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/workspaces"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
@@ -94,10 +93,10 @@ export const getAutomationLoadErrorMessage = createErrorMessage(
   "We could not load your automations. Please try again."
 )
 
-const loadAutomationsPageFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AutomationsPage> => {
-    const user = await requireAdmin()
-    const rows = await listUserAutomations(user.id)
+const loadAutomationsPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<AutomationsPage> => {
+    const rows = await listUserAutomations(context.user.id)
     return {
       automations: rows.map((row) => ({
         id: row.id,
@@ -108,32 +107,31 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" }).handler(
         updated_at: row.updatedAt.toISOString(),
       })),
     }
-  }
-)
+  })
 
 const getAutomationFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(automationIdSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    const user = await requireAdmin()
-    const row = await getUserAutomation(user.id, data.automationId)
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await getUserAutomation(context.user.id, data.automationId)
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
 
 const createAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(createSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-    return serializeDetail(await createUserAutomation(user.id, data.name))
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    return serializeDetail(
+      await createUserAutomation(context.user.id, data.name)
+    )
   })
 
 const saveAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(saveSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-    const row = await saveUserAutomation(user.id, {
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await saveUserAutomation(context.user.id, {
       id: data.automationId,
       name: data.name,
       graph: data.graph,
@@ -143,46 +141,49 @@ const saveAutomationFn = createServerFn({ method: "POST" })
   })
 
 const duplicateAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(automationIdSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-    const row = await duplicateUserAutomation(user.id, data.automationId)
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await duplicateUserAutomation(
+      context.user.id,
+      data.automationId
+    )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
 
 const deleteAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(automationIdSchema)
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-    return { ok: await deleteUserAutomation(user.id, data.automationId) }
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    return {
+      ok: await deleteUserAutomation(context.user.id, data.automationId),
+    }
   })
 
-const loadAutomationFavoritesFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ favoriteNodeKeys: string[] }> => {
-    const user = await requireAdmin()
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+const loadAutomationFavoritesFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<{ favoriteNodeKeys: string[] }> => {
+    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
     return {
       favoriteNodeKeys: parseWorkspaceSettings(workspace.settings)
         .automationFavoriteNodeKeys,
     }
-  }
-)
+  })
 
 const saveAutomationFavoritesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(favoritesSchema)
-  .handler(async ({ data }): Promise<{ favoriteNodeKeys: string[] }> => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-    return {
-      favoriteNodeKeys: await saveWorkspaceAutomationFavorites(
-        user.id,
-        cleanAutomationPaletteKeys(data.favoriteNodeKeys)
-      ),
+  .handler(
+    async ({ data, context }): Promise<{ favoriteNodeKeys: string[] }> => {
+      return {
+        favoriteNodeKeys: await saveWorkspaceAutomationFavorites(
+          context.user.id,
+          cleanAutomationPaletteKeys(data.favoriteNodeKeys)
+        ),
+      }
     }
-  })
+  )
 
 export function loadAutomationsPage() {
   return loadAutomationsPageFn()

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireUser, isAdmin, requireAdmin } from "@/server/security"
+import { requireUser, isAdmin } from "@/server/security"
+import { adminPost, userGet } from "@/server/guards"
 import { listPublishedChangelogEntries, serializeChangelogEntry, listChangelogEntries, createChangelogEntry, updateChangelogEntry, deleteChangelogEntries } from "@/server/changelog"
-import { requireAppOrigin } from "@/server/origin"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
@@ -41,13 +41,12 @@ export type ChangelogEntryFormInput = z.input<typeof entryInputSchema>
  * What the What's new page reads: published updates only, the same list for
  * everyone — an admin reading it sees exactly what their users see.
  */
-const listFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ entries: ChangelogEntry[] }> => {
-    await requireUser()
+const listFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async (): Promise<{ entries: ChangelogEntry[] }> => {
     const entries = await listPublishedChangelogEntries(CHANGELOG_PAGE_LIMIT)
     return { entries: entries.map(serializeChangelogEntry) }
-  }
-)
+  })
 
 /**
  * Everything, drafts included, for the page where updates are written. Returns
@@ -65,34 +64,31 @@ const listAdminFn = createServerFn({ method: "GET" }).handler(
 )
 
 const createEntryFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(entryInputSchema)
   .handler(async ({ data }): Promise<ChangelogEntry> => {
-    requireAppOrigin()
-    await requireAdmin()
     return serializeChangelogEntry(await createChangelogEntry(data))
   })
 
 const updateEntryFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({ entryId: z.string().min(1).max(36), entry: entryInputSchema })
   )
   .handler(async ({ data }): Promise<ChangelogEntry> => {
-    requireAppOrigin()
-    await requireAdmin()
     return serializeChangelogEntry(
       await updateChangelogEntry(data.entryId, data.entry)
     )
   })
 
 const deleteEntriesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       entryIds: z.array(z.string().min(1).max(36)).min(1).max(200),
     })
   )
   .handler(async ({ data }): Promise<{ count: number }> => {
-    requireAppOrigin()
-    await requireAdmin()
     return deleteChangelogEntries(data.entryIds)
   })
 

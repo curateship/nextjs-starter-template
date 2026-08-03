@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { requireAppOrigin } from "@/server/origin"
-import { getSessionToken, requireAdmin } from "@/server/security"
+import { getSessionToken } from "@/server/security"
+import { adminPost } from "@/server/guards"
 import { startViewingAs, stopViewingAs } from "@/server/view-as"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
@@ -25,16 +26,15 @@ export const getViewAsErrorMessage = createErrorMessage(
 )
 
 const startFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
-  .handler(async ({ data }): Promise<ViewingAs> => {
-    requireAppOrigin()
-    const admin = await requireAdmin()
+  .handler(async ({ data, context }): Promise<ViewingAs> => {
     const token = getSessionToken()
     if (!token) {
       throw new Error("AUTH_REQUIRED")
     }
 
-    return startViewingAs(admin.id, token, data.userId)
+    return startViewingAs(context.user.id, token, data.userId)
   })
 
 /**

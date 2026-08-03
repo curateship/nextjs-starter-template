@@ -5,7 +5,6 @@ import { z } from "zod"
 import { db } from "@/server/db"
 import { deleteMediaAsAdmin, findOwnedImageByUrl } from "@/server/media"
 import { getPublicMediaUrl } from "@/server/media-storage"
-import { requireAppOrigin } from "@/server/origin"
 import { enforceRateLimit } from "@/server/rate-limit"
 import {
   customShellFeedback,
@@ -18,7 +17,8 @@ import {
   type CustomShellFeedbackComment,
   type CustomShellUser,
 } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, uuid } from "@/server/security"
+import { adminPost, userGet, userPost } from "@/server/guards"
 import {
   FEEDBACK_STATUSES,
   type FeedbackStatus,
@@ -183,10 +183,9 @@ export function getFeedbackErrorMessage(error: unknown) {
 }
 
 const listFeedbackFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
   .inputValidator(listFeedbackSchema)
-  .handler(async ({ data }): Promise<FeedbackListResponse> => {
-    const user = await requireUser()
-
+  .handler(async ({ data, context }): Promise<FeedbackListResponse> => {
     const filters = []
     if (data.type !== "all") {
       filters.push(eq(customShellFeedback.type, data.type))
@@ -219,21 +218,20 @@ const listFeedbackFn = createServerFn({ method: "GET" })
       .where(filters.length ? and(...filters) : undefined)
       .orderBy(...order)
 
-    return { feedback: await serializeFeedbackRows(rows, user) }
+    return { feedback: await serializeFeedbackRows(rows, context.user) }
   })
 
 const createFeedbackFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(createFeedbackSchema)
-  .handler(async ({ data }): Promise<FeedbackItem> => {
-    requireAppOrigin()
-    const user = await requireUser()
+  .handler(async ({ data, context }): Promise<FeedbackItem> => {
     const message = data.message.trim()
 
     if (!message) {
       throw new Error("Message is required")
     }
 
-    await enforceRateLimit(`feedback-create:${user.id}`, {
+    await enforceRateLimit(`feedback-create:${context.user.id}`, {
       maxAttempts: 10,
       windowSeconds: 10 * 60,
     })
@@ -244,7 +242,10 @@ const createFeedbackFn = createServerFn({ method: "POST" })
     // along when it did not.
     let attachmentMediaId: string | null = null
     if (data.attachmentUrl) {
-      const media = await findOwnedImageByUrl(user.id, data.attachmentUrl)
+      const media = await findOwnedImageByUrl(
+        context.user.id,
+        data.attachmentUrl
+      )
       if (!media) {
         throw new Error("That screenshot is not one of your uploaded images.")
       }
@@ -254,7 +255,7 @@ const createFeedbackFn = createServerFn({ method: "POST" })
     const createdAt = now()
     const row = {
       id: uuid(),
-      userId: user.id,
+      userId: context.user.id,
       type: data.type,
       status: "open",
       tags: dedupeTags(data.tags),
@@ -267,7 +268,7 @@ const createFeedbackFn = createServerFn({ method: "POST" })
     await db.insert(customShellFeedback).values(row)
     return serializeFeedbackRow(
       row,
-      user.name,
+      context.user.name,
       0,
       0,
       false,
@@ -278,10 +279,9 @@ const createFeedbackFn = createServerFn({ method: "POST" })
   })
 
 const updateFeedbackFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(updateFeedbackSchema)
-  .handler(async ({ data }): Promise<FeedbackItem> => {
-    requireAppOrigin()
-    const user = await requireAdminUser()
+  .handler(async ({ data, context }): Promise<FeedbackItem> => {
     const message = data.message.trim()
 
     if (!message) {
@@ -304,15 +304,13 @@ const updateFeedbackFn = createServerFn({ method: "POST" })
       throw new Error("Feedback not found")
     }
 
-    return serializeFeedbackWithMeta(row, user)
+    return serializeFeedbackWithMeta(row, context.user)
   })
 
 const deleteFeedbackFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(feedbackIdSchema)
   .handler(async ({ data }): Promise<{ feedbackId: string }> => {
-    requireAppOrigin()
-    await requireAdminUser()
-
     const [row] = await db
       .delete(customShellFeedback)
       .where(eq(customShellFeedback.id, data.feedbackId))
@@ -333,11 +331,9 @@ const deleteFeedbackFn = createServerFn({ method: "POST" })
   })
 
 const deleteFeedbackManyFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(feedbackIdsSchema)
   .handler(async ({ data }): Promise<{ feedbackIds: string[] }> => {
-    requireAppOrigin()
-    await requireAdminUser()
-
     const rows = await db
       .delete(customShellFeedback)
       .where(inArray(customShellFeedback.id, data.feedbackIds))
@@ -356,11 +352,9 @@ const deleteFeedbackManyFn = createServerFn({ method: "POST" })
   })
 
 const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(feedbackIdSchema)
-  .handler(async ({ data }): Promise<FeedbackItem> => {
-    requireAppOrigin()
-    const user = await requireUser()
-
+  .handler(async ({ data, context }): Promise<FeedbackItem> => {
     const [row] = await db
       .select()
       .from(customShellFeedback)
@@ -376,7 +370,7 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
       .where(
         and(
           eq(customShellFeedbackVotes.feedbackId, data.feedbackId),
-          eq(customShellFeedbackVotes.userId, user.id)
+          eq(customShellFeedbackVotes.userId, context.user.id)
         )
       )
       .limit(1)
@@ -394,7 +388,7 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
           .values({
             id: uuid(),
             feedbackId: data.feedbackId,
-            userId: user.id,
+            userId: context.user.id,
             createdAt,
           })
           .returning({ id: customShellFeedbackVotes.id })
@@ -403,11 +397,11 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
           throw new Error("Vote was not created")
         }
 
-        if (shouldNotifyFeedbackAuthor(row, user)) {
+        if (shouldNotifyFeedbackAuthor(row, context.user)) {
           await tx.insert(customShellNotifications).values({
             id: uuid(),
             recipientUserId: row.userId,
-            actorUserId: user.id,
+            actorUserId: context.user.id,
             feedbackId: row.id,
             type: "feedback_vote",
             feedbackVoteId: vote.id,
@@ -434,7 +428,7 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
 
         getFeedbackCommentCount(row.id),
 
-        loadAttachmentUrls([row], user),
+        loadAttachmentUrls([row], context.user),
       ])
 
     return serializeFeedbackRow(
@@ -448,11 +442,9 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
   })
 
 const mergeFeedbackFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(mergeFeedbackSchema)
-  .handler(async ({ data }): Promise<FeedbackItem> => {
-    requireAppOrigin()
-    const admin = await requireAdminUser()
-
+  .handler(async ({ data, context }): Promise<FeedbackItem> => {
     if (data.sourceId === data.targetId) {
       throw new Error("Pick two different feedback items to merge.")
     }
@@ -525,11 +517,11 @@ const mergeFeedbackFn = createServerFn({ method: "POST" })
           }
         }
 
-        if (shouldNotifyFeedbackAuthor(source, admin)) {
+        if (shouldNotifyFeedbackAuthor(source, context.user)) {
           await tx.insert(customShellNotifications).values({
             id: uuid(),
             recipientUserId: source.userId,
-            actorUserId: admin.id,
+            actorUserId: context.user.id,
             feedbackId: target.id,
             type: "feedback_merged",
             createdAt: now(),
@@ -550,34 +542,36 @@ const mergeFeedbackFn = createServerFn({ method: "POST" })
 
     // Read back rather than reusing the row from inside the transaction, which
     // would not know about a screenshot that just moved across.
-    return serializeFeedbackWithMeta(await requireFeedback(data.targetId), admin)
+    return serializeFeedbackWithMeta(
+      await requireFeedback(data.targetId),
+      context.user
+    )
   })
 
 const listFeedbackCommentsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
   .inputValidator(feedbackIdSchema)
-  .handler(async ({ data }): Promise<FeedbackCommentListResponse> => {
-    const user = await requireUser()
+  .handler(async ({ data, context }): Promise<FeedbackCommentListResponse> => {
     const rows = await db
       .select()
       .from(customShellFeedbackComments)
       .where(eq(customShellFeedbackComments.feedbackId, data.feedbackId))
       .orderBy(asc(customShellFeedbackComments.createdAt))
 
-    return { comments: await serializeFeedbackCommentRows(rows, user) }
+    return { comments: await serializeFeedbackCommentRows(rows, context.user) }
   })
 
 const createFeedbackCommentFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(createFeedbackCommentSchema)
-  .handler(async ({ data }): Promise<FeedbackCommentItem> => {
-    requireAppOrigin()
-    const user = await requireUser()
+  .handler(async ({ data, context }): Promise<FeedbackCommentItem> => {
     const message = data.message.trim()
 
     if (!message) {
       throw new Error("Comment is required")
     }
 
-    await enforceRateLimit(`feedback-comment:${user.id}`, {
+    await enforceRateLimit(`feedback-comment:${context.user.id}`, {
       maxAttempts: 20,
       windowSeconds: 10 * 60,
     })
@@ -591,7 +585,7 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
         .values({
           id: uuid(),
           feedbackId: data.feedbackId,
-          userId: user.id,
+          userId: context.user.id,
           message,
           createdAt,
           updatedAt: createdAt,
@@ -602,11 +596,11 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
         throw new Error("Comment was not created")
       }
 
-      if (shouldNotifyFeedbackAuthor(feedback, user)) {
+      if (shouldNotifyFeedbackAuthor(feedback, context.user)) {
         await tx.insert(customShellNotifications).values({
           id: uuid(),
           recipientUserId: feedback.userId,
-          actorUserId: user.id,
+          actorUserId: context.user.id,
           feedbackId: feedback.id,
           type: "feedback_comment",
           feedbackCommentId: comment.id,
@@ -617,14 +611,13 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
       return comment
     })
 
-    return serializeFeedbackCommentWithMeta(row, user)
+    return serializeFeedbackCommentWithMeta(row, context.user)
   })
 
 const updateFeedbackCommentFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(updateFeedbackCommentSchema)
-  .handler(async ({ data }): Promise<FeedbackCommentItem> => {
-    requireAppOrigin()
-    const user = await requireUser()
+  .handler(async ({ data, context }): Promise<FeedbackCommentItem> => {
     const message = data.message.trim()
 
     if (!message) {
@@ -632,7 +625,7 @@ const updateFeedbackCommentFn = createServerFn({ method: "POST" })
     }
 
     const comment = await requireFeedbackComment(data.commentId)
-    if (!canManageFeedbackComment(comment, user)) {
+    if (!canManageFeedbackComment(comment, context.user)) {
       throw new Error("Not authorized")
     }
 
@@ -646,18 +639,17 @@ const updateFeedbackCommentFn = createServerFn({ method: "POST" })
       throw new Error("Comment not found")
     }
 
-    return serializeFeedbackCommentWithMeta(row, user)
+    return serializeFeedbackCommentWithMeta(row, context.user)
   })
 
 const deleteFeedbackCommentFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(feedbackCommentIdSchema)
   .handler(
-    async ({ data }): Promise<{ commentId: string; feedbackId: string }> => {
-      requireAppOrigin()
-      const user = await requireUser()
+    async ({ data, context }): Promise<{ commentId: string; feedbackId: string }> => {
       const comment = await requireFeedbackComment(data.commentId)
 
-      if (!canManageFeedbackComment(comment, user)) {
+      if (!canManageFeedbackComment(comment, context.user)) {
         throw new Error("Not authorized")
       }
 
@@ -726,22 +718,6 @@ export function updateFeedbackComment(payload: FeedbackCommentUpdatePayload) {
 
 export function deleteFeedbackComment(commentId: string) {
   return deleteFeedbackCommentFn({ data: { commentId } })
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing Custom Shell session")
-  }
-  return user
-}
-
-async function requireAdminUser() {
-  const user = await requireUser()
-  if (user.role !== "admin") {
-    throw new Error("Not authorized")
-  }
-  return user
 }
 
 async function requireFeedback(feedbackId: string) {

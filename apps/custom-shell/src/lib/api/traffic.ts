@@ -8,7 +8,7 @@ import {
   type TrafficKeyCount,
   type TrafficSummary,
 } from "@/server/traffic"
-import { requireAdmin } from "@/server/security"
+import { adminGet } from "@/server/guards"
 
 export type { TrafficDayPoint, TrafficKeyCount, TrafficSummary }
 
@@ -35,13 +35,13 @@ export const getTrafficErrorMessage = createErrorMessage(
 )
 
 const loadTrafficSummaryFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(
     z.object({
       days: z.union([z.literal(7), z.literal(30), z.literal(90)]),
     })
   )
   .handler(async ({ data }): Promise<TrafficSummary> => {
-    await requireAdmin()
     return loadTrafficSummaryQuery(data.days)
   })
 

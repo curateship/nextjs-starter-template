@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
-import { findSessionContext, requireAdmin } from "@/server/security"
-import { requireAppOrigin } from "@/server/origin"
+import { findSessionContext } from "@/server/security"
+import { adminPost } from "@/server/guards"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
@@ -54,6 +54,7 @@ const readMaintenanceFn = createServerFn({ method: "GET" }).handler(
 )
 
 const setMaintenanceFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       enabled: z.boolean(),
@@ -61,8 +62,6 @@ const setMaintenanceFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<ShellMaintenance> => {
-    requireAppOrigin()
-    await requireAdmin()
     return setMaintenance(data)
   })
 

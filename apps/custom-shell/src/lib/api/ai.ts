@@ -25,8 +25,7 @@ import {
   type MyAiRecentCall,
   type MyAiUsage,
 } from "@/server/ai-usage"
-import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin, requireUser } from "@/server/security"
+import { adminGet, adminPost, userGet } from "@/server/guards"
 
 export { AI_USAGE_RANGES }
 export type {
@@ -56,9 +55,9 @@ export const getAiErrorMessage = createErrorMessage(
 )
 
 const loadAiUsageDashboardFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(z.object({ range: z.enum(AI_USAGE_RANGES) }))
   .handler(async ({ data }): Promise<AiUsageDashboard> => {
-    await requireAdmin()
     return loadAiUsageDashboardQuery(data.range)
   })
 
@@ -68,12 +67,11 @@ export function loadAiUsageDashboard(range: AiUsageRange) {
 
 const providerSchema = z.enum(AI_PROVIDERS)
 
-const loadAiKeyStatusesFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AiKeyStatus[]> => {
-    await requireAdmin()
+const loadAiKeyStatusesFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async (): Promise<AiKeyStatus[]> => {
     return getAiKeyStatuses()
-  }
-)
+  })
 
 export function loadAiKeyStatuses() {
   return loadAiKeyStatusesFn()
@@ -82,6 +80,7 @@ export function loadAiKeyStatuses() {
 // Save and remove both return the fresh statuses so the card never shows a
 // stale masked tail after a write.
 const saveAiKeyFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       provider: providerSchema,
@@ -90,8 +89,6 @@ const saveAiKeyFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<AiKeyStatus[]> => {
-    requireAppOrigin()
-    await requireAdmin()
     await setAiKey(data.provider, data.apiKey)
     return getAiKeyStatuses()
   })
@@ -101,10 +98,9 @@ export function saveAiKey(provider: AiProvider, apiKey: string) {
 }
 
 const removeAiKeyFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(z.object({ provider: providerSchema }))
   .handler(async ({ data }): Promise<AiKeyStatus[]> => {
-    requireAppOrigin()
-    await requireAdmin()
     await removeAiKey(data.provider)
     return getAiKeyStatuses()
   })
@@ -116,16 +112,15 @@ export function removeAiProviderKey(provider: AiProvider) {
 // POST although it changes nothing: the pasted key rides in the body, and a
 // secret must never sit in a GET url that request logs would keep.
 const testAiKeyFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       provider: providerSchema,
       apiKey: z.string().max(1000).optional(),
     })
   )
-  .handler(async ({ data }): Promise<AiKeyTestResult> => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-    return testAiKey(data.provider, user.id, data.apiKey)
+  .handler(async ({ data, context }): Promise<AiKeyTestResult> => {
+    return testAiKey(data.provider, context.user.id, data.apiKey)
   })
 
 export function testAiProviderKey(provider: AiProvider, apiKey?: string) {
@@ -138,6 +133,7 @@ export function testAiProviderKey(provider: AiProvider, apiKey?: string) {
 // an account can spend. There is no read twin — the accounts list and the
 // account page already carry the override on their rows.
 const saveAiAllowanceOverrideFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       userId: z.string().min(1).max(36),
@@ -146,8 +142,6 @@ const saveAiAllowanceOverrideFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<void> => {
-    requireAppOrigin()
-    await requireAdmin()
     await setAiAllowanceOverride(data.userId, data.monthlyCents)
   })
 
@@ -161,12 +155,11 @@ export function saveAiAllowanceOverride(
 // The signed-in person's own usage. The ordinary member guard, and no input
 // at all: the account it reads is the one the session says, so a hand-made
 // request cannot name somebody else.
-const loadMyAiUsageFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<MyAiUsage> => {
-    const user = await requireUser()
-    return loadMyAiUsageQuery(user.id)
-  }
-)
+const loadMyAiUsageFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<MyAiUsage> => {
+    return loadMyAiUsageQuery(context.user.id)
+  })
 
 export function loadMyAiUsage() {
   return loadMyAiUsageFn()

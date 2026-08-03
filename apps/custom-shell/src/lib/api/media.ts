@@ -20,10 +20,10 @@ import {
   type MediaSortDirection,
 } from "@/server/media"
 import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
-import { requireAppOrigin } from "@/server/origin"
 import { enforceRateLimit } from "@/server/rate-limit"
 import { customShellMedia } from "@/server/schema"
-import { findCurrentUser, now } from "@/server/security"
+import { now } from "@/server/security"
+import { userGet, userPost } from "@/server/guards"
 import { uuid } from "@/server/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse }
@@ -55,11 +55,11 @@ export function getMediaErrorMessage(error: unknown) {
 }
 
 const listMediaFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
   .inputValidator(listMediaSchema)
-  .handler(async ({ data }) => {
-    const user = await requireUser()
+  .handler(async ({ data, context }) => {
     return listOwnedMedia({
-      userId: user.id,
+      userId: context.user.id,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
       search: data?.search,
@@ -71,6 +71,7 @@ const listMediaFn = createServerFn({ method: "GET" })
   })
 
 const uploadMediaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator((data) => {
     if (!(data instanceof FormData)) {
       throw new Error("Expected form data")
@@ -86,14 +87,12 @@ const uploadMediaFn = createServerFn({ method: "POST" })
       altText: data.get("alt_text")?.toString(),
     }
   })
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireUser()
+  .handler(async ({ data, context }) => {
     const mimeType = data.file.type || "application/octet-stream"
     validateMediaFile(mimeType, data.file.size)
 
     // Generous enough for a big drag-and-drop batch; only sustained hammering hits it.
-    await enforceRateLimit(`media-upload:${user.id}`, {
+    await enforceRateLimit(`media-upload:${context.user.id}`, {
       maxAttempts: 60,
       windowSeconds: 10 * 60,
     })
@@ -106,7 +105,7 @@ const uploadMediaFn = createServerFn({ method: "POST" })
 
     const originalName = cleanOriginalName(data.file.name)
     const filename = storedFilename(originalName, mimeType)
-    const storagePath = `${user.id}/${filename}`
+    const storagePath = `${context.user.id}/${filename}`
 
     try {
       await uploadToR2(storagePath, fileData, mimeType)
@@ -122,7 +121,7 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     const createdAt = now()
     const row = {
       id: uuid(),
-      userId: user.id,
+      userId: context.user.id,
       filename,
       originalName,
       altText: cleanAltText(data.altText),
@@ -145,11 +144,10 @@ const uploadMediaFn = createServerFn({ method: "POST" })
   })
 
 const updateMediaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(updateMediaSchema)
-  .handler(async ({ data }): Promise<MediaItem> => {
-    requireAppOrigin()
-    const user = await requireUser()
-    await getOwnedMedia(user.id, data.mediaId)
+  .handler(async ({ data, context }): Promise<MediaItem> => {
+    await getOwnedMedia(context.user.id, data.mediaId)
 
     const updatedAt = now()
     await db
@@ -158,11 +156,11 @@ const updateMediaFn = createServerFn({ method: "POST" })
       .where(
         and(
           eq(customShellMedia.id, data.mediaId),
-          eq(customShellMedia.userId, user.id)
+          eq(customShellMedia.userId, context.user.id)
         )
       )
 
-    const row = await getOwnedMedia(user.id, data.mediaId)
+    const row = await getOwnedMedia(context.user.id, data.mediaId)
     return serializeMedia(row)
   })
 
@@ -199,12 +197,4 @@ export function uploadMedia(file: File, altText?: string) {
 
 export function updateMedia(mediaId: string, altText: string) {
   return updateMediaFn({ data: { mediaId, altText } })
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing Custom Shell session")
-  }
-  return user
 }

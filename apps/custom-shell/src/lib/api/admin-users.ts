@@ -21,8 +21,7 @@ import {
   type CancelSubscriptionMode,
 } from "@/server/billing"
 import { listPlans } from "@/server/plans"
-import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin } from "@/server/security"
+import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 // Types only — a runtime value re-exported from @/server/* would drag the
@@ -72,9 +71,9 @@ export const getAdminUserErrorMessage = createErrorMessage(
 )
 
 const listAccountsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(listQuerySchema)
   .handler(async ({ data }) => {
-    await requireAdmin()
     return listAccounts(data)
   })
 
@@ -87,9 +86,9 @@ const listAccountsFn = createServerFn({ method: "GET" })
  * on first paint.
  */
 const loadAdminUsersPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(listQuerySchema.omit({ pageSize: true }))
   .handler(async ({ data }) => {
-    await requireAdmin()
     const [pageSize, plans] = await Promise.all([
       readDashboardRowsPerPage(),
       listPlans(),
@@ -105,9 +104,9 @@ const loadAdminUsersPageFn = createServerFn({ method: "GET" })
  * account modal opens from here too.
  */
 const loadAccountDetailFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
   .handler(async ({ data }) => {
-    await requireAdmin()
     const detail = await loadAccountDetail(data.userId)
     return { detail, plans: toAssignablePlans(await listPlans()) }
   })
@@ -121,6 +120,7 @@ function toAssignablePlans(
 }
 
 const createAccountFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       // Mirrors the registration form's email rule, lowercasing included, so
@@ -131,12 +131,11 @@ const createAccountFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return createAccountByAdmin(data.email, data.name, data.role)
   })
 
 const updateRoleFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       userId: z.string().min(1).max(36),
@@ -144,12 +143,11 @@ const updateRoleFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return updateUserRole(data.userId, data.role)
   })
 
 const updateStatusFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       userId: z.string().min(1).max(36),
@@ -157,12 +155,11 @@ const updateStatusFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return setUserStatus(data.userId, data.status)
   })
 
 const grantPlanFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       userId: z.string().min(1).max(36),
@@ -171,8 +168,6 @@ const grantPlanFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return grantManualPlan(
       data.userId,
       data.planId,
@@ -181,6 +176,7 @@ const grantPlanFn = createServerFn({ method: "POST" })
   })
 
 const cancelSubscriptionFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       userId: z.string().min(1).max(36),
@@ -188,43 +184,39 @@ const cancelSubscriptionFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return cancelSubscriptionByAdmin(data.userId, data.mode)
   })
 
 const deleteAccountFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const actor = await requireAdmin()
-    return deleteUserAccount(actor.id, data.userId)
+  .handler(async ({ data, context }) => {
+    return deleteUserAccount(context.user.id, data.userId)
   })
 
 const deleteAccountsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({ userIds: z.array(z.string().min(1).max(36)).min(1).max(100) })
   )
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const actor = await requireAdmin()
-    return deleteUserAccounts(actor.id, data.userIds)
+  .handler(async ({ data, context }) => {
+    return deleteUserAccounts(context.user.id, data.userIds)
   })
 
 const restoreAccountsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({ userIds: z.array(z.string().min(1).max(36)).min(1).max(100) })
   )
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return restoreUserAccounts(data.userIds)
   })
 
-const loadRevenueFn = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin()
-  return loadRevenueSummary()
-})
+const loadRevenueFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async () => {
+    return loadRevenueSummary()
+  })
 
 export function loadAdminUsersPage(
   query: Omit<AccountListQueryInput, "pageSize">
