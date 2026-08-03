@@ -111,6 +111,37 @@ Every app must include `workspace/docs/ui-rules.md` and route UI work to it from
 - When summarizing work, do not include full file paths.
 - Keep answers short and concise.
 
+## How To Write Replies
+
+This applies to every reply and every summary of finished work. Tyler is smart
+but is not a programmer. Write the way you would explain something to a friend
+over coffee.
+
+- **Lead with the answer.** First sentence says what is true, then explain.
+- **Bullet points, not blocks of text.** After the opening line, put everything
+  else in a short bullet list. A paragraph of four or more lines is a wall of
+  text and is not allowed.
+- **One idea per bullet, one or two short sentences.** If a bullet needs a third
+  sentence, it was two bullets.
+- **Break long sentences up.** More than one comma, or you had to read it twice?
+  Split it into two sentences.
+- **Never stack headings on tables on bullet lists.** Pick one shape and stay in
+  it. At most one table per reply.
+- **Plain English, no tech speak.** No jargon like "no-op", "inert", "dead
+  code", "naive", "delta", "gradient", "gate", "arm", "trigger" as a noun. Say
+  "it doesn't do anything", "the difference", "the rule that blocks it".
+- **Explain any unavoidable term the first time, in the same sentence**, in
+  everyday words.
+- **Use dollars, not percentages of percentages.** Say numbers out of 100, not
+  as rates: "45 out of 100 made money" beats "a 45% win rate".
+
+**The test before sending:** read it back and ask whether a smart friend with no
+coding background would follow it on the first pass. If any sentence would make
+them stop and re-read, rewrite that sentence. Being accurate is not an excuse
+for being dense.
+
+The root `CLAUDE.md` holds the full word list. It wins if the two ever differ.
+
 ## Documentation
 
 Useful repo docs:

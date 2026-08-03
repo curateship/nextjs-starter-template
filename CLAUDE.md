@@ -4,9 +4,9 @@ Monorepo-wide guidance for agents. App-specific rules live in each app's own `ap
 
 ## Talk Like a Normal Person
 
-This applies to every reply, in every app, with no exceptions. Tyler is smart but
-is not a programmer or a trader. Write the way you would explain something to a
-friend over coffee.
+This applies to every reply and every summary of finished work, in every app,
+with no exceptions. Tyler is smart but is not a programmer or a trader. Write
+the way you would explain something to a friend over coffee.
 
 **Never use these words. There is always a plain replacement:**
 
@@ -30,13 +30,17 @@ friend over coffee.
   beats "a 70% drawdown". If a rule involves two percentages stacked on each
   other, you have to convert it to dollars or Tyler cannot check your work — and
   neither can you.
-- **One idea per paragraph, three sentences maximum.** If a paragraph needs a
-  fourth sentence, it was two ideas.
 - **Lead with the answer.** Say what is true in the first sentence, then explain.
   Never build up to it.
-- **No headed sections stacked on tables stacked on bullet lists.** A wall of
-  formatting reads as gibberish however plain the individual words are. Prefer
-  a few short paragraphs and at most one table.
+- **Bullet points, not blocks of text.** After the opening line, put everything
+  else in a short bullet list. A paragraph of four or more lines is a wall of
+  text and is not allowed.
+- **One idea per bullet, and keep it to one or two short sentences.** If a
+  bullet needs a third sentence, it was two bullets.
+- **Break long sentences up.** If a sentence has more than one comma, or you had
+  to read it twice, split it into two sentences.
+- **Never stack headings on tables on bullet lists.** Pick one shape and stay in
+  it. At most one table per reply, and only when it genuinely beats bullets.
 - **Say numbers out of 100, not as rates.** "45 out of 100 made money" beats
   "a 45% win rate".
 - **Explain any unavoidable term the first time, in the same sentence**, in the
