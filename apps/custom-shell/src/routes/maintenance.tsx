@@ -27,7 +27,7 @@ export const Route = createFileRoute("/maintenance")({
     // runs on the server every time this page loads, so switching maintenance
     // off can never leave somebody stuck here.
     if (!maintenance.enabled) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/home", replace: true })
     }
 
     return {
@@ -109,8 +109,9 @@ function MaintenanceRoute() {
         variant="outline"
         className="w-full"
         // A full load, not a client-side navigation: it asks the server again
-        // instead of trusting anything this tab already had.
-        onClick={() => window.location.assign("/")}
+        // instead of trusting anything this tab already had. `replace`, so a
+        // notice they have left behind cannot be reached again with Back.
+        onClick={() => window.location.replace("/home")}
       >
         Try again
       </Button>

@@ -18,8 +18,14 @@ export const Route = createFileRoute("/_authenticated")({
   loader: async ({ location }) => {
     const { user, ...shell } = await loadShellBootstrap()
     if (!user) {
-      // Remember where they were headed so login can send them back.
-      throw redirect({ to: "/login", search: { redirect: location.href } })
+      // Remember where they were headed so login can send them back. Replace
+      // rather than push: this page turned them away, so leaving it in the
+      // history means Back lands on it and is turned away again.
+      throw redirect({
+        to: "/login",
+        search: { redirect: location.href },
+        replace: true,
+      })
     }
 
     // Maintenance mode shuts the door on everyone but admins. The flag arrives
@@ -27,7 +33,7 @@ export const Route = createFileRoute("/_authenticated")({
     // on a navigation once this data is stale, and straight after signing in —
     // there is no client state a member could keep working from.
     if (shell.settings?.maintenance.enabled && user.role !== "admin") {
-      throw redirect({ to: "/maintenance" })
+      throw redirect({ to: "/maintenance", replace: true })
     }
 
     return { user, ...shell }

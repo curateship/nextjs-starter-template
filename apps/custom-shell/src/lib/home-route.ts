@@ -1,12 +1,14 @@
-import {
-  canSeeShellEntry,
-  isShellEntryNamed,
-  isShellItem,
-  type ShellSection,
-} from "@/lib/custom-shell"
-
 const HOME_ROUTE_BASE = "http://custom-shell.local"
-const HOME_REDIRECT_LOOPS = new Set(["/", "/admin", "/admin/"])
+// Addresses a home setting must never point at. `/home` is the page that reads
+// this very setting, so pointing it back at itself is either a loop or a no-op;
+// `/` is the public front page; `/admin` forwards to the configured admin page.
+const HOME_REDIRECT_LOOPS = new Set([
+  "/",
+  "/home",
+  "/home/",
+  "/admin",
+  "/admin/",
+])
 
 /**
  * Where an admin lands when they have not chosen a page of their own — what
@@ -36,40 +38,6 @@ export function configuredRouteTarget(
   } catch {
     return null
   }
-}
-
-/**
- * The first page in a sidebar — where home sends somebody who has not been
- * given a home route of their own.
- *
- * It walks the list the way the sidebar draws it, so what home opens is the
- * first thing they can see there, and it skips the same entries the rail skips:
- * dividers, hidden items, unnamed ones, and anything their role cannot see. A
- * parent's own page comes before its children, matching where the rail's first
- * click lands. Returns null when the sidebar is empty, which is a real state —
- * an admin can delete every member link and mean it.
- */
-export function firstSidebarRoute(
-  sections: ShellSection[] | null | undefined,
-  role: string
-): string | null {
-  for (const section of sections ?? []) {
-    for (const entry of section.entries) {
-      if (!isShellItem(entry) || !entry.visible) continue
-      if (!canSeeShellEntry(entry, role) || !isShellEntryNamed(entry)) continue
-
-      const target = configuredRouteTarget(entry.href)
-      if (target) return target
-
-      for (const child of entry.children ?? []) {
-        if (!canSeeShellEntry(child, role) || !isShellEntryNamed(child)) continue
-        const childTarget = configuredRouteTarget(child.href)
-        if (childTarget) return childTarget
-      }
-    }
-  }
-
-  return null
 }
 
 /**

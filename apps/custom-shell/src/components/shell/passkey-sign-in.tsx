@@ -37,7 +37,10 @@ export function PasskeySignIn({
       const { options, challengeId } = await beginPasskeySignIn()
       const response = await startAuthentication({ optionsJSON: options })
       await finishPasskeySignIn({ challengeId, response })
-      await navigate({ to: safeRedirectPath(redirectTo) ?? "/" })
+      await navigate({
+        to: safeRedirectPath(redirectTo) ?? "/home",
+        replace: true,
+      })
     } catch (signInError) {
       showErrorToast(
         signInError instanceof Error && signInError.name === "NotAllowedError"

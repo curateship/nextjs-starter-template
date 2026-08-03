@@ -72,7 +72,7 @@ function ChangeEmailRoute() {
         footer={
           <p>
             {signedIn ? (
-              <Link to="/" className={authLinkClassName}>
+              <Link to="/home" className={authLinkClassName}>
                 Back to the app
               </Link>
             ) : (
@@ -98,7 +98,7 @@ function ChangeEmailRoute() {
         footer={
           signedIn ? (
             <p>
-              <Link to="/" className={authLinkClassName}>
+              <Link to="/home" className={authLinkClassName}>
                 Back to the app
               </Link>{" "}
               to ask for a new link from Account &rarr; Profile.

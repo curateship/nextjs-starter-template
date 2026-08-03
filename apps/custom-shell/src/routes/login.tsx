@@ -47,7 +47,7 @@ export const Route = createFileRoute("/login")({
       loadSignInOptions(),
     ])
     if (user) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/home", replace: true })
     }
     return options
   },
@@ -98,7 +98,12 @@ function LoginRoute() {
         await login(email, password, restore)
         // Re-check at the navigation itself so an unsafe value can never be
         // followed, regardless of how it reached the search param.
-        await navigate({ to: safeRedirectPath(redirectTo) ?? "/" })
+        await navigate({
+          to: safeRedirectPath(redirectTo) ?? "/home",
+          // Replace, so the sign-in page is not left behind for Back to land
+          // on — it would only send them straight here again.
+          replace: true,
+        })
       } catch (loginError) {
         const message =
           loginError instanceof Error ? loginError.message : ""

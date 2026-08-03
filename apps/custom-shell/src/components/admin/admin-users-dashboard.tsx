@@ -753,7 +753,7 @@ export function AdminUsersDashboard({
             await startViewingAsMember(target.id)
             // A full load, not a router refresh: every loader on this page was
             // fetched as an admin and none of it is theirs to see now.
-            window.location.href = "/"
+            window.location.href = "/home"
           } catch (startError) {
             setStartingViewAs(false)
             showErrorToast(getViewAsErrorMessage(startError))

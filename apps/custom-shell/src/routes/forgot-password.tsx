@@ -32,7 +32,7 @@ export const Route = createFileRoute("/forgot-password")({
       loadSignInOptions(),
     ])
     if (user) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/home", replace: true })
     }
     return options
   },

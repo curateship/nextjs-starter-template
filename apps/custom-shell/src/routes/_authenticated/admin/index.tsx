@@ -12,6 +12,8 @@ export const Route = createFileRoute("/_authenticated/admin/")({
     const shell = (await parentMatchPromise).loaderData
     const target =
       configuredRouteTarget(shell?.settings?.adminRoute) ?? DEFAULT_ADMIN_ROUTE
-    throw redirect({ href: target })
+    // Replace, never push — see the note on `/home`. This page only forwards,
+    // so leaving it in the history turns Back into a bounce.
+    throw redirect({ href: target, replace: true })
   },
 })
