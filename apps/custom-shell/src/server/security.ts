@@ -444,20 +444,15 @@ function stillSignedIn(
 }
 
 /**
- * Deletes the sessions this account has that would already be refused, and
- * answers how many went.
- *
- * Called at sign-in, so the pile clears itself without a background job. It is
- * only ever the signer's own rows, and only ones the very next request would
- * have deleted anyway — this brings the deletion forward, it does not sign
- * anybody out who was still getting in.
+ * The opposite of `stillSignedIn` above: the session is out of its own lifetime,
+ * or past one of the two limits from Settings → Security. Written once because
+ * both the sign-in tidy-up and the app-wide cleanup delete on exactly this rule,
+ * and two copies of it could drift apart into two different answers.
  */
-export async function pruneRefusedSessions(
-  userId: string,
-  database: CustomShellDb = db
+function refusedSessions(
+  policy: { maxAgeDays: number; idleMinutes: number },
+  timestamp: Date
 ) {
-  const policy = await readSessionPolicyRow(database)
-  const timestamp = now()
   const refused = [lte(customShellSessions.expiresAt, timestamp)]
 
   if (policy.maxAgeDays > 0) {
@@ -477,9 +472,62 @@ export async function pruneRefusedSessions(
     )
   }
 
+  return or(...refused)
+}
+
+/**
+ * Deletes the sessions this account has that would already be refused, and
+ * answers how many went.
+ *
+ * Called at sign-in, so the pile clears itself without a background job. It is
+ * only ever the signer's own rows, and only ones the very next request would
+ * have deleted anyway — this brings the deletion forward, it does not sign
+ * anybody out who was still getting in.
+ */
+export async function pruneRefusedSessions(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const policy = await readSessionPolicyRow(database)
+
   const deleted = await database
     .delete(customShellSessions)
-    .where(and(eq(customShellSessions.userId, userId), or(...refused)))
+    .where(
+      and(
+        eq(customShellSessions.userId, userId),
+        refusedSessions(policy, now())
+      )
+    )
+    .returning({ id: customShellSessions.id })
+
+  return deleted.length
+}
+
+/**
+ * The same deletion, for everybody at once and capped, which is what the
+ * app-wide cleanup in `server/cleanup.ts` needs. Accounts that never come back
+ * leave sessions nobody ever signs in to clear.
+ *
+ * The cap is applied by picking the ids first: Postgres has no `limit` on a
+ * delete, and an uncapped one on a long-neglected app could sit there deleting
+ * for the length of somebody's page load.
+ */
+export async function purgeRefusedSessions(
+  limit: number,
+  database: CustomShellDb = db,
+  at: Date = now()
+) {
+  const policy = await readSessionPolicyRow(database)
+
+  const doomed = database
+    .select({ id: customShellSessions.id })
+    .from(customShellSessions)
+    .where(refusedSessions(policy, at))
+    .limit(limit)
+
+  const deleted = await database
+    .delete(customShellSessions)
+    .where(inArray(customShellSessions.id, doomed))
     .returning({ id: customShellSessions.id })
 
   return deleted.length

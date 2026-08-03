@@ -1,5 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start"
 
+import { maybeCleanUpOldData } from "@/server/cleanup"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin, requireUser } from "@/server/security"
 
@@ -33,9 +34,21 @@ import { requireAdmin, requireUser } from "@/server/security"
  * member and insists it is refused, so a guard cannot go missing unnoticed.
  */
 
-/** Reads that only an admin may make. */
+/**
+ * Reads that only an admin may make.
+ *
+ * This is also where the app-wide tidy-up rides in. There is no scheduler here,
+ * so the sweep needs a real request to run on, and an admin opening any admin
+ * screen is the natural one: it happens on every kind of sign-in, it is already
+ * a privileged path, and `maybeCleanUpOldData` sweeps at most once a day per
+ * process, so the other requests pay nothing.
+ */
 export const adminGet = createMiddleware({ type: "function" }).server(
-  async ({ next }) => next({ context: { user: await requireAdmin() } })
+  async ({ next }) => {
+    const user = await requireAdmin()
+    await maybeCleanUpOldData()
+    return next({ context: { user } })
+  }
 )
 
 /** Changes that only an admin may make. */

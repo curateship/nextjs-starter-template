@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { DataCleanupCard } from "@/components/settings/data-cleanup-card"
 import { CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -110,6 +111,8 @@ export function SecuritySettings({
           </Select>
         </div>
       </CollapsibleSettingsCard>
+
+      <DataCleanupCard />
 
       <ConfirmDialog
         open={pending !== null}
