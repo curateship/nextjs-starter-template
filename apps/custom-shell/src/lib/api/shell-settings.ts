@@ -7,6 +7,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   MAX_MAINTENANCE_MESSAGE_LENGTH,
   SHELL_ROLES,
+  TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
@@ -123,6 +124,11 @@ const shellConfigSchema = z.object({
     .int()
     .min(MIN_TOAST_SECONDS)
     .max(MAX_TOAST_SECONDS),
+  topLeftNavLimit: z.number().int().refine((value) =>
+    TOP_LEFT_NAV_LIMIT_OPTIONS.includes(
+      value as (typeof TOP_LEFT_NAV_LIMIT_OPTIONS)[number]
+    )
+  ),
   // Per-workspace sidebar width. Always populated with a valid value by the
   // loader (workspace settings default it), so a plain required field is fine.
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),

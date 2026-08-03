@@ -362,6 +362,11 @@ export type ShellConfig = {
   dashboardRowsPerPage: number
   /** How many seconds a success message stays on screen. Failures ignore it. */
   toastSeconds: number
+  /**
+   * Most top-bar links to draw before the rest fold into a "more" menu. Zero
+   * means no limit, which is what every install had before this setting.
+   */
+  topLeftNavLimit: number
   // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
   sidebarWidth: number
   /** Route the home page (/) and /admin open for an admin; empty = Settings. */
@@ -413,6 +418,23 @@ export type ShellConfig = {
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
 export const DEFAULT_DASHBOARD_ROWS_PER_PAGE = 10
+
+/** Zero is "show them all" and heads the list, because it is the default. */
+export const TOP_LEFT_NAV_LIMIT_OPTIONS = [0, 3, 4, 5, 6, 7, 8] as const
+export const DEFAULT_TOP_LEFT_NAV_LIMIT = 0
+
+/**
+ * A saved limit is only honoured if it is one of the offered choices. Anything
+ * else — a row written before this setting existed, or a hand-edited value —
+ * falls back to showing every link, which is how the top bar always behaved.
+ */
+export function normalizeTopLeftNavLimit(value: unknown): number {
+  return TOP_LEFT_NAV_LIMIT_OPTIONS.includes(
+    value as (typeof TOP_LEFT_NAV_LIMIT_OPTIONS)[number]
+  )
+    ? (value as number)
+    : DEFAULT_TOP_LEFT_NAV_LIMIT
+}
 
 // ---------------------------------------------------------------------------
 // Maintenance mode (Settings → General). App-wide, not per-workspace: it is the
@@ -806,6 +828,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     toastSeconds: DEFAULT_TOAST_SECONDS,
+    topLeftNavLimit: DEFAULT_TOP_LEFT_NAV_LIMIT,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     adminRoute: "",
     memberHomeRoute: "",

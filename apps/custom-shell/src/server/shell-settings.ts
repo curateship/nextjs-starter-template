@@ -7,6 +7,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   normalizeMaintenance,
   normalizeSessionPolicy,
+  normalizeTopLeftNavLimit,
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { clampToastSeconds } from "@/lib/toast-seconds"
@@ -120,6 +121,9 @@ export function parseShellGlobals(value: unknown) {
     // Rows saved before this setting existed have no value; clampToastSeconds
     // falls back to the default rather than writing NaN into the Toaster.
     toastSeconds: clampToastSeconds(settings.toastSeconds),
+    // Rows saved before this setting existed have no value, and the fallback is
+    // no limit — so an existing install's top bar looks exactly as it did.
+    topLeftNavLimit: normalizeTopLeftNavLimit(settings.topLeftNavLimit),
     adminRoute:
       typeof settings.adminRoute === "string"
         ? settings.adminRoute
@@ -155,6 +159,7 @@ export function pickShellGlobals(settings: ShellConfig) {
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
+    topLeftNavLimit: settings.topLeftNavLimit,
     adminRoute: settings.adminRoute,
     memberHomeRoute: settings.memberHomeRoute,
     memberSections: settings.memberSections,
