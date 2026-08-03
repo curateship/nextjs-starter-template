@@ -870,12 +870,6 @@ function GalleryItem({
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
           {item.file_type}
         </span>
-        <span
-          className="absolute right-2 bottom-2 left-2 truncate rounded bg-background/90 px-1.5 py-0.5 text-left text-[10px] group-hover:opacity-0"
-          title={item.owner_email}
-        >
-          {item.owner_name}
-        </span>
       </button>
       <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
         <div className="flex h-8 w-8 items-center justify-center">
