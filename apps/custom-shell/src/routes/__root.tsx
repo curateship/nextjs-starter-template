@@ -14,20 +14,20 @@ import { Card, CardContent } from "@/components/ui/card"
 import { getPageErrorMessage } from "@/components/shell/route-error"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { loadAppName } from "@/lib/api/shell"
-import { resolveAppName } from "@/lib/app-name"
+import { loadBranding } from "@/lib/api/shell"
+import { resolveAppName } from "@/lib/branding"
 import { useDismissErrorToastOnNavigate } from "@/lib/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
 import { ThemeProvider } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 
-// The app name changes about as rarely as the shell config, so hold it for the
-// same minute rather than re-reading it on every navigation.
-const APP_NAME_STALE_TIME_MS = 60_000
+// The app name and logo change about as rarely as the shell config, so hold
+// them for the same minute rather than re-reading on every navigation.
+const BRANDING_STALE_TIME_MS = 60_000
 
 export const Route = createRootRoute({
-  staleTime: APP_NAME_STALE_TIME_MS,
-  loader: () => loadAppName(),
+  staleTime: BRANDING_STALE_TIME_MS,
+  loader: () => loadBranding(),
   head: ({ loaderData }) => ({
     meta: [
       { charSet: "utf-8" },

@@ -75,8 +75,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "The maintenance notice has to render for people who are not signed in.",
   "view-as.ts:stopFn":
     "While the view is on the app treats the caller as the member, so an admin check here would be a door that locks from the inside. The session row is the guard.",
-  "shell.ts:loadAppNameFn":
-    "The app name is on the sign-in page, so it is readable before there is a session.",
+  "shell.ts:loadBrandingFn":
+    "The app name and logo are on the sign-in page, so they are readable before there is a session.",
   "shell.ts:loadShellBootstrapFn":
     "Answers with empty defaults when nobody is signed in; the signed-out shell is built from exactly that.",
 }

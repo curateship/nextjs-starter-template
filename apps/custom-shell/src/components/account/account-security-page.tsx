@@ -54,7 +54,14 @@ import { useBrowserSupportsWebAuthn } from "@/lib/use-webauthn-support"
 
 const MISMATCH_MESSAGE = "Those passwords do not match."
 
-export function AccountSecurityPage({ user }: { user: AuthUser }) {
+export function AccountSecurityPage({
+  user,
+  isPaid,
+}: {
+  user: AuthUser
+  /** Whether they are on a paid plan, which deleting cancels. */
+  isPaid: boolean
+}) {
   const router = useRouter()
   // Changing a password signs out every other device, so the list below it has
   // to be fetched again or it keeps showing devices that are already gone.
@@ -73,7 +80,11 @@ export function AccountSecurityPage({ user }: { user: AuthUser }) {
       />
       <PasskeysCard />
       <SessionsCard devicesChanged={devicesChanged} />
-      <DeleteAccountCard hasPassword={user.hasPassword} email={user.email} />
+      <DeleteAccountCard
+        hasPassword={user.hasPassword}
+        email={user.email}
+        isPaid={isPaid}
+      />
     </CardGroup>
   )
 }
@@ -659,6 +670,25 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
 }
 
 /**
+ * What deleting your own account costs you, in the order you need to hear it:
+ * you are locked out now, your paid plan stops now, and here is the one way
+ * back — which does not include the plan.
+ */
+function describeSelfDeletion(hasPassword: boolean, isPaid: boolean) {
+  const locked = "You are signed out everywhere and cannot sign in again."
+  const plan = isPaid
+    ? " Your paid plan is cancelled straight away, so you are not charged again. The rest of the period you have already paid for is not refunded."
+    : ""
+  const planGone = isPaid ? ", though not the plan" : ""
+
+  const back = hasPassword
+    ? ` Signing in with your password within ${ACCOUNT_RESTORE_DAYS} days brings the account back${planGone}; after that it is deleted for good.`
+    : ` You sign in with Google and have no password, so only an admin can bring the account back${planGone} — ask within ${ACCOUNT_RESTORE_DAYS} days. After that it is deleted for good.`
+
+  return `${locked}${plan}${back}`
+}
+
+/**
  * Deleting asks for something only the owner could type. Normally that is the
  * password; an account that signs in with Google has none, so it is asked for
  * its own email address instead.
@@ -666,9 +696,11 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
 function DeleteAccountCard({
   hasPassword,
   email,
+  isPaid,
 }: {
   hasPassword: boolean
   email: string
+  isPaid: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [confirmation, setConfirmation] = React.useState("")
@@ -706,11 +738,7 @@ function DeleteAccountCard({
         open={open}
         onOpenChange={setOpen}
         title="Delete your account?"
-        description={
-          hasPassword
-            ? `You are signed out everywhere and cannot sign in again. Signing in with your password within ${ACCOUNT_RESTORE_DAYS} days brings the account back; after that it is deleted for good, and any paid plan stops at the end of the period you already paid for.`
-            : `You are signed out everywhere and cannot sign in again. You sign in with Google and have no password, so only an admin can bring the account back — ask within ${ACCOUNT_RESTORE_DAYS} days. After that it is deleted for good, and any paid plan stops at the end of the period you already paid for.`
-        }
+        description={describeSelfDeletion(hasPassword, isPaid)}
         confirmLabel="Delete account"
         loading={deleting}
         disabled={!confirmation}

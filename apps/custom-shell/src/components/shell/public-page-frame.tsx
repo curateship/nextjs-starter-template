@@ -1,6 +1,7 @@
 import * as React from "react"
 
-import { useAppName } from "@/lib/app-name"
+import { BrandLogo } from "@/components/shell/brand-logo"
+import { useAppName, useBrandLogo } from "@/lib/branding"
 import { cn } from "@/lib/utils"
 
 /**
@@ -9,8 +10,9 @@ import { cn } from "@/lib/utils"
  * vertically, so public pages are framed identically instead of each
  * hand-rolling its own <main> wrapper.
  *
- * It also carries the app name above the content, which is the one place a
- * signed-out visitor sees which app they are signing in to.
+ * It also carries the branding above the content — the admin-set logo, when
+ * there is one, and the app name — which is the one place a signed-out visitor
+ * sees which app they are signing in to.
  */
 export function PublicPageFrame({
   className,
@@ -20,6 +22,7 @@ export function PublicPageFrame({
   children: React.ReactNode
 }) {
   const appName = useAppName()
+  const logo = useBrandLogo()
 
   return (
     <main
@@ -29,6 +32,7 @@ export function PublicPageFrame({
       )}
     >
       <div className="flex w-full flex-col items-center gap-2 md:gap-3">
+        <BrandLogo src={logo} appName={appName} />
         <p className="text-sm font-medium text-foreground">{appName}</p>
         {children}
       </div>

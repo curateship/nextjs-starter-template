@@ -3,7 +3,7 @@ import { loadUserAnnouncements } from "@/server/announcements"
 import { loadEntitlements } from "@/server/entitlements"
 import { countUnreadNotifications } from "@/server/notifications"
 import { findSessionContext } from "@/server/security"
-import { readAppName, readShellSettings } from "@/server/shell-settings"
+import { readBranding, readShellSettings } from "@/server/shell-settings"
 import { readWorkspaceList } from "@/server/workspaces"
 
 import type { UserAnnouncement } from "@/lib/announcement"
@@ -96,15 +96,15 @@ export function loadShellBootstrap() {
 }
 
 /**
- * The app name on its own, with no session required — the root route needs it
- * for the browser tab title and the signed-out pages that show it.
+ * The app name and logo, with no session required — the root route needs them
+ * for the browser tab title and the signed-out pages that show them.
  */
-const loadAppNameFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ appName: string }> => {
-    return { appName: await readAppName() }
+const loadBrandingFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ appName: string; logo: string }> => {
+    return readBranding()
   }
 )
 
-export function loadAppName() {
-  return loadAppNameFn()
+export function loadBranding() {
+  return loadBrandingFn()
 }

@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DEFAULT_APP_NAME } from "@/lib/app-name"
+import { DEFAULT_APP_NAME } from "@/lib/branding"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   DEFAULT_MAINTENANCE_MESSAGE,
@@ -51,7 +51,7 @@ export function GeneralSettings({
       <CollapsibleSettingsCard
         storageId="general"
         title="General settings"
-        description="Set the app and workspace names and the favicon used by the shell."
+        description="Set the app and workspace names, the favicon, and the logo on the signed-out pages."
         contentClassName="space-y-6"
       >
         <div className="grid gap-2">
@@ -180,15 +180,30 @@ export function GeneralSettings({
 
         <ToastSecondsField config={config} onConfigChange={onConfigChange} />
 
-        <ImageUpload
-          label="Favicon"
-          value={config.favicon}
-          onChange={(url) => onConfigChange({ ...config, favicon: url })}
-          aspect="square"
-          fit="contain"
-          emptyLabel="Select favicon"
-          className="max-w-20"
-        />
+        {/* The app's two pictures sit together: both are small, so a row of
+            them is shorter than two stacked and reads as one decision. */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <ImageUpload
+            label="Favicon"
+            value={config.favicon}
+            onChange={(url) => onConfigChange({ ...config, favicon: url })}
+            aspect="square"
+            fit="contain"
+            emptyLabel="Select favicon"
+            className="max-w-20"
+          />
+
+          <ImageUpload
+            label="Logo"
+            value={config.logo}
+            onChange={(url) => onConfigChange({ ...config, logo: url })}
+            aspect="square"
+            fit="contain"
+            emptyLabel="Select logo"
+            hint="Shown above the signed-out pages — sign in, register, verify, reset password and pricing. Everyone sees the same one. Leave it empty for the app name on its own."
+            className="max-w-20"
+          />
+        </div>
       </CollapsibleSettingsCard>
 
       <MaintenanceSettingsCard

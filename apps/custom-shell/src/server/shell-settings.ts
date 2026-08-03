@@ -46,14 +46,16 @@ export async function readDashboardRowsPerPage(
 }
 
 /**
- * Just the configured app name. Public pages (sign in, register, pricing) show
- * it before there is a session, so like rows-per-page it reads the settings row
- * on its own rather than going through the workspace lookup.
+ * The two branded things a signed-out visitor sees: the app name and the logo.
+ * Public pages (sign in, register, pricing) show them before there is a session,
+ * so like rows-per-page this reads the settings row on its own rather than going
+ * through the workspace lookup.
  */
-export async function readAppName(
+export async function readBranding(
   database: CustomShellDb = db
-): Promise<string> {
-  return (await readShellGlobals(database)).appName
+): Promise<{ appName: string; logo: string }> {
+  const globals = await readShellGlobals(database)
+  return { appName: globals.appName, logo: globals.logo }
 }
 
 /**
@@ -103,6 +105,9 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.appName === "string"
         ? settings.appName
         : fallback.appName,
+    // Guarded for the same reason as the app name: the logo is drawn on the
+    // signed-out pages, so a junk value in the row must not reach an <img>.
+    logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
     dashboardRowsPerPage:
@@ -142,6 +147,7 @@ export function parseShellGlobals(value: unknown) {
 export function pickShellGlobals(settings: ShellConfig) {
   return {
     appName: settings.appName,
+    logo: settings.logo,
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,

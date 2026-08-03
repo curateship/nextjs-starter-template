@@ -622,57 +622,57 @@ describe("stripe webhooks", () => {
   })
 })
 
-describe("admin cancels subscriptions", () => {
-  const periodEndSeconds = Math.floor(new Date("2027-01-01").getTime() / 1_000)
+const periodEndSeconds = Math.floor(new Date("2027-01-01").getTime() / 1_000)
 
-  /** What Stripe answers after a cancel call, shaped like its real payloads. */
-  function stripeAnswer(overrides: Record<string, unknown> = {}) {
-    return {
-      id: "sub_cancel",
+/** What Stripe answers after a cancel call, shaped like its real payloads. */
+function stripeAnswer(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "sub_cancel",
+    status: "active",
+    cancel_at_period_end: true,
+    items: { data: [{ current_period_end: periodEndSeconds }] },
+    ...overrides,
+  } as never
+}
+
+const neverCallsStripe = {
+  cancelNow: () => {
+    throw new Error("stripe was called")
+  },
+  stopRenewal: () => {
+    throw new Error("stripe was called")
+  },
+}
+
+async function seedStripeSubscription(
+  userId: string,
+  overrides: Partial<typeof customShellSubscriptions.$inferInsert> = {}
+) {
+  const plan = await getPlanBySlug("pro", database)
+  const timestamp = now()
+  const [row] = await database
+    .insert(customShellSubscriptions)
+    .values({
+      id: uuid(),
+      userId,
+      planId: plan!.id,
+      stripeCustomerId: `cus_${userId.slice(0, 8)}`,
+      stripeSubscriptionId: "sub_cancel",
       status: "active",
-      cancel_at_period_end: true,
-      items: { data: [{ current_period_end: periodEndSeconds }] },
+      interval: "monthly",
+      source: "stripe",
+      currentPeriodEnd: new Date("2027-01-01"),
+      cancelAtPeriodEnd: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
       ...overrides,
-    } as never
-  }
+    })
+    .returning()
 
-  const neverCallsStripe = {
-    cancelNow: () => {
-      throw new Error("stripe was called")
-    },
-    stopRenewal: () => {
-      throw new Error("stripe was called")
-    },
-  }
+  return row
+}
 
-  async function seedStripeSubscription(
-    userId: string,
-    overrides: Partial<typeof customShellSubscriptions.$inferInsert> = {}
-  ) {
-    const plan = await getPlanBySlug("pro", database)
-    const timestamp = now()
-    const [row] = await database
-      .insert(customShellSubscriptions)
-      .values({
-        id: uuid(),
-        userId,
-        planId: plan!.id,
-        stripeCustomerId: `cus_${userId.slice(0, 8)}`,
-        stripeSubscriptionId: "sub_cancel",
-        status: "active",
-        interval: "monthly",
-        source: "stripe",
-        currentPeriodEnd: new Date("2027-01-01"),
-        cancelAtPeriodEnd: false,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        ...overrides,
-      })
-      .returning()
-
-    return row
-  }
-
+describe("admin cancels subscriptions", () => {
   it("stops the renewal at period end and keeps access until then", async () => {
     const user = await createUser()
     await seedStripeSubscription(user.id)
@@ -914,6 +914,75 @@ describe("admin account management", () => {
     expect(result).toEqual({ marked: 0, deleted: 1 })
     const remaining = await database.select().from(customShellUsers)
     expect(remaining.map((row) => row.id)).toEqual([actor.id])
+  })
+
+  it("cancels a paying account's plan before it deletes anything", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+    await seedStripeSubscription(member.id)
+    const cancelled: string[] = []
+
+    const result = await deleteUserAccounts(actor.id, [member.id], database, {
+      ...neverCallsStripe,
+      cancelNow: async (subscriptionId: string) => {
+        cancelled.push(subscriptionId)
+        return stripeAnswer({ status: "canceled", cancel_at_period_end: false })
+      },
+    })
+
+    expect(result).toEqual({ marked: 1, deleted: 0 })
+    expect(cancelled).toEqual(["sub_cancel"])
+
+    const { entitlements } = await loadEntitlements(member.id, database)
+    expect(entitlements.isPaid).toBe(false)
+  })
+
+  it("deletes nothing when Stripe will not cancel the plan", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+    await seedStripeSubscription(member.id)
+
+    await expect(
+      deleteUserAccounts(actor.id, [member.id], database, {
+        ...neverCallsStripe,
+        cancelNow: async () => {
+          throw new Error("Stripe is down")
+        },
+      })
+    ).rejects.toThrow("SUBSCRIPTION_CANCEL_FAILED")
+
+    // Still here, still paying: a delete that could not stop the money did not
+    // happen at all.
+    const [row] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+    expect(row.status).toBe("active")
+
+    const { entitlements } = await loadEntitlements(member.id, database)
+    expect(entitlements.isPaid).toBe(true)
+  })
+
+  it("deletes an account on a granted plan without calling Stripe", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+    await grantManualPlan(member.id, plan!.id, null, database)
+
+    const result = await deleteUserAccounts(
+      actor.id,
+      [member.id],
+      database,
+      neverCallsStripe
+    )
+
+    expect(result).toEqual({ marked: 1, deleted: 0 })
+    expect(
+      await database
+        .select()
+        .from(customShellSubscriptions)
+        .where(eq(customShellSubscriptions.userId, member.id))
+    ).toHaveLength(0)
   })
 
   it("does not restart the window when an account is deleted twice", async () => {

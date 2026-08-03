@@ -1,5 +1,5 @@
 import Stripe from "stripe"
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
@@ -153,7 +153,7 @@ export async function listCustomerInvoices(
 export type CancelSubscriptionMode = "period_end" | "immediate"
 
 /** The two Stripe calls a cancel can make, injectable so tests need no Stripe. */
-type CancelApi = {
+export type CancelApi = {
   cancelNow: (subscriptionId: string) => Promise<Stripe.Subscription>
   stopRenewal: (subscriptionId: string) => Promise<Stripe.Subscription>
 }
@@ -224,6 +224,53 @@ export async function cancelSubscriptionByAdmin(
   return {
     mode,
     endsAt: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+  }
+}
+
+/**
+ * Ends the paid plans of accounts that are about to be deleted.
+ *
+ * Cancel first, delete second, and that order is the whole point. A crash
+ * between the two leaves an account with no plan, which costs nobody anything;
+ * the other way round leaves Stripe taking money every month for an account
+ * that no longer exists.
+ *
+ * So a cancel Stripe refuses stops the delete outright rather than deleting
+ * anyway. Ending it now, not at the end of the period: the account is
+ * unreachable from the moment it is deleted, and Stripe still counts a
+ * cancel-at-period-end subscription as live.
+ *
+ * A batch with nothing live in it — free accounts, lapsed plans — costs one
+ * query and never reaches Stripe, and neither does a plan an admin granted by
+ * hand, which is not billed anywhere.
+ */
+export async function cancelSubscriptionsForDeletion(
+  userIds: string[],
+  database: CustomShellDb = db,
+  api: CancelApi = stripeCancelApi
+) {
+  const subscriptions = await database
+    .select()
+    .from(customShellSubscriptions)
+    .where(inArray(customShellSubscriptions.userId, userIds))
+
+  for (const subscription of subscriptions) {
+    if (!subscriptionIsActive(subscription)) {
+      continue
+    }
+
+    try {
+      await cancelSubscriptionByAdmin(
+        subscription.userId,
+        "immediate",
+        database,
+        api
+      )
+    } catch (error) {
+      // One code for every way this can fail, because the caller only needs to
+      // say the same thing either way: nothing was deleted.
+      throw new Error("SUBSCRIPTION_CANCEL_FAILED", { cause: error })
+    }
   }
 }
 

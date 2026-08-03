@@ -12,6 +12,7 @@ import {
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 import { db } from "@/server/db"
+import { isOwnedImageUrl } from "@/server/media"
 import {
   customShellSettings,
   customShellWorkspaces,
@@ -128,6 +129,7 @@ const shellConfigSchema = z.object({
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
+  logo: z.string(),
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
@@ -202,6 +204,22 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // message comes from this save. The session policy is kept whole for
       // the same reason — its one writer is lib/api/session-policy.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
+
+      // The logo is drawn on the signed-out pages, so what gets stored has to
+      // be a picture somebody here really uploaded — not any address a browser
+      // felt like sending. Only a changed logo is checked: the settings page
+      // saves the whole config, so a second admin renaming the app must not be
+      // refused because the picture was uploaded from another account.
+      if (
+        data.logo &&
+        data.logo !== existingGlobals.logo &&
+        !(await isOwnedImageUrl(context.user.id, data.logo, tx))
+      ) {
+        throw new Error(
+          "That logo is no longer in your media library. Pick another one."
+        )
+      }
+
       const globalSettings = {
         ...pickShellGlobals(data),
         maintenance: {

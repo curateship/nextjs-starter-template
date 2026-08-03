@@ -23,3 +23,15 @@ export function useAppName() {
     select: (data) => resolveAppName(data.appName),
   })
 }
+
+/**
+ * The brand logo for the current page, or "" when no logo is set. Loaded by the
+ * root route alongside the app name for the same reason: the pages that show it
+ * are drawn before anybody has signed in.
+ */
+export function useBrandLogo() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.logo?.trim() ?? "",
+  })
+}
