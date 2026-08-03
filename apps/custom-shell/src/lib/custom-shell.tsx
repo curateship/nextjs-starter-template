@@ -372,6 +372,13 @@ export type ShellConfig = {
    */
   memberHomeRoute: string
   favicon: string
+  /**
+   * App-wide brand image drawn above the signed-out pages (sign in, register,
+   * reset, pricing). A media-library URL, empty for no logo. Unlike the favicon
+   * it is a global rather than a per-workspace setting, because the pages that
+   * show it are read before anybody has signed in or picked a workspace.
+   */
+  logo: string
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
   /**
@@ -796,6 +803,7 @@ export function createDefaultShellConfig(): ShellConfig {
     adminRoute: "",
     memberHomeRoute: "",
     favicon: "",
+    logo: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,
     // handed out only while the settings row has never held a member list.

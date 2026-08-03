@@ -40,7 +40,7 @@ import {
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
-import { resolveAppName } from "@/lib/app-name"
+import { resolveAppName } from "@/lib/branding"
 import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
@@ -549,6 +549,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
     favicon: settings.favicon ?? fallback.favicon,
+    logo: settings.logo ?? fallback.logo,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
     ),

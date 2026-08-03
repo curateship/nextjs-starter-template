@@ -25,7 +25,7 @@ import {
   requireOwnAccount,
   setSessionCookie,
 } from "@/server/security"
-import { readAppName } from "@/server/shell-settings"
+import { readBranding } from "@/server/shell-settings"
 
 /** One passkey as the Security tab shows it. */
 export type PasskeyListItem = {
@@ -69,7 +69,7 @@ const authenticationResponseSchema = z.custom<AuthenticationResponseJSON>(
 async function requestRelyingParty(): Promise<RelyingParty> {
   requireAppOrigin()
   const origin = new URL(getRequestHeader("origin") ?? "")
-  const appName = await readAppName()
+  const { appName } = await readBranding()
 
   return {
     name: appName || origin.hostname,

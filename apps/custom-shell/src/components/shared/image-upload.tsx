@@ -4,7 +4,7 @@ import { ImagePlus, XIcon } from "lucide-react"
 import { MediaPicker } from "@/components/media/media-picker"
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import { cn } from "@/lib/utils"
 
 type ImageUploadProps = {
@@ -14,7 +14,8 @@ type ImageUploadProps = {
   aspect?: "video" | "square"
   fit?: "cover" | "contain"
   emptyLabel?: string
-  description?: string
+  /** Help text, shown behind the label's info icon like every other field. */
+  hint?: React.ReactNode
   showVideos?: boolean
   showLabel?: boolean
   /** Locks the field while the form around it is submitting. */
@@ -35,7 +36,7 @@ export function ImageUpload({
   aspect = "video",
   fit = "cover",
   emptyLabel = "Add image",
-  description,
+  hint,
   showVideos = false,
   showLabel = true,
   disabled = false,
@@ -47,7 +48,7 @@ export function ImageUpload({
 
   return (
     <div className={cn("w-full space-y-2", className)}>
-      {showLabel ? <Label>{label}</Label> : null}
+      {showLabel ? <FieldLabel hint={hint}>{label}</FieldLabel> : null}
 
       <div className="group relative w-full">
         <button
@@ -95,10 +96,6 @@ export function ImageUpload({
           </Button>
         ) : null}
       </div>
-
-      {description ? (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      ) : null}
 
       <MediaPicker
         open={pickerOpen}

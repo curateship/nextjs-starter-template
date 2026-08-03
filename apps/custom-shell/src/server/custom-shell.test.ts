@@ -3224,6 +3224,25 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ appName: "x" }).memberHomeRoute).toBe("")
   })
 
+  it("carries the sign-in logo through a save and back", () => {
+    // The logo has to be a global, not a workspace setting: the pages that
+    // draw it are read before anybody has signed in or picked a workspace. So
+    // it faces the same trap as the two above — miss it in `pickShellGlobals`
+    // and every save quietly drops the branding off the sign-in page.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      logo: "https://media.example.test/owner/logo.png",
+    })
+
+    expect(parseShellGlobals(saved).logo).toBe(
+      "https://media.example.test/owner/logo.png"
+    )
+    // Never set, and junk stored in the row, both read as "no logo" rather
+    // than reaching an <img> on a signed-out page.
+    expect(parseShellGlobals({ appName: "x" }).logo).toBe("")
+    expect(parseShellGlobals({ logo: 42 }).logo).toBe("")
+  })
+
   it("still refuses to show a member an admin page put on their list", async () => {
     const { memberId } = await seedPeople()
 

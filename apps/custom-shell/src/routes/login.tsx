@@ -18,7 +18,7 @@ import {
   resendVerification,
   SIGN_IN_ERROR_CODES,
 } from "@/lib/api/auth"
-import { useAppName } from "@/lib/app-name"
+import { useAppName } from "@/lib/branding"
 import { carriedEmail } from "@/lib/carried-email"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { safeRedirectPath } from "@/lib/redirect-path"

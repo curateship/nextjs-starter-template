@@ -289,7 +289,9 @@ function getMediaOrderBy(sortBy: MediaSortBy, sortDirection: MediaSortDirection)
 export async function isOwnedImageUrl(
   userId: string,
   url: string,
-  database: CustomShellDb = db
+  // Narrowed to what it uses so a caller inside a transaction can hand its `tx`
+  // over and stay on the one connection.
+  database: Pick<CustomShellDb, "select"> = db
 ) {
   return Boolean(await findOwnedImageByUrl(userId, url, database))
 }
@@ -303,7 +305,7 @@ export async function isOwnedImageUrl(
 export async function findOwnedImageByUrl(
   userId: string,
   url: string,
-  database: CustomShellDb = db
+  database: Pick<CustomShellDb, "select"> = db
 ) {
   const storagePath = storagePathForUrl(url)
   if (!storagePath) return null
