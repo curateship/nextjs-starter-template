@@ -21,7 +21,11 @@ import {
   setUserStatus,
   updateUserRole,
 } from "@/server/accounts"
-import { applyStripeEvent, cancelSubscriptionByAdmin } from "@/server/billing"
+import {
+  applyStripeEvent,
+  cancelSubscriptionByAdmin,
+  findExpiringCard,
+} from "@/server/billing"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import {
   hasFeature,
@@ -772,6 +776,175 @@ describe("admin cancels subscriptions", () => {
     await expect(
       cancelSubscriptionByAdmin(user.id, "immediate", database, neverCallsStripe)
     ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
+  })
+})
+
+/** Taken from the function itself, so the two cannot drift apart. */
+type SubscriptionForCardTest = Parameters<typeof findExpiringCard>[0]
+
+describe("card expiring before renewal", () => {
+  const RENEWS_ON = new Date("2026-09-15T00:00:00.000Z")
+  const TODAY = new Date("2026-08-10T00:00:00.000Z")
+
+  /** A live Stripe subscription as `findExpiringCard` reads it. */
+  function subscriptionRow(
+    overrides: Partial<SubscriptionForCardTest> = {}
+  ): SubscriptionForCardTest {
+    return {
+      source: "stripe",
+      status: "active",
+      stripeSubscriptionId: "sub_card",
+      currentPeriodEnd: RENEWS_ON,
+      cancelAtPeriodEnd: false,
+      ...overrides,
+    }
+  }
+
+  /** What Stripe answers, with a card on the subscription, the customer, or both. */
+  function stripeSubscription({
+    onSubscription = null,
+    onCustomer = null,
+  }: {
+    onSubscription?: { month: number; year: number; last4: string } | null
+    onCustomer?: { month: number; year: number; last4: string } | null
+  }) {
+    const method = (card: { month: number; year: number; last4: string }) => ({
+      type: "card",
+      card: {
+        brand: "Visa",
+        last4: card.last4,
+        exp_month: card.month,
+        exp_year: card.year,
+      },
+    })
+
+    return {
+      id: "sub_card",
+      default_payment_method: onSubscription ? method(onSubscription) : null,
+      customer: {
+        id: "cus_card",
+        invoice_settings: {
+          default_payment_method: onCustomer ? method(onCustomer) : null,
+        },
+      },
+    } as never
+  }
+
+  const neverAsksStripe = () => {
+    throw new Error("stripe was called")
+  }
+
+  it("warns when the card runs out before the renewal", async () => {
+    const warning = await findExpiringCard(subscriptionRow(), TODAY, async () =>
+      stripeSubscription({ onSubscription: { month: 8, year: 2026, last4: "4242" } })
+    )
+
+    expect(warning).toEqual({
+      brand: "Visa",
+      last4: "4242",
+      expMonth: 8,
+      expYear: 2026,
+      // Aug 31 has not arrived on Aug 10, so it is a warning, not a fact.
+      expired: false,
+    })
+  })
+
+  it("says nothing when the card outlives the renewal", async () => {
+    // The card dies at the end of September; the renewal is on the 15th.
+    const warning = await findExpiringCard(subscriptionRow(), TODAY, async () =>
+      stripeSubscription({ onSubscription: { month: 9, year: 2026, last4: "4242" } })
+    )
+
+    expect(warning).toBeNull()
+  })
+
+  it("marks a card that has already run out", async () => {
+    const warning = await findExpiringCard(subscriptionRow(), TODAY, async () =>
+      stripeSubscription({ onSubscription: { month: 6, year: 2026, last4: "1881" } })
+    )
+
+    expect(warning?.expired).toBe(true)
+    expect(warning?.last4).toBe("1881")
+  })
+
+  it("falls back to the customer's card, and prefers the subscription's own", async () => {
+    const fromCustomer = await findExpiringCard(
+      subscriptionRow(),
+      TODAY,
+      async () =>
+        stripeSubscription({ onCustomer: { month: 8, year: 2026, last4: "0001" } })
+    )
+    expect(fromCustomer?.last4).toBe("0001")
+
+    // Stripe charges the subscription's own card when it has one, so that is
+    // the one the warning has to be about.
+    const both = await findExpiringCard(subscriptionRow(), TODAY, async () =>
+      stripeSubscription({
+        onSubscription: { month: 8, year: 2026, last4: "0002" },
+        onCustomer: { month: 8, year: 2026, last4: "0001" },
+      })
+    )
+    expect(both?.last4).toBe("0002")
+  })
+
+  it("says nothing about a plan that is already set to end", async () => {
+    // Nothing renews, so no payment can fail.
+    const warning = await findExpiringCard(
+      subscriptionRow({ cancelAtPeriodEnd: true }),
+      TODAY,
+      neverAsksStripe
+    )
+
+    expect(warning).toBeNull()
+  })
+
+  it("says nothing about a granted plan or a lapsed one, and never asks Stripe", async () => {
+    expect(
+      await findExpiringCard(
+        subscriptionRow({ source: "manual", stripeSubscriptionId: null }),
+        TODAY,
+        neverAsksStripe
+      )
+    ).toBeNull()
+
+    expect(
+      await findExpiringCard(
+        subscriptionRow({ status: "canceled" }),
+        TODAY,
+        neverAsksStripe
+      )
+    ).toBeNull()
+  })
+
+  it("says nothing when the saved method is not a card", async () => {
+    const warning = await findExpiringCard(subscriptionRow(), TODAY, async () =>
+      ({
+        id: "sub_card",
+        default_payment_method: { type: "us_bank_account", card: null },
+        customer: { id: "cus_card", invoice_settings: {} },
+      }) as never
+    )
+
+    expect(warning).toBeNull()
+  })
+
+  it("stays quiet when Stripe will not answer, so the page still loads", async () => {
+    // Quiet for the reader, not quiet in the logs: a warning that silently
+    // stopped working would look exactly like nobody's card expiring.
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const warning = await findExpiringCard(subscriptionRow(), TODAY, async () => {
+      throw new Error("Stripe is down")
+    })
+
+    expect(warning).toBeNull()
+    expect(reported).toHaveBeenCalledWith(
+      "Card expiry check could not run",
+      "sub_card",
+      expect.any(Error)
+    )
+
+    reported.mockRestore()
   })
 })
 

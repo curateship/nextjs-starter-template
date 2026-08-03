@@ -25,6 +25,7 @@ import {
   loadBillingPage,
   type BillingInvoice,
   type BillingOverview,
+  type CardExpiryWarning,
   type PlanSummary,
 } from "@/lib/api/billing"
 
@@ -243,6 +244,7 @@ function BillingTab() {
   const [data, setData] = React.useState<{
     overview: BillingOverview
     invoices: BillingInvoice[]
+    cardWarning: CardExpiryWarning | null
   } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   // Bumped by "Try again", which re-runs the same load rather than making the
@@ -281,5 +283,11 @@ function BillingTab() {
     return <BillingTabSkeleton />
   }
 
-  return <AccountBillingPage overview={data.overview} invoices={data.invoices} />
+  return (
+    <AccountBillingPage
+      overview={data.overview}
+      invoices={data.invoices}
+      cardWarning={data.cardWarning}
+    />
+  )
 }

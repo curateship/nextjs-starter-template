@@ -20,6 +20,12 @@ const DAY_IN_UTC = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
 })
 
+const MONTH_IN_UTC = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+})
+
 const CLOCK_TIME = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
@@ -56,6 +62,16 @@ export function formatDateTime(value: string | Date | null) {
 export function formatUtcDate(value: string | Date | null) {
   if (!value) return "—"
   return DAY_IN_UTC.format(typeof value === "string" ? new Date(value) : value)
+}
+
+/**
+ * "August 2026" — a month with no day in it, for a card's expiry.
+ *
+ * `month` is 1-12, the way it is printed on the card and the way Stripe gives
+ * it. Read back in UTC so the month named is the month meant, everywhere.
+ */
+export function formatMonthAndYear(year: number, month: number) {
+  return MONTH_IN_UTC.format(new Date(Date.UTC(year, month - 1, 1)))
 }
 
 /**

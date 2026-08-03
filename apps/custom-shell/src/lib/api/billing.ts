@@ -5,8 +5,10 @@ import {
   billingEnabled,
   createCheckoutSession,
   createPortalSession,
+  findExpiringCard,
   listCustomerInvoices,
   type BillingInvoice,
+  type CardExpiryWarning,
 } from "@/server/billing"
 import { loadEntitlements } from "@/server/entitlements"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/plans"
@@ -69,13 +71,18 @@ export function getBillingErrorMessage(error: unknown) {
     : "We could not complete that request. Please try again."
 }
 
-async function buildBillingOverview(userId: string): Promise<BillingOverview> {
+/**
+ * The overview, plus the subscription row it was built from — the billing page
+ * needs that row to ask Stripe about the saved card, and reading it a second
+ * time would be another round trip to the database for something already here.
+ */
+async function buildBillingOverview(userId: string) {
   const [{ subscription, entitlements }, plans] = await Promise.all([
     loadEntitlements(userId),
     listPurchasablePlans(),
   ])
 
-  return {
+  const overview: BillingOverview = {
     billingEnabled: billingEnabled(),
     planSlug: entitlements.planSlug,
     planName: entitlements.planName,
@@ -90,12 +97,14 @@ async function buildBillingOverview(userId: string): Promise<BillingOverview> {
     features: entitlements.features,
     plans: plans.map(toPlanOption),
   }
+
+  return { overview, subscription }
 }
 
 const loadBillingOverviewFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<BillingOverview> => {
-    return buildBillingOverview(context.user.id)
+    return (await buildBillingOverview(context.user.id)).overview
   })
 
 /** The plan badge the shell chrome shows; filled in by the shell bootstrap. */
@@ -153,7 +162,10 @@ const openBillingPortalFn = createServerFn({ method: "POST" })
     return createPortalSession(context.user.id)
   })
 
-/** Billing page data in one request: the overview plus any Stripe invoices. */
+/**
+ * Billing page data in one request: the overview, any Stripe invoices, and a
+ * warning when the saved card runs out before the next renewal.
+ */
 const loadBillingPageFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(
@@ -162,16 +174,27 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
     }): Promise<{
       overview: BillingOverview
       invoices: BillingInvoice[]
+      cardWarning: CardExpiryWarning | null
     }> => {
-      const overview = await buildBillingOverview(context.user.id)
+      const { overview, subscription } = await buildBillingOverview(
+        context.user.id
+      )
 
-      return {
-        overview,
+      // Both of these are calls out to Stripe, so make them at the same time
+      // rather than leaving the reader waiting through one and then the other.
+      const [invoices, cardWarning] = await Promise.all([
         // Invoices live in Stripe, so only ask when there is a customer.
-        invoices: overview.hasStripeCustomer
-          ? await listCustomerInvoices(context.user.id)
+        overview.hasStripeCustomer
+          ? listCustomerInvoices(context.user.id)
           : [],
-      }
+        // With payments switched off there is no card to update and no portal
+        // to send anyone to, so there is nothing useful to warn about.
+        subscription && overview.billingEnabled
+          ? findExpiringCard(subscription)
+          : null,
+      ])
+
+      return { overview, invoices, cardWarning }
     }
   )
 
@@ -213,7 +236,9 @@ export function loadBillingPage() {
   return loadBillingPageFn()
 }
 
-export type { BillingInvoice }
+// Types only — a runtime value re-exported from @/server/* would drag the
+// database driver into the browser bundle and kill hydration app-wide.
+export type { BillingInvoice, CardExpiryWarning }
 
 function toPlanOption(plan: {
   id: string
