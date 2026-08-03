@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 
 import { aiAllowanceCentsFromFeatures } from "@/lib/ai-models"
+import type { SubscriptionEvent } from "@/lib/subscription-events"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadEntitlements } from "@/server/entitlements"
 import { loadAccountStorage, type AccountStorage } from "@/server/media"
@@ -8,6 +9,7 @@ import {
   customShellAiAllowanceOverrides,
   customShellUsers,
 } from "@/server/schema"
+import { listSubscriptionEvents } from "@/server/subscription-events"
 
 /**
  * Everything the account window shows, gathered from the tables the existing
@@ -53,6 +55,8 @@ export type AccountDetail = {
   subscription: AccountSubscription
   aiAllowance: AccountAiAllowance
   storage: AccountStorage
+  /** What has happened to their plan since the app started recording it. */
+  billingHistory: SubscriptionEvent[]
 }
 
 export async function loadAccountDetail(
@@ -89,13 +93,16 @@ export async function loadAccountDetail(
     loadEntitlements(userId, database),
     loadAccountStorage(userId, database),
   ])
-  const [aiOverride] = await database
-    .select({
-      monthlyCents: customShellAiAllowanceOverrides.monthlyCents,
-    })
-    .from(customShellAiAllowanceOverrides)
-    .where(eq(customShellAiAllowanceOverrides.userId, userId))
-    .limit(1)
+  const [[aiOverride], billingHistory] = await Promise.all([
+    database
+      .select({
+        monthlyCents: customShellAiAllowanceOverrides.monthlyCents,
+      })
+      .from(customShellAiAllowanceOverrides)
+      .where(eq(customShellAiAllowanceOverrides.userId, userId))
+      .limit(1),
+    listSubscriptionEvents(userId, database),
+  ])
 
   return {
     profile: {
@@ -125,5 +132,6 @@ export async function loadAccountDetail(
       planCents: aiAllowanceCentsFromFeatures(entitlements.features),
     },
     storage,
+    billingHistory,
   }
 }

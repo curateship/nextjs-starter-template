@@ -54,8 +54,14 @@ import {
 import { saveAiAllowanceOverride } from "@/lib/api/ai"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatFileSize } from "@/lib/format-bytes"
-import { formatDate, formatDateTime } from "@/lib/format-time"
+import { formatDate, formatDateTime, formatUtcDate } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
+import {
+  BILLING_HISTORY_START,
+  describeSubscriptionEvent,
+  SUBSCRIPTION_EVENT_LIMIT,
+  type SubscriptionEvent,
+} from "@/lib/subscription-events"
 
 /**
  * Everything about one person, in one window opened from the Users table.
@@ -440,7 +446,58 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
           </div>
         </CardContent>
       </Card>
+
+      <BillingHistoryCard events={detail.billingHistory} />
     </div>
+  )
+}
+
+/**
+ * What has happened to this person's plan, newest first.
+ *
+ * The card says when the recording started whether or not there is anything in
+ * it, because a member who has been paying for two years would otherwise look
+ * like one who joined last month.
+ */
+function BillingHistoryCard({ events }: { events: SubscriptionEvent[] }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Billing history</CardTitle>
+        <CardDescription>
+          Every change to their plan since{" "}
+          {formatUtcDate(BILLING_HISTORY_START)}. Anything that happened before
+          that was not recorded.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {events.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing has been recorded for this account since then.
+          </p>
+        ) : (
+          events.map((event) => (
+            <div
+              key={event.id}
+              className="flex items-baseline justify-between gap-4"
+            >
+              <span className="min-w-0 text-sm">
+                {describeSubscriptionEvent(event)}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {formatDateTime(event.createdAt)}
+              </span>
+            </div>
+          ))
+        )}
+        {events.length === SUBSCRIPTION_EVENT_LIMIT ? (
+          <p className="text-xs text-muted-foreground">
+            The most recent {SUBSCRIPTION_EVENT_LIMIT} changes. There may be
+            older ones.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }
 

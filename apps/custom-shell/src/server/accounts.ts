@@ -40,6 +40,7 @@ import {
   now,
   uuid,
 } from "@/server/security"
+import { recordSubscriptionEvent } from "@/server/subscription-events"
 
 export type AccountSort =
   | "name"
@@ -535,7 +536,7 @@ export async function grantManualPlan(
   database: CustomShellDb = db
 ) {
   if (!planId) {
-    await database
+    const [removed] = await database
       .delete(customShellSubscriptions)
       .where(
         and(
@@ -543,6 +544,23 @@ export async function grantManualPlan(
           eq(customShellSubscriptions.source, "manual")
         )
       )
+      .returning({ planId: customShellSubscriptions.planId })
+
+    // Only when there was actually a grant to take away. Saving "no granted
+    // plan" on an account that never had one changed nothing, and a history
+    // entry for it would be a lie.
+    if (removed) {
+      const previous = removed.planId
+        ? await getPlan(removed.planId, database)
+        : null
+
+      await recordSubscriptionEvent(database, {
+        userId,
+        kind: "grant_removed",
+        planName: previous?.name ?? null,
+        source: "admin",
+      })
+    }
 
     return { planId: null }
   }
@@ -575,6 +593,18 @@ export async function grantManualPlan(
       target: customShellSubscriptions.userId,
       set: values,
     })
+
+  await recordSubscriptionEvent(
+    database,
+    {
+      userId,
+      kind: "plan_granted",
+      planName: plan.name,
+      detail: expiresAt?.toISOString() ?? null,
+      source: "admin",
+    },
+    timestamp
+  )
 
   return { planId: plan.id }
 }

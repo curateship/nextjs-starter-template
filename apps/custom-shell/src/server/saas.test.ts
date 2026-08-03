@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
+import { describeSubscriptionEvent } from "@/lib/subscription-events"
 import {
   markAccountsForDeletion,
   purgeExpiredDeletions,
@@ -44,6 +45,7 @@ import {
   type PlanInput,
 } from "@/server/plans"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
+import { listSubscriptionEvents } from "@/server/subscription-events"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/turnstile"
 import {
   consumeAuthToken,
@@ -778,6 +780,245 @@ describe("admin cancels subscriptions", () => {
     await expect(
       cancelSubscriptionByAdmin(user.id, "immediate", database, neverCallsStripe)
     ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
+  })
+})
+
+describe("billing history", () => {
+  /** A Stripe subscription event, shaped like the real payloads. */
+  function event(
+    userId: string,
+    {
+      id = "evt_1",
+      type = "customer.subscription.updated",
+      price = "price_pro_monthly",
+      ...overrides
+    }: Record<string, unknown> = {}
+  ) {
+    return {
+      id,
+      type,
+      data: {
+        object: {
+          id: "sub_history",
+          customer: "cus_history",
+          status: "active",
+          cancel_at_period_end: false,
+          trial_end: null,
+          metadata: { userId },
+          items: {
+            data: [
+              {
+                price: { id: price },
+                current_period_end: Math.floor(
+                  new Date("2026-09-01").getTime() / 1_000
+                ),
+              },
+            ],
+          },
+          ...overrides,
+        },
+      },
+    } as never
+  }
+
+  async function historyOf(userId: string) {
+    return listSubscriptionEvents(userId, database)
+  }
+
+  beforeEach(async () => {
+    await database
+      .update(customShellPlans)
+      .set({ stripePriceIdMonthly: "price_pro_monthly" })
+      .where(eq(customShellPlans.slug, "pro"))
+  })
+
+  it("records the first subscription once, however often it is delivered", async () => {
+    const user = await createUser()
+
+    await applyStripeEvent(
+      event(user.id, { type: "customer.subscription.created" }),
+      database
+    )
+    // The same delivery again, which is what Stripe's "resend" button does.
+    await applyStripeEvent(
+      event(user.id, { type: "customer.subscription.created" }),
+      database
+    )
+
+    const history = await historyOf(user.id)
+    expect(history).toHaveLength(1)
+    expect(history[0].kind).toBe("subscribed")
+    expect(history[0].planName).toBe("Pro")
+    expect(describeSubscriptionEvent(history[0])).toBe("Subscribed to Pro.")
+  })
+
+  it("records a trial as a trial, not as a subscription", async () => {
+    const user = await createUser()
+
+    await applyStripeEvent(
+      event(user.id, {
+        type: "customer.subscription.created",
+        status: "trialing",
+      }),
+      database
+    )
+
+    const [first] = await historyOf(user.id)
+    expect(first.kind).toBe("trial_started")
+
+    // The trial running out and the plan starting to be paid for is its own
+    // moment, not a second "subscribed".
+    await applyStripeEvent(event(user.id, { id: "evt_2" }), database)
+
+    const history = await historyOf(user.id)
+    expect(history.map((row) => row.kind)).toEqual([
+      "trial_converted",
+      "trial_started",
+    ])
+  })
+
+  it("names both plans when someone switches", async () => {
+    const user = await createUser()
+    await createPlan(planInput(), database)
+    await applyStripeEvent(
+      event(user.id, { type: "customer.subscription.created" }),
+      database
+    )
+
+    await applyStripeEvent(
+      event(user.id, { id: "evt_2", price: "price_team_monthly" }),
+      database
+    )
+
+    const [latest] = await historyOf(user.id)
+    expect(latest.kind).toBe("plan_changed")
+    expect(describeSubscriptionEvent(latest)).toBe("Switched from Pro to Team.")
+  })
+
+  it("records a failed payment and the payment that puts it right", async () => {
+    const user = await createUser()
+    await applyStripeEvent(
+      event(user.id, { type: "customer.subscription.created" }),
+      database
+    )
+
+    await applyStripeEvent(
+      event(user.id, { id: "evt_2", status: "past_due" }),
+      database
+    )
+    await applyStripeEvent(event(user.id, { id: "evt_3" }), database)
+
+    const history = await historyOf(user.id)
+    expect(history.map((row) => row.kind)).toEqual([
+      "payment_recovered",
+      "payment_failed",
+      "subscribed",
+    ])
+  })
+
+  it("records a comp plan turning into a paid one", async () => {
+    const user = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+    await grantManualPlan(user.id, plan!.id, null, database)
+
+    // The same plan, now actually being paid for: nothing about the row changes
+    // except who is paying, and that is the whole event.
+    await applyStripeEvent(
+      event(user.id, { type: "customer.subscription.created" }),
+      database
+    )
+
+    const history = await historyOf(user.id)
+    expect(history.map((row) => row.kind)).toEqual([
+      "subscribed",
+      "plan_granted",
+    ])
+    expect(history[0].source).toBe("stripe")
+  })
+
+  it("says nothing about a renewal, because nothing changed", async () => {
+    const user = await createUser()
+    await applyStripeEvent(
+      event(user.id, { type: "customer.subscription.created" }),
+      database
+    )
+
+    // A new billing period on the same plan: a real Stripe event, and not a
+    // thing that happened to the person.
+    await applyStripeEvent(event(user.id, { id: "evt_2" }), database)
+
+    expect(await historyOf(user.id)).toHaveLength(1)
+  })
+
+  it("credits an admin cancel to the admin and does not repeat it for Stripe", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id, {
+      stripeCustomerId: "cus_history",
+      stripeSubscriptionId: "sub_history",
+    })
+
+    // Midday, not midnight: the sentence names the day in the reader's own
+    // timezone, so a moment on the stroke of midnight UTC would read as the day
+    // before for anyone west of Greenwich, this machine included.
+    const endsAt = new Date(2027, 0, 1, 12)
+    await cancelSubscriptionByAdmin(user.id, "period_end", database, {
+      ...neverCallsStripe,
+      stopRenewal: async () =>
+        stripeAnswer({
+          items: {
+            data: [{ current_period_end: Math.floor(endsAt.getTime() / 1_000) }],
+          },
+        }),
+    })
+
+    const [afterCancel] = await historyOf(user.id)
+    expect(afterCancel.kind).toBe("cancel_scheduled")
+    expect(afterCancel.source).toBe("admin")
+    expect(describeSubscriptionEvent(afterCancel)).toBe(
+      "An admin set Pro to end on Jan 1, 2027, with no renewal."
+    )
+
+    // Stripe's own event for the same cancel arrives afterwards and finds the
+    // row already saying it, so it adds nothing.
+    await applyStripeEvent(
+      event(user.id, { id: "evt_after", cancel_at_period_end: true }),
+      database
+    )
+
+    expect(await historyOf(user.id)).toHaveLength(1)
+  })
+
+  it("records a granted plan and its removal", async () => {
+    const user = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+
+    // Midday for the same reason the cancel test uses it.
+    await grantManualPlan(user.id, plan!.id, new Date(2027, 2, 1, 12), database)
+    await grantManualPlan(user.id, null, null, database)
+    // Removing a grant that was never there changed nothing, so it says nothing.
+    await grantManualPlan(user.id, null, null, database)
+
+    const history = await historyOf(user.id)
+    expect(history.map((row) => row.kind)).toEqual([
+      "grant_removed",
+      "plan_granted",
+    ])
+    expect(history.every((row) => row.source === "admin")).toBe(true)
+    expect(describeSubscriptionEvent(history[1])).toBe(
+      "An admin granted Pro until Mar 1, 2027."
+    )
+  })
+
+  it("goes when the account goes", async () => {
+    const user = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+    await grantManualPlan(user.id, plan!.id, null, database)
+
+    await database
+      .delete(customShellUsers)
+      .where(eq(customShellUsers.id, user.id))
+
+    expect(await historyOf(user.id)).toHaveLength(0)
   })
 })
 

@@ -69,6 +69,11 @@ Stripe customer and subscription ids, `status`, `interval`, `source`
 **`billing_events`** — every Stripe event id this app has processed. Makes a
 replayed webhook a no-op.
 
+**`subscription_events`** — one member's billing history: trial started,
+subscribed, plan switched, payment failed, cancelled. Insert-only, and written
+only when something actually changed. `subscriptions` above says what is true
+now; this says how it got there. See Billing history below.
+
 **`admin_audit_logs`** — who changed a role, suspended someone, granted a plan,
 or edited a plan, with the affected record ids.
 
@@ -307,6 +312,24 @@ and anything unrecognised counts as *still open*, so a status Stripe adds later
 makes the alert louder rather than hiding it. And a dispute whose charge cannot
 be traced to an account here is still recorded, with no member name — losing the
 deadline would be worse than an unattributed alert.
+
+**Billing history.** The `subscriptions` row is overwritten on every change, so
+on its own it can never answer "what happened with this person's billing?".
+`subscription_events` is the diary beside it, shown as a timeline on the account
+window (Admin → Users → any row → Details). Code: `src/server/subscription-events.ts`
+for the writing and reading, `src/lib/subscription-events.ts` for the wording.
+
+Three things hold it together. It is **insert-only** — nothing updates or
+deletes a row, because a record that can be edited is not a record. It records
+**only what changed**: the webhook compares Stripe's new state against the row
+we already had, so a renewal, or Stripe repeating an admin cancel we already
+mirrored, writes nothing. And **one row per Stripe event**, enforced by a unique
+`stripe_event_id`, so a replayed delivery cannot duplicate a line.
+
+History starts the day it shipped and nothing earlier is reconstructed, which
+the card says out loud — a member who has been paying for a year would otherwise
+look like one who joined last week. The date is `BILLING_HISTORY_START` in
+`src/lib/subscription-events.ts`.
 
 **Manual grants.** An admin can put someone on a paid plan without Stripe
 (comp accounts, staff, a refund in progress). Those rows are marked
