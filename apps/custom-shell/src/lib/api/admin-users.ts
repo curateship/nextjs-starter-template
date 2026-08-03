@@ -20,13 +20,21 @@ import {
   cancelSubscriptionByAdmin,
   type CancelSubscriptionMode,
 } from "@/server/billing"
+import { listDisputes, type DisputeList, type DisputeRow } from "@/server/disputes"
 import { listPlans } from "@/server/plans"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 // Types only — a runtime value re-exported from @/server/* would drag the
 // database driver into the browser bundle and kill hydration app-wide.
-export type { AccountDetail, AccountRow, CancelSubscriptionMode, RevenueSummary }
+export type {
+  AccountDetail,
+  AccountRow,
+  CancelSubscriptionMode,
+  DisputeList,
+  DisputeRow,
+  RevenueSummary,
+}
 
 /** Plans an admin can hand out by hand, as the account modal lists them. */
 export type AssignablePlan = { id: string; name: string; slug: string }
@@ -214,10 +222,20 @@ const restoreAccountsFn = createServerFn({ method: "POST" })
     return restoreUserAccounts(data.userIds)
   })
 
-const loadRevenueFn = createServerFn({ method: "GET" })
+/**
+ * The admin billing page in one request: the revenue figures, plus any
+ * chargebacks. Disputes come with the page rather than after it, because the
+ * alert has to be on screen the moment the page is.
+ */
+const loadBillingAdminFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async () => {
-    return loadRevenueSummary()
+  .handler(async (): Promise<{ summary: RevenueSummary; disputes: DisputeList }> => {
+    const [summary, disputes] = await Promise.all([
+      loadRevenueSummary(),
+      listDisputes(),
+    ])
+
+    return { summary, disputes }
   })
 
 export function loadAdminUsersPage(
@@ -280,6 +298,6 @@ export function restoreAccountsAsAdmin(userIds: string[]) {
   return restoreAccountsFn({ data: { userIds } })
 }
 
-export function loadRevenue() {
-  return loadRevenueFn()
+export function loadBillingAdmin() {
+  return loadBillingAdminFn()
 }

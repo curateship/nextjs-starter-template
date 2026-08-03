@@ -36,13 +36,14 @@ import {
   type CardExpiryWarning,
   type PlanOption,
 } from "@/lib/api/billing"
+import { describeCode } from "@/lib/code-label"
 import { formatDate, formatMonthAndYear } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
 
 /**
  * Stripe's own words for an invoice, said the way a person would. Anything not
- * listed — a status Stripe adds later — falls through to the raw word rather
- * than a blank cell, so a receipt is never silently unlabelled.
+ * listed — a status Stripe adds later — is tidied into words rather than left
+ * blank, so a receipt is never silently unlabelled.
  */
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   draft: "Not sent yet",
@@ -53,12 +54,7 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 }
 
 function invoiceStatusLabel(status: string) {
-  const known = INVOICE_STATUS_LABELS[status]
-  if (known) return known
-
-  const raw = status.replace(/[_-]+/g, " ").trim()
-  if (!raw) return "Unknown"
-  return raw.charAt(0).toUpperCase() + raw.slice(1)
+  return INVOICE_STATUS_LABELS[status] ?? describeCode(status)
 }
 
 // Stand-in shown while the Billing tab fetches its data on open. It mirrors the
