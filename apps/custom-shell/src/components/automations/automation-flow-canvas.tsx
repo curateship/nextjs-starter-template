@@ -27,6 +27,7 @@ import {
   NODE_WIDTH,
   portIn,
   portOut,
+  snapNodePosition,
   type CanvasPoint,
   type CanvasSize,
 } from "./canvas-model"
@@ -35,6 +36,9 @@ import { AutomationCanvasNode } from "./automation-canvas-node"
 const MINIMAP_WIDTH = 164
 const MINIMAP_HEIGHT = 100
 
+/** How far an alignment line runs past the outermost node, in canvas units. */
+const GUIDE_OVERHANG = 40
+
 const HINT_CHOICES = ["shown", "hidden"] as const
 
 type ConnectDraft = {
@@ -42,6 +46,11 @@ type ConnectDraft = {
   sourcePort: AutomationSourcePort
   point: CanvasPoint
 }
+
+/** The lines drawn while a dragged node is level with another one. */
+type SnapGuides = { x: number | null; y: number | null }
+
+const NO_GUIDES: SnapGuides = { x: null, y: null }
 
 type DragState =
   | {
@@ -78,15 +87,16 @@ export function AutomationFlowCanvas({
   const dragRef = React.useRef<DragState | null>(null)
   const [connect, setConnect] = React.useState<ConnectDraft | null>(null)
   const [panning, setPanning] = React.useState(false)
+  const [guides, setGuides] = React.useState<SnapGuides>(NO_GUIDES)
   const [hint, setHint] = useRememberedChoice(
     CANVAS_HINT_STORAGE_KEY,
     "shown",
     HINT_CHOICES
   )
-  const currentRef = React.useRef({ graph, connect })
+  const currentRef = React.useRef({ graph, connect, guides })
   React.useEffect(() => {
-    currentRef.current = { graph, connect }
-  }, [connect, graph])
+    currentRef.current = { graph, connect, guides }
+  }, [connect, graph, guides])
 
   const worldFromClient = React.useCallback(
     (clientX: number, clientY: number) => {
@@ -125,12 +135,21 @@ export function AutomationFlowCanvas({
         return
       }
       const point = worldFromClient(event.clientX, event.clientY)
+      const snapped = snapNodePosition(
+        { x: point.x - drag.offsetX, y: point.y - drag.offsetY },
+        current.graph.nodes.filter((node) => node.id !== drag.id),
+        current.graph.viewport.zoom
+      )
+      if (
+        snapped.guideX !== current.guides.x ||
+        snapped.guideY !== current.guides.y
+      ) {
+        setGuides({ x: snapped.guideX, y: snapped.guideY })
+      }
       onGraphChange({
         ...current.graph,
         nodes: current.graph.nodes.map((node) =>
-          node.id === drag.id
-            ? { ...node, x: point.x - drag.offsetX, y: point.y - drag.offsetY }
-            : node
+          node.id === drag.id ? { ...node, x: snapped.x, y: snapped.y } : node
         ),
       })
     }
@@ -139,6 +158,8 @@ export function AutomationFlowCanvas({
       dragRef.current = null
       setPanning(false)
       setConnect(null)
+      const shown = currentRef.current.guides
+      if (shown.x !== null || shown.y !== null) setGuides(NO_GUIDES)
     }
 
     window.addEventListener("pointermove", move)
@@ -287,6 +308,13 @@ export function AutomationFlowCanvas({
     errors.flatMap((error) => (error.edgeId ? [error.edgeId] : []))
   )
   const bounds = flowBounds(graph.nodes)
+  // Divided by the zoom so an alignment line stays a hairline on screen at
+  // every size, the way a ruler line should.
+  const guideStroke = {
+    stroke: "var(--primary)",
+    strokeWidth: 1 / graph.viewport.zoom,
+    strokeDasharray: `${6 / graph.viewport.zoom} ${4 / graph.viewport.zoom}`,
+  }
   const minimapScale = bounds
     ? Math.min(
         (MINIMAP_WIDTH - 20) / Math.max(1, bounds.maxX - bounds.minX),
@@ -466,6 +494,27 @@ export function AutomationFlowCanvas({
               </g>
             )
           })}
+          {/* The alignment lines, drawn along the edges that matched. */}
+          {bounds && guides.x !== null ? (
+            <line
+              aria-hidden="true"
+              x1={guides.x}
+              x2={guides.x}
+              y1={bounds.minY - GUIDE_OVERHANG}
+              y2={bounds.maxY + GUIDE_OVERHANG}
+              {...guideStroke}
+            />
+          ) : null}
+          {bounds && guides.y !== null ? (
+            <line
+              aria-hidden="true"
+              x1={bounds.minX - GUIDE_OVERHANG}
+              x2={bounds.maxX + GUIDE_OVERHANG}
+              y1={guides.y}
+              y2={guides.y}
+              {...guideStroke}
+            />
+          ) : null}
           {connect && nodeById.get(connect.from) ? (
             <path
               d={edgePath(

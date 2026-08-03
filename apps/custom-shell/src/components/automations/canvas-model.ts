@@ -1,4 +1,7 @@
-import type { AutomationNode, AutomationSourcePort } from "@/lib/automations/graph"
+import type {
+  AutomationNode,
+  AutomationSourcePort,
+} from "@/lib/automations/graph"
 import {
   automationNodeOutputPorts,
   canConnectAutomationNodes,
@@ -32,6 +35,64 @@ export function nextNodePosition(
   return {
     x: -viewport.x / viewport.zoom + padding + column * (NODE_WIDTH + gap),
     y: -viewport.y / viewport.zoom + padding + row * (NODE_HEIGHT + gap),
+  }
+}
+
+/** How close, in screen pixels, a dragged node gets before it lines itself up. */
+export const SNAP_DISTANCE = 8
+
+export type SnapResult = {
+  x: number
+  y: number
+  /** The world coordinate the node lined up on, or null when it did not. */
+  guideX: number | null
+  guideY: number | null
+}
+
+/** The nearest candidate within `threshold`, or null. Ties keep the first one. */
+function nearestWithin(
+  value: number,
+  candidates: number[],
+  threshold: number
+): number | null {
+  let best: number | null = null
+  let bestDistance = Infinity
+  for (const candidate of candidates) {
+    const distance = Math.abs(candidate - value)
+    if (distance > threshold || distance >= bestDistance) continue
+    best = candidate
+    bestDistance = distance
+  }
+  return best
+}
+
+/**
+ * Lines a dragged node up with any other node it is nearly level with, one axis
+ * at a time. Every node is the same size, so matching the left edges also
+ * matches the centres and the right edges — one number per axis is enough.
+ */
+export function snapNodePosition(
+  position: CanvasPoint,
+  others: AutomationNode[],
+  zoom: number
+): SnapResult {
+  // Measured on screen, so the pull feels identical at every zoom level.
+  const threshold = SNAP_DISTANCE / clampZoom(zoom)
+  const guideX = nearestWithin(
+    position.x,
+    others.map((node) => node.x),
+    threshold
+  )
+  const guideY = nearestWithin(
+    position.y,
+    others.map((node) => node.y),
+    threshold
+  )
+  return {
+    x: guideX ?? position.x,
+    y: guideY ?? position.y,
+    guideX,
+    guideY,
   }
 }
 
