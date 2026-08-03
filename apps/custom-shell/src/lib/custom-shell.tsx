@@ -822,12 +822,27 @@ export function createDefaultShellConfig(): ShellConfig {
 /**
  * What a brand-new install offers members before an admin has built anything.
  *
- * Deliberately short: the changelog is the only place in this app a member can
- * actually go. It is a starting point, not a rule — an admin can rename it,
- * reorder it or empty it out entirely, and an empty list stays empty.
+ * Deliberately short: their own home page and the changelog are the only two
+ * places in this app a member can go. It is a starting point, not a rule — an
+ * admin can rename these, reorder them or empty the list out entirely, and an
+ * empty list stays empty.
  */
 export function createDefaultMemberSections(): ShellSection[] {
   return [
+    {
+      id: "section-member-home",
+      title: "Home",
+      entries: [
+        {
+          type: "item",
+          id: "item-member-home",
+          label: "Home",
+          href: "/home",
+          icon: "house",
+          visible: true,
+        },
+      ],
+    },
     {
       id: "section-member-updates",
       title: "Updates",

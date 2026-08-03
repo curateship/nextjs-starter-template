@@ -39,6 +39,7 @@ import {
 import { describeCode } from "@/lib/code-label"
 import { formatDate, formatMonthAndYear } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
+import { planSummary } from "@/lib/plan-summary"
 
 /**
  * Stripe's own words for an invoice, said the way a person would. Anything not
@@ -367,29 +368,4 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
       </CardContent>
     </Card>
   )
-}
-
-function planSummary(overview: BillingOverview) {
-  if (!overview.isPaid) {
-    return "You are on the free plan. Upgrade any time."
-  }
-  if (overview.source === "manual") {
-    return overview.currentPeriodEnd
-      ? `An admin granted this plan until ${formatDate(overview.currentPeriodEnd)}.`
-      : "An admin granted this plan. There is nothing to pay."
-  }
-  if (overview.status === "trialing" && overview.trialEndsAt) {
-    return `Your trial runs until ${formatDate(overview.trialEndsAt)}.`
-  }
-  if (overview.cancelAtPeriodEnd && overview.currentPeriodEnd) {
-    return `Your plan ends on ${formatDate(overview.currentPeriodEnd)}. You keep everything until then.`
-  }
-  if (overview.status === "past_due") {
-    return "Your last payment failed. Update your card in Stripe to keep your plan."
-  }
-  if (overview.currentPeriodEnd) {
-    return `Renews on ${formatDate(overview.currentPeriodEnd)}.`
-  }
-
-  return "Your plan is active."
 }
