@@ -8,12 +8,10 @@ import {
   DashboardToolbarSearch,
 } from "@/components/shared/dashboard-toolbar"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableRow } from "@/components/ui/table"
 import {
   getAdminMediaErrorMessage,
   loadStorage,
@@ -21,21 +19,22 @@ import {
   type StorageUserRow,
 } from "@/lib/api/admin-media"
 import { formatFileSize } from "@/lib/format-bytes"
+import { useClientPage } from "@/lib/use-client-page"
+import { useTableSort } from "@/lib/use-table-sort"
 
 type StorageSort = "person" | "files" | "storage" | "orphans" | "share"
 
-const sortableColumns: {
-  by: StorageSort
-  label: string
-  column: "main" | "meta"
-  className?: string
-}[] = [
-  { by: "person", label: "Person", column: "main" },
-  { by: "files", label: "Files", column: "meta" },
-  { by: "storage", label: "Storage", column: "meta" },
-  { by: "orphans", label: "Orphans", column: "meta" },
-  { by: "share", label: "Share", column: "meta", className: "hidden lg:table-cell" },
+const sortableColumns: SortableColumn<StorageSort>[] = [
+  { key: "person", label: "Person", column: "main" },
+  { key: "files", label: "Files", column: "meta" },
+  { key: "storage", label: "Storage", column: "meta" },
+  { key: "orphans", label: "Orphans", column: "meta" },
+  { key: "share", label: "Share", column: "meta", className: "hidden lg:table-cell" },
 ]
+
+/** Everything but the person's name reads as a number, so it starts biggest-first. */
+const storageSortDirection = (column: StorageSort) =>
+  column === "person" ? "asc" : "desc"
 
 /** Who is using the space. Picking a name opens their files in the library. */
 export function MediaStorageDashboard({
@@ -49,10 +48,11 @@ export function MediaStorageDashboard({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
-  const [sort, setSort] = React.useState<StorageSort>("storage")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
-  const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(defaultPageSize)
+  const { sort, direction, toggleSort } = useTableSort<StorageSort>(
+    "storage",
+    "desc",
+    storageSortDirection
+  )
 
   const refresh = React.useCallback(async () => {
     setLoading(true)
@@ -77,20 +77,11 @@ export function MediaStorageDashboard({
     return rows.sort((a, b) => factor * compareUsers(a, b, sort))
   }, [data.users, direction, search, sort])
 
-  const totalPages = sorted.length ? Math.ceil(sorted.length / pageSize) : 0
-  const currentPage = Math.min(page, Math.max(1, totalPages))
-  const visible = sorted.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+  const { visible, footer } = useClientPage(
+    sorted,
+    defaultPageSize,
+    `${search}|${sort}|${direction}`
   )
-
-  function toggleSort(by: StorageSort) {
-    setDirection((current) =>
-      sort === by ? (current === "asc" ? "desc" : "asc") : by === "person" ? "asc" : "desc"
-    )
-    setSort(by)
-    setPage(1)
-  }
 
   // The usage numbers are real even when the bucket cannot be read; only the
   // orphan column is unknown, so say that rather than blanking the table.
@@ -116,10 +107,7 @@ export function MediaStorageDashboard({
             aria-label="Search people"
             placeholder="Search name or email…"
             value={search}
-            onChange={(event) => {
-              setPage(1)
-              setSearch(event.target.value)
-            }}
+            onChange={(event) => setSearch(event.target.value)}
           />
           <DashboardToolbarButton
             type="button"
@@ -137,32 +125,13 @@ export function MediaStorageDashboard({
         </>
       }
       header={
-        <TableHeader>
-          <TableRow>
-            {sortableColumns.map((column) => (
-              <TableHead
-                key={column.by}
-                column={column.column}
-                className={column.className}
-                aria-sort={
-                  sort === column.by
-                    ? direction === "asc"
-                      ? "ascending"
-                      : "descending"
-                    : "none"
-                }
-              >
-                <TableSortButton
-                  active={sort === column.by}
-                  direction={direction}
-                  onClick={() => toggleSort(column.by)}
-                >
-                  {column.label}
-                </TableSortButton>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
+        <SortableTableHeader
+          columns={sortableColumns}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          withAriaSort
+        />
       }
       isEmpty={visible.length === 0}
       emptyText={
@@ -171,18 +140,7 @@ export function MediaStorageDashboard({
           : "Nobody has uploaded anything yet."
       }
       emptyColSpan={5}
-      footer={{
-        type: "pagination",
-        page: currentPage,
-        pageSize,
-        total: sorted.length,
-        totalPages,
-        onPageChange: setPage,
-        onPageSizeChange: (size) => {
-          setPageSize(size)
-          setPage(1)
-        },
-      }}
+      footer={footer}
     >
       {visible.map((user) => (
         <TableRow key={user.userId} className="group">

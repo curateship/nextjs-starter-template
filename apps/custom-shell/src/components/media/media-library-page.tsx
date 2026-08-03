@@ -44,12 +44,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableSortButton,
-  TableRow,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   Tooltip,
   TooltipContent,
@@ -75,6 +73,8 @@ import {
   useRememberedChoice,
 } from "@/lib/remembered-choice"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "list" | "gallery"
@@ -88,18 +88,17 @@ export type AdminMediaPageData = {
   pageSize: number
 }
 
-const sortableColumns: {
-  by: AdminMediaSort
-  label: string
-  column: "main" | "meta"
-  className?: string
-}[] = [
-  { by: "file", label: "File", column: "main" },
-  { by: "owner", label: "Owner", column: "meta" },
-  { by: "type", label: "Type", column: "meta" },
-  { by: "size", label: "Size", column: "meta", className: "hidden md:table-cell" },
-  { by: "created", label: "Added", column: "meta", className: "hidden lg:table-cell" },
+const sortableColumns: SortableColumn<AdminMediaSort>[] = [
+  { key: "file", label: "File", column: "main" },
+  { key: "owner", label: "Owner", column: "meta" },
+  { key: "type", label: "Type", column: "meta" },
+  { key: "size", label: "Size", column: "meta", className: "hidden md:table-cell" },
+  { key: "created", label: "Added", column: "meta", className: "hidden lg:table-cell" },
 ]
+
+/** Date and size read as numbers, so they start newest- and biggest-first. */
+const mediaSortDirection = (column: AdminMediaSort) =>
+  column === "created" || column === "size" ? "desc" : "asc"
 
 /**
  * One toast for the whole pick, whatever happened: a plain success, or the red
@@ -169,12 +168,16 @@ export function MediaLibraryPage({
     "gallery",
     viewModes
   )
-  const [sort, setSort] = React.useState<AdminMediaSort>("created")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const {
+    sort,
+    direction,
+    toggleSort: sortBy,
+  } = useTableSort<AdminMediaSort>("created", "desc", mediaSortDirection)
   const [upload, setUpload] = React.useState<{ done: number; total: number } | null>(
     null
   )
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const selection = useSelection()
+  const selectedIds = selection.selected
   const [openMedia, setOpenMedia] = React.useState<AdminMediaItem | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   // The confirmation is still on screen while it fades out, after the selection
@@ -235,49 +238,15 @@ export function MediaLibraryPage({
     return () => clearTimeout(timer)
   }, [query, refresh])
 
-  useClearSelectionOnListChange(setSelectedIds, JSON.stringify(query))
+  useClearSelectionOnListChange(selection.setSelected, JSON.stringify(query))
 
   const media = data.media.media
   const visibleIds = media.map((item) => item.id)
-  const allSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
-  const someSelected = visibleIds.some((id) => selectedIds.has(id))
 
-  function toggleOne(mediaId: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(mediaId)) {
-        next.delete(mediaId)
-      } else {
-        next.add(mediaId)
-      }
-      return next
-    })
-  }
-
-  function toggleVisible() {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (visibleIds.every((id) => next.has(id))) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
-
+  // The rows come from the server a page at a time, so a new order means a new
+  // first page.
   function toggleSort(by: AdminMediaSort) {
-    setDirection((current) =>
-      sort === by
-        ? current === "asc"
-          ? "desc"
-          : "asc"
-        : by === "created" || by === "size"
-          ? "desc"
-          : "asc"
-    )
-    setSort(by)
+    sortBy(by)
     setPage(1)
   }
 
@@ -330,7 +299,7 @@ export function MediaLibraryPage({
       toast.success(
         `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "file" : "files"}.`
       )
-      setSelectedIds((current) => {
+      selection.setSelected((current) => {
         const next = new Set(current)
         ids.forEach((id) => next.delete(id))
         return next
@@ -504,7 +473,7 @@ export function MediaLibraryPage({
           count={data.media.total}
           error={error ? { message: error, onRetry: () => void refresh() } : null}
           selectedCount={selectedCount}
-          onClearSelection={() => setSelectedIds(new Set())}
+          onClearSelection={selection.clear}
           controls={mediaControls}
           content={
             <div className="px-5 pb-5">
@@ -524,7 +493,7 @@ export function MediaLibraryPage({
                       selected={selectedIds.has(item.id)}
                       onOpen={() => setOpenMedia(item)}
                       onDelete={() => setDeleteIds([item.id])}
-                      onToggle={() => toggleOne(item.id)}
+                      onToggle={() => selection.toggle(item.id)}
                     />
                   ))}
                 </div>
@@ -540,46 +509,27 @@ export function MediaLibraryPage({
           count={data.media.total}
           error={error ? { message: error, onRetry: () => void refresh() } : null}
           selectedCount={selectedCount}
-          onClearSelection={() => setSelectedIds(new Set())}
+          onClearSelection={selection.clear}
           controls={mediaControls}
           header={
-            <TableHeader>
-              <TableRow>
+            <SortableTableHeader
+              columns={sortableColumns}
+              sort={sort}
+              direction={direction}
+              onSort={toggleSort}
+              withAriaSort
+              leading={
                 <TableHead column="select">
                   <Checkbox
-                    checked={
-                      allSelected ? true : someSelected ? "indeterminate" : false
-                    }
-                    onCheckedChange={toggleVisible}
+                    checked={selection.selectAllState(visibleIds)}
+                    onCheckedChange={() => selection.toggleVisible(visibleIds)}
                     disabled={media.length === 0}
                     aria-label="Select visible media"
                   />
                 </TableHead>
-                {sortableColumns.map((column) => (
-                  <TableHead
-                    key={column.by}
-                    column={column.column}
-                    className={column.className}
-                    aria-sort={
-                      sort === column.by
-                        ? direction === "asc"
-                          ? "ascending"
-                          : "descending"
-                        : "none"
-                    }
-                  >
-                    <TableSortButton
-                      active={sort === column.by}
-                      direction={direction}
-                      onClick={() => toggleSort(column.by)}
-                    >
-                      {column.label}
-                    </TableSortButton>
-                  </TableHead>
-                ))}
-                <TableHead column="meta">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+              }
+              trailing={<TableHead column="meta">Actions</TableHead>}
+            />
           }
           isEmpty={media.length === 0}
           emptyText={emptyText}
@@ -591,7 +541,7 @@ export function MediaLibraryPage({
               key={item.id}
               item={item}
               selected={selectedIds.has(item.id)}
-              onToggle={() => toggleOne(item.id)}
+              onToggle={() => selection.toggle(item.id)}
               onOpen={() => setOpenMedia(item)}
               onDelete={() => setDeleteIds([item.id])}
             />

@@ -73,6 +73,36 @@ export function useListSearchNavigate() {
   )
 }
 
+/**
+ * Sort state that lives in the address. Clicking the active column flips the
+ * direction; a new column starts on its natural direction. Either way the list
+ * goes back to page 1, because the order just changed under it.
+ */
+export function useListSort<Column extends string>(
+  current: { sort: Column; direction: "asc" | "desc" },
+  defaultDirectionFor?: (column: Column) => "asc" | "desc"
+) {
+  const setListSearch = useListSearchNavigate()
+
+  return React.useCallback(
+    (column: Column) => {
+      if (column === current.sort) {
+        setListSearch({
+          direction: current.direction === "asc" ? "desc" : "asc",
+          page: undefined,
+        })
+        return
+      }
+      setListSearch({
+        sort: column,
+        direction: defaultDirectionFor?.(column) ?? "asc",
+        page: undefined,
+      })
+    },
+    [current.sort, current.direction, setListSearch, defaultDirectionFor]
+  )
+}
+
 /** A value at its default is absent from the address, not an empty one. */
 function dropDefaults(search: Record<string, unknown>) {
   return Object.fromEntries(

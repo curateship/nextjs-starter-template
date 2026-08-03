@@ -19,14 +19,12 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TableCell, TableRow } from "@/components/ui/table"
 import {
   TRAFFIC_RANGES,
   type TrafficKeyCount,
@@ -36,6 +34,7 @@ import {
 import { shade } from "@/lib/chart-colours"
 import { useListSearchNavigate } from "@/lib/list-search"
 import { pageGutter } from "@/lib/shell-gutter"
+import { useTableSort } from "@/lib/use-table-sort"
 
 /**
  * The admin's Traffic page: how many people visit, what they read, where
@@ -289,6 +288,9 @@ function DeviceCard({
 
 type TopSort = "name" | "views"
 
+/** Views read as a number, so that column starts biggest-first. */
+const topSortDirection = (column: TopSort) => (column === "name" ? "asc" : "desc")
+
 function TopTable({
   title,
   icon,
@@ -304,8 +306,11 @@ function TopTable({
   rows: TrafficKeyCount[]
   emptyText: string
 }) {
-  const [sort, setSort] = React.useState<TopSort>("views")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const { sort, direction, toggleSort } = useTableSort<TopSort>(
+    "views",
+    "desc",
+    topSortDirection
+  )
 
   const sorted = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -316,16 +321,9 @@ function TopTable({
     )
   }, [rows, sort, direction])
 
-  function toggleSort(by: TopSort) {
-    setDirection((current) =>
-      sort === by ? (current === "asc" ? "desc" : "asc") : by === "name" ? "asc" : "desc"
-    )
-    setSort(by)
-  }
-
-  const columns: { by: TopSort; label: string; column: "main" | "meta" }[] = [
-    { by: "name", label: nameLabel, column: "main" },
-    { by: "views", label: "Views", column: "meta" },
+  const columns: SortableColumn<TopSort>[] = [
+    { key: "name", label: nameLabel, column: "main" },
+    { key: "views", label: "Views", column: "meta" },
   ]
 
   return (
@@ -334,31 +332,13 @@ function TopTable({
       icon={icon}
       count={sorted.length}
       header={
-        <TableHeader>
-          <TableRow>
-            {columns.map((column) => (
-              <TableHead
-                key={column.by}
-                column={column.column}
-                aria-sort={
-                  sort === column.by
-                    ? direction === "asc"
-                      ? "ascending"
-                      : "descending"
-                    : "none"
-                }
-              >
-                <TableSortButton
-                  active={sort === column.by}
-                  direction={direction}
-                  onClick={() => toggleSort(column.by)}
-                >
-                  {column.label}
-                </TableSortButton>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
+        <SortableTableHeader
+          columns={columns}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          withAriaSort
+        />
       }
       isEmpty={sorted.length === 0}
       emptyText={emptyText}

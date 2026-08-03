@@ -1,21 +1,14 @@
 import * as React from "react"
 import {
   DndContext,
-  KeyboardSensor,
-  PointerSensor,
   closestCenter,
   type DragEndEvent,
-  useSensor,
-  useSensors,
 } from "@dnd-kit/core"
 import {
   SortableContext,
   arrayMove,
   horizontalListSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -23,10 +16,11 @@ import {
   createShellId,
   DRAG_HANDLE_CLASS,
   useCheckedAddress,
+  useNavSensors,
+  useSortableRow,
 } from "@/components/settings/nav-editor-shared"
-import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
+import { NavLinkDestinationCard } from "@/components/settings/nav-link-destination-card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -38,7 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
   isShellEntryNamed,
@@ -78,23 +71,10 @@ function SortableBuiltInChip({
 }) {
   const meta = topRightBuiltInMeta[item.id]
   const Icon = meta.icon
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  // Translate, not Transform: dnd-kit's transform carries a stretch factor so
-  // an item can morph into a different-sized neighbour's space, and these
-  // chips are all different widths — applying it skews the label mid-drag.
-  const style: React.CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(
+    item.id,
+    true
+  )
 
   return (
     <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
@@ -153,21 +133,10 @@ function SortableLinkChip({
   const isNamed = isShellEntryNamed(item)
   const itemName = isNamed ? item.label : "menu link"
   const addressCheck = useCheckedAddress(item.href, isNamed)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  // Translate, not Transform — same skew reason as the built-in chip above.
-  const style: React.CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(
+    item.id,
+    true
+  )
 
   return (
     <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
@@ -233,38 +202,15 @@ function SortableLinkChip({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Destination</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-                  <ShellIconPicker
-                    value={item.icon}
-                    compact
-                    onValueChange={(icon) =>
-                      icon ? onChange({ icon }) : undefined
-                    }
-                  />
-                  <Input
-                    ref={labelInputRef}
-                    value={item.label}
-                    onChange={(event) =>
-                      onChange({ label: event.target.value })
-                    }
-                    placeholder="Label"
-                    aria-label="Menu link label"
-                  />
-                  <Input
-                    value={item.href}
-                    onChange={(event) => onChange({ href: event.target.value })}
-                    placeholder="/admin/example"
-                    aria-label="Menu link URL"
-                    {...addressCheck}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <NavLinkDestinationCard
+              linkNoun="Menu link"
+              icon={item.icon}
+              label={item.label}
+              href={item.href}
+              onChange={onChange}
+              labelInputRef={labelInputRef}
+              addressCheck={addressCheck}
+            />
           </DialogBody>
           {/* Edits here save themselves as you type, so there is nothing for a
               Cancel to undo — this window ends with a single Done, and the
@@ -320,10 +266,7 @@ export function TopRightSettings({
     null
   )
   const [resetOpen, setResetOpen] = React.useState(false)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const sensors = useNavSensors()
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event

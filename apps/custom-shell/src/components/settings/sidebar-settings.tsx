@@ -1,22 +1,17 @@
 import * as React from "react"
 import {
   DndContext,
-  KeyboardSensor,
-  PointerSensor,
   closestCenter,
   pointerWithin,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
-  useSensor,
-  useSensors,
   useDroppable,
 } from "@dnd-kit/core"
 import {
   SortableContext,
   arrayMove,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
@@ -34,7 +29,10 @@ import {
   createShellId,
   DRAG_HANDLE_CLASS,
   useCheckedAddress,
+  useNavSensors,
+  useSortableRow,
 } from "@/components/settings/nav-editor-shared"
+import { NavLinkDestinationCard } from "@/components/settings/nav-link-destination-card"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -214,20 +212,7 @@ function SortableChild({
   // is the only thing that tells them apart until one is typed.
   const childName = isNamed ? child.label : `child link ${position}`
   const addressCheck = useCheckedAddress(child.href, isNamed)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: child.id })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(child.id)
 
   return (
     <div
@@ -308,25 +293,8 @@ function SortableSidebarItem({
   const isNamed = isShellEntryNamed(item)
   const itemName = isNamed ? item.label : "sidebar link"
   const addressCheck = useCheckedAddress(item.href, isNamed)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(item.id)
+  const sensors = useNavSensors()
 
   const children = item.children ?? []
 
@@ -427,47 +395,15 @@ function SortableSidebarItem({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Destination</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-                  <ShellIconPicker
-                    value={item.icon}
-                    compact
-                    onValueChange={(icon) =>
-                      icon
-                        ? onItemChange(sectionId, item.id, { icon })
-                        : undefined
-                    }
-                  />
-                  <Input
-                    ref={labelInputRef}
-                    value={item.label}
-                    onChange={(event) =>
-                      onItemChange(sectionId, item.id, {
-                        label: event.target.value,
-                      })
-                    }
-                    placeholder="Label"
-                    aria-label="Sidebar link label"
-                  />
-                  <Input
-                    value={item.href}
-                    onChange={(event) =>
-                      onItemChange(sectionId, item.id, {
-                        href: event.target.value,
-                      })
-                    }
-                    placeholder="/admin/example"
-                    aria-label="Sidebar link URL"
-                    {...addressCheck}
-                  />
-                </div>
-
-              </CardContent>
-            </Card>
+            <NavLinkDestinationCard
+              linkNoun="Sidebar link"
+              icon={item.icon}
+              label={item.label}
+              href={item.href}
+              onChange={(patch) => onItemChange(sectionId, item.id, patch)}
+              labelInputRef={labelInputRef}
+              addressCheck={addressCheck}
+            />
 
             <Card size="sm">
               <CardHeader>
@@ -721,10 +657,7 @@ export function SidebarSettings({
   const [pendingDelete, setPendingDelete] = React.useState<PendingDelete | null>(
     null
   )
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const sensors = useNavSensors()
   const sectionIds = React.useMemo(
     () => new Set(sections.map((section) => section.id)),
     [sections]

@@ -1,4 +1,15 @@
 import * as React from "react"
+import {
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { showErrorToast } from "@/lib/error-toast"
 
@@ -14,6 +25,47 @@ import { showErrorToast } from "@/lib/error-toast"
  */
 export const DRAG_HANDLE_CLASS =
   "flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+
+/**
+ * How every nav editor listens for a drag: a pointer has to travel 8px before
+ * it counts as one, so clicking a row still clicks it, and the keyboard can
+ * reorder without a mouse.
+ */
+export function useNavSensors() {
+  return useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+}
+
+/**
+ * A draggable row, plus the style that moves it while you drag.
+ *
+ * `translateOnly` is for rows that are not all the same size — the top-right
+ * chips and the sidebar's section cards. dnd-kit's full transform carries a
+ * stretch factor so a row can morph into a differently-sized neighbour's
+ * space, which skews the label mid-drag; translating only slides it instead.
+ */
+export function useSortableRow(id: string, translateOnly = false) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style: React.CSSProperties = {
+    transform: (translateOnly ? CSS.Translate : CSS.Transform).toString(
+      transform
+    ),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+  }
+
+  return { attributes, listeners, setNodeRef, style, isDragging }
+}
 
 export function createShellId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

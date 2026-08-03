@@ -43,12 +43,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   cleanOrphanedMedia,
   getAdminMediaErrorMessage,
@@ -59,6 +57,9 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatFileSize } from "@/lib/format-bytes"
 import { formatDate } from "@/lib/format-time"
+import { useClientPage } from "@/lib/use-client-page"
+import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
 import { cn } from "@/lib/utils"
 
 type OrphanSort = "file" | "problem" | "owner" | "size" | "created"
@@ -68,18 +69,17 @@ type ViewMode = "list" | "gallery"
 /** Matches the per-request cap on the clean-up server function. */
 const CLEAN_BATCH_SIZE = 500
 
-const sortableColumns: {
-  by: OrphanSort
-  label: string
-  column: "main" | "meta"
-  className?: string
-}[] = [
-  { by: "file", label: "File", column: "main" },
-  { by: "problem", label: "Problem", column: "meta" },
-  { by: "owner", label: "Owner", column: "meta", className: "hidden md:table-cell" },
-  { by: "size", label: "Size", column: "meta" },
-  { by: "created", label: "Uploaded", column: "meta", className: "hidden lg:table-cell" },
+const sortableColumns: SortableColumn<OrphanSort>[] = [
+  { key: "file", label: "File", column: "main" },
+  { key: "problem", label: "Problem", column: "meta" },
+  { key: "owner", label: "Owner", column: "meta", className: "hidden md:table-cell" },
+  { key: "size", label: "Size", column: "meta" },
+  { key: "created", label: "Uploaded", column: "meta", className: "hidden lg:table-cell" },
 ]
+
+/** Size and date read as numbers, so they start biggest- and newest-first. */
+const orphanSortDirection = (column: OrphanSort) =>
+  column === "size" || column === "created" ? "desc" : "asc"
 
 /**
  * The two ways records and storage fall out of step: a record whose file is
@@ -99,12 +99,14 @@ export function MediaOrphansDashboard({
   const [search, setSearch] = React.useState("")
   const [ownerId, setOwnerId] = React.useState("all")
   const [problem, setProblem] = React.useState<ProblemFilter>("all")
-  const [sort, setSort] = React.useState<OrphanSort>("size")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const { sort, direction, toggleSort } = useTableSort<OrphanSort>(
+    "size",
+    "desc",
+    orphanSortDirection
+  )
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
-  const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(defaultPageSize)
-  const [selectedKeys, setSelectedKeys] = React.useState<Set<string>>(new Set())
+  const selection = useSelection()
+  const selectedKeys = selection.selected
   const [openOrphan, setOpenOrphan] = React.useState<MediaOrphan | null>(null)
   const [confirmKeys, setConfirmKeys] = React.useState<string[] | null>(null)
   const [deletingAll, setDeletingAll] = React.useState(false)
@@ -140,55 +142,13 @@ export function MediaOrphansDashboard({
     return rows.sort((a, b) => factor * compareOrphans(a, b, sort))
   }, [direction, matching, sort])
 
-  const totalPages = sorted.length ? Math.ceil(sorted.length / pageSize) : 0
-  const currentPage = Math.min(page, Math.max(1, totalPages))
-  const visible = sorted.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+  const { visible, footer } = useClientPage(
+    sorted,
+    defaultPageSize,
+    `${search}|${ownerId}|${problem}|${sort}|${direction}`
   )
 
   const visibleKeys = visible.map(orphanKey)
-  const allSelected =
-    visibleKeys.length > 0 && visibleKeys.every((key) => selectedKeys.has(key))
-  const someSelected = visibleKeys.some((key) => selectedKeys.has(key))
-
-  function toggleSort(by: OrphanSort) {
-    setDirection((current) =>
-      sort === by
-        ? current === "asc"
-          ? "desc"
-          : "asc"
-        : by === "size" || by === "created"
-          ? "desc"
-          : "asc"
-    )
-    setSort(by)
-    setPage(1)
-  }
-
-  function toggleOne(key: string) {
-    setSelectedKeys((current) => {
-      const next = new Set(current)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
-  }
-
-  function toggleVisible() {
-    setSelectedKeys((current) => {
-      const next = new Set(current)
-      if (visibleKeys.every((key) => next.has(key))) {
-        visibleKeys.forEach((key) => next.delete(key))
-      } else {
-        visibleKeys.forEach((key) => next.add(key))
-      }
-      return next
-    })
-  }
 
   async function handleClean() {
     if (!confirmKeys?.length) return
@@ -216,7 +176,7 @@ export function MediaOrphansDashboard({
       toast.success(
         `Cleaned up ${deleted} ${deleted === 1 ? "orphan" : "orphans"}.`
       )
-      setSelectedKeys((current) => {
+      selection.setSelected((current) => {
         const next = new Set(current)
         keys.forEach((key) => next.delete(key))
         return next
@@ -258,19 +218,6 @@ export function MediaOrphansDashboard({
         ? "No orphans match those filters."
         : "Nothing orphaned. Every file has a record and every record has a file."
 
-  const footer = {
-    type: "pagination",
-    page: currentPage,
-    pageSize,
-    total: sorted.length,
-    totalPages,
-    onPageChange: setPage,
-    onPageSizeChange: (size: number) => {
-      setPageSize(size)
-      setPage(1)
-    },
-  } as const
-
   const controls = (
     <>
       {selectedCount ? (
@@ -306,18 +253,9 @@ export function MediaOrphansDashboard({
               aria-label="Search orphans"
               placeholder="Search files or people…"
               value={search}
-              onChange={(event) => {
-                setPage(1)
-                setSearch(event.target.value)
-              }}
+              onChange={(event) => setSearch(event.target.value)}
             />
-            <Select
-              value={ownerId}
-              onValueChange={(value) => {
-                setPage(1)
-                setOwnerId(value)
-              }}
-            >
+            <Select value={ownerId} onValueChange={setOwnerId}>
               <DashboardToolbarSelectTrigger aria-label="Filter by owner">
                 <SelectValue placeholder="Owner" />
               </DashboardToolbarSelectTrigger>
@@ -332,10 +270,7 @@ export function MediaOrphansDashboard({
             </Select>
             <Select
               value={problem}
-              onValueChange={(value) => {
-                setPage(1)
-                setProblem(value as ProblemFilter)
-              }}
+              onValueChange={(value) => setProblem(value as ProblemFilter)}
             >
               <DashboardToolbarSelectTrigger aria-label="Filter by problem">
                 <SelectValue />
@@ -396,7 +331,7 @@ export function MediaOrphansDashboard({
           icon={<UnlinkIcon className="text-muted-foreground" />}
           count={sorted.length}
           selectedCount={selectedCount}
-          onClearSelection={() => setSelectedKeys(new Set())}
+          onClearSelection={selection.clear}
           error={tableError}
           controls={controls}
           content={
@@ -415,7 +350,7 @@ export function MediaOrphansDashboard({
                       key={orphanKey(row)}
                       row={row}
                       selected={selectedKeys.has(orphanKey(row))}
-                      onToggle={() => toggleOne(orphanKey(row))}
+                      onToggle={() => selection.toggle(orphanKey(row))}
                       onOpen={() => setOpenOrphan(row)}
                       onDelete={() => {
                         setDeletingAll(false)
@@ -458,47 +393,28 @@ export function MediaOrphansDashboard({
         icon={<UnlinkIcon className="text-muted-foreground" />}
         count={sorted.length}
         selectedCount={selectedCount}
-        onClearSelection={() => setSelectedKeys(new Set())}
+        onClearSelection={selection.clear}
         error={tableError}
         controls={controls}
         header={
-          <TableHeader>
-            <TableRow>
+          <SortableTableHeader
+            columns={sortableColumns}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            withAriaSort
+            leading={
               <TableHead column="select">
                 <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleVisible}
+                  checked={selection.selectAllState(visibleKeys)}
+                  onCheckedChange={() => selection.toggleVisible(visibleKeys)}
                   disabled={visible.length === 0}
                   aria-label="Select visible orphans"
                 />
               </TableHead>
-              {sortableColumns.map((column) => (
-                <TableHead
-                  key={column.by}
-                  column={column.column}
-                  className={column.className}
-                  aria-sort={
-                    sort === column.by
-                      ? direction === "asc"
-                        ? "ascending"
-                        : "descending"
-                      : "none"
-                  }
-                >
-                  <TableSortButton
-                    active={sort === column.by}
-                    direction={direction}
-                    onClick={() => toggleSort(column.by)}
-                  >
-                    {column.label}
-                  </TableSortButton>
-                </TableHead>
-              ))}
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={visible.length === 0}
         emptyText={emptyText}
@@ -510,7 +426,7 @@ export function MediaOrphansDashboard({
             key={orphanKey(row)}
             row={row}
             selected={selectedKeys.has(orphanKey(row))}
-            onToggle={() => toggleOne(orphanKey(row))}
+            onToggle={() => selection.toggle(orphanKey(row))}
             onOpen={() => setOpenOrphan(row)}
             onDelete={() => {
                         setDeletingAll(false)

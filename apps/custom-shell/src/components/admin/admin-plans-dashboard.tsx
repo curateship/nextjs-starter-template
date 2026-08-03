@@ -41,12 +41,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   archiveAdminPlan,
   archiveAdminPlans,
@@ -59,17 +57,27 @@ import {
 import { describeBulkResult } from "@/lib/bulk-result"
 import {
   useListSearchNavigate,
+  useListSort,
   useSearchBoxText,
 } from "@/lib/list-search"
 import { AI_ALLOWANCE_FEATURE_KEY } from "@/lib/ai-models"
 import { formatPlanPrice } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useSelection } from "@/lib/use-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 const plansRoute = getRouteApi("/_authenticated/admin/plans")
 
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
+
+const PLAN_COLUMNS: SortableColumn<PlanSortColumn>[] = [
+  { key: "name", label: "Plan", column: "main" },
+  { key: "monthly", label: "Monthly", column: "meta" },
+  { key: "yearly", label: "Yearly", column: "meta" },
+  { key: "stripe", label: "Stripe", column: "meta" },
+  { key: "visibility", label: "Visibility", column: "meta" },
+]
 
 function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
   switch (column) {
@@ -152,7 +160,8 @@ export function AdminPlansDashboard({
   const [creating, setCreating] = React.useState(false)
   const [archiveTarget, setArchiveTarget] = React.useState<AdminPlan | null>(null)
   const [archiving, setArchiving] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const selection = useSelection()
+  const selectedIds = selection.selected
   const [massArchiving, setMassArchiving] = React.useState(false)
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -183,7 +192,7 @@ export function AdminPlansDashboard({
   }, [pageSize, setCurrentPage])
 
   useClearSelectionOnListChange(
-    setSelectedIds,
+    selection.setSelected,
     `${searchQuery}|${sort}|${direction}|${currentPage}|${pageSize}`
   )
 
@@ -196,41 +205,7 @@ export function AdminPlansDashboard({
         .map((plan) => plan.id),
     [paginatedPlans]
   )
-  const allSelected =
-    archivableIds.length > 0 && archivableIds.every((id) => selectedIds.has(id))
-  const someSelected = archivableIds.some((id) => selectedIds.has(id))
-
-  const toggleSelection = React.useCallback((id: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const toggleVisibleSelection = React.useCallback(() => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (archivableIds.every((id) => next.has(id))) {
-        archivableIds.forEach((id) => next.delete(id))
-      } else {
-        archivableIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }, [archivableIds])
-
-  const toggleSort = React.useCallback(
-    (column: PlanSortColumn) => {
-      setListSearch(
-        sort === column
-          ? { direction: direction === "asc" ? "desc" : "asc", page: undefined }
-          : { sort: column, direction: "asc", page: undefined }
-      )
-    },
-    [direction, setListSearch, sort]
-  )
+  const toggleSort = useListSort<PlanSortColumn>({ sort, direction })
 
   const refresh = React.useCallback(async () => {
     try {
@@ -251,7 +226,7 @@ export function AdminPlansDashboard({
       await refresh()
       // Anything that would not go stays ticked, so the rows still on screen
       // are the ones the count is talking about.
-      setSelectedIds(new Set(kept))
+      selection.setSelected(new Set(kept))
 
       if (archived.length === 0) {
         showErrorToast(
@@ -275,7 +250,7 @@ export function AdminPlansDashboard({
     } finally {
       setMassArchiving(false)
     }
-  }, [refresh, selectedIds])
+  }, [refresh, selectedIds, selection])
 
   return (
     <>
@@ -285,7 +260,7 @@ export function AdminPlansDashboard({
         count={sortedPlans.length}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
-        onClearSelection={() => setSelectedIds(new Set())}
+        onClearSelection={selection.clear}
         controls={
           <>
             {selectedIds.size ? (
@@ -313,65 +288,22 @@ export function AdminPlansDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
+          <SortableTableHeader
+            columns={PLAN_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
               <TableHead column="select">
                 <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
+                  checked={selection.selectAllState(archivableIds)}
+                  onCheckedChange={() => selection.toggleVisible(archivableIds)}
                   aria-label="Select archivable plans"
                 />
               </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Plan
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "monthly"}
-                  direction={direction}
-                  onClick={() => toggleSort("monthly")}
-                >
-                  Monthly
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "yearly"}
-                  direction={direction}
-                  onClick={() => toggleSort("yearly")}
-                >
-                  Yearly
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "stripe"}
-                  direction={direction}
-                  onClick={() => toggleSort("stripe")}
-                >
-                  Stripe
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "visibility"}
-                  direction={direction}
-                  onClick={() => toggleSort("visibility")}
-                >
-                  Visibility
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sortedPlans.length === 0}
         emptyText={
@@ -399,7 +331,7 @@ export function AdminPlansDashboard({
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(plan.id)}
-                onCheckedChange={() => toggleSelection(plan.id)}
+                onCheckedChange={() => selection.toggle(plan.id)}
                 disabled={plan.isDefault || !plan.active}
                 aria-label={`Select ${plan.name}`}
               />
