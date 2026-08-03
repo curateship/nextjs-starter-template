@@ -47,6 +47,17 @@ export const customShellUsers = pgTable(
     avatarUrl: text("avatar_url"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     /**
+     * When this account's first free trial began, and null while it has never
+     * had one. Set once by the Stripe webhook the moment a trial actually
+     * starts — not at checkout, or an abandoned checkout would burn it — and
+     * never overwritten, because the question it answers is "have they already
+     * had one" and the first trial is the answer to it.
+     *
+     * Checkout reads it and leaves the trial days off when it is set, so
+     * cancelling and subscribing again no longer restarts the free trial.
+     */
+    firstTrialAt: timestamp("first_trial_at", { withTimezone: true }),
+    /**
      * When this account was marked for deletion, and null whenever it was not.
      * Set only alongside the `pending_deletion` status — the check below holds
      * the pair together both ways.
@@ -1043,6 +1054,207 @@ export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
   salt: varchar("salt", { length: 64 }).notNull(),
 })
 
+/**
+ * Everyone a newsletter can go to. Scoped to a workspace, and unique on the
+ * email address case-insensitively — two contacts with the same address is how
+ * a list starts sending people the same thing twice.
+ */
+export const customShellContacts = pgTable(
+  "contacts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /**
+     * The account this contact is, when it is one.
+     *
+     * Almost every contact is a member of the app, and those rows are kept in
+     * step with the account by `syncContactsFromUsers` — the account is the
+     * truth about the address and the name. Null is somebody who has no
+     * account: an address added by hand, which still has to be mailable.
+     *
+     * Not a join at send time on purpose. Deliveries point at a contact id,
+     * and that id is what makes sending exactly once work, so the contact row
+     * has to keep existing in its own right.
+     */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    email: varchar("email", { length: 255 }).notNull(),
+    firstName: varchar("first_name", { length: 255 }),
+    lastName: varchar("last_name", { length: 255 }),
+    /** Where they came from — an account, an import, added by hand. */
+    source: varchar("source", { length: 255 }),
+    /** The segments they belong to. A broadcast can go to one or more tags. */
+    tags: text("tags")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    status: varchar("status", { length: 20 }).notNull().default("subscribed"),
+    unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "contacts_status_check",
+      sql`${table.status} in ('subscribed', 'unsubscribed')`
+    ),
+    uniqueIndex("ux_contacts_workspace_email").on(
+      table.workspaceId,
+      sql`lower(${table.email})`
+    ),
+    // One contact per account, so the sync cannot end up adding a second row
+    // for somebody every time it runs.
+    uniqueIndex("ux_contacts_workspace_user")
+      .on(table.workspaceId, table.userId)
+      .where(sql`${table.userId} is not null`),
+    index("ix_contacts_workspace_created").on(table.workspaceId, table.createdAt),
+  ]
+)
+
+/**
+ * One email written out of blocks, and everything about sending it.
+ *
+ * `claimToken` / `claimedAt` are the same claim the automation runs use: a
+ * ticker stamps its own token on a batch of due broadcasts and only writes
+ * back to rows still carrying it, so two servers ticking at once cannot both
+ * deliver the same batch. A server that dies leaves a claim that goes stale
+ * and is picked up again.
+ *
+ * `renderedHtml` is frozen when the send starts. Editing the blocks afterwards
+ * cannot change what a send in flight is putting in people's inboxes.
+ */
+export const customShellBroadcasts = pgTable(
+  "broadcasts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    subject: text("subject").notNull().default(""),
+    /** The grey line the inbox shows after the subject. */
+    preheader: text("preheader").notNull().default(""),
+    fromName: varchar("from_name", { length: 255 }),
+    blocks: jsonb("blocks")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    renderedHtml: text("rendered_html"),
+    status: varchar("status", { length: 20 }).notNull().default("draft"),
+    audienceFilter: jsonb("audience_filter")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    /** When the next batch may go. Null means "as soon as the ticker gets to it". */
+    nextBatchAt: timestamp("next_batch_at", { withTimezone: true }),
+    batchesSent: integer("batches_sent").notNull().default(0),
+    pausedReason: text("paused_reason"),
+    totalRecipients: integer("total_recipients").notNull().default(0),
+    totalSent: integer("total_sent").notNull().default(0),
+    totalFailed: integer("total_failed").notNull().default(0),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    claimToken: varchar("claim_token", { length: 36 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "broadcasts_status_check",
+      sql`${table.status} in ('draft', 'scheduled', 'sending', 'paused', 'sent')`
+    ),
+    index("ix_broadcasts_workspace_status").on(table.workspaceId, table.status),
+    index("ix_broadcasts_status_next_batch").on(table.status, table.nextBatchAt),
+  ]
+)
+
+/** A saved set of blocks, so a built email can start the next one. */
+export const customShellBroadcastTemplates = pgTable(
+  "broadcast_templates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    blocks: jsonb("blocks")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_broadcast_templates_workspace").on(table.workspaceId),
+    // Only one template can be the one new broadcasts start from.
+    uniqueIndex("ux_broadcast_templates_default")
+      .on(table.workspaceId)
+      .where(sql`${table.isDefault}`),
+  ]
+)
+
+/**
+ * One row per person per broadcast, written the moment the send is attempted.
+ *
+ * The unique index below is the whole exactly-once guarantee. Not a counter,
+ * not a cursor — the database itself refuses a second row for the same person
+ * on the same broadcast, so an interrupted send that is picked up again cannot
+ * mail anybody twice however it is resumed.
+ */
+export const customShellDeliveries = pgTable(
+  "deliveries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    // SET NULL, not CASCADE: deleting a broadcast must not erase the record of
+    // what was already sent to real people.
+    broadcastId: varchar("broadcast_id", { length: 36 }).references(
+      () => customShellBroadcasts.id,
+      { onDelete: "set null" }
+    ),
+    contactId: varchar("contact_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContacts.id, { onDelete: "cascade" }),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    subject: text("subject").notNull(),
+    /** Resend's id for the message, so a bounce can be traced back. */
+    providerMessageId: varchar("provider_message_id", { length: 255 }),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("deliveries_status_check", sql`${table.status} in ('sent', 'failed')`),
+    index("ix_deliveries_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    index("ix_deliveries_contact").on(table.contactId),
+    index("ix_deliveries_broadcast").on(table.broadcastId),
+    uniqueIndex("ux_deliveries_broadcast_contact")
+      .on(table.broadcastId, table.contactId)
+      .where(sql`${table.broadcastId} is not null`),
+  ]
+)
+
+/** Who a workspace's email comes from, and the key it sends with. */
+export const customShellEmailSettings = pgTable("email_settings", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  // Encrypted with `encryptSecret`, never read back to the browser.
+  resendApiKeyEncrypted: text("resend_api_key_encrypted"),
+  fromEmail: varchar("from_email", { length: 255 }),
+  fromName: varchar("from_name", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
@@ -1066,3 +1278,10 @@ export type CustomShellAutomationRunStep =
   typeof customShellAutomationRunSteps.$inferSelect
 export type CustomShellAnnouncement =
   typeof customShellAnnouncements.$inferSelect
+export type CustomShellContact = typeof customShellContacts.$inferSelect
+export type CustomShellBroadcast = typeof customShellBroadcasts.$inferSelect
+export type CustomShellBroadcastTemplate =
+  typeof customShellBroadcastTemplates.$inferSelect
+export type CustomShellDelivery = typeof customShellDeliveries.$inferSelect
+export type CustomShellEmailSettings =
+  typeof customShellEmailSettings.$inferSelect

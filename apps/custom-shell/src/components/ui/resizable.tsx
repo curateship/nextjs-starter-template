@@ -1,5 +1,6 @@
 import * as React from "react"
 import * as ResizablePrimitive from "react-resizable-panels"
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -114,8 +115,42 @@ function WorkspacePanel({
   )
 }
 
+/**
+ * A slim tab on the middle panel's edge, shown while a side panel is collapsed,
+ * so reopening is discoverable right where the panel disappeared. The arrow
+ * points toward where the panel opens.
+ */
+function PanelReopenTab({
+  side,
+  label,
+  onClick,
+}: {
+  side: "left" | "right"
+  label: string
+  onClick: () => void
+}) {
+  const Icon = side === "left" ? ChevronRightIcon : ChevronLeftIcon
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "absolute top-1/2 z-10 flex h-14 w-5 -translate-y-1/2 items-center justify-center border border-foreground/10 bg-card text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        side === "left"
+          ? "left-0 rounded-r-lg border-l-0"
+          : "right-0 rounded-l-lg border-r-0"
+      )}
+    >
+      <Icon className="size-4" />
+    </button>
+  )
+}
+
 export {
   BOTTOM_COLLAPSED_HEIGHT,
+  PanelReopenTab,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,

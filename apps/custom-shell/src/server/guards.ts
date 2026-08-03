@@ -1,6 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start"
 
-import { ensureAutomationTicker } from "@/server/automation-engine"
+import { ensureBackgroundTicker } from "@/server/ticker"
 import { maybeCleanUpOldData } from "@/server/cleanup"
 import { requireAppOrigin } from "@/server/origin"
 import { requireAdmin, requireUser } from "@/server/security"
@@ -34,9 +34,10 @@ import { requireAdmin, requireUser } from "@/server/security"
  * `src/server/guards.test.ts` calls every admin server function as an ordinary
  * member and insists it is refused, so a guard cannot go missing unnoticed.
  *
- * All four also start the automation ticker. This app has no boot hook to hang
+ * All four also start the background ticker, which drives automation runs and
+ * newsletter sending. This app has no boot hook to hang
  * a background loop on, so the first request of the process starts it and every
- * call after that returns on a flag — see `ensureAutomationTicker`.
+ * call after that returns on a flag — see `ensureBackgroundTicker`.
  */
 
 /**
@@ -50,7 +51,7 @@ import { requireAdmin, requireUser } from "@/server/security"
  */
 export const adminGet = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
-    ensureAutomationTicker()
+    ensureBackgroundTicker()
     const user = await requireAdmin()
     await maybeCleanUpOldData()
     return next({ context: { user } })
@@ -60,7 +61,7 @@ export const adminGet = createMiddleware({ type: "function" }).server(
 /** Changes that only an admin may make. */
 export const adminPost = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
-    ensureAutomationTicker()
+    ensureBackgroundTicker()
     requireAppOrigin()
     return next({ context: { user: await requireAdmin() } })
   }
@@ -69,7 +70,7 @@ export const adminPost = createMiddleware({ type: "function" }).server(
 /** Reads any signed-in member may make. */
 export const userGet = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
-    ensureAutomationTicker()
+    ensureBackgroundTicker()
     return next({ context: { user: await requireUser() } })
   }
 )
@@ -77,7 +78,7 @@ export const userGet = createMiddleware({ type: "function" }).server(
 /** Changes any signed-in member may make. */
 export const userPost = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
-    ensureAutomationTicker()
+    ensureBackgroundTicker()
     requireAppOrigin()
     return next({ context: { user: await requireUser() } })
   }

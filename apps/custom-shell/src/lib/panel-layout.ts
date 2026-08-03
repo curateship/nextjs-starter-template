@@ -63,6 +63,8 @@ export function useRememberedPanelLayout(key: string) {
 export const panelLayoutKey = {
   automationEditorHorizontal: "automation-editor-horizontal",
   automationEditorVertical: "automation-editor-vertical",
+  broadcastEditorHorizontal: "broadcast-editor-horizontal",
+  broadcastEditorVertical: "broadcast-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: number) =>
     `custom-shell-${page}-${side}-${cards}`,

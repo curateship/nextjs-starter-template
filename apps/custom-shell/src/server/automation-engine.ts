@@ -32,7 +32,6 @@ import { now, uuid } from "@/server/security"
  * nothing at all.
  */
 
-const TICK_MS = 15_000
 /** How many runs one pass takes on. */
 const CLAIM_BATCH_SIZE = 20
 /**
@@ -54,34 +53,6 @@ const CLAIM_TIMEOUT_MINUTES = 5
 const NODE_BUDGET_PER_TICK = 25
 const MAX_ATTEMPTS = 3
 const RETRY_BACKOFF_MS = 30_000
-
-declare global {
-  var __customShellAutomationTicker: boolean | undefined
-}
-
-/**
- * Starts the ticker, once per process.
- *
- * There is no boot hook in this app, so the guards call this on every request
- * and the flag below makes every call after the first free. The dev server
- * reloads modules in place, which is why the flag lives on `globalThis` rather
- * than in module scope — a module-scoped one resets on reload and would leave a
- * second interval running behind the first.
- */
-export function ensureAutomationTicker() {
-  // Tests drive runTick() themselves; an interval would outlive the test run.
-  if (process.env.VITEST || process.env.NODE_ENV === "test") return
-  if (globalThis.__customShellAutomationTicker) return
-  globalThis.__customShellAutomationTicker = true
-
-  const tick = () => {
-    void runAutomationTick().catch((error) => {
-      console.error("Automation tick failed", error)
-    })
-  }
-  tick()
-  setInterval(tick, TICK_MS)
-}
 
 /**
  * One pass: claim the runs that are due, walk each of them, then auto-reject
