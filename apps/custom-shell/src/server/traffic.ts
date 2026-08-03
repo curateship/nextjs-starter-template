@@ -140,8 +140,10 @@ export function hashVisitor(salt: string, ip: string, userAgent: string) {
 /**
  * Deletes what has outlived its use: visit rows past the log window, and the
  * hash and salt rows of finished days (their counts are already frozen in
- * the totals). Also clears the tracker's spent rate-limit rows, which
- * nothing else sweeps.
+ * the totals). Also clears the tracker's spent rate-limit rows: the app-wide
+ * cleanup in `server/cleanup.ts` clears those too and sooner, but it rides in
+ * on an admin's first page of the day, and a site nobody administers still
+ * gets its page views counted.
  *
  * There is no scheduler in this app, so this runs opportunistically — on the
  * first counted view of each UTC day per process, and when the dashboard is

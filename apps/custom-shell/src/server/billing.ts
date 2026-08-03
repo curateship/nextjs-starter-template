@@ -3,6 +3,7 @@ import { eq, inArray } from "drizzle-orm"
 
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
+import { buildDisputeValues, type ChargeReader } from "@/server/disputes"
 import { findSubscription, subscriptionIsActive } from "@/server/entitlements"
 import {
   findPlanByStripePrice,
@@ -12,12 +13,16 @@ import {
 } from "@/server/plans"
 import {
   customShellBillingEvents,
+  customShellDisputes,
   customShellSubscriptions,
   type CustomShellPlan,
   type CustomShellSubscription,
   type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
+
+/** Every `charge.dispute.*` event: created, updated, closed and funds moving. */
+const DISPUTE_EVENT_PREFIX = "charge.dispute."
 
 const SUBSCRIPTION_EVENTS = new Set([
   "customer.subscription.created",
@@ -409,6 +414,9 @@ type SubscriptionLoader = (subscriptionId: string) => Promise<Stripe.Subscriptio
 const loadStripeSubscription: SubscriptionLoader = (subscriptionId) =>
   stripe().subscriptions.retrieve(subscriptionId)
 
+const loadStripeCharge: ChargeReader = (chargeId) =>
+  stripe().charges.retrieve(chargeId)
+
 /**
  * Applies one Stripe webhook event.
  *
@@ -419,7 +427,8 @@ const loadStripeSubscription: SubscriptionLoader = (subscriptionId) =>
 export async function applyStripeEvent(
   event: Stripe.Event,
   database: CustomShellDb = db,
-  fetchSubscription: SubscriptionLoader = loadStripeSubscription
+  fetchSubscription: SubscriptionLoader = loadStripeSubscription,
+  readCharge: ChargeReader = loadStripeCharge
 ) {
   const [seen] = await database
     .select({ eventId: customShellBillingEvents.eventId })
@@ -433,9 +442,12 @@ export async function applyStripeEvent(
 
   const subscription = await resolveEventSubscription(event, fetchSubscription)
   // Read everything the write needs before opening the transaction, so the
-  // transaction holds locks only for the two writes below.
+  // transaction holds locks only for the writes below.
   const values = subscription
     ? await buildSubscriptionValues(database, subscription)
+    : null
+  const dispute = event.type.startsWith(DISPUTE_EVENT_PREFIX)
+    ? await buildDisputeValues(database, event, readCharge)
     : null
 
   return database.transaction(async (tx) => {
@@ -458,6 +470,19 @@ export async function applyStripeEvent(
         .onConflictDoUpdate({
           target: customShellSubscriptions.userId,
           set: values.update,
+        })
+    }
+
+    if (dispute) {
+      // Upsert rather than insert: the created, updated and closed events all
+      // carry the dispute's whole state, so they may arrive in any order and
+      // the last one still leaves the row right.
+      await tx
+        .insert(customShellDisputes)
+        .values(dispute.insert)
+        .onConflictDoUpdate({
+          target: customShellDisputes.stripeDisputeId,
+          set: dispute.update,
         })
     }
 

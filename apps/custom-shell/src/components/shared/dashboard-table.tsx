@@ -109,6 +109,12 @@ type DashboardTableBaseProps = {
    * which has no rows to dim.
    */
   busy?: boolean
+  /**
+   * Extra classes for the table's surface. Mainly `shrink-0`: a page that
+   * stacks several blocks is a flex column, and a table left to shrink loses
+   * its last rows off the bottom instead of scrolling.
+   */
+  className?: string
 }
 
 type DashboardTableProps = DashboardTableBaseProps & (
@@ -143,6 +149,7 @@ export function DashboardTable(props: DashboardTableProps) {
     footer,
     countsPending = false,
     busy = false,
+    className,
   } = props
 
   const busyClassName = cn(
@@ -151,7 +158,7 @@ export function DashboardTable(props: DashboardTableProps) {
   )
 
   return (
-    <TableSurface>
+    <TableSurface className={className}>
       <DashboardToolbar>
         <DashboardToolbarTitle>
           {icon ? (
