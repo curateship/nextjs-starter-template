@@ -2,6 +2,10 @@ import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
+import { getFeedbackErrorMessage } from "@/lib/api/feedback"
+import { getMediaErrorMessage } from "@/lib/api/media"
+import { getWorkspaceErrorMessage } from "@/lib/api/workspaces"
+
 /**
  * Every door in the app is locked unless somebody wrote down why it is not.
  *
@@ -153,5 +157,35 @@ describe("every server function is guarded", () => {
     for (const [entry, reason] of Object.entries(excused)) {
       expect(reason.length, `${entry} needs a real reason`).toBeGreaterThan(30)
     }
+  })
+})
+
+/**
+ * These three features write their own error text and hand it to the reader
+ * as-is, so when the guards started throwing "AUTH_REQUIRED" and "FORBIDDEN"
+ * the raw code went on screen. They have to say the codes in words.
+ */
+describe("a refused caller is told in words, not in codes", () => {
+  const describers = {
+    workspaces: getWorkspaceErrorMessage,
+    media: getMediaErrorMessage,
+    feedback: getFeedbackErrorMessage,
+  }
+
+  for (const [name, describe_] of Object.entries(describers)) {
+    it(`${name} says what AUTH_REQUIRED and FORBIDDEN mean`, () => {
+      expect(describe_(new Error("AUTH_REQUIRED"))).toBe("Please sign in again.")
+      expect(describe_(new Error("FORBIDDEN"))).toBe(
+        "You do not have access to that."
+      )
+    })
+  }
+
+  it("still passes through the messages written for the reader", () => {
+    // These are thrown by the handlers themselves and are already sentences.
+    expect(getMediaErrorMessage(new Error("File is empty"))).toBe("File is empty")
+    expect(getMediaErrorMessage(new Error("RATE_LIMITED"))).toContain(
+      "Please wait a few minutes"
+    )
   })
 })

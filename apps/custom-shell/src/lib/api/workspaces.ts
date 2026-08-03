@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { describeAuthError } from "./error-message"
 import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/workspaces"
 import { userGet, userPost } from "@/server/guards"
 import { z } from "zod"
@@ -54,7 +55,8 @@ const deleteWorkspacesSchema = z.object({
 })
 
 export function getWorkspaceErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Workspace request failed."
+  if (!(error instanceof Error)) return "Workspace request failed."
+  return describeAuthError(error.message) ?? error.message
 }
 
 const loadWorkspacesFn = createServerFn({ method: "GET" })

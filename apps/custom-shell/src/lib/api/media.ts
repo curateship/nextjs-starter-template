@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { describeAuthError } from "./error-message"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -51,7 +52,7 @@ export function getMediaErrorMessage(error: unknown) {
   if (message.includes("RATE_LIMITED")) {
     return "You've uploaded a lot just now. Please wait a few minutes and try again."
   }
-  return message || "Media request failed."
+  return describeAuthError(message) ?? (message || "Media request failed.")
 }
 
 const listMediaFn = createServerFn({ method: "GET" })

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { describeAuthError } from "./error-message"
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
 
@@ -179,7 +180,7 @@ export function getFeedbackErrorMessage(error: unknown) {
   if (message.includes("RATE_LIMITED")) {
     return "You're posting quickly. Please wait a few minutes and try again."
   }
-  return message || "Feedback request failed."
+  return describeAuthError(message) ?? (message || "Feedback request failed.")
 }
 
 const listFeedbackFn = createServerFn({ method: "GET" })
