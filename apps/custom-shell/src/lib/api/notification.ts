@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
-import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications"
+import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, countUnreadNotifications as countUnreadNotificationRows, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications"
+import { userGet } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"
 
@@ -213,6 +214,19 @@ const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
     return { ...(await listAdminNotificationRows({ ...data, pageSize })), pageSize }
   })
 
+/**
+ * The bell's number on its own — what a live nudge (and the slow fallback
+ * check) asks for while the tray is shut. There is no point pulling a list
+ * nobody is looking at.
+ */
+const countUnreadNotificationsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<{ unread_count: number }> => {
+    // The guard has already found the account, so this asks the database one
+    // question, not three. It runs once a minute per open tab.
+    return { unread_count: await countUnreadNotificationRows(context.user.id) }
+  })
+
 const markNotificationReadFn = createServerFn({ method: "POST" })
   .inputValidator(notificationIdSchema)
   .handler(
@@ -251,6 +265,10 @@ export function loadAdminNotificationsPage(
   query: Omit<AdminNotificationQueryInput, "pageSize">
 ) {
   return loadAdminNotificationsPageFn({ data: query })
+}
+
+export function countUnreadNotifications() {
+  return countUnreadNotificationsFn()
 }
 
 export function markNotificationRead(notificationId: string) {

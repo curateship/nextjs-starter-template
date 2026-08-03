@@ -7,6 +7,7 @@ import {
   type AiUsageRange,
 } from "@/lib/ai-models"
 import { db } from "@/server/db"
+import { publishNotificationCreated } from "@/server/notification-events"
 import { resolveEntitlements } from "@/server/entitlements"
 import { getDefaultPlan } from "@/server/plans"
 import {
@@ -319,6 +320,7 @@ async function noteAiAlertOnce(
       type: level === "warning" ? "ai_limit_warning" : "ai_limit_reached",
       createdAt: now(),
     })
+    await publishNotificationCreated(userId)
   } catch (error) {
     console.error("AI allowance notice was not recorded", level, error)
   }

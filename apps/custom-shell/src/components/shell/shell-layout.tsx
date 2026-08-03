@@ -464,6 +464,7 @@ export function ShellLayout({
               rightNavItems={config.topRightNavigation}
               role={user.role}
               unreadNotifications={unreadNotifications}
+              liveNotifications={config.liveNotifications}
               saveStatus={pageSaveStatus ?? saveStatus}
               maintenanceOn={
                 user.role === "admin" && config.maintenance.enabled
@@ -564,6 +565,9 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     memberSections: Array.isArray(settings.memberSections)
       ? settings.memberSections
       : fallback.memberSections,
+    // Only an explicit `false` turns the live bell off, so a config saved
+    // before this setting existed keeps it on.
+    liveNotifications: settings.liveNotifications !== false,
     maintenance: normalizeMaintenance(settings.maintenance),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
     styling: normalizeStyling(settings.styling),

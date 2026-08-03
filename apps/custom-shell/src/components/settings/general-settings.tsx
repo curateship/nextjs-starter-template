@@ -206,6 +206,26 @@ export function GeneralSettings({
         </div>
       </CollapsibleSettingsCard>
 
+      <CollapsibleSettingsCard
+        storageId="live-notifications"
+        title="Live notifications"
+        description="Light the bell up the moment something happens. Turn it off and the bell still updates — just on its own check, up to a minute later."
+        contentClassName="space-y-6"
+      >
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="live-notifications"
+            checked={config.liveNotifications}
+            onCheckedChange={(value) =>
+              onConfigChange({ ...config, liveNotifications: value === true })
+            }
+          />
+          <Label htmlFor="live-notifications" className="font-normal">
+            Update the bell as things happen
+          </Label>
+        </div>
+      </CollapsibleSettingsCard>
+
       <MaintenanceSettingsCard
         config={config}
         onConfigChange={onConfigChange}

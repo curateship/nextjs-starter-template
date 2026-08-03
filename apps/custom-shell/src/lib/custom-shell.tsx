@@ -396,6 +396,13 @@ export type ShellConfig = {
    * then edit.
    */
   memberSections: ShellSection[]
+  /**
+   * Whether a browser holds a connection open so the bell lights up the moment
+   * something happens. Off, the bell still updates — just on its slow check
+   * instead, up to a minute later. App-wide, and here rather than in an
+   * environment variable so it can be switched off without a redeploy.
+   */
+  liveNotifications: boolean
   /** App-wide lockout: members see the maintenance page, admins keep working. */
   maintenance: ShellMaintenance
   /** App-wide limits on how long a sign-in lasts. See ShellSessionPolicy. */
@@ -813,6 +820,7 @@ export function createDefaultShellConfig(): ShellConfig {
     // the real starting point — a fresh install has no settings row to read it
     // from, and members would otherwise open the app to nothing at all.
     memberSections: createDefaultMemberSections(),
+    liveNotifications: true,
     maintenance: createDefaultMaintenance(),
     sessionPolicy: createDefaultSessionPolicy(),
     styling: createDefaultStyling(),

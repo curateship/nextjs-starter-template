@@ -13,6 +13,7 @@ import {
 } from "@/server/automation-executors"
 import { db, type CustomShellDb } from "@/server/db"
 import { inspectAutomation } from "@/server/automations"
+import { publishNotificationCreated } from "@/server/notification-events"
 import {
   customShellAutomationRuns,
   customShellAutomationRunSteps,
@@ -606,6 +607,11 @@ async function notifyApproval(
       automationApprovalState: state,
       createdAt: now(),
     })
+    // The case this whole feature exists for. The ticker is a background loop,
+    // not a request, so nothing else would ever tell the browser — and "a run
+    // is waiting for you before it emails real members" is exactly the notice
+    // that must not sit unseen for a minute.
+    await publishNotificationCreated(userId, database)
   } catch (error) {
     console.error(`Automation approval notice failed for ${runId}`, error)
   }

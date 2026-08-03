@@ -54,6 +54,8 @@ type StickyHeaderRightNavProps = {
   /** Who is looking. A member never gets a link to an admin page drawn. */
   role?: string
   unreadNotifications?: number
+  /** The app-wide switch for the bell's live connection. */
+  liveNotifications?: boolean
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
@@ -92,6 +94,7 @@ export function StickyHeaderRightNav({
   items,
   role = "member",
   unreadNotifications,
+  liveNotifications = true,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderRightNavProps) {
@@ -140,6 +143,7 @@ export function StickyHeaderRightNav({
             <NotificationCenter
               key={item.id}
               initialUnreadCount={unreadNotifications ?? 0}
+              live={liveNotifications}
               onOpenFeedback={onOpenFeedbackThread}
             />
           )

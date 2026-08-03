@@ -6,6 +6,7 @@ import { z } from "zod"
 import { db } from "@/server/db"
 import { deleteMediaAsAdmin, findOwnedImageByUrl } from "@/server/media"
 import { getPublicMediaUrl } from "@/server/media-storage"
+import { publishNotificationCreated } from "@/server/notification-events"
 import { enforceRateLimit } from "@/server/rate-limit"
 import {
   customShellFeedback,
@@ -408,6 +409,10 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
             feedbackVoteId: vote.id,
             createdAt,
           })
+          // Inside the transaction on purpose: the nudge is then held until
+          // the commit, so the author's browser can never be told to look
+          // before the row it is looking for is there.
+          await publishNotificationCreated(row.userId, tx)
         }
       })
     }
@@ -527,6 +532,7 @@ const mergeFeedbackFn = createServerFn({ method: "POST" })
             type: "feedback_merged",
             createdAt: now(),
           })
+          await publishNotificationCreated(source.userId, tx)
         }
 
         await tx
@@ -607,6 +613,7 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
           feedbackCommentId: comment.id,
           createdAt,
         })
+        await publishNotificationCreated(feedback.userId, tx)
       }
 
       return comment

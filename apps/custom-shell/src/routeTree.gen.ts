@@ -49,6 +49,7 @@ import { Route as AuthenticatedAdminMediaOrphansRouteImport } from './routes/_au
 import { Route as AuthenticatedAdminMediaStorageRouteImport } from './routes/_authenticated/admin/media_.storage'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
+import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
@@ -267,6 +268,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1NotificationsStreamRoute =
+  ApiV1NotificationsStreamRouteImport.update({
+    id: '/api/v1/notifications/stream',
+    path: '/api/v1/notifications/stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1TrafficViewRoute = ApiV1TrafficViewRouteImport.update({
   id: '/api/v1/traffic/view',
   path: '/api/v1/traffic/view',
@@ -318,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -359,6 +367,7 @@ export interface FileRoutesByTo {
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -404,6 +413,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/media_/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -449,6 +459,7 @@ export interface FileRouteTypes {
     | '/admin/media/storage'
     | '/admin/settings/$tab'
     | '/api/auth/google/callback'
+    | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
@@ -490,6 +501,7 @@ export interface FileRouteTypes {
     | '/admin/media/storage'
     | '/admin/settings/$tab'
     | '/api/auth/google/callback'
+    | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
   id:
@@ -534,6 +546,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/media_/storage'
     | '/_authenticated/admin/settings/$tab'
     | '/api/auth/google_/callback'
+    | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
@@ -553,6 +566,7 @@ export interface RootRouteChildren {
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
@@ -839,6 +853,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/notifications/stream': {
+      id: '/api/v1/notifications/stream'
+      path: '/api/v1/notifications/stream'
+      fullPath: '/api/v1/notifications/stream'
+      preLoaderRoute: typeof ApiV1NotificationsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/traffic/view': {
       id: '/api/v1/traffic/view'
       path: '/api/v1/traffic/view'
@@ -977,6 +998,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }

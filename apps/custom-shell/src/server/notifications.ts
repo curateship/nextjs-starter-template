@@ -16,6 +16,7 @@ import {
 import { alias, type PgSelect } from "drizzle-orm/pg-core"
 
 import { db, type CustomShellDb } from "@/server/db"
+import { publishNotificationCreated } from "@/server/notification-events"
 import { requireAppOrigin } from "@/server/origin"
 import {
   customShellAnnouncements,
@@ -222,6 +223,13 @@ function joinNotificationSources<T extends PgSelect>(query: T) {
  * so the bell can carry its dot on arrival — without it the tray only knows its
  * own count after you have already opened it, which is too late to tell you
  * anything.
+ *
+ * It is also what a live nudge makes the browser fetch while the tray is shut.
+ * That was deliberately made a count of its own rather than a
+ * `router.invalidate()`: invalidating re-runs the whole shell loader —
+ * settings, workspaces, plan, live announcements — plus every other loader on
+ * the page, in every open tab, every time anybody thumbs-ups a piece of
+ * feedback. This is one `count(*)` on an indexed column.
  */
 export async function countUnreadNotifications(
   userId: string,
@@ -260,6 +268,11 @@ export async function markCurrentUserNotificationRead(notificationId: string) {
     throw new Error("Notification not found")
   }
 
+  // Reading a notice in one tab clears the dot in this person's other tabs.
+  // The bell is one number about one person, so it has to agree with itself
+  // wherever they have the app open.
+  await publishNotificationCreated(user.id)
+
   return { notificationId: row.id, readAt: readAt.toISOString() }
 }
 
@@ -278,6 +291,9 @@ export async function markAllCurrentUserNotificationsRead() {
       )
     )
     .returning({ id: customShellNotifications.id })
+
+  // Same reason as above: the other tabs' bells go to zero too.
+  if (rows.length) await publishNotificationCreated(user.id)
 
   return {
     notificationIds: rows.map((row) => row.id),
