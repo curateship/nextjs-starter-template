@@ -76,6 +76,7 @@ export function AutomationInspector({
   // The panel is showing a node picked in the palette that has not been put on
   // the canvas yet — the only state where "Add node" is on offer.
   const previewing = Boolean(onAddNode)
+  const { scrollRef, fades } = useScrollFades()
 
   return (
     <div
@@ -117,72 +118,142 @@ export function AutomationInspector({
           </Button>
         ) : null}
       </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-4 p-4">
-          <p className="text-xs text-muted-foreground">
-            {selectedNode
-              ? automationNodeDescription(selectedNode)
-              : "Select a node to view and edit its settings."}
-          </p>
+      <div ref={scrollRef} className="relative min-h-0 flex-1">
+        <ScrollArea className="h-full">
+          <div className="grid gap-4 p-4">
+            <p className="text-xs text-muted-foreground">
+              {selectedNode
+                ? automationNodeDescription(selectedNode)
+                : "Select a node to view and edit its settings."}
+            </p>
 
-          {nodeErrors.length > 0 ? (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
-            >
-              <div className="mb-1 flex items-center gap-1.5 font-medium">
-                <AlertCircleIcon className="size-3.5" />
-                {selectedNode ? "Fix this node" : "Automation needs attention"}
+            {nodeErrors.length > 0 ? (
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
+              >
+                <div className="mb-1 flex items-center gap-1.5 font-medium">
+                  <AlertCircleIcon className="size-3.5" />
+                  {selectedNode ? "Fix this node" : "Automation needs attention"}
+                </div>
+                <ul className="grid gap-1">
+                  {nodeErrors.map((error, index) => (
+                    <li
+                      key={`${error.code}-${error.nodeId ?? error.edgeId ?? index}`}
+                    >
+                      {error.message}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="grid gap-1">
-                {nodeErrors.map((error, index) => (
-                  <li
-                    key={`${error.code}-${error.nodeId ?? error.edgeId ?? index}`}
+            ) : null}
+
+            {selectedNode ? (
+              <NodeFields node={selectedNode} onChange={onNodeChange} />
+            ) : null}
+
+            {selectedNode ? (
+              <div className="grid grid-cols-2 gap-2">
+                {onAddNode ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => onAddNode(selectedNode)}
                   >
-                    {error.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {selectedNode ? (
-            <NodeFields node={selectedNode} onChange={onNodeChange} />
-          ) : null}
-
-          {selectedNode ? (
-            <div className="grid grid-cols-2 gap-2">
-              {onAddNode ? (
+                    <PlusIcon className="size-4" />
+                    Add node
+                  </Button>
+                ) : null}
+                {/* A previewed node is not on the canvas, so there is nothing to
+                    destroy — backing out only drops the preview. Both call the
+                    same thing; only the word and the colour change, because a red
+                    "Delete node" beside "Add node" reads as a threat it cannot
+                    carry out. */}
                 <Button
                   type="button"
+                  variant={previewing ? "outline" : "destructive"}
                   size="sm"
-                  onClick={() => onAddNode(selectedNode)}
+                  className={cn(!previewing && "col-span-2")}
+                  onClick={() => onDeleteNode(selectedNode.id)}
                 >
-                  <PlusIcon className="size-4" />
-                  Add node
+                  {previewing ? null : <Trash2Icon className="size-4" />}
+                  {previewing ? "Cancel" : "Delete node"}
                 </Button>
-              ) : null}
-              {/* A previewed node is not on the canvas, so there is nothing to
-                  destroy — backing out only drops the preview. Both call the
-                  same thing; only the word and the colour change, because a red
-                  "Delete node" beside "Add node" reads as a threat it cannot
-                  carry out. */}
-              <Button
-                type="button"
-                variant={previewing ? "outline" : "destructive"}
-                size="sm"
-                className={cn(!previewing && "col-span-2")}
-                onClick={() => onDeleteNode(selectedNode.id)}
-              >
-                {previewing ? null : <Trash2Icon className="size-4" />}
-                {previewing ? "Cancel" : "Delete node"}
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      </ScrollArea>
+              </div>
+            ) : null}
+          </div>
+        </ScrollArea>
+        {/* The panel is taller than most nodes' settings, so the fades only
+            appear on the edge that actually has more content past it —
+            a permanent fade over the first line reads as a rendering fault. */}
+        <ScrollFade edge="top" show={fades.top} />
+        <ScrollFade edge="bottom" show={fades.bottom} />
+      </div>
     </div>
   )
+}
+
+/** One edge's fade, painted over the scrolling content in the panel's colour. */
+function ScrollFade({
+  edge,
+  show,
+}: {
+  edge: "top" | "bottom"
+  show: boolean
+}) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute inset-x-0 h-8 transition-opacity duration-200",
+        edge === "top"
+          ? "top-0 bg-linear-to-b from-card to-transparent"
+          : "bottom-0 bg-linear-to-t from-card to-transparent",
+        show ? "opacity-100" : "opacity-0"
+      )}
+    />
+  )
+}
+
+/**
+ * Which edges of the panel have content hidden past them. The scrolling element
+ * is Radix's viewport inside `ScrollArea`, which takes no ref of its own, so it
+ * is found by its slot under the wrapper this returns a ref for.
+ */
+function useScrollFades() {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [fades, setFades] = React.useState({ top: false, bottom: false })
+
+  React.useEffect(() => {
+    const viewport = ref.current?.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    )
+    if (!viewport) return
+
+    const update = () => {
+      const { scrollTop, scrollHeight, clientHeight } = viewport
+      setFades({
+        top: scrollTop > 1,
+        // A rounded-off pixel of overflow is not worth a fade.
+        bottom: scrollTop + clientHeight < scrollHeight - 1,
+      })
+    }
+    update()
+
+    viewport.addEventListener("scroll", update, { passive: true })
+    // The content grows and shrinks without a scroll — a card folding away, a
+    // different node picked, the panel resized — so watch both boxes.
+    const resize = new ResizeObserver(update)
+    resize.observe(viewport)
+    if (viewport.firstElementChild) resize.observe(viewport.firstElementChild)
+
+    return () => {
+      viewport.removeEventListener("scroll", update)
+      resize.disconnect()
+    }
+  }, [])
+
+  return { scrollRef: ref, fades }
 }
 
 /**
@@ -199,10 +270,10 @@ function NodeFields({
 }) {
   if (!isSupportedNode(node)) {
     return (
-      <p className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground">
+      <InspectorNote>
         This step isn't available in this app, so it has no settings here. You
         can delete it; the rest of the flow is unaffected.
-      </p>
+      </InspectorNote>
     )
   }
   if (node.kind === "placeholder") {
@@ -239,7 +310,13 @@ export function InspectorCard({
     )
   )
 
-  const shell = "grid gap-3 rounded-xl border border-foreground/10 bg-muted/40 p-3"
+  // The card is grey so the fields sitting on it can be white and read as the
+  // parts you type into. Setting that here, once, means a node task writing new
+  // fields gets it for free and cannot forget.
+  const shell = cn(
+    "grid gap-3 rounded-xl border border-foreground/5 bg-muted/60 p-3",
+    "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
+  )
   if (!title) return <section className={shell}>{children}</section>
 
   return (
@@ -264,6 +341,30 @@ export function InspectorCard({
         {children}
       </CollapsibleContent>
     </Collapsible>
+  )
+}
+
+/**
+ * A box of information inside a card — something the panel is telling you
+ * rather than something you fill in. White on the card's grey, like the fields,
+ * so it stands off the card instead of dissolving into it.
+ */
+export function InspectorNote({
+  className,
+  children,
+}: {
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-foreground/10 bg-background p-3 text-xs text-muted-foreground",
+        className
+      )}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -343,7 +444,7 @@ function AiStepFields({
           </SelectContent>
         </Select>
         {keyMissing ? (
-          <p className="text-xs text-muted-foreground">
+          <InspectorNote className="mt-1">
             No {AI_PROVIDER_NAMES[provider]} key is saved yet. Add one in{" "}
             <Link
               to="/admin/settings/$tab"
@@ -353,7 +454,7 @@ function AiStepFields({
               Settings → AI
             </Link>{" "}
             before this flow runs.
-          </p>
+          </InspectorNote>
         ) : null}
       </div>
 
