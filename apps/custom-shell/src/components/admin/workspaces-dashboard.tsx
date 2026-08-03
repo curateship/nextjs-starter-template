@@ -200,7 +200,11 @@ export function WorkspacesDashboard({
         footer={footer}
       >
         {paginatedWorkspaces.map((workspace) => (
-          <TableRow key={workspace.id} className="group">
+          <TableRow
+            key={workspace.id}
+            className="group"
+            rowAction={() => openEditForm(workspace)}
+          >
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(workspace.id)}
@@ -240,7 +244,7 @@ export function WorkspacesDashboard({
                 <Badge variant="secondary">Inactive</Badge>
               )}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="actions">
               <div className="flex items-center gap-1">
                 <Button
                   type="button"

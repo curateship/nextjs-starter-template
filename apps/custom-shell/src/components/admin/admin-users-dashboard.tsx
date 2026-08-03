@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, Link } from "@tanstack/react-router"
+import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   EyeIcon,
   Loader2Icon,
@@ -25,7 +25,10 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AddAccountDialog } from "@/components/admin/add-account-dialog"
 import { LockedOutDialog } from "@/components/admin/locked-out-dialog"
-import { EditAccountDialog } from "@/components/admin/edit-account-dialog"
+import {
+  AdminAccountDialog,
+  type AdminAccountTab,
+} from "@/components/admin/admin-account-dialog"
 import { showErrorToast } from "@/lib/error-toast"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import {
@@ -48,7 +51,6 @@ import {
   listAdminAccounts,
   restoreAccountsAsAdmin,
   type AccountRow,
-  type AssignablePlan,
 } from "@/lib/api/admin-users"
 import {
   ACCOUNT_RESTORE_DAYS,
@@ -127,13 +129,11 @@ function describeAccountDeletion(account: AccountRow) {
 export function AdminUsersDashboard({
   initialAccounts,
   initialTotal,
-  plans,
   currentUserId,
   defaultPageSize,
 }: {
   initialAccounts: AccountRow[]
   initialTotal: number
-  plans: AssignablePlan[]
   currentUserId: string
   defaultPageSize: number
 }) {
@@ -155,6 +155,36 @@ export function AdminUsersDashboard({
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
 
+  const navigate = useNavigate()
+  // Which account's window is open rides in the address, so it can be handed to
+  // somebody else and Back closes it. Which tab it opens on does not: that is
+  // whether you clicked the row or its settings icon, not something to share.
+  const openUserId = listSearch.open ?? null
+  const [openTab, setOpenTab] = React.useState<AdminAccountTab>("details")
+  // Opening an account is a real step, not a filter change, so it gets its own
+  // history entry — unlike the list state above, which replaces.
+  const setOpenAccount = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+  const openAccount = React.useCallback(
+    (id: string, tab: AdminAccountTab) => {
+      setOpenTab(tab)
+      setOpenAccount(id)
+    },
+    [setOpenAccount]
+  )
+
   const [accounts, setAccounts] = React.useState(initialAccounts)
   const [total, setTotal] = React.useState(initialTotal)
   const [pageSize, setPageSize] = React.useState(defaultPageSize)
@@ -162,7 +192,6 @@ export function AdminUsersDashboard({
   const [error, setError] = React.useState<string | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [adding, setAdding] = React.useState(false)
-  const [editing, setEditing] = React.useState<AccountRow | null>(null)
   const [lockedOutOpen, setLockedOutOpen] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
@@ -508,7 +537,11 @@ export function AdminUsersDashboard({
         }}
       >
         {accounts.map((account) => (
-          <TableRow key={account.id} className="group">
+          <TableRow
+            key={account.id}
+            className="group"
+            rowAction={() => openAccount(account.id, "details")}
+          >
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(account.id)}
@@ -518,13 +551,13 @@ export function AdminUsersDashboard({
               />
             </TableCell>
             <TableCell column="main">
-              <Link
-                to="/admin/users/$userId"
-                params={{ userId: account.id }}
-                className="text-sm font-medium group-hover:underline"
+              <button
+                type="button"
+                className="block text-left text-sm font-medium group-hover:underline"
+                onClick={() => openAccount(account.id, "details")}
               >
                 {account.name}
-              </Link>
+              </button>
             </TableCell>
             <TableCell column="meta" className="max-w-56">
               <span className="block truncate" title={account.email}>
@@ -549,7 +582,7 @@ export function AdminUsersDashboard({
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {formatDate(account.createdAt)}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="actions">
               <div className="flex items-center">
                 <DisabledReason
                   disabled={
@@ -595,7 +628,7 @@ export function AdminUsersDashboard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => setEditing(account)}
+                  onClick={() => openAccount(account.id, "edit")}
                   title="Account settings"
                   aria-label={`Account settings for ${account.name}`}
                 >
@@ -630,13 +663,15 @@ export function AdminUsersDashboard({
         }}
       />
 
-      <EditAccountDialog
-        key={editing?.id ?? "closed"}
-        account={editing}
-        plans={plans}
-        onClose={() => setEditing(null)}
+      <AdminAccountDialog
+        // Remounts per account so the window always loads the one just asked
+        // for, and never opens showing the last person's fields.
+        key={openUserId ?? "closed"}
+        userId={openUserId}
+        initialTab={openTab}
+        onClose={() => setOpenAccount(undefined)}
         onSaved={async () => {
-          setEditing(null)
+          setOpenAccount(undefined)
           await refresh()
         }}
       />

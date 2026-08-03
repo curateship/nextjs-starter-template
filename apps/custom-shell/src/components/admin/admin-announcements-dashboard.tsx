@@ -358,7 +358,11 @@ export function AdminAnnouncementsDashboard({
           const status = announcementStatus(announcement, nowMs)
 
           return (
-            <TableRow key={announcement.id} className="group">
+            <TableRow
+              key={announcement.id}
+              className="group"
+              rowAction={() => setEditing(announcement)}
+            >
               <TableCell column="select">
                 <Checkbox
                   checked={selectedIds.has(announcement.id)}
@@ -402,7 +406,7 @@ export function AdminAnnouncementsDashboard({
                   {windowText(announcement)}
                 </span>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="actions">
                 <div className="flex items-center">
                   <DisabledReason
                     disabled={status === "ended"}

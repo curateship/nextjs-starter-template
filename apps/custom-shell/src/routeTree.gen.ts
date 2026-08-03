@@ -47,7 +47,6 @@ import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from '.
 import { Route as AuthenticatedAdminMediaOrphansRouteImport } from './routes/_authenticated/admin/media_.orphans'
 import { Route as AuthenticatedAdminMediaStorageRouteImport } from './routes/_authenticated/admin/media_.storage'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users_.$userId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
@@ -257,12 +256,6 @@ const AuthenticatedAdminSettingsTabRoute =
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
-const AuthenticatedAdminUsersUserIdRoute =
-  AuthenticatedAdminUsersUserIdRouteImport.update({
-    id: '/users_/$userId',
-    path: '/users/$userId',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
@@ -317,7 +310,6 @@ export interface FileRoutesByFullPath {
   '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -358,7 +350,6 @@ export interface FileRoutesByTo {
   '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -403,7 +394,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/media_/orphans': typeof AuthenticatedAdminMediaOrphansRoute
   '/_authenticated/admin/media_/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
-  '/_authenticated/admin/users_/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -448,7 +438,6 @@ export interface FileRouteTypes {
     | '/admin/media/orphans'
     | '/admin/media/storage'
     | '/admin/settings/$tab'
-    | '/admin/users/$userId'
     | '/api/auth/google/callback'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
@@ -489,7 +478,6 @@ export interface FileRouteTypes {
     | '/admin/media/orphans'
     | '/admin/media/storage'
     | '/admin/settings/$tab'
-    | '/admin/users/$userId'
     | '/api/auth/google/callback'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
@@ -533,7 +521,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/media_/orphans'
     | '/_authenticated/admin/media_/storage'
     | '/_authenticated/admin/settings/$tab'
-    | '/_authenticated/admin/users_/$userId'
     | '/api/auth/google_/callback'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
@@ -825,13 +812,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
-    '/_authenticated/admin/users_/$userId': {
-      id: '/_authenticated/admin/users_/$userId'
-      path: '/users/$userId'
-      fullPath: '/admin/users/$userId'
-      preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
@@ -900,7 +880,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminMediaOrphansRoute: typeof AuthenticatedAdminMediaOrphansRoute
   AuthenticatedAdminMediaStorageRoute: typeof AuthenticatedAdminMediaStorageRoute
-  AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
@@ -922,7 +901,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminAutomationsAutomationIdRoute,
   AuthenticatedAdminMediaOrphansRoute: AuthenticatedAdminMediaOrphansRoute,
   AuthenticatedAdminMediaStorageRoute: AuthenticatedAdminMediaStorageRoute,
-  AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =

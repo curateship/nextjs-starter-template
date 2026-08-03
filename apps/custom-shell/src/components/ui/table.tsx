@@ -22,8 +22,51 @@ type TableSortButtonProps = React.ComponentProps<"button"> & {
 }
 
 type TableCellProps = React.ComponentProps<"td"> & {
-  column?: "main" | "meta" | "mutedMeta" | "preview" | "select"
+  column?: "main" | "meta" | "mutedMeta" | "preview" | "select" | "actions"
 }
+
+type TableRowProps = React.ComponentProps<"tr"> & {
+  /**
+   * What clicking anywhere in the row does — always the same thing the row's
+   * title already does, so the row is a bigger target for it and never a
+   * second, different action.
+   *
+   * A row with one gets the pointer cursor and the grey hover tint; a row
+   * without stays flat, so the tint always means something will happen.
+   *
+   * The row is deliberately not focusable. Its title is already a link or a
+   * button, so the keyboard reaches the same place without a second tab stop
+   * on every row of every table.
+   */
+  rowAction?: () => void
+}
+
+/**
+ * Everything inside a row that owns its own click, so the row must not take it:
+ * the controls themselves, plus the two columns that exist only to hold
+ * controls.
+ *
+ * The columns are listed as well as the controls because a *disabled* button
+ * carries `pointer-events-none` — the click misses the button entirely and
+ * lands on the cell behind it, which would otherwise read as a click on the
+ * row. Clicking a greyed-out Delete must never open the thing it refused to
+ * delete. `[tabindex]` catches the wrappers built to be clicked in a disabled
+ * control's place, such as `DisabledReason`.
+ */
+const rowInteractiveSelector = [
+  "a",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "[tabindex]",
+  '[role="checkbox"]',
+  '[role="menuitem"]',
+  '[contenteditable="true"]',
+  '[data-column="select"]',
+  '[data-column="actions"]',
+].join(", ")
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -79,18 +122,43 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   )
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
+function TableRow({ className, rowAction, onClick, ...props }: TableRowProps) {
+  function handleClick(event: React.MouseEvent<HTMLTableRowElement>) {
+    onClick?.(event)
+    if (!rowAction || event.defaultPrevented) return
+    // A held modifier means "open this somewhere else", which a row is not a
+    // link and cannot do. Doing nothing beats doing the wrong thing.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    if (!(event.target instanceof Element)) return
+    // Whatever is under the pointer owns this click. Bounded to the row: the
+    // table itself sits inside scrollers and wrappers that would match too.
+    const owner = event.target.closest(rowInteractiveSelector)
+    if (owner && event.currentTarget.contains(owner)) return
+    // Dragging across a cell to copy some text is not a click on the row.
+    const selection = window.getSelection()
+    if (
+      selection &&
+      !selection.isCollapsed &&
+      event.currentTarget.contains(selection.anchorNode)
+    ) {
+      return
+    }
+    rowAction()
+  }
+
   return (
     <tr
       data-slot="table-row"
       className={cn(
-        "border-0 transition-colors has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-0 transition-colors has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted data-[state=selected]:hover:bg-muted",
+        rowAction && "cursor-pointer hover:bg-muted/50",
         // Only some tables make their rows focusable, but where they do the
         // row has to show it. Inside, because a wide table scrolls and a `<tr>`
         // cannot paint a ring — see `focusRingInset`.
         focusRingInset,
         className
       )}
+      onClick={rowAction || onClick ? handleClick : undefined}
       {...props}
     />
   )
@@ -157,7 +225,10 @@ function TableCell({ className, column, ...props }: TableCellProps) {
       className={cn(
         "px-5 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         column === "main" && "min-w-[320px]",
-        column === "meta" && "whitespace-nowrap text-left",
+        // "actions" is "meta" that a clickable row keeps its hands off. It
+        // looks identical; the difference is only who owns the click.
+        (column === "meta" || column === "actions") &&
+          "whitespace-nowrap text-left",
         column === "mutedMeta" &&
           "whitespace-nowrap text-left text-xs text-muted-foreground sm:text-sm",
         column === "preview" &&

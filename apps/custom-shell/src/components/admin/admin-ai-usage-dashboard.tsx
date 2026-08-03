@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CpuIcon,
   HashIcon,
@@ -263,6 +263,7 @@ function PersonTable({
   onSearch: (text: string) => void
   defaultPageSize: number
 }) {
+  const navigate = useNavigate()
   // The box types instantly; the address (and the filter) settles just after,
   // exactly like the other dashboards' search fields.
   const [text, setText] = useSearchBoxText(searchText, onSearch)
@@ -320,39 +321,60 @@ function PersonTable({
       emptyColSpan={7}
       footer={footer}
     >
-      {visible.map((row) => (
-        <TableRow key={row.userId ?? "deleted"} className="group">
-          <TableCell column="main">
-            {row.userId ? (
-              <Link
-                to="/admin/users/$userId"
-                params={{ userId: row.userId }}
-                className="block max-w-full truncate text-sm font-medium group-hover:underline"
-                title={row.email}
-              >
-                {row.name}
-              </Link>
-            ) : (
-              // Nobody to open: the account is gone, only its spend is left.
-              <span className="text-sm font-medium text-muted-foreground">
-                {row.name}
-              </span>
-            )}
-          </TableCell>
-          <TableCell column="mutedMeta">{row.calls.toLocaleString()}</TableCell>
-          <TableCell column="mutedMeta">{formatTokens(row.tokens)}</TableCell>
-          <TableCell column="meta">{formatMoney(row.costCents)}</TableCell>
-          <TableCell column="mutedMeta" className="hidden lg:table-cell">
-            {formatShare(row.costCents, totalCostCents)}
-          </TableCell>
-          <TableCell column="mutedMeta" className="hidden md:table-cell">
-            {formatAllowance(row)}
-          </TableCell>
-          <TableCell column="mutedMeta" className="hidden sm:table-cell">
-            {formatDate(row.lastUsedAt)}
-          </TableCell>
-        </TableRow>
-      ))}
+      {visible.map((row) => {
+        // Pulled out so the row's click and its link share one narrowed value.
+        const userId = row.userId
+
+        return (
+          <TableRow
+            key={userId ?? "deleted"}
+            className="group"
+            // A deleted account has nowhere to go, so that row stays flat.
+            rowAction={
+              userId
+                ? () =>
+                    void navigate({ to: "/admin/users", search: { q: row.email } })
+                : undefined
+            }
+          >
+            <TableCell column="main">
+              {userId ? (
+                // Accounts are windows on the Users table now, not pages of
+                // their own, so this hands that table their email — which is
+                // what its search already matches on — and one more click
+                // opens them.
+                <Link
+                  to="/admin/users"
+                  search={{ q: row.email }}
+                  className="block max-w-full truncate text-sm font-medium group-hover:underline"
+                  title={row.email}
+                >
+                  {row.name}
+                </Link>
+              ) : (
+                // Nobody to open: the account is gone, only its spend is left.
+                <span className="text-sm font-medium text-muted-foreground">
+                  {row.name}
+                </span>
+              )}
+            </TableCell>
+            <TableCell column="mutedMeta">
+              {row.calls.toLocaleString()}
+            </TableCell>
+            <TableCell column="mutedMeta">{formatTokens(row.tokens)}</TableCell>
+            <TableCell column="meta">{formatMoney(row.costCents)}</TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {formatShare(row.costCents, totalCostCents)}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden md:table-cell">
+              {formatAllowance(row)}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden sm:table-cell">
+              {formatDate(row.lastUsedAt)}
+            </TableCell>
+          </TableRow>
+        )
+      })}
     </DashboardTable>
   )
 }

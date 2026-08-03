@@ -88,30 +88,30 @@ const listAccountsFn = createServerFn({ method: "GET" })
   })
 
 /**
- * Users page data in one request: the first page of accounts plus the plans.
+ * Users page data in one request: the first page of accounts.
  *
  * The page size is not passed in — the loader cannot know the configured
  * rows-per-page without another round trip, so it is read here and sent back,
  * which is what keeps the rows on screen and the footer's "1-10 of N" agreeing
  * on first paint.
+ *
+ * No plans: the account window loads its own, so the list does not fetch them
+ * on every page turn against the chance that somebody opens one.
  */
 const loadAdminUsersPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(listQuerySchema.omit({ pageSize: true }))
   .handler(async ({ data }) => {
-    const [pageSize, plans] = await Promise.all([
-      readDashboardRowsPerPage(),
-      listPlans(),
-    ])
+    const pageSize = await readDashboardRowsPerPage()
     const accounts = await listAccounts({ ...data, pageSize })
 
-    return { accounts, pageSize, plans: toAssignablePlans(plans) }
+    return { accounts, pageSize }
   })
 
 /**
- * One account's page in one request: the person, their plan, their storage,
- * their feedback and what admins have done to them, plus the plans so the
- * account modal opens from here too.
+ * One account's window in one request: the person, their plan and their
+ * storage, plus the plans that can be granted — so the window needs nothing
+ * from whoever opened it beyond an id.
  */
 const loadAccountDetailFn = createServerFn({ method: "GET" })
   .middleware([adminGet])

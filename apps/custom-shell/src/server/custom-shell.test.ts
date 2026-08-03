@@ -5540,8 +5540,6 @@ describe("custom shell account detail", () => {
       trialEndsAt: null,
     })
     expect(detail.storage).toEqual({ files: 0, bytes: 0 })
-    expect(detail.feedback).toEqual([])
-    expect(detail.feedbackTruncated).toBe(false)
   })
 
   it("says so instead of guessing when the account is gone", async () => {
@@ -5552,7 +5550,7 @@ describe("custom shell account detail", () => {
     )
   })
 
-  it("adds up storage and feedback from the same rows the dashboards read", async () => {
+  it("adds up storage from the same rows the media dashboard reads", async () => {
     const db = database as unknown as CustomShellDb
     const userId = await seedPerson("busy@internal.dev")
     const voterId = await seedPerson("voter@internal.dev")
@@ -5598,40 +5596,9 @@ describe("custom shell account detail", () => {
       },
     ])
 
-    const feedbackId = uuid()
-    await database.insert(customShellFeedback).values({
-      id: feedbackId,
-      userId,
-      type: "bug_report",
-      message: "The export button does nothing",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    await database.insert(customShellFeedbackVotes).values([
-      { id: uuid(), feedbackId, userId, createdAt: timestamp },
-      { id: uuid(), feedbackId, userId: voterId, createdAt: timestamp },
-    ])
-    await database.insert(customShellFeedbackComments).values({
-      id: uuid(),
-      feedbackId,
-      userId: voterId,
-      message: "Same here",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-
     const detail = await loadAccountDetail(userId, db)
 
     expect(detail.storage).toEqual({ files: 2, bytes: 1000 })
-    expect(detail.feedback).toHaveLength(1)
-    // Two votes and one reply, counted once each — the two joins fan the row
-    // out, so a plain count would report four of everything.
-    expect(detail.feedback[0]).toMatchObject({
-      type: "bug_report",
-      message: "The export button does nothing",
-      votes: 2,
-      comments: 1,
-    })
   })
 
   it("counts a granted plan as paid, with the date it runs out", async () => {

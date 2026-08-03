@@ -241,7 +241,11 @@ export function ChangelogAdminDashboard({
         footer={footer}
       >
         {paginatedEntries.map((entry) => (
-          <TableRow key={entry.id} className="group">
+          <TableRow
+            key={entry.id}
+            className="group"
+            rowAction={() => setEditing(entry)}
+          >
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(entry.id)}
@@ -273,7 +277,7 @@ export function ChangelogAdminDashboard({
             </TableCell>
             {/* A draft has no date; `formatDate` writes the em dash for it. */}
             <TableCell column="meta">{formatDate(entry.publishedAt)}</TableCell>
-            <TableCell column="meta">
+            <TableCell column="actions">
               <div className="flex items-center">
                 <Button
                   type="button"

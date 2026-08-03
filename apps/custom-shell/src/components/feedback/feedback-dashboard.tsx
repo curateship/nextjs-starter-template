@@ -507,7 +507,11 @@ export function FeedbackDashboard({
         }}
       >
         {paginatedFeedback.map((item) => (
-          <TableRow key={item.id} className="group">
+          <TableRow
+            key={item.id}
+            className="group"
+            rowAction={() => setEditingFeedback(item)}
+          >
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(item.id)}
@@ -581,7 +585,7 @@ export function FeedbackDashboard({
                 {item.vote_count}
               </Badge>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="actions">
               <div className="flex items-center">
                 <Button
                   type="button"
