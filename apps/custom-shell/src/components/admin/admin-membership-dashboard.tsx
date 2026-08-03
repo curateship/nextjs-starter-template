@@ -43,8 +43,8 @@ import { pageGutter } from "@/lib/shell-gutter"
  *
  * Two columns. On the left, the short list of things somebody has to act on and
  * the timeline of what has been happening to people's memberships. On the right,
- * the numbers, money nearest the top — the plan card and the chargebacks are
- * what cost or make money, so they come before the joining chart.
+ * the joining chart leads — it is the one worth a glance on the way past — then
+ * the plan card and the chargebacks, which are what cost or make money.
  *
  * Blocks that only repeated a figure already on screen were dropped rather than
  * carried across: revenue per paying person and paying people are both in the
@@ -79,8 +79,8 @@ export function AdminMembershipDashboard({
           above it. Below `xl` the columns stack into one and the page goes back
           to scrolling, which is the right answer on a narrow screen.
 
-          Every block still needs `shrink-0` so the ones meant to keep their
-          natural height do; the two that fill say so themselves. */}
+          `shrink-0` is the narrow-screen behaviour; from `xl` each block says
+          for itself what share of the column it takes. */}
       <div
         className="grid shrink-0 items-start xl:min-h-0 xl:shrink xl:basis-0 xl:grow xl:grid-cols-[minmax(0,9fr)_minmax(0,11fr)] xl:items-stretch"
         style={gutter}
@@ -100,7 +100,18 @@ export function AdminMembershipDashboard({
         </div>
 
         <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
-          <ByPlanCard summary={summary} />
+          {/* The three blocks split the column 40 / 30 / 30, so it is full at
+              any window height without a single pinned number: `basis-0` makes
+              each one's share its grow figure, 4 against 3 against 3. The chart
+              leads and gets the biggest share because it is the one worth a
+              glance on the way past. Each keeps a floor, and below that the
+              page scrolls rather than squeezing them into nothing. */}
+          <JoiningChart summary={summary} />
+          <ByPlanCard
+            summary={summary}
+            className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]"
+            fillHeight
+          />
 
           {/* Only once there is a history to show — an empty table on a screen
               nobody has ever had a chargeback on is just noise. The id is what
@@ -109,15 +120,10 @@ export function AdminMembershipDashboard({
             <ChargebacksTable
               disputes={summary.disputes.recent}
               total={summary.disputes.total}
-              // A floor that still leaves room for rows. The toolbar and the
-              // footer eat about 100px of it, so anything less than this is a
-              // heading and a total with a sliver of table between them.
-              className="xl:min-h-60 xl:flex-1"
+              className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]"
               fillHeight
             />
           ) : null}
-
-          <JoiningChart summary={summary} />
         </div>
       </div>
     </>
@@ -166,7 +172,17 @@ function JoiningChart({ summary }: { summary: MembershipSummary }) {
     <ChartCard
       icon={LineChartIcon}
       title="People joining"
-      className="shrink-0 xl:min-h-56 xl:shrink xl:basis-0 xl:grow"
+      className="shrink-0 xl:min-h-56 xl:shrink xl:basis-0 xl:grow-[4]"
+      meta={
+        <span className="whitespace-nowrap">
+          <span className="font-mono text-base font-semibold tabular-nums text-foreground">
+            {total.toLocaleString()}
+          </span>{" "}
+          {showingYear
+            ? "joined in the last 12 months"
+            : "joined so far this month"}
+        </span>
+      }
       legend={
         <div className="hidden items-center gap-4 lg:flex">
           <LegendDot
@@ -197,20 +213,11 @@ function JoiningChart({ summary }: { summary: MembershipSummary }) {
         </Select>
       }
     >
-      <div>
-        <p className="font-mono text-2xl leading-tight font-semibold tracking-tight tabular-nums">
-          {total.toLocaleString()}
-        </p>
-        <p className="text-[10px] tracking-wider text-muted-foreground uppercase sm:text-xs">
-          {showingYear
-            ? "joined in the last 12 months"
-            : "joined so far this month"}
-        </p>
-      </div>
-      {/* From `xl` the plot gives up its fixed height and takes what the column
-          has left, down to a floor it stops shrinking at — a chart squeezed
-          past that is unreadable, and the column is better off scrolling. */}
-      <div className="h-[200px] w-full min-w-0 sm:h-[240px] lg:h-[280px] xl:h-auto xl:min-h-[150px] xl:flex-1">
+      {/* The total moved up beside the title. As a block of its own it took
+          about 90px off the top of the card — on a card sized to fit the page
+          that came straight out of the plot, which is the part worth looking
+          at. The card is nearly all chart now. */}
+      <div className="h-[200px] w-full min-w-0 sm:h-[240px] lg:h-[280px] xl:h-auto xl:min-h-[120px] xl:flex-1">
         <ChartContainer config={config} className="h-full w-full">
           <ComposedChart data={data}>
             <CartesianGrid strokeDasharray="0" vertical={false} />

@@ -58,7 +58,11 @@ export function ChartCard({
           </CardAction>
         ) : null}
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-4 py-4 sm:px-5 sm:py-5">
+      {/* `min-h-0` so a card given a height can pass it on: without it this box
+          refuses to go below the plot's own height, and a chart told to fill a
+          column just ignores it. On a card left to size itself it changes
+          nothing. */}
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 py-4 sm:px-5 sm:py-5">
         {children}
       </CardContent>
     </Card>

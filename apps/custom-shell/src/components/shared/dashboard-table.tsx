@@ -172,7 +172,10 @@ export function DashboardTable(props: DashboardTableProps) {
 
   return (
     <TableSurface
-      className={cn(fillHeight && "flex min-h-0 flex-col", className)}
+      // `h-full` to take the height the column hands down, `min-h-0` so it can
+      // pass a smaller one on. Where it stops shrinking is set on the rows
+      // themselves, further in.
+      className={cn(fillHeight && "flex h-full min-h-0 flex-col", className)}
     >
       <DashboardToolbar>
         <DashboardToolbarTitle>
@@ -211,20 +214,19 @@ export function DashboardTable(props: DashboardTableProps) {
           {props.content}
         </div>
       ) : (
-        // Filling drops the `ScrollArea` wrapper rather than nesting inside it.
-        // Radix puts the viewport's contents in a `display: table` box, and a
-        // height does not resolve through one of those — the rows would clip
-        // with no way to reach them. `Table` already scrolls in a box of its
-        // own, which is also what a sticky heading sticks to, so when it has a
-        // height to fill that box is the only one needed.
         <TableRows fill={fillHeight}>
           <Table
             containerClassName={cn(
               fillHeight &&
+                // The `ScrollArea` around it is the only scrolling box now, so
+                // this one stops being one. Two nested scrollers would fight,
+                // and the inner one would be what a sticky heading sticks to —
+                // which here is the wrong one.
+                //
                 // The headings ride along at the top of the rows. They need an
                 // opaque fill of their own — the row's `bg-muted/50` is
                 // see-through, so rows would slide up behind the words.
-                "h-full [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted [&_thead_th]:shadow-[inset_0_-1px_0_var(--border)]"
+                "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted [&_thead_th]:shadow-[inset_0_-1px_0_var(--border)]"
             )}
           >
             {props.header}
@@ -263,10 +265,18 @@ function TableRows({
   fill: boolean
   children: React.ReactNode
 }) {
-  if (fill) return <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-
   return (
-    <ScrollArea className="w-full">
+    <ScrollArea
+      className={cn("w-full", fill && "min-h-0 flex-1")}
+      // The height goes on the viewport, never the frame — see `ScrollArea`.
+      // `min-h-24` is where it stops giving height back: squeezed under about
+      // two rows this is a heading and a total with a sliver between them, and
+      // the page is better off scrolling. Radix wraps the viewport's contents
+      // in a `display: table` box, which neither resolves a height nor lets a
+      // heading stick, so it is put back to a plain block — and that has to
+      // beat an inline style, hence the `!`.
+      viewportClassName={cn(fill && "h-full min-h-24 [&>div]:block!")}
+    >
       {children}
       <ScrollBar orientation="horizontal" />
     </ScrollArea>

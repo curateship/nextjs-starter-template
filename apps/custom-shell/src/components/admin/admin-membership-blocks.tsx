@@ -48,7 +48,16 @@ type SortColumn = "plan" | "subscribers" | "monthly"
  * second one nested inside the first would draw its card chrome twice, which is
  * why the people tab is passed as `content` rather than as its own card.
  */
-export function ByPlanCard({ summary }: { summary: MembershipSummary }) {
+export function ByPlanCard({
+  summary,
+  className,
+  fillHeight = false,
+}: {
+  summary: MembershipSummary
+  className?: string
+  /** Take the height the column leaves and scroll the rows inside it. */
+  fillHeight?: boolean
+}) {
   const [tab, setTab] = React.useState<"revenue" | "people">("revenue")
   // Biggest earner first, which is the order the server already sends.
   const [sort, setSort] = React.useState<SortColumn>("monthly")
@@ -94,7 +103,7 @@ export function ByPlanCard({ summary }: { summary: MembershipSummary }) {
       <DashboardTable
         title="By plan"
         icon={<CreditCardIcon />}
-        className="shrink-0"
+        className={cn("shrink-0", className)}
         count={peoplePlans.length}
         controls={controls}
         content={<PeopleByPlan plans={peoplePlans} />}
@@ -116,7 +125,8 @@ export function ByPlanCard({ summary }: { summary: MembershipSummary }) {
     <DashboardTable
       title="By plan"
       icon={<CreditCardIcon />}
-      className="shrink-0"
+      className={cn(fillHeight ? undefined : "shrink-0", className)}
+      fillHeight={fillHeight}
       count={planCount}
       controls={controls}
       header={
