@@ -1,10 +1,15 @@
 import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "./error-message"
 
-import { loadMembershipSummary, type MembershipSummary } from "@/server/membership"
+import {
+  loadMembershipPage,
+  type MembershipActivityItem,
+  type MembershipPage,
+  type MembershipSummary,
+} from "@/server/membership"
 import { adminGet } from "@/server/guards"
 
-export type { MembershipSummary }
+export type { MembershipActivityItem, MembershipPage, MembershipSummary }
 
 export const getMembershipErrorMessage = createErrorMessage(
   {},
@@ -14,7 +19,7 @@ export const getMembershipErrorMessage = createErrorMessage(
 const loadMembershipFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async () => {
-    return loadMembershipSummary()
+    return loadMembershipPage()
   })
 
 export function loadMembership() {

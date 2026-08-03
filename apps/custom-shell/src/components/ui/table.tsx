@@ -68,11 +68,23 @@ const rowInteractiveSelector = [
   '[data-column="actions"]',
 ].join(", ")
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /**
+   * Classes for the box the table scrolls inside. A max-height belongs here
+   * and nowhere else: this box is already the scroll container, so it is what
+   * a sticky heading sticks to. Cap anything further out and the headings
+   * scroll away with the rows.
+   */
+  containerClassName?: string
+}) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"

@@ -42,7 +42,7 @@ export function buildMembershipFigures(
     },
     {
       key: "paying",
-      to: "/admin/billing",
+      to: "/admin/membership",
       icon: BarChart3Icon,
       label: "Paying",
       value: revenue.paidSubscribers.toLocaleString(),
@@ -72,12 +72,15 @@ export function buildMembershipFigures(
   ]
 }
 
-/** "12 members, 2 admins" — and the suspended, only while there are any. */
+/** "12 members, 2 admins, 10 verified" — the suspended only while there are any. */
 function peopleFooter(summary: MembershipSummary) {
   const parts = [
     `${summary.members} ${plural(summary.members, "member")}`,
     `${summary.admins} ${plural(summary.admins, "admin")}`,
   ]
   if (summary.suspended > 0) parts.push(`${summary.suspended} suspended`)
+  // Carried over from the Revenue page's own stat cards when that page was
+  // folded in here, so the figure did not go missing with the page.
+  parts.push(`${summary.revenue.verifiedUsers} verified`)
   return parts.join(", ")
 }

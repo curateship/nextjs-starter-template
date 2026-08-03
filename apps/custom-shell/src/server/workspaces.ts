@@ -69,11 +69,19 @@ function overviewLink(children?: ShellChildItem[]): ShellItem {
 }
 
 /**
- * Everything about members and money hangs off one parent. The three pages
- * already existed on their own; this is the section they now live under.
+ * Everything about members and money hangs off one parent. The pages already
+ * existed on their own; this is the section they now live under.
  */
 const MEMBERSHIP_LINK_ID = "item-admin-membership"
 const MEMBERSHIP_HREF = "/admin/membership"
+
+/**
+ * Kept after the link itself was retired. The Revenue page was folded into the
+ * Membership page it hung under, and `removeRevenueLink` still has to recognise
+ * it in a sidebar saved before that happened.
+ */
+const REVENUE_LINK_ID = "item-admin-revenue"
+const REVENUE_HREF = "/admin/billing"
 
 function membershipLink(children: ShellChildItem[]): ShellItem {
   return {
@@ -104,23 +112,24 @@ function membershipChildLinks(): ShellChildItem[] {
       icon: "package",
       roles: ["admin"],
     },
-    {
-      id: "item-admin-revenue",
-      label: "Revenue",
-      href: "/admin/billing",
-      icon: "barChart3",
-      roles: ["admin"],
-    },
   ]
 }
 
 /**
- * The ids the upgrade below looks for, in the order they belong under
- * Membership — read off the links themselves so the two can never disagree.
+ * The ids `groupMembershipLinks` looks for, in the order they belong under
+ * Membership.
+ *
+ * Written out rather than read off `membershipChildLinks`, because Revenue is
+ * still on this list after being dropped from that one. That step runs on
+ * sidebars saved back when Revenue was its own page, and it has to gather the
+ * link where it finds it; `removeRevenueLink`, further down the chain, is what
+ * takes it away again.
  */
-const MEMBERSHIP_CHILD_IDS: readonly string[] = membershipChildLinks().map(
-  (child) => child.id
-)
+const MEMBERSHIP_CHILD_IDS: readonly string[] = [
+  "item-admin-users",
+  "item-admin-plans",
+  REVENUE_LINK_ID,
+]
 
 const AI_USAGE_LINK_ID = "item-admin-ai-usage"
 const AI_USAGE_HREF = "/admin/ai"
@@ -257,7 +266,7 @@ const AUTOMATIONS_LINK: ShellItem = {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 9
+export const NAVIGATION_VERSION = 10
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -600,6 +609,11 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 9) {
     sections = addTrafficLink(sections)
+  }
+  // After `groupMembershipLinks` has had its turn above, so a Revenue link that
+  // step just tucked under Membership is taken out again rather than missed.
+  if (settings.navVersion < 10) {
+    sections = removeRevenueLink(sections)
   }
 
   const [updated] = await database
@@ -1220,6 +1234,52 @@ export function removeAuditLinks(sections: ShellSection[]): ShellSection[] {
   }))
 
   return changed ? result : sections
+}
+
+/**
+ * Takes the Revenue link out wherever it sits.
+ *
+ * Its page was folded into the Membership page directly above it — same tables,
+ * same numbers — and `/admin/billing` now only redirects there. Two sidebar
+ * links landing on one screen is worse than one, so the link goes.
+ *
+ * Matched by id or by address, and inside children as well as at the top level,
+ * so a hand-rebuilt link is caught too. Runs once per workspace on the
+ * navVersion stamp, which is what stops it fighting an admin who later makes
+ * their own link to `/admin/billing` on purpose.
+ */
+export function removeRevenueLink(sections: ShellSection[]): ShellSection[] {
+  let changed = false
+  const isRevenue = (link: { id: string; href?: string }) =>
+    link.id === REVENUE_LINK_ID || link.href === REVENUE_HREF
+
+  const result = sections.map((section) => ({
+    ...section,
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isRevenue(entry)) {
+        changed = true
+        return []
+      }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isRevenue(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      // An emptied `children` is dropped rather than left as a key nothing
+      // asked for — a parent with no children reads as a plain link, which is
+      // what Membership becomes if somebody had already removed the other two.
+      return [
+        children.length ? { ...entry, children } : stripChildren(entry),
+      ]
+    }),
+  }))
+
+  return changed ? result : sections
+}
+
+/** The same link with no `children` key at all, rather than an empty one. */
+function stripChildren(item: ShellItem): ShellItem {
+  const { children: _children, ...rest } = item
+  return rest
 }
 
 const WHATS_NEW_ID = "item-changelog-whats-new"

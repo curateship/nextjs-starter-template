@@ -15,7 +15,12 @@ import { cn } from "@/lib/utils"
  * The card only draws what it is handed. Which rows belong on it is a question
  * about a page's own numbers, so the rules live apart from it —
  * `buildOverviewNeedsYou` puts the Overview's list together out of the four
- * feeds' rules and its own.
+ * feeds' rules and its own, and `buildMembershipNeedsYou` does the same for the
+ * Membership page's accounts-and-money list.
+ *
+ * Two pages carry one of these, so the heading is settable. Without that they
+ * would be two cards with the same title and different rows, which reads as the
+ * same card gone wrong rather than as two different lists.
  */
 
 export type NeedsYouItem = {
@@ -27,21 +32,29 @@ export type NeedsYouItem = {
   to: string
   /** Set when the row is about one record the page can open on arrival. */
   search?: { open: string }
+  /** Set when the row points at a block further down the same page. */
+  hash?: string
 }
 
 export function NeedsYouCard({
   items,
+  title = "Needs you",
+  icon,
   className,
 }: {
   items: NeedsYouItem[]
+  /** Defaults to "Needs you" — set it when a page carries a narrower list. */
+  title?: string
+  /** Shown instead of the warning triangle while there are rows. */
+  icon?: React.ComponentType<{ className?: string }>
   className?: string
 }) {
   return (
     <FeedCard className={className}>
       <CardTop
-        icon={items.length ? TriangleAlertIcon : CheckCircle2Icon}
+        icon={items.length ? (icon ?? TriangleAlertIcon) : CheckCircle2Icon}
         iconClassName={items.length ? "text-amber-500 dark:text-amber-400" : ""}
-        title="Needs you"
+        title={title}
         meta={
           items.length
             ? `${items.length} ${plural(items.length, "thing")}`
@@ -71,6 +84,7 @@ export function NeedsYouCard({
                 <Link
                   to={item.to}
                   search={item.search}
+                  hash={item.hash}
                   className={cn(titleLink, "max-w-full text-sm font-medium")}
                   title={item.title}
                 >
@@ -84,7 +98,7 @@ export function NeedsYouCard({
                 </p>
               </div>
               <Button asChild variant={index === 0 ? "default" : "outline"}>
-                <Link to={item.to} search={item.search}>
+                <Link to={item.to} search={item.search} hash={item.hash}>
                   {item.action}
                 </Link>
               </Button>

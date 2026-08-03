@@ -115,6 +115,18 @@ type DashboardTableBaseProps = {
    * its last rows off the bottom instead of scrolling.
    */
   className?: string
+  /**
+   * Take whatever height the column has left and scroll the rows inside it,
+   * rather than growing to fit them and pushing the page down. The toolbar and
+   * the footer stay put, and the column headings stick to the top of the rows
+   * — a heading that scrolled away would leave unlabelled columns.
+   *
+   * The column has to be a flex one that is itself bounded, or there is no
+   * leftover height to take and this does nothing. Only for a table sharing a
+   * screen meant to fit; a page whose whole job is one table should keep
+   * scrolling with the page.
+   */
+  fillHeight?: boolean
 }
 
 type DashboardTableProps = DashboardTableBaseProps & (
@@ -150,6 +162,7 @@ export function DashboardTable(props: DashboardTableProps) {
     countsPending = false,
     busy = false,
     className,
+    fillHeight = false,
   } = props
 
   const busyClassName = cn(
@@ -158,7 +171,9 @@ export function DashboardTable(props: DashboardTableProps) {
   )
 
   return (
-    <TableSurface className={className}>
+    <TableSurface
+      className={cn(fillHeight && "flex min-h-0 flex-col", className)}
+    >
       <DashboardToolbar>
         <DashboardToolbarTitle>
           {icon ? (
@@ -196,8 +211,22 @@ export function DashboardTable(props: DashboardTableProps) {
           {props.content}
         </div>
       ) : (
-        <ScrollArea className="w-full">
-          <Table>
+        // Filling drops the `ScrollArea` wrapper rather than nesting inside it.
+        // Radix puts the viewport's contents in a `display: table` box, and a
+        // height does not resolve through one of those — the rows would clip
+        // with no way to reach them. `Table` already scrolls in a box of its
+        // own, which is also what a sticky heading sticks to, so when it has a
+        // height to fill that box is the only one needed.
+        <TableRows fill={fillHeight}>
+          <Table
+            containerClassName={cn(
+              fillHeight &&
+                // The headings ride along at the top of the rows. They need an
+                // opaque fill of their own — the row's `bg-muted/50` is
+                // see-through, so rows would slide up behind the words.
+                "h-full [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted [&_thead_th]:shadow-[inset_0_-1px_0_var(--border)]"
+            )}
+          >
             {props.header}
             <TableBody aria-busy={busy || undefined} className={busyClassName}>
               {props.isEmpty ? (
@@ -214,12 +243,33 @@ export function DashboardTable(props: DashboardTableProps) {
               )}
             </TableBody>
           </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        </TableRows>
       )}
 
       <DashboardTableFooter footer={footer} countsPending={countsPending} />
     </TableSurface>
+  )
+}
+
+/**
+ * The rows, either in the app's own scroll frame (the usual case, where the
+ * table is as tall as its rows) or bare, when it is filling a column and the
+ * table's own box does the scrolling.
+ */
+function TableRows({
+  fill,
+  children,
+}: {
+  fill: boolean
+  children: React.ReactNode
+}) {
+  if (fill) return <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+
+  return (
+    <ScrollArea className="w-full">
+      {children}
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 }
 

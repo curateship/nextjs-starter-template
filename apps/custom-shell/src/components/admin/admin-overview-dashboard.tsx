@@ -110,9 +110,8 @@ export function AdminOverviewDashboard({
         </div>
 
         <div className="flex min-w-0 flex-col" style={gutter}>
-          <JoiningCard overview={overview} />
+          <PeopleCard overview={overview} />
           <TrafficCard />
-          <MembershipCard overview={overview} />
           <AutomationsCard automations={overview.automations} />
         </div>
       </div>
@@ -196,8 +195,8 @@ function buildOverviewNeedsYou({
       icon: CreditCardIcon,
       title: `${membership.revenue.cancelling.toLocaleString()} ${plural(membership.revenue.cancelling, "subscription")} ending`,
       detail: "They keep it until their period runs out",
-      action: "Open billing",
-      to: "/admin/billing",
+      action: "Open membership",
+      to: "/admin/membership",
     })
   }
 
@@ -205,46 +204,62 @@ function buildOverviewNeedsYou({
 }
 
 // ---------------------------------------------------------------------------
-// Who is arriving: the shape of it over the month, and the newest few by name.
-// One card, because they answer the same question at two zoom levels.
+// Who is in the app: the shape of arrivals over the month, the newest few by
+// name, and who sits on which plan. One card with tabs, because all three
+// answer the same question at different zoom levels.
 
 const joiningConfig: ChartConfig = {
   current: { label: "This month", color: "var(--primary)" },
   previous: { label: "Last month", color: shade(70) },
 }
 
-function JoiningCard({ overview }: { overview: AdminOverview }) {
-  const [tab, setTab] = React.useState<"joining" | "members">("joining")
+type PeopleTab = "joining" | "members" | "plans"
+
+const PEOPLE_TABS: {
+  value: PeopleTab
+  tab: string
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+}[] = [
+  { value: "joining", tab: "Joining", icon: LineChartIcon, title: "People joining" },
+  { value: "members", tab: "Newest", icon: UsersIcon, title: "Newest members" },
+  { value: "plans", tab: "Plans", icon: LayersIcon, title: "Membership" },
+]
+
+function PeopleCard({ overview }: { overview: AdminOverview }) {
+  const [tab, setTab] = React.useState<PeopleTab>("joining")
   const { membership } = overview
-  const showingChart = tab === "joining"
+  const everyone = membership.revenue.totalUsers
+  const current = PEOPLE_TABS.find((entry) => entry.value === tab) ?? PEOPLE_TABS[0]
 
   return (
     <FeedCard>
       <CardTop
-        icon={showingChart ? LineChartIcon : UsersIcon}
-        title={showingChart ? "People joining" : "Newest members"}
+        icon={current.icon}
+        title={current.title}
         meta={
-          showingChart
+          tab === "joining"
             ? `${membership.newLastMonth.toLocaleString()} last month`
-            : `${membership.revenue.totalUsers.toLocaleString()} ${plural(membership.revenue.totalUsers, "account")} in all`
+            : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
         }
         action={
           <Tabs
             value={tab}
-            onValueChange={(value) => setTab(value as "joining" | "members")}
+            onValueChange={(value) => setTab(value as PeopleTab)}
           >
             <TabsList>
-              <TabsTrigger value="joining">Joining</TabsTrigger>
-              <TabsTrigger value="members">Newest</TabsTrigger>
+              {PEOPLE_TABS.map((entry) => (
+                <TabsTrigger key={entry.value} value={entry.value}>
+                  {entry.tab}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </Tabs>
         }
       />
-      {showingChart ? (
-        <JoiningChart overview={overview} />
-      ) : (
-        <NewestMembers overview={overview} />
-      )}
+      {tab === "joining" ? <JoiningChart overview={overview} /> : null}
+      {tab === "members" ? <NewestMembers overview={overview} /> : null}
+      {tab === "plans" ? <PlanMembership overview={overview} /> : null}
     </FeedCard>
   )
 }
@@ -468,20 +483,15 @@ function TrafficCard() {
 }
 
 // ---------------------------------------------------------------------------
-// Right column: who is on which plan.
+// The "Plans" tab of the people card: who is on which plan.
 
-function MembershipCard({ overview }: { overview: AdminOverview }) {
+function PlanMembership({ overview }: { overview: AdminOverview }) {
   const { membership } = overview
   const everyone = membership.revenue.totalUsers
   const plans = membership.planMembership
 
   return (
-    <Card className="flex min-w-0 flex-col gap-0 py-0">
-      <CardTop
-        icon={LayersIcon}
-        title="Membership"
-        meta={`${everyone.toLocaleString()} ${plural(everyone, "account")} in all`}
-      />
+    <>
       <CardContent className="flex flex-col gap-4 py-4 sm:px-5 sm:py-5">
         {plans.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
@@ -523,7 +533,7 @@ function MembershipCard({ overview }: { overview: AdminOverview }) {
         <FooterFigure label="Members" value={membership.members} />
         <FooterFigure label="Suspended" value={membership.suspended} />
       </CardFooter>
-    </Card>
+    </>
   )
 }
 
