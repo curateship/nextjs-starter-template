@@ -96,6 +96,34 @@ function describeDeletion({
   return parts.length ? `${parts.join(", ")}.` : "Nothing to delete."
 }
 
+/**
+ * What a delete confirmation says about somebody's paid plan.
+ *
+ * Deleting cancels it there and then, and restoring the account does not buy it
+ * back, so both have to be on screen before the button is pressed rather than
+ * discovered afterwards.
+ */
+function describePaidPlans(paid: number) {
+  if (paid === 0) {
+    return ""
+  }
+  if (paid === 1) {
+    return " One of them is on a paid plan; it is cancelled straight away and does not come back if the account is restored."
+  }
+
+  return ` ${paid} of them are on paid plans; those are cancelled straight away and do not come back if the accounts are restored.`
+}
+
+function describeAccountDeletion(account: AccountRow) {
+  const base = isPendingDeletion(account)
+    ? `${account.name} (${account.email}) and everything they own is removed now, without waiting out the rest of the restore window. This cannot be undone.`
+    : `${account.name} (${account.email}) is signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days, after which they and everything they own are gone for good.`
+
+  return account.planIsPaid
+    ? `${base} Their paid plan is cancelled straight away, and restoring the account does not bring it back.`
+    : base
+}
+
 export function AdminUsersDashboard({
   initialAccounts,
   initialTotal,
@@ -264,6 +292,17 @@ export function AdminUsersDashboard({
           (account) => selectedIds.has(account.id) && isPendingDeletion(account)
         )
         .map((account) => account.id),
+    [accounts, selectedIds]
+  )
+
+  // How many of the ticked rows are paying, so the bulk confirmation can say
+  // how much money it is about to stop. Selection is cleared whenever the list
+  // changes, so every ticked row is on the page and countable here.
+  const selectedPaidCount = React.useMemo(
+    () =>
+      accounts.filter(
+        (account) => selectedIds.has(account.id) && account.planIsPaid
+      ).length,
     [accounts, selectedIds]
   )
 
@@ -614,13 +653,7 @@ export function AdminUsersDashboard({
             ? "Delete this account for good?"
             : "Delete this account?"
         }
-        description={
-          !deleteTarget
-            ? null
-            : isPendingDeletion(deleteTarget)
-              ? `${deleteTarget.name} (${deleteTarget.email}) and everything they own is removed now, without waiting out the rest of the restore window. This cannot be undone.`
-              : `${deleteTarget.name} (${deleteTarget.email}) is signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days, after which they and everything they own are gone for good.`
-        }
+        description={deleteTarget ? describeAccountDeletion(deleteTarget) : null}
         confirmLabel="Delete account"
         loading={deleting}
         onConfirm={async () => {
@@ -697,7 +730,7 @@ export function AdminUsersDashboard({
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "account" : "accounts"}?`}
-        description={`Those people are signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days. Any that were already scheduled for deletion are removed for good now.`}
+        description={`Those people are signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days. Any that were already scheduled for deletion are removed for good now.${describePaidPlans(selectedPaidCount)}`}
         confirmLabel="Delete accounts"
         loading={massDeleting}
         onConfirm={async () => {

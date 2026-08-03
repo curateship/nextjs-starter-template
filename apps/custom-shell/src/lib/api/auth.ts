@@ -15,6 +15,7 @@ import {
   restoreOwnAccount,
 } from "@/server/account-deletion"
 import { appUrlFor } from "@/server/app-url"
+import { cancelSubscriptionsForDeletion } from "@/server/billing"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import { db } from "@/server/db"
 import {
@@ -193,6 +194,8 @@ const authErrorMessages: Record<string, string> = {
   PASSKEY_FAILED: "That passkey could not be checked. Please try again.",
   PASSKEY_EXISTS: "That passkey is already saved to an account.",
   PASSKEY_NOT_FOUND: "That passkey is already removed.",
+  SUBSCRIPTION_CANCEL_FAILED:
+    "We could not cancel your paid plan, so your account was not deleted. Please try again in a moment.",
 }
 
 /**
@@ -777,6 +780,11 @@ const deleteAccountFn = createServerFn({ method: "POST" })
     ) {
       throw new Error("LAST_ADMIN")
     }
+
+    // Their paid plan goes before their account does. The account is
+    // unreachable from the next line on, so a plan that outlived it would be
+    // money taken for something nobody can open.
+    await cancelSubscriptionsForDeletion([user.id])
 
     // Marked, not removed. Nothing can be reached with it from this moment on,
     // and it is really deleted once the restore window runs out.

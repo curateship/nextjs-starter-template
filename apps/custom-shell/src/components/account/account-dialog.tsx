@@ -179,7 +179,7 @@ export function AccountDialog({
                 <BillingTab />
               </TabsContent>
               <TabsContent value="security" className="min-w-0">
-                <AccountSecurityPage user={user} />
+                <AccountSecurityPage user={user} isPaid={plan.isPaid} />
               </TabsContent>
             </DialogBody>
 

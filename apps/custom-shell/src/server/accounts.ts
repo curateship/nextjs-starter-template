@@ -19,6 +19,10 @@ import {
   restoreAccounts,
 } from "@/server/account-deletion"
 import { appUrlFor } from "@/server/app-url"
+import {
+  cancelSubscriptionsForDeletion,
+  type CancelApi,
+} from "@/server/billing"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendAuthEmail } from "@/server/email"
 import { subscriptionIsActive } from "@/server/entitlements"
@@ -445,16 +449,18 @@ export type AccountDeletionResult = { marked: number; deleted: number }
 export async function deleteUserAccount(
   actorId: string,
   userId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  api?: CancelApi
 ): Promise<AccountDeletionResult> {
-  return deleteUserAccounts(actorId, [userId], database)
+  return deleteUserAccounts(actorId, [userId], database, api)
 }
 
 /** Bulk delete for the table's multi-selection action. Same guards, one pass. */
 export async function deleteUserAccounts(
   actorId: string,
   userIds: string[],
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  api?: CancelApi
 ): Promise<AccountDeletionResult> {
   const targets = userIds.filter((userId) => userId !== actorId)
   if (targets.length === 0) {
@@ -473,6 +479,15 @@ export async function deleteUserAccounts(
   for (const row of rows) {
     await requireAnotherAdmin(row.id, database)
   }
+
+  // After the guards and before anything is removed: a plan cancelled for a
+  // delete that then failed on "last admin" would be a plan taken away for
+  // nothing. If Stripe refuses this, nothing below runs.
+  await cancelSubscriptionsForDeletion(
+    rows.map((row) => row.id),
+    database,
+    api
+  )
 
   const alreadyMarked = rows
     .filter((row) => row.status === PENDING_DELETION)

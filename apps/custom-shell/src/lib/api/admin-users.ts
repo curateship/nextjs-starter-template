@@ -58,6 +58,8 @@ export const getAdminUserErrorMessage = createErrorMessage(
     CANNOT_DELETE_SELF: "You cannot delete your own account here.",
     PLAN_NOT_FOUND: "That plan no longer exists.",
     SUBSCRIPTION_NOT_FOUND: "This account has no paid plan to cancel.",
+    SUBSCRIPTION_CANCEL_FAILED:
+      "Stripe would not cancel a paid plan on one of those accounts, so nothing was deleted. Please try again in a moment.",
     ALREADY_ENDING:
       "This plan is already set to end when the paid period runs out.",
     BILLING_NOT_CONFIGURED:
