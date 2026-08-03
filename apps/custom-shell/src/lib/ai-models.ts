@@ -99,3 +99,26 @@ export function aiCostCents(
  */
 export const AI_USAGE_RANGES = ["month", "30d", "90d"] as const
 export type AiUsageRange = (typeof AI_USAGE_RANGES)[number]
+
+/**
+ * The plan-features key that carries a plan's monthly AI allowance, typed as
+ * dollars a month (e.g. `"aiDollars": 20` is $20 of AI use a month).
+ */
+export const AI_ALLOWANCE_FEATURE_KEY = "aiDollars"
+
+/**
+ * A plan's monthly AI allowance in whole cents, or null for no ceiling.
+ *
+ * Missing, switched off, or junk all mean NO ceiling — never a ceiling of
+ * zero, or the day the key is mistyped everybody is locked out of AI. A real
+ * 0 is kept as a real ceiling: a plan that may not use AI at all.
+ */
+export function aiAllowanceCentsFromFeatures(
+  features: Record<string, unknown>
+): number | null {
+  const value = features[AI_ALLOWANCE_FEATURE_KEY]
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return null
+  }
+  return Math.round(value * 100)
+}

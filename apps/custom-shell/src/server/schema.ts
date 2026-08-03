@@ -158,12 +158,23 @@ export const customShellFeedback = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     type: varchar("type", { length: 50 }).notNull(),
+    /** Where the item sits on the roadmap; every new item starts open. */
+    status: varchar("status", { length: 20 }).notNull().default("open"),
     message: text("message").notNull(),
     // What the item is about, from the fixed list in `lib/feedback-tags.ts`.
     tags: text("tags")
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * One optional screenshot, kept as a media row under the author's account.
+     * Deleting that media row only clears this — the feedback survives its
+     * picture — while deleting the feedback takes the file with it.
+     */
+    attachmentMediaId: varchar("attachment_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -173,11 +184,16 @@ export const customShellFeedback = pgTable(
       sql`${table.type} in ('suggestion', 'bug_report', 'question', 'praise')`
     ),
     check(
+      "feedback_status_check",
+      sql`${table.status} in ('open', 'planned', 'in_progress', 'done')`
+    ),
+    check(
       "feedback_tags_check",
       sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
     index("ix_feedback_type").on(table.type),
+    index("ix_feedback_attachment_media_id").on(table.attachmentMediaId),
   ]
 )
 
@@ -267,7 +283,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'changelog', 'announcement')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -693,8 +709,154 @@ export const customShellAiUsageEvents = pgTable(
   ]
 )
 
+/**
+ * One row per person with their own monthly AI allowance instead of their
+ * plan's. No row means "follow the plan"; zero is a real ceiling of nothing.
+ */
+export const customShellAiAllowanceOverrides = pgTable(
+  "ai_allowance_overrides",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    monthlyCents: integer("monthly_cents").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ai_allowance_overrides_cents_check",
+      sql`${table.monthlyCents} >= 0`
+    ),
+  ]
+)
+
+/**
+ * One row per AI-allowance warning actually sent. The unique index is the
+ * whole point: a burst of calls crossing 80% at once all try to insert the
+ * same row, one wins, and only the winner sends the notification.
+ */
+export const customShellAiUsageAlerts = pgTable(
+  "ai_usage_alerts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    monthStart: date("month_start").notNull(),
+    level: varchar("level", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "ai_usage_alerts_level_check",
+      sql`${table.level} in ('warning', 'reached')`
+    ),
+    uniqueIndex("ux_ai_usage_alerts_user_month_level").on(
+      table.userId,
+      table.monthStart,
+      table.level
+    ),
+  ]
+)
+
+/**
+ * The traffic tracker's permanent memory: one tiny counter row per UTC day.
+ * Written only by `recordVisit` (src/server/traffic.ts). `uniqueVisitors` is
+ * frozen in here as each day happens, so the hash rows it was counted from
+ * can be thrown away when the day ends.
+ */
+export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
+  day: date("day").primaryKey(),
+  views: integer("views").notNull().default(0),
+  memberViews: integer("member_views").notNull().default(0),
+  visitorViews: integer("visitor_views").notNull().default(0),
+  uniqueVisitors: integer("unique_visitors").notNull().default(0),
+})
+
+/**
+ * Per-day view counts by page, referrer site and device, merged into one
+ * table so there is one upsert shape and one index. The write path caps how
+ * many distinct keys a day can have — overflow lands in '(other)' — so a bot
+ * spraying URLs cannot grow this.
+ */
+export const customShellTrafficDailyFacts = pgTable(
+  "traffic_daily_facts",
+  {
+    day: date("day").notNull(),
+    dimension: varchar("dimension", { length: 20 }).notNull(),
+    key: varchar("key", { length: 160 }).notNull(),
+    views: integer("views").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "traffic_daily_facts_pk",
+      columns: [table.day, table.dimension, table.key],
+    }),
+    check(
+      "traffic_daily_facts_dimension_check",
+      sql`${table.dimension} in ('path', 'referrer', 'device')`
+    ),
+  ]
+)
+
+/**
+ * The 7-day log of individual visits, swept by `pruneTrafficData`.
+ * Deliberately no user id, IP, user agent or visitor hash — nothing on a row
+ * can be tied back to a person once the day's salt is gone.
+ */
+export const customShellTrafficVisits = pgTable(
+  "traffic_visits",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    path: varchar("path", { length: 160 }).notNull(),
+    referrerDomain: varchar("referrer_domain", { length: 100 }).notNull(),
+    device: varchar("device", { length: 10 }).notNull(),
+    audience: varchar("audience", { length: 10 }).notNull(),
+  },
+  (table) => [
+    check(
+      "traffic_visits_device_check",
+      sql`${table.device} in ('phone', 'tablet', 'computer')`
+    ),
+    check(
+      "traffic_visits_audience_check",
+      sql`${table.audience} in ('member', 'visitor')`
+    ),
+    index("ix_traffic_visits_occurred_at").on(table.occurredAt),
+  ]
+)
+
+/**
+ * One row per visitor hash per day — insert-on-conflict-do-nothing is the
+ * unique-visitor dedup. Swept once the day has passed; the count survives in
+ * the totals row.
+ */
+export const customShellTrafficVisitors = pgTable(
+  "traffic_visitors",
+  {
+    day: date("day").notNull(),
+    visitorHash: varchar("visitor_hash", { length: 64 }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "traffic_visitors_pk",
+      columns: [table.day, table.visitorHash],
+    }),
+  ]
+)
+
+/**
+ * The random ingredient in each day's visitor hashes, swept with the day —
+ * which is what makes an old hash truly unrecoverable.
+ */
+export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
+  day: date("day").primaryKey(),
+  salt: varchar("salt", { length: 64 }).notNull(),
+})
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
-export type CustomShellPasskey = typeof customShellPasskeys.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect

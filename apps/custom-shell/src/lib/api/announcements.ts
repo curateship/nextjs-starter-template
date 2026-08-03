@@ -1,4 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
+import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement } from "@/server/announcements"
+import { adminGet, adminPost, userPost } from "@/server/guards"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import {
@@ -20,27 +23,17 @@ export type Announcement = {
   endsAt: string | null
 }
 
-const announcementErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-  ANNOUNCEMENT_NOT_FOUND: "That announcement no longer exists.",
-  ANNOUNCEMENT_TITLE_REQUIRED: "Give the announcement a title.",
-  ANNOUNCEMENT_BODY_REQUIRED: "Write what you want to tell everyone.",
-  ANNOUNCEMENT_CHANNEL_REQUIRED:
-    "Pick at least one place to show it — the banner or the notification tray.",
-  ANNOUNCEMENT_WINDOW_INVALID: "The end date has to be after the start date.",
-}
-
-export function getAnnouncementErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(announcementErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? announcementErrorMessages[matched]
-    : "We could not load the announcements. Please try again."
-}
+export const getAnnouncementErrorMessage = createErrorMessage(
+  {
+    ANNOUNCEMENT_NOT_FOUND: "That announcement no longer exists.",
+    ANNOUNCEMENT_TITLE_REQUIRED: "Give the announcement a title.",
+    ANNOUNCEMENT_BODY_REQUIRED: "Write what you want to tell everyone.",
+    ANNOUNCEMENT_CHANNEL_REQUIRED:
+      "Pick at least one place to show it — the banner or the notification tray.",
+    ANNOUNCEMENT_WINDOW_INVALID: "The end date has to be after the start date.",
+  },
+  "We could not load the announcements. Please try again."
+)
 
 /** Empty means "no date picked"; anything else has to be a real yyyy-mm-dd. */
 const dateFieldSchema = z
@@ -71,34 +64,22 @@ const idListSchema = z.object({
   announcementIds: z.array(z.string().min(1).max(36)).min(1).max(200),
 })
 
-const listAdminFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ announcements: Announcement[] }> => {
-    const { requireAdmin } = await import("@/server/security")
-    const { listAnnouncements, serializeAnnouncement } = await import(
-      "@/server/announcements"
-    )
-
-    await requireAdmin()
+const listAdminFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async (): Promise<{ announcements: Announcement[] }> => {
     const announcements = await listAnnouncements()
     return { announcements: announcements.map(serializeAnnouncement) }
-  }
-)
+  })
 
 const createFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(announcementInputSchema)
   .handler(async ({ data }): Promise<Announcement> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { createAnnouncement, serializeAnnouncement } = await import(
-      "@/server/announcements"
-    )
-
-    requireAppOrigin()
-    await requireAdmin()
     return serializeAnnouncement(await createAnnouncement(data))
   })
 
 const updateFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       announcementId: z.string().min(1).max(36),
@@ -106,54 +87,31 @@ const updateFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<Announcement> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { updateAnnouncement, serializeAnnouncement } = await import(
-      "@/server/announcements"
-    )
-
-    requireAppOrigin()
-    await requireAdmin()
     return serializeAnnouncement(
       await updateAnnouncement(data.announcementId, data.announcement)
     )
   })
 
 const retireFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(idListSchema)
   .handler(async ({ data }): Promise<{ count: number }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { retireAnnouncements } = await import("@/server/announcements")
-
-    requireAppOrigin()
-    await requireAdmin()
     return retireAnnouncements(data.announcementIds)
   })
 
 const deleteFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(idListSchema)
   .handler(async ({ data }): Promise<{ count: number }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { deleteAnnouncements } = await import("@/server/announcements")
-
-    requireAppOrigin()
-    await requireAdmin()
     return deleteAnnouncements(data.announcementIds)
   })
 
 /** Anyone signed in can hide a banner — for themselves and nobody else. */
 const dismissFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(z.object({ announcementId: z.string().min(1).max(36) }))
-  .handler(async ({ data }): Promise<{ announcementId: string }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireUser } = await import("@/server/security")
-    const { dismissAnnouncement } = await import("@/server/announcements")
-
-    requireAppOrigin()
-    const user = await requireUser()
-    return dismissAnnouncement(user.id, data.announcementId)
+  .handler(async ({ data, context }): Promise<{ announcementId: string }> => {
+    return dismissAnnouncement(context.user.id, data.announcementId)
   })
 
 export function loadAdminAnnouncements() {

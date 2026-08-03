@@ -29,6 +29,7 @@ import {
   ShieldCheckIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
+  SunMoonIcon,
   TagIcon,
   TypeIcon,
   UsersIcon,
@@ -308,9 +309,50 @@ export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
 export type ShellTopRightNavigationItemId =
   (typeof TOP_RIGHT_NAVIGATION_ITEM_IDS)[number]
 
-export type ShellTopRightNavigationItem = {
+/**
+ * One of the three fixed header controls. It can be reordered and switched
+ * off, but never renamed, re-iconed or deleted — switching it off is how it is
+ * removed, and it stays in the editor with a "Hidden" pill so it can come back.
+ */
+export type ShellTopRightBuiltIn = {
+  type: "builtIn"
   id: ShellTopRightNavigationItemId
   visible: boolean
+}
+
+/**
+ * A link an admin added to the header row: a name, an icon and an address,
+ * rendered like the Feedback button. Unlike a built-in it has no hidden state —
+ * it is deleted outright instead.
+ */
+export type ShellTopRightLink = {
+  type: "link"
+  id: string
+  label: string
+  href: string
+  icon: ShellIcon
+}
+
+export type ShellTopRightNavigationItem = ShellTopRightBuiltIn | ShellTopRightLink
+
+export function isShellTopRightLink(
+  item: ShellTopRightNavigationItem
+): item is ShellTopRightLink {
+  return item.type === "link"
+}
+
+/**
+ * What the three built-ins are called and drawn as in the editor. The header
+ * itself renders the real controls, not these — this is only how the chips in
+ * Settings → Top right menu present them.
+ */
+export const topRightBuiltInMeta: Record<
+  ShellTopRightNavigationItemId,
+  { label: string; icon: LucideIcon }
+> = {
+  feedback: { label: "Feedback", icon: MessageSquarePlusIcon },
+  theme: { label: "Theme", icon: SunMoonIcon },
+  notifications: { label: "Notifications", icon: BellIcon },
 }
 
 export type ShellConfig = {
@@ -330,7 +372,14 @@ export type ShellConfig = {
    */
   memberHomeRoute: string
   favicon: string
+  /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
+  /**
+   * The header row every member sees, built by an admin and saved app-wide —
+   * the same one-list-in-one-place rule as memberSections, and for the same
+   * reason: members used to get a private frozen copy nobody could edit.
+   */
+  memberTopRightNavigation: ShellTopRightNavigationItem[]
   /** The signed-in admin's own sidebar, saved on their workspace. */
   sections: ShellSection[]
   /**
@@ -730,6 +779,7 @@ export const MODAL_STYLE_VAR_NAMES = [
 
 export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
   return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
+    type: "builtIn" as const,
     id,
     visible: true,
   }))
@@ -747,6 +797,9 @@ export function createDefaultShellConfig(): ShellConfig {
     memberHomeRoute: "",
     favicon: "",
     topRightNavigation: createDefaultTopRightNavigation(),
+    // Like memberSections below: the real starting point for a fresh install,
+    // handed out only while the settings row has never held a member list.
+    memberTopRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
     // Unlike `sections`, which a workspace fills in when it is created, this is
     // the real starting point — a fresh install has no settings row to read it
@@ -792,22 +845,60 @@ export function createDefaultMemberSections(): ShellSection[] {
   ]
 }
 
+/**
+ * Reads whatever the row holds back into the two-way union, keeping the saved
+ * order. A built-in is matched by its id alone, so a row saved in the old
+ * `{ id, visible }` shape — before links existed — reads exactly the same as
+ * one saved by the editor. Anything that is neither a known built-in nor a
+ * well-formed link is dropped, and any built-in missing from the saved list is
+ * appended, so the three fixed controls can be hidden but never lost.
+ */
 export function normalizeTopRightNavigation(
-  items: ShellTopRightNavigationItem[] | undefined
-) {
+  items: unknown
+): ShellTopRightNavigationItem[] {
   const fallback = createDefaultTopRightNavigation()
   if (!Array.isArray(items)) {
     return fallback
   }
 
-  const validIds = new Set<ShellTopRightNavigationItemId>(
-    TOP_RIGHT_NAVIGATION_ITEM_IDS
-  )
-  const savedItems = items.filter((item) => validIds.has(item.id))
-  const savedIds = new Set(savedItems.map((item) => item.id))
-  const missingItems = fallback.filter((item) => !savedIds.has(item.id))
+  const builtInIds = new Set<string>(TOP_RIGHT_NAVIGATION_ITEM_IDS)
+  const seenIds = new Set<string>()
+  const kept: ShellTopRightNavigationItem[] = []
 
-  return [...savedItems, ...missingItems]
+  for (const raw of items) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue
+    const item = raw as Partial<ShellTopRightLink> & { visible?: unknown }
+    if (typeof item.id !== "string" || !item.id || seenIds.has(item.id)) continue
+
+    if (builtInIds.has(item.id)) {
+      seenIds.add(item.id)
+      kept.push({
+        type: "builtIn",
+        id: item.id as ShellTopRightNavigationItemId,
+        // Missing reads as shown: hiding is a deliberate saved `false`.
+        visible: item.visible !== false,
+      })
+      continue
+    }
+
+    if (
+      item.type === "link" &&
+      typeof item.label === "string" &&
+      typeof item.href === "string" &&
+      typeof item.icon === "string"
+    ) {
+      seenIds.add(item.id)
+      kept.push({
+        type: "link",
+        id: item.id,
+        label: item.label,
+        href: item.href,
+        icon: item.icon,
+      })
+    }
+  }
+
+  return [...kept, ...fallback.filter((item) => !seenIds.has(item.id))]
 }
 
 export function isShellItem(entry: ShellEntry): entry is ShellItem {

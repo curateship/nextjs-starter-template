@@ -3,6 +3,7 @@ import { ExternalLinkIcon } from "lucide-react"
 
 import { showErrorToast } from "@/lib/error-toast"
 
+import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Badge } from "@/components/ui/badge"
@@ -174,6 +175,8 @@ export function AccountBillingPage({
           ) : null}
         </CardContent>
       </Card>
+
+      <AccountAiUsageCard />
 
       {!overview.billingEnabled ? (
         <PaymentsOffCard />

@@ -120,7 +120,12 @@ export function AccountDialog({
       {(requestClose) => (
         <DialogContent
           variant="admin"
-          className="sm:max-w-3xl"
+          // One fixed height for all three tabs. Each tab's content is a
+          // different length, and a window sized by its content re-centres
+          // itself on every switch — the whole thing visibly jumped up and
+          // down. The admin variant's max-height still caps this on short
+          // screens, and the body scrolls inside the frame either way.
+          className="h-[54rem] sm:max-w-3xl"
           aria-describedby={undefined}
         >
           <Tabs

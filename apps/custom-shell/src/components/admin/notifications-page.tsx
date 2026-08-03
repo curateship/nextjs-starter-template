@@ -2,6 +2,8 @@ import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
+  GaugeIcon,
+  GitMergeIcon,
   MegaphoneIcon,
   MessageSquareIcon,
   SparklesIcon,
@@ -30,25 +32,31 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import {
   TableCell,
   TableHead,
-  TableHeader,
-  TableSortButton,
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
+  aiLimitNotificationText,
   clearAdminNotifications,
   deleteAdminNotifications,
   getNotificationErrorMessage,
+  isAiLimitNotification,
   listAdminNotifications,
   notificationTypeLabels,
   type NotificationItem,
   type NotificationType,
 } from "@/lib/api/notification"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useSelection } from "@/lib/use-selection"
 import {
   useListSearchNavigate,
+  useListSort,
   useSearchBoxText,
 } from "@/lib/list-search"
 import { cn } from "@/lib/utils"
@@ -65,6 +73,15 @@ type NotificationSortColumn =
   | "status"
   | "created"
 
+const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
+  { key: "activity", label: "Activity", column: "main" },
+  { key: "feedback", label: "Feedback", column: "preview" },
+  { key: "recipient", label: "Recipient", column: "meta" },
+  { key: "type", label: "Type", column: "meta" },
+  { key: "status", label: "Status", column: "meta" },
+  { key: "created", label: "Created", column: "meta" },
+]
+
 /**
  * The free text a row shows: the update's title for a changelog notice, the
  * broadcast's own title for an announcement, and the feedback it is about for
@@ -72,6 +89,11 @@ type NotificationSortColumn =
  * order — see `subjectExpression` in `src/server/notifications.ts`.
  */
 function notificationSubject(item: NotificationItem) {
+  // An AI-allowance notice carries its own words — there is no thing it is
+  // about to borrow a title from.
+  if (isAiLimitNotification(item.type)) {
+    return aiLimitNotificationText[item.type].message
+  }
   return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
 }
 
@@ -82,6 +104,9 @@ function notificationSubject(item: NotificationItem) {
  */
 function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
+  if (isAiLimitNotification(item.type)) {
+    return `${subject}\n\n${aiLimitNotificationText[item.type].detail}`
+  }
   return item.announcement_body
     ? `${subject}\n\n${item.announcement_body}`
     : subject
@@ -146,10 +171,12 @@ export function NotificationsPage({
   const [searchText, setSearchText] = useSearchBoxText(search, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
+  const toggleSort = useListSort<NotificationSortColumn>({ sort, direction })
 
   const [pageSize, setPageSize] = React.useState(defaultPageSize)
   const [loading, setLoading] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const selection = useSelection()
+  const selectedIds = selection.selected
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [clearAllOpen, setClearAllOpen] = React.useState(false)
@@ -200,44 +227,16 @@ export function NotificationsPage({
   }, [refresh])
 
   useClearSelectionOnListChange(
-    setSelectedIds,
+    selection.setSelected,
     `${search}|${readFilter}|${typeFilter}|${sort}|${direction}|${page}|${pageSize}`
   )
 
-  const visibleNotificationIds = React.useMemo(
-    () => notifications.map((item) => item.id),
-    [notifications]
-  )
-  const visibleSelected =
-    visibleNotificationIds.length > 0 &&
-    visibleNotificationIds.every((id) => selectedIds.has(id))
-  const visiblePartiallySelected =
-    !visibleSelected && visibleNotificationIds.some((id) => selectedIds.has(id))
+  const visibleNotificationIds = notifications.map((item) => item.id)
 
   // A filter can hide every row while there is still plenty left to clear, so
   // "Clear all" only goes grey when the whole list is genuinely empty.
   const filtersActive =
     search.trim() !== "" || readFilter !== "all" || typeFilter !== "all"
-
-  function toggleVisibleSelection(checked: boolean) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      for (const id of visibleNotificationIds) {
-        if (checked) next.add(id)
-        else next.delete(id)
-      }
-      return next
-    })
-  }
-
-  function toggleNotificationSelection(id: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
 
   async function deleteSelected() {
     const notificationIds = Array.from(selectedIds)
@@ -256,7 +255,7 @@ export function NotificationsPage({
           verb: "deleted",
         })
       )
-      setSelectedIds(new Set())
+      selection.clear()
       setMassDeleteOpen(false)
       await refresh()
     } catch (deleteError) {
@@ -279,7 +278,7 @@ export function NotificationsPage({
       setNotifications([])
       setTotal(0)
       setPage(1)
-      setSelectedIds(new Set())
+      selection.clear()
       setClearAllOpen(false)
     } catch (deleteError) {
       showErrorToast(getNotificationErrorMessage(deleteError))
@@ -307,14 +306,6 @@ export function NotificationsPage({
     }
   }
 
-  const toggleSort = (column: NotificationSortColumn) => {
-    setListSearch(
-      sort === column
-        ? { direction: direction === "asc" ? "desc" : "asc", page: undefined }
-        : { sort: column, direction: "asc", page: undefined }
-    )
-  }
-
   return (
     <>
       <DashboardTable
@@ -324,7 +315,7 @@ export function NotificationsPage({
         busy={loading}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
-        onClearSelection={() => setSelectedIds(new Set())}
+        onClearSelection={selection.clear}
         controls={
           <>
             {selectedIds.size ? (
@@ -401,62 +392,33 @@ export function NotificationsPage({
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="feedback_vote">Thumbs up</SelectItem>
                 <SelectItem value="feedback_comment">Comments</SelectItem>
+                <SelectItem value="feedback_merged">Merged</SelectItem>
                 <SelectItem value="changelog">Updates</SelectItem>
                 <SelectItem value="announcement">Announcements</SelectItem>
+                <SelectItem value="ai_limit_warning">AI warnings</SelectItem>
+                <SelectItem value="ai_limit_reached">AI limit reached</SelectItem>
               </SelectContent>
             </Select>
           </>
         }
         header={
-            <TableHeader>
-              <TableRow>
-                <TableHead column="select">
-                  <Checkbox
-                    checked={
-                      visibleSelected
-                        ? true
-                        : visiblePartiallySelected
-                          ? "indeterminate"
-                          : false
-                    }
-                    onCheckedChange={(checked) =>
-                      toggleVisibleSelection(checked === true)
-                    }
-                    aria-label="Select visible notifications"
-                  />
-                </TableHead>
-                <TableHead column="main">
-                  <TableSortButton active={sort === "activity"} direction={direction} onClick={() => toggleSort("activity")}>
-                    Activity
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="preview">
-                  <TableSortButton active={sort === "feedback"} direction={direction} onClick={() => toggleSort("feedback")}>
-                    Feedback
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sort === "recipient"} direction={direction} onClick={() => toggleSort("recipient")}>
-                    Recipient
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sort === "type"} direction={direction} onClick={() => toggleSort("type")}>
-                    Type
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sort === "status"} direction={direction} onClick={() => toggleSort("status")}>
-                    Status
-                  </TableSortButton>
-                </TableHead>
-                <TableHead column="meta">
-                  <TableSortButton active={sort === "created"} direction={direction} onClick={() => toggleSort("created")}>
-                    Created
-                  </TableSortButton>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+          <SortableTableHeader
+            columns={NOTIFICATION_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <TableHead column="select">
+                <Checkbox
+                  checked={selection.selectAllState(visibleNotificationIds)}
+                  onCheckedChange={() =>
+                    selection.toggleVisible(visibleNotificationIds)
+                  }
+                  aria-label="Select visible notifications"
+                />
+              </TableHead>
+            }
+          />
         }
         isEmpty={!loading && notifications.length === 0}
         emptyText="No notifications match those filters."
@@ -501,7 +463,7 @@ export function NotificationsPage({
               >
                 <Checkbox
                   checked={selectedIds.has(item.id)}
-                  onCheckedChange={() => toggleNotificationSelection(item.id)}
+                  onCheckedChange={() => selection.toggle(item.id)}
                   aria-label={`Select ${notificationTypeLabels[item.type]} notification`}
                 />
               </TableCell>
@@ -511,6 +473,10 @@ export function NotificationsPage({
                     <SparklesIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "announcement" ? (
                     <MegaphoneIcon className="size-4 text-muted-foreground" />
+                  ) : isAiLimitNotification(item.type) ? (
+                    <GaugeIcon className="size-4 text-muted-foreground" />
+                  ) : item.type === "feedback_merged" ? (
+                    <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (
                     <ThumbsUpIcon className="size-4 text-muted-foreground" />
                   ) : (

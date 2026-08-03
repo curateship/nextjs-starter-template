@@ -4,6 +4,7 @@ import {
   AI_MODEL_OPTIONS,
   AI_MODEL_PRICES,
   AI_PROVIDERS,
+  aiAllowanceCentsFromFeatures,
   aiCostCents,
   DEFAULT_AI_MODEL,
 } from "@/lib/ai-models"
@@ -42,5 +43,26 @@ describe("aiCostCents", () => {
       }
       expect(AI_MODEL_PRICES[DEFAULT_AI_MODEL[provider]]).toBeDefined()
     }
+  })
+})
+
+describe("aiAllowanceCentsFromFeatures", () => {
+  it("turns dollars a month into whole cents", () => {
+    expect(aiAllowanceCentsFromFeatures({ aiDollars: 20 })).toBe(2000)
+    expect(aiAllowanceCentsFromFeatures({ aiDollars: 19.5 })).toBe(1950)
+  })
+
+  it("keeps a real zero as a real ceiling of nothing", () => {
+    expect(aiAllowanceCentsFromFeatures({ aiDollars: 0 })).toBe(0)
+  })
+
+  it("reads anything that is not a sound number as NO ceiling", () => {
+    // Getting this backwards would lock everybody out of AI the day the key
+    // is mistyped — missing must always mean unlimited, never zero.
+    expect(aiAllowanceCentsFromFeatures({})).toBeNull()
+    expect(aiAllowanceCentsFromFeatures({ aiDollars: "20" })).toBeNull()
+    expect(aiAllowanceCentsFromFeatures({ aiDollars: -5 })).toBeNull()
+    expect(aiAllowanceCentsFromFeatures({ aiDollars: null })).toBeNull()
+    expect(aiAllowanceCentsFromFeatures({ aiDollars: Number.NaN })).toBeNull()
   })
 })

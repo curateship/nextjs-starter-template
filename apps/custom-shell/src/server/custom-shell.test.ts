@@ -1,12 +1,10 @@
-import { readdir, readFile } from "node:fs/promises"
-
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
 import { eq, inArray, sql } from "drizzle-orm"
-import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { setDbForTests, type CustomShellDb } from "@/server/db"
+import { type CustomShellDb } from "@/server/db"
+import { createTestDatabase, type TestDatabase } from "@/server/test-support"
 import {
   cleanAltText,
   cleanOriginalName,
@@ -60,9 +58,11 @@ import {
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
+  createDefaultTopRightNavigation,
   isActiveShellHref,
   normalizeMaintenance,
   normalizeSessionPolicy,
+  normalizeTopRightNavigation,
   resolveMaintenanceMessage,
   type ShellItem,
   type ShellSection,
@@ -119,6 +119,7 @@ import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   addOverviewLink,
+  addTrafficLink,
   foldFeedsIntoOverview,
   createUserWorkspace,
   deleteUserWorkspace,
@@ -136,7 +137,6 @@ import {
   updateUserWorkspace,
 } from "@/server/workspaces"
 import { loadFeedsSummary } from "@/server/feeds"
-import * as schema from "@/server/schema"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
 function platformEntries(settings: { sections: { id: string; entries: unknown[] }[] }) {
@@ -152,7 +152,7 @@ function adminEntries(settings: { sections: { id: string; entries: unknown[] }[]
 }
 
 let client: PGlite
-let database: ReturnType<typeof drizzle<typeof schema>>
+let database: TestDatabase
 const hadOriginalCustomShellR2PublicUrl = Object.prototype.hasOwnProperty.call(
   process.env,
   "CUSTOM_SHELL_R2_PUBLIC_URL"
@@ -162,19 +162,9 @@ const originalCustomShellR2PublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
 beforeEach(async () => {
   process.env.CUSTOM_SHELL_R2_PUBLIC_URL =
     "https://custom-shell-media.example.test"
-  client = new PGlite()
-  // Replay every migration in order, the way setup-database.mjs does, so the
-  // test schema cannot drift from the real one.
-  const folder = new URL("../../drizzle/", import.meta.url)
-  const migrations = (await readdir(folder))
-    .filter((file) => file.endsWith(".sql"))
-    .sort()
-
-  for (const migration of migrations) {
-    await client.exec(await readFile(new URL(migration, folder), "utf8"))
-  }
-  database = drizzle(client, { schema })
-  setDbForTests(database as unknown as CustomShellDb)
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
 })
 
 afterEach(async () => {
@@ -1027,6 +1017,12 @@ describe("custom shell workspaces", () => {
         href: "/admin/ai",
         visible: true,
       },
+      {
+        type: "item",
+        label: "Traffic",
+        href: "/admin/traffic",
+        visible: true,
+      },
     ])
 
     const secondWorkspace = await createUserWorkspace(
@@ -1418,11 +1414,12 @@ describe("membership section", () => {
     // One load applied every restructure: Users, Plans and Revenue grouped
     // under Membership, the audit link grouped under Feeds, the retired audit
     // link taken out again, the Overview handed out, Feeds folded into it,
-    // and the AI usage link handed out beside Membership.
+    // the AI usage link handed out beside Membership, and Traffic after it.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-membership",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
     // Feeds held nothing but the audit link, which was taken out a step
     // earlier — so the Overview came out of the fold with no children at all,
@@ -1456,11 +1453,12 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The Overview and AI usage links stay: both were handed out by the same
-    // upgrade, and neither is what was deleted.
+    // The Overview, AI usage, and Traffic links stay: all were handed out by
+    // the same upgrade, and none is what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
   })
 
@@ -1708,6 +1706,10 @@ describe("overview link", () => {
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
       "item-admin-membership",
+      // navVersions 8 and 9 hand the AI usage and Traffic links to every
+      // older workspace.
+      "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -1735,7 +1737,214 @@ describe("overview link", () => {
         )
       ).settings
     )
-    expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-membership"])
+    expect(idsIn(reloaded.sections, 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+  })
+})
+
+describe("traffic link", () => {
+  /** A sidebar as a workspace saved it before the Traffic page existed. */
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-ai-usage",
+            label: "AI usage",
+            href: "/admin/ai",
+            icon: "sparkles",
+            visible: true,
+          },
+        ],
+      },
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  function idsIn(sections: ShellSection[], index: number) {
+    return sections[index].entries.map((entry) => entry.id)
+  }
+
+  it("puts Traffic right after the AI usage link", () => {
+    const sections = addTrafficLink(savedSections())
+
+    expect(idsIn(sections, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+    expect(idsIn(sections, 1)).toEqual(["item-settings"])
+    expect(sections[0].entries[1]).toMatchObject({
+      href: "/admin/traffic",
+      icon: "chart-line",
+      roles: ["admin"],
+      visible: true,
+    })
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addTrafficLink(savedSections())
+    const twice = addTrafficLink(once)
+
+    expect(idsIn(twice, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+    // Nothing changed, so nothing to write back.
+    expect(twice).toBe(once)
+  })
+
+  it("leaves a link somebody rebuilt by hand alone", () => {
+    const sections = savedSections()
+    sections[1].entries.push({
+      type: "item",
+      id: "my-own-traffic",
+      label: "Visits",
+      href: "/admin/traffic",
+      icon: "chart-line",
+      visible: true,
+    })
+
+    expect(addTrafficLink(sections)).toBe(sections)
+  })
+
+  it("counts a hidden Traffic link as already there", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-traffic",
+      label: "Traffic",
+      href: "/admin/traffic",
+      icon: "chart-line",
+      visible: false,
+    })
+
+    expect(addTrafficLink(sections)).toBe(sections)
+  })
+
+  it("counts one nested under another link as already there", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "item-admin-traffic", label: "Traffic", href: "/admin/traffic" },
+    ]
+
+    expect(addTrafficLink(sections)).toBe(sections)
+  })
+
+  it("falls back to the end of Administration when AI usage is gone", () => {
+    const sections = savedSections()
+    sections[0].entries = [
+      {
+        type: "item",
+        id: "item-admin-membership",
+        label: "Membership",
+        href: "/admin/membership",
+        icon: "id-card",
+        visible: true,
+      },
+    ]
+
+    expect(idsIn(addTrafficLink(sections), 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-traffic",
+    ])
+  })
+
+  it("falls back to the first section when Administration is gone", () => {
+    const sections = savedSections().slice(1)
+
+    expect(idsIn(addTrafficLink(sections), 0)).toEqual([
+      "item-settings",
+      "item-admin-traffic",
+    ])
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addTrafficLink([])).toEqual([])
+  })
+
+  it("brings a saved sidebar forward once, and never hands it back", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "traffic@example.com",
+      name: "Traffic Admin",
+      passwordHash: "hash",
+      role: "admin",
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellWorkspaces).values({
+      id: uuid(),
+      userId,
+      name: "Saved",
+      // Everything before this upgrade has already run for this workspace.
+      settings: { icon: "briefcaseBusiness", navVersion: 8, sections: savedSections() },
+      isDefault: true,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const upgraded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    expect(idsIn(upgraded.sections, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-traffic",
+    ])
+
+    // Delete it the way Settings → Sidebar would, then load again. Reading
+    // must never hand it back.
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...upgraded,
+          sections: upgraded.sections.map((section) => ({
+            ...section,
+            entries: section.entries.filter(
+              (entry) => entry.id !== "item-admin-traffic"
+            ),
+          })),
+        },
+      })
+      .where(eq(customShellWorkspaces.userId, userId))
+
+    const reloaded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-ai-usage"])
   })
 })
 
@@ -2345,6 +2554,7 @@ describe("feeds section", () => {
       "item-admin-overview",
       "item-admin-membership",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
     // Grouped under Feeds, then handed on to the Overview when Feeds went.
     // No Feedback link: this sidebar predates it. What's new and the audit
@@ -2393,6 +2603,7 @@ describe("feeds section", () => {
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-membership",
       "item-admin-ai-usage",
+      "item-admin-traffic",
     ])
   })
 
@@ -3044,6 +3255,183 @@ describe("member sidebar", () => {
     expect(entry.href).toBe("/admin/users")
     expect(canSeeShellEntry(entry, "member")).toBe(false)
     expect(canSeeShellEntry(entry, "admin")).toBe(true)
+  })
+})
+
+describe("top right menu", () => {
+  async function seedPeople() {
+    const createdAt = now()
+    const adminId = uuid()
+    const memberId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: adminId,
+        email: "menu-admin@internal.dev",
+        name: "Menu Admin",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: memberId,
+        email: "menu-member@internal.dev",
+        name: "Menu Member",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    return { adminId, memberId }
+  }
+
+  /** Replaces the app-wide member menu, the way the settings page does. */
+  async function saveMemberMenu(items: unknown) {
+    const timestamp = now()
+    await database
+      .insert(customShellSettings)
+      .values({
+        key: "default",
+        settings: { memberTopRightNavigation: items },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .onConflictDoUpdate({
+        target: customShellSettings.key,
+        set: {
+          settings: { memberTopRightNavigation: items },
+          updatedAt: timestamp,
+        },
+      })
+  }
+
+  it("reads a row saved in the old { id, visible } shape as the same built-ins", () => {
+    // Saved before links existed: order and the show/hide switch must survive.
+    const normalized = normalizeTopRightNavigation([
+      { id: "theme", visible: false },
+      { id: "feedback", visible: true },
+    ])
+
+    expect(normalized).toEqual([
+      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "feedback", visible: true },
+      // Never saved, so it is appended rather than lost.
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+  })
+
+  it("keeps a well-formed link where it was saved and drops junk", () => {
+    const link = {
+      type: "link",
+      id: "top-right-link-1",
+      label: "Docs",
+      href: "/changelog",
+      icon: "bookOpen",
+    }
+
+    const normalized = normalizeTopRightNavigation([
+      { id: "feedback", visible: true },
+      link,
+      // Neither a known built-in nor a well-formed link: all dropped.
+      { type: "link", id: "half-made" },
+      { id: "mystery", visible: true },
+      "garbage",
+      null,
+    ])
+
+    expect(normalized).toEqual([
+      { type: "builtIn", id: "feedback", visible: true },
+      link,
+      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+  })
+
+  it("gives a member the admin-built menu and an admin their own", async () => {
+    const { adminId, memberId } = await seedPeople()
+    const testDb = database as unknown as CustomShellDb
+
+    const memberMenu = [
+      { type: "builtIn", id: "theme", visible: true },
+      { type: "builtIn", id: "feedback", visible: false },
+      { type: "builtIn", id: "notifications", visible: true },
+      {
+        type: "link",
+        id: "top-right-link-help",
+        label: "Help",
+        href: "/changelog",
+        icon: "sparkles",
+      },
+    ]
+    await saveMemberMenu(memberMenu)
+
+    const memberConfig = await readShellSettings(
+      { id: memberId, role: "member" },
+      testDb
+    )
+    expect(memberConfig.topRightNavigation).toEqual(memberMenu)
+
+    // The admin still gets their own workspace's row — the starter set, not
+    // the member menu with Feedback switched off.
+    const adminConfig = await readShellSettings(
+      { id: adminId, role: "admin" },
+      testDb
+    )
+    expect(adminConfig.topRightNavigation).toEqual(
+      createDefaultTopRightNavigation()
+    )
+  })
+
+  it("keeps a saved member menu as saved, and fills in an unset one", () => {
+    // A row that has never held a member menu hands out the starter set.
+    expect(parseShellGlobals({ appName: "x" }).memberTopRightNavigation).toEqual(
+      createDefaultTopRightNavigation()
+    )
+
+    // Saved is saved: switching everything off must stick on read, the same
+    // rule the member sidebar follows.
+    const allOff = [
+      { type: "builtIn", id: "feedback", visible: false },
+      { type: "builtIn", id: "theme", visible: false },
+      { type: "builtIn", id: "notifications", visible: false },
+    ]
+    expect(
+      parseShellGlobals({ memberTopRightNavigation: allOff })
+        .memberTopRightNavigation
+    ).toEqual(allOff)
+  })
+
+  it("carries the member menu through a save and back", () => {
+    // Only the fields `pickShellGlobals` names reach the app-wide row. Forget
+    // this one and the member menu would be silently dropped on every save.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      memberTopRightNavigation: [
+        { type: "builtIn", id: "notifications", visible: true },
+      ],
+    })
+
+    expect(parseShellGlobals(saved).memberTopRightNavigation).toEqual([
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+  })
+
+  it("never lets a member see a link to an admin page", () => {
+    const link = {
+      type: "link" as const,
+      id: "top-right-link-users",
+      label: "Users",
+      href: "/admin/users",
+      icon: "users",
+    }
+
+    // The list is returned as saved, but the header must never draw it for a
+    // member — the same guard the sidebar renders by.
+    expect(canSeeShellEntry(link, "member")).toBe(false)
+    expect(canSeeShellEntry(link, "admin")).toBe(true)
   })
 })
 

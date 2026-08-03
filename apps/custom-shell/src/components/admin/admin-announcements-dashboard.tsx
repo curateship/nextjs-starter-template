@@ -49,12 +49,10 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   ANNOUNCEMENT_LEVELS,
@@ -75,15 +73,24 @@ import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatUtcDate } from "@/lib/format-time"
 import {
   useListSearchNavigate,
+  useListSort,
   useSearchBoxText,
 } from "@/lib/list-search"
 import { quoteOneLine } from "@/lib/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
+import { useSelection } from "@/lib/use-selection"
 
 const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
 
 type AnnouncementSortColumn = "title" | "where" | "status" | "shows"
+
+const ANNOUNCEMENT_COLUMNS: SortableColumn<AnnouncementSortColumn>[] = [
+  { key: "title", label: "Announcement", column: "main" },
+  { key: "where", label: "Where", column: "meta" },
+  { key: "status", label: "Status", column: "meta" },
+  { key: "shows", label: "Shows", column: "meta" },
+]
 
 /** Showing first, then what is still coming, then what is over. */
 type AnnouncementStatus = "showing" | "scheduled" | "ended"
@@ -185,13 +192,15 @@ export function AdminAnnouncementsDashboard({
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const sort: AnnouncementSortColumn = listSearch.sort ?? "shows"
   const direction = listSearch.direction ?? "desc"
+  const toggleSort = useListSort<AnnouncementSortColumn>({ sort, direction })
   const [editing, setEditing] = React.useState<Announcement | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [retireTargets, setRetireTargets] = React.useState<Announcement[]>([])
   const [retiring, setRetiring] = React.useState(false)
   const [deleteTargets, setDeleteTargets] = React.useState<Announcement[]>([])
   const [deleting, setDeleting] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const selection = useSelection()
+  const selectedIds = selection.selected
   const [error, setError] = React.useState<string | null>(null)
 
   useOpenFromLink({ openId, records: announcements, onOpen: setEditing })
@@ -228,48 +237,13 @@ export function AdminAnnouncementsDashboard({
   }, [pageSize, setCurrentPage])
 
   useClearSelectionOnListChange(
-    setSelectedIds,
+    selection.setSelected,
     `${searchQuery}|${sort}|${direction}|${currentPage}|${pageSize}`
   )
 
   const visibleIds = React.useMemo(
     () => paginatedAnnouncements.map((announcement) => announcement.id),
     [paginatedAnnouncements]
-  )
-  const allSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
-  const someSelected = visibleIds.some((id) => selectedIds.has(id))
-
-  const toggleSelection = React.useCallback((id: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const toggleVisibleSelection = React.useCallback(() => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (visibleIds.every((id) => next.has(id))) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }, [visibleIds])
-
-  const toggleSort = React.useCallback(
-    (column: AnnouncementSortColumn) => {
-      setListSearch(
-        sort === column
-          ? { direction: direction === "asc" ? "desc" : "asc", page: undefined }
-          : { sort: column, direction: "asc", page: undefined }
-      )
-    },
-    [direction, setListSearch, sort]
   )
 
   // Re-running the route loader is the refresh, not a fetch of our own. The
@@ -300,7 +274,7 @@ export function AdminAnnouncementsDashboard({
         count={sortedAnnouncements.length}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
-        onClearSelection={() => setSelectedIds(new Set())}
+        onClearSelection={selection.clear}
         controls={
           <>
             {selectedIds.size ? (
@@ -342,56 +316,22 @@ export function AdminAnnouncementsDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
+          <SortableTableHeader
+            columns={ANNOUNCEMENT_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
               <TableHead column="select">
                 <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
+                  checked={selection.selectAllState(visibleIds)}
+                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
                   aria-label="Select announcements on this page"
                 />
               </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "title"}
-                  direction={direction}
-                  onClick={() => toggleSort("title")}
-                >
-                  Announcement
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "where"}
-                  direction={direction}
-                  onClick={() => toggleSort("where")}
-                >
-                  Where
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "shows"}
-                  direction={direction}
-                  onClick={() => toggleSort("shows")}
-                >
-                  Shows
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sortedAnnouncements.length === 0}
         emptyText={
@@ -422,7 +362,7 @@ export function AdminAnnouncementsDashboard({
               <TableCell column="select">
                 <Checkbox
                   checked={selectedIds.has(announcement.id)}
-                  onCheckedChange={() => toggleSelection(announcement.id)}
+                  onCheckedChange={() => selection.toggle(announcement.id)}
                   aria-label={`Select ${announcement.title}`}
                 />
               </TableCell>
@@ -554,7 +494,7 @@ export function AdminAnnouncementsDashboard({
                 ? "Announcement retired."
                 : "Announcements retired."
             )
-            setSelectedIds(new Set())
+            selection.clear()
             setRetireTargets([])
             await refresh()
           } catch (retireError) {
@@ -597,7 +537,7 @@ export function AdminAnnouncementsDashboard({
                 ? "Announcement deleted."
                 : "Announcements deleted."
             )
-            setSelectedIds(new Set())
+            selection.clear()
             setDeleteTargets([])
             await refresh()
           } catch (deleteError) {

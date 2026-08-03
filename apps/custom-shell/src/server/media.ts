@@ -291,11 +291,25 @@ export async function isOwnedImageUrl(
   url: string,
   database: CustomShellDb = db
 ) {
+  return Boolean(await findOwnedImageByUrl(userId, url, database))
+}
+
+/**
+ * The media row behind one of this account's own image URLs, or null when the
+ * URL is anything else. The row itself is for the callers that need to hold on
+ * to the picture — a feedback screenshot stores the id so deleting the feedback
+ * can find the file again.
+ */
+export async function findOwnedImageByUrl(
+  userId: string,
+  url: string,
+  database: CustomShellDb = db
+) {
   const storagePath = storagePathForUrl(url)
-  if (!storagePath) return false
+  if (!storagePath) return null
 
   const [row] = await database
-    .select({ fileType: customShellMedia.fileType })
+    .select({ id: customShellMedia.id, fileType: customShellMedia.fileType })
     .from(customShellMedia)
     .where(
       and(
@@ -305,7 +319,7 @@ export async function isOwnedImageUrl(
     )
     .limit(1)
 
-  return row?.fileType === "image"
+  return row?.fileType === "image" ? row : null
 }
 
 /**

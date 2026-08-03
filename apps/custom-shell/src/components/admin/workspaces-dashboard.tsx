@@ -14,13 +14,10 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableSortButton,
-  TableRow,
-  type TableSortDirection,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   deleteWorkspace,
   deleteWorkspaces,
@@ -30,11 +27,20 @@ import {
 import { describeBulkResult } from "@/lib/bulk-result"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useClientPage } from "@/lib/use-client-page"
+import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type WorkspaceSortColumn = "name" | "status"
+
+const WORKSPACE_COLUMNS: SortableColumn<WorkspaceSortColumn>[] = [
+  { key: "name", label: "Workspace", column: "main" },
+  { key: "status", label: "Status", column: "meta" },
+]
 
 export function WorkspacesDashboard({
   initialWorkspaces: workspaces,
@@ -44,17 +50,16 @@ export function WorkspacesDashboard({
   const router = useRouter()
   const { config } = useShellRuntime()
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
   const [pendingDelete, setPendingDelete] =
     React.useState<WorkspaceItem | null>(null)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [formOpen, setFormOpen] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
-  const [sortColumn, setSortColumn] = React.useState<WorkspaceSortColumn>("name")
-  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("asc")
+  const [run, busy] = useAsyncAction(getWorkspaceErrorMessage)
+  const { sort, direction: sortDirection, toggleSort } =
+    useTableSort<WorkspaceSortColumn>("name")
+  const selection = useSelection()
+  const selectedIds = selection.selected
 
   const sortedWorkspaces = React.useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1
@@ -62,37 +67,29 @@ export function WorkspacesDashboard({
     return workspaces
       .filter((workspace) => !query || workspace.name.toLowerCase().includes(query))
       .sort((a, b) => {
-        if (sortColumn === "status") {
+        if (sort === "status") {
           return (Number(b.active) - Number(a.active)) * direction
         }
         return a.name.localeCompare(b.name) * direction
       })
-  }, [searchQuery, sortColumn, sortDirection, workspaces])
+  }, [searchQuery, sort, sortDirection, workspaces])
 
-  const totalPages = Math.ceil(sortedWorkspaces.length / pageSize)
-  const paginatedWorkspaces = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return sortedWorkspaces.slice(startIndex, startIndex + pageSize)
-  }, [currentPage, pageSize, sortedWorkspaces])
-
-  React.useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, sortColumn, sortDirection, pageSize])
+  const {
+    page: currentPage,
+    pageSize,
+    visible: paginatedWorkspaces,
+    footer,
+  } = useClientPage(
+    sortedWorkspaces,
+    config.dashboardRowsPerPage,
+    `${searchQuery}|${sort}|${sortDirection}`
+  )
+  const visibleIds = paginatedWorkspaces.map((workspace) => workspace.id)
 
   useClearSelectionOnListChange(
-    setSelectedIds,
-    `${searchQuery}|${sortColumn}|${sortDirection}|${currentPage}|${pageSize}`
+    selection.setSelected,
+    `${searchQuery}|${sort}|${sortDirection}|${currentPage}|${pageSize}`
   )
-
-  function toggleSort(column: WorkspaceSortColumn) {
-    if (sortColumn === column) {
-      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
-      return
-    }
-
-    setSortColumn(column)
-    setSortDirection("asc")
-  }
 
   function openCreateForm() {
     setEditing(null)
@@ -104,46 +101,15 @@ export function WorkspacesDashboard({
     setFormOpen(true)
   }
 
-  function toggleSelection(id: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function toggleVisibleSelection() {
-    const visibleIds = paginatedWorkspaces.map((workspace) => workspace.id)
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (visibleIds.every((id) => next.has(id))) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
-
-  const visibleSelected =
-    paginatedWorkspaces.length > 0 &&
-    paginatedWorkspaces.every((workspace) => selectedIds.has(workspace.id))
-  const visiblePartiallySelected =
-    !visibleSelected &&
-    paginatedWorkspaces.some((workspace) => selectedIds.has(workspace.id))
-
   // One request for the whole selection, and the server decides what it can
   // take — one workspace always has to survive, so the last one never goes.
   async function confirmMassDelete() {
-    dismissErrorToast()
-    setBusy(true)
-    try {
+    await run(async () => {
       const { deleted, kept } = await deleteWorkspaces([...selectedIds])
       await router.invalidate()
       // Anything that would not go stays ticked, so the rows still on screen
       // are the ones the count is talking about.
-      setSelectedIds(new Set(kept))
+      selection.setSelected(new Set(kept))
 
       if (deleted.length === 0) {
         showErrorToast(
@@ -162,28 +128,18 @@ export function WorkspacesDashboard({
         })
       )
       setMassDeleteOpen(false)
-    } catch (error) {
-      showErrorToast(getWorkspaceErrorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    })
   }
 
   async function confirmDelete() {
     if (!pendingDelete) return
 
-    dismissErrorToast()
-    setBusy(true)
-    try {
+    await run(async () => {
       await deleteWorkspace(pendingDelete.id)
       await router.invalidate()
       toast.success("Workspace deleted.")
       setPendingDelete(null)
-    } catch (error) {
-      showErrorToast(getWorkspaceErrorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    })
   }
 
   return (
@@ -193,7 +149,7 @@ export function WorkspacesDashboard({
         icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
         count={sortedWorkspaces.length}
         selectedCount={selectedIds.size}
-        onClearSelection={() => setSelectedIds(new Set())}
+        onClearSelection={selection.clear}
         controls={
           <>
             {selectedIds.size ? (
@@ -221,58 +177,34 @@ export function WorkspacesDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
+          <SortableTableHeader
+            columns={WORKSPACE_COLUMNS}
+            sort={sort}
+            direction={sortDirection}
+            onSort={toggleSort}
+            leading={
               <TableHead column="select">
                 <Checkbox
-                  checked={
-                    visibleSelected
-                      ? true
-                      : visiblePartiallySelected
-                        ? "indeterminate"
-                        : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
+                  checked={selection.selectAllState(visibleIds)}
+                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
                   aria-label="Select visible workspaces"
                 />
               </TableHead>
-              <TableHead column="main">
-                <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
-                  Workspace
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sortedWorkspaces.length === 0}
         emptyText="No workspaces found."
         emptyColSpan={4}
-        footer={{
-          type: "pagination",
-          page: currentPage,
-          pageSize,
-          total: sortedWorkspaces.length,
-          totalPages,
-          onPageChange: (page) =>
-            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
-          onPageSizeChange: (nextSize) => {
-            setCurrentPage(1)
-            setPageSize(nextSize)
-          },
-        }}
+        footer={footer}
       >
         {paginatedWorkspaces.map((workspace) => (
           <TableRow key={workspace.id} className="group">
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(workspace.id)}
-                onCheckedChange={() => toggleSelection(workspace.id)}
+                onCheckedChange={() => selection.toggle(workspace.id)}
                 aria-label={`Select ${workspace.name}`}
               />
             </TableCell>

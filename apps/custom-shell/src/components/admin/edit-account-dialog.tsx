@@ -1,6 +1,6 @@
 import * as React from "react"
 import { format } from "date-fns"
-import { Loader2Icon } from "lucide-react"
+import { BanIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
+import { CancelSubscriptionDialog } from "@/components/admin/cancel-subscription-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import {
@@ -37,12 +38,15 @@ import {
   updateAccountStatus,
   type AssignablePlan,
 } from "@/lib/api/admin-users"
+import { saveAiAllowanceOverride } from "@/lib/api/ai"
+import { Input } from "@/components/ui/input"
 import {
   isPendingDeletion,
   PENDING_DELETION,
 } from "@/lib/account-deletion"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { formatDate } from "@/lib/format-time"
 
 type AccountStatus = "active" | "suspended" | typeof PENDING_DELETION
 
@@ -57,8 +61,13 @@ export type EditableAccount = {
   role: string
   status: string
   planSlug: string
+  planName: string
+  planIsPaid: boolean
   subscriptionSource: string | null
   currentPeriodEnd: string | null
+  cancelAtPeriodEnd: boolean
+  /** Their own monthly AI ceiling in cents, null when they follow their plan. */
+  aiOverrideCents: number | null
 }
 
 /** Role, status and a granted plan live here, not as controls inside the table. */
@@ -92,13 +101,21 @@ export function EditAccountDialog({
       ? "suspended"
       : "active"
 
+  // Cents in the row, dollars in the field — empty means "follow the plan".
+  const initialAiDollars =
+    account?.aiOverrideCents != null
+      ? String(account.aiOverrideCents / 100)
+      : ""
+
   const [role, setRole] = React.useState<"admin" | "member">(
     account?.role === "admin" ? "admin" : "member"
   )
   const [status, setStatus] = React.useState<AccountStatus>(initialStatus)
   const [planId, setPlanId] = React.useState(grantedPlanId)
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
+  const [aiDollars, setAiDollars] = React.useState(initialAiDollars)
   const [saving, setSaving] = React.useState(false)
+  const [cancellingPlan, setCancellingPlan] = React.useState(false)
 
   // What the window opened with. Held from the first render so the save can
   // send only what changed, and so closing can tell edits from a look.
@@ -107,6 +124,7 @@ export function EditAccountDialog({
     status: initialStatus,
     planId: grantedPlanId,
     endsOn: grantedEndsOn,
+    aiDollars: initialAiDollars,
   }))
 
   // A window that was only looked at still closes on the first click outside;
@@ -115,12 +133,23 @@ export function EditAccountDialog({
     role !== initial.role ||
     status !== initial.status ||
     planId !== initial.planId ||
-    endsOn !== initial.endsOn
+    endsOn !== initial.endsOn ||
+    aiDollars !== initial.aiDollars
 
   const handleSave = React.useCallback(async () => {
     if (!account) return
 
     dismissErrorToast()
+
+    // Read the allowance field before anything is sent, so a typo cannot
+    // leave the save half done.
+    const aiText = aiDollars.trim()
+    const aiValue = aiText === "" ? null : Number(aiText)
+    if (aiValue !== null && (!Number.isFinite(aiValue) || aiValue < 0)) {
+      showErrorToast("The AI allowance must be a dollar amount, 0 or more.")
+      return
+    }
+
     setSaving(true)
     try {
       // Only send what changed, so a no-op save writes no audit rows.
@@ -139,6 +168,12 @@ export function EditAccountDialog({
           endsOn ? new Date(`${endsOn}T23:59:59`).toISOString() : null
         )
       }
+      if (aiDollars !== initial.aiDollars) {
+        await saveAiAllowanceOverride(
+          account.id,
+          aiValue === null ? null : Math.round(aiValue * 100)
+        )
+      }
 
       toast.success("Account updated.")
       await onSaved()
@@ -147,9 +182,10 @@ export function EditAccountDialog({
     } finally {
       setSaving(false)
     }
-  }, [account, endsOn, initial, onSaved, planId, role, status])
+  }, [account, aiDollars, endsOn, initial, onSaved, planId, role, status])
 
   return (
+    <>
     <FormDialog
       open={Boolean(account)}
       dirty={dirty}
@@ -291,6 +327,72 @@ export function EditAccountDialog({
                 </div>
               </CardContent>
             </Card>
+
+            {/* Only accounts actually on a paid plan have something to cancel;
+                for everyone else this card would be a button with nothing to
+                do, so it is not shown at all. */}
+            {account?.planIsPaid ? (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Paid plan</CardTitle>
+                  <CardDescription>
+                    {account.name} is on {account.planName}
+                    {account.subscriptionSource === "manual"
+                      ? ", granted by an admin."
+                      : ", paid through Stripe."}
+                    {account.cancelAtPeriodEnd
+                      ? ` It is already set to end${
+                          account.currentPeriodEnd
+                            ? ` on ${formatDate(account.currentPeriodEnd)}`
+                            : ""
+                        } and will not renew.`
+                      : ""}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-fit text-destructive hover:text-destructive"
+                    onClick={() => setCancellingPlan(true)}
+                  >
+                    <BanIcon className="size-4" />
+                    Cancel their paid plan
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>AI allowance</CardTitle>
+                <CardDescription>
+                  How much AI use this account gets each month, in dollars.
+                  Their plan sets it unless you type a number here.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="account-ai-dollars"
+                    hint="Empty follows the plan. 0 blocks AI for this account entirely."
+                  >
+                    Their own limit ($ a month)
+                  </FieldLabel>
+                  <Input
+                    id="account-ai-dollars"
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    placeholder="Follows the plan"
+                    className="w-full sm:w-40"
+                    value={aiDollars}
+                    onChange={(event) => setAiDollars(event.target.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </DialogBody>
           <DialogFooter>
             <Button
@@ -310,5 +412,19 @@ export function EditAccountDialog({
         </DialogContent>
       )}
     </FormDialog>
+
+    <CancelSubscriptionDialog
+      // Remounts per opening so the when-it-ends choice never carries over.
+      key={cancellingPlan ? "cancel-open" : "cancel-closed"}
+      account={cancellingPlan && account ? account : null}
+      onClose={() => setCancellingPlan(false)}
+      onDone={async () => {
+        // The plan this window opened with is gone, so it closes with the
+        // cancel rather than showing stale plan facts.
+        setCancellingPlan(false)
+        await onSaved()
+      }}
+    />
+    </>
   )
 }

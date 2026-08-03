@@ -137,6 +137,21 @@ function aiUsageLink(): ShellItem {
   }
 }
 
+const TRAFFIC_LINK_ID = "item-admin-traffic"
+const TRAFFIC_HREF = "/admin/traffic"
+
+function trafficLink(): ShellItem {
+  return {
+    type: "item",
+    id: TRAFFIC_LINK_ID,
+    label: "Traffic",
+    href: TRAFFIC_HREF,
+    icon: "chart-line",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
 /**
  * The retired Feeds parent. Its page is gone — the Overview shows what it
  * showed — and its four links hang off the Overview now.
@@ -242,7 +257,7 @@ const AUTOMATIONS_LINK: ShellItem = {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 8
+export const NAVIGATION_VERSION = 9
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -582,6 +597,9 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 8) {
     sections = addAiUsageLink(sections)
+  }
+  if (settings.navVersion < 9) {
+    sections = addTrafficLink(sections)
   }
 
   const [updated] = await database
@@ -974,6 +992,53 @@ export function addAiUsageLink(sections: ShellSection[]): ShellSection[] {
       membershipAt >= 0 ? membershipAt + 1 : entries.length,
       0,
       aiUsageLink()
+    )
+    return { ...section, entries }
+  })
+}
+
+/**
+ * Puts the Traffic link in a sidebar saved before the page existed. Same
+ * shape and same rules as `addAiUsageLink` above: an emptied sidebar stays
+ * empty, a link that is already there (by id or address, hidden included) is
+ * never doubled, and it runs once per workspace on the navVersion stamp.
+ */
+export function addTrafficLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isTraffic = (link: { id: string; href?: string }) =>
+    link.id === TRAFFIC_LINK_ID || link.href === TRAFFIC_HREF
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isTraffic(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isTraffic))
+    )
+  )
+  if (alreadyThere) return sections
+
+  // Where it belongs, in order: right after AI usage (a report next to a
+  // report), then the Administration section, then the first section.
+  const isAiUsage = (link: { id: string; href?: string }) =>
+    link.id === AI_USAGE_LINK_ID || link.href === AI_USAGE_HREF
+
+  const sectionIndex = sections.findIndex((section) =>
+    section.entries.some(isAiUsage)
+  )
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  const index = sectionIndex >= 0 ? sectionIndex : Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const aiUsageAt = section.entries.findIndex(isAiUsage)
+    const entries = [...section.entries]
+    entries.splice(
+      aiUsageAt >= 0 ? aiUsageAt + 1 : entries.length,
+      0,
+      trafficLink()
     )
     return { ...section, entries }
   })
@@ -1379,6 +1444,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         overviewLink(feedsChildLinks()),
         membershipLink(membershipChildLinks()),
         aiUsageLink(),
+        trafficLink(),
       ],
     },
     {

@@ -10,10 +10,9 @@ import {
 } from "@/server/billing"
 import { loadEntitlements } from "@/server/entitlements"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/plans"
-import { requireAppOrigin } from "@/server/origin"
 import { enforceRateLimit } from "@/server/rate-limit"
 import type { PlanFeatures } from "@/lib/plan-features"
-import { requireUser } from "@/server/security"
+import { userGet, userPost } from "@/server/guards"
 
 export type PlanOption = {
   id: string
@@ -93,12 +92,11 @@ async function buildBillingOverview(userId: string): Promise<BillingOverview> {
   }
 }
 
-const loadBillingOverviewFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<BillingOverview> => {
-    const user = await requireUser()
-    return buildBillingOverview(user.id)
-  }
-)
+const loadBillingOverviewFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<BillingOverview> => {
+    return buildBillingOverview(context.user.id)
+  })
 
 /** The plan badge the shell chrome shows; filled in by the shell bootstrap. */
 export type PlanSummary = {
@@ -127,17 +125,15 @@ const loadPublicPricingFn = createServerFn({ method: "GET" }).handler(
 )
 
 const startCheckoutFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(
     z.object({
       planSlug: z.string().trim().min(1).max(50),
       interval: z.enum(["monthly", "yearly"]),
     })
   )
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireUser()
-
-    await enforceRateLimit(`checkout-start:${user.id}`, {
+  .handler(async ({ data, context }) => {
+    await enforceRateLimit(`checkout-start:${context.user.id}`, {
       maxAttempts: 10,
       windowSeconds: 15 * 60,
     })
@@ -148,35 +144,36 @@ const startCheckoutFn = createServerFn({ method: "POST" })
       throw new Error("PLAN_NOT_FOUND")
     }
 
-    return createCheckoutSession(user, plan, data.interval)
+    return createCheckoutSession(context.user, plan, data.interval)
   })
 
-const openBillingPortalFn = createServerFn({ method: "POST" }).handler(
-  async () => {
-    requireAppOrigin()
-    const user = await requireUser()
-    return createPortalSession(user.id)
-  }
-)
+const openBillingPortalFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .handler(async ({ context }) => {
+    return createPortalSession(context.user.id)
+  })
 
 /** Billing page data in one request: the overview plus any Stripe invoices. */
-const loadBillingPageFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{
-    overview: BillingOverview
-    invoices: BillingInvoice[]
-  }> => {
-    const user = await requireUser()
-    const overview = await buildBillingOverview(user.id)
+const loadBillingPageFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(
+    async ({
+      context,
+    }): Promise<{
+      overview: BillingOverview
+      invoices: BillingInvoice[]
+    }> => {
+      const overview = await buildBillingOverview(context.user.id)
 
-    return {
-      overview,
-      // Invoices live in Stripe, so only ask when there is a customer.
-      invoices: overview.hasStripeCustomer
-        ? await listCustomerInvoices(user.id)
-        : [],
+      return {
+        overview,
+        // Invoices live in Stripe, so only ask when there is a customer.
+        invoices: overview.hasStripeCustomer
+          ? await listCustomerInvoices(context.user.id)
+          : [],
+      }
     }
-  }
-)
+  )
 
 export function loadBillingOverview() {
   return loadBillingOverviewFn()

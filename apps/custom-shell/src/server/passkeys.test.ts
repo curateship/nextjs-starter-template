@@ -1,15 +1,12 @@
-import { readdir, readFile } from "node:fs/promises"
-
 import { PGlite } from "@electric-sql/pglite"
 import type {
   AuthenticationResponseJSON,
   RegistrationResponseJSON,
 } from "@simplewebauthn/server"
 import { eq } from "drizzle-orm"
-import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { setDbForTests, type CustomShellDb } from "@/server/db"
+import { type CustomShellDb } from "@/server/db"
 import {
   deletePasskey,
   finishPasskeyAuthentication,
@@ -19,32 +16,20 @@ import {
   startPasskeyRegistration,
   type RelyingParty,
 } from "@/server/passkeys"
-import * as schema from "@/server/schema"
 import {
   customShellPasskeyChallenges,
   customShellPasskeys,
-  customShellUsers,
-  type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
+import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
 let client: PGlite
-let database: ReturnType<typeof drizzle<typeof schema>>
+let database: TestDatabase
 
 beforeEach(async () => {
-  client = new PGlite()
-  // Replay every migration in order, the way setup-database.mjs does, so the
-  // test schema cannot drift from the real one.
-  const folder = new URL("../../drizzle/", import.meta.url)
-  const migrations = (await readdir(folder))
-    .filter((file) => file.endsWith(".sql"))
-    .sort()
-
-  for (const migration of migrations) {
-    await client.exec(await readFile(new URL(migration, folder), "utf8"))
-  }
-  database = drizzle(client, { schema })
-  setDbForTests(database as unknown as CustomShellDb)
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
 })
 
 afterEach(async () => {
@@ -58,29 +43,6 @@ const rp: RelyingParty = {
 }
 
 const testDb = () => database as unknown as CustomShellDb
-
-async function createTestUser(
-  overrides: Partial<typeof customShellUsers.$inferInsert> = {}
-): Promise<CustomShellUser> {
-  const timestamp = now()
-  const [user] = await database
-    .insert(customShellUsers)
-    .values({
-      id: uuid(),
-      email: `${uuid()}@example.test`,
-      name: "Test Person",
-      role: "member",
-      status: "active",
-      passwordHash: "not-a-real-hash",
-      emailVerifiedAt: timestamp,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      ...overrides,
-    })
-    .returning()
-
-  return user
-}
 
 /** A saved credential the tests can point sign-in responses at. */
 async function createTestPasskey(userId: string, credentialId: string) {
@@ -112,7 +74,7 @@ function fakeAuthResponse(credentialId: string) {
 
 describe("passkey registration", () => {
   it("issues options that exclude already-registered credentials", async () => {
-    const user = await createTestUser()
+    const user = await insertUser(testDb())
     await createTestPasskey(user.id, "existing-credential")
 
     const { options, challengeId } = await startPasskeyRegistration(
@@ -133,7 +95,7 @@ describe("passkey registration", () => {
   })
 
   it("spends the challenge on first use, even when verification fails", async () => {
-    const user = await createTestUser()
+    const user = await insertUser(testDb())
     const { challengeId } = await startPasskeyRegistration(user, rp, testDb())
 
     const garbage = { id: "garbage" } as unknown as RegistrationResponseJSON
@@ -150,8 +112,8 @@ describe("passkey registration", () => {
   })
 
   it("refuses a challenge issued to a different account", async () => {
-    const alice = await createTestUser()
-    const bob = await createTestUser()
+    const alice = await insertUser(testDb())
+    const bob = await insertUser(testDb())
     const { challengeId } = await startPasskeyRegistration(alice, rp, testDb())
 
     await expect(
@@ -167,7 +129,7 @@ describe("passkey registration", () => {
   })
 
   it("sweeps expired challenges when a new ceremony starts", async () => {
-    const user = await createTestUser()
+    const user = await insertUser(testDb())
     const staleId = uuid()
     await database.insert(customShellPasskeyChallenges).values({
       id: staleId,
@@ -224,7 +186,7 @@ describe("passkey sign-in", () => {
   })
 
   it("will not spend a registration challenge as a sign-in", async () => {
-    const user = await createTestUser()
+    const user = await insertUser(testDb())
     const { challengeId } = await startPasskeyRegistration(user, rp, testDb())
 
     await expect(
@@ -238,7 +200,7 @@ describe("passkey sign-in", () => {
   })
 
   it("tells a suspended account it is suspended, valid passkey or not", async () => {
-    const user = await createTestUser({ status: "suspended" })
+    const user = await insertUser(testDb(), { status: "suspended" })
     await createTestPasskey(user.id, "suspended-credential")
     const { challengeId } = await startPasskeyAuthentication(rp, testDb())
 
@@ -253,7 +215,7 @@ describe("passkey sign-in", () => {
   })
 
   it("refuses an account on its way out, with no restore path", async () => {
-    const user = await createTestUser({
+    const user = await insertUser(testDb(), {
       status: "pending_deletion",
       deletedAt: now(),
     })
@@ -271,7 +233,7 @@ describe("passkey sign-in", () => {
   })
 
   it("refuses an unverified account", async () => {
-    const user = await createTestUser({ emailVerifiedAt: null })
+    const user = await insertUser(testDb(), { emailVerifiedAt: null })
     await createTestPasskey(user.id, "unverified-credential")
     const { challengeId } = await startPasskeyAuthentication(rp, testDb())
 
@@ -286,7 +248,7 @@ describe("passkey sign-in", () => {
   })
 
   it("refuses a response whose signature cannot be checked", async () => {
-    const user = await createTestUser()
+    const user = await insertUser(testDb())
     await createTestPasskey(user.id, "active-credential")
     const { challengeId } = await startPasskeyAuthentication(rp, testDb())
 
@@ -303,8 +265,8 @@ describe("passkey sign-in", () => {
 
 describe("managing passkeys", () => {
   it("lists newest first and removes only your own", async () => {
-    const alice = await createTestUser()
-    const bob = await createTestUser()
+    const alice = await insertUser(testDb())
+    const bob = await insertUser(testDb())
     const first = await createTestPasskey(alice.id, "alice-key-1")
     const second = await createTestPasskey(alice.id, "alice-key-2")
 

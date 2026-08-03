@@ -304,8 +304,9 @@ devices, delete account), `/account/billing` (plan, renewal or cancellation
 state, upgrade, Stripe portal, invoices), `/account/billing/success`.
 
 **Admin:** `/admin/users` (search, filter, sort, paging, mass delete, mass
-restore, edit modal for role / status / granted plan), `/admin/plans` (create,
-edit, archive),
+restore, edit modal for role / status / granted plan / cancelling a paid plan,
+plus a "Locked out" window showing who the rate limiter is currently blocking,
+with one-click unblock), `/admin/plans` (create, edit, archive),
 `/admin/billing` (monthly recurring revenue, subscriber counts, revenue by plan).
 
 Both admin tables follow `.agents/skills/Ui-standards`: a selection column with
@@ -397,7 +398,8 @@ database. Plant a row whose hash matches a token the test knows, then visit
 ## 13. When something looks wrong
 
 **"Too many attempts."** The rate limiter is doing its job — likely you during
-testing. Clear it with `delete from rate_limits;` locally.
+testing. Open the "Locked out" window from the Users page (`/admin/users`) and
+unblock the row, or clear everything with `delete from rate_limits;` locally.
 
 **Someone paid but is still on Free.** Check `billing_events` for the event id,
 then `subscriptions.status` and `current_period_end`. A lapsed period reads as

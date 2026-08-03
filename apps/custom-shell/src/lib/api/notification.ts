@@ -1,11 +1,16 @@
 import { createServerFn } from "@tanstack/react-start"
+import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications"
+import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"
 
 export type NotificationType =
   | "feedback_vote"
   | "feedback_comment"
+  | "feedback_merged"
   | "changelog"
   | "announcement"
+  | "ai_limit_warning"
+  | "ai_limit_reached"
 
 /**
  * What each kind of notice is called on screen. Kept here rather than in the
@@ -16,8 +21,41 @@ export type NotificationType =
 export const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up",
   feedback_comment: "Comment",
+  feedback_merged: "Merged",
   changelog: "Update",
   announcement: "Announcement",
+  ai_limit_warning: "AI warning",
+  ai_limit_reached: "AI limit reached",
+}
+
+export type AiLimitNotificationType = "ai_limit_warning" | "ai_limit_reached"
+
+export function isAiLimitNotification(
+  type: NotificationType
+): type is AiLimitNotificationType {
+  return type === "ai_limit_warning" || type === "ai_limit_reached"
+}
+
+/**
+ * The words an AI-allowance notice carries. It is about the reader's own
+ * account rather than a thing with a page, so — like an announcement — the
+ * notice IS the message, and every place that shows one (the tray, the admin
+ * table, the activity card) reads the same words from here.
+ */
+export const aiLimitNotificationText: Record<
+  AiLimitNotificationType,
+  { message: string; detail: string }
+> = {
+  ai_limit_warning: {
+    message: "Your AI allowance is almost used up",
+    detail:
+      "You've passed 80% of this month's AI allowance. AI features pause when it runs out, and start fresh on the 1st.",
+  },
+  ai_limit_reached: {
+    message: "Your AI allowance is used up",
+    detail:
+      "AI features are paused until the 1st, when next month's allowance starts.",
+  },
 }
 
 export type NotificationItem = {
@@ -75,8 +113,11 @@ const adminListQuerySchema = z.object({
       "all",
       "feedback_vote",
       "feedback_comment",
+      "feedback_merged",
       "changelog",
       "announcement",
+      "ai_limit_warning",
+      "ai_limit_reached",
     ])
     .default("all"),
   page: z.number().int().min(1).default(1),
@@ -107,19 +148,14 @@ export function getNotificationErrorMessage(error: unknown) {
 const listNotificationsPageFn = createServerFn({ method: "GET" })
   .inputValidator(listNotificationsSchema)
   .handler(async ({ data }): Promise<NotificationListResponse> => {
-    const { listCurrentUserNotificationPage } = await import(
-      "@/server/notifications"
-    )
     return listCurrentUserNotificationPage(data)
   })
 
 const listAdminNotificationsFn = createServerFn({ method: "GET" })
   .inputValidator(adminListQuerySchema)
   .handler(async ({ data }) => {
-    const { listAdminNotifications, requireAdminNotificationUser } =
-      await import("@/server/notifications")
     await requireAdminNotificationUser()
-    return listAdminNotifications(data)
+    return listAdminNotificationRows(data)
   })
 
 /**
@@ -132,32 +168,22 @@ const listAdminNotificationsFn = createServerFn({ method: "GET" })
 const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
   .inputValidator(adminListQuerySchema.omit({ pageSize: true }))
   .handler(async ({ data }) => {
-    const { listAdminNotifications, requireAdminNotificationUser } =
-      await import("@/server/notifications")
-    const { readDashboardRowsPerPage } = await import("@/server/shell-settings")
-
     await requireAdminNotificationUser()
     const pageSize = await readDashboardRowsPerPage()
 
-    return { ...(await listAdminNotifications({ ...data, pageSize })), pageSize }
+    return { ...(await listAdminNotificationRows({ ...data, pageSize })), pageSize }
   })
 
 const markNotificationReadFn = createServerFn({ method: "POST" })
   .inputValidator(notificationIdSchema)
   .handler(
     async ({ data }): Promise<{ notificationId: string; readAt: string }> => {
-      const { markCurrentUserNotificationRead } = await import(
-        "@/server/notifications"
-      )
       return markCurrentUserNotificationRead(data.notificationId)
     }
   )
 
 const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ notificationIds: string[]; readAt: string }> => {
-    const { markAllCurrentUserNotificationsRead } = await import(
-      "@/server/notifications"
-    )
     return markAllCurrentUserNotificationsRead()
   }
 )
@@ -165,17 +191,11 @@ const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(
 const deleteAdminNotificationsFn = createServerFn({ method: "POST" })
   .inputValidator(deleteNotificationsSchema)
   .handler(async ({ data }): Promise<{ count: number }> => {
-    const { deleteAdminNotificationRows } = await import(
-      "@/server/notifications"
-    )
     return deleteAdminNotificationRows(data.notificationIds)
   })
 
 const clearAdminNotificationsFn = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ count: number }> => {
-    const { clearAdminNotificationRows } = await import(
-      "@/server/notifications"
-    )
     return clearAdminNotificationRows()
   }
 )

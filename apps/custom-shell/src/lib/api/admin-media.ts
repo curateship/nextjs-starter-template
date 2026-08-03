@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import {
@@ -19,8 +20,7 @@ import {
   type StorageUserRow,
 } from "@/server/media"
 import { R2StorageNotConfiguredError } from "@/server/media-storage"
-import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin } from "@/server/security"
+import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 export type {
@@ -58,25 +58,14 @@ const cleanOrphansSchema = z.object({
   storagePaths: z.array(z.string().min(1).max(512)).max(500).default([]),
 })
 
-const adminMediaErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-  R2_NOT_CONFIGURED:
-    "File storage is not set up. Add the CUSTOM_SHELL_R2_* environment variables first.",
-  SCAN_FAILED: "Storage could not be read, so orphans are unknown right now.",
-}
-
-export function getAdminMediaErrorMessage(error: unknown) {
-  const message =
-    typeof error === "string" ? error : error instanceof Error ? error.message : ""
-  const matched = Object.keys(adminMediaErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? adminMediaErrorMessages[matched]
-    : "We could not complete that request. Please try again."
-}
+export const getAdminMediaErrorMessage = createErrorMessage(
+  {
+    R2_NOT_CONFIGURED:
+      "File storage is not set up. Add the CUSTOM_SHELL_R2_* environment variables first.",
+    SCAN_FAILED: "Storage could not be read, so orphans are unknown right now.",
+  },
+  "We could not complete that request. Please try again."
+)
 
 /** Storage is unusable without R2, so say that instead of "try again". */
 function asStorageError(error: unknown): never {
@@ -95,9 +84,9 @@ function asStorageError(error: unknown): never {
  * screen and the footer's "1-10 of N" agreeing on first paint.
  */
 const loadAdminMediaPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(listQuerySchema)
   .handler(async ({ data }) => {
-    await requireAdmin()
     const pageSize = data.pageSize ?? (await readDashboardRowsPerPage())
     const [media, owners] = await Promise.all([
       listAllMedia({ ...data, pageSize }).catch(asStorageError),
@@ -106,33 +95,29 @@ const loadAdminMediaPageFn = createServerFn({ method: "GET" })
     return { media, owners, pageSize }
   })
 
-const loadStorageDashboardFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    await requireAdmin()
+const loadStorageDashboardFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async () => {
     return loadStorageDashboard()
-  }
-)
+  })
 
-const loadOrphanDashboardFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    await requireAdmin()
+const loadOrphanDashboardFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async () => {
     return loadOrphanDashboard()
-  }
-)
+  })
 
 const deleteAdminMediaFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(deleteSchema)
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return deleteMediaAsAdmin(data.mediaIds).catch(asStorageError)
   })
 
 const cleanOrphansFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(cleanOrphansSchema)
   .handler(async ({ data }) => {
-    requireAppOrigin()
-    await requireAdmin()
     return cleanMediaOrphans(data).catch(asStorageError)
   })
 

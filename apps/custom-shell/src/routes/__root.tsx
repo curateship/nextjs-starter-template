@@ -18,6 +18,7 @@ import { loadAppName } from "@/lib/api/shell"
 import { resolveAppName } from "@/lib/app-name"
 import { useDismissErrorToastOnNavigate } from "@/lib/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
+import { useTrafficBeacon } from "@/lib/traffic-beacon"
 import { ThemeProvider } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 
 // The app name changes about as rarely as the shell config, so hold it for the
@@ -76,6 +77,7 @@ function RootErrorComponent({ error }: ErrorComponentProps) {
 
 function RootComponent() {
   useDismissErrorToastOnNavigate()
+  useTrafficBeacon()
 
   return (
     <RootDocument>

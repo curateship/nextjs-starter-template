@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start"
-import { getRequestIP } from "@tanstack/react-start/server"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
@@ -55,7 +54,7 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/security"
-import { requireAppOrigin } from "@/server/origin"
+import { requestIp, requireAppOrigin } from "@/server/origin"
 
 export type AuthUser = {
   id: string
@@ -943,6 +942,3 @@ function sendVerificationEmail(email: string, token: string) {
   })
 }
 
-function requestIp() {
-  return getRequestIP({ xForwardedFor: true }) || "unknown"
-}

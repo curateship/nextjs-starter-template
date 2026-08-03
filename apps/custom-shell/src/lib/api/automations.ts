@@ -1,4 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
+import { adminGet, adminPost } from "@/server/guards"
+import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomation, inspectAutomation } from "@/server/automations"
+import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/workspaces"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import type {
@@ -72,45 +76,27 @@ const favoritesSchema = z.object({
 })
 
 const automationErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
   NOT_FOUND: "That automation no longer exists.",
   NAME_REQUIRED: "Name the automation first.",
   NAME_TAKEN: "An automation with that name already exists.",
   COPY_LIMIT: "Could not find a free name for the copy.",
 }
 
-function describeAutomationError(error: unknown, fallback: string) {
-  const message =
-    typeof error === "string" ? error : error instanceof Error ? error.message : ""
-  const matched = Object.keys(automationErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched ? automationErrorMessages[matched] : fallback
-}
-
-export function getAutomationErrorMessage(error: unknown) {
-  return describeAutomationError(
-    error,
-    "We could not save that change. Please try again."
-  )
-}
+export const getAutomationErrorMessage = createErrorMessage(
+  automationErrorMessages,
+  "We could not save that change. Please try again."
+)
 
 /** The same codes, said the way a page that would not open needs them said. */
-export function getAutomationLoadErrorMessage(error: unknown) {
-  return describeAutomationError(
-    error,
-    "We could not load your automations. Please try again."
-  )
-}
+export const getAutomationLoadErrorMessage = createErrorMessage(
+  automationErrorMessages,
+  "We could not load your automations. Please try again."
+)
 
-const loadAutomationsPageFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AutomationsPage> => {
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { listUserAutomations } = await import("@/server/automations")
-    const rows = await listUserAutomations(user.id)
+const loadAutomationsPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<AutomationsPage> => {
+    const rows = await listUserAutomations(context.user.id)
     return {
       automations: rows.map((row) => ({
         id: row.id,
@@ -121,40 +107,31 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" }).handler(
         updated_at: row.updatedAt.toISOString(),
       })),
     }
-  }
-)
+  })
 
 const getAutomationFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
   .inputValidator(automationIdSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { getUserAutomation } = await import("@/server/automations")
-    const row = await getUserAutomation(user.id, data.automationId)
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await getUserAutomation(context.user.id, data.automationId)
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
 
 const createAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(createSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    requireAppOrigin()
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { createUserAutomation } = await import("@/server/automations")
-    return serializeDetail(await createUserAutomation(user.id, data.name))
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    return serializeDetail(
+      await createUserAutomation(context.user.id, data.name)
+    )
   })
 
 const saveAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(saveSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    requireAppOrigin()
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { saveUserAutomation } = await import("@/server/automations")
-    const row = await saveUserAutomation(user.id, {
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await saveUserAutomation(context.user.id, {
       id: data.automationId,
       name: data.name,
       graph: data.graph,
@@ -164,60 +141,49 @@ const saveAutomationFn = createServerFn({ method: "POST" })
   })
 
 const duplicateAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(automationIdSchema)
-  .handler(async ({ data }): Promise<AutomationDetail> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    requireAppOrigin()
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { duplicateUserAutomation } = await import("@/server/automations")
-    const row = await duplicateUserAutomation(user.id, data.automationId)
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const row = await duplicateUserAutomation(
+      context.user.id,
+      data.automationId
+    )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
 
 const deleteAutomationFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(automationIdSchema)
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    requireAppOrigin()
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { deleteUserAutomation } = await import("@/server/automations")
-    return { ok: await deleteUserAutomation(user.id, data.automationId) }
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    return {
+      ok: await deleteUserAutomation(context.user.id, data.automationId),
+    }
   })
 
-const loadAutomationFavoritesFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ favoriteNodeKeys: string[] }> => {
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+const loadAutomationFavoritesFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<{ favoriteNodeKeys: string[] }> => {
+    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
     return {
       favoriteNodeKeys: parseWorkspaceSettings(workspace.settings)
         .automationFavoriteNodeKeys,
     }
-  }
-)
+  })
 
 const saveAutomationFavoritesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(favoritesSchema)
-  .handler(async ({ data }): Promise<{ favoriteNodeKeys: string[] }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    requireAppOrigin()
-    const { requireAdmin } = await import("@/server/security")
-    const user = await requireAdmin()
-    const { saveWorkspaceAutomationFavorites } = await import(
-      "@/server/workspaces"
-    )
-    return {
-      favoriteNodeKeys: await saveWorkspaceAutomationFavorites(
-        user.id,
-        cleanAutomationPaletteKeys(data.favoriteNodeKeys)
-      ),
+  .handler(
+    async ({ data, context }): Promise<{ favoriteNodeKeys: string[] }> => {
+      return {
+        favoriteNodeKeys: await saveWorkspaceAutomationFavorites(
+          context.user.id,
+          cleanAutomationPaletteKeys(data.favoriteNodeKeys)
+        ),
+      }
     }
-  })
+  )
 
 export function loadAutomationsPage() {
   return loadAutomationsPageFn()
@@ -258,7 +224,6 @@ export function saveAutomationFavorites(favoriteNodeKeys: string[]) {
 async function serializeDetail(
   row: import("@/server/schema").CustomShellAutomation
 ): Promise<AutomationDetail> {
-  const { inspectAutomation } = await import("@/server/automations")
   const inspected = inspectAutomation(row)
   return {
     id: row.id,

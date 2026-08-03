@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server"
+import { getRequestHeader } from "@tanstack/react-start/server"
 import type {
   AuthenticationResponseJSON,
   RegistrationResponseJSON,
@@ -8,7 +8,7 @@ import { z } from "zod"
 
 import { serializeUser, startWorkspaceFor } from "@/lib/api/auth"
 import { purgeExpiredDeletions } from "@/server/account-deletion"
-import { requireAppOrigin } from "@/server/origin"
+import { requestIp, requireAppOrigin } from "@/server/origin"
 import {
   deletePasskey,
   finishPasskeyAuthentication,
@@ -226,6 +226,3 @@ export function removePasskey(passkeyId: string) {
   return deletePasskeyFn({ data: { passkeyId } })
 }
 
-function requestIp() {
-  return getRequestIP({ xForwardedFor: true }) || "unknown"
-}

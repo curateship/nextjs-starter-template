@@ -41,12 +41,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   archiveAdminPlan,
   archiveAdminPlans,
@@ -59,16 +57,27 @@ import {
 import { describeBulkResult } from "@/lib/bulk-result"
 import {
   useListSearchNavigate,
+  useListSort,
   useSearchBoxText,
 } from "@/lib/list-search"
+import { AI_ALLOWANCE_FEATURE_KEY } from "@/lib/ai-models"
 import { formatPlanPrice } from "@/lib/money"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useSelection } from "@/lib/use-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 const plansRoute = getRouteApi("/_authenticated/admin/plans")
 
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
+
+const PLAN_COLUMNS: SortableColumn<PlanSortColumn>[] = [
+  { key: "name", label: "Plan", column: "main" },
+  { key: "monthly", label: "Monthly", column: "meta" },
+  { key: "yearly", label: "Yearly", column: "meta" },
+  { key: "stripe", label: "Stripe", column: "meta" },
+  { key: "visibility", label: "Visibility", column: "meta" },
+]
 
 function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
   switch (column) {
@@ -96,6 +105,8 @@ type PlanDraft = {
   stripePriceIdMonthly: string
   stripePriceIdYearly: string
   trialDays: string
+  /** Dollars of AI a month, its own field so nobody has to hand-edit JSON. */
+  aiDollars: string
   features: string
   isDefault: boolean
   isPublic: boolean
@@ -113,6 +124,7 @@ const emptyDraft: PlanDraft = {
   stripePriceIdMonthly: "",
   stripePriceIdYearly: "",
   trialDays: "0",
+  aiDollars: "",
   features: "{}",
   isDefault: false,
   isPublic: true,
@@ -148,7 +160,8 @@ export function AdminPlansDashboard({
   const [creating, setCreating] = React.useState(false)
   const [archiveTarget, setArchiveTarget] = React.useState<AdminPlan | null>(null)
   const [archiving, setArchiving] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const selection = useSelection()
+  const selectedIds = selection.selected
   const [massArchiving, setMassArchiving] = React.useState(false)
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -179,7 +192,7 @@ export function AdminPlansDashboard({
   }, [pageSize, setCurrentPage])
 
   useClearSelectionOnListChange(
-    setSelectedIds,
+    selection.setSelected,
     `${searchQuery}|${sort}|${direction}|${currentPage}|${pageSize}`
   )
 
@@ -192,41 +205,7 @@ export function AdminPlansDashboard({
         .map((plan) => plan.id),
     [paginatedPlans]
   )
-  const allSelected =
-    archivableIds.length > 0 && archivableIds.every((id) => selectedIds.has(id))
-  const someSelected = archivableIds.some((id) => selectedIds.has(id))
-
-  const toggleSelection = React.useCallback((id: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const toggleVisibleSelection = React.useCallback(() => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (archivableIds.every((id) => next.has(id))) {
-        archivableIds.forEach((id) => next.delete(id))
-      } else {
-        archivableIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }, [archivableIds])
-
-  const toggleSort = React.useCallback(
-    (column: PlanSortColumn) => {
-      setListSearch(
-        sort === column
-          ? { direction: direction === "asc" ? "desc" : "asc", page: undefined }
-          : { sort: column, direction: "asc", page: undefined }
-      )
-    },
-    [direction, setListSearch, sort]
-  )
+  const toggleSort = useListSort<PlanSortColumn>({ sort, direction })
 
   const refresh = React.useCallback(async () => {
     try {
@@ -247,7 +226,7 @@ export function AdminPlansDashboard({
       await refresh()
       // Anything that would not go stays ticked, so the rows still on screen
       // are the ones the count is talking about.
-      setSelectedIds(new Set(kept))
+      selection.setSelected(new Set(kept))
 
       if (archived.length === 0) {
         showErrorToast(
@@ -271,7 +250,7 @@ export function AdminPlansDashboard({
     } finally {
       setMassArchiving(false)
     }
-  }, [refresh, selectedIds])
+  }, [refresh, selectedIds, selection])
 
   return (
     <>
@@ -281,7 +260,7 @@ export function AdminPlansDashboard({
         count={sortedPlans.length}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
-        onClearSelection={() => setSelectedIds(new Set())}
+        onClearSelection={selection.clear}
         controls={
           <>
             {selectedIds.size ? (
@@ -309,65 +288,22 @@ export function AdminPlansDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
+          <SortableTableHeader
+            columns={PLAN_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
               <TableHead column="select">
                 <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
+                  checked={selection.selectAllState(archivableIds)}
+                  onCheckedChange={() => selection.toggleVisible(archivableIds)}
                   aria-label="Select archivable plans"
                 />
               </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Plan
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "monthly"}
-                  direction={direction}
-                  onClick={() => toggleSort("monthly")}
-                >
-                  Monthly
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "yearly"}
-                  direction={direction}
-                  onClick={() => toggleSort("yearly")}
-                >
-                  Yearly
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "stripe"}
-                  direction={direction}
-                  onClick={() => toggleSort("stripe")}
-                >
-                  Stripe
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "visibility"}
-                  direction={direction}
-                  onClick={() => toggleSort("visibility")}
-                >
-                  Visibility
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sortedPlans.length === 0}
         emptyText={
@@ -395,7 +331,7 @@ export function AdminPlansDashboard({
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(plan.id)}
-                onCheckedChange={() => toggleSelection(plan.id)}
+                onCheckedChange={() => selection.toggle(plan.id)}
                 disabled={plan.isDefault || !plan.active}
                 aria-label={`Select ${plan.name}`}
               />
@@ -578,6 +514,19 @@ function PlanDialog({
     } catch {
       showErrorToast(getPlanErrorMessage(new Error("FEATURES_INVALID")))
       return
+    }
+
+    // The AI allowance field writes the same features key it was read from.
+    // A filled field wins over anything typed into the JSON; an empty field
+    // leaves the JSON alone, so the escape hatch still works.
+    const aiText = draft.aiDollars.trim()
+    if (aiText !== "") {
+      const aiValue = Number(aiText)
+      if (!Number.isFinite(aiValue) || aiValue < 0) {
+        showErrorToast("The AI allowance must be a dollar amount, 0 or more.")
+        return
+      }
+      features = { ...features, [AI_ALLOWANCE_FEATURE_KEY]: aiValue }
     }
 
     const input = {
@@ -774,6 +723,22 @@ function PlanDialog({
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
+                <Field
+                  label="AI allowance ($ a month)"
+                  htmlFor="plan-ai-dollars"
+                  help="Empty means no ceiling. 0 means this plan gets no AI at all."
+                >
+                  <Input
+                    id="plan-ai-dollars"
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    placeholder="No ceiling"
+                    value={draft.aiDollars}
+                    onChange={(event) => update("aiDollars", event.target.value)}
+                  />
+                </Field>
                 <Field label="Features" htmlFor="plan-features">
                   <Textarea
                     id="plan-features"
@@ -882,6 +847,14 @@ function CheckboxRow({
 }
 
 function toDraft(plan: AdminPlan): PlanDraft {
+  // The AI allowance gets its own field, so a number under its key comes out
+  // of the JSON and into that field. Anything else under the key is left in
+  // the JSON where it can be seen and fixed.
+  const { [AI_ALLOWANCE_FEATURE_KEY]: aiValue, ...otherFeatures } =
+    plan.features
+  const aiIsNumber =
+    typeof aiValue === "number" && Number.isFinite(aiValue) && aiValue >= 0
+
   return {
     slug: plan.slug,
     name: plan.name,
@@ -892,7 +865,12 @@ function toDraft(plan: AdminPlan): PlanDraft {
     stripePriceIdMonthly: plan.stripePriceIdMonthly ?? "",
     stripePriceIdYearly: plan.stripePriceIdYearly ?? "",
     trialDays: plan.trialDays.toString(),
-    features: JSON.stringify(plan.features, null, 2),
+    aiDollars: aiIsNumber ? aiValue.toString() : "",
+    features: JSON.stringify(
+      aiIsNumber ? otherFeatures : plan.features,
+      null,
+      2
+    ),
     isDefault: plan.isDefault,
     isPublic: plan.isPublic,
     sortOrder: plan.sortOrder.toString(),

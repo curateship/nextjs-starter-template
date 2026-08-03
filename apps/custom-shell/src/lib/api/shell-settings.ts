@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { getOrCreateCurrentWorkspace, parseWorkspaceSettings } from "@/server/workspaces"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -11,7 +12,6 @@ import {
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 import { db } from "@/server/db"
-import { requireAppOrigin } from "@/server/origin"
 import {
   customShellSettings,
   customShellWorkspaces,
@@ -21,7 +21,8 @@ import {
   parseShellGlobals,
   pickShellGlobals,
 } from "@/server/shell-settings"
-import { now, requireAdmin, requireUser } from "@/server/security"
+import { adminPost, userPost } from "@/server/guards"
+import { now } from "@/server/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
 
@@ -59,6 +60,26 @@ const shellSectionSchema = z.object({
   title: z.string(),
   entries: z.array(shellEntrySchema),
 })
+
+/**
+ * Both header rows are the same shape — the admin's own, and the members'. The
+ * client normalizes what it reads (normalizeTopRightNavigation), so a save only
+ * ever carries the two-way union, never the old `{ id, visible }` rows.
+ */
+const shellTopRightItemSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("builtIn"),
+    id: z.enum(["feedback", "theme", "notifications"]),
+    visible: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("link"),
+    id: z.string().min(1),
+    label: z.string(),
+    href: z.string(),
+    icon: shellIconSchema,
+  }),
+])
 
 const shellBackgroundSchema = z.object({
   mode: z.enum(["default", "muted", "custom"]),
@@ -107,12 +128,8 @@ const shellConfigSchema = z.object({
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
-  topRightNavigation: z.array(
-    z.object({
-      id: z.enum(["feedback", "theme", "notifications"]),
-      visible: z.boolean(),
-    })
-  ),
+  topRightNavigation: z.array(shellTopRightItemSchema),
+  memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
   maintenance: z.object({
@@ -132,15 +149,11 @@ export function getShellSettingsErrorMessage(error: unknown) {
 }
 
 const saveShellSettingsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(shellConfigSchema)
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-
+  .handler(async ({ data, context }) => {
     const updatedAt = now()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
@@ -165,7 +178,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         .where(
           and(
             eq(customShellWorkspaces.id, workspace.id),
-            eq(customShellWorkspaces.userId, user.id)
+            eq(customShellWorkspaces.userId, context.user.id)
           )
         )
 
@@ -224,6 +237,7 @@ export function saveShellSettings(settings: ShellConfig) {
 // shell save this is not admin-gated — any signed-in user can persist their own
 // workspace's sidebar width by dragging the rail.
 const saveSidebarWidthFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(
     z.object({
       sidebarWidth: z
@@ -233,12 +247,8 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
         .max(MAX_SIDEBAR_WIDTH),
     })
   )
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireUser()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+  .handler(async ({ data, context }) => {
+    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
     const settings = parseWorkspaceSettings(workspace.settings)
 
     const [updated] = await db
@@ -250,7 +260,7 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
       .where(
         and(
           eq(customShellWorkspaces.id, workspace.id),
-          eq(customShellWorkspaces.userId, user.id)
+          eq(customShellWorkspaces.userId, context.user.id)
         )
       )
       .returning({ id: customShellWorkspaces.id })

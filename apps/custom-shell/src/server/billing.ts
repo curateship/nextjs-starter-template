@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
-import { findSubscription } from "@/server/entitlements"
+import { findSubscription, subscriptionIsActive } from "@/server/entitlements"
 import {
   findPlanByStripePrice,
   isPaidPlan,
@@ -148,6 +148,83 @@ export async function listCustomerInvoices(
     hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
     invoicePdfUrl: invoice.invoice_pdf ?? null,
   }))
+}
+
+export type CancelSubscriptionMode = "period_end" | "immediate"
+
+/** The two Stripe calls a cancel can make, injectable so tests need no Stripe. */
+type CancelApi = {
+  cancelNow: (subscriptionId: string) => Promise<Stripe.Subscription>
+  stopRenewal: (subscriptionId: string) => Promise<Stripe.Subscription>
+}
+
+const stripeCancelApi: CancelApi = {
+  cancelNow: (subscriptionId) => stripe().subscriptions.cancel(subscriptionId),
+  stopRenewal: (subscriptionId) =>
+    stripe().subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+    }),
+}
+
+/**
+ * Ends someone's paid plan on their behalf.
+ *
+ * "period_end" stops the renewal: they keep what they already paid for and are
+ * not charged again. "immediate" ends it now. Neither refunds anything — money
+ * already taken stays taken unless it is refunded separately in Stripe.
+ *
+ * A granted plan (`source: "manual"`) is not billed, so there is no period to
+ * wait out: whichever mode was asked for, ending it takes it away now, with no
+ * Stripe involved.
+ */
+export async function cancelSubscriptionByAdmin(
+  userId: string,
+  mode: CancelSubscriptionMode,
+  database: CustomShellDb = db,
+  api: CancelApi = stripeCancelApi
+) {
+  const subscription = await findSubscription(userId, database)
+  if (!subscription || !subscriptionIsActive(subscription)) {
+    throw new Error("SUBSCRIPTION_NOT_FOUND")
+  }
+
+  if (subscription.source === "manual") {
+    await database
+      .delete(customShellSubscriptions)
+      .where(eq(customShellSubscriptions.id, subscription.id))
+
+    return { mode: "immediate" as const, endsAt: null }
+  }
+
+  if (!subscription.stripeSubscriptionId) {
+    throw new Error("SUBSCRIPTION_NOT_FOUND")
+  }
+  if (mode === "period_end" && subscription.cancelAtPeriodEnd) {
+    throw new Error("ALREADY_ENDING")
+  }
+
+  const result =
+    mode === "immediate"
+      ? await api.cancelNow(subscription.stripeSubscriptionId)
+      : await api.stopRenewal(subscription.stripeSubscriptionId)
+
+  // Mirror Stripe's answer locally right away. The webhook will repeat it
+  // later, but the admin looking at the table should not have to wait for it.
+  const endsAt = periodEnd(result)
+  await database
+    .update(customShellSubscriptions)
+    .set({
+      status: result.status,
+      cancelAtPeriodEnd: result.cancel_at_period_end,
+      currentPeriodEnd: endsAt,
+      updatedAt: now(),
+    })
+    .where(eq(customShellSubscriptions.id, subscription.id))
+
+  return {
+    mode,
+    endsAt: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+  }
 }
 
 type SubscriptionLoader = (subscriptionId: string) => Promise<Stripe.Subscription>

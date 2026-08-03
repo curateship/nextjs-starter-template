@@ -22,14 +22,12 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TableCell, TableRow } from "@/components/ui/table"
 import type {
   AiUsageDashboard,
   AiUsagePersonRow,
@@ -39,6 +37,8 @@ import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
 import { formatDate } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
 import { pageGutter } from "@/lib/shell-gutter"
+import { useClientPage } from "@/lib/use-client-page"
+import { useTableSort } from "@/lib/use-table-sort"
 
 /**
  * Settings → the sidebar's AI usage page: what AI cost, who spent it, and
@@ -227,21 +227,28 @@ function SpendChart({ daily }: { daily: AiUsageDashboard["daily"] }) {
 
 // --- By person -------------------------------------------------------------
 
-type PersonSort = "person" | "calls" | "tokens" | "spend" | "share" | "last"
+type PersonSort =
+  | "person"
+  | "calls"
+  | "tokens"
+  | "spend"
+  | "share"
+  | "allowance"
+  | "last"
 
-const personColumns: {
-  by: PersonSort
-  label: string
-  column: "main" | "meta"
-  className?: string
-}[] = [
-  { by: "person", label: "Person", column: "main" },
-  { by: "calls", label: "Calls", column: "meta" },
-  { by: "tokens", label: "Tokens", column: "meta" },
-  { by: "spend", label: "Spend", column: "meta" },
-  { by: "share", label: "Share", column: "meta", className: "hidden lg:table-cell" },
-  { by: "last", label: "Last used", column: "meta", className: "hidden sm:table-cell" },
+const personColumns: SortableColumn<PersonSort>[] = [
+  { key: "person", label: "Person", column: "main" },
+  { key: "calls", label: "Calls", column: "meta" },
+  { key: "tokens", label: "Tokens", column: "meta" },
+  { key: "spend", label: "Spend", column: "meta" },
+  { key: "share", label: "Share", column: "meta", className: "hidden lg:table-cell" },
+  { key: "allowance", label: "Allowance", column: "meta", className: "hidden md:table-cell" },
+  { key: "last", label: "Last used", column: "meta", className: "hidden sm:table-cell" },
 ]
+
+/** Only the name reads as words; every other column starts biggest-first. */
+const personSortDirection = (column: PersonSort) =>
+  column === "person" ? "asc" : "desc"
 
 function PersonTable({
   rows,
@@ -259,10 +266,11 @@ function PersonTable({
   // The box types instantly; the address (and the filter) settles just after,
   // exactly like the other dashboards' search fields.
   const [text, setText] = useSearchBoxText(searchText, onSearch)
-  const [sort, setSort] = React.useState<PersonSort>("spend")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
-  const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(defaultPageSize)
+  const { sort, direction, toggleSort } = useTableSort<PersonSort>(
+    "spend",
+    "desc",
+    personSortDirection
+  )
 
   const sorted = React.useMemo(() => {
     const query = searchText.trim().toLowerCase()
@@ -274,20 +282,11 @@ function PersonTable({
     return matching.sort((a, b) => factor * comparePeople(a, b, sort))
   }, [rows, searchText, sort, direction])
 
-  const totalPages = sorted.length ? Math.ceil(sorted.length / pageSize) : 0
-  const currentPage = Math.min(page, Math.max(1, totalPages))
-  const visible = sorted.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+  const { visible, footer } = useClientPage(
+    sorted,
+    defaultPageSize,
+    `${text}|${sort}|${direction}`
   )
-
-  function toggleSort(by: PersonSort) {
-    setDirection((current) =>
-      sort === by ? (current === "asc" ? "desc" : "asc") : by === "person" ? "asc" : "desc"
-    )
-    setSort(by)
-    setPage(1)
-  }
 
   return (
     <DashboardTable
@@ -300,39 +299,17 @@ function PersonTable({
           aria-label="Search people"
           placeholder="Search name or email…"
           value={text}
-          onChange={(event) => {
-            setPage(1)
-            setText(event.target.value)
-          }}
+          onChange={(event) => setText(event.target.value)}
         />
       }
       header={
-        <TableHeader>
-          <TableRow>
-            {personColumns.map((column) => (
-              <TableHead
-                key={column.by}
-                column={column.column}
-                className={column.className}
-                aria-sort={
-                  sort === column.by
-                    ? direction === "asc"
-                      ? "ascending"
-                      : "descending"
-                    : "none"
-                }
-              >
-                <TableSortButton
-                  active={sort === column.by}
-                  direction={direction}
-                  onClick={() => toggleSort(column.by)}
-                >
-                  {column.label}
-                </TableSortButton>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
+        <SortableTableHeader
+          columns={personColumns}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          withAriaSort
+        />
       }
       isEmpty={visible.length === 0}
       emptyText={
@@ -340,19 +317,8 @@ function PersonTable({
           ? "Nobody matches that search."
           : "Nothing has used AI yet."
       }
-      emptyColSpan={6}
-      footer={{
-        type: "pagination",
-        page: currentPage,
-        pageSize,
-        total: sorted.length,
-        totalPages,
-        onPageChange: setPage,
-        onPageSizeChange: (size) => {
-          setPageSize(size)
-          setPage(1)
-        },
-      }}
+      emptyColSpan={7}
+      footer={footer}
     >
       {visible.map((row) => (
         <TableRow key={row.userId ?? "deleted"} className="group">
@@ -379,6 +345,9 @@ function PersonTable({
           <TableCell column="mutedMeta" className="hidden lg:table-cell">
             {formatShare(row.costCents, totalCostCents)}
           </TableCell>
+          <TableCell column="mutedMeta" className="hidden md:table-cell">
+            {formatAllowance(row)}
+          </TableCell>
           <TableCell column="mutedMeta" className="hidden sm:table-cell">
             {formatDate(row.lastUsedAt)}
           </TableCell>
@@ -388,13 +357,32 @@ function PersonTable({
   )
 }
 
+/**
+ * Used against allowed. Always this month's spend — the ceiling is monthly,
+ * whatever range the rest of the table is showing — so at 30 or 90 days the
+ * Spend and Allowance columns can honestly disagree.
+ */
+function formatAllowance(row: AiUsagePersonRow) {
+  if (row.allowanceCents === null) return "No limit"
+  return `${formatMoney(row.monthSpentCents)} of ${formatMoney(row.allowanceCents)}`
+}
+
 function comparePeople(a: AiUsagePersonRow, b: AiUsagePersonRow, sort: PersonSort) {
   if (sort === "calls") return a.calls - b.calls
   if (sort === "tokens") return a.tokens - b.tokens
   // Share orders the same way spend does; both compare cents.
   if (sort === "spend" || sort === "share") return a.costCents - b.costCents
+  // Closest to their ceiling first (descending). No ceiling sorts as furthest
+  // from trouble, which is what "sort by allowance" is really asking about.
+  if (sort === "allowance") return allowanceUsedShare(a) - allowanceUsedShare(b)
   if (sort === "last") return a.lastUsedAt.getTime() - b.lastUsedAt.getTime()
   return a.name.localeCompare(b.name)
+}
+
+function allowanceUsedShare(row: AiUsagePersonRow) {
+  if (row.allowanceCents === null) return -1
+  if (row.allowanceCents === 0) return Number.MAX_SAFE_INTEGER
+  return row.monthSpentCents / row.allowanceCents
 }
 
 // --- By feature / by model ---------------------------------------------------
@@ -411,12 +399,9 @@ type BreakdownRow = {
 
 type BreakdownSort = "name" | "calls" | "tokens" | "spend"
 
-const breakdownColumns: { by: BreakdownSort; column: "main" | "meta" }[] = [
-  { by: "name", column: "main" },
-  { by: "calls", column: "meta" },
-  { by: "tokens", column: "meta" },
-  { by: "spend", column: "meta" },
-]
+/** Only the name reads as words; every other column starts biggest-first. */
+const breakdownSortDirection = (column: BreakdownSort) =>
+  column === "name" ? "asc" : "desc"
 
 function BreakdownTable({
   title,
@@ -429,8 +414,11 @@ function BreakdownTable({
   nameLabel: string
   rows: BreakdownRow[]
 }) {
-  const [sort, setSort] = React.useState<BreakdownSort>("spend")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const { sort, direction, toggleSort } = useTableSort<BreakdownSort>(
+    "spend",
+    "desc",
+    breakdownSortDirection
+  )
 
   const sorted = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -442,19 +430,12 @@ function BreakdownTable({
     })
   }, [rows, sort, direction])
 
-  function toggleSort(by: BreakdownSort) {
-    setDirection((current) =>
-      sort === by ? (current === "asc" ? "desc" : "asc") : by === "name" ? "asc" : "desc"
-    )
-    setSort(by)
-  }
-
-  const labels: Record<BreakdownSort, string> = {
-    name: nameLabel,
-    calls: "Calls",
-    tokens: "Tokens",
-    spend: "Spend",
-  }
+  const columns: SortableColumn<BreakdownSort>[] = [
+    { key: "name", label: nameLabel, column: "main" },
+    { key: "calls", label: "Calls", column: "meta" },
+    { key: "tokens", label: "Tokens", column: "meta" },
+    { key: "spend", label: "Spend", column: "meta" },
+  ]
 
   return (
     <DashboardTable
@@ -462,31 +443,13 @@ function BreakdownTable({
       icon={icon}
       count={sorted.length}
       header={
-        <TableHeader>
-          <TableRow>
-            {breakdownColumns.map((column) => (
-              <TableHead
-                key={column.by}
-                column={column.column}
-                aria-sort={
-                  sort === column.by
-                    ? direction === "asc"
-                      ? "ascending"
-                      : "descending"
-                    : "none"
-                }
-              >
-                <TableSortButton
-                  active={sort === column.by}
-                  direction={direction}
-                  onClick={() => toggleSort(column.by)}
-                >
-                  {labels[column.by]}
-                </TableSortButton>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
+        <SortableTableHeader
+          columns={columns}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          withAriaSort
+        />
       }
       isEmpty={sorted.length === 0}
       emptyText="Nothing has used AI yet."

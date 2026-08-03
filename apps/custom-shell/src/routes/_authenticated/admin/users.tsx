@@ -26,6 +26,7 @@ export const USER_SORT_COLUMNS = [
   "name",
   "email",
   "role",
+  "status",
   "plan",
   "created",
 ] as const

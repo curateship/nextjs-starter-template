@@ -1,4 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
+import { readMaintenance, setMaintenance } from "@/server/maintenance"
+import { findSessionContext } from "@/server/security"
+import { adminPost } from "@/server/guards"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 import {
@@ -6,21 +10,10 @@ import {
   type ShellMaintenance,
 } from "@/lib/custom-shell"
 
-const maintenanceErrorMessages: Record<string, string> = {
-  FORBIDDEN: "Only an admin can change maintenance mode.",
-  AUTH_REQUIRED: "Please sign in again.",
-}
-
-export function getMaintenanceErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(maintenanceErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? maintenanceErrorMessages[matched]
-    : "We could not change maintenance mode. Please try again."
-}
+export const getMaintenanceErrorMessage = createErrorMessage(
+  { FORBIDDEN: "Only an admin can change maintenance mode." },
+  "We could not change maintenance mode. Please try again."
+)
 
 /** The notice, plus who this browser is, in the one read the page makes. */
 export type MaintenancePage = {
@@ -45,9 +38,6 @@ export type MaintenancePage = {
  */
 const readMaintenanceFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<MaintenancePage> => {
-    const { readMaintenance } = await import("@/server/maintenance")
-    const { findSessionContext } = await import("@/server/security")
-
     const [maintenance, session] = await Promise.all([
       readMaintenance(),
       findSessionContext(),
@@ -64,6 +54,7 @@ const readMaintenanceFn = createServerFn({ method: "GET" }).handler(
 )
 
 const setMaintenanceFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       enabled: z.boolean(),
@@ -71,12 +62,6 @@ const setMaintenanceFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data }): Promise<ShellMaintenance> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { setMaintenance } = await import("@/server/maintenance")
-
-    requireAppOrigin()
-    await requireAdmin()
     return setMaintenance(data)
   })
 

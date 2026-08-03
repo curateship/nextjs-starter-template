@@ -5,6 +5,8 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
   CheckCheckIcon,
+  GaugeIcon,
+  GitMergeIcon,
   Loader2Icon,
   MegaphoneIcon,
   MessageSquareIcon,
@@ -25,7 +27,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  aiLimitNotificationText,
   getNotificationErrorMessage,
+  isAiLimitNotification,
   listNotificationPage,
   markAllNotificationsRead,
   markNotificationRead,
@@ -54,14 +58,20 @@ function getInitial(name: string) {
  * workspace's own styling and told two of the four kinds apart by colour alone.
  */
 function NotificationAvatar({ item }: { item: NotificationItem }) {
-  if (item.type === "changelog" || item.type === "announcement") {
+  if (
+    item.type === "changelog" ||
+    item.type === "announcement" ||
+    isAiLimitNotification(item.type)
+  ) {
     return (
       <Avatar size="lg">
         <AvatarFallback className="bg-secondary text-secondary-foreground">
           {item.type === "changelog" ? (
             <SparklesIcon className="h-4 w-4" />
-          ) : (
+          ) : item.type === "announcement" ? (
             <MegaphoneIcon className="h-4 w-4" />
+          ) : (
+            <GaugeIcon className="h-4 w-4" />
           )}
         </AvatarFallback>
       </Avatar>
@@ -80,6 +90,12 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
     return <>New update shipped</>
   }
 
+  // About the reader's own account, so like an announcement it carries its
+  // own words rather than pointing at a thing to open.
+  if (isAiLimitNotification(item.type)) {
+    return <strong>{aiLimitNotificationText[item.type].message}</strong>
+  }
+
   // An announcement has nowhere to be opened, so its own words go here rather
   // than a stock line that would send the reader looking for a link.
   if (item.type === "announcement") {
@@ -90,6 +106,17 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
     return (
       <>
         <strong>{item.actor_name}</strong> gave your feedback a thumbs up
+      </>
+    )
+  }
+
+  // The reader's item was folded into another one; the line below quotes the
+  // surviving item, and clicking opens it.
+  if (item.type === "feedback_merged") {
+    return (
+      <>
+        <strong>{item.actor_name}</strong> merged your feedback into another
+        item
       </>
     )
   }
@@ -107,6 +134,12 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   }
   if (item.type === "announcement") {
     return <MegaphoneIcon className="h-3.5 w-3.5" />
+  }
+  if (isAiLimitNotification(item.type)) {
+    return <GaugeIcon className="h-3.5 w-3.5" />
+  }
+  if (item.type === "feedback_merged") {
+    return <GitMergeIcon className="h-3.5 w-3.5" />
   }
 
   return item.type === "feedback_vote" ? (
@@ -126,7 +159,9 @@ function notificationPreview(item: NotificationItem) {
       ? (item.changelog_title ?? "")
       : item.type === "announcement"
         ? (item.announcement_body ?? "")
-        : (item.feedback_message ?? "")
+        : isAiLimitNotification(item.type)
+          ? aiLimitNotificationText[item.type].detail
+          : (item.feedback_message ?? "")
 
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }
@@ -346,6 +381,13 @@ export function NotificationCenter({
 
       if (item.type === "changelog") {
         void navigate({ to: "/changelog/whats-new" })
+      } else if (isAiLimitNotification(item.type)) {
+        // The numbers behind the warning live on the account window's Billing
+        // tab, which opens by search param on whatever page is showing.
+        void navigate({
+          to: ".",
+          search: (prev) => ({ ...prev, account: "billing" }),
+        })
       } else if (item.feedback_id) {
         onOpenFeedback?.(item.feedback_id)
       }

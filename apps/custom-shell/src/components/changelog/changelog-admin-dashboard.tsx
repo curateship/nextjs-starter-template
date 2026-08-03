@@ -39,12 +39,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   createAdminChangelogEntry,
@@ -57,9 +55,18 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDate } from "@/lib/format-time"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useClientPage } from "@/lib/use-client-page"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
+import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
 
 type ChangelogSortColumn = "title" | "status" | "published"
+
+const CHANGELOG_COLUMNS: SortableColumn<ChangelogSortColumn>[] = [
+  { key: "title", label: "Update", column: "main" },
+  { key: "status", label: "Status", column: "meta" },
+  { key: "published", label: "Published", column: "meta" },
+]
 
 function compareEntries(
   a: ChangelogEntry,
@@ -97,10 +104,10 @@ export function ChangelogAdminDashboard({
   const { config } = useShellRuntime()
   const [entries, setEntries] = React.useState(initialEntries)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [sort, setSort] = React.useState<ChangelogSortColumn>("published")
-  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const { sort, direction, toggleSort } = useTableSort<ChangelogSortColumn>(
+    "published",
+    "desc"
+  )
   const [editing, setEditing] = React.useState<ChangelogEntry | null>(null)
   const [previewing, setPreviewing] = React.useState<ChangelogEntry | null>(
     null
@@ -110,7 +117,8 @@ export function ChangelogAdminDashboard({
     null
   )
   const [deleting, setDeleting] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const selection = useSelection()
+  const selectedIds = selection.selected
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -130,60 +138,25 @@ export function ChangelogAdminDashboard({
       .sort((a, b) => factor * compareEntries(a, b, sort))
   }, [direction, entries, searchQuery, sort])
 
-  const totalPages = Math.ceil(sortedEntries.length / pageSize)
-  const paginatedEntries = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    return sortedEntries.slice(startIndex, startIndex + pageSize)
-  }, [currentPage, pageSize, sortedEntries])
-
-  React.useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, sort, direction, pageSize])
+  const {
+    page: currentPage,
+    pageSize,
+    visible: paginatedEntries,
+    footer,
+  } = useClientPage(
+    sortedEntries,
+    config.dashboardRowsPerPage,
+    `${searchQuery}|${sort}|${direction}`
+  )
 
   useClearSelectionOnListChange(
-    setSelectedIds,
+    selection.setSelected,
     `${searchQuery}|${sort}|${direction}|${currentPage}|${pageSize}`
   )
 
   const visibleIds = React.useMemo(
     () => paginatedEntries.map((entry) => entry.id),
     [paginatedEntries]
-  )
-  const allSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
-  const someSelected = visibleIds.some((id) => selectedIds.has(id))
-
-  const toggleSelection = React.useCallback((id: string) => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const toggleVisibleSelection = React.useCallback(() => {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (visibleIds.every((id) => next.has(id))) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }, [visibleIds])
-
-  const toggleSort = React.useCallback(
-    (column: ChangelogSortColumn) => {
-      if (sort === column) {
-        setDirection(direction === "asc" ? "desc" : "asc")
-        return
-      }
-      setSort(column)
-      setDirection("asc")
-    },
-    [direction, sort]
   )
 
   const refresh = React.useCallback(async () => {
@@ -210,7 +183,7 @@ export function ChangelogAdminDashboard({
         count={sortedEntries.length}
         error={error ? { message: error, onRetry: () => void refresh() } : null}
         selectedCount={selectedIds.size}
-        onClearSelection={() => setSelectedIds(new Set())}
+        onClearSelection={selection.clear}
         controls={
           <>
             {selectedIds.size ? (
@@ -241,47 +214,22 @@ export function ChangelogAdminDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
+          <SortableTableHeader
+            columns={CHANGELOG_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
               <TableHead column="select">
                 <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
+                  checked={selection.selectAllState(visibleIds)}
+                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
                   aria-label="Select updates on this page"
                 />
               </TableHead>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "title"}
-                  direction={direction}
-                  onClick={() => toggleSort("title")}
-                >
-                  Update
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "published"}
-                  direction={direction}
-                  onClick={() => toggleSort("published")}
-                >
-                  Published
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sortedEntries.length === 0}
         emptyText={
@@ -290,26 +238,14 @@ export function ChangelogAdminDashboard({
             : "No updates found matching your search."
         }
         emptyColSpan={5}
-        footer={{
-          type: "pagination",
-          page: currentPage,
-          pageSize,
-          total: sortedEntries.length,
-          totalPages,
-          onPageChange: (page) =>
-            setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))),
-          onPageSizeChange: (nextSize) => {
-            setCurrentPage(1)
-            setPageSize(nextSize)
-          },
-        }}
+        footer={footer}
       >
         {paginatedEntries.map((entry) => (
           <TableRow key={entry.id} className="group">
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(entry.id)}
-                onCheckedChange={() => toggleSelection(entry.id)}
+                onCheckedChange={() => selection.toggle(entry.id)}
                 aria-label={`Select ${entry.title}`}
               />
             </TableCell>
@@ -407,7 +343,7 @@ export function ChangelogAdminDashboard({
           try {
             await deleteAdminChangelogEntries([...selectedIds])
             toast.success("Updates deleted.")
-            setSelectedIds(new Set())
+            selection.clear()
             setMassDeleteOpen(false)
             await refresh()
           } catch (deleteError) {

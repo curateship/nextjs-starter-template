@@ -1,4 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
+import { requireUser, isAdmin } from "@/server/security"
+import { adminPost, userGet } from "@/server/guards"
+import { listPublishedChangelogEntries, serializeChangelogEntry, listChangelogEntries, createChangelogEntry, updateChangelogEntry, deleteChangelogEntries } from "@/server/changelog"
+import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
 export type ChangelogEntry = {
@@ -16,24 +20,14 @@ export type ChangelogEntry = {
  */
 const CHANGELOG_PAGE_LIMIT = 200
 
-const changelogErrorMessages: Record<string, string> = {
-  FORBIDDEN: "You do not have access to that.",
-  AUTH_REQUIRED: "Please sign in again.",
-  CHANGELOG_ENTRY_NOT_FOUND: "That update no longer exists.",
-  CHANGELOG_TITLE_REQUIRED: "Give the update a title.",
-  CHANGELOG_BODY_REQUIRED: "Write what changed.",
-}
-
-export function getChangelogErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(changelogErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? changelogErrorMessages[matched]
-    : "We could not load the updates. Please try again."
-}
+export const getChangelogErrorMessage = createErrorMessage(
+  {
+    CHANGELOG_ENTRY_NOT_FOUND: "That update no longer exists.",
+    CHANGELOG_TITLE_REQUIRED: "Give the update a title.",
+    CHANGELOG_BODY_REQUIRED: "Write what changed.",
+  },
+  "We could not load the updates. Please try again."
+)
 
 const entryInputSchema = z.object({
   title: z.string().trim().min(1, "CHANGELOG_TITLE_REQUIRED").max(200),
@@ -47,17 +41,12 @@ export type ChangelogEntryFormInput = z.input<typeof entryInputSchema>
  * What the What's new page reads: published updates only, the same list for
  * everyone — an admin reading it sees exactly what their users see.
  */
-const listFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ entries: ChangelogEntry[] }> => {
-    const { requireUser } = await import("@/server/security")
-    const { listPublishedChangelogEntries, serializeChangelogEntry } =
-      await import("@/server/changelog")
-
-    await requireUser()
+const listFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async (): Promise<{ entries: ChangelogEntry[] }> => {
     const entries = await listPublishedChangelogEntries(CHANGELOG_PAGE_LIMIT)
     return { entries: entries.map(serializeChangelogEntry) }
-  }
-)
+  })
 
 /**
  * Everything, drafts included, for the page where updates are written. Returns
@@ -66,11 +55,6 @@ const listFn = createServerFn({ method: "GET" }).handler(
  */
 const listAdminFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ entries: ChangelogEntry[] | null }> => {
-    const { isAdmin, requireUser } = await import("@/server/security")
-    const { listChangelogEntries, serializeChangelogEntry } = await import(
-      "@/server/changelog"
-    )
-
     const user = await requireUser()
     if (!isAdmin(user)) return { entries: null }
 
@@ -80,50 +64,31 @@ const listAdminFn = createServerFn({ method: "GET" }).handler(
 )
 
 const createEntryFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(entryInputSchema)
   .handler(async ({ data }): Promise<ChangelogEntry> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { createChangelogEntry, serializeChangelogEntry } = await import(
-      "@/server/changelog"
-    )
-
-    requireAppOrigin()
-    await requireAdmin()
     return serializeChangelogEntry(await createChangelogEntry(data))
   })
 
 const updateEntryFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({ entryId: z.string().min(1).max(36), entry: entryInputSchema })
   )
   .handler(async ({ data }): Promise<ChangelogEntry> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { updateChangelogEntry, serializeChangelogEntry } = await import(
-      "@/server/changelog"
-    )
-
-    requireAppOrigin()
-    await requireAdmin()
     return serializeChangelogEntry(
       await updateChangelogEntry(data.entryId, data.entry)
     )
   })
 
 const deleteEntriesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(
     z.object({
       entryIds: z.array(z.string().min(1).max(36)).min(1).max(200),
     })
   )
   .handler(async ({ data }): Promise<{ count: number }> => {
-    const { requireAppOrigin } = await import("@/server/origin")
-    const { requireAdmin } = await import("@/server/security")
-    const { deleteChangelogEntries } = await import("@/server/changelog")
-
-    requireAppOrigin()
-    await requireAdmin()
     return deleteChangelogEntries(data.entryIds)
   })
 

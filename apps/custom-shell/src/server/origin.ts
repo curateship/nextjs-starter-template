@@ -1,4 +1,9 @@
-import { getRequestHeader } from "@tanstack/react-start/server"
+import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server"
+
+/** The caller's address for rate-limit keys; "unknown" when the proxy hid it. */
+export function requestIp() {
+  return getRequestIP({ xForwardedFor: true }) || "unknown"
+}
 
 export function requireAppOrigin() {
   const origin = getRequestHeader("origin")
