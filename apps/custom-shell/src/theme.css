@@ -5,9 +5,44 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Inter, self-hosted from public/fonts so no request leaves for Google. Two
+ * files: plain latin, plus the accented latin-ext range. Both are the variable
+ * cut, so every weight from 100 to 900 comes out of the one file.
+ */
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("/fonts/inter-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("/fonts/inter-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+/*
+ * The font utilities point at a plain custom property rather than a literal
+ * stack, so the value can still be swapped at runtime. That is what lets the
+ * signed-in pages switch to Inter while the public pages keep the system font
+ * — see the .app-font rule below. Headings share the property deliberately;
+ * point --font-heading somewhere else if they ever need their own face.
+ */
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: ui-sans-serif, system-ui, sans-serif;
+    --font-heading: var(--app-font-sans);
+    --font-sans: var(--app-font-sans);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,6 +84,7 @@
 }
 
 :root {
+    --app-font-sans: ui-sans-serif, system-ui, sans-serif;
     --shell-primary: oklch(0.205 0 0);
     --shell-primary-foreground: oklch(0.985 0 0);
     --shell-ring: oklch(0.708 0 0);
@@ -131,6 +167,22 @@
     --sidebar-accent-foreground: var(--shell-sidebar-accent-foreground);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: var(--shell-sidebar-ring);
+}
+
+/*
+ * Inter is for the signed-in app only; the public landing and sign-in pages
+ * stay on the system font so a visitor who never logs in never downloads it.
+ * The class sits on <body> rather than a wrapper div, because dialogs and
+ * dropdowns render into <body> and would otherwise miss out. It cannot go on
+ * <html>: the no-flash theme script owns that element's class list.
+ *
+ * The font-family line is not redundant with the variable. <html> already
+ * computed its font-family from the system default, and children inherit that
+ * finished value rather than re-reading the variable.
+ */
+body.app-font {
+    --app-font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--app-font-sans);
 }
 
 @layer base {

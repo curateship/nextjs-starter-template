@@ -5,6 +5,7 @@ import {
   Outlet,
   Scripts,
   useRouter,
+  useRouterState,
   type ErrorComponentProps,
 } from "@tanstack/react-router"
 
@@ -92,9 +93,28 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  const signedInPage = useRouterState({
+    select: (state) =>
+      state.matches.some((match) => match.routeId.startsWith("/_authenticated")),
+  })
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/*
+         * Only the signed-in pages use Inter, so only they ask for it early.
+         * Without this the font arrives after the stylesheet and the page
+         * repaints once in the system font first.
+         */}
+        {signedInPage ? (
+          <link
+            rel="preload"
+            href="/fonts/inter-latin.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+        ) : null}
         <script
           dangerouslySetInnerHTML={{
             __html:
@@ -104,7 +124,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <script dangerouslySetInnerHTML={{ __html: noFlashCollapseScript }} />
         <HeadContent />
       </head>
-      <body>
+      <body className={signedInPage ? "app-font" : undefined}>
         {children}
         <Scripts />
       </body>
