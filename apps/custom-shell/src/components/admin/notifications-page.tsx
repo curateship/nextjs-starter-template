@@ -9,6 +9,7 @@ import {
   SparklesIcon,
   ThumbsUpIcon,
   Trash2Icon,
+  UserCheckIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/table"
 import {
   aiLimitNotificationText,
+  automationApprovalNotificationText,
   clearAdminNotifications,
   deleteAdminNotifications,
   getNotificationErrorMessage,
@@ -94,6 +96,10 @@ function notificationSubject(item: NotificationItem) {
   if (isAiLimitNotification(item.type)) {
     return aiLimitNotificationText[item.type].message
   }
+  // An approval notice is about a flow, so the flow's name is its subject.
+  if (item.type === "automation_approval") {
+    return item.automation_name ?? ""
+  }
   return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
 }
 
@@ -106,6 +112,10 @@ function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
   if (isAiLimitNotification(item.type)) {
     return `${subject}\n\n${aiLimitNotificationText[item.type].detail}`
+  }
+  if (item.type === "automation_approval") {
+    const state = item.automation_approval_state ?? "pending"
+    return `${subject}\n\n${automationApprovalNotificationText[state].detail}`
   }
   return item.announcement_body
     ? `${subject}\n\n${item.announcement_body}`
@@ -292,6 +302,11 @@ export function NotificationsPage({
   // something get the role, the hand cursor and the handlers.
   function notificationDestination(item: NotificationItem) {
     if (item.type === "changelog") return "changelog" as const
+    if (item.type === "automation_approval") {
+      return item.automation_run_id && item.automation_id
+        ? ("automationRun" as const)
+        : null
+    }
     return item.feedback_id ? ("feedback" as const) : null
   }
 
@@ -299,6 +314,18 @@ export function NotificationsPage({
     const destination = notificationDestination(item)
     if (destination === "changelog") {
       void navigate({ to: "/changelog/whats-new" })
+      return
+    }
+    if (
+      destination === "automationRun" &&
+      item.automation_id &&
+      item.automation_run_id
+    ) {
+      void navigate({
+        to: "/admin/automations/$automationId",
+        params: { automationId: item.automation_id },
+        search: { run: item.automation_run_id },
+      })
       return
     }
     if (destination === "feedback" && item.feedback_id) {
@@ -397,6 +424,7 @@ export function NotificationsPage({
                 <SelectItem value="announcement">Announcements</SelectItem>
                 <SelectItem value="ai_limit_warning">AI warnings</SelectItem>
                 <SelectItem value="ai_limit_reached">AI limit reached</SelectItem>
+                <SelectItem value="automation_approval">Approvals</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -475,6 +503,8 @@ export function NotificationsPage({
                     <MegaphoneIcon className="size-4 text-muted-foreground" />
                   ) : isAiLimitNotification(item.type) ? (
                     <GaugeIcon className="size-4 text-muted-foreground" />
+                  ) : item.type === "automation_approval" ? (
+                    <UserCheckIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_merged" ? (
                     <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (

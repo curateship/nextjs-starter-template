@@ -1,4 +1,9 @@
-import { CircleHelpIcon, SparklesIcon, SquareDashedIcon } from "lucide-react"
+import {
+  CircleHelpIcon,
+  SparklesIcon,
+  SquareDashedIcon,
+  UserCheckIcon,
+} from "lucide-react"
 
 import type { AutomationNodeIconName } from "@/lib/automations/node-registry"
 
@@ -6,6 +11,7 @@ const icons = {
   squareDashed: SquareDashedIcon,
   circleHelp: CircleHelpIcon,
   sparkles: SparklesIcon,
+  userCheck: UserCheckIcon,
 } satisfies Record<AutomationNodeIconName, typeof SquareDashedIcon>
 
 export function AutomationNodeIcon({

@@ -246,6 +246,12 @@ export function NotificationCenter({
 
       if (action.kind === "changelog") {
         void navigate({ to: "/changelog/whats-new" })
+      } else if (action.kind === "automationRun") {
+        void navigate({
+          to: "/admin/automations/$automationId",
+          params: { automationId: action.automationId },
+          search: { run: action.runId },
+        })
       } else if (action.kind === "billing") {
         void navigate({
           to: ".",

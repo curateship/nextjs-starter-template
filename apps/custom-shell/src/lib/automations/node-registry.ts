@@ -7,6 +7,7 @@ import type {
 } from "./node-descriptor"
 import { aiStepNode } from "./nodes/ai-step"
 import { placeholderNode } from "./nodes/placeholder"
+import { waitForApprovalNode } from "./nodes/wait-for-approval"
 
 export type {
   AutomationNodeIconName,
@@ -18,6 +19,7 @@ export type {
 const AUTOMATION_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
   placeholderNode,
+  waitForApprovalNode,
 ]
 
 const descriptorsByKind = new Map(

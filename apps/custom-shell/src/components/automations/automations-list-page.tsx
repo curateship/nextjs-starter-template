@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CopyIcon,
   Loader2Icon,
+  PlayIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -18,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Dialog,
   DialogBody,
@@ -38,6 +40,10 @@ import {
   TableSortButton,
   type TableSortDirection,
 } from "@/components/ui/table"
+import {
+  getAutomationRunErrorMessage,
+  runAutomationNow,
+} from "@/lib/api/automation-runs"
 import {
   createAutomation,
   deleteAutomation,
@@ -73,6 +79,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [createName, setCreateName] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
+  const [runningId, setRunningId] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] =
     React.useState<AutomationListItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
@@ -153,6 +160,31 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       showErrorToast(getAutomationErrorMessage(error))
     } finally {
       setDuplicatingId(null)
+    }
+  }
+
+  /**
+   * Sets a flow going and opens the flow with that run already showing in the
+   * panel under the canvas. The server walks the flow once before answering, so
+   * a run that stopped at an approval checkpoint is already sitting there
+   * waiting by the time the editor paints.
+   */
+  const handleRunNow = async (automation: AutomationListItem) => {
+    if (runningId) return
+    setRunningId(automation.id)
+    try {
+      const { runId } = await runAutomationNow(automation.id)
+      dismissErrorToast()
+      toast.success(`Started "${automation.name}".`)
+      await navigate({
+        to: "/admin/automations/$automationId",
+        params: { automationId: automation.id },
+        search: { run: runId },
+      })
+    } catch (error) {
+      showErrorToast(getAutomationRunErrorMessage(error))
+    } finally {
+      setRunningId(null)
     }
   }
 
@@ -275,6 +307,25 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
+                <DisabledReason
+                  disabled={!automation.isValid}
+                  reason="This flow has something to fix before it can run. Open it and check the steps marked in red."
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={!automation.isValid || runningId !== null}
+                    aria-label={`Run ${automation.name} now`}
+                    onClick={() => void handleRunNow(automation)}
+                  >
+                    {runningId === automation.id ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : (
+                      <PlayIcon className="size-4" />
+                    )}
+                  </Button>
+                </DisabledReason>
                 <Button
                   type="button"
                   variant="ghost"

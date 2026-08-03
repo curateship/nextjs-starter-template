@@ -11,6 +11,7 @@ export type NotificationType =
   | "announcement"
   | "ai_limit_warning"
   | "ai_limit_reached"
+  | "automation_approval"
 
 /**
  * What each kind of notice is called on screen. Kept here rather than in the
@@ -26,6 +27,33 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   announcement: "Announcement",
   ai_limit_warning: "AI warning",
   ai_limit_reached: "AI limit reached",
+  automation_approval: "Approval",
+}
+
+/**
+ * The two things an approval notice can be about. They are about the same run,
+ * so without this the second would read exactly like the first.
+ */
+export type AutomationApprovalState = "pending" | "timed_out"
+
+/**
+ * The words an approval notice carries. Like an announcement, the notice is the
+ * message — the run it points at is where the buttons are, not the words.
+ */
+export const automationApprovalNotificationText: Record<
+  AutomationApprovalState,
+  { message: string; detail: string }
+> = {
+  pending: {
+    message: "A run is waiting for your approval",
+    detail:
+      "Nothing after that step happens until you approve it. If nobody answers before the deadline, the run stops on its own.",
+  },
+  timed_out: {
+    message: "A run stopped — nobody approved it in time",
+    detail:
+      "The deadline passed with no answer, so the run was rejected and nothing after that step ran.",
+  },
 }
 
 export type AiLimitNotificationType = "ai_limit_warning" | "ai_limit_reached"
@@ -83,6 +111,16 @@ export type NotificationItem = {
   announcement_id: string | null
   announcement_title: string | null
   announcement_body: string | null
+  /**
+   * All four null unless the notice is an automation approval. The notice opens
+   * the run inside its own flow's editor, so it carries both ids; the name is
+   * what it is about, and the state says whether it is asking for a decision or
+   * reporting that nobody made one.
+   */
+  automation_run_id: string | null
+  automation_id: string | null
+  automation_name: string | null
+  automation_approval_state: AutomationApprovalState | null
   read_at: string | null
   created_at: string
 }
@@ -118,6 +156,7 @@ const adminListQuerySchema = z.object({
       "announcement",
       "ai_limit_warning",
       "ai_limit_reached",
+      "automation_approval",
     ])
     .default("all"),
   page: z.number().int().min(1).default(1),

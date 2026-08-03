@@ -2,7 +2,7 @@ import * as React from "react"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 
-import { AutomationActivityLog } from "@/components/automations/automation-activity-log"
+import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
@@ -17,10 +17,10 @@ import {
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import {
-  automationNodeName,
   automationPaletteKeyForNode,
   createAutomationNode,
 } from "@/lib/automations/node-registry"
+import type { AutomationRunsPanelData } from "@/lib/api/automation-runs"
 import {
   getAutomationErrorMessage,
   saveAutomation,
@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
-import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
 
 // Same debounce as the shell's settings auto-save, so editing an automation
 // saves on the rhythm every other editable surface in this app uses.
@@ -43,9 +42,14 @@ const SAVE_DEBOUNCE_MS = 700
 export function AutomationEditor({
   initial,
   initialFavoriteNodeKeys,
+  initialRuns,
+  openRunId,
 }: {
   initial: AutomationDetail
   initialFavoriteNodeKeys: string[]
+  initialRuns: AutomationRunsPanelData
+  /** The run a bell notice linked to, opened in the bottom panel on arrival. */
+  openRunId?: string
 }) {
   const { reportSaveStatus } = useShellRuntime()
   // Nothing on this page renames an automation any more, so the name is only
@@ -76,7 +80,6 @@ export function AutomationEditor({
   const desktop = useWideScreen()
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
-  const [logEntries, setLogEntries] = React.useState<AutomationLogEntry[]>([])
   const [favoriteNodeKeys, setFavoriteNodeKeys] = React.useState(
     initialFavoriteNodeKeys
   )
@@ -84,7 +87,6 @@ export function AutomationEditor({
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const logPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const horizontalLayout = useAutomationLayout("automation-editor-horizontal")
   const verticalLayout = useAutomationLayout("automation-editor-vertical")
 
@@ -104,16 +106,6 @@ export function AutomationEditor({
   React.useEffect(() => {
     graphRef.current = graph
   }, [graph])
-
-  const record = React.useCallback((message: string) => {
-    setLogEntries((current) =>
-      appendAutomationLog(current, {
-        id: crypto.randomUUID(),
-        time: Date.now(),
-        message,
-      })
-    )
-  }, [])
 
   // ----- Auto-save (700ms debounce, serialized queue, version counter) -----
   // Mirrors the shell-layout config auto-save: edits schedule a debounced save
@@ -266,7 +258,6 @@ export function AutomationEditor({
         setPreviewNode(null)
         return
       }
-      const node = graphRef.current.nodes.find((item) => item.id === nodeId)
       changeGraph((current) => ({
         ...current,
         nodes: current.nodes.filter((item) => item.id !== nodeId),
@@ -275,9 +266,8 @@ export function AutomationEditor({
         ),
       }))
       setSelectedNodeId(null)
-      record(`Deleted ${node ? automationNodeName(node) : "node"}.`)
     },
-    [changeGraph, previewNode?.id, record]
+    [changeGraph, previewNode?.id]
   )
 
   const createNode = React.useCallback(
@@ -339,9 +329,8 @@ export function AutomationEditor({
       setPreviewNode(null)
       setSelectedNodeId(placedNode.id)
       setSelectedEdgeId(null)
-      record(`Added ${automationNodeName(placedNode)}.`)
     },
-    [canvasSize.width, changeGraph, record]
+    [canvasSize.width, changeGraph]
   )
 
   const addNode = React.useCallback(
@@ -356,21 +345,8 @@ export function AutomationEditor({
   }, [])
 
   const handleCanvasGraphChange = React.useCallback(
-    (next: AutomationGraph) => {
-      const current = graphRef.current
-      if (next.nodes.length < current.nodes.length) {
-        const removed = current.nodes.find(
-          (node) => !next.nodes.some((candidate) => candidate.id === node.id)
-        )
-        record(`Deleted ${removed ? automationNodeName(removed) : "node"}.`)
-      } else if (next.edges.length > current.edges.length) {
-        record("Connected nodes.")
-      } else if (next.edges.length < current.edges.length) {
-        record("Removed connection.")
-      }
-      changeGraph(() => next)
-    },
-    [changeGraph, record]
+    (next: AutomationGraph) => changeGraph(() => next),
+    [changeGraph]
   )
 
   const inspector = (
@@ -497,27 +473,32 @@ export function AutomationEditor({
           defaultLayout={verticalLayout.defaultLayout}
           onLayoutChanged={verticalLayout.onLayoutChanged}
         >
-          <ResizablePanel id="workspace" defaultSize="78%" minSize="40%">
+          <ResizablePanel id="workspace" defaultSize="72%" minSize="40%">
             <div className="flex h-full min-h-0">{workspace}</div>
           </ResizablePanel>
-          {/* Keeps its gap even while the log is collapsed — the collapsed bar
-              is still a panel on screen, and this handle is what makes it
-              draggable back open. */}
+          {/* Keeps its gap even while the panel is collapsed — the collapsed
+              tab row is still a panel on screen, and this handle is what makes
+              it draggable back open. */}
           <ResizableHandle gap />
           <ResizablePanel
-            id="activity-log"
-            panelRef={logPanelRef}
-            defaultSize="22%"
+            id="runs"
+            // A shade taller than the old canvas log: this one holds rows that
+            // open, and a run's steps need somewhere to land.
+            defaultSize="28%"
             minSize="12%"
-            maxSize="45%"
-            // Dragging the divider all the way down collapses the log to its
-            // own header bar. It never unmounts, so it can always be dragged
-            // back open.
+            maxSize="60%"
+            // Dragging the divider all the way down collapses the panel to its
+            // own tab row, counts and all. It never unmounts, so it can always
+            // be dragged back open.
             collapsible
             collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
           >
             <WorkspacePanel>
-              <AutomationActivityLog entries={logEntries} />
+              <AutomationRunsPanel
+                automationId={initial.id}
+                initial={initialRuns}
+                openRunId={openRunId}
+              />
             </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>
