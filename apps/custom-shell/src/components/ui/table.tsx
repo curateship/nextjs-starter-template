@@ -115,10 +115,10 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn(
-        "[&_tr]:border-b-0 [&_tr]:bg-muted/50",
-        className
-      )}
+      // The heading row's own top and bottom hairlines are drawn in `theme.css`
+      // from the same variables the card's border uses, so a change in the
+      // Styling settings moves both together.
+      className={cn("[&_tr]:bg-muted/50", className)}
       {...props}
     />
   )

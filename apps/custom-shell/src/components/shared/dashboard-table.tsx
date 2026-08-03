@@ -225,8 +225,10 @@ export function DashboardTable(props: DashboardTableProps) {
                 //
                 // The headings ride along at the top of the rows. They need an
                 // opaque fill of their own — the row's `bg-muted/50` is
-                // see-through, so rows would slide up behind the words.
-                "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted [&_thead_th]:shadow-[inset_0_-1px_0_var(--border)]"
+                // see-through, so rows would slide up behind the words. Their
+                // top and bottom hairlines come from `theme.css`, which draws
+                // them as inset shadows for exactly this reason.
+                "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted"
             )}
           >
             {props.header}
@@ -404,7 +406,10 @@ function DashboardTableFooter({
     footer.count === 1 && plural.endsWith("s") ? plural.slice(0, -1) : plural
 
   return (
-    <div className="flex items-center gap-3 bg-muted/50 p-4 text-sm text-muted-foreground">
+    <div
+      data-slot="table-footer"
+      className="flex items-center gap-3 bg-muted/50 p-4 text-sm text-muted-foreground"
+    >
       <span className="min-w-0 flex-1">
         {countsPending ? "—" : `${footer.count.toLocaleString()} ${label}`}
       </span>
@@ -448,7 +453,10 @@ function DashboardTablePaginationFooter({
   const canChangePageSize = pageSizeOptions.length > 1
 
   return (
-    <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
+    <div
+      data-slot="table-footer"
+      className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row"
+    >
       <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
         {canChangePageSize ? (
           <>

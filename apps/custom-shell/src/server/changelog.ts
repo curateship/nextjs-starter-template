@@ -2,6 +2,10 @@ import { desc, eq, inArray, isNotNull } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  publishNotificationCreatedMany,
+  type NotificationPublisher,
+} from "@/server/notification-events"
+import {
   customShellChangelogEntries,
   customShellNotifications,
   customShellUsers,
@@ -148,7 +152,7 @@ export async function updateChangelogEntry(
 async function notifyEveryone(
   changelogEntryId: string,
   createdAt: Date,
-  database: Pick<CustomShellDb, "select" | "insert">
+  database: Pick<CustomShellDb, "select" | "insert"> & NotificationPublisher
 ) {
   const recipients = await database
     .select({ id: customShellUsers.id })
@@ -164,6 +168,14 @@ async function notifyEveryone(
       changelogEntryId,
       createdAt,
     }))
+  )
+
+  // Everyone who is looking at the app right now sees it appear. One statement
+  // for the whole list, and inside the same transaction as the rows above, so
+  // publishing an update that then fails to save announces nothing.
+  await publishNotificationCreatedMany(
+    recipients.map((recipient) => recipient.id),
+    database
   )
 }
 

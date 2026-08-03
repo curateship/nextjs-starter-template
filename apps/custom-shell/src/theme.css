@@ -217,6 +217,57 @@ body.app-font {
 }
 
 /*
+ * The table's heading row is fenced off from what is above and below it with
+ * the same hairline the card draws. Not scoped to [data-content-styling]: a
+ * table in a modal gets the same line from the fallback, and inside the content
+ * area the two variables inherit down from the <main>, so the Styling settings
+ * reach it without a second rule.
+ *
+ * Drawn as inset shadows on the cells rather than borders on the row, because a
+ * table that fills its column makes those cells `position: sticky` — a sticky
+ * cell in a collapsed-border table drops its borders, and the heading would
+ * lose its lines exactly where it matters most.
+ */
+[data-slot="table-header"] th {
+  /* Resolved here, on the cell, so the Styling settings' colour reaches it by
+     inheritance the same way the card's does. */
+  --shell-table-header-line: var(
+    --shell-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+  box-shadow: inset 0 calc(var(--shell-card-border-width, 1) * -1px) 0
+    var(--shell-table-header-line);
+}
+
+/*
+ * The line above only exists when something is above it: a heading row sitting
+ * at the very top of its surface is already fenced by the surface's own border,
+ * and a second hairline one pixel inside it reads as one thick smudged line.
+ * `> * ~ *` is "not in the surface's first block", which covers the toolbar, the
+ * error banner, and anything later put between them.
+ */
+[data-slot="table-surface"] > * ~ * [data-slot="table-header"] th {
+  box-shadow:
+    inset 0 calc(var(--shell-card-border-width, 1) * 1px) 0
+      var(--shell-table-header-line),
+    inset 0 calc(var(--shell-card-border-width, 1) * -1px) 0
+      var(--shell-table-header-line);
+}
+
+/*
+ * The pagination/summary strip is fenced off from the rows above it by the same
+ * hairline. A plain border here, not an inset shadow: nothing about this strip
+ * is sticky, and a real border keeps the last row from butting into the line.
+ */
+[data-slot="table-footer"] {
+  border-top: calc(var(--shell-card-border-width, 1) * 1px) solid
+    var(
+      --shell-card-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+/*
  * Workspace panels get the same adjustable border as a REAL border, not a
  * box-shadow: they sit flush inside resizable-panel containers that clip
  * anything drawn outside the box, and their children fill them edge-to-edge
@@ -232,6 +283,32 @@ body.app-font {
 }
 
 /*
+ * A dashboard card that fills a resizable panel needs the same treatment, and
+ * for the same reason: its border is drawn OUTSIDE the box — a ring normally,
+ * the box-shadow above once the Styling settings are in play — and the panel
+ * clips anything outside the box, so the card lost its outline entirely the
+ * moment the dashboards became resizable. A real border is part of the card's
+ * own frame and survives the clip.
+ *
+ * bg-clip-padding is load-bearing: the border color is translucent, and it has
+ * to composite over the muted page background the way every other card's border
+ * does. Left alone it would composite over the card's own white background and
+ * wash out to almost nothing.
+ */
+[data-dashboard-panel] [data-slot="card"],
+[data-dashboard-panel] [data-slot="table-surface"] {
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: none;
+  border-style: solid;
+  border-width: calc(var(--shell-card-border-width, 1) * 1px);
+  border-color: var(
+    --shell-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+  background-clip: padding-box;
+}
+
+/*
  * A panel collapsed to nothing. It is zero wide, but a box with no width still
  * paints its left and right borders — they land on top of each other and leave
  * a stray hairline down the workspace. Declared here, not as a Tailwind class,
@@ -243,10 +320,18 @@ body.app-font {
 
 /* gutter = 0 → flat mode: no card chrome. */
 [data-content-styling][data-flat="true"] [data-slot="card"],
-[data-content-styling][data-flat="true"] [data-slot="table-surface"] {
+[data-content-styling][data-flat="true"] [data-slot="table-surface"],
+[data-content-styling][data-flat="true"] [data-slot="table-header"] th {
   box-shadow: none;
 }
-[data-content-styling][data-flat="true"] [data-slot="workspace-panel"] {
+[data-content-styling][data-flat="true"] [data-slot="table-footer"] {
+  border-top-width: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
+[data-content-styling][data-flat="true"] [data-dashboard-panel] [data-slot="card"],
+[data-content-styling][data-flat="true"]
+  [data-dashboard-panel]
+  [data-slot="table-surface"] {
   border-width: 0;
 }
 [data-content-styling][data-flat="true"] [data-slot="card"],

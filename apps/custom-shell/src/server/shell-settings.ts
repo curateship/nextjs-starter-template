@@ -139,6 +139,9 @@ export function parseShellGlobals(value: unknown) {
     memberTopRightNavigation: Array.isArray(settings.memberTopRightNavigation)
       ? settings.memberTopRightNavigation
       : createDefaultTopRightNavigation(),
+    // Rows saved before this setting existed have no value, and the feature is
+    // meant to be on — so only an explicit `false` turns it off.
+    liveNotifications: settings.liveNotifications !== false,
     maintenance: normalizeMaintenance(settings.maintenance),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
   }
@@ -156,6 +159,7 @@ export function pickShellGlobals(settings: ShellConfig) {
     memberHomeRoute: settings.memberHomeRoute,
     memberSections: settings.memberSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,
+    liveNotifications: settings.liveNotifications,
     maintenance: settings.maintenance,
     sessionPolicy: settings.sessionPolicy,
   }

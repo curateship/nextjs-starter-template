@@ -1,6 +1,6 @@
 import * as React from "react"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
-import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
+import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
@@ -28,7 +28,10 @@ import {
   type AutomationDetail,
 } from "@/lib/api/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useEffectBeforePaint } from "@/lib/use-effect-before-paint"
+import {
+  panelLayoutKey,
+  useRememberedPanelLayout,
+} from "@/lib/panel-layout"
 import { useWideScreen } from "@/lib/wide-screen"
 import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
@@ -87,8 +90,12 @@ export function AutomationEditor({
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const horizontalLayout = useAutomationLayout("automation-editor-horizontal")
-  const verticalLayout = useAutomationLayout("automation-editor-vertical")
+  const horizontalLayout = useRememberedPanelLayout(
+    panelLayoutKey.automationEditorHorizontal
+  )
+  const verticalLayout = useRememberedPanelLayout(
+    panelLayoutKey.automationEditorVertical
+  )
 
   const togglePalette = React.useCallback(() => {
     const panel = palettePanelRef.current
@@ -506,43 +513,6 @@ export function AutomationEditor({
 
     </div>
   )
-}
-
-function useAutomationLayout(key: string) {
-  const [defaultLayout, setDefaultLayout] = React.useState<Layout>()
-  const [loaded, setLoaded] = React.useState(false)
-
-  useEffectBeforePaint(() => {
-    // localStorage is only readable after hydration, so the saved layout has
-    // to land via state — the same pattern the trading editor uses. Before the
-    // paint, so the panel groups are keyed once and never rebuilt on screen.
-    try {
-      const saved = localStorage.getItem(key)
-      setDefaultLayout(saved ? (JSON.parse(saved) as Layout) : undefined)
-    } catch {
-      setDefaultLayout(undefined)
-    } finally {
-      setLoaded(true)
-    }
-  }, [key])
-
-  const onLayoutChanged = React.useCallback(
-    (layout: Layout) => {
-      if (!loaded) return
-      try {
-        localStorage.setItem(key, JSON.stringify(layout))
-      } catch {
-        // Storage may be blocked; resizing still works for this session.
-      }
-    },
-    [key, loaded]
-  )
-
-  return {
-    defaultLayout,
-    onLayoutChanged,
-    layoutKey: loaded ? JSON.stringify(defaultLayout ?? {}) : "loading",
-  }
 }
 
 /**

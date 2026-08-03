@@ -39,6 +39,8 @@ type StickyHeaderProps = {
   /** Who is looking, for the top-right row's admin-link guard. */
   role?: string
   unreadNotifications?: number
+  /** The app-wide switch for the bell's live connection. */
+  liveNotifications?: boolean
   saveStatus?: SaveStatus
   /** Admins only: the app is closed to members and this is the reminder. */
   maintenanceOn?: boolean
@@ -57,6 +59,7 @@ export function StickyHeader({
   rightNavItems,
   role,
   unreadNotifications,
+  liveNotifications,
   saveStatus,
   maintenanceOn,
   maintenanceBusy,
@@ -108,6 +111,7 @@ export function StickyHeader({
             items={rightNavItems}
             role={role}
             unreadNotifications={unreadNotifications}
+            liveNotifications={liveNotifications}
             onOpenFeedback={onOpenFeedback}
             onOpenFeedbackThread={onOpenFeedbackThread}
           />

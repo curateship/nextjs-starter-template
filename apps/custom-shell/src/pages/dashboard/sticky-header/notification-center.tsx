@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  countUnreadNotifications,
   getNotificationErrorMessage,
   listNotificationPage,
   markAllNotificationsRead,
@@ -24,6 +25,7 @@ import {
   type NotificationItem,
 } from "@/lib/api/notification"
 import { notificationAction } from "@/lib/notification-action"
+import { useNotificationStream } from "@/lib/use-notification-stream"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
@@ -55,11 +57,17 @@ function EmptyNotifications({ hasAny }: { hasAny: boolean }) {
 type NotificationCenterProps = {
   /** Server count, so the dot is right before the tray has ever been opened. */
   initialUnreadCount: number
+  /**
+   * The app-wide switch for the live connection. Off, the bell still updates —
+   * on the slow check inside useNotificationStream instead.
+   */
+  live?: boolean
   onOpenFeedback?: (feedbackId: string) => void
 }
 
 export function NotificationCenter({
   initialUnreadCount,
+  live = true,
   onOpenFeedback,
 }: NotificationCenterProps) {
   const navigate = useNavigate()
@@ -149,6 +157,37 @@ export function NotificationCenter({
     if (!open) return
     void loadNotificationRows()
   }, [loadNotificationRows, open])
+
+  /**
+   * What the live connection (and its slow fallback check) asks for.
+   *
+   * A shut tray only needs the number — pulling twenty rows nobody is looking
+   * at would be most of the cost of this feature for none of the point. An
+   * open tray still on its first page reloads, because that page is the whole
+   * list anyway; once somebody has scrolled further back, reloading would snap
+   * them to the top mid-read, so only the number is refreshed and the rows
+   * they are reading stay where they are.
+   */
+  const syncNotifications = React.useCallback(async () => {
+    if (open && notifications.length <= NOTIFICATION_PAGE_SIZE) {
+      await loadNotificationRows()
+      return
+    }
+
+    try {
+      const { unread_count } = await countUnreadNotifications()
+      setUnreadCount(unread_count)
+    } catch {
+      // A failed check says nothing. The number on screen is the last one that
+      // was true, the next check is a minute away, and putting a banner on the
+      // header over a background request nobody asked for would be noise.
+    }
+  }, [loadNotificationRows, notifications.length, open])
+
+  useNotificationStream({
+    live,
+    onSync: () => void syncNotifications(),
+  })
 
   const loadMoreFromElement = React.useCallback((element: HTMLDivElement) => {
     const distanceFromBottom =

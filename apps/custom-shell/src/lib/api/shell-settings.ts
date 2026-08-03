@@ -134,6 +134,7 @@ const shellConfigSchema = z.object({
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
+  liveNotifications: z.boolean(),
   maintenance: z.object({
     enabled: z.boolean(),
     message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),

@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
+import { publishNotificationCreated } from "@/server/notification-events"
 import {
   customShellAnnouncementDismissals,
   customShellAnnouncements,
@@ -238,6 +239,10 @@ export async function loadUserAnnouncements(
       .returning({ id: customShellNotifications.id })
 
     noticesCreated = written.length
+    // This person's *other* tabs. The tab that ran this already has the new
+    // count in the page it is loading, so the nudge is for the ones that are
+    // just sitting there.
+    if (noticesCreated) await publishNotificationCreated(userId, database)
   }
 
   return {

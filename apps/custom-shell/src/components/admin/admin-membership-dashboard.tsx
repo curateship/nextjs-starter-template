@@ -10,6 +10,7 @@ import {
 } from "recharts"
 
 import { ChartCard, LegendDot } from "@/components/shared/chart-card"
+import { DashboardPanels } from "@/components/shared/dashboard-panels"
 import { MembershipActivityCard } from "@/components/shared/membership-activity-card"
 import { NeedsYouCard } from "@/components/shared/needs-you-card"
 import { StatStrip } from "@/components/shared/stat-strip"
@@ -34,7 +35,6 @@ import type { MembershipPage, MembershipSummary } from "@/lib/api/membership"
 import { shade } from "@/lib/chart-colours"
 import { buildMembershipFigures } from "@/lib/membership-figures"
 import { buildMembershipNeedsYou } from "@/lib/membership-needs-you"
-import { pageGutter } from "@/lib/shell-gutter"
 
 /**
  * The one page for everything about members and money. The Revenue page used to
@@ -61,71 +61,89 @@ export function AdminMembershipDashboard({
 }: {
   summary: MembershipPage
 }) {
-  const gutter = { gap: pageGutter }
-
   return (
     <>
       <StatStrip figures={buildMembershipFigures(summary)} />
 
-      {/* Proportions rather than pinned widths, so the split holds at every
-          wide size. The same 11/9 as the Overview, so moving between the two
-          admin pages does not shift the columns under you.
+      {/* The same 55/45 across and 40/30/30 down as the Overview, so moving
+          between the two admin pages does not shift the columns under you — and
+          the same draggable dividers. On the left the list of things to act on
+          sits above the timeline, which is open-ended and so gets the bigger
+          share. On the right the chart leads because it is the one worth a
+          glance on the way past.
 
-          From `xl` up the grid takes the height the stat strip leaves and the
-          two columns share it, so the page itself never scrolls — the long
-          blocks inside scroll instead. That is measured by the browser rather
-          than guessed at in `vh`, which is the only way it can survive a resize:
-          a `vh` figure knows nothing about the strip, the gutters or the header
-          above it. Below `xl` the columns stack into one and the page goes back
-          to scrolling, which is the right answer on a narrow screen.
-
-          `shrink-0` is the narrow-screen behaviour; from `xl` each block says
-          for itself what share of the column it takes. */}
-      <div
-        className="grid shrink-0 items-start xl:min-h-0 xl:shrink xl:basis-0 xl:grow xl:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] xl:items-stretch"
-        style={gutter}
-      >
-        <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
-          <NeedsYouCard
-            title="Money and members"
-            icon={CircleDollarSignIcon}
-            items={buildMembershipNeedsYou(summary)}
-          />
-          {/* The timeline is open-ended, so it is the one that gives — down to
-              a floor, below which the page scrolls instead. */}
-          <MembershipActivityCard
-            items={summary.activity}
-            className="xl:min-h-56 xl:flex-1"
-          />
-        </div>
-
-        <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
-          {/* The three blocks split the column 40 / 30 / 30, so it is full at
-              any window height without a single pinned number: `basis-0` makes
-              each one's share its grow figure, 4 against 3 against 3. The chart
-              leads and gets the biggest share because it is the one worth a
-              glance on the way past. Each keeps a floor, and below that the
-              page scrolls rather than squeezing them into nothing. */}
-          <JoiningChart summary={summary} />
-          <ByPlanCard
-            summary={summary}
-            className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]"
-            fillHeight
-          />
-
-          {/* Only once there is a history to show — an empty table on a screen
-              nobody has ever had a chargeback on is just noise. The id is what
-              the "open chargebacks" row on the left jumps to. */}
-          {summary.disputes.recent.length ? (
-            <ChargebacksTable
-              disputes={summary.disputes.recent}
-              total={summary.disputes.total}
-              className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]"
-              fillHeight
-            />
-          ) : null}
-        </div>
-      </div>
+          `DashboardPanels` takes the height the stat strip leaves, so the page
+          itself never scrolls and the long blocks scroll inside instead; below
+          1280px it drops the dividers and the columns stack. */}
+      <DashboardPanels
+        page="membership"
+        left={[
+          {
+            id: "needs-you",
+            size: 4,
+            minSize: "18%",
+            render: (className) => (
+              <NeedsYouCard
+                title="Money and members"
+                icon={CircleDollarSignIcon}
+                items={buildMembershipNeedsYou(summary)}
+                className={className}
+              />
+            ),
+          },
+          {
+            id: "activity",
+            size: 6,
+            minSize: "20%",
+            render: (className) => (
+              <MembershipActivityCard
+                items={summary.activity}
+                className={className}
+              />
+            ),
+          },
+        ]}
+        right={[
+          {
+            id: "joining",
+            size: 4,
+            minSize: "20%",
+            stackedClassName: "shrink-0",
+            render: (className) => (
+              <JoiningChart summary={summary} className={className} />
+            ),
+          },
+          {
+            id: "by-plan",
+            size: 3,
+            minSize: "18%",
+            render: (className) => (
+              <ByPlanCard summary={summary} className={className} fillHeight />
+            ),
+          },
+          // Only once there is a history to show — an empty table on a screen
+          // nobody has ever had a chargeback on is just noise. Dropping it also
+          // takes its divider with it, which is why the remembered layout is
+          // keyed on how many blocks the column has.
+          ...(summary.disputes.recent.length
+            ? [
+                {
+                  id: "chargebacks",
+                  size: 3,
+                  minSize: "18%",
+                  render: (className: string) => (
+                    <ChargebacksTable
+                      disputes={summary.disputes.recent}
+                      total={summary.disputes.total}
+                      className={className}
+                      fillHeight
+                    />
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
     </>
   )
 }
@@ -150,7 +168,13 @@ const joiningConfig = (period: "year" | "month"): ChartConfig => ({
  * nothing records what was being paid last March — but it does know when every
  * account was created, so the same chart is drawn from real joining dates.
  */
-function JoiningChart({ summary }: { summary: MembershipSummary }) {
+function JoiningChart({
+  summary,
+  className,
+}: {
+  summary: MembershipSummary
+  className?: string
+}) {
   const [period, setPeriod] = React.useState<"year" | "month">("year")
   const showingYear = period === "year"
 
@@ -172,7 +196,7 @@ function JoiningChart({ summary }: { summary: MembershipSummary }) {
     <ChartCard
       icon={LineChartIcon}
       title="People joining"
-      className="shrink-0 xl:min-h-56 xl:shrink xl:basis-0 xl:grow-[4]"
+      className={className}
       // Just "26 joined" — the period picker beside it already says over what,
       // and the longer wording pushed the heading into an ellipsis.
       meta={

@@ -22,6 +22,7 @@ import {
 
 import { ActivityCard } from "@/components/shared/activity-card"
 import { EmptyChart, LegendDot } from "@/components/shared/chart-card"
+import { DashboardPanels } from "@/components/shared/dashboard-panels"
 import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import {
   NeedsYouCard,
@@ -68,7 +69,6 @@ import { formatDate } from "@/lib/format-time"
 import { buildMembershipFigures } from "@/lib/membership-figures"
 import { percentChange } from "@/lib/percent-change"
 import { plural } from "@/lib/plural"
-import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
 
 /**
@@ -91,51 +91,76 @@ export function AdminOverviewDashboard({
 }: {
   overview: AdminOverview
 }) {
-  const gutter = { gap: pageGutter }
-
   return (
     <>
       <StatStrip figures={buildOverviewFigures(overview)} />
 
-      {/* Roughly 55/45 as proportions rather than a pinned width, so the split
-          holds at every wide size and both gaps are the site gutter.
+      {/* Roughly 55/45 across, then 40/60 down the left and 40/30/30 down the
+          right — the same balance as the Membership page, and every divider
+          between them draggable. What each proportion is doing:
 
-          From `xl` up the grid takes the height the stat strip leaves and the
-          columns share it, so the page itself does not scroll — the long blocks
-          scroll inside instead. Each column then splits its own height by
-          proportion, not by pinned pixels: `basis-0` makes a block's share its
-          grow figure, so the column is full at any window height. Below `xl`
-          the columns stack into one and the page scrolls again, which is the
-          right answer on a narrow screen. */}
-      <div
-        className="grid shrink-0 items-start xl:min-h-0 xl:shrink xl:basis-0 xl:grow xl:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] xl:items-stretch"
-        style={gutter}
-      >
-        <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
-          {/* 40 / 60: the list of jobs is finite, the feed underneath is not. */}
-          <NeedsYouCard
-            items={buildOverviewNeedsYou(overview)}
-            className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[4]"
-          />
-          <ActivityCard
-            items={overview.feeds.notifications.latest}
-            className="xl:min-h-56 xl:shrink xl:basis-0 xl:grow-[6]"
-          />
-        </div>
+          Left, the list of jobs is finite and the feed underneath it is not, so
+          the feed gets the bigger share. Right, the people card leads because it
+          is the one worth a glance on the way past.
 
-        {/* 40 / 30 / 30, the same balance as the Membership page. */}
-        <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
-          <PeopleCard
-            overview={overview}
-            className="xl:min-h-56 xl:shrink xl:basis-0 xl:grow-[4]"
-          />
-          <TrafficCard className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]" />
-          <AutomationsCard
-            automations={overview.automations}
-            className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]"
-          />
-        </div>
-      </div>
+          `DashboardPanels` handles the rest: it takes the height the stat strip
+          leaves, so the page itself never scrolls and the long blocks scroll
+          inside instead, and below 1280px it drops the dividers and lets the
+          columns stack. */}
+      <DashboardPanels
+        page="overview"
+        left={[
+          {
+            id: "needs-you",
+            size: 4,
+            minSize: "18%",
+            render: (className) => (
+              <NeedsYouCard
+                items={buildOverviewNeedsYou(overview)}
+                className={className}
+              />
+            ),
+          },
+          {
+            id: "activity",
+            size: 6,
+            minSize: "20%",
+            render: (className) => (
+              <ActivityCard
+                items={overview.feeds.notifications.latest}
+                className={className}
+              />
+            ),
+          },
+        ]}
+        right={[
+          {
+            id: "people",
+            size: 4,
+            minSize: "20%",
+            render: (className) => (
+              <PeopleCard overview={overview} className={className} />
+            ),
+          },
+          {
+            id: "traffic",
+            size: 3,
+            minSize: "18%",
+            render: (className) => <TrafficCard className={className} />,
+          },
+          {
+            id: "automations",
+            size: 3,
+            minSize: "18%",
+            render: (className) => (
+              <AutomationsCard
+                automations={overview.automations}
+                className={className}
+              />
+            ),
+          },
+        ]}
+      />
     </>
   )
 }
