@@ -33,9 +33,10 @@ import {
   openPlanChange,
   type BillingInvoice,
   type BillingOverview,
+  type CardExpiryWarning,
   type PlanOption,
 } from "@/lib/api/billing"
-import { formatDate } from "@/lib/format-time"
+import { formatDate, formatMonthAndYear } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
 
 /**
@@ -99,9 +100,11 @@ export function BillingTabSkeleton() {
 export function AccountBillingPage({
   overview,
   invoices,
+  cardWarning,
 }: {
   overview: BillingOverview
   invoices: BillingInvoice[]
+  cardWarning: CardExpiryWarning | null
 }) {
   const [interval, setInterval] = React.useState<BillingInterval>(
     overview.interval ?? "monthly"
@@ -144,6 +147,16 @@ export function AccountBillingPage({
 
   return (
     <CardGroup className="w-full">
+      {/* First, because it is the only thing on this tab with a deadline. */}
+      {cardWarning ? (
+        <CardExpiryCard
+          warning={cardWarning}
+          renewsOn={overview.currentPeriodEnd}
+          onUpdateCard={() => void handlePortal()}
+          busy={openingPortal}
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Your plan</CardTitle>
@@ -195,6 +208,65 @@ export function AccountBillingPage({
 
       <InvoicesCard invoices={invoices} />
     </CardGroup>
+  )
+}
+
+/**
+ * The saved card that will not survive the next renewal, said before the
+ * payment fails rather than after.
+ *
+ * A card that has already run out and one that runs out next month need
+ * different words — the first is a fact, the second is a warning — so the
+ * title says which rather than making the reader work it out from a date.
+ */
+function CardExpiryCard({
+  warning,
+  renewsOn,
+  onUpdateCard,
+  busy,
+}: {
+  warning: CardExpiryWarning
+  renewsOn: string | null
+  onUpdateCard: () => void
+  busy: boolean
+}) {
+  const card = `${warning.brand} ending ${warning.last4}`
+  const expiry = formatMonthAndYear(warning.expYear, warning.expMonth)
+  // Without a renewal date the warning is still worth making, just shorter —
+  // never a sentence with a blank where the date should be.
+  const renewal = renewsOn ? formatDate(renewsOn) : null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {warning.expired
+            ? "Your saved card has expired"
+            : "Your card expires before your next renewal"}
+        </CardTitle>
+        <CardDescription>
+          {warning.expired
+            ? `Your ${card} ran out in ${expiry}${renewal ? `, so the renewal on ${renewal} will fail` : ""}. Update it to keep your plan.`
+            : `Your ${card} runs out in ${expiry}${renewal ? `, before your renewal on ${renewal}` : ""}. Update it now and the renewal goes through as usual.`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-2">
+        {/* A word as well as a colour, so the state survives a screen that
+            cannot show the red. */}
+        <Badge variant="destructive">
+          {warning.expired ? "Expired" : "Expires soon"}
+        </Badge>
+        <Button
+          variant="outline"
+          className="ml-auto"
+          onClick={onUpdateCard}
+          disabled={busy}
+        >
+          <ExternalLinkIcon className="h-4 w-4" />
+          Update card in Stripe
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 

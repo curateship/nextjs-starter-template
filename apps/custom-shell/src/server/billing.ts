@@ -14,6 +14,7 @@ import {
   customShellBillingEvents,
   customShellSubscriptions,
   type CustomShellPlan,
+  type CustomShellSubscription,
   type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
@@ -148,6 +149,135 @@ export async function listCustomerInvoices(
     hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
     invoicePdfUrl: invoice.invoice_pdf ?? null,
   }))
+}
+
+/**
+ * A saved card that runs out before the plan renews.
+ *
+ * Only the four things a person needs to recognise their own card. Read fresh
+ * from Stripe on every look and written down nowhere — this app stores no card
+ * details, and an expiry date is a card detail.
+ */
+export type CardExpiryWarning = {
+  brand: string
+  last4: string
+  /** 1-12, as Stripe gives it. */
+  expMonth: number
+  expYear: number
+  /** True when the date has already passed, rather than merely being close. */
+  expired: boolean
+}
+
+/** Reads the card a subscription renews on. Injectable so tests need no Stripe. */
+type CardReader = (subscriptionId: string) => Promise<Stripe.Subscription>
+
+const loadSubscriptionCard: CardReader = (subscriptionId) =>
+  stripe().subscriptions.retrieve(subscriptionId, {
+    // Both cards in one call: the subscription's own, and the customer's, which
+    // is what Stripe falls back to.
+    expand: [
+      "default_payment_method",
+      "customer.invoice_settings.default_payment_method",
+    ],
+  })
+
+type SubscriptionForCard = Pick<
+  CustomShellSubscription,
+  | "source"
+  | "status"
+  | "stripeSubscriptionId"
+  | "currentPeriodEnd"
+  | "cancelAtPeriodEnd"
+>
+
+/**
+ * The saved card that will not survive the next renewal, or null when there is
+ * nothing worth saying.
+ *
+ * The point is to catch it before the payment fails rather than after, so this
+ * compares the card's own last day against the renewal date.
+ *
+ * Silent in every case where a warning would be wrong: a plan already set to
+ * end has no renewal to fail, a plan an admin granted is not charged to a card
+ * at all, and a card that outlives the renewal is somebody else's problem next
+ * cycle. Stripe refusing to answer is silent too — a warning that could not be
+ * worked out is not worth taking the billing page down for.
+ */
+export async function findExpiringCard(
+  subscription: SubscriptionForCard,
+  timestamp = now(),
+  read: CardReader = loadSubscriptionCard
+): Promise<CardExpiryWarning | null> {
+  const renewsOn = subscription.currentPeriodEnd
+  if (
+    subscription.source !== "stripe" ||
+    !subscription.stripeSubscriptionId ||
+    !renewsOn ||
+    subscription.cancelAtPeriodEnd ||
+    !subscriptionIsActive(subscription, timestamp)
+  ) {
+    return null
+  }
+
+  // Only the call out to Stripe is allowed to fail quietly. Wrapping the
+  // reading below in this too would turn a bug of ours into a warning that
+  // silently never appears.
+  let fromStripe: Stripe.Subscription
+  try {
+    fromStripe = await read(subscription.stripeSubscriptionId)
+  } catch (error) {
+    console.error(
+      "Card expiry check could not run",
+      subscription.stripeSubscriptionId,
+      error
+    )
+    return null
+  }
+
+  const card = renewalCard(fromStripe)
+  if (!card) {
+    return null
+  }
+
+  // A card works until the end of the month printed on it, so it is only a
+  // problem when that moment lands before the renewal.
+  const lastDay = endOfMonth(card.exp_year, card.exp_month)
+  if (lastDay >= renewsOn) {
+    return null
+  }
+
+  return {
+    brand: card.brand,
+    last4: card.last4,
+    expMonth: card.exp_month,
+    expYear: card.exp_year,
+    expired: lastDay < timestamp,
+  }
+}
+
+/**
+ * The card Stripe will actually charge: the subscription's own when it has one,
+ * otherwise the customer's default. Anything that is not a card — a bank debit,
+ * a method Stripe adds later — has no expiry to warn about.
+ */
+function renewalCard(subscription: Stripe.Subscription) {
+  const customer = subscription.customer
+  const onCustomer =
+    customer && typeof customer === "object" && !customer.deleted
+      ? customer.invoice_settings?.default_payment_method
+      : null
+
+  const method = subscription.default_payment_method ?? onCustomer
+  if (!method || typeof method !== "object" || method.type !== "card") {
+    return null
+  }
+
+  return method.card ?? null
+}
+
+/** The last moment of a card's expiry month, which is when it stops working. */
+function endOfMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 1) - 1)
 }
 
 export type CancelSubscriptionMode = "period_end" | "immediate"
