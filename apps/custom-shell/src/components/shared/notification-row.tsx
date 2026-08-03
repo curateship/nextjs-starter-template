@@ -5,11 +5,13 @@ import {
   MessageSquareIcon,
   SparklesIcon,
   ThumbsUpIcon,
+  UserCheckIcon,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   aiLimitNotificationText,
+  automationApprovalNotificationText,
   isAiLimitNotification,
   type NotificationItem,
 } from "@/lib/api/notification"
@@ -32,6 +34,25 @@ function getInitial(name: string) {
 }
 
 /**
+ * Whether an approval notice is asking for a decision or reporting that nobody
+ * made one. A row written before the state was recorded reads as the ask, which
+ * is the one of the two that is never wrong to look at.
+ */
+function approvalState(item: NotificationItem) {
+  return item.automation_approval_state ?? "pending"
+}
+
+/** Every notice the app sends about itself rather than about a person's doing. */
+function isFromTheApp(item: NotificationItem) {
+  return (
+    item.type === "changelog" ||
+    item.type === "announcement" ||
+    item.type === "automation_approval" ||
+    isAiLimitNotification(item.type)
+  )
+}
+
+/**
  * Two circles, not five colours.
  *
  * Something the app sent — a published update or an announcement — wears the
@@ -41,11 +62,7 @@ function getInitial(name: string) {
  * carries its own icon and says so in words.
  */
 function NotificationAvatar({ item }: { item: NotificationItem }) {
-  if (
-    item.type === "changelog" ||
-    item.type === "announcement" ||
-    isAiLimitNotification(item.type)
-  ) {
+  if (isFromTheApp(item)) {
     return (
       <Avatar size="lg">
         <AvatarFallback className="bg-secondary text-secondary-foreground">
@@ -53,6 +70,8 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
             <SparklesIcon className="h-4 w-4" />
           ) : item.type === "announcement" ? (
             <MegaphoneIcon className="h-4 w-4" />
+          ) : item.type === "automation_approval" ? (
+            <UserCheckIcon className="h-4 w-4" />
           ) : (
             <GaugeIcon className="h-4 w-4" />
           )}
@@ -83,6 +102,19 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
   // than a stock line that would send the reader looking for a link.
   if (item.type === "announcement") {
     return <strong>{item.announcement_title}</strong>
+  }
+
+  // The flow's name is the useful half — "Weekly changelog email" says more
+  // about what is waiting than the word "approval" ever could.
+  if (item.type === "automation_approval") {
+    return (
+      <>
+        <strong>{item.automation_name}</strong>
+        {approvalState(item) === "timed_out"
+          ? " stopped — nobody approved it in time"
+          : " is waiting for your approval"}
+      </>
+    )
   }
 
   if (item.type === "feedback_vote") {
@@ -121,6 +153,9 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   if (isAiLimitNotification(item.type)) {
     return <GaugeIcon className="h-3.5 w-3.5" />
   }
+  if (item.type === "automation_approval") {
+    return <UserCheckIcon className="h-3.5 w-3.5" />
+  }
   if (item.type === "feedback_merged") {
     return <GitMergeIcon className="h-3.5 w-3.5" />
   }
@@ -142,9 +177,11 @@ function notificationPreview(item: NotificationItem) {
       ? (item.changelog_title ?? "")
       : item.type === "announcement"
         ? (item.announcement_body ?? "")
-        : isAiLimitNotification(item.type)
-          ? aiLimitNotificationText[item.type].detail
-          : (item.feedback_message ?? "")
+        : item.type === "automation_approval"
+          ? automationApprovalNotificationText[approvalState(item)].detail
+          : isAiLimitNotification(item.type)
+            ? aiLimitNotificationText[item.type].detail
+            : (item.feedback_message ?? "")
 
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }

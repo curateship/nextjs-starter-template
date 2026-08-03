@@ -1,13 +1,15 @@
-import { desc, eq } from "drizzle-orm"
+import { and, count, desc, eq, gte } from "drizzle-orm"
 
 import {
   SUBSCRIPTION_EVENT_LIMIT,
   type SubscriptionEvent,
   type SubscriptionEventKind,
 } from "@/lib/subscription-events"
+import { DAY_MS } from "@/lib/format-time"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellSubscriptionEvents,
+  customShellUsers,
   type CustomShellSubscription,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
@@ -206,4 +208,71 @@ export async function listSubscriptionEvents(
     source: row.source === "admin" ? "admin" : "stripe",
     createdAt: row.createdAt.toISOString(),
   }))
+}
+
+/** One event with whoever it happened to, for a feed that spans everybody. */
+export type RecentSubscriptionEvent = SubscriptionEvent & {
+  personName: string
+}
+
+/**
+ * The newest billing events across every account, newest first.
+ *
+ * An inner join, not a left one: deleting an account takes its events with it,
+ * so a row with nobody attached would be a row that should not exist.
+ */
+export async function listRecentSubscriptionEvents(
+  limit: number,
+  database: CustomShellDb = db
+): Promise<RecentSubscriptionEvent[]> {
+  const rows = await database
+    .select({
+      event: customShellSubscriptionEvents,
+      personName: customShellUsers.name,
+    })
+    .from(customShellSubscriptionEvents)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellSubscriptionEvents.userId)
+    )
+    .orderBy(desc(customShellSubscriptionEvents.createdAt))
+    .limit(limit)
+
+  return rows.map(({ event, personName }) => ({
+    id: event.id,
+    kind: event.kind,
+    planName: event.planName,
+    detail: event.detail,
+    source: event.source === "admin" ? "admin" : "stripe",
+    createdAt: event.createdAt.toISOString(),
+    personName,
+  }))
+}
+
+/**
+ * How many payments Stripe could not take over the last stretch of days.
+ *
+ * Counted from the history rather than from the subscription rows, because a
+ * subscription that failed on Monday and went through on Tuesday looks
+ * perfectly healthy today — and somebody still needs to know it happened.
+ */
+export async function countFailedPayments(
+  days: number,
+  database: CustomShellDb = db,
+  at: Date = now()
+): Promise<number> {
+  const [row] = await database
+    .select({ total: count() })
+    .from(customShellSubscriptionEvents)
+    .where(
+      and(
+        eq(customShellSubscriptionEvents.kind, "payment_failed"),
+        gte(
+          customShellSubscriptionEvents.createdAt,
+          new Date(at.getTime() - days * DAY_MS)
+        )
+      )
+    )
+
+  return Number(row?.total ?? 0)
 }

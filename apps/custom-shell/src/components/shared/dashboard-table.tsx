@@ -115,6 +115,18 @@ type DashboardTableBaseProps = {
    * its last rows off the bottom instead of scrolling.
    */
   className?: string
+  /**
+   * Take whatever height the column has left and scroll the rows inside it,
+   * rather than growing to fit them and pushing the page down. The toolbar and
+   * the footer stay put, and the column headings stick to the top of the rows
+   * — a heading that scrolled away would leave unlabelled columns.
+   *
+   * The column has to be a flex one that is itself bounded, or there is no
+   * leftover height to take and this does nothing. Only for a table sharing a
+   * screen meant to fit; a page whose whole job is one table should keep
+   * scrolling with the page.
+   */
+  fillHeight?: boolean
 }
 
 type DashboardTableProps = DashboardTableBaseProps & (
@@ -150,6 +162,7 @@ export function DashboardTable(props: DashboardTableProps) {
     countsPending = false,
     busy = false,
     className,
+    fillHeight = false,
   } = props
 
   const busyClassName = cn(
@@ -158,7 +171,12 @@ export function DashboardTable(props: DashboardTableProps) {
   )
 
   return (
-    <TableSurface className={className}>
+    <TableSurface
+      // `h-full` to take the height the column hands down, `min-h-0` so it can
+      // pass a smaller one on. Where it stops shrinking is set on the rows
+      // themselves, further in.
+      className={cn(fillHeight && "flex h-full min-h-0 flex-col", className)}
+    >
       <DashboardToolbar>
         <DashboardToolbarTitle>
           {icon ? (
@@ -196,8 +214,21 @@ export function DashboardTable(props: DashboardTableProps) {
           {props.content}
         </div>
       ) : (
-        <ScrollArea className="w-full">
-          <Table>
+        <TableRows fill={fillHeight}>
+          <Table
+            containerClassName={cn(
+              fillHeight &&
+                // The `ScrollArea` around it is the only scrolling box now, so
+                // this one stops being one. Two nested scrollers would fight,
+                // and the inner one would be what a sticky heading sticks to —
+                // which here is the wrong one.
+                //
+                // The headings ride along at the top of the rows. They need an
+                // opaque fill of their own — the row's `bg-muted/50` is
+                // see-through, so rows would slide up behind the words.
+                "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted [&_thead_th]:shadow-[inset_0_-1px_0_var(--border)]"
+            )}
+          >
             {props.header}
             <TableBody aria-busy={busy || undefined} className={busyClassName}>
               {props.isEmpty ? (
@@ -214,12 +245,41 @@ export function DashboardTable(props: DashboardTableProps) {
               )}
             </TableBody>
           </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        </TableRows>
       )}
 
       <DashboardTableFooter footer={footer} countsPending={countsPending} />
     </TableSurface>
+  )
+}
+
+/**
+ * The rows, either in the app's own scroll frame (the usual case, where the
+ * table is as tall as its rows) or bare, when it is filling a column and the
+ * table's own box does the scrolling.
+ */
+function TableRows({
+  fill,
+  children,
+}: {
+  fill: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <ScrollArea
+      className={cn("w-full", fill && "min-h-0 flex-1")}
+      // The height goes on the viewport, never the frame — see `ScrollArea`.
+      // `min-h-24` is where it stops giving height back: squeezed under about
+      // two rows this is a heading and a total with a sliver between them, and
+      // the page is better off scrolling. Radix wraps the viewport's contents
+      // in a `display: table` box, which neither resolves a height nor lets a
+      // heading stick, so it is put back to a plain block — and that has to
+      // beat an inline style, hence the `!`.
+      viewportClassName={cn(fill && "h-full min-h-24 [&>div]:block!")}
+    >
+      {children}
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 }
 

@@ -9,7 +9,6 @@ import {
   deleteUserAccounts,
   grantManualPlan,
   listAccounts,
-  loadRevenueSummary,
   restoreUserAccounts,
   setUserStatus,
   updateUserRole,
@@ -20,7 +19,7 @@ import {
   cancelSubscriptionByAdmin,
   type CancelSubscriptionMode,
 } from "@/server/billing"
-import { listDisputes, type DisputeList, type DisputeRow } from "@/server/disputes"
+import type { DisputeList, DisputeRow } from "@/server/disputes"
 import { listPlans } from "@/server/plans"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
@@ -222,22 +221,6 @@ const restoreAccountsFn = createServerFn({ method: "POST" })
     return restoreUserAccounts(data.userIds)
   })
 
-/**
- * The admin billing page in one request: the revenue figures, plus any
- * chargebacks. Disputes come with the page rather than after it, because the
- * alert has to be on screen the moment the page is.
- */
-const loadBillingAdminFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async (): Promise<{ summary: RevenueSummary; disputes: DisputeList }> => {
-    const [summary, disputes] = await Promise.all([
-      loadRevenueSummary(),
-      listDisputes(),
-    ])
-
-    return { summary, disputes }
-  })
-
 export function loadAdminUsersPage(
   query: Omit<AccountListQueryInput, "pageSize">
 ) {
@@ -298,6 +281,3 @@ export function restoreAccountsAsAdmin(userIds: string[]) {
   return restoreAccountsFn({ data: { userIds } })
 }
 
-export function loadBillingAdmin() {
-  return loadBillingAdminFn()
-}

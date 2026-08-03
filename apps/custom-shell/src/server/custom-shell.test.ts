@@ -120,6 +120,7 @@ import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   addOverviewLink,
   addTrafficLink,
+  removeRevenueLink,
   foldFeedsIntoOverview,
   createUserWorkspace,
   deleteUserWorkspace,
@@ -1945,6 +1946,175 @@ describe("traffic link", () => {
       ).settings
     )
     expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-ai-usage"])
+  })
+})
+
+describe("revenue folds into membership", () => {
+  /** A navVersion-9 sidebar: Membership with all three of its children. */
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-membership",
+            label: "Membership",
+            href: "/admin/membership",
+            icon: "id-card",
+            visible: true,
+            children: [
+              { id: "item-admin-users", label: "Users", href: "/admin/users" },
+              { id: "item-admin-plans", label: "Plans", href: "/admin/plans" },
+              {
+                id: "item-admin-revenue",
+                label: "Revenue",
+                href: "/admin/billing",
+              },
+            ],
+          },
+          {
+            type: "item",
+            id: "item-admin-traffic",
+            label: "Traffic",
+            href: "/admin/traffic",
+            icon: "chart-line",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  function childIdsOf(sections: ShellSection[]) {
+    return (sections[0].entries[0] as ShellItem).children?.map(
+      (child) => child.id
+    )
+  }
+
+  it("takes the Revenue child out and leaves the other two", () => {
+    const sections = removeRevenueLink(savedSections())
+
+    expect(childIdsOf(sections)).toEqual([
+      "item-admin-users",
+      "item-admin-plans",
+    ])
+  })
+
+  it("takes out a top-level Revenue link too", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-revenue",
+      label: "Revenue",
+      href: "/admin/billing",
+      icon: "barChart3",
+      visible: true,
+    })
+
+    expect(
+      removeRevenueLink(sections)[0].entries.map((entry) => entry.id)
+    ).toEqual(["item-admin-membership", "item-admin-traffic"])
+  })
+
+  it("matches on the address when the id was rebuilt by hand", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "my-own-revenue", label: "Money", href: "/admin/billing" },
+    ]
+
+    // The parent keeps no empty `children` key once its last child goes.
+    expect(childIdsOf(removeRevenueLink(sections))).toBeUndefined()
+    expect("children" in removeRevenueLink(sections)[0].entries[0]).toBe(false)
+  })
+
+  it("changes nothing when there is no Revenue link left", () => {
+    const sections = removeRevenueLink(savedSections())
+    expect(removeRevenueLink(sections)).toBe(sections)
+    expect(removeRevenueLink([])).toEqual([])
+  })
+
+  it("brings a saved sidebar forward once, and never hands it back", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "revenue-fold@example.com",
+      name: "Revenue Admin",
+      passwordHash: "hash",
+      role: "admin",
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellWorkspaces).values({
+      id: uuid(),
+      userId,
+      name: "Saved",
+      // Everything before this upgrade has already run for this workspace.
+      settings: {
+        icon: "briefcaseBusiness",
+        navVersion: 9,
+        sections: savedSections(),
+      },
+      isDefault: true,
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const upgraded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    expect(childIdsOf(upgraded.sections)).toEqual([
+      "item-admin-users",
+      "item-admin-plans",
+    ])
+
+    // Somebody making their own link to the old address afterwards keeps it —
+    // the step has already run for this workspace and never runs again.
+    await database
+      .update(customShellWorkspaces)
+      .set({
+        settings: {
+          ...upgraded,
+          sections: [
+            {
+              ...upgraded.sections[0],
+              entries: [
+                ...upgraded.sections[0].entries,
+                {
+                  type: "item",
+                  id: "my-own-revenue",
+                  label: "Money",
+                  href: "/admin/billing",
+                  icon: "barChart3",
+                  visible: true,
+                },
+              ],
+            },
+          ],
+        },
+      })
+      .where(eq(customShellWorkspaces.userId, userId))
+
+    const reloaded = parseWorkspaceSettings(
+      (
+        await getOrCreateCurrentWorkspace(
+          userId,
+          database as unknown as CustomShellDb
+        )
+      ).settings
+    )
+    expect(reloaded.sections[0].entries.map((entry) => entry.id)).toContain(
+      "my-own-revenue"
+    )
   })
 })
 

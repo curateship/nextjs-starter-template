@@ -1,19 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminRevenueDashboard } from "@/components/admin/admin-revenue-dashboard"
-import {
-  getAdminUserErrorMessage,
-  loadBillingAdmin,
-} from "@/lib/api/admin-users"
-import { routeErrorComponent } from "@/components/shell/route-error"
-
+/**
+ * The Revenue page moved into Membership, which now shows the money and the
+ * members together. The address stays as a redirect: it has been in the sidebar
+ * and in people's bookmarks, and a link that used to work should not start
+ * saying "not found".
+ */
 export const Route = createFileRoute("/_authenticated/admin/billing")({
-  loader: async () => loadBillingAdmin(),
-  component: AdminBillingRoute,
-  errorComponent: routeErrorComponent(getAdminUserErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/membership", replace: true })
+  },
 })
-
-function AdminBillingRoute() {
-  const { summary, disputes } = Route.useLoaderData()
-  return <AdminRevenueDashboard summary={summary} disputes={disputes} />
-}

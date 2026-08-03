@@ -19,6 +19,8 @@ import { db, type CustomShellDb } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
   customShellAnnouncements,
+  customShellAutomationRuns,
+  customShellAutomations,
   customShellChangelogEntries,
   customShellFeedback,
   customShellNotifications,
@@ -30,6 +32,7 @@ import { findCurrentUser, now } from "@/server/security"
 import {
   aiLimitNotificationText,
   notificationTypeLabels,
+  type AutomationApprovalState,
   type NotificationItem,
   type NotificationType,
 } from "@/lib/api/notification"
@@ -67,6 +70,7 @@ const recipientUsers = alias(customShellUsers, "recipient_users")
 const subjectExpression = sql<string>`case
   when ${customShellNotifications.type} = 'ai_limit_warning' then ${aiLimitNotificationText.ai_limit_warning.message}
   when ${customShellNotifications.type} = 'ai_limit_reached' then ${aiLimitNotificationText.ai_limit_reached.message}
+  when ${customShellNotifications.type} = 'automation_approval' then coalesce(${customShellAutomations.name}, '')
   else coalesce(${customShellChangelogEntries.title}, ${customShellAnnouncements.title}, ${customShellFeedback.message}, '')
 end`
 
@@ -200,6 +204,16 @@ function joinNotificationSources<T extends PgSelect>(query: T) {
     .leftJoin(
       customShellAnnouncements,
       eq(customShellAnnouncements.id, customShellNotifications.announcementId)
+    )
+    // Two hops, because the notice points at the run and the words it needs
+    // are the flow's name.
+    .leftJoin(
+      customShellAutomationRuns,
+      eq(customShellAutomationRuns.id, customShellNotifications.automationRunId)
+    )
+    .leftJoin(
+      customShellAutomations,
+      eq(customShellAutomations.id, customShellAutomationRuns.automationId)
     )
 }
 
@@ -403,9 +417,19 @@ export async function serializeNotificationRows(
   const announcementIds = Array.from(
     new Set(rows.flatMap((row) => (row.announcementId ? [row.announcementId] : [])))
   )
+  const automationRunIds = Array.from(
+    new Set(
+      rows.flatMap((row) => (row.automationRunId ? [row.automationRunId] : []))
+    )
+  )
 
-  const [userRows, feedbackRows, changelogRows, announcementRows] =
-    await Promise.all([
+  const [
+    userRows,
+    feedbackRows,
+    changelogRows,
+    announcementRows,
+    automationRunRows,
+  ] = await Promise.all([
       database
         .select({
           id: customShellUsers.id,
@@ -442,6 +466,23 @@ export async function serializeNotificationRows(
             .from(customShellAnnouncements)
             .where(inArray(customShellAnnouncements.id, announcementIds))
         : [],
+      automationRunIds.length
+        ? database
+            .select({
+              id: customShellAutomationRuns.id,
+              automationId: customShellAutomations.id,
+              automationName: customShellAutomations.name,
+            })
+            .from(customShellAutomationRuns)
+            .innerJoin(
+              customShellAutomations,
+              eq(
+                customShellAutomations.id,
+                customShellAutomationRuns.automationId
+              )
+            )
+            .where(inArray(customShellAutomationRuns.id, automationRunIds))
+        : [],
     ])
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
@@ -454,6 +495,9 @@ export async function serializeNotificationRows(
   )
   const announcements = new Map(
     announcementRows.map((row) => [row.id, row])
+  )
+  const automations = new Map(
+    automationRunRows.map((row) => [row.id, row])
   )
 
   return rows.map((row) => ({
@@ -484,6 +528,17 @@ export async function serializeNotificationRows(
     announcement_body: row.announcementId
       ? (announcements.get(row.announcementId)?.body ?? "")
       : null,
+    automation_run_id: row.automationRunId,
+    automation_id: row.automationRunId
+      ? (automations.get(row.automationRunId)?.automationId ?? null)
+      : null,
+    // Deleting a run takes its notices with it, so the fallback here only ever
+    // shows during the moment between the two.
+    automation_name: row.automationRunId
+      ? (automations.get(row.automationRunId)?.automationName ?? "Deleted flow")
+      : null,
+    automation_approval_state:
+      (row.automationApprovalState as AutomationApprovalState | null) ?? null,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
   }))

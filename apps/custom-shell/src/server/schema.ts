@@ -2,6 +2,11 @@ import { sql } from "drizzle-orm"
 
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import type { AutomationGraph } from "@/lib/automations/graph"
+import type {
+  AutomationApprovalDecision,
+  AutomationRunStatus,
+  AutomationRunStepStatus,
+} from "@/lib/automations/run"
 import type { PlanFeatures } from "@/lib/plan-features"
 import {
   bigint,
@@ -277,13 +282,26 @@ export const customShellNotifications = pgTable(
       () => customShellAnnouncements.id,
       { onDelete: "cascade" }
     ),
+    /** Set on an approval notice; deleting the run clears its notices too. */
+    automationRunId: varchar("automation_run_id", { length: 36 }).references(
+      () => customShellAutomationRuns.id,
+      { onDelete: "cascade" }
+    ),
+    /**
+     * 'pending' when the run parks and 'timed_out' when the deadline
+     * auto-rejects it. Both notices are about the same run, so without this the
+     * second would read exactly like the first.
+     */
+    automationApprovalState: varchar("automation_approval_state", {
+      length: 20,
+    }).$type<"pending" | "timed_out">(),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -295,6 +313,7 @@ export const customShellNotifications = pgTable(
       table.feedbackCommentId
     ),
     index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
+    index("ix_notifications_automation_run_id").on(table.automationRunId),
     // One notice per person per announcement, so a second tab loading at the
     // same moment cannot write a duplicate. Partial: every other kind of notice
     // leaves this column null and there can be many of those.
@@ -650,6 +669,98 @@ export const customShellAutomations = pgTable(
   ]
 )
 
+/**
+ * One time a flow was set going. See `drizzle/0028` for why a run holds a claim
+ * rather than a lock, why it carries its own copy of the compiled flow, and why
+ * a run parked at an approval checkpoint costs the engine nothing.
+ */
+export const customShellAutomationRuns = pgTable(
+  "automation_runs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 })
+      .$type<AutomationRunStatus>()
+      .notNull(),
+    currentNodeId: varchar("current_node_id", { length: 64 }).notNull(),
+    /** The compiled flow as it was when the run started, never re-read after. */
+    configSnapshot: jsonb("config_snapshot")
+      .$type<AutomationCompiledConfig>()
+      .notNull(),
+    wakeAt: timestamp("wake_at", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    claimToken: varchar("claim_token", { length: 36 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    error: text("error"),
+    /** All five null until the run reaches an approval checkpoint. */
+    approvalNodeId: varchar("approval_node_id", { length: 64 }),
+    approvalSummary: text("approval_summary"),
+    approvalDeadlineAt: timestamp("approval_deadline_at", {
+      withTimezone: true,
+    }),
+    approvalDecision: varchar("approval_decision", { length: 20 }).$type<
+      AutomationApprovalDecision
+    >(),
+    approvalDecidedAt: timestamp("approval_decided_at", { withTimezone: true }),
+    /** Null when the deadline decided it rather than a person. */
+    approvalDecidedBy: varchar("approval_decided_by", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_runs_status_check",
+      sql`${table.status} in ('active', 'waiting_approval', 'completed', 'failed', 'rejected')`
+    ),
+    check(
+      "automation_runs_decision_check",
+      sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
+    ),
+    index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
+    index("ix_automation_runs_user_started").on(table.userId, table.startedAt),
+    index("ix_automation_runs_automation").on(table.automationId),
+  ]
+)
+
+/** What one step did, written once when the step is over. Never edited. */
+export const customShellAutomationRunSteps = pgTable(
+  "automation_run_steps",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    runId: varchar("run_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomationRuns.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 64 }).notNull(),
+    kind: varchar("kind", { length: 64 }).notNull(),
+    status: varchar("status", { length: 20 })
+      .$type<AutomationRunStepStatus>()
+      .notNull(),
+    attempts: integer("attempts").notNull().default(1),
+    /** What the step did, in the words a person would use. Always present. */
+    summary: text("summary").notNull(),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_run_steps_status_check",
+      sql`${table.status} in ('completed', 'failed', 'rejected')`
+    ),
+    index("ix_automation_run_steps_run").on(table.runId, table.startedAt),
+  ]
+)
+
 export const customShellChangelogEntries = pgTable(
   "changelog_entries",
   {
@@ -949,5 +1060,9 @@ export type CustomShellDispute = typeof customShellDisputes.$inferSelect
 export type CustomShellSubscriptionEvent =
   typeof customShellSubscriptionEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
+export type CustomShellAutomationRun =
+  typeof customShellAutomationRuns.$inferSelect
+export type CustomShellAutomationRunStep =
+  typeof customShellAutomationRunSteps.$inferSelect
 export type CustomShellAnnouncement =
   typeof customShellAnnouncements.$inferSelect

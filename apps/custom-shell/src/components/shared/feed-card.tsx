@@ -19,6 +19,7 @@ export function CardTop({
   icon: Icon,
   title,
   meta,
+  metaClassName,
   iconClassName,
   action,
   sample = false,
@@ -26,6 +27,8 @@ export function CardTop({
   icon: React.ComponentType<{ className?: string }>
   title: string
   meta?: string
+  /** For hiding the count on widths where it would squeeze the title. */
+  metaClassName?: string
   iconClassName?: string
   action?: React.ReactNode
   /** This card's figures are stand-ins, not yet read from anything real. */
@@ -41,7 +44,12 @@ export function CardTop({
         <span className="truncate">{title}</span>
         {sample ? <SampleBadge /> : null}
         {meta ? (
-          <span className="shrink-0 text-xs font-normal text-muted-foreground">
+          <span
+            className={cn(
+              "shrink-0 text-xs font-normal text-muted-foreground",
+              metaClassName
+            )}
+          >
             {meta}
           </span>
         ) : null}

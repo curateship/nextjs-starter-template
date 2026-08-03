@@ -39,6 +39,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Meter, MeterRow } from "@/components/ui/meter"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Table,
   TableBody,
@@ -97,23 +98,42 @@ export function AdminOverviewDashboard({
       <StatStrip figures={buildOverviewFigures(overview)} />
 
       {/* Roughly 55/45 as proportions rather than a pinned width, so the split
-          holds at every wide size and both gaps are the site gutter. The page
-          area is a flex column, so `shrink-0` is what makes it scroll rather
-          than squeeze this grid down to fit. */}
+          holds at every wide size and both gaps are the site gutter.
+
+          From `xl` up the grid takes the height the stat strip leaves and the
+          columns share it, so the page itself does not scroll — the long blocks
+          scroll inside instead. Each column then splits its own height by
+          proportion, not by pinned pixels: `basis-0` makes a block's share its
+          grow figure, so the column is full at any window height. Below `xl`
+          the columns stack into one and the page scrolls again, which is the
+          right answer on a narrow screen. */}
       <div
-        className="grid shrink-0 items-start xl:grid-cols-[minmax(0,11fr)_minmax(0,9fr)]"
+        className="grid shrink-0 items-start xl:min-h-0 xl:shrink xl:basis-0 xl:grow xl:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] xl:items-stretch"
         style={gutter}
       >
-        <div className="flex min-w-0 flex-col" style={gutter}>
-          <NeedsYouCard items={buildOverviewNeedsYou(overview)} />
-          <ActivityCard items={overview.feeds.notifications.latest} />
+        <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
+          {/* 40 / 60: the list of jobs is finite, the feed underneath is not. */}
+          <NeedsYouCard
+            items={buildOverviewNeedsYou(overview)}
+            className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[4]"
+          />
+          <ActivityCard
+            items={overview.feeds.notifications.latest}
+            className="xl:min-h-56 xl:shrink xl:basis-0 xl:grow-[6]"
+          />
         </div>
 
-        <div className="flex min-w-0 flex-col" style={gutter}>
-          <JoiningCard overview={overview} />
-          <TrafficCard />
-          <MembershipCard overview={overview} />
-          <AutomationsCard automations={overview.automations} />
+        {/* 40 / 30 / 30, the same balance as the Membership page. */}
+        <div className="flex min-w-0 flex-col xl:min-h-0" style={gutter}>
+          <PeopleCard
+            overview={overview}
+            className="xl:min-h-56 xl:shrink xl:basis-0 xl:grow-[4]"
+          />
+          <TrafficCard className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]" />
+          <AutomationsCard
+            automations={overview.automations}
+            className="xl:min-h-52 xl:shrink xl:basis-0 xl:grow-[3]"
+          />
         </div>
       </div>
     </>
@@ -196,8 +216,8 @@ function buildOverviewNeedsYou({
       icon: CreditCardIcon,
       title: `${membership.revenue.cancelling.toLocaleString()} ${plural(membership.revenue.cancelling, "subscription")} ending`,
       detail: "They keep it until their period runs out",
-      action: "Open billing",
-      to: "/admin/billing",
+      action: "Open membership",
+      to: "/admin/membership",
     })
   }
 
@@ -205,46 +225,71 @@ function buildOverviewNeedsYou({
 }
 
 // ---------------------------------------------------------------------------
-// Who is arriving: the shape of it over the month, and the newest few by name.
-// One card, because they answer the same question at two zoom levels.
+// Who is in the app: the shape of arrivals over the month, the newest few by
+// name, and who sits on which plan. One card with tabs, because all three
+// answer the same question at different zoom levels.
 
 const joiningConfig: ChartConfig = {
   current: { label: "This month", color: "var(--primary)" },
   previous: { label: "Last month", color: shade(70) },
 }
 
-function JoiningCard({ overview }: { overview: AdminOverview }) {
-  const [tab, setTab] = React.useState<"joining" | "members">("joining")
+type PeopleTab = "joining" | "members" | "plans"
+
+const PEOPLE_TABS: {
+  value: PeopleTab
+  tab: string
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+}[] = [
+  { value: "joining", tab: "Joining", icon: LineChartIcon, title: "People joining" },
+  { value: "members", tab: "Newest", icon: UsersIcon, title: "Newest members" },
+  { value: "plans", tab: "Plans", icon: LayersIcon, title: "Membership" },
+]
+
+function PeopleCard({
+  overview,
+  className,
+}: {
+  overview: AdminOverview
+  className?: string
+}) {
+  const [tab, setTab] = React.useState<PeopleTab>("joining")
   const { membership } = overview
-  const showingChart = tab === "joining"
+  const everyone = membership.revenue.totalUsers
+  const current = PEOPLE_TABS.find((entry) => entry.value === tab) ?? PEOPLE_TABS[0]
 
   return (
-    <FeedCard>
+    <FeedCard className={className}>
       <CardTop
-        icon={showingChart ? LineChartIcon : UsersIcon}
-        title={showingChart ? "People joining" : "Newest members"}
+        icon={current.icon}
+        title={current.title}
+        // Dropped rather than truncating the heading once the tabs and this
+        // count no longer both fit — which is most widths in this column.
+        metaClassName="hidden 2xl:inline"
         meta={
-          showingChart
+          tab === "joining"
             ? `${membership.newLastMonth.toLocaleString()} last month`
-            : `${membership.revenue.totalUsers.toLocaleString()} ${plural(membership.revenue.totalUsers, "account")} in all`
+            : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
         }
         action={
           <Tabs
             value={tab}
-            onValueChange={(value) => setTab(value as "joining" | "members")}
+            onValueChange={(value) => setTab(value as PeopleTab)}
           >
             <TabsList>
-              <TabsTrigger value="joining">Joining</TabsTrigger>
-              <TabsTrigger value="members">Newest</TabsTrigger>
+              {PEOPLE_TABS.map((entry) => (
+                <TabsTrigger key={entry.value} value={entry.value}>
+                  {entry.tab}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </Tabs>
         }
       />
-      {showingChart ? (
-        <JoiningChart overview={overview} />
-      ) : (
-        <NewestMembers overview={overview} />
-      )}
+      {tab === "joining" ? <JoiningChart overview={overview} /> : null}
+      {tab === "members" ? <NewestMembers overview={overview} /> : null}
+      {tab === "plans" ? <PlanMembership overview={overview} /> : null}
     </FeedCard>
   )
 }
@@ -264,7 +309,7 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
   const change = percentChange(membership.newLastMonth, membership.newThisMonth)
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <p className="font-mono text-3xl leading-tight font-semibold tracking-tight tabular-nums">
@@ -280,7 +325,7 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
       {data.length === 0 ? (
         <EmptyChart message="Nobody has joined yet." />
       ) : (
-        <div className="h-[200px] w-full min-w-0 sm:h-[240px]">
+        <div className="h-[200px] w-full min-w-0 sm:h-[240px] xl:h-auto xl:min-h-[120px] xl:flex-1">
           <ChartContainer config={joiningConfig} className="h-full w-full">
             <ComposedChart data={data}>
               <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -348,51 +393,53 @@ function NewestMembers({ overview }: { overview: AdminOverview }) {
 
   return (
     <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead column="main">Person</TableHead>
-            <TableHead column="meta">Plan</TableHead>
-            <TableHead column="meta">Joined</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {members.map((member) => (
-            <TableRow key={member.id}>
-              <TableCell column="main">
-                <span
-                  className="block max-w-64 truncate font-medium"
-                  title={member.name}
-                >
-                  {member.name}
-                </span>
-                {/* The same marks the Users page puts on a row, in the same
-                    words. Without them a suspended account, or one already on
-                    its way out, reads here as an ordinary new member. */}
-                {accountNote(member) ? (
-                  <span className="block text-xs text-destructive">
-                    {accountNote(member)}
-                  </span>
-                ) : null}
-                <span
-                  className="block max-w-64 truncate text-xs text-muted-foreground"
-                  title={member.email}
-                >
-                  {member.email}
-                </span>
-              </TableCell>
-              <TableCell column="meta">
-                <Badge variant={member.planIsPaid ? "default" : "secondary"}>
-                  {member.planName}
-                </Badge>
-              </TableCell>
-              <TableCell column="meta">
-                {formatDate(member.createdAt)}
-              </TableCell>
+      <ScrollArea className="min-h-0 flex-1">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead column="main">Person</TableHead>
+              <TableHead column="meta">Plan</TableHead>
+              <TableHead column="meta">Joined</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {members.map((member) => (
+              <TableRow key={member.id}>
+                <TableCell column="main">
+                  <span
+                    className="block max-w-64 truncate font-medium"
+                    title={member.name}
+                  >
+                    {member.name}
+                  </span>
+                  {/* The same marks the Users page puts on a row, in the same
+                      words. Without them a suspended account, or one already on
+                      its way out, reads here as an ordinary new member. */}
+                  {accountNote(member) ? (
+                    <span className="block text-xs text-destructive">
+                      {accountNote(member)}
+                    </span>
+                  ) : null}
+                  <span
+                    className="block max-w-64 truncate text-xs text-muted-foreground"
+                    title={member.email}
+                  >
+                    {member.email}
+                  </span>
+                </TableCell>
+                <TableCell column="meta">
+                  <Badge variant={member.planIsPaid ? "default" : "secondary"}>
+                    {member.planName}
+                  </Badge>
+                </TableCell>
+                <TableCell column="meta">
+                  {formatDate(member.createdAt)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ScrollArea>
       <Link
         to="/admin/users"
         className={cn(
@@ -414,20 +461,20 @@ const trafficConfig: ChartConfig = {
   sessions: { label: "Visits", color: "var(--primary)" },
 }
 
-function TrafficCard() {
+function TrafficCard({ className }: { className?: string }) {
   const summary = trafficSummary().value
   const days = trafficByDay(new Date()).value
 
   return (
-    <Card className="flex min-w-0 flex-col gap-0 py-0">
+    <Card className={cn("flex min-w-0 flex-col gap-0 py-0", className)}>
       <CardTop
         icon={GlobeIcon}
         title="Traffic"
         sample
         meta={`${summary.sessions.toLocaleString()} visits · ${summary.users.toLocaleString()} people`}
       />
-      <CardContent className="flex flex-col gap-4 py-4 sm:px-5 sm:py-5">
-        <div className="h-[140px] w-full min-w-0">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 py-4 sm:px-5 sm:py-5">
+        <div className="h-[140px] w-full min-w-0 xl:h-auto xl:min-h-[90px] xl:flex-1">
           <ChartContainer config={trafficConfig} className="h-full w-full">
             <BarChart data={days} barSize={18}>
               <XAxis
@@ -468,21 +515,16 @@ function TrafficCard() {
 }
 
 // ---------------------------------------------------------------------------
-// Right column: who is on which plan.
+// The "Plans" tab of the people card: who is on which plan.
 
-function MembershipCard({ overview }: { overview: AdminOverview }) {
+function PlanMembership({ overview }: { overview: AdminOverview }) {
   const { membership } = overview
   const everyone = membership.revenue.totalUsers
   const plans = membership.planMembership
 
   return (
-    <Card className="flex min-w-0 flex-col gap-0 py-0">
-      <CardTop
-        icon={LayersIcon}
-        title="Membership"
-        meta={`${everyone.toLocaleString()} ${plural(everyone, "account")} in all`}
-      />
-      <CardContent className="flex flex-col gap-4 py-4 sm:px-5 sm:py-5">
+    <>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-4 sm:px-5 sm:py-5">
         {plans.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             No plans set up yet.
@@ -523,7 +565,7 @@ function MembershipCard({ overview }: { overview: AdminOverview }) {
         <FooterFigure label="Members" value={membership.members} />
         <FooterFigure label="Suspended" value={membership.suspended} />
       </CardFooter>
-    </Card>
+    </>
   )
 }
 
@@ -545,8 +587,10 @@ function FooterFigure({ label, value }: { label: string; value: number }) {
 
 function AutomationsCard({
   automations,
+  className,
 }: {
   automations: OverviewAutomation[]
+  className?: string
 }) {
   // What is broken goes first — it is the only thing on this card anybody has
   // to do something about.
@@ -558,7 +602,7 @@ function AutomationsCard({
     .slice(0, AUTOMATIONS_SHOWN)
 
   return (
-    <FeedCard>
+    <FeedCard className={className}>
       <CardTop
         icon={WorkflowIcon}
         title="Automations"
@@ -589,11 +633,13 @@ function AutomationsCard({
               <SampleValue className="no-underline">(sample)</SampleValue>
             </span>
           </div>
-          <div className="divide-y">
-            {shown.map((automation) => (
-              <AutomationRow key={automation.id} automation={automation} />
-            ))}
-          </div>
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="divide-y">
+              {shown.map((automation) => (
+                <AutomationRow key={automation.id} automation={automation} />
+              ))}
+            </div>
+          </ScrollArea>
         </>
       )}
     </FeedCard>

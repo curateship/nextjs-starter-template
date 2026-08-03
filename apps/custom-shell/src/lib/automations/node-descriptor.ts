@@ -9,7 +9,11 @@ export type AutomationPaletteGroup =
   | "AI"
   | "Steps"
 
-export type AutomationNodeIconName = "squareDashed" | "circleHelp" | "sparkles"
+export type AutomationNodeIconName =
+  | "squareDashed"
+  | "circleHelp"
+  | "sparkles"
+  | "userCheck"
 
 export type AutomationNodePort = {
   id: AutomationSourcePort

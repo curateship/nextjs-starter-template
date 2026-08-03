@@ -1,14 +1,20 @@
-import { gte, sql } from "drizzle-orm"
+import { desc, gte, sql } from "drizzle-orm"
 
 import { loadRevenueSummary, type RevenueSummary } from "@/server/accounts"
 import { db, type CustomShellDb } from "@/server/db"
+import { listDisputes, type DisputeList } from "@/server/disputes"
 import { isPaidPlan, listPlans } from "@/server/plans"
 import { customShellUsers } from "@/server/schema"
+import {
+  countFailedPayments,
+  listRecentSubscriptionEvents,
+} from "@/server/subscription-events"
 import { now } from "@/server/security"
 
 /**
- * The numbers behind /admin/membership. Nothing here is new data: every figure
- * is read from the same tables the Users, Plans and Revenue pages read, so a
+ * The numbers behind /admin/membership — the one page for members and money,
+ * since the separate Revenue page was folded into it. Nothing here is new data:
+ * every figure is read from the same tables the Users and Plans pages read, so a
  * tile and the page it links to can never disagree.
  *
  * Nothing in this app keeps history — there is no snapshot table — so the only
@@ -42,12 +48,42 @@ export type MembershipSignupDay = {
   lastMonth: number
 }
 
+/**
+ * One thing that happened to somebody's membership: a billing event, or a new
+ * account. Both go in the same list because they are the same story read in
+ * order — somebody joined, then started a trial, then paid.
+ */
+export type MembershipActivityItem = {
+  id: string
+  /** A billing event kind, or `joined` for a new account. */
+  kind: string
+  /**
+   * Whose membership it was. Never blank: both reads behind this join to the
+   * account, and deleting an account takes its events with it.
+   */
+  personName: string
+  /** The plan it was about, as it was named at the time. Null for a signup. */
+  planName: string | null
+  detail: string | null
+  /** `app` is the app itself noticing a signup; the other two are billing. */
+  source: "stripe" | "admin" | "app"
+  createdAt: string
+}
+
+/** How many rows the activity feed asks for and shows. */
+const ACTIVITY_ROWS = 12
+
+/** How far back the failed-payment warning looks. */
+const FAILED_PAYMENT_DAYS = 7
+
 export type MembershipSummary = {
-  /** Everything the Revenue page shows, unchanged. */
+  /** Everything the old Revenue page showed, unchanged. */
   revenue: RevenueSummary
   admins: number
   members: number
   suspended: number
+  /** Accounts asked to be deleted that have not been erased yet. */
+  pendingDeletion: number
   /** Live plans, and how many of those cost money. */
   livePlans: number
   paidPlans: number
@@ -82,6 +118,9 @@ export async function loadMembershipSummary(
       .select({
         admins: sql<number>`count(*) filter (where ${customShellUsers.role} = 'admin')`,
         suspended: sql<number>`count(*) filter (where ${customShellUsers.status} = 'suspended')`,
+        // A third count on the pass the other two already make, rather than a
+        // fourth query — this table is read once and answers all three.
+        pendingDeletion: sql<number>`count(*) filter (where ${customShellUsers.status} = 'pending_deletion')`,
       })
       .from(customShellUsers),
     listPlans(database),
@@ -128,6 +167,7 @@ export async function loadMembershipSummary(
     // total the Users page shows.
     members: Math.max(0, revenue.totalUsers - admins),
     suspended: Number(accountCounts?.suspended ?? 0),
+    pendingDeletion: Number(accountCounts?.pendingDeletion ?? 0),
     livePlans: livePlans.length,
     paidPlans: livePlans.filter(isPaidPlan).length,
     planMembership: livePlans.map((plan) => {
@@ -150,6 +190,98 @@ export async function loadMembershipSummary(
       ? Math.round(revenue.monthlyRecurringCents / revenue.paidSubscribers)
       : 0,
   }
+}
+
+/**
+ * Everything the Membership page draws: the summary above, plus the money
+ * detail only that page shows.
+ *
+ * Kept apart from `MembershipSummary` on purpose. The Overview reads the
+ * summary too, and it shows none of this — folding these in would have made
+ * that page pay for three reads it throws away, on the one code path with the
+ * least room to spare for them.
+ */
+export type MembershipPage = MembershipSummary & {
+  /** Chargebacks: the open ones, the recent ones, and how many ever. */
+  disputes: DisputeList
+  /** Payments Stripe could not take in the last week. */
+  failedPayments: number
+  /** The newest billing events and signups together, newest first. */
+  activity: MembershipActivityItem[]
+}
+
+export async function loadMembershipPage(
+  database: CustomShellDb = db
+): Promise<MembershipPage> {
+  const summary = await loadMembershipSummary(database)
+
+  // Waves, not one big `Promise.all`, and after the summary rather than beside
+  // it. The pool gives out past about five reads in flight; the summary is four
+  // of them and `listDisputes` is three of its own, so disputes go alone and
+  // the two cheap reads follow together.
+  const disputes = await listDisputes(database)
+  const [events, signups] = await Promise.all([
+    listRecentSubscriptionEvents(ACTIVITY_ROWS, database),
+    database
+      .select({
+        id: customShellUsers.id,
+        name: customShellUsers.name,
+        createdAt: customShellUsers.createdAt,
+      })
+      .from(customShellUsers)
+      .orderBy(desc(customShellUsers.createdAt))
+      .limit(ACTIVITY_ROWS),
+  ])
+  const failedPayments = await countFailedPayments(
+    FAILED_PAYMENT_DAYS,
+    database,
+    now()
+  )
+
+  return {
+    ...summary,
+    disputes,
+    failedPayments,
+    activity: buildActivity(events, signups),
+  }
+}
+
+/**
+ * The two streams woven into one list, newest first.
+ *
+ * Each side asks for the same number of rows and the merged list is cut back to
+ * that number, so a quiet week of billing does not push the signups off the
+ * bottom, and a busy one does not bury them.
+ */
+function buildActivity(
+  events: Awaited<ReturnType<typeof listRecentSubscriptionEvents>>,
+  signups: { id: string; name: string; createdAt: Date }[]
+): MembershipActivityItem[] {
+  const billing: MembershipActivityItem[] = events.map((event) => ({
+    id: event.id,
+    kind: event.kind,
+    personName: event.personName,
+    planName: event.planName,
+    detail: event.detail,
+    source: event.source,
+    createdAt: event.createdAt,
+  }))
+
+  const joined: MembershipActivityItem[] = signups.map((person) => ({
+    // Prefixed because the account's id is not the event's id — the same
+    // account will show up again the moment it starts paying for something.
+    id: `joined-${person.id}`,
+    kind: "joined",
+    personName: person.name,
+    planName: null,
+    detail: null,
+    source: "app",
+    createdAt: person.createdAt.toISOString(),
+  }))
+
+  return [...billing, ...joined]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, ACTIVITY_ROWS)
 }
 
 /**
