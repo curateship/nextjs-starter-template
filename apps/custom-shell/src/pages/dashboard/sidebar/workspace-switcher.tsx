@@ -88,7 +88,7 @@ export function WorkspaceSwitcher({
         <SidebarMenuItem>
           <div className="flex min-h-8 items-center gap-2 py-2">
             <Link
-              to="/"
+              to="/home"
               className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center"
             >
               <WorkspaceLogo
@@ -99,7 +99,7 @@ export function WorkspaceSwitcher({
             </Link>
             <div className="flex min-w-0 flex-1 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
               <Link
-                to="/"
+                to="/home"
                 className="grid min-w-0 flex-1 text-left text-sm leading-tight"
               >
                 <span className="truncate font-medium">

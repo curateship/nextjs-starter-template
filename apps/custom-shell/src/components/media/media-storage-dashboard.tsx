@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import { HardDriveIcon, Loader2Icon, RefreshCwIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -44,6 +44,7 @@ export function MediaStorageDashboard({
   initialData: StorageDashboard
   defaultPageSize: number
 }) {
+  const navigate = useNavigate()
   const [data, setData] = React.useState(initialData)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -143,7 +144,13 @@ export function MediaStorageDashboard({
       footer={footer}
     >
       {visible.map((user) => (
-        <TableRow key={user.userId} className="group">
+        <TableRow
+          key={user.userId}
+          className="group"
+          rowAction={() =>
+            void navigate({ to: "/admin/media", search: { owner: user.userId } })
+          }
+        >
           <TableCell column="main">
             <Link
               to="/admin/media"

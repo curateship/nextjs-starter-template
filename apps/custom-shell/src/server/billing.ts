@@ -7,6 +7,7 @@ import { buildDisputeValues, type ChargeReader } from "@/server/disputes"
 import { findSubscription, subscriptionIsActive } from "@/server/entitlements"
 import {
   findPlanByStripePrice,
+  getPlan,
   isPaidPlan,
   planIntervalForPrice,
   stripePriceIdFor,
@@ -20,6 +21,11 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
+import {
+  deriveSubscriptionEvent,
+  recordSubscriptionEvent,
+  snapshotOf,
+} from "@/server/subscription-events"
 
 /** Every `charge.dispute.*` event: created, updated, closed and funds moving. */
 const DISPUTE_EVENT_PREFIX = "charge.dispute."
@@ -323,10 +329,23 @@ export async function cancelSubscriptionByAdmin(
     throw new Error("SUBSCRIPTION_NOT_FOUND")
   }
 
+  // The plan's name is read before anything is ended, because ending it is what
+  // takes the name away — and the history has to say what was ended.
+  const planName = subscription.planId
+    ? ((await getPlan(subscription.planId, database))?.name ?? null)
+    : null
+
   if (subscription.source === "manual") {
     await database
       .delete(customShellSubscriptions)
       .where(eq(customShellSubscriptions.id, subscription.id))
+
+    await recordSubscriptionEvent(database, {
+      userId,
+      kind: "canceled",
+      planName,
+      source: "admin",
+    })
 
     return { mode: "immediate" as const, endsAt: null }
   }
@@ -355,6 +374,17 @@ export async function cancelSubscriptionByAdmin(
       updatedAt: now(),
     })
     .where(eq(customShellSubscriptions.id, subscription.id))
+
+  // Written here rather than left to the webhook, because the webhook will find
+  // the row already saying what it came to say and so will record nothing — and
+  // because it was an admin who did this, which only this side of it knows.
+  await recordSubscriptionEvent(database, {
+    userId,
+    kind: mode === "immediate" ? "canceled" : "cancel_scheduled",
+    planName,
+    detail: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+    source: "admin",
+  })
 
   return {
     mode,
@@ -471,6 +501,23 @@ export async function applyStripeEvent(
           target: customShellSubscriptions.userId,
           set: values.update,
         })
+
+      // The history entry rides in the same transaction as the change it
+      // describes, so the two can never disagree. Null when this event only
+      // repeated what we already knew — a renewal, a mirrored admin cancel —
+      // and the timeline stays a list of events rather than of deliveries.
+      if (values.event) {
+        await recordSubscriptionEvent(
+          tx,
+          {
+            userId: values.insert.userId,
+            ...values.event,
+            source: "stripe",
+            stripeEventId: event.id,
+          },
+          values.insert.updatedAt
+        )
+      }
     }
 
     if (dispute) {
@@ -512,6 +559,10 @@ async function resolveEventSubscription(
 /**
  * Turns a Stripe subscription into the row to write, or null when it cannot be
  * matched to an account (an event for a customer this app never created).
+ *
+ * Also works out the one line of history this event is worth, by comparing what
+ * Stripe now says against the row we already had — which is why the old row is
+ * read here, before the caller overwrites it.
  */
 async function buildSubscriptionValues(
   database: CustomShellDb,
@@ -528,6 +579,7 @@ async function buildSubscriptionValues(
   const interval =
     plan && priceId ? planIntervalForPrice(plan, priceId) : "monthly"
   const timestamp = now()
+  const before = await namedSubscription(database, userId)
 
   const update = {
     planId: plan?.id ?? null,
@@ -547,7 +599,25 @@ async function buildSubscriptionValues(
   return {
     insert: { id: uuid(), userId, createdAt: timestamp, ...update },
     update,
+    event: deriveSubscriptionEvent(
+      before,
+      snapshotOf(update, plan?.name ?? null)
+    ),
   }
+}
+
+/**
+ * The subscription an account has right now, with its plan's name filled in —
+ * the shape the history compares against. Null when there is nothing there yet.
+ */
+async function namedSubscription(database: CustomShellDb, userId: string) {
+  const existing = await findSubscription(userId, database)
+  if (!existing) {
+    return null
+  }
+
+  const plan = existing.planId ? await getPlan(existing.planId, database) : null
+  return snapshotOf(existing, plan?.name ?? null)
 }
 
 async function resolveUserId(

@@ -550,6 +550,41 @@ export const customShellBillingEvents = pgTable("billing_events", {
 })
 
 /**
+ * One member's billing history: trial started, subscribed, plan switched,
+ * payment failed, cancelled.
+ *
+ * Insert-only. `subscriptions` above is overwritten on every change and so only
+ * ever says what is true now; this is the diary beside it. A row is written
+ * only when something actually changed, so the list reads as events rather than
+ * as webhook traffic.
+ */
+export const customShellSubscriptionEvents = pgTable(
+  "subscription_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Our vocabulary, worded by `lib/subscription-events.ts`. */
+    kind: varchar("kind", { length: 40 }).notNull(),
+    /** The plan's name at the time, copied so a rename cannot rewrite history. */
+    planName: varchar("plan_name", { length: 120 }),
+    /** The one extra fact the sentence needs — meaning depends on the kind. */
+    detail: varchar("detail", { length: 200 }),
+    source: varchar("source", { length: 10 }).notNull(),
+    /** Unique, so one webhook can only ever write one row here. */
+    stripeEventId: varchar("stripe_event_id", { length: 120 }).unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_subscription_events_user_id").on(
+      table.userId,
+      table.createdAt.desc()
+    ),
+  ]
+)
+
+/**
  * Chargebacks — a member telling their bank to take a payment back.
  *
  * Written only by the Stripe webhook, read only by the admin billing page.
@@ -911,6 +946,8 @@ export type CustomShellFeedbackComment =
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type CustomShellDispute = typeof customShellDisputes.$inferSelect
+export type CustomShellSubscriptionEvent =
+  typeof customShellSubscriptionEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
 export type CustomShellAnnouncement =
   typeof customShellAnnouncements.$inferSelect

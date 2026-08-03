@@ -67,7 +67,7 @@ export const Route = createFileRoute("/api/auth/google_/callback")({
           await startWorkspaceFor(user.id)
           setSessionCookie(sessionToken)
 
-          return browserRedirect(handshake.redirect ?? "/")
+          return browserRedirect(handshake.redirect ?? "/home")
         } catch (error) {
           return signInFailed(
             error instanceof Error ? error.message : "GOOGLE_SIGN_IN_FAILED"

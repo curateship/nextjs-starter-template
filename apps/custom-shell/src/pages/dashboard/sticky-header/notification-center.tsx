@@ -2,19 +2,9 @@
 
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import {
-  BellIcon,
-  CheckCheckIcon,
-  GaugeIcon,
-  GitMergeIcon,
-  Loader2Icon,
-  MegaphoneIcon,
-  MessageSquareIcon,
-  SparklesIcon,
-  ThumbsUpIcon,
-} from "lucide-react"
+import { BellIcon, CheckCheckIcon, Loader2Icon } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
@@ -27,144 +17,17 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  aiLimitNotificationText,
   getNotificationErrorMessage,
-  isAiLimitNotification,
   listNotificationPage,
   markAllNotificationsRead,
   markNotificationRead,
   type NotificationItem,
 } from "@/lib/api/notification"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { notificationAction } from "@/lib/notification-action"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
 const NOTIFICATION_PAGE_SIZE = 20
-
-function getInitial(name: string) {
-  return name.trim().charAt(0).toUpperCase() || "?"
-}
-
-/**
- * Two circles, not five colours.
- *
- * Something the app sent — a published update or an announcement — wears the
- * theme's secondary colour and the mark of what it is. Something a person did
- * keeps the plain avatar circle and their initial. Which kind of thing a person
- * did (a thumbs up or a reply) is never told by colour: the row beside it
- * carries its own icon and says so in words.
- *
- * They used to be fixed amber, blue and green pairs, which ignored the
- * workspace's own styling and told two of the four kinds apart by colour alone.
- */
-function NotificationAvatar({ item }: { item: NotificationItem }) {
-  if (
-    item.type === "changelog" ||
-    item.type === "announcement" ||
-    isAiLimitNotification(item.type)
-  ) {
-    return (
-      <Avatar size="lg">
-        <AvatarFallback className="bg-secondary text-secondary-foreground">
-          {item.type === "changelog" ? (
-            <SparklesIcon className="h-4 w-4" />
-          ) : item.type === "announcement" ? (
-            <MegaphoneIcon className="h-4 w-4" />
-          ) : (
-            <GaugeIcon className="h-4 w-4" />
-          )}
-        </AvatarFallback>
-      </Avatar>
-    )
-  }
-
-  return (
-    <Avatar size="lg">
-      <AvatarFallback>{getInitial(item.actor_name ?? "")}</AvatarFallback>
-    </Avatar>
-  )
-}
-
-function NotificationMessage({ item }: { item: NotificationItem }) {
-  if (item.type === "changelog") {
-    return <>New update shipped</>
-  }
-
-  // About the reader's own account, so like an announcement it carries its
-  // own words rather than pointing at a thing to open.
-  if (isAiLimitNotification(item.type)) {
-    return <strong>{aiLimitNotificationText[item.type].message}</strong>
-  }
-
-  // An announcement has nowhere to be opened, so its own words go here rather
-  // than a stock line that would send the reader looking for a link.
-  if (item.type === "announcement") {
-    return <strong>{item.announcement_title}</strong>
-  }
-
-  if (item.type === "feedback_vote") {
-    return (
-      <>
-        <strong>{item.actor_name}</strong> gave your feedback a thumbs up
-      </>
-    )
-  }
-
-  // The reader's item was folded into another one; the line below quotes the
-  // surviving item, and clicking opens it.
-  if (item.type === "feedback_merged") {
-    return (
-      <>
-        <strong>{item.actor_name}</strong> merged your feedback into another
-        item
-      </>
-    )
-  }
-
-  return (
-    <>
-      <strong>{item.actor_name}</strong> commented on your feedback
-    </>
-  )
-}
-
-function NotificationIcon({ item }: { item: NotificationItem }) {
-  if (item.type === "changelog") {
-    return <SparklesIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "announcement") {
-    return <MegaphoneIcon className="h-3.5 w-3.5" />
-  }
-  if (isAiLimitNotification(item.type)) {
-    return <GaugeIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "feedback_merged") {
-    return <GitMergeIcon className="h-3.5 w-3.5" />
-  }
-
-  return item.type === "feedback_vote" ? (
-    <ThumbsUpIcon className="h-3.5 w-3.5" />
-  ) : (
-    <MessageSquareIcon className="h-3.5 w-3.5" />
-  )
-}
-
-/**
- * The line under the message: the update's title, the announcement's own words,
- * or the feedback it is about.
- */
-function notificationPreview(item: NotificationItem) {
-  const text =
-    item.type === "changelog"
-      ? (item.changelog_title ?? "")
-      : item.type === "announcement"
-        ? (item.announcement_body ?? "")
-        : isAiLimitNotification(item.type)
-          ? aiLimitNotificationText[item.type].detail
-          : (item.feedback_message ?? "")
-
-  return text.length > 90 ? `${text.slice(0, 90)}...` : text
-}
 
 /**
  * Nothing to show, said the way the media gallery says it: an icon, a line, and
@@ -372,24 +235,24 @@ export function NotificationCenter({
   }
 
   function openNotification(item: NotificationItem) {
-    // An announcement is the whole message already — there is nowhere to send
-    // the reader, so the tray stays where it is rather than shutting on the
-    // words they just clicked. Everything else opens first; the dot is cleared
+    const action = notificationAction(item)
+
+    // A notice with nowhere to go — an announcement, whose own words are the
+    // whole message — leaves the tray open rather than shutting on what the
+    // reader just clicked. Everything else opens first; the dot is cleared
     // afterwards, behind the click.
-    if (item.type !== "announcement") {
+    if (action.kind !== "none") {
       setOpen(false)
 
-      if (item.type === "changelog") {
+      if (action.kind === "changelog") {
         void navigate({ to: "/changelog/whats-new" })
-      } else if (isAiLimitNotification(item.type)) {
-        // The numbers behind the warning live on the account window's Billing
-        // tab, which opens by search param on whatever page is showing.
+      } else if (action.kind === "billing") {
         void navigate({
           to: ".",
           search: (prev) => ({ ...prev, account: "billing" }),
         })
-      } else if (item.feedback_id) {
-        onOpenFeedback?.(item.feedback_id)
+      } else {
+        onOpenFeedback?.(action.feedbackId)
       }
     }
 
@@ -484,39 +347,11 @@ export function NotificationCenter({
               ) : visibleNotifications.length > 0 ? (
                 <div className="space-y-3">
                   {visibleNotifications.map((item) => (
-                    <button
+                    <NotificationRow
                       key={item.id}
-                      type="button"
-                      className="grid w-full grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60"
+                      item={item}
                       onClick={() => openNotification(item)}
-                    >
-                      <div className="pt-5">
-                        {!item.read_at ? (
-                          <span className="block size-2 rounded-full bg-destructive" />
-                        ) : null}
-                      </div>
-                      <NotificationAvatar item={item} />
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 text-sm leading-snug text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
-                          <NotificationIcon item={item} />
-                          <span>
-                            <NotificationMessage item={item} />
-                          </span>
-                        </p>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {notificationPreview(item)}
-                        </p>
-                        {/* The exact moment is one hover away; the line itself
-                            answers the only question a tray gets asked, which
-                            is how long ago this happened. */}
-                        <p
-                          className="mt-1 text-xs text-muted-foreground"
-                          title={formatDateTime(item.created_at)}
-                        >
-                          {formatRelativeTime(item.created_at, formatDateTime)}
-                        </p>
-                      </div>
-                    </button>
+                    />
                   ))}
                 </div>
               ) : canLoadHiddenUnread || error ? null : (

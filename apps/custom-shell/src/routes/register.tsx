@@ -30,7 +30,7 @@ export const Route = createFileRoute("/register")({
       loadSignInOptions(),
     ])
     if (user) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/home", replace: true })
     }
     return options
   },

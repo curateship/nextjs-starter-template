@@ -757,7 +757,11 @@ function MediaTableRow({
   onDelete: () => void
 }) {
   return (
-    <TableRow className="group" data-state={selected ? "selected" : undefined}>
+    <TableRow
+      className="group"
+      data-state={selected ? "selected" : undefined}
+      rowAction={onOpen}
+    >
       <TableCell column="select">
         <Checkbox
           checked={selected}
@@ -808,7 +812,7 @@ function MediaTableRow({
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {formatDate(item.created_at)}
       </TableCell>
-      <TableCell column="meta">
+      <TableCell column="actions">
         <div className="flex items-center">
           <Button
             type="button"

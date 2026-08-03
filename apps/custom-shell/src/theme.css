@@ -270,10 +270,26 @@
   padding-top: 0.5rem;
 }
 
+/* The body-to-footer gap belongs to the footer, not the body.
+   A body's own bottom padding is inside the scroll viewport, so on a window
+   whose content is taller than the frame it scrolls away with the content and
+   the buttons end up sitting flush on a card cut off mid-row. Only 8px stays
+   in the body, and only so a focus ring on the last control is not clipped —
+   the same trick as the top edge above. Windows with no footer keep their full
+   bottom padding, because there is nothing below to pay for it. */
+[data-slot="dialog-content"][data-variant="admin"]:has([data-slot="dialog-footer"])
+  [data-slot="dialog-body"] {
+  padding-bottom: 0.5rem;
+}
+
 [data-slot="dialog-footer"] {
   padding-left: var(--shell-modal-padding, 1.5rem);
   padding-right: var(--shell-modal-padding, 1.5rem);
   padding-bottom: var(--shell-modal-padding, 1.5rem);
+}
+
+[data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-footer"] {
+  padding-top: max(0px, calc(var(--shell-modal-padding, 1.5rem) - 0.5rem));
 }
 
 /* Cards inside the modal. */

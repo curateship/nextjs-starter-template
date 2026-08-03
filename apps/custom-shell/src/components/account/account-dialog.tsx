@@ -184,11 +184,15 @@ export function AccountDialog({
               </TabsContent>
             </DialogBody>
 
+            {/* Both footers are keyed. Without it React keeps the one button's
+                DOM node and rewrites it — the black "Done" becomes "Cancel" in
+                place, and `Button`'s own 150ms transition then animates it from
+                black to white, so Cancel flashed dark on every tab switch. */}
             {shownTab === "profile" ? (
               // The "Saved" note takes the hard-left slot this window has no
               // Delete for, so Cancel and the primary stay where they are in
               // every other window.
-              <DialogFooter>
+              <DialogFooter key="profile">
                 {profileStatus.saved ? (
                   <span className="mr-auto text-sm text-muted-foreground">
                     Saved
@@ -220,7 +224,7 @@ export function AccountDialog({
               // them applies as it is clicked. So they end with a single "Done"
               // and no Cancel, and it leaves by the same path as the X so a
               // half-typed Profile is still asked about.
-              <DialogFooter>
+              <DialogFooter key="done">
                 <Button
                   type="button"
                   disabled={profileStatus.saving}

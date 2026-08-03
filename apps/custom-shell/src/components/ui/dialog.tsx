@@ -166,6 +166,12 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
     // and the body takes those 8px back as its own top padding: the visible
     // gap is unchanged, but a focus ring on the first control now paints
     // inside the viewport instead of being clipped at its top edge.
+    //
+    // The bottom edge is the same idea the other way up: where a footer
+    // follows, `theme.css` cuts this padding to the same 8px and the footer
+    // pays for the rest of the gap. Padding down here is inside the viewport,
+    // so on a window that scrolls it would slide away with the content and
+    // leave the buttons flush on a card cut off mid-row.
     <ScrollArea
       className={cn(
         "min-h-0",
@@ -207,6 +213,8 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
  *   Confirmations ask a question: "Delete this workspace?".
  */
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+  const contentVariant = React.useContext(DialogContentVariantContext)
+
   return (
     <div
       data-slot="dialog-footer"
@@ -215,7 +223,13 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
         // One spacing for every window, so the buttons land in the same place
         // in all of them. It mirrors the padding `theme.css` sets from
         // `--shell-modal-padding`, which is what actually reaches the screen.
-        "flex flex-row items-center justify-end gap-2 px-6 pt-0 pb-6 **:data-[slot=button]:h-9",
+        "flex flex-row items-center justify-end gap-2 px-6 pb-6 **:data-[slot=button]:h-9",
+        // On an admin window the body is a scroll viewport, so its own bottom
+        // padding slides away with the content and cannot be the gap above
+        // these buttons — the footer pays for it instead (16px here plus the
+        // 8px `theme.css` leaves in the body = the standard 24px). Every other
+        // window's body keeps its full padding, so its footer adds none.
+        contentVariant === "admin" ? "pt-4" : "pt-0",
         className
       )}
       {...props}

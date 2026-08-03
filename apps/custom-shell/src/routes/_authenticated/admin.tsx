@@ -26,7 +26,7 @@ function AdminLayout() {
   const { user } = authenticatedRoute.useLoaderData()
 
   if (user.role !== "admin") {
-    return <Navigate to="/" replace />
+    return <Navigate to="/home" replace />
   }
 
   return <Outlet />

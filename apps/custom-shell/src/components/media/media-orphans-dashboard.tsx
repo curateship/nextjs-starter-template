@@ -533,7 +533,11 @@ function OrphanTableRow({
   onDelete: () => void
 }) {
   return (
-    <TableRow className="group" data-state={selected ? "selected" : undefined}>
+    <TableRow
+      className="group"
+      data-state={selected ? "selected" : undefined}
+      rowAction={onOpen}
+    >
       <TableCell column="select">
         <Checkbox
           checked={selected}
@@ -582,7 +586,7 @@ function OrphanTableRow({
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {row.createdAt ? formatDate(row.createdAt) : "—"}
       </TableCell>
-      <TableCell column="meta">
+      <TableCell column="actions">
         <div className="flex items-center">
           <Button
             type="button"

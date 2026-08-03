@@ -39,6 +39,7 @@ import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
+import { loadMemberHome } from "@/server/member-home"
 import {
   createAnnouncement,
   deleteAnnouncements,
@@ -67,7 +68,6 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
-import { firstSidebarRoute } from "@/lib/home-route"
 import { loadMembershipSummary } from "@/server/membership"
 import { startViewingAs, stopViewingAs } from "@/server/view-as"
 import { loadAccountDetail } from "@/server/account-detail"
@@ -4413,6 +4413,140 @@ function adminNotificationQuery(
   }
 }
 
+describe("member home page", () => {
+  /**
+   * The page shows a member their own feedback and nobody else's, with honest
+   * vote and reply counts and a total that owns up to what the five rows hide.
+   */
+  it("shows only the reader's own feedback, counted", async () => {
+    const createdAt = now()
+    const readerId = uuid()
+    const otherId = uuid()
+    const feedbackIds = [uuid(), uuid(), uuid(), uuid(), uuid(), uuid()]
+    const otherFeedbackId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: readerId,
+        email: "home-reader@internal.dev",
+        name: "Reader",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: otherId,
+        email: "home-other@internal.dev",
+        name: "Other",
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    await database.insert(customShellFeedback).values([
+      ...feedbackIds.map((id, index) => ({
+        id,
+        userId: readerId,
+        type: "suggestion",
+        message: `Mine ${index}`,
+        // Newest last, so the six-of-five cut has to sort before it limits.
+        createdAt: new Date(createdAt.getTime() + index * 1000),
+        updatedAt: createdAt,
+      })),
+      {
+        id: otherFeedbackId,
+        userId: otherId,
+        type: "suggestion",
+        message: "Not mine",
+        createdAt: new Date(createdAt.getTime() + 9000),
+        updatedAt: createdAt,
+      },
+    ])
+
+    // Two votes and one reply on the reader's newest item, plus a vote on
+    // somebody else's — which must not land on any of the reader's counts.
+    await database.insert(customShellFeedbackVotes).values([
+      {
+        id: uuid(),
+        feedbackId: feedbackIds[5],
+        userId: readerId,
+        createdAt,
+      },
+      {
+        id: uuid(),
+        feedbackId: feedbackIds[5],
+        userId: otherId,
+        createdAt,
+      },
+      {
+        id: uuid(),
+        feedbackId: otherFeedbackId,
+        userId: readerId,
+        createdAt,
+      },
+    ])
+    await database.insert(customShellFeedbackComments).values({
+      id: uuid(),
+      feedbackId: feedbackIds[5],
+      userId: otherId,
+      message: "Good idea",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const home = await loadMemberHome(
+      { id: readerId },
+      database as unknown as CustomShellDb
+    )
+
+    expect(home.feedbackTotal).toBe(6)
+    expect(home.feedback.map((item) => item.message)).toEqual([
+      "Mine 5",
+      "Mine 4",
+      "Mine 3",
+      "Mine 2",
+      "Mine 1",
+    ])
+    expect(home.feedback[0].vote_count).toBe(2)
+    expect(home.feedback[0].comment_count).toBe(1)
+    expect(home.feedback[1].vote_count).toBe(0)
+    expect(home.feedback[1].comment_count).toBe(0)
+  })
+
+  /**
+   * A brand-new member has nothing at all, and the page has to say so rather
+   * than fall over on the empty lists.
+   */
+  it("has empty lists and the free plan for a new member", async () => {
+    const createdAt = now()
+    const newcomerId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: newcomerId,
+      email: "home-newcomer@internal.dev",
+      name: "Newcomer",
+      role: "member",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const home = await loadMemberHome(
+      { id: newcomerId },
+      database as unknown as CustomShellDb
+    )
+
+    expect(home.feedback).toEqual([])
+    expect(home.feedbackTotal).toBe(0)
+    expect(home.notifications).toEqual([])
+    expect(home.unreadNotifications).toBe(0)
+    expect(home.plan.isPaid).toBe(false)
+  })
+})
+
 describe("custom shell media helpers", () => {
   it("validates media types, sizes, filenames, and alt text", () => {
     expect(getMediaFileType("image/png")).toBe("image")
@@ -5194,92 +5328,6 @@ describe("custom shell active link matching", () => {
   })
 })
 
-/**
- * Where home sends somebody who has not been given a home route of their own.
- * Getting this wrong strands a member on a blank page or drops them somewhere
- * their role cannot open.
- */
-describe("custom shell first sidebar route", () => {
-  function section(entries: ShellSection["entries"]): ShellSection[] {
-    return [{ id: "section-1", title: "Section", entries }]
-  }
-
-  function item(overrides: Partial<ShellItem> = {}): ShellItem {
-    return {
-      type: "item",
-      id: "item-1",
-      label: "What's new",
-      href: "/changelog/whats-new",
-      icon: "sparkles",
-      visible: true,
-      ...overrides,
-    }
-  }
-
-  it("takes the first link in the list", () => {
-    expect(
-      firstSidebarRoute(
-        section([
-          item({ id: "a", label: "Updates", href: "/changelog" }),
-          item({ id: "b", label: "Feedback", href: "/feedback" }),
-        ]),
-        "member"
-      )
-    ).toBe("/changelog")
-  })
-
-  it("skips what the sidebar itself skips", () => {
-    expect(
-      firstSidebarRoute(
-        section([
-          { type: "divider", id: "d", label: "Updates" },
-          item({ id: "hidden", href: "/hidden", visible: false }),
-          item({ id: "unnamed", label: "   ", href: "/unnamed" }),
-          item({ id: "no-href", href: "" }),
-          item({ id: "admins-only", href: "/admin/media", roles: ["admin"] }),
-          item({ id: "real", href: "/changelog/whats-new" }),
-        ]),
-        "member"
-      )
-    ).toBe("/changelog/whats-new")
-  })
-
-  it("falls to a child when the parent has no page of its own", () => {
-    expect(
-      firstSidebarRoute(
-        section([
-          item({
-            id: "parent",
-            label: "Updates",
-            href: "",
-            children: [
-              { id: "child", label: "What's new", href: "/changelog/whats-new" },
-            ],
-          }),
-        ]),
-        "member"
-      )
-    ).toBe("/changelog/whats-new")
-  })
-
-  /**
-   * Home would bounce to itself forever. An admin can type either of these into
-   * a sidebar link, so the guard has to hold here and not only on the setting.
-   */
-  it("never sends anybody back to home", () => {
-    expect(firstSidebarRoute(section([item({ href: "/" })]), "member")).toBeNull()
-    expect(
-      firstSidebarRoute(section([item({ href: "/admin" })]), "admin")
-    ).toBeNull()
-  })
-
-  it("has no answer for an empty sidebar", () => {
-    expect(firstSidebarRoute([], "member")).toBeNull()
-    expect(firstSidebarRoute(null, "member")).toBeNull()
-    expect(firstSidebarRoute(section([]), "member")).toBeNull()
-  })
-})
-
 describe("custom shell announcements", () => {
   const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -5540,8 +5588,6 @@ describe("custom shell account detail", () => {
       trialEndsAt: null,
     })
     expect(detail.storage).toEqual({ files: 0, bytes: 0 })
-    expect(detail.feedback).toEqual([])
-    expect(detail.feedbackTruncated).toBe(false)
   })
 
   it("says so instead of guessing when the account is gone", async () => {
@@ -5552,7 +5598,7 @@ describe("custom shell account detail", () => {
     )
   })
 
-  it("adds up storage and feedback from the same rows the dashboards read", async () => {
+  it("adds up storage from the same rows the media dashboard reads", async () => {
     const db = database as unknown as CustomShellDb
     const userId = await seedPerson("busy@internal.dev")
     const voterId = await seedPerson("voter@internal.dev")
@@ -5598,40 +5644,9 @@ describe("custom shell account detail", () => {
       },
     ])
 
-    const feedbackId = uuid()
-    await database.insert(customShellFeedback).values({
-      id: feedbackId,
-      userId,
-      type: "bug_report",
-      message: "The export button does nothing",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    await database.insert(customShellFeedbackVotes).values([
-      { id: uuid(), feedbackId, userId, createdAt: timestamp },
-      { id: uuid(), feedbackId, userId: voterId, createdAt: timestamp },
-    ])
-    await database.insert(customShellFeedbackComments).values({
-      id: uuid(),
-      feedbackId,
-      userId: voterId,
-      message: "Same here",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-
     const detail = await loadAccountDetail(userId, db)
 
     expect(detail.storage).toEqual({ files: 2, bytes: 1000 })
-    expect(detail.feedback).toHaveLength(1)
-    // Two votes and one reply, counted once each — the two joins fan the row
-    // out, so a plain count would report four of everything.
-    expect(detail.feedback[0]).toMatchObject({
-      type: "bug_report",
-      message: "The export button does nothing",
-      votes: 2,
-      comments: 1,
-    })
   })
 
   it("counts a granted plan as paid, with the date it runs out", async () => {

@@ -11,6 +11,7 @@ import {
   readPage,
   readSearchText,
 } from "@/lib/list-search"
+import { readOpenSearch } from "@/lib/use-open-from-link"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -32,6 +33,7 @@ export const USER_SORT_COLUMNS = [
 ] as const
 
 type UsersSearch = {
+  open?: string
   q?: string
   role?: (typeof USER_ROLE_FILTERS)[number]
   status?: (typeof USER_STATUS_FILTERS)[number]
@@ -40,9 +42,15 @@ type UsersSearch = {
   page?: number
 }
 
-/** The list state the address carries, every value checked before use. */
+/**
+ * `?open=<id>` is whose account window is open — this page has no per-account
+ * page any more, so that is what makes one account linkable. The rest is the
+ * list state, so Back returns the exact list you left. Every value is checked
+ * before use.
+ */
 export function readUsersSearch(search: Record<string, unknown>): UsersSearch {
   return {
+    ...readOpenSearch(search),
     q: readSearchText(search.q),
     role: readOneOf(search.role, USER_ROLE_FILTERS),
     status: readOneOf(search.status, USER_STATUS_FILTERS),
@@ -77,14 +85,13 @@ export const Route = createFileRoute("/_authenticated/admin/users")({
 })
 
 function AdminUsersRoute() {
-  const { accounts, pageSize, plans } = Route.useLoaderData()
+  const { accounts, pageSize } = Route.useLoaderData()
   const { user } = authenticatedRoute.useLoaderData()
 
   return (
     <AdminUsersDashboard
       initialAccounts={accounts.accounts}
       initialTotal={accounts.total}
-      plans={plans}
       currentUserId={user.id}
       defaultPageSize={pageSize}
     />

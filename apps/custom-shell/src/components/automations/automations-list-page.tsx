@@ -250,12 +250,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         }}
       >
         {visible.map((automation) => (
-          <TableRow key={automation.id}>
+          <TableRow
+            key={automation.id}
+            className="group"
+            rowAction={() => void openEditor(automation.id)}
+          >
             <TableCell column="main">
               <Link
                 to="/admin/automations/$automationId"
                 params={{ automationId: automation.id }}
-                className="block max-w-96 truncate text-left font-medium underline-offset-2 hover:underline"
+                className="block max-w-96 truncate text-left font-medium underline-offset-2 group-hover:underline"
                 title={automation.name}
               >
                 {automation.name}
@@ -269,7 +273,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             <TableCell column="mutedMeta">
               {formatDate(automation.updated_at)}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="actions">
               <div className="flex items-center gap-1">
                 <Button
                   type="button"

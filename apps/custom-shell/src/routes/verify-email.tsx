@@ -20,7 +20,7 @@ export const Route = createFileRoute("/verify-email")({
   loader: async () => {
     const user = await loadCurrentUser()
     if (user) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/home", replace: true })
     }
   },
   component: VerifyEmailRoute,

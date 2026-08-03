@@ -37,7 +37,7 @@ export const Route = createFileRoute("/sign-in-link")({
     ])
     // Somebody already signed in who opens their link has nothing to do here.
     if (user) {
-      throw redirect({ to: "/" })
+      throw redirect({ to: "/home", replace: true })
     }
     return options
   },
@@ -153,7 +153,7 @@ function UseSignInLink({ token }: { token: string }) {
     let cancelled = false
     signInWithLink(token)
       .then(() => {
-        if (!cancelled) navigate({ to: "/" })
+        if (!cancelled) navigate({ to: "/home", replace: true })
       })
       .catch((signInError) => {
         if (cancelled) return

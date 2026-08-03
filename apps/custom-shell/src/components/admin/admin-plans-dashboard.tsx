@@ -327,7 +327,11 @@ export function AdminPlansDashboard({
         }}
       >
         {paginatedPlans.map((plan) => (
-          <TableRow key={plan.id} className="group">
+          <TableRow
+            key={plan.id}
+            className="group"
+            rowAction={() => setEditing(plan)}
+          >
             <TableCell column="select">
               <Checkbox
                 checked={selectedIds.has(plan.id)}
@@ -376,7 +380,7 @@ export function AdminPlansDashboard({
                 {plan.active ? null : <Badge variant="outline">Archived</Badge>}
               </div>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="actions">
               <div className="flex items-center">
                 <Button
                   type="button"

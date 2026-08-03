@@ -58,11 +58,14 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Every data column header must be sortable when it represents a sortable value. Use the shared `TableSortButton`; selection and action columns are not sortable.
 - Use a 40px header (`h-10`), compact cells (`px-5 py-2`), a muted header, and the shared rounded surface.
 - Keep the main column flexible, metadata compact, and actions in the final column.
+- Where the row's title opens something, the whole row opens the same thing: pass it to `TableRow` as `rowAction`, which adds the pointer cursor and the grey `hover:bg-muted/50` tint. A row with nothing to open gets no `rowAction` and stays flat. Mark the actions column `TableCell column="actions"` so the row never claims a click meant for a button there.
 - Order table-card toolbar controls from left to right: mass delete, search, filters, settings, edit actions, then create buttons. Omit unavailable controls without changing the order of the remaining controls.
 - Use horizontal scrolling for real overflow and hide low-priority columns on narrow screens.
 - Keep loading, empty, error, and pagination states inside the table surface.
 
 ## Modals
+
+- A record with more to say than a row opens as a window from its list, not as a page of its own. Tabs sit beside the title in the header; the window takes only an id and loads its own data; `?open=<id>` in the address is what makes it linkable and lets Back close it. Give the window one fixed height so switching tabs does not resize it, and keep the tab holding typed work mounted so edits survive a switch.
 
 - Use shared `Dialog` for forms and `AlertDialog` or the established confirmation component for destructive actions. Do not nest modals.
 - Form modals use the app's established admin variant, with a visible header, scrollable body, and footer. In Trading, use `DialogContent variant="admin"`; do not invent shells, overlays, close buttons, or footer layouts.

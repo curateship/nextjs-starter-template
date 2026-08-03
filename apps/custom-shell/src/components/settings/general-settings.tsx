@@ -135,7 +135,7 @@ export function GeneralSettings({
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="member-home-route"
-            hint="Where the home page opens for everybody who is not an admin, for example /changelog/whats-new. Empty sends them to the first link in their sidebar. It has to be a real route — an unknown path will 404."
+            hint="Where the home page opens for everybody who is not an admin, for example /changelog/whats-new. Empty shows them their own home page: their plan, their notices and their feedback. It has to be a real route — an unknown path will 404."
           >
             Member home route
           </FieldLabel>
@@ -148,7 +148,7 @@ export function GeneralSettings({
                 memberHomeRoute: event.target.value,
               })
             }
-            placeholder="Leave empty for their first sidebar link"
+            placeholder="Leave empty for their own home page"
           />
         </div>
 
