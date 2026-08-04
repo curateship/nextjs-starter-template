@@ -16,12 +16,12 @@ import { cn } from "@/lib/utils"
  * The card only draws what it is handed. Which rows belong on it is a question
  * about a page's own numbers, so the rules live apart from it —
  * `buildOverviewNeedsYou` puts the Overview's list together out of the four
- * feeds' rules and its own, and `buildMembershipNeedsYou` does the same for the
- * Membership page's accounts-and-money list.
+ * feeds' rules and its own.
  *
- * Two pages carry one of these, so the heading is settable. Without that they
- * would be two cards with the same title and different rows, which reads as the
- * same card gone wrong rather than as two different lists.
+ * The heading is settable rather than fixed. Only the Overview carries one of
+ * these today, but the card is written to be handed a different list under a
+ * different title, which is what it was doing when the Membership page still
+ * had its own.
  */
 
 export type NeedsYouItem = {

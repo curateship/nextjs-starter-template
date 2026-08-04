@@ -638,47 +638,6 @@ export const customShellSubscriptionEvents = pgTable(
   ]
 )
 
-/**
- * Chargebacks — a member telling their bank to take a payment back.
- *
- * Written only by the Stripe webhook, read only by the admin billing page.
- * Unlike invoices, which are read live from Stripe, these are mirrored here
- * because the whole point is knowing one is open without going to look.
- */
-export const customShellDisputes = pgTable(
-  "disputes",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    stripeDisputeId: varchar("stripe_dispute_id", { length: 120 })
-      .notNull()
-      .unique(),
-    stripeChargeId: varchar("stripe_charge_id", { length: 120 }),
-    /** Null when the charge cannot be traced to an account here. */
-    userId: varchar("user_id", { length: 36 }).references(
-      () => customShellUsers.id,
-      // Never cascade: a chargeback outlives the account it came from.
-      { onDelete: "set null" }
-    ),
-    amountCents: integer("amount_cents").notNull(),
-    currency: varchar("currency", { length: 10 }).notNull(),
-    reason: varchar("reason", { length: 60 }).notNull(),
-    /** Stripe's word, unconstrained on purpose — see the migration. */
-    status: varchar("status", { length: 30 }).notNull(),
-    evidenceDueBy: timestamp("evidence_due_by", { withTimezone: true }),
-    /** Which Stripe dashboard the deep link should open. */
-    livemode: boolean("livemode").notNull().default(true),
-    openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
-    closedAt: timestamp("closed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    index("ix_disputes_status").on(table.status),
-    index("ix_disputes_opened_at").on(table.openedAt),
-    index("ix_disputes_user_id").on(table.userId),
-  ]
-)
-
 export const customShellAutomations = pgTable(
   "automations",
   {
@@ -1375,7 +1334,6 @@ export type CustomShellFeedbackComment =
   typeof customShellFeedbackComments.$inferSelect
 export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
-export type CustomShellDispute = typeof customShellDisputes.$inferSelect
 export type CustomShellSubscriptionEvent =
   typeof customShellSubscriptionEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect

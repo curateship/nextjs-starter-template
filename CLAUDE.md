@@ -83,6 +83,12 @@ one way: shell → app, via git merge. For any app built on top of the shell:
   `apps/custom-shell` itself** — as an option that is off by default — then
   merge the shell into the app and switch the option on. The shell gets better;
   the app stays clean.
+- **Those options live in `src/app/`**, the one folder an app may edit besides
+  files it created itself. The shell defines what is on offer in
+  `src/lib/app-options.ts`; the app writes its answers in `src/app/options.ts`.
+  Anything not on offer is a compile error, so the shell always knows every way
+  an app can deviate. **`apps/custom-shell/CLAUDE.md` is the full rulebook — read
+  it before building an app on the shell or adding an option to it.**
 - **Pulling shell updates into an app is an AI job with a fixed checklist:**
   merge the latest shell, resolve conflicts, run the app's tests, then open the
   app in a real browser (`.agents/skills/validate-app`). A merge that compiles
