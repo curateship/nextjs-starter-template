@@ -446,7 +446,7 @@ export const customShellAuthTokens = pgTable(
   (table) => [
     check(
       "auth_tokens_purpose_check",
-      sql`${table.purpose} in ('verify_email', 'reset_password', 'login', 'change_email')`
+      sql`${table.purpose} in ('verify_email', 'reset_password', 'login', 'change_email', 'revoke_email_change')`
     ),
     check(
       "auth_tokens_new_email_check",
@@ -463,6 +463,30 @@ export const customShellAuthTokens = pgTable(
  * Keyed on the provider's own permanent id for the person rather than their
  * email, so changing the address on the Google account still comes back here.
  */
+/**
+ * The browsers an account has signed in from before, so the "new device" alert
+ * goes out once per device instead of once per sign-in.
+ *
+ * Sessions cannot answer this — a session row is deleted on sign-out, so the
+ * same laptop would look new every time. The label is the coarse readable one
+ * (`describeDevice`), which is what keeps the alert rare enough to be read.
+ */
+export const customShellKnownDevices = pgTable(
+  "known_devices",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    label: varchar("label", { length: 120 }).notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_known_devices_user_label").on(table.userId, table.label),
+  ]
+)
+
 export const customShellOauthAccounts = pgTable(
   "oauth_accounts",
   {
@@ -1100,7 +1124,8 @@ export const customShellContacts = pgTable(
   (table) => [
     check(
       "contacts_status_check",
-      sql`${table.status} in ('subscribed', 'unsubscribed')`
+      // 'bounced' and 'complained' arrive by Resend webhook, never by hand.
+      sql`${table.status} in ('subscribed', 'unsubscribed', 'bounced', 'complained')`
     ),
     uniqueIndex("ux_contacts_workspace_email").on(
       table.workspaceId,
@@ -1307,8 +1332,32 @@ export const customShellEmailSettings = pgTable("email_settings", {
     .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
   // Encrypted with `encryptSecret`, never read back to the browser.
   resendApiKeyEncrypted: text("resend_api_key_encrypted"),
+  /**
+   * The signing secret of the Resend webhook that reports bounces and spam
+   * complaints back to `/api/webhooks/resend`. Encrypted like the key above.
+   */
+  resendWebhookSecretEncrypted: text("resend_webhook_secret_encrypted"),
   fromEmail: varchar("from_email", { length: 255 }),
   fromName: varchar("from_name", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * The app's Stripe keys: a live set and a sandbox set, and which is in use.
+ * One row for the whole app (id is always "stripe") — billing is app-wide,
+ * not per workspace. Secrets are encrypted with `encryptSecret` and never
+ * read back to the browser; publishable keys are public by design.
+ */
+export const customShellStripeSettings = pgTable("stripe_settings", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  useSandbox: boolean("use_sandbox").notNull().default(false),
+  liveSecretKeyEncrypted: text("live_secret_key_encrypted"),
+  livePublishableKey: text("live_publishable_key"),
+  liveWebhookSecretEncrypted: text("live_webhook_secret_encrypted"),
+  sandboxSecretKeyEncrypted: text("sandbox_secret_key_encrypted"),
+  sandboxPublishableKey: text("sandbox_publishable_key"),
+  sandboxWebhookSecretEncrypted: text("sandbox_webhook_secret_encrypted"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
@@ -1343,3 +1392,5 @@ export type CustomShellBroadcastTemplate =
 export type CustomShellDelivery = typeof customShellDeliveries.$inferSelect
 export type CustomShellEmailSettings =
   typeof customShellEmailSettings.$inferSelect
+export type CustomShellStripeSettings =
+  typeof customShellStripeSettings.$inferSelect

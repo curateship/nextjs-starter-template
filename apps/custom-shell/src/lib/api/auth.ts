@@ -21,11 +21,14 @@ import { db } from "@/server/db"
 import {
   cancelEmailChange,
   consumeEmailChange,
+  createEmailChangeRevokeToken,
   createEmailChangeToken,
   findPendingEmailChange,
+  revokeEmailChange,
   type PendingEmailChange,
 } from "@/server/email-change"
 import { sendAuthEmail } from "@/server/email"
+import { enforceDeliverableEmail } from "@/server/email-deliverability"
 import { isOwnedImageUrl } from "@/server/media"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
 import { googleSignInEnabled } from "@/server/google-auth"
@@ -36,7 +39,6 @@ import {
   clearSessionCookie,
   consumeAuthToken,
   createAuthToken,
-  createUserSession,
   deleteOtherSessions,
   deleteUserSession,
   describeRequestOrigin,
@@ -56,6 +58,11 @@ import {
   verifyPassword,
 } from "@/server/security"
 import { requestIp, requireAppOrigin } from "@/server/origin"
+import {
+  alertEmailChanged,
+  alertPasswordChanged,
+  startSessionWithAlert,
+} from "@/server/security-alerts"
 
 export type AuthUser = {
   id: string
@@ -176,6 +183,10 @@ const authErrorMessages: Record<string, string> = {
   SESSION_NOT_FOUND: "That device is already signed out.",
   PASSWORD_BREACHED:
     "This password has shown up in a known data breach. Please pick a different one.",
+  EMAIL_NO_MAILBOX:
+    "We could not find a mail service for that email's domain, so a verification email would never reach you. Please check the address for typos.",
+  EMAIL_THROWAWAY:
+    "That looks like a temporary email address. We need one that can receive mail so we can verify your account — please use your everyday address.",
   HUMAN_CHECK_FAILED: HUMAN_CHECK_MESSAGE,
   GOOGLE_SIGN_IN_FAILED:
     "We could not sign you in with Google. Please try again.",
@@ -183,6 +194,10 @@ const authErrorMessages: Record<string, string> = {
     "Google has not confirmed the email address on that account, so we cannot use it to sign you in.",
   EMAIL_TAKEN: "That email address is already in use.",
   EMAIL_UNCHANGED: "That is already the email address on your account.",
+  EMAIL_CHANGE_ALREADY_DONE:
+    "That change already went through, so there is nothing left to stop.",
+  NO_EMAIL_CHANGE_PENDING:
+    "There is no email change waiting on this account. It was already cancelled, or it ran out of time.",
   VIEW_AS_ACTIVE:
     "You are looking at the app as someone else. Leave that view first.",
   AVATAR_NOT_FOUND:
@@ -263,6 +278,10 @@ const registerFn = createServerFn({ method: "POST" })
       windowSeconds: 60 * 60,
     })
     await enforceHumanCheck(data.humanCheckToken)
+    // Verification is compulsory before sign-in, so an address that cannot
+    // receive mail would only ever produce a dead account. Checked after the
+    // throttle and human check so a bot cannot use it to place DNS lookups.
+    await enforceDeliverableEmail(data.email)
 
     // Before the address is checked, not after: an address stays taken for as
     // long as the deleted account holding it is still restorable, and frees up
@@ -388,7 +407,7 @@ const loginFn = createServerFn({ method: "POST" })
     // the two places it happens; there is no background job in this app.
     await purgeExpiredDeletions()
 
-    const token = await createUserSession(user.id, describeRequestOrigin())
+    const token = await startSessionWithAlert(user, describeRequestOrigin())
     await startWorkspaceFor(user.id)
 
     setSessionCookie(token)
@@ -521,7 +540,7 @@ const resetPasswordFn = createServerFn({ method: "POST" })
     const timestamp = now()
     const passwordHash = await hashPassword(data.password)
 
-    await db.transaction(async (tx) => {
+    const changed = await db.transaction(async (tx) => {
       const consumed = await consumeAuthToken(
         data.token,
         "reset_password",
@@ -529,7 +548,7 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         timestamp
       )
 
-      await tx
+      const [account] = await tx
         .update(customShellUsers)
         .set({
           passwordHash,
@@ -538,14 +557,24 @@ const resetPasswordFn = createServerFn({ method: "POST" })
           updatedAt: timestamp,
         })
         .where(eq(customShellUsers.id, consumed.userId))
+        .returning({ email: customShellUsers.email })
 
       // Anyone signed in with the old password is signed out.
       await tx
         .delete(customShellSessions)
         .where(eq(customShellSessions.userId, consumed.userId))
+
+      return account
     })
 
     clearSessionCookie()
+    // Outside the transaction: a reset that worked must stay worked whatever
+    // the mail server does. Sent for a reset as well as a deliberate change,
+    // because the one somebody did not do is the one worth hearing about, and
+    // a reset is the easier of the two to do to somebody else.
+    if (changed) {
+      await alertPasswordChanged(changed.email, describeRequestOrigin())
+    }
     return { ok: true }
   })
 
@@ -603,6 +632,7 @@ const changePasswordFn = createServerFn({ method: "POST" })
 
     // Keep this session, drop every other one.
     await deleteOtherSessions(user.id, getSessionToken())
+    await alertPasswordChanged(user.email, describeRequestOrigin())
     return { ok: true }
   })
 
@@ -653,6 +683,18 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
       windowSeconds: 60 * 60,
     })
 
+    // Known gap, deliberately left open and written down rather than papered
+    // over. An account created through Google or living on a passkey has no
+    // password, so there is nothing to ask for and this check does not run —
+    // which is exactly the account a stolen session could walk off with.
+    //
+    // Nothing here can close it: asking for a password nobody has would leave
+    // those accounts unable to ever change their address. What covers it
+    // instead is the pair of emails below. The old address is told at request
+    // time and can stop the whole thing with one click, without signing in, and
+    // is told again when it completes. Closing it properly means re-proving the
+    // person some other way — a fresh Google sign-in or a passkey — which is
+    // its own piece of work.
     if (
       user.passwordHash &&
       !(await verifyPassword(user.passwordHash, data.currentPassword ?? ""))
@@ -661,6 +703,7 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
     }
 
     const token = await createEmailChangeToken(user, data.newEmail)
+    const revokeToken = await createEmailChangeRevokeToken(user.id)
 
     try {
       await sendAuthEmail({
@@ -672,11 +715,29 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
         },
         actionUrl: appUrlFor(`/change-email?token=${encodeURIComponent(token)}`),
       })
+
+      // The old address hears about it too, and gets the one thing it needs:
+      // a way to stop this without signing in. For an account with no password
+      // — Google, a passkey — the check above did not run at all, so this
+      // warning is the only thing standing between a stolen session and the
+      // account.
+      await sendAuthEmail({
+        kind: "email-change-warning",
+        to: user.email,
+        tokens: {
+          new_email: data.newEmail,
+          hours: String(EMAIL_CHANGE_HOURS),
+        },
+        actionUrl: appUrlFor(
+          `/revoke-email-change?token=${encodeURIComponent(revokeToken)}`
+        ),
+      })
     } catch (deliveryError) {
-      // The token is dropped rather than left behind. This is the one link
+      // Both tokens are dropped rather than left behind. This is the one link
       // whose existence is shown to the person who asked for it, so a mail that
       // never went out must not leave the tab saying one is on its way — they
-      // would sit waiting for a link that cannot arrive.
+      // would sit waiting for a link that cannot arrive. And a change nobody
+      // was warned about must not be left standing.
       await cancelEmailChange(user.id)
       throw deliveryError
     }
@@ -713,10 +774,43 @@ const confirmEmailChangeFn = createServerFn({ method: "POST" })
       windowSeconds: 60 * 60,
     })
 
-    const { user } = await consumeEmailChange(data.token)
+    const { user, previousEmail } = await consumeEmailChange(data.token)
     await clearRateLimit(rateLimitKey)
 
+    // The last thing that address will ever hear from the app, and the reason
+    // it is worth sending: somebody who missed the warning still learns the
+    // account is gone, and that support is now the only way back.
+    await alertEmailChanged(previousEmail, user.email)
+
     return { email: user.email }
+  })
+
+/**
+ * Spends a "this wasn't me" link: stops the change and signs the account out
+ * everywhere.
+ *
+ * Open to a signed-out browser for the same reason the confirm side is, only
+ * more so. The person this is for may be in the middle of losing the account,
+ * so asking them to sign in first would be asking the impossible. The
+ * single-use token is the whole proof, and all it can do is put things back.
+ */
+const revokeEmailChangeFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ token: tokenSchema }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    // Same reasoning as the confirm side: nothing above has been checked, so
+    // without a limit anyone could sit here guessing links. A success clears
+    // it, because only the refused attempts are worth counting.
+    const rateLimitKey = `email-change-revoke:${requestIp()}`
+    await enforceRateLimit(rateLimitKey, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    const result = await revokeEmailChange(data.token)
+    await clearRateLimit(rateLimitKey)
+
+    return result
   })
 
 /** The devices signed in to this account, for the Security tab's list. */
@@ -865,6 +959,10 @@ export function cancelPendingEmailChange() {
 
 export function confirmEmailChange(token: string) {
   return confirmEmailChangeFn({ data: { token } })
+}
+
+export function revokePendingEmailChange(token: string) {
+  return revokeEmailChangeFn({ data: { token } })
 }
 
 export function loadSessions() {

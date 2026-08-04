@@ -51,6 +51,43 @@ finance or coding background would follow it on the first pass. If any sentence
 would make them stop and re-read, rewrite that sentence. Being accurate is not an
 excuse for being dense — plain and honest at the same time is the requirement.
 
+## Discuss Before Planning
+
+When Tyler is thinking out loud, asking a question, pushing back, or debating an
+approach, the deliverable is the answer — not a plan. Answer, then stop and let
+him respond.
+
+- **Never write or edit a plan file mid-discussion.** Not to "capture progress",
+  not to "fold in" what he just said. It resets the conversation and he has to
+  drag you back to the point.
+- **Never ask for approval while he is still talking.** No ExitPlanMode, no
+  multiple-choice popups. He will say when the discussion is done.
+- **The go-ahead is explicit**: "write the plan", "let's do it", "go". Nothing
+  else counts — not agreement on one point, not a long thread, not a question
+  that sounds like a decision.
+- **Never rename an idea and present it as a new answer.** If he rejects an
+  approach, either defend it or change the substance. Moving the same mechanism
+  into different files is not a new proposal, and he will notice.
+- **Hold one position across the conversation.** If your earlier answer
+  contradicts your current one, say so plainly and pick one.
+
+## Custom Shell Is the Template — Apps Never Edit Shell Files
+
+`apps/custom-shell` is the base every future app is copied from. Updates flow
+one way: shell → app, via git merge. For any app built on top of the shell:
+
+- **App code goes in the app's own files and folders.** Never edit a
+  shell-origin file inside an app's copy — not even a one-line tweak. An edited
+  shell file is a fork, and every future shell merge will conflict on it.
+- **If the app genuinely needs the shell to behave differently, change
+  `apps/custom-shell` itself** — as an option that is off by default — then
+  merge the shell into the app and switch the option on. The shell gets better;
+  the app stays clean.
+- **Pulling shell updates into an app is an AI job with a fixed checklist:**
+  merge the latest shell, resolve conflicts, run the app's tests, then open the
+  app in a real browser (`.agents/skills/validate-app`). A merge that compiles
+  can still break a page — the browser check is not optional.
+
 ## Dev Servers
 
 - **Never start a dev server (foreground or background). Always use the server already running on the app's configured port.**

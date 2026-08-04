@@ -108,8 +108,10 @@ import { signInWithGoogle } from "@/server/google-auth"
 import {
   cancelEmailChange,
   consumeEmailChange,
+  createEmailChangeRevokeToken,
   createEmailChangeToken,
   findPendingEmailChange,
+  revokeEmailChange,
 } from "@/server/email-change"
 import {
   consumeSignInLink,
@@ -938,6 +940,152 @@ describe("self-serve email change", () => {
       .update(customShellAuthTokens)
       .set({ expiresAt: new Date(now().getTime() - 1000) })
     await expect(findPendingEmailChange(user.id, live)).resolves.toBeNull()
+  })
+
+  /** A live session, so a revoke has something to sign out. */
+  async function seedSession(userId: string, token: string) {
+    const createdAt = now()
+    await database.insert(customShellSessions).values({
+      id: uuid(),
+      userId,
+      tokenHash: hashSessionToken(token),
+      expiresAt: createSessionExpiresAt(),
+      createdAt,
+      lastSeenAt: createdAt,
+    })
+  }
+
+  it("stops a pending change from a signed-out browser and signs every device out", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const live = database as unknown as CustomShellDb
+    await seedSession(user.id, "thief-session")
+    await seedSession(user.id, "other-session")
+
+    await createEmailChangeToken(user, "thief@internal.dev", live)
+    const revokeToken = await createEmailChangeRevokeToken(user.id, live)
+
+    await expect(revokeEmailChange(revokeToken, live)).resolves.toEqual({
+      cancelledEmail: "thief@internal.dev",
+      accountEmail: "old@internal.dev",
+    })
+
+    // The change is gone and the account never moved.
+    await expect(findPendingEmailChange(user.id, live)).resolves.toBeNull()
+    const [stored] = await database.select().from(customShellUsers)
+    expect(stored.email).toBe("old@internal.dev")
+
+    // Cancelling alone would leave whoever asked for the change holding the
+    // session that let them ask.
+    expect(await database.select().from(customShellSessions)).toHaveLength(0)
+  })
+
+  it("works once, and afterwards says the link is spent rather than that the change is gone", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const live = database as unknown as CustomShellDb
+
+    await createEmailChangeToken(user, "new@internal.dev", live)
+    const revokeToken = await createEmailChangeRevokeToken(user.id, live)
+    await revokeEmailChange(revokeToken, live)
+
+    await expect(revokeEmailChange(revokeToken, live)).rejects.toThrow(
+      "INVALID_OR_EXPIRED_TOKEN"
+    )
+  })
+
+  it("refuses an expired revoke link, and one of another kind", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const live = database as unknown as CustomShellDb
+
+    await createEmailChangeToken(user, "new@internal.dev", live)
+    const expired = await createEmailChangeRevokeToken(user.id, live)
+    await database
+      .update(customShellAuthTokens)
+      .set({ expiresAt: new Date(now().getTime() - 1000) })
+      .where(eq(customShellAuthTokens.tokenHash, hashToken(expired)))
+
+    await expect(revokeEmailChange(expired, live)).rejects.toThrow(
+      "INVALID_OR_EXPIRED_TOKEN"
+    )
+    // The change it failed to stop is still standing.
+    await expect(findPendingEmailChange(user.id, live)).resolves.toMatchObject({
+      newEmail: "new@internal.dev",
+    })
+
+    // A verification link is a live token for the same account. It must not
+    // cancel anything.
+    const verification = await createAuthToken(user.id, "verify_email", live)
+    await expect(revokeEmailChange(verification, live)).rejects.toThrow(
+      "INVALID_OR_EXPIRED_TOKEN"
+    )
+  })
+
+  it("says the change already went through, and leaves the link unspent", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const live = database as unknown as CustomShellDb
+
+    const changeToken = await createEmailChangeToken(user, "new@internal.dev", live)
+    const revokeToken = await createEmailChangeRevokeToken(user.id, live)
+    await consumeEmailChange(changeToken, live)
+
+    await expect(revokeEmailChange(revokeToken, live)).rejects.toThrow(
+      "EMAIL_CHANGE_ALREADY_DONE"
+    )
+
+    // The refusal rolled everything back, so somebody who clicked too late has
+    // not also quietly burnt their one link — and nothing was signed out over
+    // a change this could not stop.
+    const [unspent] = await database
+      .select()
+      .from(customShellAuthTokens)
+      .where(eq(customShellAuthTokens.tokenHash, hashToken(revokeToken)))
+    expect(unspent.usedAt).toBeNull()
+  })
+
+  it("says there is nothing to stop when the change was already cancelled or ran out", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const live = database as unknown as CustomShellDb
+
+    // Nothing was ever asked for.
+    const orphan = await createEmailChangeRevokeToken(user.id, live)
+    await expect(revokeEmailChange(orphan, live)).rejects.toThrow(
+      "NO_EMAIL_CHANGE_PENDING"
+    )
+
+    // The change is there but can no longer be opened, so there is nothing
+    // left for this link to prevent.
+    await createEmailChangeToken(user, "new@internal.dev", live)
+    const stale = await createEmailChangeRevokeToken(user.id, live)
+    await database
+      .update(customShellAuthTokens)
+      .set({ expiresAt: new Date(now().getTime() - 1000) })
+      .where(eq(customShellAuthTokens.purpose, "change_email"))
+    await expect(revokeEmailChange(stale, live)).rejects.toThrow(
+      "NO_EMAIL_CHANGE_PENDING"
+    )
+  })
+
+  it("retires the revoke link whenever the change it belongs to is dropped", async () => {
+    const user = await seedAccount("old@internal.dev")
+    const live = database as unknown as CustomShellDb
+
+    await createEmailChangeToken(user, "first@internal.dev", live)
+    const firstRevoke = await createEmailChangeRevokeToken(user.id, live)
+
+    // Asking for a second address replaces both halves, so the old warning
+    // email cannot cancel the new change.
+    await createEmailChangeToken(user, "second@internal.dev", live)
+    const secondRevoke = await createEmailChangeRevokeToken(user.id, live)
+    await expect(revokeEmailChange(firstRevoke, live)).rejects.toThrow(
+      "INVALID_OR_EXPIRED_TOKEN"
+    )
+
+    // Pressing Cancel in the Profile tab takes the live one with it, so no
+    // working secret is left sitting in an inbox.
+    await cancelEmailChange(user.id, live)
+    expect(await database.select().from(customShellAuthTokens)).toHaveLength(0)
+    await expect(revokeEmailChange(secondRevoke, live)).rejects.toThrow(
+      "INVALID_OR_EXPIRED_TOKEN"
+    )
   })
 })
 

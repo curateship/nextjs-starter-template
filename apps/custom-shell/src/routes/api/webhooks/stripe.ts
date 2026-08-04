@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { applyStripeEvent, stripe } from "@/server/billing"
+import { getActiveStripeConfig } from "@/server/stripe-settings"
 
 /**
  * Stripe webhook receiver.
@@ -12,10 +13,10 @@ export const Route = createFileRoute("/api/webhooks/stripe")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env.CUSTOM_SHELL_STRIPE_WEBHOOK_SECRET
+        const { webhookSecret } = await getActiveStripeConfig()
         const signature = request.headers.get("stripe-signature")
 
-        if (!secret || !signature) {
+        if (!webhookSecret || !signature) {
           return Response.json(
             { detail: "Stripe webhook is not configured" },
             { status: 503 }
@@ -24,10 +25,10 @@ export const Route = createFileRoute("/api/webhooks/stripe")({
 
         let event
         try {
-          event = stripe().webhooks.constructEvent(
+          event = (await stripe()).webhooks.constructEvent(
             await request.text(),
             signature,
-            secret
+            webhookSecret
           )
         } catch {
           return Response.json({ detail: "Invalid signature" }, { status: 400 })

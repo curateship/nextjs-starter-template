@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { desc, eq, isNotNull } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/encryption"
@@ -26,37 +26,24 @@ export async function getEmailSettings(
   return row ?? null
 }
 
-export async function saveEmailSettings(
+/** Writes only the columns given, creating the row on the first save. */
+async function upsertEmailSettings(
   workspaceId: string,
-  input: {
-    fromEmail: string
-    fromName: string
-    /** undefined or "" keeps the stored key; null clears it. */
-    apiKey?: string | null
-  },
+  patch: Partial<{
+    fromEmail: string | null
+    fromName: string | null
+    resendApiKeyEncrypted: string | null
+    resendWebhookSecretEncrypted: string | null
+  }>,
   database: CustomShellDb = db
 ) {
   const existing = await getEmailSettings(workspaceId, database)
-
-  let resendApiKeyEncrypted = existing?.resendApiKeyEncrypted ?? null
-  if (input.apiKey === null) {
-    resendApiKeyEncrypted = null
-  } else if (typeof input.apiKey === "string" && input.apiKey.trim()) {
-    resendApiKeyEncrypted = encryptSecret(input.apiKey.trim())
-  }
-
   const timestamp = now()
-  const values = {
-    fromEmail: input.fromEmail.trim() || null,
-    fromName: input.fromName.trim() || null,
-    resendApiKeyEncrypted,
-    updatedAt: timestamp,
-  }
 
   if (existing) {
     const [updated] = await database
       .update(customShellEmailSettings)
-      .set(values)
+      .set({ ...patch, updatedAt: timestamp })
       .where(eq(customShellEmailSettings.workspaceId, workspaceId))
       .returning()
     return updated
@@ -64,9 +51,265 @@ export async function saveEmailSettings(
 
   const [created] = await database
     .insert(customShellEmailSettings)
-    .values({ workspaceId, ...values, createdAt: timestamp })
+    .values({
+      workspaceId,
+      fromEmail: null,
+      fromName: null,
+      resendApiKeyEncrypted: null,
+      resendWebhookSecretEncrypted: null,
+      ...patch,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
     .returning()
   return created
+}
+
+export async function saveEmailSender(
+  workspaceId: string,
+  input: { fromEmail: string; fromName: string },
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    {
+      fromEmail: input.fromEmail.trim() || null,
+      fromName: input.fromName.trim() || null,
+    },
+    database
+  )
+}
+
+export async function setEmailApiKey(
+  workspaceId: string,
+  apiKey: string,
+  database: CustomShellDb = db
+) {
+  const key = apiKey.trim()
+  if (!key) throw new Error("EMPTY_KEY")
+  return upsertEmailSettings(
+    workspaceId,
+    { resendApiKeyEncrypted: encryptSecret(key) },
+    database
+  )
+}
+
+export async function clearEmailApiKey(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { resendApiKeyEncrypted: null },
+    database
+  )
+}
+
+export async function setResendWebhookSecret(
+  workspaceId: string,
+  secret: string,
+  database: CustomShellDb = db
+) {
+  const value = secret.trim()
+  if (!value) throw new Error("EMPTY_KEY")
+  return upsertEmailSettings(
+    workspaceId,
+    { resendWebhookSecretEncrypted: encryptSecret(value) },
+    database
+  )
+}
+
+export async function clearResendWebhookSecret(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { resendWebhookSecretEncrypted: null },
+    database
+  )
+}
+
+/**
+ * Every workspace's webhook signing secret, decrypted, for the receiver to
+ * try in turn: the webhook URL carries no workspace, so which workspace a
+ * call belongs to is exactly the question of whose secret signed it.
+ * Unreadable secrets are skipped — they can verify nothing.
+ */
+export async function listResendWebhookSecrets(
+  database: CustomShellDb = db
+): Promise<{ workspaceId: string; secret: string }[]> {
+  const rows = await database
+    .select({
+      workspaceId: customShellEmailSettings.workspaceId,
+      encrypted: customShellEmailSettings.resendWebhookSecretEncrypted,
+    })
+    .from(customShellEmailSettings)
+
+  const secrets: { workspaceId: string; secret: string }[] = []
+  for (const row of rows) {
+    if (!row.encrypted) continue
+    try {
+      secrets.push({
+        workspaceId: row.workspaceId,
+        secret: decryptSecret(row.encrypted),
+      })
+    } catch {
+      continue
+    }
+  }
+  return secrets
+}
+
+/** Only the last 4 characters, enough to recognise which key is set. */
+function maskKey(key: string): string {
+  return `••••${key.slice(-4)}`
+}
+
+/** What the settings page may see: never a secret itself, only masked tails. */
+export type EmailSettingsStatus = {
+  fromEmail: string
+  fromName: string
+  keyConfigured: boolean
+  maskedKey: string | null
+  /** True when a key is stored but the server can no longer read it. */
+  keyUnreadable: boolean
+  webhookConfigured: boolean
+  maskedWebhookSecret: string | null
+  webhookUnreadable: boolean
+}
+
+export async function getEmailSettingsStatus(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<EmailSettingsStatus> {
+  const row = await getEmailSettings(workspaceId, database)
+
+  let keyConfigured = false
+  let maskedKey: string | null = null
+  let keyUnreadable = false
+  if (row?.resendApiKeyEncrypted) {
+    try {
+      maskedKey = maskKey(decryptSecret(row.resendApiKeyEncrypted))
+      keyConfigured = true
+    } catch {
+      keyUnreadable = true
+    }
+  }
+
+  let webhookConfigured = false
+  let maskedWebhookSecret: string | null = null
+  let webhookUnreadable = false
+  if (row?.resendWebhookSecretEncrypted) {
+    try {
+      maskedWebhookSecret = maskKey(
+        decryptSecret(row.resendWebhookSecretEncrypted)
+      )
+      webhookConfigured = true
+    } catch {
+      webhookUnreadable = true
+    }
+  }
+
+  return {
+    fromEmail: row?.fromEmail ?? "",
+    fromName: row?.fromName ?? "",
+    keyConfigured,
+    maskedKey,
+    keyUnreadable,
+    webhookConfigured,
+    maskedWebhookSecret,
+    webhookUnreadable,
+  }
+}
+
+export type EmailKeyTestResult =
+  | { result: "ok" }
+  | { result: "rejected" }
+  | { result: "unreachable" }
+  | { result: "error"; status: number }
+
+/**
+ * Asks Resend whether a key is genuine, without sending anything: listing the
+ * account's domains needs a valid key and changes nothing.
+ *
+ * Tests the pasted key when one rides in, otherwise the stored one — the same
+ * split the AI key test makes, so a key can be checked before it is saved.
+ */
+export async function testEmailApiKey(
+  workspaceId: string,
+  apiKey?: string,
+  database: CustomShellDb = db
+): Promise<EmailKeyTestResult> {
+  let key = apiKey?.trim() ?? ""
+  if (!key) {
+    const row = await getEmailSettings(workspaceId, database)
+    if (row?.resendApiKeyEncrypted) {
+      // A stored key that cannot be read throws SECRET_UNREADABLE here, which
+      // tells the admin to paste it again rather than "the key is wrong".
+      key = decryptSecret(row.resendApiKeyEncrypted)
+    }
+  }
+  if (!key) throw new Error("NO_KEY")
+
+  let response: Response
+  try {
+    response = await fetch("https://api.resend.com/domains", {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+  } catch {
+    return { result: "unreachable" }
+  }
+
+  if (response.ok) return { result: "ok" }
+  // 400 included: this GET carries no body, so a 400 can only mean Resend
+  // looked at the key itself and turned it away as malformed.
+  if ([400, 401, 403].includes(response.status)) {
+    return { result: "rejected" }
+  }
+  return { result: "error", status: response.status }
+}
+
+/**
+ * The Resend key the app's **own** emails use — verification links, password
+ * resets, sign-in links, the security alerts.
+ *
+ * Those belong to the app rather than to a workspace: somebody clicking a
+ * verification link has no workspace and barely has an account. But the box an
+ * admin types the key into is the per-workspace Settings → Email tab, because
+ * that is where the newsletter needs it.
+ *
+ * So this takes the one configured mail account there is — the most recently
+ * saved row that carries a key. There is a single Resend account behind this
+ * app, and the Settings tab is where it gets entered.
+ *
+ * Returns null when nothing is saved, which is the caller's cue to fall back to
+ * the environment variable or to log instead of send.
+ */
+export async function getAppEmailApiKey(
+  database: CustomShellDb = db
+): Promise<string | null> {
+  // The `is not null` belongs in the query, not after it. Taking the newest row
+  // and then checking would hand back nothing whenever the most recently
+  // touched workspace is one that only ever set a from-address.
+  const rows = await database
+    .select({ encrypted: customShellEmailSettings.resendApiKeyEncrypted })
+    .from(customShellEmailSettings)
+    .where(isNotNull(customShellEmailSettings.resendApiKeyEncrypted))
+    .orderBy(desc(customShellEmailSettings.updatedAt))
+
+  for (const row of rows) {
+    if (!row.encrypted) continue
+    try {
+      return decryptSecret(row.encrypted)
+    } catch {
+      // A key nobody can read is the same as no key — try the next one rather
+      // than falling silent because one workspace's secret went unreadable.
+      continue
+    }
+  }
+
+  return null
 }
 
 export type SendableEmailConfig = {

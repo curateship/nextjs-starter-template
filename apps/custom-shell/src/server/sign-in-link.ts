@@ -3,10 +3,10 @@ import { eq } from "drizzle-orm"
 import { isPendingDeletion } from "@/lib/account-deletion"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellUsers, type CustomShellUser } from "@/server/schema"
+import { startSessionWithAlert } from "@/server/security-alerts"
 import {
   consumeAuthToken,
   createAuthToken,
-  createUserSession,
   findUserByEmail,
   now,
   type SessionOrigin,
@@ -104,6 +104,6 @@ export async function consumeSignInLink(
 
   return {
     user,
-    sessionToken: await createUserSession(user.id, origin, database),
+    sessionToken: await startSessionWithAlert(user, origin, database),
   }
 }

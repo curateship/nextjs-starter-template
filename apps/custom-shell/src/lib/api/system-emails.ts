@@ -20,6 +20,10 @@ import {
   listSystemEmails,
   updateSystemEmail as saveSystemEmail,
 } from "@/server/system-emails"
+import {
+  getOrCreateCurrentWorkspace,
+  parseWorkspaceSettings,
+} from "@/server/workspaces"
 import { appUrlFor } from "@/server/app-url"
 
 import { createErrorMessage } from "./error-message"
@@ -101,7 +105,7 @@ const loadSystemEmailsPageFn = createServerFn({ method: "GET" })
 const getSystemEmailFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(kindSchema)
-  .handler(async ({ data }): Promise<SystemEmailDetail> => {
+  .handler(async ({ data, context }): Promise<SystemEmailDetail> => {
     // Looking at an email must not count as editing it. The router preloads
     // this the moment a link is hovered, so writing a row here would leave the
     // list saying "edited today" about emails nobody has touched. Unsaved, the
@@ -110,12 +114,19 @@ const getSystemEmailFn = createServerFn({ method: "GET" })
     const row = await getSystemEmailRow(data.kind)
     if (row) return toDetail(data.kind, row)
 
+    // An email nobody has saved starts from the workspace's saved block
+    // setups, so its header and footer open already carrying the logo and
+    // company lines every other email uses.
+    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
     return {
       kind: data.kind,
       subject: SYSTEM_EMAIL_META[data.kind].defaults.subject,
       preheader: "",
       fromName: null,
-      blocks: createSystemEmailBlocks(data.kind),
+      blocks: createSystemEmailBlocks(
+        data.kind,
+        parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults
+      ),
     }
   })
 
@@ -179,6 +190,19 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
       "sign-in-link": { minutes: "15" },
       "password-reset": {},
       "email-change": { old_email: context.user.email, hours: "24" },
+      "email-change-warning": { new_email: "new-address@example.com", hours: "24" },
+      "email-change-done": {
+        new_email: "new-address@example.com",
+        when: "Jan 1, 2026, 9:00 AM UTC",
+      },
+      "password-changed": {
+        when: "Jan 1, 2026, 9:00 AM UTC",
+        device: "Chrome on macOS",
+      },
+      "new-device": {
+        device: "Chrome on macOS",
+        when: "Jan 1, 2026, 9:00 AM UTC",
+      },
       "new-account": {},
     }
     return sendAuthEmail({

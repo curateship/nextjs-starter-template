@@ -100,6 +100,11 @@ export const AUTH_TOKEN_TTL_MS = {
   // Same day-long life as a verification link, and for the same reason: it is
   // an address being proved, and somebody may not read that inbox until later.
   change_email: EMAIL_CHANGE_HOURS * 60 * 60 * 1000,
+  // The "this wasn't me" link, and exactly as long-lived as the change it
+  // stops. A minute less would leave a window where the change can still be
+  // confirmed and no longer stopped; a minute more would be a link that can
+  // only ever report that it is too late.
+  revoke_email_change: EMAIL_CHANGE_HOURS * 60 * 60 * 1000,
 } as const
 
 export type AuthTokenPurpose = keyof typeof AUTH_TOKEN_TTL_MS
@@ -356,11 +361,17 @@ export async function createUserSession(
   return token
 }
 
-/** Signs out every other device by dropping their sessions. */
+/**
+ * Signs out every other device by dropping their sessions.
+ *
+ * Takes only what it uses, so a caller inside a transaction can hand it the
+ * transaction — stopping an email change signs the account out as part of the
+ * same all-or-nothing write that cancels the change.
+ */
 export async function deleteOtherSessions(
   userId: string,
   currentToken: string | undefined,
-  database: CustomShellDb = db
+  database: Pick<CustomShellDb, "delete"> = db
 ) {
   const deleted = await database
     .delete(customShellSessions)

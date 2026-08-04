@@ -22,6 +22,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
+import { getActiveStripeConfig } from "@/server/stripe-settings"
 import {
   deriveSubscriptionEvent,
   recordSubscriptionEvent,
@@ -38,18 +39,28 @@ const SUBSCRIPTION_EVENTS = new Set([
 ])
 
 let stripeClient: Stripe | null = null
+let stripeClientKey: string | null = null
 
 export function billingEnabled() {
   return process.env.CUSTOM_SHELL_BILLING_ENABLED === "true"
 }
 
-export function stripe() {
-  const key = process.env.CUSTOM_SHELL_STRIPE_SECRET_KEY
-  if (!key) {
+/**
+ * The Stripe client on whichever keys Settings → Payments says: the sandbox
+ * set when its switch is on, otherwise the live set, with the old env vars
+ * backing the live set. Cached per key so flipping the switch or saving a new
+ * key takes effect on the next call without a restart.
+ */
+export async function stripe() {
+  const { secretKey } = await getActiveStripeConfig()
+  if (!secretKey) {
     throw new Error("BILLING_NOT_CONFIGURED")
   }
 
-  stripeClient ??= new Stripe(key)
+  if (!stripeClient || stripeClientKey !== secretKey) {
+    stripeClient = new Stripe(secretKey)
+    stripeClientKey = secretKey
+  }
   return stripeClient
 }
 
@@ -100,7 +111,7 @@ export async function createCheckoutSession(
 
   const subscription = await findSubscription(user.id, database)
   const trialDays = trialDaysFor(user, plan)
-  const session = await stripe().checkout.sessions.create({
+  const session = await (await stripe()).checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price, quantity: 1 }],
     customer: subscription?.stripeCustomerId || undefined,
@@ -135,7 +146,7 @@ export async function createPortalSession(
     throw new Error("SUBSCRIPTION_NOT_FOUND")
   }
 
-  const session = await stripe().billingPortal.sessions.create({
+  const session = await (await stripe()).billingPortal.sessions.create({
     customer: subscription.stripeCustomerId,
     return_url: appUrlFor("/?account=billing"),
   })
@@ -163,7 +174,7 @@ export async function listCustomerInvoices(
     return []
   }
 
-  const invoices = await stripe().invoices.list({
+  const invoices = await (await stripe()).invoices.list({
     customer: subscription.stripeCustomerId,
     limit: 24,
   })
@@ -200,8 +211,8 @@ export type CardExpiryWarning = {
 /** Reads the card a subscription renews on. Injectable so tests need no Stripe. */
 type CardReader = (subscriptionId: string) => Promise<Stripe.Subscription>
 
-const loadSubscriptionCard: CardReader = (subscriptionId) =>
-  stripe().subscriptions.retrieve(subscriptionId, {
+const loadSubscriptionCard: CardReader = async (subscriptionId) =>
+  (await stripe()).subscriptions.retrieve(subscriptionId, {
     // Both cards in one call: the subscription's own, and the customer's, which
     // is what Stripe falls back to.
     expand: [
@@ -318,9 +329,10 @@ export type CancelApi = {
 }
 
 const stripeCancelApi: CancelApi = {
-  cancelNow: (subscriptionId) => stripe().subscriptions.cancel(subscriptionId),
-  stopRenewal: (subscriptionId) =>
-    stripe().subscriptions.update(subscriptionId, {
+  cancelNow: async (subscriptionId) =>
+    (await stripe()).subscriptions.cancel(subscriptionId),
+  stopRenewal: async (subscriptionId) =>
+    (await stripe()).subscriptions.update(subscriptionId, {
       cancel_at_period_end: true,
     }),
 }
@@ -459,11 +471,11 @@ export async function cancelSubscriptionsForDeletion(
 
 type SubscriptionLoader = (subscriptionId: string) => Promise<Stripe.Subscription>
 
-const loadStripeSubscription: SubscriptionLoader = (subscriptionId) =>
-  stripe().subscriptions.retrieve(subscriptionId)
+const loadStripeSubscription: SubscriptionLoader = async (subscriptionId) =>
+  (await stripe()).subscriptions.retrieve(subscriptionId)
 
-const loadStripeCharge: ChargeReader = (chargeId) =>
-  stripe().charges.retrieve(chargeId)
+const loadStripeCharge: ChargeReader = async (chargeId) =>
+  (await stripe()).charges.retrieve(chargeId)
 
 /**
  * Applies one Stripe webhook event.

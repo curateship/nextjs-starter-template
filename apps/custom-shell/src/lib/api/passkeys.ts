@@ -19,8 +19,8 @@ import {
   type RelyingParty,
 } from "@/server/passkeys"
 import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
+import { startSessionWithAlert } from "@/server/security-alerts"
 import {
-  createUserSession,
   describeRequestOrigin,
   requireOwnAccount,
   setSessionCookie,
@@ -179,7 +179,7 @@ const finishPasskeySignInFn = createServerFn({ method: "POST" })
     // The same sweep every other way in does; this app has no background jobs.
     await purgeExpiredDeletions()
 
-    const token = await createUserSession(user.id, describeRequestOrigin())
+    const token = await startSessionWithAlert(user, describeRequestOrigin())
     await startWorkspaceFor(user.id)
 
     setSessionCookie(token)

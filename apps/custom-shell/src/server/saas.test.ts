@@ -31,6 +31,10 @@ import {
 import { disputeIsOpen, listDisputes } from "@/server/disputes"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
 import {
+  enforceDeliverableEmail,
+  type MailDnsResolver,
+} from "@/server/email-deliverability"
+import {
   hasFeature,
   loadEntitlements,
   resolveEntitlements,
@@ -222,6 +226,97 @@ describe("breached passwords", () => {
     respondWith("", { status: 503 })
     await expect(
       enforcePasswordNotBreached("password123")
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe("undeliverable addresses", () => {
+  // A DNS error the way node's resolver raises it: the code carries the
+  // meaning, not the message.
+  function dnsError(code: string) {
+    const error = new Error(code)
+    ;(error as Error & { code: string }).code = code
+    return error
+  }
+
+  function fakeDns(overrides: Partial<MailDnsResolver> = {}): MailDnsResolver {
+    return {
+      resolveMx: () => Promise.reject(dnsError("ENOTFOUND")),
+      resolve4: () => Promise.reject(dnsError("ENOTFOUND")),
+      resolve6: () => Promise.reject(dnsError("ENOTFOUND")),
+      ...overrides,
+    }
+  }
+
+  it("accepts a domain with a mail server", async () => {
+    const dns = fakeDns({
+      resolveMx: () =>
+        Promise.resolve([{ exchange: "mx.example.com", priority: 10 }]),
+    })
+
+    await expect(
+      enforceDeliverableEmail("person@example.com", dns)
+    ).resolves.toBeUndefined()
+  })
+
+  it("refuses a domain that does not exist", async () => {
+    await expect(
+      enforceDeliverableEmail("person@no-such-domain-anywhere.example", fakeDns())
+    ).rejects.toThrow("EMAIL_NO_MAILBOX")
+  })
+
+  it("accepts a domain with no mail server record but a plain address", async () => {
+    // Mail falls back to the domain's ordinary address record, so this domain
+    // can still receive it.
+    const dns = fakeDns({
+      resolveMx: () => Promise.reject(dnsError("ENODATA")),
+      resolve4: () => Promise.resolve(["93.184.216.34"]),
+    })
+
+    await expect(
+      enforceDeliverableEmail("person@example.com", dns)
+    ).resolves.toBeUndefined()
+  })
+
+  it("refuses a domain that has published it takes no mail", async () => {
+    // A single record pointing at "." is the standard way a domain says it
+    // accepts no mail at all, even though the domain itself exists.
+    const dns = fakeDns({
+      resolveMx: () => Promise.resolve([{ exchange: ".", priority: 0 }]),
+      resolve4: () => Promise.resolve(["93.184.216.34"]),
+    })
+
+    await expect(
+      enforceDeliverableEmail("person@example.com", dns)
+    ).rejects.toThrow("EMAIL_NO_MAILBOX")
+  })
+
+  it("refuses a throwaway provider without asking DNS at all", async () => {
+    const calls: string[] = []
+    const dns = fakeDns({
+      resolveMx: (domain) => {
+        calls.push(domain)
+        return Promise.reject(dnsError("ENOTFOUND"))
+      },
+    })
+
+    await expect(
+      enforceDeliverableEmail("person@mailinator.com", dns)
+    ).rejects.toThrow("EMAIL_THROWAWAY")
+    await expect(
+      enforceDeliverableEmail("person@anything.yopmail.com", dns)
+    ).rejects.toThrow("EMAIL_THROWAWAY")
+    expect(calls).toEqual([])
+  })
+
+  it("accepts the address when DNS itself is down", async () => {
+    // Fail open: a slow or broken resolver must never block a real person.
+    const dns = fakeDns({
+      resolveMx: () => Promise.reject(dnsError("ETIMEOUT")),
+    })
+
+    await expect(
+      enforceDeliverableEmail("person@example.com", dns)
     ).resolves.toBeUndefined()
   })
 })

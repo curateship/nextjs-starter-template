@@ -52,6 +52,24 @@ function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
 }
 
+/**
+ * Why this contact gets mail or not, each reason in its own words: opting out
+ * was their choice, bouncing and spam reports arrive from Resend by webhook.
+ * "Put back" works on all three — an admin can always override.
+ */
+function contactStatusLabel(status: ContactItem["status"]) {
+  switch (status) {
+    case "subscribed":
+      return "On the list"
+    case "unsubscribed":
+      return "Opted out"
+    case "bounced":
+      return "Bouncing"
+    case "complained":
+      return "Marked it spam"
+  }
+}
+
 /** Everyone a newsletter can go to, and the tags that split them into groups. */
 export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   const { config } = useShellRuntime()
@@ -358,7 +376,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                   contact.status === "subscribed" ? "secondary" : "destructive"
                 }
               >
-                {contact.status === "subscribed" ? "On the list" : "Opted out"}
+                {contactStatusLabel(contact.status)}
               </Badge>
             </TableCell>
             <TableCell column="mutedMeta">

@@ -1,10 +1,12 @@
 import { Link } from "@tanstack/react-router"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AiSettings } from "@/components/settings/ai-settings"
+import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { focusRing } from "@/lib/focus-ring"
@@ -25,6 +27,8 @@ const settingsTabs = [
   { id: "top-right", label: "Top right menu" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
+  { id: "email", label: "Email" },
+  { id: "payments", label: "Payments" },
   { id: "ai", label: "AI" },
 ] as const
 
@@ -217,6 +221,8 @@ export function SettingsPage({
             sessionPolicyBusy={sessionPolicyBusy}
           />
         ) : null}
+        {activeTab === "email" ? <EmailSettings /> : null}
+        {activeTab === "payments" ? <StripeSettings /> : null}
         {activeTab === "ai" ? <AiSettings /> : null}
       </div>
     </div>
