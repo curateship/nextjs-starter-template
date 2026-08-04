@@ -361,23 +361,39 @@ export function BroadcastEditor({
    * the same rhythm the email itself saves on, so the two never feel different.
    * A failure says so and leaves the panel's values alone; the next edit tries
    * again.
+   *
+   * The new setup is kept locally straight away rather than waiting for the
+   * answer, so pressing the plus during those 700ms adds the block you can see
+   * in the panel and not the one it used to be.
    */
   const defaultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null
   )
+  const pendingDefaultRef = React.useRef<BroadcastBlock | null>(null)
   const saveDefault = React.useCallback((block: BroadcastBlock) => {
+    setBlockDefaults((current) => ({ ...current, [block.kind]: block.content }))
+    pendingDefaultRef.current = block
     if (defaultTimerRef.current) clearTimeout(defaultTimerRef.current)
     defaultTimerRef.current = setTimeout(() => {
       defaultTimerRef.current = null
+      pendingDefaultRef.current = null
       saveBroadcastBlockDefault(block)
         .then((saved) => setBlockDefaults(saved.defaults))
         .catch((error) => showErrorToast(getBroadcastErrorMessage(error)))
     }, SAVE_DEBOUNCE_MS)
   }, [])
 
+  // Leaving mid-debounce sends the change rather than dropping it, exactly as
+  // the email's own auto-save does. Without this, setting a default and
+  // navigating straight off loses it with no sign that anything went missing.
   React.useEffect(() => {
     return () => {
-      if (defaultTimerRef.current) clearTimeout(defaultTimerRef.current)
+      if (!defaultTimerRef.current) return
+      clearTimeout(defaultTimerRef.current)
+      const pending = pendingDefaultRef.current
+      if (pending) {
+        void saveBroadcastBlockDefault(pending).catch(() => undefined)
+      }
     }
   }, [])
 

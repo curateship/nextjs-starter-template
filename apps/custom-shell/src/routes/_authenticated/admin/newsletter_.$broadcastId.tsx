@@ -14,10 +14,14 @@ export const Route = createFileRoute(
   // Both at once: the email and how new blocks in it start out. Fetched one
   // after the other, the editor would open with the built-in setup and then
   // quietly change under whoever was already typing.
+  //
+  // Only the email is worth failing over. The saved block setups are a
+  // convenience, so a failure there falls back to the built-in ones rather
+  // than putting an error page in front of an email somebody came to write.
   loader: async ({ params }) => {
     const [broadcast, blockDefaults] = await Promise.all([
       getBroadcast(params.broadcastId),
-      loadBroadcastBlockDefaults(),
+      loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
     ])
     return { broadcast, blockDefaults: blockDefaults.defaults }
   },

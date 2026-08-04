@@ -135,9 +135,11 @@ import {
   listUserWorkspaces,
   NAVIGATION_VERSION,
   parseWorkspaceSettings,
+  saveWorkspaceBroadcastBlockDefault,
   switchUserWorkspace,
   updateUserWorkspace,
 } from "@/server/workspaces"
+import { sanitizeBlocks } from "@/server/broadcasts"
 import { loadFeedsSummary } from "@/server/feeds"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
@@ -1206,6 +1208,94 @@ describe("custom shell workspaces", () => {
     await expect(
       deleteUserWorkspaces(userId, [extra.id], shellDb)
     ).resolves.toEqual({ deleted: [], kept: [extra.id] })
+  })
+
+  // A rich-text setup saved from the blocks panel is written into real blocks
+  // later and drawn on the page before the email it lands in has saved itself
+  // once — so it has to be cleaned on the way in, exactly like every other way
+  // markup reaches the database. It was not, at first.
+  it("stores a block setup only after the markup has been cleaned", async () => {
+    const shellDb = database as unknown as CustomShellDb
+    const userId = uuid()
+    const createdAt = new Date("2026-08-01T00:00:00.000Z")
+    await shellDb.insert(customShellUsers).values({
+      id: userId,
+      email: `${userId}@example.test`,
+      name: "Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const dirty = {
+      id: "richText-1",
+      kind: "richText" as const,
+      content: {
+        htmlContent:
+          '<p>Hello</p><script>alert(1)</script><p onclick="alert(2)">Bye</p>',
+        backgroundColor: "#ffffff",
+        padding: 20,
+      },
+    }
+
+    const saved = await saveWorkspaceBroadcastBlockDefault(
+      userId,
+      sanitizeBlocks([dirty])[0],
+      shellDb
+    )
+
+    const html = (saved.richText as { htmlContent: string }).htmlContent
+    expect(html).not.toContain("<script>")
+    expect(html).not.toContain("onclick")
+    expect(html).toContain("Hello")
+    expect(html).toContain("Bye")
+  })
+
+  // Only the first trial is remembered, and only the kind that was edited.
+  it("replaces one kind of block setup and leaves the others alone", async () => {
+    const shellDb = database as unknown as CustomShellDb
+    const userId = uuid()
+    const createdAt = new Date("2026-08-01T00:00:00.000Z")
+    await shellDb.insert(customShellUsers).values({
+      id: userId,
+      email: `${userId}@example.test`,
+      name: "Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await saveWorkspaceBroadcastBlockDefault(
+      userId,
+      {
+        id: "divider-1",
+        kind: "divider",
+        content: { color: "#000000", thickness: 3, width: 50, spacing: 40 },
+      },
+      shellDb
+    )
+    const after = await saveWorkspaceBroadcastBlockDefault(
+      userId,
+      {
+        id: "footer-1",
+        kind: "footer",
+        content: {
+          companyName: "System Everything",
+          companyAddress: "",
+          alignment: "center",
+          showUnsubscribe: true,
+        },
+      },
+      shellDb
+    )
+
+    expect(after.divider).toMatchObject({ thickness: 3, spacing: 40 })
+    expect(after.footer).toMatchObject({ companyName: "System Everything" })
+    // Untouched kinds stay absent, which is what "use the built-in setup" is.
+    expect(after.header).toBeUndefined()
+    expect(after.richText).toBeUndefined()
   })
 
   // Reading a saved sidebar used to top it back up with the default links

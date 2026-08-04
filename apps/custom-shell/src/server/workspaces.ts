@@ -1622,6 +1622,11 @@ export async function saveWorkspaceAutomationFavorites(
  * block open at once. It takes a whole block rather than loose content so the
  * one schema that already describes a block is what checks it, here and on the
  * way back out.
+ *
+ * The block must already have been through `sanitizeBlocks`. A rich-text setup
+ * saved here is written into real blocks later and drawn on the page before the
+ * email it lands in ever saves itself, so markup that arrives dirty stays dirty
+ * all the way to another admin's browser.
  */
 export async function saveWorkspaceBroadcastBlockDefault(
   userId: string,

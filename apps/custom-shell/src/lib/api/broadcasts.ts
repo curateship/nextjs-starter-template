@@ -29,6 +29,7 @@ import {
   getWorkspaceBroadcast,
   listWorkspaceBroadcasts,
   listWorkspaceTemplates,
+  sanitizeBlocks,
   setDefaultWorkspaceTemplate,
   updateWorkspaceBroadcast,
 } from "@/server/broadcasts"
@@ -416,7 +417,11 @@ const saveBlockDefaultFn = createServerFn({ method: "POST" })
     return {
       defaults: await saveWorkspaceBroadcastBlockDefault(
         context.user.id,
-        data.block
+        // Through the same cleaner as every other way markup gets stored. A
+        // saved rich-text setup is written into new blocks and drawn on the
+        // page before the email it lands in has saved itself once, so markup
+        // left dirty here would run in the next admin's browser.
+        sanitizeBlocks([data.block])[0]
       ),
     }
   })
