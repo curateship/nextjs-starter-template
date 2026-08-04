@@ -10,6 +10,7 @@ import {
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 import { db } from "@/server/db"
@@ -110,6 +111,25 @@ const shellStylingSchema = z.object({
   modal: shellModalStylingSchema,
 })
 
+/**
+ * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
+ * the handler is what decides which ids survive, and it drops anything no
+ * widget answers to along with any widget placed twice.
+ *
+ * Deliberately not an enum of today's widget ids. A tab left open from before a
+ * widget was retired would then fail this whole request — taking every other
+ * settings edit on the page down with it — where dropping the dead id quietly
+ * is both safer and what the row ends up holding either way. The lengths are
+ * capped because this is the only door into that row.
+ */
+const widgetSlotSchema = z.array(z.string().max(64)).max(50)
+
+const dashboardWidgetsSchema = z.object({
+  top: widgetSlotSchema,
+  left: widgetSlotSchema,
+  right: widgetSlotSchema,
+})
+
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
@@ -151,6 +171,7 @@ const shellConfigSchema = z.object({
     idleMinutes: z.number().int().min(0),
   }),
   styling: shellStylingSchema,
+  dashboardWidgets: dashboardWidgetsSchema,
 })
 
 export function getShellSettingsErrorMessage(error: unknown) {
@@ -181,6 +202,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
+            dashboardWidgets: normalizeDashboardWidgets(data.dashboardWidgets),
           },
           updatedAt,
         })

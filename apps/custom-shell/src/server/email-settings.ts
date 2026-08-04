@@ -166,6 +166,43 @@ function maskKey(key: string): string {
   return `••••${key.slice(-4)}`
 }
 
+/**
+ * Whether the app can send an email at all, and what makes that true.
+ *
+ * Deliberately not the same question as "has this workspace saved a key". The
+ * app's own emails — verification links, password resets, sign-in links —
+ * take the one key there is wherever it was typed (`getAppEmailApiKey`), or
+ * the server's own environment variable. So a workspace with an empty Email
+ * tab can still be sending perfectly well, and saying "not set" there without
+ * this would be a lie.
+ */
+export type EmailDeliveryStatus = {
+  /** Where the key comes from, or null when there is no key anywhere. */
+  source: "settings" | "environment" | null
+  /**
+   * True where a missing key fails the send outright. Off a production server
+   * the link is written to the log instead, so sign-up still works locally.
+   */
+  failsWithoutKey: boolean
+}
+
+export async function getEmailDeliveryStatus(
+  database: CustomShellDb = db
+): Promise<EmailDeliveryStatus> {
+  const failsWithoutKey = isProduction()
+
+  // The same two places, in the same order, that `sendAuthEmail` reads. A
+  // status that checked anything else would eventually disagree with what
+  // actually happens when somebody presses "send me a link".
+  if (await getAppEmailApiKey(database)) {
+    return { source: "settings", failsWithoutKey }
+  }
+  if (process.env.CUSTOM_SHELL_RESEND_API_KEY) {
+    return { source: "environment", failsWithoutKey }
+  }
+  return { source: null, failsWithoutKey }
+}
+
 /** What the settings page may see: never a secret itself, only masked tails. */
 export type EmailSettingsStatus = {
   fromEmail: string
@@ -177,6 +214,8 @@ export type EmailSettingsStatus = {
   webhookConfigured: boolean
   maskedWebhookSecret: string | null
   webhookUnreadable: boolean
+  /** Whether email works at all, which this workspace's key alone cannot say. */
+  delivery: EmailDeliveryStatus
 }
 
 export async function getEmailSettingsStatus(
@@ -220,6 +259,7 @@ export async function getEmailSettingsStatus(
     webhookConfigured,
     maskedWebhookSecret,
     webhookUnreadable,
+    delivery: await getEmailDeliveryStatus(database),
   }
 }
 

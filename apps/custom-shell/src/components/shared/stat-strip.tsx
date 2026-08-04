@@ -57,7 +57,18 @@ const wideLayout = {
   divider: "hidden",
 }
 
-export function StatStrip({ figures }: { figures: StatFigure[] }) {
+export function StatStrip({
+  figures,
+  className,
+}: {
+  figures: StatFigure[]
+  /**
+   * What the strip gets where it sits. On the Overview it is a widget an admin
+   * can drag into a column, and a column hands its card the class that fills
+   * the panel.
+   */
+  className?: string
+}) {
   const layout = layouts[figures.length] ?? wideLayout
 
   return (
@@ -65,7 +76,7 @@ export function StatStrip({ figures }: { figures: StatFigure[] }) {
     // `DashboardContent`, which is a flex column, so a tall page below this
     // strip squashes it — and `Card` hides what overflows, so the figures are
     // silently cut off and only the labels are left.
-    <Card className="shrink-0">
+    <Card className={cn("shrink-0", className)}>
       <CardContent className={cn("grid", layout.grid)}>
         {figures.map((figure, index) => (
           <div key={figure.key} className="flex items-start">

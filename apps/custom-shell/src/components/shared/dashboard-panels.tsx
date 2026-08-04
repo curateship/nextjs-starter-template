@@ -49,6 +49,14 @@ const FILL = "h-full min-h-0"
 
 const DEFAULT_MIN_SIZE = "12%"
 
+/**
+ * The columns take the height the page has left, down to a floor. Whatever sits
+ * above them is normally one short strip, but the Overview lets an admin put a
+ * card up there — and without the floor a tall one squeezes the columns to a
+ * couple of unreadable rows. Past the floor the page scrolls instead.
+ */
+const COLUMNS_CLASS = "flex min-h-96 flex-1"
+
 /** The proportions both admin dashboards open on: roughly 55 / 45. */
 const LEFT_WIDTH = "55%"
 const RIGHT_WIDTH = "45%"
@@ -72,14 +80,32 @@ export function DashboardPanels({
   if (!wide) {
     return (
       <div className="grid shrink-0 items-start" style={{ gap: pageGutter }}>
-        <StackedColumn blocks={left} />
-        <StackedColumn blocks={right} />
+        {left.length ? <StackedColumn blocks={left} /> : null}
+        {right.length ? <StackedColumn blocks={right} /> : null}
+      </div>
+    )
+  }
+
+  // One column with nothing in it is not a column: on the Overview an admin can
+  // put every widget down one side, and a panel group with an empty half would
+  // leave a draggable divider against a blank space.
+  if (!left.length || !right.length) {
+    const blocks = left.length ? left : right
+    if (!blocks.length) return null
+
+    return (
+      <div className={COLUMNS_CLASS}>
+        <PanelColumn
+          page={page}
+          side={left.length ? "left" : "right"}
+          blocks={blocks}
+        />
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className={COLUMNS_CLASS}>
       <ResizablePanelGroup
         key={columns.layoutKey}
         orientation="horizontal"
@@ -128,11 +154,15 @@ function PanelColumn({
   side: "left" | "right"
   blocks: DashboardBlock[]
 }) {
-  // The number of blocks is part of the key: a card that only appears once
-  // there is something to show would otherwise come back to a layout saved for
-  // a column that had one more divider in it than this one has.
+  // Which cards are in the column is part of the key: a layout saved for three
+  // cards cannot be applied to two, and on a page whose cards an admin arranges
+  // it must not be applied to three different ones either.
   const layout = useRememberedPanelLayout(
-    panelLayoutKey.dashboardColumn(page, side, blocks.length)
+    panelLayoutKey.dashboardColumn(
+      page,
+      side,
+      blocks.map((block) => block.id).join("-")
+    )
   )
   const total = blocks.reduce((sum, block) => sum + block.size, 0) || 1
 

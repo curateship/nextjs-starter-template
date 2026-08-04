@@ -1,6 +1,10 @@
 import { loadNewestAccounts, type AccountRow } from "@/server/accounts"
 import { listUserAutomations } from "@/server/automations"
 import { db, type CustomShellDb } from "@/server/db"
+import {
+  getEmailDeliveryStatus,
+  type EmailDeliveryStatus,
+} from "@/server/email-settings"
 import { loadFeedsSummary, type FeedsSummary } from "@/server/feeds"
 import { loadMembershipSummary, type MembershipSummary } from "@/server/membership"
 import { getDefaultPlan } from "@/server/plans"
@@ -35,6 +39,8 @@ export type AdminOverview = {
   feeds: FeedsSummary
   newestMembers: AccountRow[]
   automations: OverviewAutomation[]
+  /** Whether the app can send email — never the key, only where it came from. */
+  emailDelivery: EmailDeliveryStatus
 }
 
 export async function loadAdminOverview(
@@ -56,7 +62,9 @@ export async function loadAdminOverview(
         defaultPlan,
         database
       )
-      return { automations, newestMembers }
+      // One more small read on the same single slot, still strictly in turn.
+      const emailDelivery = await getEmailDeliveryStatus(database)
+      return { automations, newestMembers, emailDelivery }
     })(),
   ])
 
@@ -68,6 +76,7 @@ export async function loadAdminOverview(
     membership,
     feeds,
     newestMembers: extras.newestMembers,
+    emailDelivery: extras.emailDelivery,
     automations: extras.automations.map((row) => ({
       id: row.id,
       name: row.name,

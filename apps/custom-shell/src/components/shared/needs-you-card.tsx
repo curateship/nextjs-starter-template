@@ -31,6 +31,8 @@ export type NeedsYouItem = {
   detail: string
   action: string
   to: string
+  /** Set when the destination has a piece of its path to fill in, like a tab. */
+  params?: Record<string, string>
   /** Set when the row is about one record the page can open on arrival. */
   search?: { open: string }
   /** Set when the row points at a block further down the same page. */
@@ -66,7 +68,15 @@ export function NeedsYouCard({
         // Scrolls inside the card when the column gives it less height than
         // the list needs, so the header stays put and the page does not grow.
         // On a card left to size itself this does nothing.
-        <ScrollArea className="min-h-0 flex-1">
+        //
+        // `[&>div]:block!` because Radix wraps what it is given in a
+        // `display: table` box, which sizes to its widest line rather than to
+        // the card. One long detail line then stretches every row and pushes
+        // the buttons out past the card's edge, where they are clipped.
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="[&>div]:block!"
+        >
           <div className="divide-y">
             {items.map((item, index) => (
               <div
@@ -88,6 +98,7 @@ export function NeedsYouCard({
                 <div className="flex min-w-0 flex-1 flex-col items-start">
                   <Link
                     to={item.to}
+                    params={item.params}
                     search={item.search}
                     hash={item.hash}
                     className={cn(titleLink, "max-w-full text-sm font-medium")}
@@ -103,7 +114,12 @@ export function NeedsYouCard({
                   </p>
                 </div>
                 <Button asChild variant={index === 0 ? "default" : "outline"}>
-                  <Link to={item.to} search={item.search} hash={item.hash}>
+                  <Link
+                    to={item.to}
+                    params={item.params}
+                    search={item.search}
+                    hash={item.hash}
+                  >
                     {item.action}
                   </Link>
                 </Button>

@@ -4,7 +4,9 @@ import {
   CreditCardIcon,
   GlobeIcon,
   LayersIcon,
+  LayoutDashboardIcon,
   LineChartIcon,
+  MailWarningIcon,
   MessageSquarePlusIcon,
   UsersIcon,
   WorkflowIcon,
@@ -22,7 +24,10 @@ import {
 
 import { ActivityCard } from "@/components/shared/activity-card"
 import { EmptyChart, LegendDot } from "@/components/shared/chart-card"
-import { DashboardPanels } from "@/components/shared/dashboard-panels"
+import {
+  DashboardPanels,
+  type DashboardBlock,
+} from "@/components/shared/dashboard-panels"
 import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import {
   NeedsYouCard,
@@ -50,6 +55,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   AUTOMATION_RUNS_CAPTION,
   automationRuns,
@@ -63,6 +69,13 @@ import {
   restoreDeadline,
 } from "@/lib/account-deletion"
 import { shade } from "@/lib/chart-colours"
+import {
+  findDashboardWidget,
+  isDashboardBoardEmpty,
+  type DashboardWidgetId,
+  type DashboardWidgetSlot,
+} from "@/lib/dashboard-widgets"
+import { emailIsOff, emailOffConsequence } from "@/lib/email-delivery"
 import { buildFeedsNeedsYou } from "@/lib/feeds-needs-you"
 import { focusRingInset } from "@/lib/focus-ring"
 import { formatDate } from "@/lib/format-time"
@@ -91,77 +104,130 @@ export function AdminOverviewDashboard({
 }: {
   overview: AdminOverview
 }) {
+  const runtime = useShellRuntime()
+  const layout = runtime.config.dashboardWidgets
+
+  /**
+   * A slot's widgets as panel blocks. Each one keeps the share of its column
+   * the fixed layout gave it, so the arrangement this page opens with is the
+   * one it always had: roughly 55/45 across, then 40/60 down the left and
+   * 40/30/30 down the right.
+   *
+   * `DashboardPanels` handles the rest: it takes the height the top slot
+   * leaves, so the page itself never scrolls and the long cards scroll inside
+   * instead, and below 1280px it drops the dividers and lets the columns stack.
+   */
+  const blocksIn = (slot: DashboardWidgetSlot): DashboardBlock[] =>
+    layout[slot].flatMap((id) => {
+      const widget = findDashboardWidget(id)
+      if (!widget) return []
+
+      return [
+        {
+          id,
+          size: widget.size,
+          minSize: widget.minSize,
+          render: (className: string) => renderWidget(id, overview, className),
+        },
+      ]
+    })
+
+  if (isDashboardBoardEmpty(layout)) {
+    return <EmptyBoard />
+  }
+
+  const left = blocksIn("left")
+  const right = blocksIn("right")
+
   return (
     <>
-      <StatStrip figures={buildOverviewFigures(overview)} />
+      {/* The top slot is a plain stack, not panels: it is above the two columns
+          and every card in it keeps its own height, the same way they all do on
+          a narrow screen. `shrink-0` because the page is a flex column — the
+          columns below take the rest of the height and would otherwise squash
+          these, and a card hides what overflows.
 
-      {/* Roughly 55/45 across, then 40/60 down the left and 40/30/30 down the
-          right — the same balance as the Membership page, and every divider
-          between them draggable. What each proportion is doing:
+          The height cap is what keeps a chart card usable up here. Inside a
+          column its chart fills the panel it is given; with no panel and no
+          cap, "fill what you are given" turns into the whole window, and one
+          card pushes everything else off the screen. 16rem leaves the columns
+          below the bulk of the height, which is where most of the reading is.
+          A card shorter than that — the figures strip — is untouched by it. */}
+      {layout.top.map((id) => (
+        <React.Fragment key={id}>
+          {renderWidget(id, overview, "shrink-0 max-h-64")}
+        </React.Fragment>
+      ))}
 
-          Left, the list of jobs is finite and the feed underneath it is not, so
-          the feed gets the bigger share. Right, the people card leads because it
-          is the one worth a glance on the way past.
-
-          `DashboardPanels` handles the rest: it takes the height the stat strip
-          leaves, so the page itself never scrolls and the long blocks scroll
-          inside instead, and below 1280px it drops the dividers and lets the
-          columns stack. */}
-      <DashboardPanels
-        page="overview"
-        left={[
-          {
-            id: "needs-you",
-            size: 4,
-            minSize: "18%",
-            render: (className) => (
-              <NeedsYouCard
-                items={buildOverviewNeedsYou(overview)}
-                className={className}
-              />
-            ),
-          },
-          {
-            id: "activity",
-            size: 6,
-            minSize: "20%",
-            render: (className) => (
-              <ActivityCard
-                items={overview.feeds.notifications.latest}
-                className={className}
-              />
-            ),
-          },
-        ]}
-        right={[
-          {
-            id: "people",
-            size: 4,
-            minSize: "20%",
-            render: (className) => (
-              <PeopleCard overview={overview} className={className} />
-            ),
-          },
-          {
-            id: "traffic",
-            size: 3,
-            minSize: "18%",
-            render: (className) => <TrafficCard className={className} />,
-          },
-          {
-            id: "automations",
-            size: 3,
-            minSize: "18%",
-            render: (className) => (
-              <AutomationsCard
-                automations={overview.automations}
-                className={className}
-              />
-            ),
-          },
-        ]}
-      />
+      {left.length || right.length ? (
+        <DashboardPanels page="overview" left={left} right={right} />
+      ) : null}
     </>
+  )
+}
+
+/** Every widget this page can draw. The arrangement decides which, and where. */
+function renderWidget(
+  id: DashboardWidgetId,
+  overview: AdminOverview,
+  className: string
+) {
+  switch (id) {
+    case "figures":
+      return (
+        <StatStrip
+          figures={buildOverviewFigures(overview)}
+          className={className}
+        />
+      )
+    case "needs-you":
+      return (
+        <NeedsYouCard
+          items={buildOverviewNeedsYou(overview)}
+          className={className}
+        />
+      )
+    case "activity":
+      return (
+        <ActivityCard
+          items={overview.feeds.notifications.latest}
+          className={className}
+        />
+      )
+    case "people":
+      return <PeopleCard overview={overview} className={className} />
+    case "traffic":
+      return <TrafficCard className={className} />
+    case "automations":
+      return (
+        <AutomationsCard
+          automations={overview.automations}
+          className={className}
+        />
+      )
+  }
+}
+
+/**
+ * Taking every widget off is allowed — an admin who wants an empty front door
+ * can have one — so this says what happened and where to undo it, rather than
+ * leaving the page looking broken.
+ */
+function EmptyBoard() {
+  return (
+    <Card className="shrink-0">
+      <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+        <LayoutDashboardIcon className="size-10 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          There are no widgets on your dashboard.
+        </p>
+        <Button asChild variant="outline">
+          <Link to="/admin/settings/$tab" params={{ tab: "widgets" }}>
+            Choose widgets
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -203,6 +269,7 @@ function buildOverviewNeedsYou({
   membership,
   feeds,
   automations,
+  emailDelivery,
 }: AdminOverview): NeedsYouItem[] {
   const items = buildFeedsNeedsYou(feeds)
   const broken = automations.filter((automation) => !automation.isValid)
@@ -232,6 +299,21 @@ function buildOverviewNeedsYou({
       detail: "Nobody suspended can sign in until somebody lifts it",
       action: "Review",
       to: "/admin/users",
+    })
+  }
+
+  // Above everything else, because it is the only row here that stops people
+  // getting in at all — and the only one nothing else in the app would ever
+  // mention until somebody could not register.
+  if (emailIsOff(emailDelivery)) {
+    items.unshift({
+      id: "email-off",
+      icon: MailWarningIcon,
+      title: "Email is switched off",
+      detail: emailOffConsequence(emailDelivery),
+      action: "Set it up",
+      to: "/admin/settings/$tab",
+      params: { tab: "email" },
     })
   }
 

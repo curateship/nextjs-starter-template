@@ -9,6 +9,7 @@ import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
+import { WidgetSettings } from "@/components/settings/widget-settings"
 import { focusRing } from "@/lib/focus-ring"
 import { pageGutter } from "@/lib/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -25,6 +26,7 @@ const settingsTabs = [
   { id: "general", label: "General settings" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-right", label: "Top right menu" },
+  { id: "widgets", label: "Widgets" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
   { id: "email", label: "Email" },
@@ -209,6 +211,14 @@ export function SettingsPage({
             config={config}
             onConfigChange={onConfigChange}
             onSaveConfig={onSaveConfig}
+          />
+        ) : null}
+        {activeTab === "widgets" ? (
+          <WidgetSettings
+            layout={config.dashboardWidgets}
+            onLayoutChange={(dashboardWidgets) =>
+              onConfigChange({ ...config, dashboardWidgets })
+            }
           />
         ) : null}
         {activeTab === "styling" ? (

@@ -88,6 +88,7 @@ export async function readShellSettings(
       : globals.memberTopRightNavigation,
     sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
     styling: workspaceSettings.styling,
+    dashboardWidgets: workspaceSettings.dashboardWidgets,
   }
 }
 
@@ -151,7 +152,31 @@ export function parseShellGlobals(value: unknown) {
   }
 }
 
-export function pickShellGlobals(settings: ShellConfig) {
+/**
+ * Takes the fields it reads rather than a whole `ShellConfig`: the settings save
+ * hands it a validated request, and the parts of that request which are not
+ * app-wide — the widget arrangement — are checked on their own way into the
+ * workspace row, in their own shape.
+ */
+export function pickShellGlobals(
+  settings: Pick<
+    ShellConfig,
+    | "appName"
+    | "logo"
+    | "workspaceName"
+    | "workspacePlan"
+    | "dashboardRowsPerPage"
+    | "toastSeconds"
+    | "topLeftNavLimit"
+    | "adminRoute"
+    | "memberHomeRoute"
+    | "memberSections"
+    | "memberTopRightNavigation"
+    | "liveNotifications"
+    | "maintenance"
+    | "sessionPolicy"
+  >
+) {
   return {
     appName: settings.appName,
     logo: settings.logo,

@@ -3,6 +3,10 @@ import {
   iconNames,
   type IconName as DynamicLucideIconName,
 } from "lucide-react/dynamic"
+import {
+  createDefaultDashboardWidgets,
+  type DashboardWidgetLayout,
+} from "@/lib/dashboard-widgets"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
 import {
@@ -414,6 +418,12 @@ export type ShellConfig = {
   sessionPolicy: ShellSessionPolicy
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
+  /**
+   * Which cards the Overview dashboard draws, and where. Saved per workspace
+   * like the sidebar, so two admins can arrange their own. See
+   * `lib/dashboard-widgets.ts`.
+   */
+  dashboardWidgets: DashboardWidgetLayout
 }
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
@@ -847,6 +857,7 @@ export function createDefaultShellConfig(): ShellConfig {
     maintenance: createDefaultMaintenance(),
     sessionPolicy: createDefaultSessionPolicy(),
     styling: createDefaultStyling(),
+    dashboardWidgets: createDefaultDashboardWidgets(),
   }
 }
 
