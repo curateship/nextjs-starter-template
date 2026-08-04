@@ -5,8 +5,10 @@ import {
   ImageIcon,
   ListIcon,
   Loader2Icon,
+  RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
+  UnlinkIcon,
   UploadIcon,
 } from "lucide-react"
 
@@ -34,6 +36,11 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { DetailRow } from "@/components/media/media-detail-row"
+import {
+  OrphanDetailsDialog,
+  OrphanGalleryItem,
+  OrphanTableRow,
+} from "@/components/media/media-orphan-rows"
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -54,25 +61,35 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
+  cleanOrphanedMedia,
   getAdminMediaErrorMessage,
   deleteMediaAsAdminAction,
   loadAdminMediaPage,
+  loadOrphans,
   type AdminMediaItem,
   type AdminMediaListResponse,
   type AdminMediaSort,
   type AdminMediaTypeFilter,
+  type MediaOrphan,
   type MediaOwner,
+  type OrphanDashboard,
 } from "@/lib/api/admin-media"
 import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
 import { formatFileSize } from "@/lib/format-bytes"
-import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { formatDate } from "@/lib/format-time"
+import {
+  compareOrphans,
+  orphanKey,
+  type OrphanSort,
+} from "@/lib/media-orphans"
+import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
 import { useLastValue } from "@/lib/use-last-value"
 import {
   MEDIA_VIEW_STORAGE_KEY,
   useRememberedChoice,
 } from "@/lib/remembered-choice"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useClientPage } from "@/lib/use-client-page"
 import { useSelection } from "@/lib/use-selection"
 import { useTableSort } from "@/lib/use-table-sort"
 import { cn } from "@/lib/utils"
@@ -80,6 +97,29 @@ import { cn } from "@/lib/utils"
 type ViewMode = "list" | "gallery"
 
 const viewModes: readonly ViewMode[] = ["list", "gallery"]
+
+/**
+ * The type filter doubles as the way into the orphans — the files and records
+ * that have fallen out of step with each other. They are media on this page
+ * too, just the broken kind, so they are one more choice in the same dropdown
+ * rather than a page of their own.
+ */
+type MediaViewFilter =
+  | AdminMediaTypeFilter
+  | "orphaned"
+  | "orphaned-unlinked"
+  | "orphaned-missing"
+
+/** Which orphans a filter asks for, or null when it is not asking for orphans. */
+function orphanKindOf(filter: MediaViewFilter): "all" | MediaOrphan["kind"] | null {
+  if (filter === "orphaned") return "all"
+  if (filter === "orphaned-unlinked") return "unlinked_object"
+  if (filter === "orphaned-missing") return "missing_file"
+  return null
+}
+
+/** Matches the per-request cap on the clean-up server function. */
+const CLEAN_BATCH_SIZE = 500
 
 export type AdminMediaPageData = {
   media: AdminMediaListResponse
@@ -96,9 +136,26 @@ const sortableColumns: SortableColumn<AdminMediaSort>[] = [
   { key: "created", label: "Added", column: "meta", className: "hidden lg:table-cell" },
 ]
 
+const orphanSortableColumns: SortableColumn<OrphanSort>[] = [
+  { key: "file", label: "File", column: "main" },
+  { key: "problem", label: "Problem", column: "meta" },
+  { key: "owner", label: "Owner", column: "meta", className: "hidden md:table-cell" },
+  { key: "size", label: "Size", column: "meta" },
+  {
+    key: "created",
+    label: "Uploaded",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+]
+
 /** Date and size read as numbers, so they start newest- and biggest-first. */
 const mediaSortDirection = (column: AdminMediaSort) =>
   column === "created" || column === "size" ? "desc" : "asc"
+
+/** Size and date read as numbers, so they start biggest- and newest-first. */
+const orphanSortDirection = (column: OrphanSort) =>
+  column === "size" || column === "created" ? "desc" : "asc"
 
 /**
  * One toast for the whole pick, whatever happened: a plain success, or the red
@@ -140,10 +197,14 @@ function showUploadSummary(
 }
 
 /**
- * Every account's media in one place, with an owner column and filter. Storage
- * accounting and orphan cleanup live on their own page. Uploads still land in
- * the signed-in admin's own library — the Upload button's tooltip and the
- * success toast say so, so nobody has to find that out by uploading.
+ * Every account's media in one place, with an owner column and filter. Setting
+ * the type filter to orphans swaps the same table over to the files and records
+ * that have lost each other, keeping the search, the owner filter and both
+ * views.
+ *
+ * Uploads still land in the signed-in admin's own library — the Upload button's
+ * tooltip and the success toast say so, so nobody has to find that out by
+ * uploading.
  */
 export function MediaLibraryPage({
   initialData,
@@ -158,7 +219,10 @@ export function MediaLibraryPage({
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
   const [ownerId, setOwnerId] = React.useState(initialOwnerId)
-  const [typeFilter, setTypeFilter] = React.useState<AdminMediaTypeFilter>("all")
+  const [typeFilter, setTypeFilter] = React.useState<MediaViewFilter>("all")
+  // The media list holds on to the last real file type while the orphans are on
+  // screen, so coming back to it does not refetch a page that is already there.
+  const [mediaType, setMediaType] = React.useState<AdminMediaTypeFilter>("all")
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(initialData.pageSize)
   // List or gallery is a habit, not a per-visit decision, so the page opens the
@@ -186,9 +250,30 @@ export function MediaLibraryPage({
   const [deleting, setDeleting] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
+  const problem = orphanKindOf(typeFilter)
+  const showOrphans = problem !== null
+
+  // Finding orphans means reading the whole bucket, so the scan runs the first
+  // time the filter asks for it and the result is kept until it changes.
+  const [orphanData, setOrphanData] = React.useState<OrphanDashboard | null>(null)
+  const [scanning, setScanning] = React.useState(false)
+  const [orphanError, setOrphanError] = React.useState<string | null>(null)
+  const {
+    sort: orphanSort,
+    direction: orphanDirection,
+    toggleSort: toggleOrphanSort,
+  } = useTableSort<OrphanSort>("size", "desc", orphanSortDirection)
+  const [openOrphan, setOpenOrphan] = React.useState<MediaOrphan | null>(null)
+  const [confirmKeys, setConfirmKeys] = React.useState<string[] | null>(null)
+  // Same as the media confirmation: the window is still fading out after the
+  // keys have been cleared, so it keeps counting what it opened with.
+  const closingCleanCount = useLastValue(confirmKeys)?.length ?? 0
+  const [deletingAll, setDeletingAll] = React.useState(false)
+  const [cleaning, setCleaning] = React.useState(false)
+
   const query = React.useMemo(
-    () => ({ search, ownerId, fileType: typeFilter, page, pageSize, sort, direction }),
-    [direction, ownerId, page, pageSize, search, sort, typeFilter]
+    () => ({ search, ownerId, fileType: mediaType, page, pageSize, sort, direction }),
+    [direction, mediaType, ownerId, page, pageSize, search, sort]
   )
 
   const refresh = React.useCallback(async () => {
@@ -209,6 +294,18 @@ export function MediaLibraryPage({
       setError(getAdminMediaErrorMessage(loadError))
     }
   }, [query])
+
+  const rescan = React.useCallback(async () => {
+    setScanning(true)
+    try {
+      setOrphanData(await loadOrphans())
+      setOrphanError(null)
+    } catch (scanError) {
+      setOrphanError(getAdminMediaErrorMessage(scanError))
+    } finally {
+      setScanning(false)
+    }
+  }, [])
 
   // A queue of uploads runs for minutes, and the filters stay live the whole
   // time. Reloading through a ref means the reload at the end asks for whatever
@@ -232,22 +329,72 @@ export function MediaLibraryPage({
     })
   )
   React.useEffect(() => {
+    // Typing in the search box while the orphans are up filters those. The
+    // media list catches up the moment the filter comes back to it.
+    if (showOrphans) return
     if (JSON.stringify(query) === loadedQuery.current) return
 
     const timer = setTimeout(() => void refresh(), 250)
     return () => clearTimeout(timer)
-  }, [query, refresh])
+  }, [query, refresh, showOrphans])
 
-  useClearSelectionOnListChange(selection.setSelected, JSON.stringify(query))
+  // Media rows are held by id and orphans by a key of their own, so moving
+  // between the two starts the selection over.
+  useClearSelectionOnListChange(
+    selection.setSelected,
+    `${typeFilter}|${JSON.stringify(query)}`
+  )
 
   const media = data.media.media
   const visibleIds = media.map((item) => item.id)
+
+  const matchingOrphans = React.useMemo(() => {
+    if (!orphanData) return []
+
+    const text = search.trim().toLowerCase()
+    return orphanData.orphans.filter((row) => {
+      if (problem !== "all" && row.kind !== problem) return false
+      if (ownerId !== "all" && row.ownerId !== ownerId) return false
+      if (!text) return true
+      return `${row.name} ${row.storagePath} ${row.ownerName ?? ""}`
+        .toLowerCase()
+        .includes(text)
+    })
+  }, [orphanData, ownerId, problem, search])
+
+  const sortedOrphans = React.useMemo(() => {
+    const rows = [...matchingOrphans]
+    const factor = orphanDirection === "asc" ? 1 : -1
+    return rows.sort((a, b) => factor * compareOrphans(a, b, orphanSort))
+  }, [matchingOrphans, orphanDirection, orphanSort])
+
+  // The whole orphan list arrives in one go, so its pages are cut here rather
+  // than asked for one at a time like the media list's.
+  const orphanPage = useClientPage(
+    sortedOrphans,
+    initialData.pageSize,
+    `${search}|${ownerId}|${problem}|${orphanSort}|${orphanDirection}`
+  )
+  const visibleOrphans = orphanPage.visible
+  const visibleOrphanKeys = visibleOrphans.map(orphanKey)
 
   // The rows come from the server a page at a time, so a new order means a new
   // first page.
   function toggleSort(by: AdminMediaSort) {
     sortBy(by)
     setPage(1)
+  }
+
+  function handleTypeChange(value: MediaViewFilter) {
+    setPage(1)
+    setTypeFilter(value)
+    if (orphanKindOf(value) === null) {
+      setMediaType(value as AdminMediaTypeFilter)
+      return
+    }
+    // The scan starts on the pick rather than on a render, so the very first
+    // look at the orphans fires exactly one of them.
+    if (!orphanData && !scanning) void rescan()
   }
 
   /**
@@ -314,10 +461,66 @@ export function MediaLibraryPage({
     }
   }
 
+  async function handleClean() {
+    if (!confirmKeys?.length || !orphanData) return
+
+    const keys = new Set(confirmKeys)
+    const selected = orphanData.orphans.filter((row) => keys.has(orphanKey(row)))
+    setCleaning(true)
+    dismissErrorToast()
+    try {
+      // Each request re-verifies against a fresh scan, so a "delete all" over a
+      // big bucket goes in batches rather than one oversized call.
+      let deleted = 0
+      for (let start = 0; start < selected.length; start += CLEAN_BATCH_SIZE) {
+        const batch = selected.slice(start, start + CLEAN_BATCH_SIZE)
+        const result = await cleanOrphanedMedia({
+          mediaIds: batch
+            .filter((row) => row.kind === "missing_file" && row.mediaId)
+            .map((row) => row.mediaId as string),
+          storagePaths: batch
+            .filter((row) => row.kind === "unlinked_object")
+            .map((row) => row.storagePath),
+        })
+        deleted += result.deletedCount
+      }
+      toast.success(
+        `Cleaned up ${deleted} ${deleted === 1 ? "orphan" : "orphans"}.`
+      )
+      selection.setSelected((current) => {
+        const next = new Set(current)
+        keys.forEach((key) => next.delete(key))
+        return next
+      })
+      setConfirmKeys(null)
+      setDeletingAll(false)
+      setOpenOrphan(null)
+      // A cleaned-up record was media a moment ago, so the library behind the
+      // filter is stale too.
+      await Promise.all([rescan(), refresh()])
+    } catch (cleanError) {
+      showErrorToast(getAdminMediaErrorMessage(cleanError))
+    } finally {
+      setCleaning(false)
+    }
+  }
+
   // Ticks are cleared whenever the query changes, so everything held is on the
   // current page: "Clear n selected" and "Delete (n)" always say the same thing.
   const selectedCount = selectedIds.size
-  const isFiltered = Boolean(search.trim()) || ownerId !== "all" || typeFilter !== "all"
+  const isFiltered = showOrphans
+    ? Boolean(search.trim()) || ownerId !== "all" || problem !== "all"
+    : Boolean(search.trim()) || ownerId !== "all" || typeFilter !== "all"
+
+  // Somebody can hold orphans without holding any live media, so while they are
+  // showing the owner filter offers both lists rather than only today's owners.
+  const owners = React.useMemo(() => {
+    if (!showOrphans || !orphanData) return data.owners
+
+    const merged = new Map(data.owners.map((owner) => [owner.userId, owner]))
+    orphanData.owners.forEach((owner) => merged.set(owner.userId, owner))
+    return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [data.owners, orphanData, showOrphans])
 
   // Filtering to someone else's files is the moment an upload is most likely to
   // surprise, so the button says so there instead of only in general terms.
@@ -331,15 +534,63 @@ export function MediaLibraryPage({
 
   const mediaControls = (
     <>
-      {selectedIds.size > 0 ? (
+      {selectedCount > 0 ? (
         <DashboardToolbarButton
           type="button"
           variant="destructive"
-          onClick={() => setDeleteIds(Array.from(selectedIds))}
+          disabled={cleaning}
+          onClick={() => {
+            if (showOrphans) {
+              setDeletingAll(false)
+              setConfirmKeys(Array.from(selectedIds))
+              return
+            }
+            setDeleteIds(Array.from(selectedIds))
+          }}
         >
           <Trash2Icon className="size-4" />
-          Delete ({selectedIds.size})
+          Delete ({selectedCount})
         </DashboardToolbarButton>
+      ) : null}
+      {showOrphans && sortedOrphans.length ? (
+        <DashboardToolbarButton
+          type="button"
+          variant="destructive"
+          disabled={cleaning}
+          onClick={() => {
+            setDeletingAll(true)
+            setConfirmKeys(sortedOrphans.map(orphanKey))
+          }}
+        >
+          <Trash2Icon className="size-4" />
+          Delete all ({sortedOrphans.length})
+        </DashboardToolbarButton>
+      ) : null}
+      {showOrphans ? (
+        <>
+          {/* Icon only: with its label spelled out the row runs long enough to
+              wrap the title onto a second line, which moves every control down
+              a few pixels the moment the orphans are picked. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                className="px-2"
+                disabled={scanning}
+                onClick={() => void rescan()}
+                aria-label="Scan storage again"
+              >
+                {scanning ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCwIcon className="size-4" />
+                )}
+              </DashboardToolbarButton>
+            </TooltipTrigger>
+            <TooltipContent>Scan storage again</TooltipContent>
+          </Tooltip>
+        </>
       ) : null}
       <DashboardToolbarSearch
         name="media-search"
@@ -363,7 +614,7 @@ export function MediaLibraryPage({
         </DashboardToolbarSelectTrigger>
         <SelectContent>
           <SelectItem value="all">All owners</SelectItem>
-          {data.owners.map((owner) => (
+          {owners.map((owner) => (
             <SelectItem key={owner.userId} value={owner.userId}>
               {owner.name}
             </SelectItem>
@@ -372,12 +623,14 @@ export function MediaLibraryPage({
       </Select>
       <Select
         value={typeFilter}
-        onValueChange={(value) => {
-          setPage(1)
-          setTypeFilter(value as AdminMediaTypeFilter)
-        }}
+        onValueChange={(value) => handleTypeChange(value as MediaViewFilter)}
       >
-        <DashboardToolbarSelectTrigger aria-label="Media type filter">
+        {/* Wide enough for its longest choice, so picking one does not resize
+            the trigger and slide the controls beside it. */}
+        <DashboardToolbarSelectTrigger
+          aria-label="Media type filter"
+          className="min-w-40"
+        >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
         <SelectContent>
@@ -385,6 +638,9 @@ export function MediaLibraryPage({
           <SelectItem value="image">Images</SelectItem>
           <SelectItem value="video">Videos</SelectItem>
           <SelectItem value="svg">SVG</SelectItem>
+          <SelectItem value="orphaned">Orphaned files</SelectItem>
+          <SelectItem value="orphaned-unlinked">No record in DB</SelectItem>
+          <SelectItem value="orphaned-missing">Missing in storage</SelectItem>
         </SelectContent>
       </Select>
       <div className={dashboardToolbarButtonGroupClassName}>
@@ -418,6 +674,10 @@ export function MediaLibraryPage({
           {upload.done} of {upload.total} uploaded…
         </span>
       ) : null}
+      {/* Stays put while the orphans are showing. The toolbar is anchored to
+          the right, so taking a button out of it would slide everything left
+          of it across; the orphan-only controls are added on the far left
+          instead, where they push nothing. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <DashboardToolbarButton
@@ -438,7 +698,7 @@ export function MediaLibraryPage({
     </>
   )
 
-  const footer = {
+  const mediaFooter = {
     type: "pagination",
     page,
     pageSize,
@@ -451,9 +711,50 @@ export function MediaLibraryPage({
     },
   } as const
 
-  const emptyText = isFiltered
-    ? "No files match those filters."
-    : "No media has been uploaded yet."
+  const footer = showOrphans ? orphanPage.footer : mediaFooter
+
+  // The scan's own numbers are real even when part of the bucket went unread,
+  // so a partial scan is a warning above the rows rather than an empty table.
+  const orphanTableError = orphanError
+    ? { message: orphanError, onRetry: () => void rescan() }
+    : orphanData?.scanError
+      ? {
+          message: getAdminMediaErrorMessage(orphanData.scanError),
+          onRetry: () => void rescan(),
+        }
+      : orphanData?.truncated
+        ? {
+            message: `Storage holds more files than one scan reads, so only the first ${orphanData.scannedObjects.toLocaleString()} were checked. Records whose file is missing were skipped this time.`,
+            onRetry: () => void rescan(),
+          }
+        : null
+
+  const tableError = showOrphans
+    ? orphanTableError
+    : error
+      ? { message: error, onRetry: () => void refresh() }
+      : null
+
+  const emptyText = showOrphans
+    ? scanning
+      ? "Checking every file in storage…"
+      : orphanData?.scanError
+        ? "Storage could not be read, so orphans are unknown."
+        : isFiltered
+          ? "No orphans match those filters."
+          : "Nothing orphaned. Every file has a record and every record has a file."
+    : isFiltered
+      ? "No files match those filters."
+      : "No media has been uploaded yet."
+
+  const title = showOrphans ? "Orphaned files" : "All media"
+  const icon = showOrphans ? (
+    <UnlinkIcon className="text-muted-foreground" />
+  ) : (
+    <ImageIcon className="text-muted-foreground" />
+  )
+  const count = showOrphans ? sortedOrphans.length : data.media.total
+  const rowsOnScreen = showOrphans ? visibleOrphans.length : media.length
 
   return (
     <>
@@ -468,34 +769,52 @@ export function MediaLibraryPage({
 
       {viewMode === "gallery" ? (
         <DashboardTable
-          title="All media"
-          icon={<ImageIcon className="text-muted-foreground" />}
-          count={data.media.total}
-          error={error ? { message: error, onRetry: () => void refresh() } : null}
+          title={title}
+          icon={icon}
+          count={count}
+          error={tableError}
           selectedCount={selectedCount}
           onClearSelection={selection.clear}
           controls={mediaControls}
           content={
             <div className="px-5 pb-5">
-              {media.length === 0 ? (
+              {rowsOnScreen === 0 ? (
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
-                    <ImageIcon className="mx-auto mb-3 size-10" />
+                    {showOrphans ? (
+                      <UnlinkIcon className="mx-auto mb-3 size-10" />
+                    ) : (
+                      <ImageIcon className="mx-auto mb-3 size-10" />
+                    )}
                     <p>{emptyText}</p>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-                  {media.map((item) => (
-                    <GalleryItem
-                      key={item.id}
-                      item={item}
-                      selected={selectedIds.has(item.id)}
-                      onOpen={() => setOpenMedia(item)}
-                      onDelete={() => setDeleteIds([item.id])}
-                      onToggle={() => selection.toggle(item.id)}
-                    />
-                  ))}
+                  {showOrphans
+                    ? visibleOrphans.map((row) => (
+                        <OrphanGalleryItem
+                          key={orphanKey(row)}
+                          row={row}
+                          selected={selectedIds.has(orphanKey(row))}
+                          onToggle={() => selection.toggle(orphanKey(row))}
+                          onOpen={() => setOpenOrphan(row)}
+                          onDelete={() => {
+                            setDeletingAll(false)
+                            setConfirmKeys([orphanKey(row)])
+                          }}
+                        />
+                      ))
+                    : media.map((item) => (
+                        <GalleryItem
+                          key={item.id}
+                          item={item}
+                          selected={selectedIds.has(item.id)}
+                          onOpen={() => setOpenMedia(item)}
+                          onDelete={() => setDeleteIds([item.id])}
+                          onToggle={() => selection.toggle(item.id)}
+                        />
+                      ))}
                 </div>
               )}
             </div>
@@ -504,52 +823,89 @@ export function MediaLibraryPage({
         />
       ) : (
         <DashboardTable
-          title="All media"
-          icon={<ImageIcon className="text-muted-foreground" />}
-          count={data.media.total}
-          error={error ? { message: error, onRetry: () => void refresh() } : null}
+          title={title}
+          icon={icon}
+          count={count}
+          error={tableError}
           selectedCount={selectedCount}
           onClearSelection={selection.clear}
           controls={mediaControls}
           header={
-            <SortableTableHeader
-              columns={sortableColumns}
-              sort={sort}
-              direction={direction}
-              onSort={toggleSort}
-              withAriaSort
-              leading={
-                <TableHead column="select">
-                  <Checkbox
-                    checked={selection.selectAllState(visibleIds)}
-                    onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                    disabled={media.length === 0}
-                    aria-label="Select visible media"
-                  />
-                </TableHead>
-              }
-              trailing={<TableHead column="meta">Actions</TableHead>}
-            />
+            showOrphans ? (
+              <SortableTableHeader
+                columns={orphanSortableColumns}
+                sort={orphanSort}
+                direction={orphanDirection}
+                onSort={toggleOrphanSort}
+                withAriaSort
+                leading={
+                  <TableHead column="select">
+                    <Checkbox
+                      checked={selection.selectAllState(visibleOrphanKeys)}
+                      onCheckedChange={() =>
+                        selection.toggleVisible(visibleOrphanKeys)
+                      }
+                      disabled={visibleOrphans.length === 0}
+                      aria-label="Select visible orphans"
+                    />
+                  </TableHead>
+                }
+                trailing={<TableHead column="meta">Actions</TableHead>}
+              />
+            ) : (
+              <SortableTableHeader
+                columns={sortableColumns}
+                sort={sort}
+                direction={direction}
+                onSort={toggleSort}
+                withAriaSort
+                leading={
+                  <TableHead column="select">
+                    <Checkbox
+                      checked={selection.selectAllState(visibleIds)}
+                      onCheckedChange={() => selection.toggleVisible(visibleIds)}
+                      disabled={media.length === 0}
+                      aria-label="Select visible media"
+                    />
+                  </TableHead>
+                }
+                trailing={<TableHead column="meta">Actions</TableHead>}
+              />
+            )
           }
-          isEmpty={media.length === 0}
+          isEmpty={rowsOnScreen === 0}
           emptyText={emptyText}
           emptyColSpan={7}
           footer={footer}
         >
-          {media.map((item) => (
-            <MediaTableRow
-              key={item.id}
-              item={item}
-              selected={selectedIds.has(item.id)}
-              onToggle={() => selection.toggle(item.id)}
-              onOpen={() => setOpenMedia(item)}
-              onDelete={() => setDeleteIds([item.id])}
-            />
-          ))}
+          {showOrphans
+            ? visibleOrphans.map((row) => (
+                <OrphanTableRow
+                  key={orphanKey(row)}
+                  row={row}
+                  selected={selectedIds.has(orphanKey(row))}
+                  onToggle={() => selection.toggle(orphanKey(row))}
+                  onOpen={() => setOpenOrphan(row)}
+                  onDelete={() => {
+                    setDeletingAll(false)
+                    setConfirmKeys([orphanKey(row)])
+                  }}
+                />
+              ))
+            : media.map((item) => (
+                <MediaTableRow
+                  key={item.id}
+                  item={item}
+                  selected={selectedIds.has(item.id)}
+                  onToggle={() => selection.toggle(item.id)}
+                  onOpen={() => setOpenMedia(item)}
+                  onDelete={() => setDeleteIds([item.id])}
+                />
+              ))}
         </DashboardTable>
       )}
 
-      {/* The details window steps aside while the confirmation is up — two
+      {/* The details window steps aside while a confirmation is up — two
           windows on top of each other means two focus traps and an Escape that
           only closes the top one. It is hidden rather than thrown away, so
           cancelling brings it back exactly as it was, typed alt text and all. */}
@@ -578,6 +934,43 @@ export function MediaLibraryPage({
         confirmLabel={closingDeleteCount === 1 ? "Delete file" : "Delete files"}
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
+      />
+
+      <OrphanDetailsDialog
+        open={Boolean(openOrphan) && !confirmKeys}
+        orphan={openOrphan}
+        onClose={() => setOpenOrphan(null)}
+        onDelete={() => {
+          setDeletingAll(false)
+          if (openOrphan) setConfirmKeys([orphanKey(openOrphan)])
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(confirmKeys)}
+        onOpenChange={(open) => {
+          if (!open && !cleaning) {
+            setConfirmKeys(null)
+            setDeletingAll(false)
+          }
+        }}
+        title={`${deletingAll ? "Delete all" : "Delete"} ${closingCleanCount} ${
+          closingCleanCount === 1 ? "orphan" : "orphans"
+        }?`}
+        // "Delete all" clears what is on screen, so a filtered list says so
+        // rather than letting the word "all" imply the whole bucket.
+        description={`${
+          deletingAll && isFiltered
+            ? "This clears every orphan matching the current filters, not the whole list. "
+            : ""
+        }Files with no record in the database are erased from storage, and records whose file is missing are removed from the database. This cannot be undone.`}
+        confirmLabel={
+          deletingAll
+            ? `Delete all ${closingCleanCount === 1 ? "orphan" : "orphans"}`
+            : "Delete orphans"
+        }
+        loading={cleaning}
+        onConfirm={() => void handleClean()}
       />
     </>
   )

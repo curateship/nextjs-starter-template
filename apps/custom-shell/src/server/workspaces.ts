@@ -33,21 +33,16 @@ import { now, uuid } from "@/server/security"
 const DEFAULT_WORKSPACE_NAME = "My project"
 const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 
-/** The pages that hang off the media library. */
-const MEDIA_CHILD_LINKS: ShellChildItem[] = [
-  {
-    id: "item-media-storage",
-    label: "Storage by user",
-    href: "/admin/media/storage",
-    icon: "hard-drive",
-  },
-  {
-    id: "item-media-orphans",
-    label: "Orphaned files",
-    href: "/admin/media/orphans",
-    icon: "unlink",
-  },
-]
+/**
+ * The two pages that used to hang off the media library. Both are gone: the
+ * orphans are a choice in the library's own type filter now, and storage per
+ * person is on that person's account. The ids and addresses stay so the step
+ * that takes them off a saved sidebar knows what to look for.
+ */
+const MEDIA_STORAGE_LINK_ID = "item-media-storage"
+const MEDIA_STORAGE_HREF = "/admin/media/storage"
+const MEDIA_ORPHANS_LINK_ID = "item-media-orphans"
+const MEDIA_ORPHANS_HREF = "/admin/media/orphans"
 
 /**
  * The admin's front door — what needs doing, what has happened, and how the
@@ -319,7 +314,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 14
+export const NAVIGATION_VERSION = 15
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -686,6 +681,9 @@ async function applyNavigationUpgrade(
   // it, so it has to still be there while they run.
   if (settings.navVersion < 14) {
     sections = foldMembershipIntoOverview(sections)
+  }
+  if (settings.navVersion < 15) {
+    sections = removeMediaChildLinks(sections)
   }
 
   const [updated] = await database
@@ -1506,6 +1504,41 @@ export function removeRevenueLink(sections: ShellSection[]): ShellSection[] {
   return changed ? result : sections
 }
 
+/**
+ * Takes the media library's two child links off wherever they sit.
+ *
+ * Orphaned files is a choice in the library's own type filter now, and how much
+ * space a person is using is on their account. Neither address exists any more,
+ * so a saved sidebar keeping them would be two links to a 404.
+ */
+export function removeMediaChildLinks(sections: ShellSection[]): ShellSection[] {
+  let changed = false
+  const isMediaChild = (link: { id: string; href?: string }) =>
+    link.id === MEDIA_STORAGE_LINK_ID ||
+    link.href === MEDIA_STORAGE_HREF ||
+    link.id === MEDIA_ORPHANS_LINK_ID ||
+    link.href === MEDIA_ORPHANS_HREF
+
+  const result = sections.map((section) => ({
+    ...section,
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isMediaChild(entry)) {
+        changed = true
+        return []
+      }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isMediaChild(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      // Media is left as a plain link once both of its children have gone,
+      // rather than a parent with an empty `children` key.
+      return [children.length ? { ...entry, children } : stripChildren(entry)]
+    }),
+  }))
+
+  return changed ? result : sections
+}
+
 /** The same link with no `children` key at all, rather than an empty one. */
 function stripChildren(item: ShellItem): ShellItem {
   const { children: _children, ...rest } = item
@@ -1795,7 +1828,6 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           href: "/admin/media",
           icon: "image",
           visible: true,
-          children: MEDIA_CHILD_LINKS.map((child) => ({ ...child })),
         },
         newsletterLink(),
         { ...AUTOMATIONS_LINK },

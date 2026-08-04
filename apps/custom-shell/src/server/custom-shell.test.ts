@@ -126,6 +126,7 @@ import {
   addOverviewLink,
   addSystemEmailsLink,
   addTrafficLink,
+  removeMediaChildLinks,
   removeRevenueLink,
   foldFeedsIntoOverview,
   foldMembershipIntoOverview,
@@ -1130,10 +1131,6 @@ describe("custom shell workspaces", () => {
         label: "Media",
         href: "/admin/media",
         visible: true,
-        children: [
-          { label: "Storage by user", href: "/admin/media/storage" },
-          { label: "Orphaned files", href: "/admin/media/orphans" },
-        ],
       },
       {
         type: "item",
@@ -1210,10 +1207,6 @@ describe("custom shell workspaces", () => {
         label: "Media",
         href: "/admin/media",
         visible: true,
-        children: [
-          { label: "Storage by user", href: "/admin/media/storage" },
-          { label: "Orphaned files", href: "/admin/media/orphans" },
-        ],
       },
       {
         type: "item",
@@ -6028,10 +6021,81 @@ describe("custom shell session policy", () => {
   })
 })
 
+describe("custom shell media child links", () => {
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-media",
+            label: "Media",
+            href: "/admin/media",
+            icon: "image",
+            visible: true,
+            children: [
+              {
+                id: "item-media-storage",
+                label: "Storage by user",
+                href: "/admin/media/storage",
+              },
+              {
+                id: "item-media-orphans",
+                label: "Orphaned files",
+                href: "/admin/media/orphans",
+              },
+            ],
+          },
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  it("leaves Media as a plain link once both children have gone", () => {
+    const sections = removeMediaChildLinks(savedSections())
+    const media = sections[0].entries[0] as ShellItem
+
+    expect(media.href).toBe("/admin/media")
+    expect("children" in media).toBe(false)
+  })
+
+  it("takes out links somebody had moved to the top level", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "my-own-orphans",
+      label: "Junk files",
+      href: "/admin/media/orphans",
+      icon: "unlink",
+      visible: true,
+    })
+
+    expect(
+      removeMediaChildLinks(sections)[0].entries.map((entry) => entry.id)
+    ).toEqual(["item-media", "item-settings"])
+  })
+
+  it("changes nothing when neither link is there any more", () => {
+    const sections = removeMediaChildLinks(savedSections())
+    expect(removeMediaChildLinks(sections)).toBe(sections)
+    expect(removeMediaChildLinks([])).toEqual([])
+  })
+})
+
 describe("custom shell active link matching", () => {
   it("matches a page and the pages underneath it", () => {
     expect(isActiveShellHref("/admin/media", "/admin/media")).toBe(true)
-    expect(isActiveShellHref("/admin/media", "/admin/media/storage")).toBe(true)
+    expect(isActiveShellHref("/admin/media", "/admin/media/settings")).toBe(true)
     expect(isActiveShellHref("/admin/media", "/admin/plans")).toBe(false)
     // "/admin/media" must not swallow "/admin/mediaplayer".
     expect(isActiveShellHref("/admin/media", "/admin/mediaplayer")).toBe(false)

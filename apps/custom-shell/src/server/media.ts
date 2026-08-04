@@ -472,23 +472,6 @@ type MediaOrphanScan = {
   truncated: boolean
 }
 
-export type StorageUserRow = {
-  userId: string
-  name: string
-  email: string
-  files: number
-  bytes: number
-  orphanFiles: number
-  orphanBytes: number
-}
-
-export type StorageDashboard = {
-  users: StorageUserRow[]
-  totalBytes: number
-  /** Set when the bucket could not be read, so orphan numbers are unknown. */
-  scanError: string | null
-}
-
 export type OrphanDashboard = {
   orphans: MediaOrphan[]
   scannedObjects: number
@@ -663,96 +646,6 @@ export async function loadAccountStorage(
     .where(eq(customShellMedia.userId, userId))
 
   return { files: row?.files ?? 0, bytes: Number(row?.bytes ?? 0) }
-}
-
-/**
- * Who is storing what, with their orphans folded in. Someone can hold orphans
- * without holding any live media, so the two sources are merged rather than
- * joined.
- */
-export async function loadStorageDashboard(
-  database: CustomShellDb = db
-): Promise<StorageDashboard> {
-  const bytesColumn = sql<number>`coalesce(sum(${customShellMedia.fileSize}), 0)::bigint`
-  const usage = await database
-    .select({
-      userId: customShellUsers.id,
-      name: customShellUsers.name,
-      email: customShellUsers.email,
-      files: count(),
-      bytes: bytesColumn,
-    })
-    .from(customShellMedia)
-    .innerJoin(
-      customShellUsers,
-      eq(customShellUsers.id, customShellMedia.userId)
-    )
-    .groupBy(customShellUsers.id, customShellUsers.name, customShellUsers.email)
-    .orderBy(desc(bytesColumn))
-
-  const { scan, scanError } = await tryScanMediaOrphans(database)
-
-  const users = new Map<string, StorageUserRow>()
-  for (const row of usage) {
-    users.set(row.userId, {
-      userId: row.userId,
-      name: row.name,
-      email: row.email,
-      files: row.files,
-      bytes: Number(row.bytes),
-      orphanFiles: 0,
-      orphanBytes: 0,
-    })
-  }
-
-  // Someone can hold orphans without holding any live media — a deleted row or
-  // a file whose record went away still belongs to whoever uploaded it. Their
-  // name and email come from the lookup below, not from the orphan.
-  const strays = new Map<string, { files: number; bytes: number }>()
-  for (const orphan of scan.orphans) {
-    if (!orphan.ownerId) continue
-    const existing = users.get(orphan.ownerId)
-    if (existing) {
-      existing.orphanFiles += 1
-      existing.orphanBytes += orphan.bytes
-      continue
-    }
-    const stray = strays.get(orphan.ownerId) ?? { files: 0, bytes: 0 }
-    stray.files += 1
-    stray.bytes += orphan.bytes
-    strays.set(orphan.ownerId, stray)
-  }
-
-  if (strays.size) {
-    const strayUsers = await database
-      .select({
-        id: customShellUsers.id,
-        name: customShellUsers.name,
-        email: customShellUsers.email,
-      })
-      .from(customShellUsers)
-      .where(inArray(customShellUsers.id, Array.from(strays.keys())))
-
-    for (const user of strayUsers) {
-      const stray = strays.get(user.id)
-      if (!stray) continue
-      users.set(user.id, {
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        files: 0,
-        bytes: 0,
-        orphanFiles: stray.files,
-        orphanBytes: stray.bytes,
-      })
-    }
-  }
-
-  return {
-    users: Array.from(users.values()).sort((a, b) => b.bytes - a.bytes),
-    totalBytes: usage.reduce((sum, row) => sum + Number(row.bytes), 0),
-    scanError,
-  }
 }
 
 /**

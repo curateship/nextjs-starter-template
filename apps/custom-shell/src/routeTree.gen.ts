@@ -51,8 +51,6 @@ import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/res
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
-import { Route as AuthenticatedAdminMediaOrphansRouteImport } from './routes/_authenticated/admin/media_.orphans'
-import { Route as AuthenticatedAdminMediaStorageRouteImport } from './routes/_authenticated/admin/media_.storage'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
@@ -286,18 +284,6 @@ const AuthenticatedAdminAutomationsAutomationIdRoute =
     path: '/automations/$automationId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminMediaOrphansRoute =
-  AuthenticatedAdminMediaOrphansRouteImport.update({
-    id: '/media_/orphans',
-    path: '/media/orphans',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminMediaStorageRoute =
-  AuthenticatedAdminMediaStorageRouteImport.update({
-    id: '/media_/storage',
-    path: '/media/storage',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
   AuthenticatedAdminNewsletterBroadcastIdRouteImport.update({
     id: '/newsletter_/$broadcastId',
@@ -380,8 +366,6 @@ export interface FileRoutesByFullPath {
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
-  '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -430,8 +414,6 @@ export interface FileRoutesByTo {
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/media/orphans': typeof AuthenticatedAdminMediaOrphansRoute
-  '/admin/media/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -484,8 +466,6 @@ export interface FileRoutesById {
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/_authenticated/admin/media_/orphans': typeof AuthenticatedAdminMediaOrphansRoute
-  '/_authenticated/admin/media_/storage': typeof AuthenticatedAdminMediaStorageRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -538,8 +518,6 @@ export interface FileRouteTypes {
     | '/changelog/'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
-    | '/admin/media/orphans'
-    | '/admin/media/storage'
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
@@ -588,8 +566,6 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
-    | '/admin/media/orphans'
-    | '/admin/media/storage'
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
@@ -641,8 +617,6 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
-    | '/_authenticated/admin/media_/orphans'
-    | '/_authenticated/admin/media_/storage'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
@@ -971,20 +945,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/media_/orphans': {
-      id: '/_authenticated/admin/media_/orphans'
-      path: '/media/orphans'
-      fullPath: '/admin/media/orphans'
-      preLoaderRoute: typeof AuthenticatedAdminMediaOrphansRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/media_/storage': {
-      id: '/_authenticated/admin/media_/storage'
-      path: '/media/storage'
-      fullPath: '/admin/media/storage'
-      preLoaderRoute: typeof AuthenticatedAdminMediaStorageRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/newsletter_/$broadcastId': {
       id: '/_authenticated/admin/newsletter_/$broadcastId'
       path: '/newsletter/$broadcastId'
@@ -1082,8 +1042,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  AuthenticatedAdminMediaOrphansRoute: typeof AuthenticatedAdminMediaOrphansRoute
-  AuthenticatedAdminMediaStorageRoute: typeof AuthenticatedAdminMediaStorageRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
 }
@@ -1108,8 +1066,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
-  AuthenticatedAdminMediaOrphansRoute: AuthenticatedAdminMediaOrphansRoute,
-  AuthenticatedAdminMediaStorageRoute: AuthenticatedAdminMediaStorageRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
