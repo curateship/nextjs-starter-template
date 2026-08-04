@@ -14,8 +14,10 @@ import {
   getEmailSettingsErrorMessage,
   loadEmailSettings,
   removeEmailApiKey,
+  removeResendWebhookSecret,
   saveEmailApiKey,
   saveEmailSenderSettings,
+  saveResendWebhookSecret,
   testEmailKey,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
@@ -49,10 +51,11 @@ export function EmailSettings() {
     fromEmail: string
     fromName: string
   } | null>(null)
-  // The key as typed but not yet saved.
+  // The key and webhook secret as typed but not yet saved.
   const [keyDraft, setKeyDraft] = React.useState("")
-  // True while the key field is focused: the saved-key dots make way for typing.
-  const [editingKey, setEditingKey] = React.useState(false)
+  const [webhookDraft, setWebhookDraft] = React.useState("")
+  // The secret field that is focused: its saved dots make way for typing.
+  const [editing, setEditing] = React.useState<"key" | "webhook" | null>(null)
   // Which button is running — the others grey out, the active one spins.
   const [runningId, setRunningId] = React.useState<"test" | "remove" | null>(
     null
@@ -60,11 +63,15 @@ export function EmailSettings() {
   // What is auto-saving right now. Deliberately NOT part of `busy`: clicking
   // "Test this key" right after typing blurs the field, the blur starts the
   // save, and a save that disabled the buttons would swallow that very click.
-  const [saving, setSaving] = React.useState<"sender" | "key" | null>(null)
+  const [saving, setSaving] = React.useState<
+    "sender" | "key" | "webhook" | null
+  >(null)
   // The last test's verdict, already worded for the user.
   const [testResult, setTestResult] = React.useState("")
-  // Whether Remove is waiting on its confirmation.
-  const [removing, setRemoving] = React.useState(false)
+  // Which secret's Remove is waiting on its confirmation, if any.
+  const [removing, setRemoving] = React.useState<"key" | "webhook" | null>(
+    null
+  )
 
   // The auto-save's outcome, shown in the shared sticky header like every
   // other settings save.
@@ -151,6 +158,24 @@ export function EmailSettings() {
     }
   }
 
+  const saveWebhook = async (value: string) => {
+    const secret = value.trim()
+    if (!secret) return
+    setSaving("webhook")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveResendWebhookSecret(secret))
+      setWebhookDraft((prev) => (prev === value ? "" : prev))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
   const scheduleSenderSave = (fromEmail: string, fromName: string) => {
     clearTimeout(timers.current.sender)
     timers.current.sender = setTimeout(
@@ -189,6 +214,25 @@ export function EmailSettings() {
     void saveKey(keyDraft)
   }
 
+  const scheduleWebhookSave = (value: string) => {
+    clearTimeout(timers.current.webhook)
+    if (!value.trim()) return
+    timers.current.webhook = setTimeout(
+      () => void saveWebhook(value),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushWebhookSave = () => {
+    if (!webhookDraft.trim()) return
+    clearTimeout(timers.current.webhook)
+    if (saving !== null) {
+      scheduleWebhookSave(webhookDraft)
+      return
+    }
+    void saveWebhook(webhookDraft)
+  }
+
   const test = async () => {
     setRunningId("test")
     dismissErrorToast()
@@ -202,14 +246,18 @@ export function EmailSettings() {
     }
   }
 
-  const remove = async () => {
+  const remove = async (what: "key" | "webhook") => {
     setRunningId("remove")
     dismissErrorToast()
-    setTestResult("")
+    if (what === "key") setTestResult("")
     try {
-      setStatus(await removeEmailApiKey())
-      setRemoving(false)
-      toast.success("Resend key removed.")
+      setStatus(
+        await (what === "key" ? removeEmailApiKey() : removeResendWebhookSecret())
+      )
+      setRemoving(null)
+      toast.success(
+        what === "key" ? "Resend key removed." : "Webhook secret removed."
+      )
     } catch (error) {
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {
@@ -217,10 +265,12 @@ export function EmailSettings() {
     }
   }
 
-  // A saved key shows as dots until the field is focused or typed in, so a
-  // filled field means a key is there.
+  // A saved secret shows as dots until its field is focused or typed in, so a
+  // filled field means a secret is there.
   const showSentinel =
-    !keyDraft && !editingKey && Boolean(status?.keyConfigured)
+    !keyDraft && editing !== "key" && Boolean(status?.keyConfigured)
+  const showWebhookSentinel =
+    !webhookDraft && editing !== "webhook" && Boolean(status?.webhookConfigured)
 
   return (
     <CardGroup>
@@ -261,9 +311,9 @@ export function EmailSettings() {
                   autoComplete="off"
                   placeholder="Paste your Resend API key"
                   value={showSentinel ? SAVED_SENTINEL : keyDraft}
-                  onFocus={() => setEditingKey(true)}
+                  onFocus={() => setEditing("key")}
                   onBlur={() => {
-                    setEditingKey(false)
+                    setEditing(null)
                     flushKeySave()
                   }}
                   onChange={(event) => {
@@ -300,7 +350,7 @@ export function EmailSettings() {
                       type="button"
                       variant="outline"
                       disabled={busy || saving !== null}
-                      onClick={() => setRemoving(true)}
+                      onClick={() => setRemoving("key")}
                     >
                       Remove
                     </Button>
@@ -312,6 +362,53 @@ export function EmailSettings() {
                   {testResult}
                 </p>
               ) : null}
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <FieldLabel
+                  htmlFor="email-webhook-secret"
+                  hint="In Resend → Webhooks, add an endpoint pointing at this app's /api/webhooks/resend for the bounced and complained events, then paste its signing secret here. From then on, addresses that bounce or mark the mail as spam come off the contact list by themselves."
+                >
+                  Webhook secret
+                </FieldLabel>
+                <span className="text-sm text-muted-foreground">
+                  {webhookStatusLabel(status)}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="email-webhook-secret"
+                  className="sm:flex-1"
+                  type="password"
+                  autoComplete="off"
+                  placeholder="Paste the webhook signing secret"
+                  value={showWebhookSentinel ? SAVED_SENTINEL : webhookDraft}
+                  onFocus={() => setEditing("webhook")}
+                  onBlur={() => {
+                    setEditing(null)
+                    flushWebhookSave()
+                  }}
+                  onChange={(event) => {
+                    setWebhookDraft(event.target.value)
+                    scheduleWebhookSave(event.target.value)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") flushWebhookSave()
+                  }}
+                />
+                {status.webhookConfigured || status.webhookUnreadable ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 self-start"
+                    disabled={busy || saving !== null}
+                    onClick={() => setRemoving("webhook")}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             <div className="grid gap-2">
@@ -367,15 +464,25 @@ export function EmailSettings() {
       </CollapsibleSettingsCard>
 
       <ConfirmDialog
-        open={removing}
+        open={removing !== null}
         onOpenChange={(open) => {
-          if (!open) setRemoving(false)
+          if (!open) setRemoving(null)
         }}
-        title="Remove the Resend key?"
-        description="The saved key is deleted. Emails stop going out until a new key is saved — outside production they are written to the server log instead."
-        confirmLabel="Remove key"
+        title={
+          removing === "webhook"
+            ? "Remove the webhook secret?"
+            : "Remove the Resend key?"
+        }
+        description={
+          removing === "webhook"
+            ? "The saved secret is deleted. Resend's bounce and spam reports stop being accepted, so addresses that go bad stay on the list until it is set again."
+            : "The saved key is deleted. Emails stop going out until a new key is saved — outside production they are written to the server log instead."
+        }
+        confirmLabel={removing === "webhook" ? "Remove secret" : "Remove key"}
         loading={runningId === "remove"}
-        onConfirm={() => void remove()}
+        onConfirm={() => {
+          if (removing) void remove(removing)
+        }}
       />
     </CardGroup>
   )
@@ -386,6 +493,12 @@ function keyStatusLabel(status: EmailSettingsStatus) {
   if (status.keyUnreadable) return "Set, but unreadable — paste it again"
   if (!status.keyConfigured) return "Not set"
   return `Set ${status.maskedKey}`
+}
+
+function webhookStatusLabel(status: EmailSettingsStatus) {
+  if (status.webhookUnreadable) return "Set, but unreadable — paste it again"
+  if (!status.webhookConfigured) return "Not set"
+  return `Set ${status.maskedWebhookSecret}`
 }
 
 /** The test verdict in plain words — each outcome clearly its own message. */

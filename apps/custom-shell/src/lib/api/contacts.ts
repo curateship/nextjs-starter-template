@@ -15,13 +15,20 @@ import { getOrCreateCurrentWorkspace } from "@/server/workspaces"
 
 import { createErrorMessage } from "./error-message"
 
+/** 'bounced' and 'complained' are set by the Resend webhook, never by hand. */
+export type ContactStatus =
+  | "subscribed"
+  | "unsubscribed"
+  | "bounced"
+  | "complained"
+
 export type ContactItem = {
   id: string
   email: string
   firstName: string | null
   lastName: string | null
   tags: string[]
-  status: "subscribed" | "unsubscribed"
+  status: ContactStatus
   source: string | null
   /** True when this contact is an account on the app rather than a typed-in address. */
   isAccount: boolean
@@ -105,7 +112,7 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
         firstName: row.firstName,
         lastName: row.lastName,
         tags: row.tags,
-        status: row.status as "subscribed" | "unsubscribed",
+        status: row.status as ContactStatus,
         source: row.source,
         isAccount: row.userId !== null,
         created_at: row.createdAt.toISOString(),

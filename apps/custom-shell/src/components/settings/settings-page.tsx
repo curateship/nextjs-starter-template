@@ -6,6 +6,7 @@ import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
+import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { focusRing } from "@/lib/focus-ring"
@@ -27,6 +28,7 @@ const settingsTabs = [
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
   { id: "email", label: "Email" },
+  { id: "payments", label: "Payments" },
   { id: "ai", label: "AI" },
 ] as const
 
@@ -220,6 +222,7 @@ export function SettingsPage({
           />
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
+        {activeTab === "payments" ? <StripeSettings /> : null}
         {activeTab === "ai" ? <AiSettings /> : null}
       </div>
     </div>

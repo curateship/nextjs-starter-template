@@ -33,6 +33,7 @@ async function upsertEmailSettings(
     fromEmail: string | null
     fromName: string | null
     resendApiKeyEncrypted: string | null
+    resendWebhookSecretEncrypted: string | null
   }>,
   database: CustomShellDb = db
 ) {
@@ -55,6 +56,7 @@ async function upsertEmailSettings(
       fromEmail: null,
       fromName: null,
       resendApiKeyEncrypted: null,
+      resendWebhookSecretEncrypted: null,
       ...patch,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -103,12 +105,68 @@ export async function clearEmailApiKey(
   )
 }
 
+export async function setResendWebhookSecret(
+  workspaceId: string,
+  secret: string,
+  database: CustomShellDb = db
+) {
+  const value = secret.trim()
+  if (!value) throw new Error("EMPTY_KEY")
+  return upsertEmailSettings(
+    workspaceId,
+    { resendWebhookSecretEncrypted: encryptSecret(value) },
+    database
+  )
+}
+
+export async function clearResendWebhookSecret(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { resendWebhookSecretEncrypted: null },
+    database
+  )
+}
+
+/**
+ * Every workspace's webhook signing secret, decrypted, for the receiver to
+ * try in turn: the webhook URL carries no workspace, so which workspace a
+ * call belongs to is exactly the question of whose secret signed it.
+ * Unreadable secrets are skipped — they can verify nothing.
+ */
+export async function listResendWebhookSecrets(
+  database: CustomShellDb = db
+): Promise<{ workspaceId: string; secret: string }[]> {
+  const rows = await database
+    .select({
+      workspaceId: customShellEmailSettings.workspaceId,
+      encrypted: customShellEmailSettings.resendWebhookSecretEncrypted,
+    })
+    .from(customShellEmailSettings)
+
+  const secrets: { workspaceId: string; secret: string }[] = []
+  for (const row of rows) {
+    if (!row.encrypted) continue
+    try {
+      secrets.push({
+        workspaceId: row.workspaceId,
+        secret: decryptSecret(row.encrypted),
+      })
+    } catch {
+      continue
+    }
+  }
+  return secrets
+}
+
 /** Only the last 4 characters, enough to recognise which key is set. */
 function maskKey(key: string): string {
   return `••••${key.slice(-4)}`
 }
 
-/** What the settings page may see: never the key itself, only a masked tail. */
+/** What the settings page may see: never a secret itself, only masked tails. */
 export type EmailSettingsStatus = {
   fromEmail: string
   fromName: string
@@ -116,6 +174,9 @@ export type EmailSettingsStatus = {
   maskedKey: string | null
   /** True when a key is stored but the server can no longer read it. */
   keyUnreadable: boolean
+  webhookConfigured: boolean
+  maskedWebhookSecret: string | null
+  webhookUnreadable: boolean
 }
 
 export async function getEmailSettingsStatus(
@@ -136,12 +197,29 @@ export async function getEmailSettingsStatus(
     }
   }
 
+  let webhookConfigured = false
+  let maskedWebhookSecret: string | null = null
+  let webhookUnreadable = false
+  if (row?.resendWebhookSecretEncrypted) {
+    try {
+      maskedWebhookSecret = maskKey(
+        decryptSecret(row.resendWebhookSecretEncrypted)
+      )
+      webhookConfigured = true
+    } catch {
+      webhookUnreadable = true
+    }
+  }
+
   return {
     fromEmail: row?.fromEmail ?? "",
     fromName: row?.fromName ?? "",
     keyConfigured,
     maskedKey,
     keyUnreadable,
+    webhookConfigured,
+    maskedWebhookSecret,
+    webhookUnreadable,
   }
 }
 

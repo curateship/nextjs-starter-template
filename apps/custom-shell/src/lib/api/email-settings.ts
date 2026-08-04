@@ -3,9 +3,11 @@ import { z } from "zod"
 
 import {
   clearEmailApiKey,
+  clearResendWebhookSecret,
   getEmailSettingsStatus,
   saveEmailSender,
   setEmailApiKey,
+  setResendWebhookSecret,
   testEmailApiKey,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
@@ -97,6 +99,31 @@ const removeEmailKeyFn = createServerFn({ method: "POST" })
 
 export function removeEmailApiKey() {
   return removeEmailKeyFn()
+}
+
+const saveWebhookSecretFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ secret: z.string().min(1).max(1000) }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await setResendWebhookSecret(workspaceId, data.secret)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveResendWebhookSecret(secret: string) {
+  return saveWebhookSecretFn({ data: { secret } })
+}
+
+const removeWebhookSecretFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .handler(async ({ context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await clearResendWebhookSecret(workspaceId)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function removeResendWebhookSecret() {
+  return removeWebhookSecretFn()
 }
 
 // POST although it changes nothing: the pasted key rides in the body, and a
