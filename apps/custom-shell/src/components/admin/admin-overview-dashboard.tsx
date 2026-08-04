@@ -6,6 +6,7 @@ import {
   LayersIcon,
   LayoutDashboardIcon,
   LineChartIcon,
+  MailWarningIcon,
   MessageSquarePlusIcon,
   UsersIcon,
   WorkflowIcon,
@@ -74,6 +75,7 @@ import {
   type DashboardWidgetId,
   type DashboardWidgetSlot,
 } from "@/lib/dashboard-widgets"
+import { emailIsOff, emailOffConsequence } from "@/lib/email-delivery"
 import { buildFeedsNeedsYou } from "@/lib/feeds-needs-you"
 import { focusRingInset } from "@/lib/focus-ring"
 import { formatDate } from "@/lib/format-time"
@@ -267,6 +269,7 @@ function buildOverviewNeedsYou({
   membership,
   feeds,
   automations,
+  emailDelivery,
 }: AdminOverview): NeedsYouItem[] {
   const items = buildFeedsNeedsYou(feeds)
   const broken = automations.filter((automation) => !automation.isValid)
@@ -296,6 +299,21 @@ function buildOverviewNeedsYou({
       detail: "Nobody suspended can sign in until somebody lifts it",
       action: "Review",
       to: "/admin/users",
+    })
+  }
+
+  // Above everything else, because it is the only row here that stops people
+  // getting in at all — and the only one nothing else in the app would ever
+  // mention until somebody could not register.
+  if (emailIsOff(emailDelivery)) {
+    items.unshift({
+      id: "email-off",
+      icon: MailWarningIcon,
+      title: "Email is switched off",
+      detail: emailOffConsequence(emailDelivery),
+      action: "Set it up",
+      to: "/admin/settings/$tab",
+      params: { tab: "email" },
     })
   }
 

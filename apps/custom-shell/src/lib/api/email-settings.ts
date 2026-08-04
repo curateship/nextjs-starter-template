@@ -9,6 +9,7 @@ import {
   setEmailApiKey,
   setResendWebhookSecret,
   testEmailApiKey,
+  type EmailDeliveryStatus,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
 } from "@/server/email-settings"
@@ -17,7 +18,7 @@ import { getOrCreateCurrentWorkspace } from "@/server/workspaces"
 
 import { createErrorMessage } from "./error-message"
 
-export type { EmailKeyTestResult, EmailSettingsStatus }
+export type { EmailDeliveryStatus, EmailKeyTestResult, EmailSettingsStatus }
 
 export const getEmailSettingsErrorMessage = createErrorMessage(
   {

@@ -22,7 +22,9 @@ import {
   type EmailKeyTestResult,
   type EmailSettingsStatus,
 } from "@/lib/api/email-settings"
+import { emailStatusLine } from "@/lib/email-delivery"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 
 // An edit saves itself this long after the last keystroke; leaving the field
@@ -291,6 +293,8 @@ export function EmailSettings() {
           </div>
         ) : (
           <>
+            <DeliveryStatusRow status={status} />
+
             <div className="grid gap-2">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <FieldLabel
@@ -485,6 +489,38 @@ export function EmailSettings() {
         }}
       />
     </CardGroup>
+  )
+}
+
+/**
+ * Whether email works at all, said before any of the fields.
+ *
+ * The dot is never the only signal — the sentence beside it says the same
+ * thing in words — and it answers the whole question rather than "is there a
+ * key in this box", because a key on the server or on another workspace sends
+ * this app's emails just as well.
+ */
+function DeliveryStatusRow({ status }: { status: EmailSettingsStatus }) {
+  const { on, line } = emailStatusLine(status)
+
+  return (
+    <div className="flex items-start gap-2.5">
+      <span
+        className={cn(
+          "mt-1.5 size-2 shrink-0 rounded-full",
+          on
+            ? "bg-emerald-500 dark:bg-emerald-400"
+            : "bg-amber-500 dark:bg-amber-400"
+        )}
+        aria-hidden
+      />
+      <p
+        role="status"
+        className={cn("text-sm", on ? "text-muted-foreground" : "font-medium")}
+      >
+        {line}
+      </p>
+    </div>
   )
 }
 
