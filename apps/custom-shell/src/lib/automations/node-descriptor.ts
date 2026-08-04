@@ -14,6 +14,7 @@ export type AutomationNodeIconName =
   | "circleHelp"
   | "sparkles"
   | "userCheck"
+  | "users"
 
 export type AutomationNodePort = {
   id: AutomationSourcePort

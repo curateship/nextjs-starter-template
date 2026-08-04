@@ -1,7 +1,12 @@
+import { audienceNode, audienceWording } from "@/lib/automations/nodes/audience"
 import {
   approvalDeadline,
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
+import {
+  countAutomationAudience,
+  readAutomationAudience,
+} from "@/server/automation-audience"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
 
@@ -46,6 +51,29 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     type: "next",
     summary: "Did nothing — this is a stand-in step.",
   }),
+
+  /**
+   * Works out who the rest of the flow is about and writes the answer into the
+   * run's history — the choice and the number it matched, never the names.
+   *
+   * Matching nobody is not a failure: a flow that runs on a week when nobody
+   * qualifies should say so and carry on, not stop as broken. A plan the flow
+   * points at having been deleted *is* a failure, because carrying on would
+   * mean guessing.
+   */
+  [audienceNode.kind]: async ({ database, settings, now }) => {
+    const audience = readAutomationAudience(settings)
+    const matched = await countAutomationAudience(audience, database, now())
+    const who = audienceWording(audience.kind, audience.planSlug)
+
+    return {
+      type: "next",
+      summary:
+        matched === 0
+          ? `Nobody matched just now — ${who}. The rest of the flow has no one to act on.`
+          : `Matched ${matched} ${matched === 1 ? "person" : "people"} — ${who}.`,
+    }
+  },
 
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =

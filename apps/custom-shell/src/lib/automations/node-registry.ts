@@ -6,6 +6,7 @@ import type {
   AutomationPaletteGroup,
 } from "./node-descriptor"
 import { aiStepNode } from "./nodes/ai-step"
+import { audienceNode } from "./nodes/audience"
 import { placeholderNode } from "./nodes/placeholder"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
 
@@ -18,6 +19,7 @@ export type {
 /** Every node kind this app ships, one descriptor module each under `nodes/`. */
 const AUTOMATION_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
+  audienceNode,
   placeholderNode,
   waitForApprovalNode,
 ]

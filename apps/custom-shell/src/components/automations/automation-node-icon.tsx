@@ -3,6 +3,7 @@ import {
   SparklesIcon,
   SquareDashedIcon,
   UserCheckIcon,
+  UsersIcon,
 } from "lucide-react"
 
 import type { AutomationNodeIconName } from "@/lib/automations/node-registry"
@@ -12,6 +13,7 @@ const icons = {
   circleHelp: CircleHelpIcon,
   sparkles: SparklesIcon,
   userCheck: UserCheckIcon,
+  users: UsersIcon,
 } satisfies Record<AutomationNodeIconName, typeof SquareDashedIcon>
 
 export function AutomationNodeIcon({
