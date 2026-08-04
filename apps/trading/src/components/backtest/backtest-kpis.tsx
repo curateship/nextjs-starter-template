@@ -94,6 +94,27 @@ function heldPeakLabel(milliseconds: number) {
   return `held ${formatFocusDays(milliseconds / 86_400_000)}`
 }
 
+/** "Feb 6 2026" — the day the wallet hit its high-water mark. */
+const peakDayFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+})
+
+/**
+ * "Feb 6 2026 · held 12h" — WHEN the peak happened beside how long it lasted.
+ * The date is what makes the number checkable: it names the crash the wallet
+ * was answering. Runs recorded before the engine stamped it fall back to the
+ * duration alone.
+ */
+function peakSubLabel(wallet: BacktestPortfolioUsage) {
+  const held =
+    wallet.timeAtPeakMs != null ? heldPeakLabel(wallet.timeAtPeakMs) : null
+  if (wallet.peakAt == null) return held ?? NOT_MEASURED
+  const day = peakDayFormatter.format(wallet.peakAt).replace(",", "")
+  return held ? `${day} · ${held}` : day
+}
+
 /**
  * The same headline grid, but for a whole run's basket instead of one market:
  * summed P&L and trades, a trade-weighted win rate, the worst single-market
@@ -182,9 +203,7 @@ export function BacktestGroupKpis({
             ? NOT_MEASURED
             : !wallet
               ? NO_SHARED_WALLET
-              : wallet.timeAtPeakMs != null
-                ? heldPeakLabel(wallet.timeAtPeakMs)
-                : NOT_MEASURED
+              : peakSubLabel(wallet)
         }
       />
       <Kpi

@@ -906,6 +906,7 @@ async function runPortfolioBacktests(
   const reportEvery = Math.max(1, Math.floor(times.length / 100))
   for (let ti = 0; ti < times.length; ti += 1) {
     const time = times[ti]
+    portfolio.noteTime(time)
     const due = runners.flatMap((runner, runnerIndex) => {
       const index = indexes[runnerIndex].get(time)
       return index === undefined
@@ -946,6 +947,7 @@ async function runPortfolioBacktests(
             peakExposurePct,
             timeAtPeakMs,
             avgExposurePct,
+            peakAt: portfolio.peakAt(),
           },
         },
       ]

@@ -100,21 +100,6 @@ import { RunStatusMenuItems } from "./run-status-menu"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
-/** Short calendar date (e.g. "Mar 23, 2025") for stat-card context lines. */
-/** Month + day only — keeps the narrow group-summary rows readable. */
-const compactDateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-})
-
-/**
- * Persist a resizable layout in localStorage, matching the automation editor:
- * the saved layout captures panel widths AND which panels are collapsed (a
- * collapsed panel has size 0). Read after mount (never during render — that
- * would mismatch hydration); `layoutKey` remounts the group once the saved
- * layout loads so it applies cleanly, and the `loaded` guard avoids saving the
- * pre-load default over it.
- */
 /** Keeps only changing run fields live; the full route refreshes once at completion. */
 function useLiveBacktestRuns(
   initial: BacktestListItem[],
