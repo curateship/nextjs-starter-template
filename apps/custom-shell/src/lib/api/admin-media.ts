@@ -8,7 +8,6 @@ import {
   listAllMedia,
   listMediaOwners,
   loadOrphanDashboard,
-  loadStorageDashboard,
   type AdminMediaItem,
   type AdminMediaListResponse,
   type AdminMediaSort,
@@ -16,8 +15,6 @@ import {
   type MediaOrphan,
   type MediaOwner,
   type OrphanDashboard,
-  type StorageDashboard,
-  type StorageUserRow,
 } from "@/server/media"
 import { R2StorageNotConfiguredError } from "@/server/media-storage"
 import { adminGet, adminPost } from "@/server/guards"
@@ -31,8 +28,6 @@ export type {
   MediaOrphan,
   MediaOwner,
   OrphanDashboard,
-  StorageDashboard,
-  StorageUserRow,
 }
 
 const listQuerySchema = z.object({
@@ -95,12 +90,6 @@ const loadAdminMediaPageFn = createServerFn({ method: "GET" })
     return { media, owners, pageSize }
   })
 
-const loadStorageDashboardFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async () => {
-    return loadStorageDashboard()
-  })
-
 const loadOrphanDashboardFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async () => {
@@ -123,10 +112,6 @@ const cleanOrphansFn = createServerFn({ method: "POST" })
 
 export function loadAdminMediaPage(query: AdminMediaListQueryInput) {
   return loadAdminMediaPageFn({ data: query })
-}
-
-export function loadStorage() {
-  return loadStorageDashboardFn()
 }
 
 export function loadOrphans() {

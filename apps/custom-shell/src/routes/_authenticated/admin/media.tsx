@@ -10,7 +10,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 const authenticatedRoute = getRouteApi("/_authenticated")
 
 /**
- * `?owner=<user id>` is how the storage page links here, so the first render is
+ * `?owner=<user id>` is how an account links here, so the first render is
  * already filtered instead of flashing everyone's files.
  */
 export const Route = createFileRoute("/_authenticated/admin/media")({
