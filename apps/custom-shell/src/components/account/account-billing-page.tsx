@@ -199,6 +199,7 @@ export function AccountBillingPage({
           onIntervalChange={setInterval}
           onSelect={handleSelect}
           busyPlanSlug={busyPlanSlug}
+          trialUsed={overview.trialUsed}
           actionLabel={manageInStripe ? "Change in Stripe" : "Upgrade"}
         />
       )}

@@ -1,5 +1,5 @@
 import Stripe from "stripe"
-import { eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, isNull } from "drizzle-orm"
 
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
@@ -16,6 +16,7 @@ import {
   customShellBillingEvents,
   customShellDisputes,
   customShellSubscriptions,
+  customShellUsers,
   type CustomShellPlan,
   type CustomShellSubscription,
   type CustomShellUser,
@@ -59,13 +60,29 @@ export function requireBilling() {
 }
 
 /**
+ * Whether this plan's free trial applies to this person.
+ *
+ * One trial per account, not per plan: once someone has had a free trial on
+ * anything, every later checkout bills them from day one. That is the simpler
+ * rule and the harder one to play — otherwise a three-plan product is three
+ * free trials, and cancelling and coming back is an endless one.
+ */
+export function trialDaysFor(
+  user: Pick<CustomShellUser, "firstTrialAt">,
+  plan: CustomShellPlan
+) {
+  return user.firstTrialAt ? 0 : plan.trialDays
+}
+
+/**
  * Starts a Checkout session for a plan.
  *
  * The price is read from the plan row, never from the browser, so a tampered
- * request cannot buy Pro at another plan's price.
+ * request cannot buy Pro at another plan's price. The trial is decided here for
+ * the same reason: the browser only ever names a plan.
  */
 export async function createCheckoutSession(
-  user: Pick<CustomShellUser, "id" | "email">,
+  user: Pick<CustomShellUser, "id" | "email" | "firstTrialAt">,
   plan: CustomShellPlan,
   interval: "monthly" | "yearly",
   database: CustomShellDb = db
@@ -82,6 +99,7 @@ export async function createCheckoutSession(
   }
 
   const subscription = await findSubscription(user.id, database)
+  const trialDays = trialDaysFor(user, plan)
   const session = await stripe().checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price, quantity: 1 }],
@@ -91,7 +109,7 @@ export async function createCheckoutSession(
     metadata: { userId: user.id, planId: plan.id },
     subscription_data: {
       metadata: { userId: user.id, planId: plan.id },
-      ...(plan.trialDays > 0 ? { trial_period_days: plan.trialDays } : {}),
+      ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
     },
     success_url: appUrlFor(
       "/account/billing/success?session_id={CHECKOUT_SESSION_ID}"
@@ -518,6 +536,25 @@ export async function applyStripeEvent(
           values.insert.updatedAt
         )
       }
+
+      // The free trial is used up the moment one actually starts, which is
+      // here — Stripe confirming it — and not when the checkout button was
+      // clicked, so a checkout somebody walked away from costs them nothing.
+      //
+      // `isNull` is the whole rule: only the first trial is ever written down,
+      // so the repeat events that arrive all the way through a trial cannot
+      // keep moving the date, and re-running an old event cannot either.
+      if (values.trialStartedAt) {
+        await tx
+          .update(customShellUsers)
+          .set({ firstTrialAt: values.trialStartedAt })
+          .where(
+            and(
+              eq(customShellUsers.id, values.insert.userId),
+              isNull(customShellUsers.firstTrialAt)
+            )
+          )
+      }
     }
 
     if (dispute) {
@@ -603,6 +640,12 @@ async function buildSubscriptionValues(
       before,
       snapshotOf(update, plan?.name ?? null)
     ),
+    // Stripe's own record of when the trial began, rather than the moment this
+    // event happened to be delivered — a webhook that arrives late still marks
+    // the right day.
+    trialStartedAt: subscription.trial_start
+      ? new Date(subscription.trial_start * 1_000)
+      : null,
   }
 }
 

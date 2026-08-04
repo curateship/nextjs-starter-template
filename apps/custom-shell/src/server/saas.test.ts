@@ -26,6 +26,7 @@ import {
   applyStripeEvent,
   cancelSubscriptionByAdmin,
   findExpiringCard,
+  trialDaysFor,
 } from "@/server/billing"
 import { disputeIsOpen, listDisputes } from "@/server/disputes"
 import { enforcePasswordNotBreached } from "@/server/breached-passwords"
@@ -65,6 +66,7 @@ import {
   customShellSessions,
   customShellSubscriptions,
   customShellUsers,
+  type CustomShellPlan,
 } from "@/server/schema"
 
 let client: PGlite
@@ -627,6 +629,80 @@ describe("stripe webhooks", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].userId).toBe(user.id)
     expect(rows[0].status).toBe("past_due")
+  })
+
+  describe("one free trial per person", () => {
+    const trialStart = new Date("2026-08-01T00:00:00.000Z")
+
+    /** The event a trial arrives on, with Stripe's own start and end dates. */
+    function trialEvent(userId: string, overrides: Record<string, unknown> = {}) {
+      return subscriptionEvent(userId, {
+        status: "trialing",
+        trial_start: Math.floor(trialStart.getTime() / 1_000),
+        trial_end: Math.floor(new Date("2026-08-15").getTime() / 1_000),
+        ...overrides,
+      })
+    }
+
+    async function firstTrialOf(userId: string) {
+      const [row] = await database
+        .select({ firstTrialAt: customShellUsers.firstTrialAt })
+        .from(customShellUsers)
+        .where(eq(customShellUsers.id, userId))
+
+      return row.firstTrialAt
+    }
+
+    it("writes the trial down the day it starts, not the day it was delivered", async () => {
+      const user = await createUser()
+      expect(await firstTrialOf(user.id)).toBeNull()
+
+      await applyStripeEvent(trialEvent(user.id), database)
+
+      expect(await firstTrialOf(user.id)).toEqual(trialStart)
+    })
+
+    it("leaves the first date alone when a later trial arrives", async () => {
+      const user = await createUser()
+      await applyStripeEvent(trialEvent(user.id), database)
+
+      // Cancel, come back, and Stripe starts a second trial — which is exactly
+      // the loop this feature closes. The date must not move.
+      const laterTrial = {
+        ...(trialEvent(user.id, {
+          id: "sub_456",
+          trial_start: Math.floor(new Date("2026-11-01").getTime() / 1_000),
+        }) as Record<string, unknown>),
+        id: "evt_later",
+        type: "customer.subscription.updated",
+      } as never
+
+      await applyStripeEvent(laterTrial, database)
+
+      expect(await firstTrialOf(user.id)).toEqual(trialStart)
+    })
+
+    it("does not spend the trial on a subscription that never had one", async () => {
+      const user = await createUser()
+
+      await applyStripeEvent(subscriptionEvent(user.id), database)
+
+      expect(await firstTrialOf(user.id)).toBeNull()
+    })
+
+    it("gives the plan's trial to a first-timer and none to a returner", () => {
+      const plan = { trialDays: 14 } as CustomShellPlan
+
+      expect(trialDaysFor({ firstTrialAt: null }, plan)).toBe(14)
+      expect(trialDaysFor({ firstTrialAt: trialStart }, plan)).toBe(0)
+    })
+
+    it("leaves a plan that never offered a trial exactly as it was", () => {
+      const plan = { trialDays: 0 } as CustomShellPlan
+
+      expect(trialDaysFor({ firstTrialAt: null }, plan)).toBe(0)
+      expect(trialDaysFor({ firstTrialAt: trialStart }, plan)).toBe(0)
+    })
   })
 })
 
