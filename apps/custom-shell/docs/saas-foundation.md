@@ -287,12 +287,6 @@ Origin. Handled events:
 | --- | --- |
 | `checkout.session.completed` | Fetches the real subscription from Stripe and upserts it |
 | `customer.subscription.created` / `.updated` / `.deleted` | Upserts status, plan, interval, period end, cancel flag, trial end |
-| `charge.dispute.*` (created, updated, closed, funds moved) | Upserts the chargeback row behind the admin billing alert |
-
-**The dispute events must be ticked in the Stripe dashboard's webhook
-settings** (Developers → Webhooks → the endpoint → events). They are not on by
-default, and without them a chargeback reaches its deadline in silence — see
-Chargebacks below.
 
 Processing is idempotent: the transaction claims the Stripe event id first, so a
 duplicate delivery — even two copies arriving at once — writes nothing the
@@ -300,18 +294,13 @@ second time. If processing throws, the endpoint returns 500 so Stripe retries.
 The user is matched by `metadata.userId`, falling back to the stored Stripe
 customer id.
 
-**Chargebacks.** A member telling their bank to take a payment back. These are
-the one billing thing mirrored into a table (`disputes`), because the whole
-point is knowing one is open without going to look — they carry a deadline, and
-missing it loses the money automatically plus Stripe's fee. Code:
-`src/server/disputes.ts`; the alert and history sit on `/admin/billing`.
-Answering still happens in Stripe, which every row deep-links to.
-
-Two deliberate choices there. The dispute's status has no database constraint
-and anything unrecognised counts as *still open*, so a status Stripe adds later
-makes the alert louder rather than hiding it. And a dispute whose charge cannot
-be traced to an account here is still recorded, with no member name — losing the
-deadline would be worse than an unattributed alert.
+**Chargebacks are not handled here.** The app used to mirror them into a
+`disputes` table and show them on an admin page. Both are gone. Stripe emails
+you when one opens and Stripe's dashboard is the only place one can be
+answered — this app could never do either, so a second copy of somebody
+else's record was upkeep with nothing on the other side of it. Nothing here
+reads or writes `charge.dispute.*` events; they can be left unticked in the
+webhook settings.
 
 **Billing history.** The `subscriptions` row is overwritten on every change, so
 on its own it can never answer "what happened with this person's billing?".
@@ -416,9 +405,8 @@ Paste the `whsec_…` it prints into `.env.local`, put the Stripe **test** price
 ids on the plan rows in Admin → Plans, set `CUSTOM_SHELL_BILLING_ENABLED=true`,
 and pay with card `4242 4242 4242 4242`.
 
-`stripe listen` forwards every event, dispute ones included. To raise a test
-chargeback, pay with `4000 0000 0000 0259` — Stripe disputes it on its own a
-few minutes later — then watch it appear on `/admin/billing`.
+`stripe listen` forwards every event. Dispute events come through too and are
+ignored — see Chargebacks above.
 
 ## 12. Testing
 

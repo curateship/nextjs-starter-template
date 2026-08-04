@@ -241,8 +241,8 @@ function buildOverviewNeedsYou({
       icon: CreditCardIcon,
       title: `${membership.revenue.cancelling.toLocaleString()} ${plural(membership.revenue.cancelling, "subscription")} ending`,
       detail: "They keep it until their period runs out",
-      action: "Open membership",
-      to: "/admin/membership",
+      action: "Review people",
+      to: "/admin/users",
     })
   }
 

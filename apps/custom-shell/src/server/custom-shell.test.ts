@@ -66,6 +66,7 @@ import {
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
   resolveMaintenanceMessage,
+  type ShellChildItem,
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
@@ -127,6 +128,7 @@ import {
   addTrafficLink,
   removeRevenueLink,
   foldFeedsIntoOverview,
+  foldMembershipIntoOverview,
   createUserWorkspace,
   deleteUserWorkspace,
   deleteUserWorkspaces,
@@ -1168,13 +1170,9 @@ describe("custom shell workspaces", () => {
           { label: "Notifications", href: "/admin/notifications" },
           { label: "Changelog", href: "/changelog" },
           { label: "Feedback", href: "/admin/feedback" },
+          { label: "Users", href: "/admin/users" },
+          { label: "Plans", href: "/admin/plans" },
         ],
-      },
-      {
-        type: "item",
-        label: "Membership",
-        href: "/admin/membership",
-        visible: true,
       },
       {
         type: "item",
@@ -1678,24 +1676,30 @@ describe("membership section", () => {
     // One load applied every restructure: Users, Plans and Revenue grouped
     // under Membership, the audit link grouped under Feeds, the retired audit
     // link taken out again, the Overview handed out, Feeds folded into it,
-    // the AI usage link handed out beside Membership, Traffic after it, and
-    // Newsletter last — this saved sidebar has no Automations link and no
+    // the AI usage link handed out beside Membership, Traffic after it,
+    // Newsletter next — this saved sidebar has no Automations link and no
     // Platform Settings section, so it falls back to the end of the only
-    // section there is.
+    // section there is — and Membership folded into the Overview last.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
-      "item-admin-membership",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-newsletter",
     ])
     // Feeds held nothing but the audit link, which was taken out a step
-    // earlier — so the Overview came out of the fold with no children at all,
-    // not with an empty list.
-    expect("children" in upgraded.sections[0].entries[0]).toBe(false)
+    // earlier, so the Overview came out of that fold with no children. The
+    // Membership fold then handed it the two links Membership was holding —
+    // and "People" proves a rename survives both moves.
+    const overview = upgraded.sections[0].entries[0] as ShellItem
+    expect(overview.children?.map((child) => child.id)).toEqual([
+      "item-admin-users",
+      "item-admin-plans",
+    ])
+    expect(overview.children?.[0].label).toBe("People")
 
-    // Delete it the way Settings → Sidebar would, then load again. Reading must
-    // never hand it back.
+    // Delete the Overview the way Settings → Sidebar would, then load again.
+    // It is the link this chain handed out, so it is the one worth deleting:
+    // reading must never hand it back.
     await database
       .update(customShellWorkspaces)
       .set({
@@ -1705,7 +1709,7 @@ describe("membership section", () => {
             {
               ...upgraded.sections[0],
               entries: upgraded.sections[0].entries.filter(
-                (entry) => entry.id !== "item-admin-membership"
+                (entry) => entry.id !== "item-admin-overview"
               ),
             },
           ],
@@ -1721,10 +1725,9 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The Overview, AI usage, Traffic and Newsletter links stay: all were
-    // handed out by the same upgrade, and none is what was deleted.
+    // The AI usage, Traffic and Newsletter links stay: all were handed out by
+    // the same upgrade, and none is what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
-      "item-admin-overview",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-newsletter",
@@ -1974,9 +1977,9 @@ describe("overview link", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
-      "item-admin-membership",
       // navVersions 8 and 9 hand the AI usage and Traffic links to every
-      // older workspace.
+      // older workspace. Membership is not on the list: navVersion 14 folds it
+      // into the Overview after those two have used it as their anchor.
       "item-admin-ai-usage",
       "item-admin-traffic",
     ])
@@ -2007,7 +2010,6 @@ describe("overview link", () => {
       ).settings
     )
     expect(idsIn(reloaded.sections, 0)).toEqual([
-      "item-admin-membership",
       "item-admin-ai-usage",
       "item-admin-traffic",
     ])
@@ -2515,9 +2517,15 @@ describe("revenue folds into membership", () => {
       ).settings
     )
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
-    expect(childIdsOf(upgraded.sections)).toEqual([
+    // Revenue came out from under Membership at navVersion 10, leaving Users
+    // and Plans. Membership itself then went at 14 — and this sidebar has no
+    // Overview link to hand them to, so the two stand where their parent stood
+    // rather than disappearing with it.
+    expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-users",
       "item-admin-plans",
+      "item-admin-traffic",
+      "item-newsletter",
     ])
 
     // Somebody making their own link to the old address afterwards keeps it —
@@ -2845,6 +2853,101 @@ describe("feeds folds into the overview", () => {
   })
 })
 
+/**
+ * The Membership fold runs the same code as the Feeds one above, so the rules
+ * it inherits are not retested here. What is tested is the part that is its own:
+ * that it recognises Membership rather than Feeds, and the case a real sidebar
+ * actually landed in, where the Overview already held Users and Plans.
+ */
+describe("membership folds into the overview", () => {
+  function savedSections(overviewChildren?: ShellChildItem[]): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-overview",
+            label: "Overview",
+            href: "/admin/dashboard",
+            icon: "layoutDashboard",
+            visible: true,
+            ...(overviewChildren ? { children: overviewChildren } : {}),
+          },
+          {
+            type: "item",
+            id: "item-admin-membership",
+            label: "Membership",
+            href: "/admin/membership",
+            icon: "id-card",
+            visible: true,
+            children: [
+              // Renamed, to prove the move carries an admin's own wording.
+              { id: "item-admin-users", label: "People", href: "/admin/users" },
+              { id: "item-admin-plans", label: "Plans", href: "/admin/plans" },
+            ],
+          },
+          {
+            type: "item",
+            id: "item-admin-traffic",
+            label: "Traffic",
+            href: "/admin/traffic",
+            icon: "chart-line",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  const overviewIn = (sections: ShellSection[]) =>
+    sections[0].entries.find(
+      (entry) => entry.id === "item-admin-overview"
+    ) as ShellItem
+
+  it("hands Users and Plans to the Overview and takes the parent away", () => {
+    const sections = foldMembershipIntoOverview(savedSections())
+
+    expect(sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-traffic",
+    ])
+    const children = overviewIn(sections).children
+    expect(children?.map((child) => child.id)).toEqual([
+      "item-admin-users",
+      "item-admin-plans",
+    ])
+    expect(children?.[0].label).toBe("People")
+  })
+
+  it("takes the parent away without doubling links the Overview already has", () => {
+    // The shape a hand-edited sidebar was really in: both pages already hung
+    // off the Overview, so there is nothing to move and only the parent goes.
+    // Doubling them would be two rows to one page in Settings -> Sidebar.
+    const sections = foldMembershipIntoOverview(
+      savedSections([
+        { id: "child-users", label: "Users", href: "/admin/users" },
+        { id: "child-plans", label: "Plans", href: "/admin/plans" },
+      ])
+    )
+
+    expect(sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-admin-overview",
+      "item-admin-traffic",
+    ])
+    expect(overviewIn(sections).children?.map((child) => child.href)).toEqual([
+      "/admin/users",
+      "/admin/plans",
+    ])
+  })
+
+  it("changes nothing when Membership is already gone", () => {
+    const sections = foldMembershipIntoOverview(savedSections())
+    expect(foldMembershipIntoOverview(sections)).toBe(sections)
+  })
+})
+
 describe("feeds section", () => {
   /**
    * A stock sidebar exactly as a membership-era (navVersion 1) workspace saved
@@ -3165,13 +3268,14 @@ describe("feeds section", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
-      "item-admin-membership",
       "item-admin-ai-usage",
       "item-admin-traffic",
     ])
-    // Grouped under Feeds, then handed on to the Overview when Feeds went.
-    // No Feedback link: this sidebar predates it. What's new and the audit
-    // link were both taken out on the way through.
+    // The first three were grouped under Feeds, then handed on to the Overview
+    // when Feeds went. No Feedback link: this sidebar predates it. What's new
+    // and the audit link were both taken out on the way through. Users came
+    // last, off Membership, when that went the same way — appended, so the
+    // feed links keep the order they arrived in.
     expect(
       (upgraded.sections[0].entries[0] as ShellItem).children?.map(
         (child) => child.id
@@ -3180,13 +3284,8 @@ describe("feeds section", () => {
       "item-admin-announcements",
       "item-notifications",
       "item-changelog",
+      "item-admin-users",
     ])
-    // Only the feeds restructure ran: Membership's children were not rebuilt.
-    expect(
-      (upgraded.sections[0].entries[1] as ShellItem).children?.map(
-        (child) => child.id
-      )
-    ).toEqual(["item-admin-users"])
 
     // Delete the Overview the way Settings → Sidebar would, then load again.
     // Reading must never hand it, or the links it carries, back.
@@ -3214,7 +3313,6 @@ describe("feeds section", () => {
       ).settings
     )
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
-      "item-admin-membership",
       "item-admin-ai-usage",
       "item-admin-traffic",
     ])
@@ -3778,7 +3876,7 @@ describe("member sidebar", () => {
     const adminHrefs = adminConfig.sections.flatMap((section) =>
       section.entries.map((entry) => (entry as { href?: string }).href ?? "")
     )
-    expect(adminHrefs).toContain("/admin/membership")
+    expect(adminHrefs).toContain("/admin/dashboard")
     expect(adminConfig.sections.map((section) => section.title)).not.toContain(
       "For members"
     )

@@ -13,13 +13,11 @@ import {
   setUserStatus,
   updateUserRole,
   type AccountRow,
-  type RevenueSummary,
 } from "@/server/accounts"
 import {
   cancelSubscriptionByAdmin,
   type CancelSubscriptionMode,
 } from "@/server/billing"
-import type { DisputeList, DisputeRow } from "@/server/disputes"
 import { listPlans } from "@/server/plans"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
@@ -30,9 +28,6 @@ export type {
   AccountDetail,
   AccountRow,
   CancelSubscriptionMode,
-  DisputeList,
-  DisputeRow,
-  RevenueSummary,
 }
 
 /** Plans an admin can hand out by hand, as the account modal lists them. */

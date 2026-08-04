@@ -1,17 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminMembershipDashboard } from "@/components/admin/admin-membership-dashboard"
-import { getMembershipErrorMessage, loadMembership } from "@/lib/api/membership"
-import { routeErrorComponent } from "@/components/shell/route-error"
-
+/**
+ * The Membership page is gone — the Overview shows the members and the money,
+ * and Users and Plans hold the detail it linked out to. The address stays as a
+ * redirect for the same reason `/admin/billing` did: it sat in the sidebar for
+ * a long time and is in people's bookmarks, and a link that used to work should
+ * not start saying "not found".
+ */
 export const Route = createFileRoute("/_authenticated/admin/membership")({
-  loader: async () => ({ summary: await loadMembership() }),
-  component: AdminMembershipRoute,
-  errorComponent: routeErrorComponent(getMembershipErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/dashboard", replace: true })
+  },
 })
-
-function AdminMembershipRoute() {
-  const { summary } = Route.useLoaderData()
-
-  return <AdminMembershipDashboard summary={summary} />
-}

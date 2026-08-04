@@ -6,12 +6,12 @@ import {
 } from "lucide-react"
 
 import type { StatFigure } from "@/components/shared/stat-strip"
-import type { MembershipSummary } from "@/lib/api/membership"
+import type { MembershipSummary } from "@/lib/api/admin-overview"
 import { formatMoney } from "@/lib/money"
 import { percentChange } from "@/lib/percent-change"
 import { plural } from "@/lib/plural"
 
-/** The four figures the Membership page opens with. */
+/** The four member-and-money figures the Overview's stat strip opens with. */
 export function buildMembershipFigures(
   summary: MembershipSummary
 ): StatFigure[] {
@@ -42,7 +42,10 @@ export function buildMembershipFigures(
     },
     {
       key: "paying",
-      to: "/admin/membership",
+      // The Plans page, same as the revenue tile below it: who is paying is a
+      // question about the plans they are on, and the Membership page this
+      // used to open is gone.
+      to: "/admin/plans",
       icon: BarChart3Icon,
       label: "Paying",
       value: revenue.paidSubscribers.toLocaleString(),

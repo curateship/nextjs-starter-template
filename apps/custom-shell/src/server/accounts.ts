@@ -613,11 +613,16 @@ export type RevenueSummary = {
   cancelling: number
   monthlyRecurringCents: number
   currency: string
+  /**
+   * How many people are paying for each plan. It used to carry that plan's
+   * share of the money too, for a revenue-by-plan card on the Membership page —
+   * both that card and that page are gone, and the app-wide total below is the
+   * only money figure anything still shows.
+   */
   planBreakdown: {
     planId: string
     planName: string
     subscribers: number
-    monthlyCents: number
   }[]
 }
 
@@ -650,7 +655,7 @@ export async function loadRevenueSummary(
   const timestamp = now()
   const breakdown = new Map<
     string,
-    { planId: string; planName: string; subscribers: number; monthlyCents: number }
+    { planId: string; planName: string; subscribers: number }
   >()
 
   let paidSubscribers = 0
@@ -680,10 +685,8 @@ export async function loadRevenueSummary(
       planId: row.plan.id,
       planName: row.plan.name,
       subscribers: 0,
-      monthlyCents: 0,
     }
     entry.subscribers += 1
-    entry.monthlyCents += monthlyCents
     breakdown.set(row.plan.id, entry)
   }
 
@@ -695,8 +698,11 @@ export async function loadRevenueSummary(
     cancelling,
     monthlyRecurringCents,
     currency,
+    // Biggest plan first. It used to sort by that plan's money, which is gone;
+    // people is the same ranking for anyone paying one price per plan, and the
+    // only one still available.
     planBreakdown: [...breakdown.values()].sort(
-      (a, b) => b.monthlyCents - a.monthlyCents
+      (a, b) => b.subscribers - a.subscribers
     ),
   }
 }
