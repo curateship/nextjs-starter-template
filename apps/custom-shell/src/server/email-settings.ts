@@ -1,5 +1,10 @@
 import { desc, eq, isNotNull } from "drizzle-orm"
 
+import {
+  parseDripConfig,
+  validateDripConfig,
+  type DripConfig,
+} from "@/lib/broadcasts/drip"
 import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/encryption"
 import { customShellEmailSettings } from "@/server/schema"
@@ -34,6 +39,7 @@ async function upsertEmailSettings(
     fromName: string | null
     resendApiKeyEncrypted: string | null
     resendWebhookSecretEncrypted: string | null
+    dripDefaults: DripConfig
   }>,
   database: CustomShellDb = db
 ) {
@@ -78,6 +84,32 @@ export async function saveEmailSender(
     },
     database
   )
+}
+
+/**
+ * The pace a newly created newsletter starts from.
+ *
+ * Validated here rather than trusted from the browser, because it is written
+ * onto every newsletter made afterwards — a default that contradicts itself
+ * would be copied onto each one and only noticed at send time.
+ */
+export async function saveDripDefaults(
+  workspaceId: string,
+  config: DripConfig,
+  database: CustomShellDb = db
+) {
+  const invalid = validateDripConfig(config)
+  if (invalid) throw new Error("DRIP_SETTINGS_INVALID")
+  return upsertEmailSettings(workspaceId, { dripDefaults: config }, database)
+}
+
+/** What a new newsletter in this workspace is paced at. Off when never set. */
+export async function getDripDefaults(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<DripConfig> {
+  const row = await getEmailSettings(workspaceId, database)
+  return parseDripConfig(row?.dripDefaults)
 }
 
 export async function setEmailApiKey(
@@ -214,6 +246,8 @@ export type EmailSettingsStatus = {
   webhookConfigured: boolean
   maskedWebhookSecret: string | null
   webhookUnreadable: boolean
+  /** The pace a newly created newsletter starts from. */
+  dripDefaults: DripConfig
   /** Whether email works at all, which this workspace's key alone cannot say. */
   delivery: EmailDeliveryStatus
 }
@@ -259,6 +293,7 @@ export async function getEmailSettingsStatus(
     webhookConfigured,
     maskedWebhookSecret,
     webhookUnreadable,
+    dripDefaults: parseDripConfig(row?.dripDefaults),
     delivery: await getEmailDeliveryStatus(database),
   }
 }

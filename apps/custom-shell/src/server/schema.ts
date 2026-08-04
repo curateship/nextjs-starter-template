@@ -1134,6 +1134,12 @@ export const customShellBroadcasts = pgTable(
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     /** When the next batch may go. Null means "as soon as the ticker gets to it". */
     nextBatchAt: timestamp("next_batch_at", { withTimezone: true }),
+    /**
+     * How fast this one goes out — see `src/lib/broadcasts/drip.ts`. Null, and
+     * anything that no longer parses, means the whole list goes as fast as the
+     * server can send it, which is how this app behaved before drip existed.
+     */
+    dripConfig: jsonb("drip_config"),
     batchesSent: integer("batches_sent").notNull().default(0),
     pausedReason: text("paused_reason"),
     totalRecipients: integer("total_recipients").notNull().default(0),
@@ -1209,6 +1215,14 @@ export const customShellDeliveries = pgTable(
     /** Resend's id for the message, so a bounce can be traced back. */
     providerMessageId: varchar("provider_message_id", { length: 255 }),
     status: varchar("status", { length: 20 }).notNull(),
+    /**
+     * Stamped when Resend reports this message bounced.
+     *
+     * Not a third `status` value: that column says what happened when the
+     * message was handed over, and is already written by the time a bounce
+     * arrives. Two separate facts, two separate columns.
+     */
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
@@ -1298,6 +1312,12 @@ export const customShellEmailSettings = pgTable("email_settings", {
   resendWebhookSecretEncrypted: text("resend_webhook_secret_encrypted"),
   fromEmail: varchar("from_email", { length: 255 }),
   fromName: varchar("from_name", { length: 255 }),
+  /**
+   * The drip rules a newly created newsletter starts from — see
+   * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
+   * later leaves newsletters that already exist alone.
+   */
+  dripDefaults: jsonb("drip_defaults"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })

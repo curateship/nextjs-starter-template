@@ -7,6 +7,14 @@ import {
   type BroadcastAudienceFilter,
 } from "@/lib/broadcasts/blocks"
 import {
+  isWithinDripWindow,
+  nextDripWindowOpen,
+  parseDripConfig,
+  pickBatchSize,
+  pickWaitMs,
+  validateDripConfig,
+} from "@/lib/broadcasts/drip"
+import {
   personalizeEmail,
   renderBroadcastEmailHtml,
 } from "@/lib/broadcasts/render"
@@ -33,7 +41,11 @@ const CLAIM_LIMIT_PER_TICK = 3
 const CLAIM_TIMEOUT_MINUTES = 5
 /** Long batches touch their claim as they go so it never goes stale mid-batch. */
 const CLAIM_REFRESH_EVERY = 20
-/** People per batch. The send resumes at the next one if anything interrupts it. */
+/**
+ * People per batch when the send is not paced. The send resumes at the next one
+ * if anything interrupts it. A paced send picks its own size — see
+ * `src/lib/broadcasts/drip.ts`.
+ */
 const BATCH_SIZE = 50
 /** Below this many attempts, the failure guard has too little to judge on. */
 const FAILURE_SAMPLE_MINIMUM = 20
@@ -115,6 +127,12 @@ async function validateReadyToSend(
 
   const blocks = parseStoredBlocks(broadcast.blocks)
   if (blocks.length === 0) throw new Error("BLOCKS_REQUIRED")
+
+  // Caught here rather than at the first batch. Settings that contradict
+  // themselves would otherwise be found by the ticker, which has nobody to tell.
+  if (validateDripConfig(parseDripConfig(broadcast.dripConfig))) {
+    throw new Error("DRIP_SETTINGS_INVALID")
+  }
 
   // A button with no usable address falls back to the link the app builds for
   // its own emails, and a newsletter has no such link — so it would arrive
@@ -418,6 +436,19 @@ async function processBroadcastBatch(
     return
   }
 
+  // Paced sends stop here outside their hours. Checked before the audience is
+  // resolved, because that is several queries and a contact sync, and none of
+  // it is worth doing for a newsletter that is not allowed to send yet.
+  //
+  // The status stays 'sending' — it is asleep, not stopped — and `next_batch_at`
+  // points at the real opening, so it is not looked at again until then rather
+  // than being picked up and put down every fifteen seconds all night.
+  const drip = parseDripConfig(broadcast.dripConfig)
+  if (drip.enabled && !isWithinDripWindow(drip, nowFn())) {
+    await release({ nextBatchAt: nextDripWindowOpen(drip, nowFn()) })
+    return
+  }
+
   // Anybody who signed up since the last batch is in this one. Deliveries are
   // keyed on the contact, so somebody who was already mailed is still skipped.
   await syncContactsFromUsers(broadcast.workspaceId, database)
@@ -439,10 +470,17 @@ async function processBroadcastBatch(
       .select({
         sent: sql<number>`count(*) filter (where ${customShellDeliveries.status} = 'sent')::int`,
         failed: sql<number>`count(*) filter (where ${customShellDeliveries.status} = 'failed')::int`,
+        // Reported by Resend some time after the send, so this climbs between
+        // batches without anything here having sent a thing.
+        bounced: sql<number>`count(*) filter (where ${customShellDeliveries.bouncedAt} is not null)::int`,
       })
       .from(customShellDeliveries)
       .where(eq(customShellDeliveries.broadcastId, broadcastId))
-    return { sent: counts?.sent ?? 0, failed: counts?.failed ?? 0 }
+    return {
+      sent: counts?.sent ?? 0,
+      failed: counts?.failed ?? 0,
+      bounced: counts?.bounced ?? 0,
+    }
   }
 
   const totalRecipients = Math.max(
@@ -463,7 +501,7 @@ async function processBroadcastBatch(
     return
   }
 
-  const batch = unsent.slice(0, BATCH_SIZE)
+  const batch = unsent.slice(0, drip.enabled ? pickBatchSize(drip) : BATCH_SIZE)
   const html =
     broadcast.renderedHtml ||
     renderBroadcastEmailHtml(parseStoredBlocks(broadcast.blocks), {
@@ -572,12 +610,43 @@ async function processBroadcastBatch(
     return
   }
 
+  // Bounces are the other way this goes wrong, and the quieter one: every send
+  // succeeds, and the addresses turn out not to exist. Enough of those and the
+  // sending domain is in trouble, so a paced send stops itself and says so.
+  //
+  // Measured against sends that went through rather than against everyone
+  // written down, because a message that never left cannot bounce. Same
+  // twenty-send floor as the failure rule above — three bounces out of four is
+  // a small list, not a bad one.
+  const bounceRate =
+    totals.sent > 0 ? (totals.bounced / totals.sent) * 100 : 0
+  if (
+    drip.enabled &&
+    totals.sent >= FAILURE_SAMPLE_MINIMUM &&
+    bounceRate >= drip.bounceThresholdPercent
+  ) {
+    await release({
+      ...counters,
+      status: "paused",
+      pausedReason: `Stopped on its own: ${totals.bounced} of the ${totals.sent} sent so far bounced, which is over your ${drip.bounceThresholdPercent} in 100 limit. Clean up the list before starting it again.`,
+    })
+    return
+  }
+
   if (batch.length >= unsent.length) {
     await release({ ...counters, status: "sent", sentAt: nowFn() })
     return
   }
 
-  await release({ ...counters, nextBatchAt: null })
+  // More to go. Without pacing that is "straight away", which is what the
+  // claim query reads a null as; with it, the wait is picked fresh each time so
+  // the gaps between batches are not identical.
+  await release({
+    ...counters,
+    nextBatchAt: drip.enabled
+      ? new Date(nowFn().getTime() + pickWaitMs(drip))
+      : null,
+  })
 }
 
 /**

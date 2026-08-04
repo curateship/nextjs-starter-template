@@ -21,6 +21,8 @@ import {
 
 /** How often a send in flight refreshes its counts. */
 const POLL_MS = 5000
+/** How often to look while a paced send is waiting out its gap between batches. */
+const SLEEPING_POLL_MS = 30_000
 
 const EDITABLE_STATUSES = new Set(["draft", "scheduled", "paused"])
 
@@ -86,10 +88,19 @@ export function BroadcastEditor({
   // While a send is running or waiting for its time, keep the bottom panel
   // honest. The boxes are only refilled once the status leaves the editable
   // set — otherwise this would clobber unsaved edits every five seconds.
+  //
+  // A paced send is a different rhythm: asleep until tomorrow morning, there is
+  // nothing to see, and asking twelve times a minute all night is twelve
+  // thousand pointless requests. Once the next batch is more than a minute
+  // away, back off.
+  const nextBatchAt = broadcast.next_batch_at
   React.useEffect(() => {
     if (broadcast.status !== "sending" && broadcast.status !== "scheduled") {
       return
     }
+    const waiting =
+      nextBatchAt !== null &&
+      new Date(nextBatchAt).getTime() - Date.now() > 60_000
     const timer = setInterval(() => {
       getBroadcast(broadcast.id)
         .then((detail) => {
@@ -99,9 +110,9 @@ export function BroadcastEditor({
         .catch(() => {
           // A blip; the next poll tries again.
         })
-    }, POLL_MS)
+    }, waiting ? SLEEPING_POLL_MS : POLL_MS)
     return () => clearInterval(timer)
-  }, [adoptDetail, broadcast.id, broadcast.status])
+  }, [adoptDetail, broadcast.id, broadcast.status, nextBatchAt])
 
   return (
     <>

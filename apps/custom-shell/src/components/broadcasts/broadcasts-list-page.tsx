@@ -49,6 +49,7 @@ import {
   type BroadcastsPage,
 } from "@/lib/api/broadcasts"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { describeNextBatch } from "@/lib/broadcasts/drip"
 import { formatDate } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 import { useLastValue } from "@/lib/use-last-value"
@@ -69,7 +70,12 @@ function progressText(item: BroadcastListItem) {
   if (item.status === "draft") return "Not sent yet"
   const failed =
     item.totalFailed > 0 ? ` · ${item.totalFailed} did not go through` : ""
-  return `${item.totalSent} of ${item.totalRecipients} sent${failed}`
+  // A paced send sits at the same numbers for half an hour at a time, which
+  // reads as stuck. Saying when the next batch goes is what makes it read as
+  // waiting instead.
+  const next =
+    item.status === "sending" ? describeNextBatch(item.next_batch_at) : null
+  return `${item.totalSent} of ${item.totalRecipients} sent${failed}${next ? ` · ${next}` : ""}`
 }
 
 export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {

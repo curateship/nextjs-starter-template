@@ -116,6 +116,25 @@ export async function applyResendEvent(
         )
       )
     for (const row of rows) contactIds.add(row.contactId)
+
+    // A bounce is also marked on the delivery itself, which is what lets a
+    // paced newsletter watch its own bounce rate and stop. Only a bounce: a
+    // spam complaint means the address works and the person did not want it,
+    // which is not a reason to think the sending is going wrong.
+    //
+    // Not done for the address-only match below, because that one exists for
+    // the app's own sign-in mail, which has no delivery row to mark.
+    if (status === "bounced") {
+      await database
+        .update(customShellDeliveries)
+        .set({ bouncedAt: now() })
+        .where(
+          and(
+            eq(customShellDeliveries.workspaceId, workspaceId),
+            eq(customShellDeliveries.providerMessageId, emailId)
+          )
+        )
+    }
   }
 
   // Fallback by address, for mail that never went through the deliveries

@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { dripConfigSchema, type DripConfig } from "@/lib/broadcasts/drip"
 import {
   clearEmailApiKey,
   clearResendWebhookSecret,
   getEmailSettingsStatus,
+  saveDripDefaults,
   saveEmailSender,
   setEmailApiKey,
   setResendWebhookSecret,
@@ -31,6 +33,8 @@ export const getEmailSettingsErrorMessage = createErrorMessage(
     NO_KEY: "There's no key to test yet — paste one first.",
     INVALID_FROM_EMAIL:
       "The from address doesn't look like an email address. Check it and try again.",
+    DRIP_SETTINGS_INVALID:
+      "Those batch settings contradict each other. Check the smallest is not bigger than the largest.",
   },
   "Something went wrong with the email settings. Please try again."
 )
@@ -125,6 +129,21 @@ const removeWebhookSecretFn = createServerFn({ method: "POST" })
 
 export function removeResendWebhookSecret() {
   return removeWebhookSecretFn()
+}
+
+const saveDripDefaultsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  // The whole config is re-checked here rather than trusted: this is what gets
+  // copied onto every newsletter made from now on.
+  .inputValidator(z.object({ drip: dripConfigSchema }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveDripDefaults(workspaceId, data.drip)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveNewsletterDripDefaults(drip: DripConfig) {
+  return saveDripDefaultsFn({ data: { drip } })
 }
 
 // POST although it changes nothing: the pasted key rides in the body, and a

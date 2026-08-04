@@ -8,8 +8,10 @@ import {
   type BroadcastAudienceFilter,
   type BroadcastBlock,
 } from "@/lib/broadcasts/blocks"
+import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
 import { db, type CustomShellDb } from "@/server/db"
+import { getDripDefaults } from "@/server/email-settings"
 import {
   customShellBroadcastTemplates,
   customShellBroadcasts,
@@ -176,6 +178,11 @@ export async function createWorkspaceBroadcast(
   const blocks =
     templateBlocks.length > 0 ? templateBlocks : createStarterBlocks()
 
+  // Copied onto the newsletter rather than read from the settings at send time,
+  // so changing the workspace default later cannot quietly re-pace a newsletter
+  // somebody already reviewed.
+  const dripConfig = await getDripDefaults(workspaceId, database)
+
   const timestamp = now()
   const [created] = await database
     .insert(customShellBroadcasts)
@@ -184,6 +191,7 @@ export async function createWorkspaceBroadcast(
       workspaceId,
       name: input.name.trim().slice(0, 255),
       blocks,
+      dripConfig,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -203,6 +211,7 @@ export async function updateWorkspaceBroadcast(
     fromName?: string | null
     blocks?: BroadcastBlock[]
     audienceFilter?: BroadcastAudienceFilter
+    dripConfig?: DripConfig
   },
   database: CustomShellDb = db
 ): Promise<CustomShellBroadcast | null> {
@@ -228,6 +237,11 @@ export async function updateWorkspaceBroadcast(
   if (input.blocks !== undefined) values.blocks = sanitizeBlocks(input.blocks)
   if (input.audienceFilter !== undefined) {
     values.audienceFilter = input.audienceFilter
+  }
+  if (input.dripConfig !== undefined) {
+    const invalid = validateDripConfig(input.dripConfig)
+    if (invalid) throw new Error("DRIP_SETTINGS_INVALID")
+    values.dripConfig = input.dripConfig
   }
 
   // Keep the sendable HTML in step with content edits, so a paused broadcast
