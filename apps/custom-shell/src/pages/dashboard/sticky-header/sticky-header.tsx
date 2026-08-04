@@ -34,6 +34,8 @@ export type ViewingAsSummary = {
 type StickyHeaderProps = {
   className?: string
   navLinks?: StickyHeaderLeftNavLink[]
+  /** Most links to draw before the rest fold into a "more" menu. 0 = all. */
+  navLinkLimit?: number
   navContent?: React.ReactNode
   rightNavItems?: ShellTopRightNavigationItem[]
   /** Who is looking, for the top-right row's admin-link guard. */
@@ -55,6 +57,7 @@ type StickyHeaderProps = {
 export function StickyHeader({
   className,
   navLinks,
+  navLinkLimit,
   navContent,
   rightNavItems,
   role,
@@ -95,7 +98,7 @@ export function StickyHeader({
           {navContent}
 
           {!navContent && navLinks && navLinks.length > 0 && (
-            <StickyHeaderLeftNav navLinks={navLinks} />
+            <StickyHeaderLeftNav navLinks={navLinks} limit={navLinkLimit} />
           )}
         </div>
         <div className="flex items-center gap-3">

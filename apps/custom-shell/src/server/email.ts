@@ -1,3 +1,5 @@
+import { escapeHtml } from "@/lib/escape-html"
+
 const RESEND_ENDPOINT = "https://api.resend.com/emails"
 
 export type AuthEmail = {
@@ -68,18 +70,4 @@ function renderAuthEmail(email: AuthEmail) {
   <p style="margin:0 0 24px"><a href="${escapeHtml(email.actionUrl)}" style="display:inline-block;background:#18181b;color:#fafafa;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">${escapeHtml(email.action)}</a></p>
   <p style="font-size:12px;color:#71717a;margin:0">If you did not request this, you can ignore this email.</p>
 </div>`
-}
-
-function escapeHtml(value: string) {
-  return value.replace(
-    /[&<>'"]/g,
-    (character) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        "'": "&#39;",
-        '"': "&quot;",
-      })[character] || character
-  )
 }

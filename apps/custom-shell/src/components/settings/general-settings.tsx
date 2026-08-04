@@ -19,6 +19,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   DEFAULT_MAINTENANCE_MESSAGE,
   MAX_MAINTENANCE_MESSAGE_LENGTH,
+  TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
@@ -172,6 +173,35 @@ export function GeneralSettings({
               {DASHBOARD_ROWS_PER_PAGE_OPTIONS.map((value) => (
                 <SelectItem key={value} value={String(value)}>
                   {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="top-left-nav-limit"
+            hint="The row of links in the top bar comes from whichever sidebar section you are in, so a big section makes a long row. Past this many links the rest fold into a menu behind a three-dot button. If the page you are on is one of the folded ones, nothing in the row is highlighted."
+          >
+            Top bar links before a menu
+          </FieldLabel>
+          <Select
+            value={String(config.topLeftNavLimit)}
+            onValueChange={(value) =>
+              onConfigChange({
+                ...config,
+                topLeftNavLimit: Number(value),
+              })
+            }
+          >
+            <SelectTrigger id="top-left-nav-limit" className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TOP_LEFT_NAV_LIMIT_OPTIONS.map((value) => (
+                <SelectItem key={value} value={String(value)}>
+                  {value === 0 ? "Show all" : value}
                 </SelectItem>
               ))}
             </SelectContent>

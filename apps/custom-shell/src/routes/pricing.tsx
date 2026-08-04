@@ -40,6 +40,8 @@ export const Route = createFileRoute("/pricing")({
       // An existing Stripe subscription changes in the portal, never through a
       // second checkout — see the comment on `handleSelect`.
       manageInStripe: Boolean(overview?.isPaid && overview.hasStripeCustomer),
+      // A visitor we do not know yet is never told they have spent a trial.
+      trialUsed: Boolean(overview?.trialUsed),
     }
   },
   component: PricingRoute,
@@ -53,6 +55,7 @@ function PricingRoute() {
     currentInterval,
     manageInStripe,
     billingEnabled,
+    trialUsed,
   } = Route.useLoaderData()
   const navigate = useNavigate()
   // Opens on the period they already pay, so a yearly subscriber is not shown
@@ -104,6 +107,7 @@ function PricingRoute() {
             onIntervalChange={setInterval}
             onSelect={handleSelect}
             busyPlanSlug={busyPlanSlug}
+            trialUsed={trialUsed}
             actionLabel={
               !user ? "Get started" : manageInStripe ? "Change in Stripe" : "Upgrade"
             }

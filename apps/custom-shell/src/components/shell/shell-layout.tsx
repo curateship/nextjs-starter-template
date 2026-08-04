@@ -30,6 +30,7 @@ import {
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeStyling,
+  normalizeTopLeftNavLimit,
   normalizeTopRightNavigation,
   renderShellIcon,
   resolveBackground,
@@ -461,6 +462,7 @@ export function ShellLayout({
           <SidebarInset>
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath, user.role)}
+              navLinkLimit={config.topLeftNavLimit}
               rightNavItems={config.topRightNavigation}
               role={user.role}
               unreadNotifications={unreadNotifications}
@@ -544,6 +546,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
       ? settings.dashboardRowsPerPage
       : fallback.dashboardRowsPerPage,
     toastSeconds: clampToastSeconds(settings.toastSeconds),
+    topLeftNavLimit: normalizeTopLeftNavLimit(settings.topLeftNavLimit),
     sidebarWidth: clampSidebarWidth(
       settings.sidebarWidth ?? fallback.sidebarWidth
     ),

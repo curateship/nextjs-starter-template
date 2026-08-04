@@ -118,6 +118,7 @@ import { describeDevice } from "@/lib/device-label"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
+  addNewsletterLink,
   addOverviewLink,
   addTrafficLink,
   removeRevenueLink,
@@ -134,9 +135,11 @@ import {
   listUserWorkspaces,
   NAVIGATION_VERSION,
   parseWorkspaceSettings,
+  saveWorkspaceBroadcastBlockDefault,
   switchUserWorkspace,
   updateUserWorkspace,
 } from "@/server/workspaces"
+import { sanitizeBlocks } from "@/server/broadcasts"
 import { loadFeedsSummary } from "@/server/feeds"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
@@ -982,6 +985,16 @@ describe("custom shell workspaces", () => {
       },
       {
         type: "item",
+        label: "Newsletter",
+        href: "/admin/newsletter",
+        visible: true,
+        children: [
+          { label: "Newsletters", href: "/admin/newsletter" },
+          { label: "Contacts", href: "/admin/contacts" },
+        ],
+      },
+      {
+        type: "item",
         label: "Automations",
         href: "/admin/automations",
         visible: true,
@@ -1051,6 +1064,16 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Storage by user", href: "/admin/media/storage" },
           { label: "Orphaned files", href: "/admin/media/orphans" },
+        ],
+      },
+      {
+        type: "item",
+        label: "Newsletter",
+        href: "/admin/newsletter",
+        visible: true,
+        children: [
+          { label: "Newsletters", href: "/admin/newsletter" },
+          { label: "Contacts", href: "/admin/contacts" },
         ],
       },
       {
@@ -1185,6 +1208,94 @@ describe("custom shell workspaces", () => {
     await expect(
       deleteUserWorkspaces(userId, [extra.id], shellDb)
     ).resolves.toEqual({ deleted: [], kept: [extra.id] })
+  })
+
+  // A rich-text setup saved from the blocks panel is written into real blocks
+  // later and drawn on the page before the email it lands in has saved itself
+  // once — so it has to be cleaned on the way in, exactly like every other way
+  // markup reaches the database. It was not, at first.
+  it("stores a block setup only after the markup has been cleaned", async () => {
+    const shellDb = database as unknown as CustomShellDb
+    const userId = uuid()
+    const createdAt = new Date("2026-08-01T00:00:00.000Z")
+    await shellDb.insert(customShellUsers).values({
+      id: userId,
+      email: `${userId}@example.test`,
+      name: "Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const dirty = {
+      id: "richText-1",
+      kind: "richText" as const,
+      content: {
+        htmlContent:
+          '<p>Hello</p><script>alert(1)</script><p onclick="alert(2)">Bye</p>',
+        backgroundColor: "#ffffff",
+        padding: 20,
+      },
+    }
+
+    const saved = await saveWorkspaceBroadcastBlockDefault(
+      userId,
+      sanitizeBlocks([dirty])[0],
+      shellDb
+    )
+
+    const html = (saved.richText as { htmlContent: string }).htmlContent
+    expect(html).not.toContain("<script>")
+    expect(html).not.toContain("onclick")
+    expect(html).toContain("Hello")
+    expect(html).toContain("Bye")
+  })
+
+  // Only the first trial is remembered, and only the kind that was edited.
+  it("replaces one kind of block setup and leaves the others alone", async () => {
+    const shellDb = database as unknown as CustomShellDb
+    const userId = uuid()
+    const createdAt = new Date("2026-08-01T00:00:00.000Z")
+    await shellDb.insert(customShellUsers).values({
+      id: userId,
+      email: `${userId}@example.test`,
+      name: "Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await saveWorkspaceBroadcastBlockDefault(
+      userId,
+      {
+        id: "divider-1",
+        kind: "divider",
+        content: { color: "#000000", thickness: 3, width: 50, spacing: 40 },
+      },
+      shellDb
+    )
+    const after = await saveWorkspaceBroadcastBlockDefault(
+      userId,
+      {
+        id: "footer-1",
+        kind: "footer",
+        content: {
+          companyName: "System Everything",
+          companyAddress: "",
+          alignment: "center",
+          showUnsubscribe: true,
+        },
+      },
+      shellDb
+    )
+
+    expect(after.divider).toMatchObject({ thickness: 3, spacing: 40 })
+    expect(after.footer).toMatchObject({ companyName: "System Everything" })
+    // Untouched kinds stay absent, which is what "use the built-in setup" is.
+    expect(after.header).toBeUndefined()
+    expect(after.richText).toBeUndefined()
   })
 
   // Reading a saved sidebar used to top it back up with the default links
@@ -1415,12 +1526,16 @@ describe("membership section", () => {
     // One load applied every restructure: Users, Plans and Revenue grouped
     // under Membership, the audit link grouped under Feeds, the retired audit
     // link taken out again, the Overview handed out, Feeds folded into it,
-    // the AI usage link handed out beside Membership, and Traffic after it.
+    // the AI usage link handed out beside Membership, Traffic after it, and
+    // Newsletter last — this saved sidebar has no Automations link and no
+    // Platform Settings section, so it falls back to the end of the only
+    // section there is.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-membership",
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-newsletter",
     ])
     // Feeds held nothing but the audit link, which was taken out a step
     // earlier — so the Overview came out of the fold with no children at all,
@@ -1454,12 +1569,13 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The Overview, AI usage, and Traffic links stay: all were handed out by
-    // the same upgrade, and none is what was deleted.
+    // The Overview, AI usage, Traffic and Newsletter links stay: all were
+    // handed out by the same upgrade, and none is what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-newsletter",
     ])
   })
 
@@ -1946,6 +2062,98 @@ describe("traffic link", () => {
       ).settings
     )
     expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-ai-usage"])
+  })
+})
+
+describe("newsletter link", () => {
+  function sectionWith(entries: ShellSection["entries"]): ShellSection[] {
+    return [{ id: "section-platform-settings", title: "Platform", entries }]
+  }
+
+  const automations = {
+    type: "item" as const,
+    id: "item-automations",
+    label: "Automations",
+    href: "/admin/automations",
+    icon: "workflow" as const,
+    visible: true,
+  }
+
+  function entryAt(sections: ShellSection[], index: number) {
+    return sections[0].entries[index]
+  }
+
+  it("puts Newsletter just before Automations, with Contacts under it", () => {
+    const sections = addNewsletterLink(sectionWith([automations]))
+
+    expect(sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-newsletter",
+      "item-automations",
+    ])
+    expect(entryAt(sections, 0)).toMatchObject({
+      label: "Newsletter",
+      href: "/admin/newsletter",
+      children: [
+        { label: "Newsletters", href: "/admin/newsletter" },
+        { label: "Contacts", href: "/admin/contacts" },
+      ],
+    })
+  })
+
+  /**
+   * The bug this exists for: version 11 skipped any sidebar that already had a
+   * newsletter link on it, which left Contacts with no way in at all for
+   * anybody who had added that link themselves.
+   */
+  it("hangs Contacts under a newsletter link somebody added by hand", () => {
+    const byHand = {
+      type: "item" as const,
+      id: "item-8576ee16",
+      label: "Broadcast",
+      href: "/admin/newsletter",
+      icon: "mails" as const,
+      visible: true,
+    }
+    const sections = addNewsletterLink(sectionWith([byHand, automations]))
+
+    // Their link, their name, their place — only the way in to Contacts added.
+    expect(sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-8576ee16",
+      "item-automations",
+    ])
+    expect(entryAt(sections, 0)).toMatchObject({
+      label: "Broadcast",
+      icon: "mails",
+      children: [
+        { label: "Newsletters", href: "/admin/newsletter" },
+        { label: "Contacts", href: "/admin/contacts" },
+      ],
+    })
+  })
+
+  it("leaves a sidebar that already reaches Contacts alone", () => {
+    const sections = sectionWith([
+      {
+        type: "item" as const,
+        id: "item-8576ee16",
+        label: "Broadcast",
+        href: "/admin/newsletter",
+        icon: "mails" as const,
+        visible: true,
+        children: [{ id: "child-abc", label: "People", href: "/admin/contacts" }],
+      },
+    ])
+
+    expect(addNewsletterLink(sections)).toBe(sections)
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addNewsletterLink(sectionWith([automations]))
+    expect(addNewsletterLink(once)).toBe(once)
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addNewsletterLink([])).toEqual([])
   })
 })
 
@@ -3411,6 +3619,22 @@ describe("member sidebar", () => {
     // than reaching an <img> on a signed-out page.
     expect(parseShellGlobals({ appName: "x" }).logo).toBe("")
     expect(parseShellGlobals({ logo: 42 }).logo).toBe("")
+  })
+
+  it("carries the top-bar link limit through a save and back", () => {
+    // Same trap as the three above: miss it in `pickShellGlobals` and every
+    // save drops the limit, so the top bar quietly goes back to a long row.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      topLeftNavLimit: 5,
+    })
+
+    expect(parseShellGlobals(saved).topLeftNavLimit).toBe(5)
+    // A row written before the setting existed, and junk stored in one, both
+    // read as "no limit" — the way the top bar behaved before this existed.
+    expect(parseShellGlobals({ appName: "x" }).topLeftNavLimit).toBe(0)
+    expect(parseShellGlobals({ topLeftNavLimit: 99 }).topLeftNavLimit).toBe(0)
+    expect(parseShellGlobals({ topLeftNavLimit: "5" }).topLeftNavLimit).toBe(0)
   })
 
   it("still refuses to show a member an admin page put on their list", async () => {

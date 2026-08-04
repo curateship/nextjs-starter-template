@@ -6,7 +6,7 @@ import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { loadCurrentUser } from "@/lib/api/auth"
-import { loadPublicPricing } from "@/lib/api/billing"
+import { loadBillingOverview, loadPublicPricing } from "@/lib/api/billing"
 import { useAppName } from "@/lib/branding"
 
 /**
@@ -27,10 +27,24 @@ export const Route = createFileRoute("/")({
       loadPublicPricing(),
     ])
 
+    // These cards promise a free trial, so a signed-in visitor who has already
+    // spent theirs has to be told here too — /pricing says so, and one page
+    // promising what the other refuses is worse than neither saying it. Only
+    // asked for when there is somebody to ask about.
+    //
+    // Never allowed to fail: this is the public front page, and a session that
+    // lapsed between the two calls must leave a visitor on marketing copy, not
+    // an error page. Falling back reads as "we do not know", which is what the
+    // signed-out wording already says.
+    const overview = user
+      ? await loadBillingOverview().catch(() => null)
+      : null
+
     return {
       signedIn: Boolean(user),
       plans: pricing.plans,
       billingEnabled: pricing.billingEnabled,
+      trialUsed: Boolean(overview?.trialUsed),
     }
   },
   head: () => ({
@@ -46,7 +60,7 @@ export const Route = createFileRoute("/")({
 })
 
 function LandingRoute() {
-  const { signedIn, plans, billingEnabled } = Route.useLoaderData()
+  const { signedIn, plans, billingEnabled, trialUsed } = Route.useLoaderData()
   const appName = useAppName()
   const navigate = useNavigate()
   const [interval, setInterval] = React.useState<BillingInterval>("monthly")
@@ -91,6 +105,7 @@ function LandingRoute() {
             interval={interval}
             onIntervalChange={setInterval}
             onSelect={handleSelect}
+            trialUsed={trialUsed}
             actionLabel="Get started"
           />
         ) : (

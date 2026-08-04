@@ -14,6 +14,11 @@ import {
 } from "@/lib/custom-shell"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
 import {
+  cleanBroadcastBlockDefaults,
+  type BroadcastBlock,
+  type BroadcastBlockDefaults,
+} from "@/lib/broadcasts/blocks"
+import {
   DEFAULT_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
@@ -261,12 +266,46 @@ const AUTOMATIONS_LINK: ShellItem = {
   roles: ["admin"],
 }
 
+const NEWSLETTER_LINK_ID = "item-newsletter"
+const NEWSLETTER_HREF = "/admin/newsletter"
+const CONTACTS_LINK_ID = "item-newsletter-contacts"
+const CONTACTS_HREF = "/admin/contacts"
+
+/**
+ * Writing and sending a newsletter, with the list of people it goes to hanging
+ * off it — the two questions are always asked together, and a parent with
+ * children is what draws the row of chips along the top of the page.
+ */
+function newsletterChildLinks(): ShellChildItem[] {
+  return [
+    {
+      id: `${NEWSLETTER_LINK_ID}-all`,
+      label: "Newsletters",
+      href: NEWSLETTER_HREF,
+    },
+    { id: CONTACTS_LINK_ID, label: "Contacts", href: CONTACTS_HREF },
+  ]
+}
+
+function newsletterLink(): ShellItem {
+  return {
+    type: "item",
+    id: NEWSLETTER_LINK_ID,
+    label: "Newsletter",
+    href: NEWSLETTER_HREF,
+    icon: "mail",
+    visible: true,
+    roles: ["admin"],
+    children: newsletterChildLinks(),
+  }
+}
+
 /**
  * Bumped when the default sidebar is restructured in a way an existing
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 10
+export const NAVIGATION_VERSION = 12
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -281,6 +320,8 @@ export type WorkspaceSettings = {
   styling: ShellStyling
   // Starred palette nodes in the automation editor, saved per-workspace.
   automationFavoriteNodeKeys: string[]
+  // How each kind of newsletter block starts out, saved per-workspace.
+  broadcastBlockDefaults: BroadcastBlockDefaults
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -614,6 +655,12 @@ async function applyNavigationUpgrade(
   // step just tucked under Membership is taken out again rather than missed.
   if (settings.navVersion < 10) {
     sections = removeRevenueLink(sections)
+  }
+  // 12 rather than 11: version 11 skipped a sidebar that already had a
+  // newsletter link on it, which left Contacts with no way in for anyone who
+  // had added that link themselves.
+  if (settings.navVersion < 12) {
+    sections = addNewsletterLink(sections)
   }
 
   const [updated] = await database
@@ -1059,6 +1106,91 @@ export function addTrafficLink(sections: ShellSection[]): ShellSection[] {
 }
 
 /**
+ * Puts the Newsletter link into a sidebar that was saved before the section
+ * existed, right above Automations — the two sit together because both are
+ * "things the app sends on your behalf".
+ *
+ * Does nothing when the link is already somewhere, however it got there: a
+ * workspace that has already been upgraded, or an admin who added it by hand,
+ * must not end up with two.
+ */
+export function addNewsletterLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isNewsletter = (link: { id: string; href?: string }) =>
+    link.id === NEWSLETTER_LINK_ID || link.href === NEWSLETTER_HREF
+  const isContacts = (link: { id: string; href?: string }) =>
+    link.id === CONTACTS_LINK_ID || link.href === CONTACTS_HREF
+
+  const reachable = (match: (link: { id: string; href?: string }) => boolean) =>
+    sections.some((section) =>
+      section.entries.some(
+        (entry) =>
+          match(entry) ||
+          (isShellItem(entry) && (entry.children ?? []).some(match))
+      )
+    )
+
+  if (reachable(isNewsletter)) {
+    // The newsletter is already on the sidebar, either because this ran before
+    // or because somebody added the link by hand. Leave it exactly as it is —
+    // its name and its place are theirs — but Contacts still has to be
+    // reachable from somewhere, so it is hung underneath.
+    if (reachable(isContacts)) return sections
+
+    return sections.map((section) => ({
+      ...section,
+      entries: section.entries.map((entry) => {
+        if (!isShellItem(entry) || !isNewsletter(entry)) return entry
+        const children = entry.children ?? []
+        return {
+          ...entry,
+          children: [
+            // Only once the parent has children at all does the row of chips
+            // appear, and a parent whose own page is missing from that row
+            // reads as a gap — so its own address goes in beside Contacts.
+            ...(children.length
+              ? children
+              : [newsletterChildLinks()[0]]),
+            newsletterChildLinks()[1],
+          ],
+        }
+      }),
+    }))
+  }
+
+  // Where it belongs, in order: just before Automations, then the Platform
+  // Settings section, then the last section.
+  const isAutomations = (link: { id: string; href?: string }) =>
+    link.id === AUTOMATIONS_LINK.id || link.href === AUTOMATIONS_LINK.href
+
+  const withAutomations = sections.findIndex((section) =>
+    section.entries.some(isAutomations)
+  )
+  const platformSettings = sections.findIndex(
+    (section) => section.id === "section-platform-settings"
+  )
+  const index =
+    withAutomations >= 0
+      ? withAutomations
+      : platformSettings >= 0
+        ? platformSettings
+        : sections.length - 1
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const automationsAt = section.entries.findIndex(isAutomations)
+    const entries = [...section.entries]
+    entries.splice(
+      automationsAt >= 0 ? automationsAt : entries.length,
+      0,
+      newsletterLink()
+    )
+    return { ...section, entries }
+  })
+}
+
+/**
  * Folds the Feeds section into the Overview: the four links it held become the
  * Overview's children, and the parent goes, because its page has been deleted
  * — the Overview shows what it showed.
@@ -1422,6 +1554,9 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
         settings.automationFavoriteNodeKeys
       ),
+      broadcastBlockDefaults: cleanBroadcastBlockDefaults(
+        settings.broadcastBlockDefaults
+      ),
     }
   }
 
@@ -1455,6 +1590,9 @@ function cleanWorkspaceSettings(
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
+    broadcastBlockDefaults: cleanBroadcastBlockDefaults(
+      settings.broadcastBlockDefaults
+    ),
   }
 }
 
@@ -1476,6 +1614,43 @@ export async function saveWorkspaceAutomationFavorites(
   return settings.automationFavoriteNodeKeys
 }
 
+/**
+ * Remembers how one kind of newsletter block should start out, and answers with
+ * every kind's setup afterwards.
+ *
+ * One kind at a time, because that is how it is edited — the left panel has one
+ * block open at once. It takes a whole block rather than loose content so the
+ * one schema that already describes a block is what checks it, here and on the
+ * way back out.
+ *
+ * The block must already have been through `sanitizeBlocks`. A rich-text setup
+ * saved here is written into real blocks later and drawn on the page before the
+ * email it lands in ever saves itself, so markup that arrives dirty stays dirty
+ * all the way to another admin's browser.
+ */
+export async function saveWorkspaceBroadcastBlockDefault(
+  userId: string,
+  block: BroadcastBlock,
+  database: CustomShellDb = db
+): Promise<BroadcastBlockDefaults> {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  const current = parseWorkspaceSettings(workspace.settings)
+  const settings = {
+    ...current,
+    broadcastBlockDefaults: cleanBroadcastBlockDefaults({
+      ...current.broadcastBlockDefaults,
+      // The block's id is thrown away here — ids belong to blocks in an email,
+      // not to the setup new ones are cut from.
+      [block.kind]: block.content,
+    }),
+  }
+  await database
+    .update(customShellWorkspaces)
+    .set({ settings, updatedAt: now() })
+    .where(eq(customShellWorkspaces.id, workspace.id))
+  return settings.broadcastBlockDefaults
+}
+
 function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
@@ -1488,6 +1663,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     styling: normalizeStyling(undefined),
     automationFavoriteNodeKeys: [],
+    broadcastBlockDefaults: {},
   }
 }
 
@@ -1520,6 +1696,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           visible: true,
           children: MEDIA_CHILD_LINKS.map((child) => ({ ...child })),
         },
+        newsletterLink(),
         { ...AUTOMATIONS_LINK },
         {
           type: "item",

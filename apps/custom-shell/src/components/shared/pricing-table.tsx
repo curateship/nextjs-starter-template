@@ -32,6 +32,7 @@ export function PricingTable({
   onSelect,
   busyPlanSlug,
   actionLabel = "Upgrade",
+  trialUsed = false,
 }: {
   plans: PlanOption[]
   currentPlanSlug?: string
@@ -45,6 +46,13 @@ export function PricingTable({
   onSelect: (plan: PlanOption, interval: BillingInterval) => void
   busyPlanSlug?: string | null
   actionLabel?: string
+  /**
+   * True once this person has already had their one free trial, so every card
+   * that advertises a trial says "billing starts today" instead. Defaults to
+   * false, which is what a signed-out visitor sees: nobody is told they have
+   * spent a trial before we know who they are.
+   */
+  trialUsed?: boolean
 }) {
   const hasYearly = plans.some((plan) => plan.priceYearlyCents > 0)
 
@@ -74,6 +82,7 @@ export function PricingTable({
             currentInterval={currentInterval}
             busy={busyPlanSlug === plan.slug}
             actionLabel={actionLabel}
+            trialUsed={trialUsed}
             onSelect={onSelect}
           />
         ))}
@@ -89,6 +98,7 @@ function PlanCard({
   currentInterval,
   busy,
   actionLabel,
+  trialUsed,
   onSelect,
 }: {
   plan: PlanOption
@@ -97,6 +107,7 @@ function PlanCard({
   currentInterval?: BillingInterval | null
   busy?: boolean
   actionLabel: string
+  trialUsed: boolean
   onSelect: (plan: PlanOption, interval: BillingInterval) => void
 }) {
   const priceCents =
@@ -161,9 +172,15 @@ function PlanCard({
                   : "per month"}
           </span>
         </p>
+        {/* Said here rather than left to Stripe's page. A trial that has
+            already been used is going to be missing at the checkout either
+            way; the only choice is whether the person finds out before they
+            click or after. */}
         {plan.trialDays > 0 && priceCents > 0 ? (
           <p className="text-sm text-muted-foreground">
-            Starts with a {plan.trialDays}-day free trial.
+            {trialUsed
+              ? "You've used your free trial, so billing starts today."
+              : `Starts with a ${plan.trialDays}-day free trial.`}
           </p>
         ) : null}
         {features.length ? (

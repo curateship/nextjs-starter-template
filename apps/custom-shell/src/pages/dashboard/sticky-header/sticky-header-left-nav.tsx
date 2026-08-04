@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDownIcon } from "lucide-react"
+import { ChevronDownIcon, EllipsisVerticalIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,11 @@ export type StickyHeaderLeftNavLink = {
 
 type StickyHeaderLeftNavProps = {
   navLinks: StickyHeaderLeftNavLink[]
+  /**
+   * Most links to draw in the row before the rest fold into a "more" menu.
+   * Zero — the default — draws every one of them, as the bar always did.
+   */
+  limit?: number
 }
 
 const navLinkClassName =
@@ -106,22 +111,40 @@ function NavLink({
   )
 }
 
-/** The same link inside the phone menu, wearing the menu row's own styling. */
+/**
+ * The same link as a menu row.
+ *
+ * It has to hand `...rest` down to the anchor it renders. This sits under a
+ * `DropdownMenuItem asChild`, which passes the row's styling, its `menuitem`
+ * role and the handler that closes the menu in as props — and a component that
+ * quietly drops them renders a bare, unstyled `<a>` that screen readers do not
+ * read as a menu row. It used to do exactly that.
+ */
 function MenuNavLink({
   link,
+  className,
+  onClick,
+  ...rest
 }: {
   link: StickyHeaderLeftNavLink & { href: string }
-}) {
-  const className = cn(link.active && "bg-accent text-accent-foreground")
+} & Omit<React.ComponentProps<"a">, "href">) {
+  const classes = cn(className, link.active && "bg-accent text-accent-foreground")
+
+  // Both handlers matter: the menu's own (close on pick) and the link's.
+  const handleClick: React.MouseEventHandler<HTMLAnchorElement> = (event) => {
+    onClick?.(event)
+    link.onClick?.(event)
+  }
 
   if (link.external || isExternalHref(link.href)) {
     return (
       <a
+        {...rest}
         href={link.href}
         target="_blank"
         rel="noreferrer"
-        onClick={link.onClick}
-        className={className}
+        onClick={handleClick}
+        className={classes}
       >
         <NavLinkBody link={link} />
       </a>
@@ -130,16 +153,50 @@ function MenuNavLink({
 
   return (
     <Link
+      {...rest}
       {...toLinkProps(link.href)}
-      onClick={link.onClick}
-      className={className}
+      onClick={handleClick}
+      className={classes}
     >
       <NavLinkBody link={link} />
     </Link>
   )
 }
 
-export function StickyHeaderLeftNav({ navLinks }: StickyHeaderLeftNavProps) {
+/**
+ * The links as menu rows. Shared by the phone menu, which folds the whole row
+ * away, and by the overflow menu that holds whatever ran past the limit.
+ */
+function NavMenuItems({ links }: { links: StickyHeaderLeftNavLink[] }) {
+  return (
+    <>
+      {links.map((link) =>
+        link.href ? (
+          <DropdownMenuItem key={`${link.href}-${link.label}`} asChild>
+            <MenuNavLink link={{ ...link, href: link.href }} />
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            key={`${link.href}-${link.label}`}
+            className={cn(link.active && "bg-accent text-accent-foreground")}
+            onClick={
+              link.onClick as
+                | React.MouseEventHandler<HTMLDivElement>
+                | undefined
+            }
+          >
+            <NavLinkBody link={link} />
+          </DropdownMenuItem>
+        )
+      )}
+    </>
+  )
+}
+
+export function StickyHeaderLeftNav({
+  navLinks,
+  limit = 0,
+}: StickyHeaderLeftNavProps) {
   const isMobile = useIsMobile()
 
   if (!navLinks.length) {
@@ -167,39 +224,55 @@ export function StickyHeaderLeftNav({ navLinks }: StickyHeaderLeftNavProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          {navLinks.map((link) =>
-            link.href ? (
-              <DropdownMenuItem key={`${link.href}-${link.label}`} asChild>
-                <MenuNavLink link={{ ...link, href: link.href }} />
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem
-                key={`${link.href}-${link.label}`}
-                className={cn(link.active && "bg-accent text-accent-foreground")}
-                onClick={
-                  link.onClick as
-                    | React.MouseEventHandler<HTMLDivElement>
-                    | undefined
-                }
-              >
-                <NavLinkBody link={link} />
-              </DropdownMenuItem>
-            )
-          )}
+          <NavMenuItems links={navLinks} />
         </DropdownMenuContent>
       </DropdownMenu>
     )
   }
 
+  // Anything past the limit folds away, one link included: the row shows the
+  // number that was asked for, rather than quietly allowing an extra.
+  const overflowing = limit > 0 && navLinks.length > limit
+  const shownLinks = overflowing ? navLinks.slice(0, limit) : navLinks
+  const overflowLinks = overflowing ? navLinks.slice(limit) : []
+
   return (
     <div className="inline-flex h-8 items-center gap-1 rounded-md">
-      {navLinks.map((link) => (
+      {shownLinks.map((link) => (
         <NavLink
           key={`${link.href}-${link.label}`}
           link={link}
           className="px-3"
         />
       ))}
+
+      {/* Whatever ran past the limit. The page you are on can end up in here,
+          in which case nothing in the row is highlighted — the row shows the
+          first few links, full stop, rather than shuffling to keep the current
+          page visible. */}
+      {overflowLinks.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={
+                overflowLinks.length === 1
+                  ? "1 more link"
+                  : `${overflowLinks.length} more links`
+              }
+            >
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          {/* Sized to its own labels. A menu matches its button's width by
+              default, and this button is a 32px square, so the names inside
+              were being cut off mid-word. */}
+          <DropdownMenuContent align="start" className="w-auto min-w-40">
+            <NavMenuItems links={overflowLinks} />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
   )
 }

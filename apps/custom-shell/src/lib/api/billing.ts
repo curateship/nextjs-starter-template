@@ -13,6 +13,7 @@ import {
 import { loadEntitlements } from "@/server/entitlements"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/plans"
 import { enforceRateLimit } from "@/server/rate-limit"
+import type { CustomShellUser } from "@/server/schema"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { userGet, userPost } from "@/server/guards"
 
@@ -43,6 +44,12 @@ export type BillingOverview = {
   trialEndsAt: string | null
   source: "stripe" | "manual" | null
   hasStripeCustomer: boolean
+  /**
+   * True once this account has had its one free trial. The plan cards read it
+   * so a returning subscriber is told "billing starts today" on our own page,
+   * rather than being promised a trial here and losing it on Stripe's.
+   */
+  trialUsed: boolean
   features: PlanFeatures
   plans: PlanOption[]
 }
@@ -76,9 +83,11 @@ export function getBillingErrorMessage(error: unknown) {
  * needs that row to ask Stripe about the saved card, and reading it a second
  * time would be another round trip to the database for something already here.
  */
-async function buildBillingOverview(userId: string) {
+async function buildBillingOverview(
+  user: Pick<CustomShellUser, "id" | "firstTrialAt">
+) {
   const [{ subscription, entitlements }, plans] = await Promise.all([
-    loadEntitlements(userId),
+    loadEntitlements(user.id),
     listPurchasablePlans(),
   ])
 
@@ -94,6 +103,7 @@ async function buildBillingOverview(userId: string) {
     trialEndsAt: entitlements.trialEndsAt?.toISOString() ?? null,
     source: entitlements.source,
     hasStripeCustomer: Boolean(subscription?.stripeCustomerId),
+    trialUsed: Boolean(user.firstTrialAt),
     features: entitlements.features,
     plans: plans.map(toPlanOption),
   }
@@ -104,7 +114,7 @@ async function buildBillingOverview(userId: string) {
 const loadBillingOverviewFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<BillingOverview> => {
-    return (await buildBillingOverview(context.user.id)).overview
+    return (await buildBillingOverview(context.user)).overview
   })
 
 /** The plan badge the shell chrome shows; filled in by the shell bootstrap. */
@@ -176,9 +186,7 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
       invoices: BillingInvoice[]
       cardWarning: CardExpiryWarning | null
     }> => {
-      const { overview, subscription } = await buildBillingOverview(
-        context.user.id
-      )
+      const { overview, subscription } = await buildBillingOverview(context.user)
 
       // Both of these are calls out to Stripe, so make them at the same time
       // rather than leaving the reader waiting through one and then the other.

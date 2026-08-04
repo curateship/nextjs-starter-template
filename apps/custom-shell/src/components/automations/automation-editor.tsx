@@ -1,5 +1,4 @@
 import * as React from "react"
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
@@ -9,6 +8,7 @@ import { AutomationPalette } from "@/components/automations/automation-palette"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
+  PanelReopenTab,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -33,7 +33,6 @@ import {
   useRememberedPanelLayout,
 } from "@/lib/panel-layout"
 import { useWideScreen } from "@/lib/wide-screen"
-import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
@@ -512,38 +511,5 @@ export function AutomationEditor({
       </div>
 
     </div>
-  )
-}
-
-/**
- * A slim tab on the canvas edge shown while a side panel is collapsed, so
- * reopening is discoverable right where the panel disappeared (the bottom-bar
- * toggles still work too). The arrow points toward where the panel opens.
- */
-function PanelReopenTab({
-  side,
-  label,
-  onClick,
-}: {
-  side: "left" | "right"
-  label: string
-  onClick: () => void
-}) {
-  const Icon = side === "left" ? ChevronRightIcon : ChevronLeftIcon
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        "absolute top-1/2 z-10 flex h-14 w-5 -translate-y-1/2 items-center justify-center border border-foreground/10 bg-card text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        side === "left"
-          ? "left-0 rounded-r-lg border-l-0"
-          : "right-0 rounded-l-lg border-r-0"
-      )}
-    >
-      <Icon className="size-4" />
-    </button>
   )
 }
