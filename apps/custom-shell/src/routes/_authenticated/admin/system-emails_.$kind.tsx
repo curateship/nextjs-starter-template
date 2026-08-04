@@ -16,6 +16,10 @@ export const Route = createFileRoute(
   // one after the other, the editor would open with the built-in block setup
   // and then quietly change under whoever was already typing. Only the email
   // is worth failing over — the saved block setups are a convenience.
+  // The editor copies the email into its own state once and never re-reads it,
+  // so a cached copy painted on re-entry is a lie that silently corrects
+  // underneath it. Forget the cache on leave; always open with a fresh fetch.
+  gcTime: 0,
   loader: async ({ params }) => {
     if (!isSystemEmailKind(params.kind)) throw new Error("NOT_FOUND")
     const [email, blockDefaults] = await Promise.all([
