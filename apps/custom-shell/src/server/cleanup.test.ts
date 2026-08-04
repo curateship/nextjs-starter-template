@@ -17,6 +17,7 @@ import {
   customShellNotifications,
   customShellRateLimits,
   customShellSessions,
+  customShellSystemEmailSends,
 } from "@/server/schema"
 import { setSessionPolicy } from "@/server/session-policy"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -94,6 +95,22 @@ async function addThrottle(
     ...overrides,
   })
   return key
+}
+
+async function addEmailSend(
+  overrides: Partial<typeof customShellSystemEmailSends.$inferInsert> = {}
+) {
+  const id = uuid()
+  await database.insert(customShellSystemEmailSends).values({
+    id,
+    kind: "password-reset",
+    toEmail: "ada@example.test",
+    subject: "Reset your password",
+    status: "sent",
+    createdAt: ago(200 * DAY),
+    ...overrides,
+  })
+  return id
 }
 
 async function addNotice(
@@ -198,18 +215,36 @@ describe("cleanUpOldData", () => {
     ).toEqual([unread, justRead].sort())
   })
 
+  it("deletes old email records and keeps the recent ones", async () => {
+    await addEmailSend()
+    const lastWeek = await addEmailSend({ createdAt: ago(7 * DAY) })
+    // Right on the edge of the ninety days, so the boundary is not off by one.
+    const justInside = await addEmailSend({ createdAt: ago(89 * DAY) })
+
+    const counts = await cleanUpOldData(database, NOW)
+
+    expect(counts.emailSends).toBe(1)
+    expect(
+      (
+        await remaining(database.select().from(customShellSystemEmailSends))
+      ).sort()
+    ).toEqual([lastWeek, justInside].sort())
+  })
+
   it("finds nothing to do on a database with nothing old in it", async () => {
     const user = await insertUser(database)
     await addSession(user.id)
     await addLink(user.id)
     await addThrottle("counting:1.2.3.4", { updatedAt: ago(HOUR) })
     await addNotice(user.id)
+    await addEmailSend({ createdAt: ago(7 * DAY) })
 
     expect(await cleanUpOldData(database, NOW)).toEqual({
       sessions: 0,
       authTokens: 0,
       throttles: 0,
       notifications: 0,
+      emailSends: 0,
     })
   })
 
@@ -267,6 +302,7 @@ describe("describeCleanupResult", () => {
     authTokens: 0,
     throttles: 0,
     notifications: 0,
+    emailSends: 0,
   }
 
   it("says so plainly when there was nothing to delete", () => {
@@ -282,6 +318,9 @@ describe("describeCleanupResult", () => {
     expect(
       describeCleanupResult({ ...nothing, sessions: 2, notifications: 5 })
     ).toBe("Deleted 2 expired sign-ins and 5 notices read over 90 days ago.")
+    expect(describeCleanupResult({ ...nothing, emailSends: 3 })).toBe(
+      "Deleted 3 email records over 90 days old."
+    )
   })
 
   it("admits there is more waiting when a table hit the cap", () => {

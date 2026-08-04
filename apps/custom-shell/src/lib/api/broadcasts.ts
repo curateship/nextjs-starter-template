@@ -133,6 +133,8 @@ const broadcastErrorMessages: Record<string, string> = {
   ALREADY_SENT: "This one has already gone out, so it can no longer be edited.",
   SUBJECT_REQUIRED: "Write a subject line before sending.",
   BLOCKS_REQUIRED: "Add something to the email before sending.",
+  BUTTON_WITHOUT_LINK:
+    "One of your buttons has no usable address. Give it one starting with https://, or take the button out.",
   EMAIL_NOT_CONFIGURED:
     "Email is not set up yet. Add a from-address in settings first.",
   UNSUBSCRIBE_NOT_CONFIGURED:

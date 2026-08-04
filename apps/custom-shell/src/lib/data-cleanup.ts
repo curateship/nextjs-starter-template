@@ -7,12 +7,16 @@
  * server's own imports along with it.
  */
 
-/** Sessions, links, limits and notices, and how many of each a run deleted. */
+/**
+ * Sessions, links, limits, notices and old email records, and how many of each
+ * a run deleted.
+ */
 export type CleanupCounts = {
   sessions: number
   authTokens: number
   throttles: number
   notifications: number
+  emailSends: number
 }
 
 /**
@@ -39,6 +43,15 @@ export const READ_NOTICE_KEEP_DAYS = 90
  */
 export const THROTTLE_KEEP_HOURS = 24
 
+/**
+ * A record of one of the app's own emails going out is kept this long.
+ *
+ * Long enough to answer "did my reset link ever get sent" months later, and
+ * three times the thirty days the System emails list counts over, so the
+ * numbers on that page are never trimmed from underneath.
+ */
+export const EMAIL_SEND_KEEP_DAYS = 90
+
 const EMPTY_RESULT = "Nothing to clean up — there was no old data."
 
 /** One line naming what a run deleted, or saying it found nothing. */
@@ -55,6 +68,11 @@ export function describeCleanupResult(counts: CleanupCounts) {
       counts.notifications,
       `notice read over ${READ_NOTICE_KEEP_DAYS} days ago`,
       `notices read over ${READ_NOTICE_KEEP_DAYS} days ago`
+    ),
+    plural(
+      counts.emailSends,
+      `email record over ${EMAIL_SEND_KEEP_DAYS} days old`,
+      `email records over ${EMAIL_SEND_KEEP_DAYS} days old`
     ),
   ].filter((part) => part !== null)
 

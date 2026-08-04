@@ -98,6 +98,77 @@ describe("renderBroadcastBlockHtml", () => {
     expect(html).toContain("width:50%")
     expect(html).toContain("padding:8px 0")
   })
+
+  it("renders a button with its own address", () => {
+    const html = renderBroadcastBlockHtml(
+      block("button", {
+        label: "Read it",
+        url: "https://example.com/post?a=1&b=2",
+        backgroundColor: "#ff0000",
+        textColor: "#ffffff",
+        alignment: "center",
+        borderRadius: 4,
+        padding: 12,
+      })
+    )
+    expect(html).toContain('href="https://example.com/post?a=1&amp;b=2"')
+    expect(html).toContain("Read it")
+    expect(html).toContain("background-color:#ff0000")
+    expect(html).toContain("color:#ffffff")
+    expect(html).toContain("text-align:center")
+    expect(html).toContain("padding:12px")
+    expect(html).toContain("border-radius:4px")
+  })
+
+  /**
+   * The whole reason the app's own emails can use this block: with no address
+   * of its own it holds the placeholder, and the send puts the one-use link in.
+   */
+  it("falls back to the action placeholder when a button has no address", () => {
+    const html = renderBroadcastBlockHtml(block("button", { url: "" }))
+    expect(html).toContain('href="{{action_url}}"')
+  })
+
+  /**
+   * The editor draws every block by handing this HTML to the browser, so a
+   * saved `javascript:` address would be a live link in the next admin's
+   * preview. Escaping the address does nothing about its scheme.
+   */
+  it("refuses an address that is not http, https or mailto", () => {
+    for (const url of [
+      "javascript:alert(1)",
+      "JavaScript:alert(1)",
+      " javascript:alert(1) ",
+      "data:text/html,<script>alert(1)</script>",
+      "vbscript:msgbox(1)",
+      "/somewhere/relative",
+    ]) {
+      const html = renderBroadcastBlockHtml(block("button", { url }))
+      expect(html).toContain('href="{{action_url}}"')
+      expect(html).not.toContain("alert(1)")
+      expect(html).not.toContain("msgbox")
+    }
+  })
+
+  it("keeps the addresses that are fine", () => {
+    for (const url of [
+      "https://example.com",
+      "http://example.com",
+      "mailto:ada@example.com",
+    ]) {
+      expect(renderBroadcastBlockHtml(block("button", { url }))).toContain(
+        `href="${url}"`
+      )
+    }
+  })
+
+  it("escapes the words on a button", () => {
+    const html = renderBroadcastBlockHtml(
+      block("button", { label: '<img src=x onerror="alert(1)">' })
+    )
+    expect(html).not.toContain("<img")
+    expect(html).toContain("&lt;img")
+  })
 })
 
 describe("renderBroadcastEmailHtml", () => {

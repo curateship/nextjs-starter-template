@@ -61,6 +61,7 @@ import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
   isActiveShellHref,
+  isShellItem,
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
@@ -120,6 +121,7 @@ import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   addNewsletterLink,
   addOverviewLink,
+  addSystemEmailsLink,
   addTrafficLink,
   removeRevenueLink,
   foldFeedsIntoOverview,
@@ -991,6 +993,7 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
+          { label: "System emails", href: "/admin/system-emails" },
         ],
       },
       {
@@ -1074,6 +1077,7 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
+          { label: "System emails", href: "/admin/system-emails" },
         ],
       },
       {
@@ -2083,7 +2087,7 @@ describe("newsletter link", () => {
     return sections[0].entries[index]
   }
 
-  it("puts Newsletter just before Automations, with Contacts under it", () => {
+  it("puts Newsletter just before Automations, with its pages under it", () => {
     const sections = addNewsletterLink(sectionWith([automations]))
 
     expect(sections[0].entries.map((entry) => entry.id)).toEqual([
@@ -2096,6 +2100,7 @@ describe("newsletter link", () => {
       children: [
         { label: "Newsletters", href: "/admin/newsletter" },
         { label: "Contacts", href: "/admin/contacts" },
+        { label: "System emails", href: "/admin/system-emails" },
       ],
     })
   })
@@ -2154,6 +2159,88 @@ describe("newsletter link", () => {
 
   it("leaves an emptied sidebar empty", () => {
     expect(addNewsletterLink([])).toEqual([])
+  })
+})
+
+describe("system emails link", () => {
+  function sectionWith(entries: ShellSection["entries"]): ShellSection[] {
+    return [{ id: "section-platform-settings", title: "Platform", entries }]
+  }
+
+  /** A navVersion-12 sidebar: Newsletter with the two children it had then. */
+  const newsletter = {
+    type: "item" as const,
+    id: "item-newsletter",
+    label: "Newsletter",
+    href: "/admin/newsletter",
+    icon: "mail" as const,
+    visible: true,
+    children: [
+      { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
+      { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+    ],
+  }
+
+  it("hangs it under the newsletter link that is already there", () => {
+    const [section] = addSystemEmailsLink(sectionWith([newsletter]))
+    const entry = section.entries[0]
+
+    expect(isShellItem(entry) && entry.children).toEqual([
+      { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
+      { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+      {
+        id: "item-newsletter-system-emails",
+        label: "System emails",
+        href: "/admin/system-emails",
+      },
+    ])
+  })
+
+  /** Their link, their name, their place — only the way in is added. */
+  it("hangs it under a newsletter link somebody added by hand", () => {
+    const byHand = {
+      type: "item" as const,
+      id: "item-8576ee16",
+      label: "Broadcast",
+      href: "/admin/newsletter",
+      icon: "mails" as const,
+      visible: true,
+    }
+    const [section] = addSystemEmailsLink(sectionWith([byHand]))
+    const entry = section.entries[0]
+
+    expect(isShellItem(entry) && entry.label).toBe("Broadcast")
+    // A parent with no children has no row of chips, so its own page goes in
+    // beside the new link rather than disappearing from that row.
+    expect(isShellItem(entry) && entry.children?.map((child) => child.href)).toEqual([
+      "/admin/newsletter",
+      "/admin/system-emails",
+    ])
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addSystemEmailsLink(sectionWith([newsletter]))
+    expect(addSystemEmailsLink(once)).toBe(once)
+  })
+
+  it("leaves a sidebar with no newsletter link alone", () => {
+    // `addNewsletterLink` builds that parent complete with all three children,
+    // so there is nothing here to fix.
+    const sections = sectionWith([
+      {
+        type: "item" as const,
+        id: "item-media",
+        label: "Media",
+        href: "/admin/media",
+        icon: "image" as const,
+        visible: true,
+      },
+    ])
+    expect(addSystemEmailsLink(sections)).toEqual(sections)
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addSystemEmailsLink([])).toEqual([])
   })
 })
 

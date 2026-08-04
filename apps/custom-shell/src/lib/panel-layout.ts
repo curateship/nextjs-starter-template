@@ -65,6 +65,11 @@ export const panelLayoutKey = {
   automationEditorVertical: "automation-editor-vertical",
   broadcastEditorHorizontal: "broadcast-editor-horizontal",
   broadcastEditorVertical: "broadcast-editor-vertical",
+  // Its own keys, not the newsletter's. The bottom panel holds a different
+  // thing and wants a different height, and a newsletter's sizing should not
+  // follow you into an email you cannot send.
+  systemEmailEditorHorizontal: "system-email-editor-horizontal",
+  systemEmailEditorVertical: "system-email-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: number) =>
     `custom-shell-${page}-${side}-${cards}`,

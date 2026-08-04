@@ -429,11 +429,9 @@ const requestSignInLinkFn = createServerFn({ method: "POST" })
     // have accounts.
     if (link) {
       await sendAuthEmail({
+        kind: "sign-in-link",
         to: link.email,
-        subject: "Your sign-in link",
-        heading: "Sign in",
-        message: `This link signs you in once and expires in ${SIGN_IN_LINK_MINUTES} minutes.`,
-        action: "Sign in",
+        tokens: { minutes: String(SIGN_IN_LINK_MINUTES) },
         actionUrl: appUrlFor(
           `/sign-in-link?token=${encodeURIComponent(link.token)}`
         ),
@@ -493,11 +491,8 @@ const requestPasswordResetFn = createServerFn({ method: "POST" })
     if (user) {
       const token = await createAuthToken(user.id, "reset_password")
       await sendAuthEmail({
+        kind: "password-reset",
         to: user.email,
-        subject: "Reset your password",
-        heading: "Reset your password",
-        message: "This link expires in one hour.",
-        action: "Reset password",
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
         ),
@@ -669,11 +664,12 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
 
     try {
       await sendAuthEmail({
+        kind: "email-change",
         to: data.newEmail,
-        subject: "Confirm your new email address",
-        heading: "Confirm your new email address",
-        message: `Opening this link moves the account at ${user.email} to this address. It expires in ${EMAIL_CHANGE_HOURS} hours.`,
-        action: "Confirm email address",
+        tokens: {
+          old_email: user.email,
+          hours: String(EMAIL_CHANGE_HOURS),
+        },
         actionUrl: appUrlFor(`/change-email?token=${encodeURIComponent(token)}`),
       })
     } catch (deliveryError) {
@@ -941,11 +937,8 @@ export async function startWorkspaceFor(userId: string) {
 
 function sendVerificationEmail(email: string, token: string) {
   return sendAuthEmail({
+    kind: "verify-email",
     to: email,
-    subject: "Verify your email",
-    heading: "Confirm your email address",
-    message: "Verify your email to finish setting up your account.",
-    action: "Verify email",
     actionUrl: appUrlFor(`/verify-email?token=${encodeURIComponent(token)}`),
   })
 }

@@ -270,11 +270,14 @@ const NEWSLETTER_LINK_ID = "item-newsletter"
 const NEWSLETTER_HREF = "/admin/newsletter"
 const CONTACTS_LINK_ID = "item-newsletter-contacts"
 const CONTACTS_HREF = "/admin/contacts"
+const SYSTEM_EMAILS_LINK_ID = "item-newsletter-system-emails"
+const SYSTEM_EMAILS_HREF = "/admin/system-emails"
 
 /**
- * Writing and sending a newsletter, with the list of people it goes to hanging
- * off it — the two questions are always asked together, and a parent with
- * children is what draws the row of chips along the top of the page.
+ * Writing and sending a newsletter, with the list of people it goes to and the
+ * app's own emails hanging off it — three questions always asked in the same
+ * sitting, and a parent with children is what draws the row of chips along the
+ * top of the page.
  */
 function newsletterChildLinks(): ShellChildItem[] {
   return [
@@ -284,6 +287,11 @@ function newsletterChildLinks(): ShellChildItem[] {
       href: NEWSLETTER_HREF,
     },
     { id: CONTACTS_LINK_ID, label: "Contacts", href: CONTACTS_HREF },
+    {
+      id: SYSTEM_EMAILS_LINK_ID,
+      label: "System emails",
+      href: SYSTEM_EMAILS_HREF,
+    },
   ]
 }
 
@@ -305,7 +313,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 12
+export const NAVIGATION_VERSION = 13
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -661,6 +669,11 @@ async function applyNavigationUpgrade(
   // had added that link themselves.
   if (settings.navVersion < 12) {
     sections = addNewsletterLink(sections)
+  }
+  // After the step above, so the parent it hangs a child on is there to hang it
+  // on.
+  if (settings.navVersion < 13) {
+    sections = addSystemEmailsLink(sections)
   }
 
   const [updated] = await database
@@ -1188,6 +1201,53 @@ export function addNewsletterLink(sections: ShellSection[]): ShellSection[] {
     )
     return { ...section, entries }
   })
+}
+
+/**
+ * Hangs "System emails" under the Newsletter link on a sidebar saved before the
+ * page existed.
+ *
+ * Only ever adds a child; it never moves the parent or renames anything. If the
+ * link is already reachable — because this ran before, or because an admin put
+ * it somewhere themselves — it is left exactly where they left it. A sidebar
+ * with no Newsletter link at all is left alone too: `addNewsletterLink` builds
+ * that parent complete with all three children, so there is nothing to fix.
+ */
+export function addSystemEmailsLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isNewsletter = (link: { id: string; href?: string }) =>
+    link.id === NEWSLETTER_LINK_ID || link.href === NEWSLETTER_HREF
+  const isSystemEmails = (link: { id: string; href?: string }) =>
+    link.id === SYSTEM_EMAILS_LINK_ID || link.href === SYSTEM_EMAILS_HREF
+
+  const reachable = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isSystemEmails(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isSystemEmails))
+    )
+  )
+  if (reachable) return sections
+
+  const systemEmailsChild = newsletterChildLinks()[2]
+
+  return sections.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) => {
+      if (!isShellItem(entry) || !isNewsletter(entry)) return entry
+      const children = entry.children ?? []
+      return {
+        ...entry,
+        children: [
+          // A parent with no children yet has no row of chips, and adding one
+          // child would leave its own page missing from that row.
+          ...(children.length ? children : [newsletterChildLinks()[0]]),
+          systemEmailsChild,
+        ],
+      }
+    }),
+  }))
 }
 
 /**

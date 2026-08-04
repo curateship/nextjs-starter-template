@@ -1242,6 +1242,64 @@ export const customShellDeliveries = pgTable(
   ]
 )
 
+/**
+ * The wording of the app's own emails — verify your address, reset your
+ * password, and the rest.
+ *
+ * Not workspace-scoped, unlike everything else about email here. A workspace
+ * belongs to one person, and somebody clicking "verify my email" has no
+ * workspace yet and no account worth speaking of, so there is nothing to scope
+ * these to. There is one set of them and it belongs to the app.
+ *
+ * A missing row is the normal state and means "use the built-in wording". One
+ * is written the first time somebody opens that email in the editor.
+ */
+export const customShellSystemEmails = pgTable("system_emails", {
+  /** One of SYSTEM_EMAIL_KINDS — see src/lib/system-emails/kinds.ts. */
+  kind: varchar("kind", { length: 60 }).primaryKey(),
+  subject: text("subject").notNull().default(""),
+  preheader: text("preheader").notNull().default(""),
+  fromName: varchar("from_name", { length: 255 }),
+  blocks: jsonb("blocks")
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  /** Kept in step with the blocks on every save, as a broadcast's is. */
+  renderedHtml: text("rendered_html"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * Every attempt at one of the app's own emails, sent or failed.
+ *
+ * Deliberately not the `deliveries` table. That one's `contact_id` is required
+ * and its unique index on (broadcast, contact) is the newsletter's exactly-once
+ * guarantee — but these go to people who are not contacts, and the same person
+ * asks for a new password link as often as they like. Sharing the table would
+ * mean either weakening that index or refusing the second reset email.
+ */
+export const customShellSystemEmailSends = pgTable(
+  "system_email_sends",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    kind: varchar("kind", { length: 60 }).notNull(),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    subject: text("subject").notNull(),
+    /** Resend's id for the message, so a bounce can be traced back. */
+    providerMessageId: varchar("provider_message_id", { length: 255 }),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "system_email_sends_status_check",
+      sql`${table.status} in ('sent', 'failed')`
+    ),
+    index("ix_system_email_sends_kind_created").on(table.kind, table.createdAt),
+  ]
+)
+
 /** Who a workspace's email comes from, and the key it sends with. */
 export const customShellEmailSettings = pgTable("email_settings", {
   workspaceId: varchar("workspace_id", { length: 36 })

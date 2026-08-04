@@ -58,6 +58,8 @@ function blockIsEmpty(block: BroadcastBlock): boolean {
     case "richText":
       // Tags with nothing between them still count as nothing.
       return !block.content.htmlContent.replace(/<[^>]*>|&nbsp;|\s/g, "")
+    case "button":
+      return !block.content.label.trim()
     case "divider":
       return false
     case "footer":
@@ -440,7 +442,9 @@ function EmptyBlock({
       <div className="flex min-h-16 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-neutral-300 px-6 py-6 text-center">
         <span className="text-xs font-medium text-neutral-500">{name}</span>
         <span className="text-xs text-neutral-400">
-          Click to add your company details
+          {kind === "button"
+            ? "Click to give the button its words"
+            : "Click to add your company details"}
         </span>
       </div>
     </div>

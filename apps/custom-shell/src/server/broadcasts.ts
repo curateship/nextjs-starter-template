@@ -4,6 +4,7 @@ import sanitizeHtml from "sanitize-html"
 import {
   createStarterBlocks,
   parseStoredBlocks,
+  safeLinkUrl,
   type BroadcastAudienceFilter,
   type BroadcastBlock,
 } from "@/lib/broadcasts/blocks"
@@ -62,20 +63,35 @@ const RICH_TEXT_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
  * path that forgot to clean it.
  */
 export function sanitizeBlocks(blocks: BroadcastBlock[]): BroadcastBlock[] {
-  return blocks.map((block) =>
-    block.kind === "richText"
-      ? {
-          ...block,
-          content: {
-            ...block.content,
-            htmlContent: sanitizeHtml(
-              block.content.htmlContent,
-              RICH_TEXT_SANITIZE_OPTIONS
-            ),
-          },
-        }
-      : block
-  )
+  return blocks.map((block) => {
+    if (block.kind === "richText") {
+      return {
+        ...block,
+        content: {
+          ...block.content,
+          htmlContent: sanitizeHtml(
+            block.content.htmlContent,
+            RICH_TEXT_SANITIZE_OPTIONS
+          ),
+        },
+      }
+    }
+
+    // A button's address goes through the same three schemes the rich-text
+    // links do. Anything else is dropped rather than stored: this HTML is
+    // handed straight to the browser to draw the editor's preview, so a saved
+    // `javascript:` address would be a live link for the next admin who opened
+    // it. Emptied, not rejected — the box goes blank, which says it was not
+    // taken, and the send refuses a button with no address.
+    if (block.kind === "button" && block.content.url) {
+      return {
+        ...block,
+        content: { ...block.content, url: safeLinkUrl(block.content.url) },
+      }
+    }
+
+    return block
+  })
 }
 
 export async function listWorkspaceBroadcasts(
