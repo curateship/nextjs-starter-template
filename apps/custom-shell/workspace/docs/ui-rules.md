@@ -18,6 +18,19 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Derive page spacing from the currently mounted route so navigation and content change together. Do not use a destination or delayed resolved URL that can carry the previous page's spacing into the next page.
 - Design narrow and desktop layouts together. Avoid arbitrary widths, radii, shadows, gradients, pills, or badges.
 
+## Dashboards
+
+- The Overview dashboard's cards are widgets an admin arranges in Settings →
+  Widgets: a full-width top slot and two columns, with anything left out simply
+  not drawn. A new card belongs in the catalogue (`src/lib/dashboard-widgets.ts`)
+  rather than hardcoded into the page, or it cannot be moved or switched off.
+- A card that fills the panel it is given needs a height cap wherever it is
+  placed outside one. In a resizable column a chart sizing itself to its panel
+  is correct; in the top slot, which has no panel, the same card grows to the
+  whole window and pushes everything else off the screen.
+- An arrangement an admin can empty needs an empty state that says so and links
+  back to the settings tab that fills it, rather than rendering a blank page.
+
 ## Sidebar
 
 - A resizable desktop sidebar must support both click-to-collapse and drag-to-resize. Keep its expanded width between 144px and 420px, save it in the current workspace's database settings, and let a focused resize edge move in 8px steps with the arrow keys.

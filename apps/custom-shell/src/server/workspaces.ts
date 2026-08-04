@@ -14,6 +14,11 @@ import {
 } from "@/lib/custom-shell"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
 import {
+  createDefaultDashboardWidgets,
+  normalizeDashboardWidgets,
+  type DashboardWidgetLayout,
+} from "@/lib/dashboard-widgets"
+import {
   cleanBroadcastBlockDefaults,
   type BroadcastBlock,
   type BroadcastBlockDefaults,
@@ -327,6 +332,8 @@ export type WorkspaceSettings = {
   sidebarWidth: number
   // Visual styling (spacing, card border, backgrounds), saved per-workspace.
   styling: ShellStyling
+  // Which cards the Overview dashboard draws, and where, saved per-workspace.
+  dashboardWidgets: DashboardWidgetLayout
   // Starred palette nodes in the automation editor, saved per-workspace.
   automationFavoriteNodeKeys: string[]
   // How each kind of newsletter block starts out, saved per-workspace.
@@ -1682,6 +1689,9 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         ? settings.sidebarWidth
         : fallback.sidebarWidth,
       styling: normalizeStyling(settings.styling),
+      // A workspace saved before widgets existed has none, and gets the
+      // arrangement it was already looking at.
+      dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
       automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
         settings.automationFavoriteNodeKeys
       ),
@@ -1718,6 +1728,7 @@ function cleanWorkspaceSettings(
       ? settings.sidebarWidth
       : fallback.sidebarWidth,
     styling: normalizeStyling(settings.styling),
+    dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
@@ -1793,6 +1804,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     navVersion: NAVIGATION_VERSION,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     styling: normalizeStyling(undefined),
+    dashboardWidgets: createDefaultDashboardWidgets(),
     automationFavoriteNodeKeys: [],
     broadcastBlockDefaults: {},
   }

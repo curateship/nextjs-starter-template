@@ -55,10 +55,10 @@ export function useRememberedPanelLayout(key: string) {
 /**
  * Every panel layout this app remembers, in one place.
  *
- * A dashboard column takes the number of cards in it, because a layout saved
- * for three cards cannot be applied to two — the card that comes and goes on
- * the Membership page would leave the others sized for a divider that is no
- * longer there.
+ * A dashboard column takes the cards that are in it, because a layout saved for
+ * three cards cannot be applied to two — the card that comes and goes would
+ * leave the others sized for a divider that is no longer there — nor to three
+ * different cards, which is what arranging the Overview's widgets produces.
  */
 export const panelLayoutKey = {
   automationEditorHorizontal: "automation-editor-horizontal",
@@ -71,6 +71,6 @@ export const panelLayoutKey = {
   systemEmailEditorHorizontal: "system-email-editor-horizontal",
   systemEmailEditorVertical: "system-email-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
-  dashboardColumn: (page: string, side: "left" | "right", cards: number) =>
+  dashboardColumn: (page: string, side: "left" | "right", cards: string) =>
     `custom-shell-${page}-${side}-${cards}`,
 }
