@@ -62,6 +62,7 @@ import {
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
+import { normalizePublicTheme } from "@/lib/public-theme"
 import { clampSidebarWidth } from "@/lib/sidebar-width"
 import { setToastSeconds } from "@/lib/toast-duration"
 import { clampToastSeconds } from "@/lib/toast-seconds"
@@ -574,6 +575,10 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     liveNotifications: settings.liveNotifications !== false,
     maintenance: normalizeMaintenance(settings.maintenance),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+    // Carried, not used: nothing in the signed-in app is dressed by the public
+    // theme. It rides along so a settings save writes back what it loaded
+    // instead of wiping the public pages' look.
+    publicTheme: normalizePublicTheme(settings.publicTheme),
     styling: normalizeStyling(settings.styling),
     dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
   }

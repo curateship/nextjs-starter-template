@@ -10,6 +10,7 @@ import {
   normalizeTopLeftNavLimit,
   type ShellConfig,
 } from "@/lib/custom-shell"
+import { normalizePublicTheme, type PublicTheme } from "@/lib/public-theme"
 import { clampToastSeconds } from "@/lib/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -47,16 +48,23 @@ export async function readDashboardRowsPerPage(
 }
 
 /**
- * The two branded things a signed-out visitor sees: the app name and the logo.
- * Public pages (sign in, register, pricing) show them before there is a session,
- * so like rows-per-page this reads the settings row on its own rather than going
- * through the workspace lookup.
+ * Everything a signed-out visitor's page needs before there is a session: the
+ * app name, the logo, and the look every public page wears. Like rows-per-page
+ * this reads the settings row on its own rather than going through the
+ * workspace lookup, because a visitor has no workspace.
+ *
+ * The root route loads this on the server, which is what puts the theme in the
+ * first paint instead of applying it after the page has already been drawn.
  */
 export async function readBranding(
   database: CustomShellDb = db
-): Promise<{ appName: string; logo: string }> {
+): Promise<{ appName: string; logo: string; publicTheme: PublicTheme }> {
   const globals = await readShellGlobals(database)
-  return { appName: globals.appName, logo: globals.logo }
+  return {
+    appName: globals.appName,
+    logo: globals.logo,
+    publicTheme: globals.publicTheme,
+  }
 }
 
 /**
@@ -149,6 +157,11 @@ export function parseShellGlobals(value: unknown) {
     liveNotifications: settings.liveNotifications !== false,
     maintenance: normalizeMaintenance(settings.maintenance),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+    // Guarded field by field for the same reason as the app name and logo: this
+    // one lands on the pages a signed-out visitor sees. A row saved before the
+    // theme existed has no value at all, and the defaults are today's look, so
+    // an install that never touches it is unchanged.
+    publicTheme: normalizePublicTheme(settings.publicTheme),
   }
 }
 
@@ -175,6 +188,7 @@ export function pickShellGlobals(
     | "liveNotifications"
     | "maintenance"
     | "sessionPolicy"
+    | "publicTheme"
   >
 ) {
   return {
@@ -192,5 +206,6 @@ export function pickShellGlobals(
     liveNotifications: settings.liveNotifications,
     maintenance: settings.maintenance,
     sessionPolicy: settings.sessionPolicy,
+    publicTheme: settings.publicTheme,
   }
 }

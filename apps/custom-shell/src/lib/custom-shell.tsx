@@ -7,6 +7,10 @@ import {
   createDefaultDashboardWidgets,
   type DashboardWidgetLayout,
 } from "@/lib/dashboard-widgets"
+import {
+  createDefaultPublicTheme,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
 import {
@@ -416,6 +420,13 @@ export type ShellConfig = {
   maintenance: ShellMaintenance
   /** App-wide limits on how long a sign-in lasts. See ShellSessionPolicy. */
   sessionPolicy: ShellSessionPolicy
+  /**
+   * App-wide look of the public pages — front page, pricing, sign-in family.
+   * Separate from `styling` below on purpose: this is what a visitor sees,
+   * that is what an admin tunes for their own signed-in workspace. See
+   * `lib/public-theme.ts`.
+   */
+  publicTheme: PublicTheme
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
   /**
@@ -856,6 +867,7 @@ export function createDefaultShellConfig(): ShellConfig {
     liveNotifications: true,
     maintenance: createDefaultMaintenance(),
     sessionPolicy: createDefaultSessionPolicy(),
+    publicTheme: createDefaultPublicTheme(),
     styling: createDefaultStyling(),
     dashboardWidgets: createDefaultDashboardWidgets(),
   }

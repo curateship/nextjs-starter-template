@@ -10,6 +10,7 @@ import type { UserAnnouncement } from "@/lib/announcement"
 import { serializeUser, type AuthUser } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
+import type { PublicTheme } from "@/lib/public-theme"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 
 export type ShellBootstrap = {
@@ -96,11 +97,17 @@ export function loadShellBootstrap() {
 }
 
 /**
- * The app name and logo, with no session required — the root route needs them
- * for the browser tab title and the signed-out pages that show them.
+ * The app name, logo and public theme, with no session required — the root
+ * route needs them for the browser tab title, the signed-out pages that show
+ * them, and the look those pages wear. Loaded on the server, which is what puts
+ * the theme in the first paint rather than after it.
  */
 const loadBrandingFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ appName: string; logo: string }> => {
+  async (): Promise<{
+    appName: string
+    logo: string
+    publicTheme: PublicTheme
+  }> => {
     return readBranding()
   }
 )
