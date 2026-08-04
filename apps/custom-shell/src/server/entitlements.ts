@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq, gt, inArray, isNull, or, type SQL } from "drizzle-orm"
 
 import type { PlanFeatures } from "@/lib/plan-features"
 import { db, type CustomShellDb } from "@/server/db"
@@ -61,6 +61,23 @@ export function subscriptionIsActive(
   return (
     !subscription.currentPeriodEnd || subscription.currentPeriodEnd > timestamp
   )
+}
+
+/**
+ * The same rule as `subscriptionIsActive`, written as a database condition for
+ * the queries that have to ask it of thousands of rows at once instead of one.
+ *
+ * It lives beside the function it mirrors on purpose: two copies of "what
+ * counts as paying" in two files is how a report and a mailing list end up
+ * disagreeing about who is a customer.
+ */
+export function activeSubscriptionCondition(timestamp: Date): SQL {
+  const live = inArray(customShellSubscriptions.status, [...ACTIVE_STATUSES])
+  const notLapsed = or(
+    isNull(customShellSubscriptions.currentPeriodEnd),
+    gt(customShellSubscriptions.currentPeriodEnd, timestamp)
+  )
+  return and(live, notLapsed) as SQL
 }
 
 export function resolveEntitlements(

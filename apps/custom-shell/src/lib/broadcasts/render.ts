@@ -1,4 +1,8 @@
-import type { BroadcastBlock } from "@/lib/broadcasts/blocks"
+import {
+  ACTION_URL_TOKEN,
+  safeLinkUrl,
+  type BroadcastBlock,
+} from "@/lib/broadcasts/blocks"
 import { escapeHtml } from "@/lib/escape-html"
 
 /**
@@ -137,6 +141,27 @@ export function renderBroadcastBlockHtml(block: BroadcastBlock): string {
     case "richText": {
       const { htmlContent, backgroundColor, padding } = block.content
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#333333;">${styleRichTextHtml(htmlContent)}</td></tr></table>`
+    }
+
+    case "button": {
+      const {
+        label,
+        url,
+        backgroundColor,
+        textColor,
+        alignment,
+        borderRadius,
+        padding,
+      } = block.content
+      // A nested table, not a styled <a>. Outlook throws away padding and
+      // background on a link, so the only shape that arrives looking like a
+      // button everywhere is a one-cell table with the colour on the cell.
+      // Checked here as well as on the way into the database, because the
+      // editor draws every keystroke through this and an address is unusable
+      // for most of the time it is being typed.
+      const href = safeLinkUrl(url) || ACTION_URL_TOKEN
+      const inner = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;border-collapse:separate;"><tr><td style="background-color:${escapeHtml(backgroundColor)};border-radius:${borderRadius}px;text-align:center;"><a href="${escapeHtml(href)}" style="display:inline-block;padding:12px 24px;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;line-height:1.2;color:${escapeHtml(textColor)};text-decoration:none;border-radius:${borderRadius}px;">${escapeHtml(label)}</a></td></tr></table>`
+      return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:${padding}px;text-align:${alignment};">${inner}</td></tr></table>`
     }
 
     case "divider": {

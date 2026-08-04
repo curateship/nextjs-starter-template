@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   FileTextIcon,
   ImageIcon,
+  MousePointerClickIcon,
   LayoutGridIcon,
   LayoutTemplateIcon,
   MinusIcon,
@@ -41,6 +42,7 @@ const BLOCK_ICONS: Record<
 > = {
   header: ImageIcon,
   richText: FileTextIcon,
+  button: MousePointerClickIcon,
   divider: MinusIcon,
   footer: PanelBottomIcon,
 }

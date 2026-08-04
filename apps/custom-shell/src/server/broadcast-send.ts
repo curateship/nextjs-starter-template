@@ -3,6 +3,7 @@ import { and, arrayOverlaps, asc, eq, lte, sql } from "drizzle-orm"
 import {
   parseAudienceFilter,
   parseStoredBlocks,
+  safeLinkUrl,
   type BroadcastAudienceFilter,
 } from "@/lib/broadcasts/blocks"
 import {
@@ -114,6 +115,19 @@ async function validateReadyToSend(
 
   const blocks = parseStoredBlocks(broadcast.blocks)
   if (blocks.length === 0) throw new Error("BLOCKS_REQUIRED")
+
+  // A button with no usable address falls back to the link the app builds for
+  // its own emails, and a newsletter has no such link — so it would arrive
+  // pointing at the placeholder itself. Refused here rather than sent broken.
+  // `safeLinkUrl`, not a blank check: an address the save already emptied for
+  // being an unusable scheme has to fail the same way.
+  if (
+    blocks.some(
+      (block) => block.kind === "button" && !safeLinkUrl(block.content.url)
+    )
+  ) {
+    throw new Error("BUTTON_WITHOUT_LINK")
+  }
 
   const config = await getSendableEmailConfig(broadcast.workspaceId, database)
   if (!config) throw new Error("EMAIL_NOT_CONFIGURED")

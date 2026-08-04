@@ -1,3 +1,4 @@
+import type * as React from "react"
 import {
   AlignCenterIcon,
   AlignLeftIcon,
@@ -19,8 +20,6 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   BROADCAST_BLOCK_META,
-  describeAudienceFilter,
-  type BroadcastAudienceFilter,
   type BroadcastBlock,
 } from "@/lib/broadcasts/blocks"
 import { cn } from "@/lib/utils"
@@ -254,6 +253,100 @@ function RichTextFields({
   )
 }
 
+function ButtonFields({
+  block,
+  onContentChange,
+  disabled,
+  lockedUrl,
+}: {
+  block: Extract<BroadcastBlock, { kind: "button" }>
+  onContentChange: ContentChange
+  disabled?: boolean
+  /**
+   * True in one of the app's own emails. The whole point of those emails is the
+   * link, it is built fresh with a one-use token every time, and it is not
+   * anybody's to change — so the address field is not shown at all rather than
+   * shown and refused.
+   */
+  lockedUrl?: boolean
+}) {
+  const { content } = block
+  return (
+    <>
+      <InspectorCard
+        title="The button"
+        description="One clear thing to press. Keep the words to what happens when they press it."
+      >
+        <TextField
+          id="button-label"
+          label="Words on it"
+          value={content.label}
+          placeholder="Open"
+          disabled={disabled}
+          onChange={(value) => onContentChange("label", value)}
+        />
+        {lockedUrl ? (
+          <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm leading-relaxed text-muted-foreground">
+            This button goes to the link the app makes for each person. That
+            cannot be changed here — it is the whole reason the email is sent.
+          </p>
+        ) : (
+          <TextField
+            id="button-url"
+            label="Where it goes"
+            value={content.url}
+            placeholder="https://example.com/page"
+            help="The full address, starting with https://"
+            disabled={disabled}
+            onChange={(value) => onContentChange("url", value)}
+          />
+        )}
+        <AlignmentField
+          value={content.alignment}
+          disabled={disabled}
+          onChange={(value) => onContentChange("alignment", value)}
+        />
+      </InspectorCard>
+
+      <InspectorCard title="Spacing">
+        <SliderField
+          id="button-padding"
+          label="Space around it"
+          value={content.padding}
+          min={0}
+          max={120}
+          disabled={disabled}
+          onChange={(value) => onContentChange("padding", value)}
+        />
+        <SliderField
+          id="button-radius"
+          label="Rounded corners"
+          value={content.borderRadius}
+          min={0}
+          max={40}
+          disabled={disabled}
+          onChange={(value) => onContentChange("borderRadius", value)}
+        />
+      </InspectorCard>
+
+      <InspectorCard title="Appearance">
+        <ColorField
+          label="Button colour"
+          value={content.backgroundColor}
+          disabled={disabled}
+          onChange={(value) => onContentChange("backgroundColor", value)}
+        />
+        <ColorField
+          label="Text colour"
+          value={content.textColor}
+          disabled={disabled}
+          onChange={(value) => onContentChange("textColor", value)}
+        />
+      </InspectorCard>
+    </>
+  )
+}
+
 function DividerFields({
   block,
   onContentChange,
@@ -380,6 +473,8 @@ export function BlockInspector({
   editingDefault,
   fields,
   disabled,
+  lockedButtonUrl,
+  settingsExtra,
   onContentChange,
   onFieldChange,
   onDelete,
@@ -396,9 +491,17 @@ export function BlockInspector({
     subject: string
     preheader: string
     fromName: string
-    audienceFilter: BroadcastAudienceFilter
   }
   disabled?: boolean
+  /** True in the app's own emails, where the button's target is not editable. */
+  lockedButtonUrl?: boolean
+  /**
+   * The last card with nothing selected. A newsletter puts who it goes to
+   * there; one of the app's own emails puts the placeholders it can use. Both
+   * are about the email as a whole, which is what this panel shows when no
+   * single block is picked.
+   */
+  settingsExtra?: React.ReactNode
   onContentChange: ContentChange
   onFieldChange: (
     field: "subject" | "preheader" | "fromName",
@@ -443,6 +546,7 @@ export function BlockInspector({
             <EmailSettingsFields
               fields={fields}
               disabled={disabled}
+              settingsExtra={settingsExtra}
               onFieldChange={onFieldChange}
             />
           ) : block.kind === "header" ? (
@@ -456,6 +560,13 @@ export function BlockInspector({
               block={block}
               onContentChange={onContentChange}
               disabled={disabled}
+            />
+          ) : block.kind === "button" ? (
+            <ButtonFields
+              block={block}
+              onContentChange={onContentChange}
+              disabled={disabled}
+              lockedUrl={lockedButtonUrl}
             />
           ) : block.kind === "divider" ? (
             <DividerFields
@@ -484,15 +595,16 @@ export function BlockInspector({
 function EmailSettingsFields({
   fields,
   disabled,
+  settingsExtra,
   onFieldChange,
 }: {
   fields: {
     subject: string
     preheader: string
     fromName: string
-    audienceFilter: BroadcastAudienceFilter
   }
   disabled?: boolean
+  settingsExtra?: React.ReactNode
   onFieldChange: (
     field: "subject" | "preheader" | "fromName",
     value: string
@@ -533,14 +645,7 @@ function EmailSettingsFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Who gets it">
-        <p className="text-[15px]">
-          {describeAudienceFilter(fields.audienceFilter)}
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Change this on the way out, in Review and send.
-        </p>
-      </InspectorCard>
+      {settingsExtra}
 
       <p className="px-1 pb-1 text-sm text-muted-foreground">
         Click any block in the email to edit that block instead.

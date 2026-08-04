@@ -18,6 +18,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
@@ -46,7 +47,7 @@ import {
 } from "@/lib/api/automation-runs"
 import {
   createAutomation,
-  deleteAutomation,
+  deleteAutomations,
   duplicateAutomation,
   getAutomationErrorMessage,
   toAutomationListItem,
@@ -56,7 +57,9 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDate } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useLastValue } from "@/lib/use-last-value"
+import { useSelection } from "@/lib/use-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type SortColumn = "name" | "steps" | "updated"
@@ -80,12 +83,15 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [creating, setCreating] = React.useState(false)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] =
-    React.useState<AutomationListItem | null>(null)
+  const [deleteTargets, setDeleteTargets] = React.useState<
+    AutomationListItem[] | null
+  >(null)
   const [deleting, setDeleting] = React.useState(false)
+  const selection = useSelection()
+  const selectedIds = selection.selected
   // The confirmation is still on screen while it fades out, after Cancel has
-  // already cleared the target — so its heading reads the name it opened with.
-  const closingDeleteTarget = useLastValue(deleteTarget)
+  // already cleared the targets — so its heading reads the names it opened with.
+  const closingDeleteTargets = useLastValue(deleteTargets)
 
   const toggleSort = (column: SortColumn) => {
     if (column === sort) {
@@ -124,6 +130,21 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   React.useEffect(() => {
     setPage(1)
   }, [search, sort, direction, pageSize])
+
+  useClearSelectionOnListChange(
+    selection.setSelected,
+    `${search}|${sort}|${direction}|${page}|${pageSize}`
+  )
+
+  const visibleIds = React.useMemo(
+    () => visible.map((automation) => automation.id),
+    [visible]
+  )
+
+  const selectedAutomations = React.useMemo(
+    () => automations.filter((automation) => selectedIds.has(automation.id)),
+    [automations, selectedIds]
+  )
 
   const openEditor = (automationId: string) =>
     navigate({
@@ -189,16 +210,20 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   }
 
   const handleDelete = async () => {
-    if (!deleteTarget || deleting) return
+    if (!deleteTargets?.length || deleting) return
     setDeleting(true)
     try {
-      await deleteAutomation(deleteTarget.id)
+      const ids = new Set(deleteTargets.map((item) => item.id))
+      await deleteAutomations([...ids])
       dismissErrorToast()
-      setAutomations((current) =>
-        current.filter((item) => item.id !== deleteTarget.id)
+      setAutomations((current) => current.filter((item) => !ids.has(item.id)))
+      toast.success(
+        deleteTargets.length === 1 && deleteTargets[0]
+          ? `Deleted "${deleteTargets[0].name}".`
+          : `Deleted ${deleteTargets.length} automations.`
       )
-      toast.success(`Deleted "${deleteTarget.name}".`)
-      setDeleteTarget(null)
+      selection.clear()
+      setDeleteTargets(null)
     } catch (error) {
       showErrorToast(getAutomationErrorMessage(error))
     } finally {
@@ -212,8 +237,21 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         title="Automations"
         icon={<WorkflowIcon />}
         count={sorted.length}
+        selectedCount={selectedIds.size}
+        onClearSelection={selection.clear}
         controls={
           <>
+            {selectedIds.size ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                onClick={() => setDeleteTargets(selectedAutomations)}
+                disabled={deleting}
+              >
+                <Trash2Icon className="size-4" />
+                Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
             <DashboardToolbarSearch
               name="automation-search"
               aria-label="Search automations"
@@ -230,6 +268,13 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         header={
           <TableHeader>
             <TableRow>
+              <TableHead column="select">
+                <Checkbox
+                  checked={selection.selectAllState(visibleIds)}
+                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
+                  aria-label="Select automations on this page"
+                />
+              </TableHead>
               <TableHead column="main">
                 <TableSortButton
                   active={sort === "name"}
@@ -267,7 +312,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             ? "No automations match that search."
             : "No automations yet. Create the first one."
         }
-        emptyColSpan={4}
+        emptyColSpan={5}
         footer={{
           type: "pagination",
           page,
@@ -287,6 +332,13 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             className="group"
             rowAction={() => void openEditor(automation.id)}
           >
+            <TableCell column="select">
+              <Checkbox
+                checked={selectedIds.has(automation.id)}
+                onCheckedChange={() => selection.toggle(automation.id)}
+                aria-label={`Select ${automation.name}`}
+              />
+            </TableCell>
             <TableCell column="main">
               <Link
                 to="/admin/automations/$automationId"
@@ -354,7 +406,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   variant="ghost"
                   size="icon"
                   aria-label={`Delete ${automation.name}`}
-                  onClick={() => setDeleteTarget(automation)}
+                  onClick={() => setDeleteTargets([automation])}
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
@@ -423,17 +475,27 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       </Dialog>
 
       <ConfirmDialog
-        open={deleteTarget !== null}
+        open={deleteTargets !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null)
+          if (!open) setDeleteTargets(null)
         }}
         title={
-          closingDeleteTarget
-            ? `Delete ${quoteOneLine(closingDeleteTarget.name)}?`
-            : "Delete this automation?"
+          closingDeleteTargets && closingDeleteTargets.length > 1
+            ? `Delete ${closingDeleteTargets.length} automations?`
+            : closingDeleteTargets?.[0]
+              ? `Delete ${quoteOneLine(closingDeleteTargets[0].name)}?`
+              : "Delete this automation?"
         }
-        description="The flow and its canvas are permanently removed. This cannot be undone."
-        confirmLabel="Delete automation"
+        description={
+          closingDeleteTargets && closingDeleteTargets.length > 1
+            ? "The flows and their canvases are permanently removed. This cannot be undone."
+            : "The flow and its canvas are permanently removed. This cannot be undone."
+        }
+        confirmLabel={
+          closingDeleteTargets && closingDeleteTargets.length > 1
+            ? "Delete automations"
+            : "Delete automation"
+        }
         loading={deleting}
         onConfirm={() => void handleDelete()}
       />

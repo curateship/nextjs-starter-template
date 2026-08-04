@@ -3,6 +3,7 @@ import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 
 import {
   CLEANUP_BATCH_LIMIT,
+  EMAIL_SEND_KEEP_DAYS,
   LINK_KEEP_DAYS,
   READ_NOTICE_KEEP_DAYS,
   THROTTLE_KEEP_HOURS,
@@ -13,13 +14,16 @@ import {
   customShellAuthTokens,
   customShellNotifications,
   customShellRateLimits,
+  customShellSystemEmailSends,
 } from "@/server/schema"
 import { now, purgeRefusedSessions } from "@/server/security"
 
 /**
- * Throws away the four kinds of row that otherwise only ever pile up: sessions
+ * Throws away the five kinds of row that otherwise only ever pile up: sessions
  * nobody can sign in with, sign-in links already used or long expired, attempt
- * counters that have finished counting, and notifications read months ago.
+ * counters that have finished counting, notifications read months ago, and the
+ * record of the app's own emails going out long enough ago that nobody is
+ * still asking whether theirs arrived.
  *
  * Every rule deletes only rows the app would already ignore, so nothing anybody
  * can still use is at stake. Audit and billing history are deliberately absent:
@@ -42,6 +46,7 @@ export async function cleanUpOldData(
     authTokens: await purgeSpentLinks(database, at),
     throttles: await purgeFinishedThrottles(database, at),
     notifications: await purgeOldReadNotices(database, at),
+    emailSends: await purgeOldEmailSends(database, at),
   }
 }
 
@@ -99,6 +104,22 @@ async function purgeOldReadNotices(database: CustomShellDb, at: Date) {
     customShellNotifications,
     customShellNotifications.id,
     lte(customShellNotifications.readAt, cutoff)
+  )
+}
+
+/**
+ * The record of the app's own emails, once it is old enough that nobody is
+ * still asking about theirs. Newsletter deliveries are not touched: that is the
+ * record of what a real campaign did, and the record is never swept.
+ */
+async function purgeOldEmailSends(database: CustomShellDb, at: Date) {
+  const cutoff = new Date(at.getTime() - EMAIL_SEND_KEEP_DAYS * DAY_MS)
+
+  return deleteCapped(
+    database,
+    customShellSystemEmailSends,
+    customShellSystemEmailSends.id,
+    lte(customShellSystemEmailSends.createdAt, cutoff)
   )
 }
 

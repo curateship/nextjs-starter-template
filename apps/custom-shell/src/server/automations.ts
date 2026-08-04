@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm"
+import { and, desc, eq, inArray } from "drizzle-orm"
 
 import {
   automationCompiledConfigSchema,
@@ -222,21 +222,22 @@ export async function duplicateUserAutomation(
   throw new Error("COPY_LIMIT")
 }
 
-export async function deleteUserAutomation(
+/** Deletes only the rows this person owns; ids belonging to others are ignored. */
+export async function deleteUserAutomations(
   userId: string,
-  automationId: string,
+  automationIds: string[],
   database: CustomShellDb = db
-): Promise<boolean> {
+): Promise<number> {
   const rows = await database
     .delete(customShellAutomations)
     .where(
       and(
-        eq(customShellAutomations.id, automationId),
+        inArray(customShellAutomations.id, automationIds),
         eq(customShellAutomations.userId, userId)
       )
     )
     .returning({ id: customShellAutomations.id })
-  return rows.length > 0
+  return rows.length
 }
 
 function copyName(sourceName: string, copyNumber: number): string {

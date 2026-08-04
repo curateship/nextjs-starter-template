@@ -1,14 +1,28 @@
 import { escapeHtml } from "@/lib/escape-html"
+import { parseStoredBlocks } from "@/lib/broadcasts/blocks"
+import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
+import {
+  SYSTEM_EMAIL_META,
+  applySystemEmailTokens,
+  type SystemEmailKind,
+} from "@/lib/system-emails/kinds"
+import {
+  getSystemEmail,
+  recordSystemEmailSend,
+} from "@/server/system-emails"
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails"
 
 export type AuthEmail = {
+  /** Which of the app's own emails this is — the one whose wording it uses. */
+  kind: SystemEmailKind
   to: string
-  subject: string
-  heading: string
-  message: string
-  action: string
   actionUrl: string
+  /**
+   * Values for the placeholders this kind of email offers, over and above the
+   * address and the link, which are filled in for every one of them.
+   */
+  tokens?: Record<string, string>
 }
 
 // A sign-in link in a log file is a sign-in link. Treat either signal as
@@ -21,22 +35,133 @@ function isProduction() {
   )
 }
 
+/** Only the parts of a saved row this file cares about. */
+export type SavedSystemEmail = {
+  subject: string
+  preheader: string
+  fromName: string | null
+  blocks: unknown
+} | null
+
 /**
- * Sends a verification or password-reset email through Resend.
+ * The subject and the HTML for one of the app's own emails.
+ *
+ * The saved wording wins where there is any, and the built-in version is what
+ * is left when there is not — no row yet, a subject blanked out, or blocks that
+ * would render to an empty page. A person can edit these into something odd,
+ * but they cannot edit them into nothing: a password reset with no words in it
+ * is worse than one whose wording is out of date.
+ *
+ * Handed the saved row rather than fetching it, so the rules above can be
+ * checked without a database.
+ */
+export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
+  const meta = SYSTEM_EMAIL_META[email.kind]
+  const values: Record<string, string> = {
+    ...email.tokens,
+    email: email.to,
+    action_url: email.actionUrl,
+  }
+
+  const blocks = saved ? parseStoredBlocks(saved.blocks) : []
+  const subject = saved?.subject.trim() ? saved.subject : null
+
+  if (subject && blocks.length > 0) {
+    const html = renderBroadcastEmailHtml(blocks, {
+      preheader: saved?.preheader
+        ? applySystemEmailTokens(saved.preheader, values, { html: false })
+        : undefined,
+    })
+    return {
+      subject: applySystemEmailTokens(subject, values, { html: false }),
+      html: applySystemEmailTokens(html, values, { html: true }),
+      fromName: saved?.fromName ?? null,
+    }
+  }
+
+  return {
+    subject: applySystemEmailTokens(meta.defaults.subject, values, {
+      html: false,
+    }),
+    html: renderBuiltInEmail({
+      heading: applySystemEmailTokens(meta.defaults.heading, values, {
+        html: false,
+      }),
+      message: applySystemEmailTokens(meta.defaults.message, values, {
+        html: false,
+      }),
+      action: meta.defaults.action,
+      actionUrl: email.actionUrl,
+    }),
+    fromName: null,
+  }
+}
+
+/**
+ * The From line, with a saved name in front of this server's own address.
+ *
+ * Only the name is anybody's to change. The address is whatever this server is
+ * allowed to send as, and swapping it would simply bounce.
+ *
+ * Takes the configured sender rather than reading it, so the rule below can be
+ * checked without setting environment variables.
+ */
+export function composeFromAddress(
+  fromName: string | null,
+  configured: string
+) {
+  // A From line is one line. Anything that could end it or start a second
+  // header — a line break, angle brackets, quotes, a comma splitting it into
+  // two senders — comes out before the name goes anywhere near it, so a name
+  // typed into an admin box cannot add a Bcc.
+  const safeName = (fromName ?? "")
+    .replace(/[\r\n<>"',;:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!safeName) return configured
+
+  const address = configured.match(/<([^>]+)>/)?.[1] ?? configured
+  return `${safeName} <${address}>`
+}
+
+function fromAddress(fromName: string | null) {
+  return composeFromAddress(
+    fromName,
+    process.env.CUSTOM_SHELL_EMAIL_FROM ||
+      "Custom Shell <onboarding@resend.dev>"
+  )
+}
+
+/**
+ * Sends one of the app's own emails through Resend.
  *
  * With no API key, development logs the link so local sign-up still works end
- * to end; production refuses instead of silently dropping the message.
+ * to end; production refuses instead of silently dropping the message. Either
+ * way the attempt is written down, so "the link never arrived" has an answer.
  */
 export async function sendAuthEmail(email: AuthEmail) {
+  // A database that will not answer must not stop a password reset, so a
+  // failure here falls through to the built-in wording rather than throwing.
+  const saved = await getSystemEmail(email.kind).catch(() => null)
+  const { subject, html, fromName } = composeSystemEmail(email, saved)
   const apiKey = process.env.CUSTOM_SHELL_RESEND_API_KEY
+
   if (!apiKey) {
     if (isProduction()) {
+      await logSend(email, subject, {
+        status: "failed",
+        error: "Email is not set up on this server.",
+      })
       throw new Error("EMAIL_NOT_CONFIGURED")
     }
 
     console.info(
-      `[custom-shell] email not configured, ${email.subject} link for ${email.to}: ${email.actionUrl}`
+      `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`
     )
+    await logSend(email, subject, {
+      status: "failed",
+      error: "Email is not set up on this server, so it was only logged.",
+    })
     return { delivered: false }
   }
 
@@ -47,23 +172,72 @@ export async function sendAuthEmail(email: AuthEmail) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from:
-        process.env.CUSTOM_SHELL_EMAIL_FROM ||
-        "Custom Shell <onboarding@resend.dev>",
+      from: fromAddress(fromName),
       to: [email.to],
-      subject: email.subject,
-      html: renderAuthEmail(email),
+      subject,
+      html,
     }),
   })
 
   if (!response.ok) {
+    await logSend(email, subject, {
+      status: "failed",
+      error: `The email service refused it (${response.status}).`,
+    })
     throw new Error("EMAIL_DELIVERY_FAILED")
   }
+
+  const body = (await response.json().catch(() => null)) as {
+    id?: string
+  } | null
+  await logSend(email, subject, {
+    status: "sent",
+    providerMessageId: body?.id ?? null,
+  })
 
   return { delivered: true }
 }
 
-function renderAuthEmail(email: AuthEmail) {
+/**
+ * Writes down what happened, and never gets in the way.
+ *
+ * A record of a password reset is worth having; it is not worth failing the
+ * password reset over. A database that is briefly unhappy must not stop
+ * somebody getting back into their account.
+ */
+async function logSend(
+  email: AuthEmail,
+  subject: string,
+  outcome: {
+    status: "sent" | "failed"
+    providerMessageId?: string | null
+    error?: string | null
+  }
+) {
+  try {
+    await recordSystemEmailSend({
+      kind: email.kind,
+      toEmail: email.to,
+      subject,
+      ...outcome,
+    })
+  } catch {
+    // Nothing to do about it here, and nothing worth stopping for.
+  }
+}
+
+/**
+ * The email as it was before any of this was editable.
+ *
+ * Still the last word: this is what goes out when nobody has touched the
+ * wording, and what goes out again if somebody empties it.
+ */
+function renderBuiltInEmail(email: {
+  heading: string
+  message: string
+  action: string
+  actionUrl: string
+}) {
   return `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b">
   <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(email.heading)}</h1>
   <p style="font-size:14px;line-height:1.6;margin:0 0 24px">${escapeHtml(email.message)}</p>

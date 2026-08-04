@@ -3,6 +3,7 @@ import { z } from "zod"
 export const BROADCAST_BLOCK_KINDS = [
   "header",
   "richText",
+  "button",
   "divider",
   "footer",
 ] as const
@@ -28,6 +29,56 @@ const headerContentSchema = z.object({
 const richTextContentSchema = z.object({
   htmlContent: z.string().max(200_000).default(""),
   backgroundColor: hexColorSchema.default("#ffffff"),
+  padding: z.number().int().min(0).max(120).default(20),
+})
+
+/**
+ * The token an action button falls back to when it has no address of its own.
+ *
+ * The app's own emails all exist to get somebody to one link — verify this,
+ * reset that — and that link is built fresh every time with a one-use token in
+ * it. So the button in those emails cannot hold an address; it holds this, and
+ * the send fills it in. Leaving `url` blank on a newsletter means the same
+ * thing, and there the token has nothing to fill it, so the button is dropped
+ * rather than sent pointing at nonsense.
+ */
+export const ACTION_URL_TOKEN = "{{action_url}}"
+
+/** The only schemes a link in an email may use. Matches the rich-text editor. */
+const SAFE_LINK_SCHEMES = ["http:", "https:", "mailto:"]
+
+/**
+ * An address that is safe to put in an href, or empty if it is not one.
+ *
+ * `javascript:` is the one that matters. Escaping the address stops it breaking
+ * out of the attribute but does nothing about the scheme, and the editor draws
+ * every block by handing this HTML straight to the browser — so a saved
+ * `javascript:` button would be a live link in the next admin's preview, not
+ * just in somebody's inbox. Rich-text links have been held to these three
+ * schemes all along; this holds buttons to the same three.
+ */
+export function safeLinkUrl(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return ""
+  try {
+    // A relative address has no scheme to be wrong about, but an email is read
+    // outside the app and has nothing to resolve one against, so the base only
+    // exists to let the parser work — a link that needs it is not usable.
+    const parsed = new URL(trimmed)
+    return SAFE_LINK_SCHEMES.includes(parsed.protocol) ? trimmed : ""
+  } catch {
+    return ""
+  }
+}
+
+const buttonContentSchema = z.object({
+  label: z.string().trim().max(120).default("Open"),
+  /** Blank means "the link the app makes" — see ACTION_URL_TOKEN. */
+  url: z.string().trim().max(2000).default(""),
+  backgroundColor: hexColorSchema.default("#18181b"),
+  textColor: hexColorSchema.default("#fafafa"),
+  alignment: alignmentSchema.default("left"),
+  borderRadius: z.number().int().min(0).max(40).default(8),
   padding: z.number().int().min(0).max(120).default(20),
 })
 
@@ -60,6 +111,11 @@ export const broadcastBlockSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     id: blockIdSchema,
+    kind: z.literal("button"),
+    content: buttonContentSchema,
+  }),
+  z.object({
+    id: blockIdSchema,
     kind: z.literal("divider"),
     content: dividerContentSchema,
   }),
@@ -82,6 +138,7 @@ export const BROADCAST_BLOCK_META: Record<
 > = {
   header: { name: "Header", description: "Logo banner" },
   richText: { name: "Rich Text", description: "Formatted text content" },
+  button: { name: "Button", description: "A button to click" },
   divider: { name: "Divider", description: "Horizontal separator" },
   footer: { name: "Footer", description: "Company info and unsubscribe" },
 }
@@ -153,6 +210,8 @@ export function createBroadcastBlock(
       return { id, kind, content: headerContentSchema.parse({}) }
     case "richText":
       return { id, kind, content: richTextContentSchema.parse({}) }
+    case "button":
+      return { id, kind, content: buttonContentSchema.parse({}) }
     case "divider":
       return { id, kind, content: dividerContentSchema.parse({}) }
     case "footer":

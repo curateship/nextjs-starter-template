@@ -300,12 +300,8 @@ export async function createAccountByAdmin(
   try {
     delivered = (
       await sendAuthEmail({
+        kind: "new-account",
         to: email,
-        subject: "Set your password",
-        heading: "An account was created for you",
-        message:
-          "Set a password to start using it. This link expires in one hour — if it has, use “Forgot your password?” on the sign-in page to get a fresh one.",
-        action: "Set your password",
         actionUrl: appUrlFor(`/reset-password?token=${encodeURIComponent(token)}`),
       })
     ).delivered

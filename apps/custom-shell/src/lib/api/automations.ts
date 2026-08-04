@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { adminGet, adminPost } from "@/server/guards"
-import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomation, inspectAutomation } from "@/server/automations"
+import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomations, inspectAutomation } from "@/server/automations"
 import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/workspaces"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
@@ -65,6 +65,9 @@ export function toAutomationListItem(
 const nameSchema = z.string().trim().min(1).max(80)
 const automationIdSchema = z.object({
   automationId: z.string().min(1).max(36),
+})
+const idListSchema = z.object({
+  automationIds: z.array(z.string().min(1).max(36)).min(1).max(200),
 })
 const createSchema = z.object({ name: nameSchema })
 const saveSchema = automationIdSchema.extend({
@@ -152,12 +155,12 @@ const duplicateAutomationFn = createServerFn({ method: "POST" })
     return serializeDetail(row)
   })
 
-const deleteAutomationFn = createServerFn({ method: "POST" })
+const deleteAutomationsFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(automationIdSchema)
-  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+  .inputValidator(idListSchema)
+  .handler(async ({ data, context }): Promise<{ count: number }> => {
     return {
-      ok: await deleteUserAutomation(context.user.id, data.automationId),
+      count: await deleteUserAutomations(context.user.id, data.automationIds),
     }
   })
 
@@ -209,8 +212,8 @@ export function duplicateAutomation(automationId: string) {
   return duplicateAutomationFn({ data: { automationId } })
 }
 
-export function deleteAutomation(automationId: string) {
-  return deleteAutomationFn({ data: { automationId } })
+export function deleteAutomations(automationIds: string[]) {
+  return deleteAutomationsFn({ data: { automationIds } })
 }
 
 export function loadAutomationFavorites() {
