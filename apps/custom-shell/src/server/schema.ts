@@ -446,7 +446,7 @@ export const customShellAuthTokens = pgTable(
   (table) => [
     check(
       "auth_tokens_purpose_check",
-      sql`${table.purpose} in ('verify_email', 'reset_password', 'login', 'change_email')`
+      sql`${table.purpose} in ('verify_email', 'reset_password', 'login', 'change_email', 'revoke_email_change')`
     ),
     check(
       "auth_tokens_new_email_check",
@@ -463,6 +463,30 @@ export const customShellAuthTokens = pgTable(
  * Keyed on the provider's own permanent id for the person rather than their
  * email, so changing the address on the Google account still comes back here.
  */
+/**
+ * The browsers an account has signed in from before, so the "new device" alert
+ * goes out once per device instead of once per sign-in.
+ *
+ * Sessions cannot answer this — a session row is deleted on sign-out, so the
+ * same laptop would look new every time. The label is the coarse readable one
+ * (`describeDevice`), which is what keeps the alert rare enough to be read.
+ */
+export const customShellKnownDevices = pgTable(
+  "known_devices",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    label: varchar("label", { length: 120 }).notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_known_devices_user_label").on(table.userId, table.label),
+  ]
+)
+
 export const customShellOauthAccounts = pgTable(
   "oauth_accounts",
   {

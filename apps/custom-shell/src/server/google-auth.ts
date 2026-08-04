@@ -16,8 +16,8 @@ import {
   customShellUsers,
   type CustomShellUser,
 } from "@/server/schema"
+import { startSessionWithAlert } from "@/server/security-alerts"
 import {
-  createUserSession,
   findUserByEmail,
   now,
   uuid,
@@ -368,7 +368,7 @@ export async function signInWithGoogle(
 
   return {
     user,
-    sessionToken: await createUserSession(user.id, origin, database),
+    sessionToken: await startSessionWithAlert(user, origin, database),
   }
 }
 

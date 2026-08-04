@@ -6,6 +6,7 @@ import {
   applySystemEmailTokens,
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
+import { getAppEmailApiKey } from "@/server/email-settings"
 import {
   getSystemEmail,
   recordSystemEmailSend,
@@ -92,6 +93,9 @@ export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
       }),
       action: meta.defaults.action,
       actionUrl: email.actionUrl,
+      closing: applySystemEmailTokens(meta.defaults.closing, values, {
+        html: false,
+      }),
     }),
     fromName: null,
   }
@@ -144,13 +148,19 @@ export async function sendAuthEmail(email: AuthEmail) {
   // failure here falls through to the built-in wording rather than throwing.
   const saved = await getSystemEmail(email.kind).catch(() => null)
   const { subject, html, fromName } = composeSystemEmail(email, saved)
-  const apiKey = process.env.CUSTOM_SHELL_RESEND_API_KEY
+
+  // The key an admin saved under Settings → Email, and the environment
+  // variable as the fallback. Reading only the variable is what used to make
+  // this quietly do nothing on a server where somebody had filled the tab in.
+  const apiKey =
+    (await getAppEmailApiKey().catch(() => null)) ||
+    process.env.CUSTOM_SHELL_RESEND_API_KEY
 
   if (!apiKey) {
     if (isProduction()) {
       await logSend(email, subject, {
         status: "failed",
-        error: "Email is not set up on this server.",
+        error: "No Resend key is saved under Settings → Email.",
       })
       throw new Error("EMAIL_NOT_CONFIGURED")
     }
@@ -180,9 +190,20 @@ export async function sendAuthEmail(email: AuthEmail) {
   })
 
   if (!response.ok) {
+    // Resend's own words, not just the number. Its refusals are the useful
+    // kind — "the domain is not verified", "you can only send to your own
+    // address" — and a bare 403 sends somebody hunting for a bug in the app
+    // when the answer was sitting in the response all along.
+    const reason = await response
+      .json()
+      .then((body: { message?: string }) => body?.message ?? "")
+      .catch(() => "")
+
     await logSend(email, subject, {
       status: "failed",
-      error: `The email service refused it (${response.status}).`,
+      error: reason
+        ? `The email service refused it (${response.status}): ${reason}`
+        : `The email service refused it (${response.status}).`,
     })
     throw new Error("EMAIL_DELIVERY_FAILED")
   }
@@ -237,11 +258,12 @@ function renderBuiltInEmail(email: {
   message: string
   action: string
   actionUrl: string
+  closing: string
 }) {
   return `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b">
   <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(email.heading)}</h1>
   <p style="font-size:14px;line-height:1.6;margin:0 0 24px">${escapeHtml(email.message)}</p>
   <p style="margin:0 0 24px"><a href="${escapeHtml(email.actionUrl)}" style="display:inline-block;background:#18181b;color:#fafafa;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">${escapeHtml(email.action)}</a></p>
-  <p style="font-size:12px;color:#71717a;margin:0">If you did not request this, you can ignore this email.</p>
+  <p style="font-size:12px;color:#71717a;margin:0">${escapeHtml(email.closing)}</p>
 </div>`
 }

@@ -65,6 +65,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "The reset link is followed from a signed-out browser; the token is the guard.",
   "auth.ts:confirmEmailChangeFn":
     "The confirmation link is followed from whichever browser opened the email; the token is the guard.",
+  "auth.ts:revokeEmailChangeFn":
+    "The “this wasn’t me” link exists for somebody who may be losing the account, so it cannot require a session; the token is the guard.",
   "billing.ts:loadPublicPricingFn":
     "The pricing page is public, so the plans on it have to be readable signed out.",
   "passkeys.ts:beginPasskeySignInFn":

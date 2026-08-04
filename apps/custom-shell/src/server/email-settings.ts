@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { desc, eq, isNotNull } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/encryption"
@@ -268,6 +268,48 @@ export async function testEmailApiKey(
     return { result: "rejected" }
   }
   return { result: "error", status: response.status }
+}
+
+/**
+ * The Resend key the app's **own** emails use — verification links, password
+ * resets, sign-in links, the security alerts.
+ *
+ * Those belong to the app rather than to a workspace: somebody clicking a
+ * verification link has no workspace and barely has an account. But the box an
+ * admin types the key into is the per-workspace Settings → Email tab, because
+ * that is where the newsletter needs it.
+ *
+ * So this takes the one configured mail account there is — the most recently
+ * saved row that carries a key. There is a single Resend account behind this
+ * app, and the Settings tab is where it gets entered.
+ *
+ * Returns null when nothing is saved, which is the caller's cue to fall back to
+ * the environment variable or to log instead of send.
+ */
+export async function getAppEmailApiKey(
+  database: CustomShellDb = db
+): Promise<string | null> {
+  // The `is not null` belongs in the query, not after it. Taking the newest row
+  // and then checking would hand back nothing whenever the most recently
+  // touched workspace is one that only ever set a from-address.
+  const rows = await database
+    .select({ encrypted: customShellEmailSettings.resendApiKeyEncrypted })
+    .from(customShellEmailSettings)
+    .where(isNotNull(customShellEmailSettings.resendApiKeyEncrypted))
+    .orderBy(desc(customShellEmailSettings.updatedAt))
+
+  for (const row of rows) {
+    if (!row.encrypted) continue
+    try {
+      return decryptSecret(row.encrypted)
+    } catch {
+      // A key nobody can read is the same as no key — try the next one rather
+      // than falling silent because one workspace's secret went unreadable.
+      continue
+    }
+  }
+
+  return null
 }
 
 export type SendableEmailConfig = {
