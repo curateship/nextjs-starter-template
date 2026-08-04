@@ -9,10 +9,12 @@ import { useEffectBeforePaint } from "@/lib/use-effect-before-paint"
 
 const SETTINGS_CARD_PREFIX = "custom-shell-settings-card-"
 const SIDEBAR_SECTION_PREFIX = "custom-shell-sidebar-section-"
+const SIDEBAR_ITEM_PREFIX = "custom-shell-sidebar-item-"
 
 export const collapseStorageKey = {
   settingsCard: (id: string) => `${SETTINGS_CARD_PREFIX}${id}`,
   sidebarSection: (id: string) => `${SIDEBAR_SECTION_PREFIX}${id}`,
+  sidebarItem: (id: string) => `${SIDEBAR_ITEM_PREFIX}${id}`,
 }
 
 export const MEDIA_VIEW_STORAGE_KEY = "custom-shell-media-view"
@@ -64,7 +66,10 @@ export function useRememberedChoice<T extends string>(
 }
 
 /**
- * The open/closed half of the above, for a section that collapses.
+ * The open/closed half of the above, for anything that folds shut: a settings
+ * card, a sidebar section, a nav link with children. `fallbackOpen` is what to
+ * show before the remembered choice is read, and on a browser that has never
+ * been told — a nav link uses it to start open on the page it leads to.
  *
  * The third value is the key to hang on the section's body, and it disappears
  * the moment the remembered choice has been read. Until then the no-flash rule
@@ -73,11 +78,12 @@ export function useRememberedChoice<T extends string>(
  * hands the section over without a gap for it to show through.
  */
 export function useRememberedCollapse(
-  storageKey: string
+  storageKey: string,
+  fallbackOpen = true
 ): [boolean, (open: boolean) => void, string | undefined] {
   const [state, choose, settled] = useRememberedChoice(
     storageKey,
-    OPEN,
+    fallbackOpen ? OPEN : CLOSED,
     COLLAPSE_CHOICES
   )
 
@@ -103,6 +109,7 @@ export function useRememberedCollapse(
 export const noFlashCollapseScript = `try{var p=${JSON.stringify([
   SETTINGS_CARD_PREFIX,
   SIDEBAR_SECTION_PREFIX,
+  SIDEBAR_ITEM_PREFIX,
 ])},r=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k||localStorage.getItem(k)!==${JSON.stringify(
   CLOSED
 )}||!/^[\\w-]+$/.test(k))continue;for(var j=0;j<p.length;j++)if(k.slice(0,p[j].length)===p[j]){r.push('[data-collapse-key="'+k+'"]');break}}if(r.length){var s=document.createElement('style');s.textContent=r.join(',')+'{display:none!important}';document.head.appendChild(s)}}catch(e){}`
