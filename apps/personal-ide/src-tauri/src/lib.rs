@@ -368,8 +368,11 @@ async fn create_app_from_custom_shell(
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceList>, String> {
     let app_name = validate_new_app_name(&app_name)?;
-    let scaffold_root = custom_shell_scaffold_dir()?;
-    let (git_root, app_relative_path) = new_app_repo_target(&scaffold_root, &app_name)?;
+    // Seed the repo lookup from any shell copy the IDE can find, but scaffold the
+    // new app from the primary checkout's shell so it always gets the latest.
+    let seed = custom_shell_scaffold_dir()?;
+    let (git_root, app_relative_path) = new_app_repo_target(&seed, &app_name)?;
+    let scaffold_root = primary_custom_shell_dir(&git_root)?;
     add_workspace_for_new_app(
         &app,
         &state,
@@ -2036,6 +2039,19 @@ fn find_custom_shell_scaffold_dir(
     }
 
     Err("Custom Shell scaffold was not found next to Personal IDE.".to_string())
+}
+
+// The shell a new app is copied from. Always the primary checkout's copy (which
+// sits on develop), never whatever worktree the IDE happens to be pointed at.
+// Older workspaces drift far behind develop, so scaffolding from the active
+// worktree produced apps missing most of the shell.
+fn primary_custom_shell_dir(git_root: &Path) -> Result<PathBuf, String> {
+    let candidate = git_root.join("apps").join(CUSTOM_SHELL_APP_DIR);
+    if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
+        return fs::canonicalize(candidate).map_err(|error| error.to_string());
+    }
+
+    Err("Custom Shell was not found in the primary checkout.".to_string())
 }
 
 fn copy_scaffold_dir(source: &Path, target: &Path) -> Result<(), String> {
