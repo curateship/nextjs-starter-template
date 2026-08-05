@@ -17,6 +17,7 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import {
   canSeeShellEntry,
@@ -27,6 +28,7 @@ import {
   type ShellConfig,
   type ShellSection,
 } from "@/lib/custom-shell"
+import { useBlankSpaceDoubleClick } from "@/lib/panel-collapse"
 import type { AuthUser } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
 import type { WorkspaceItem } from "@/lib/api/workspaces"
@@ -132,6 +134,11 @@ export function AppSidebar({
     select: (state) => state.location.pathname,
   })
   const activeHref = getActiveHref(config, currentPath, user.role)
+  const { toggleSidebar } = useSidebar()
+  // Double-clicking the empty part of the rail — under the links — narrows it
+  // to icons, and double-clicking there again brings it back. Same gesture as
+  // the editors' side and bottom panels.
+  const handleDoubleClick = useBlankSpaceDoubleClick(toggleSidebar)
 
   const handleNavigate = React.useCallback((href: string) => {
     navigate({ href })
@@ -154,7 +161,7 @@ export function AppSidebar({
           favicon={config.favicon}
         />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent onDoubleClick={handleDoubleClick}>
         {sections.length ? (
           sections.map(({ section, entries }) => (
             <SidebarCollapsible
