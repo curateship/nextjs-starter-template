@@ -22,8 +22,8 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { FormDialog } from "@/components/ui/form-dialog"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -144,6 +144,11 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       to: "/admin/automations/$automationId",
       params: { automationId },
     })
+
+  const closeCreate = () => {
+    setCreateOpen(false)
+    setCreateName("")
+  }
 
   const handleCreate = async () => {
     if (creating || !createName.trim()) return
@@ -422,63 +427,64 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         ))}
       </DashboardTable>
 
-      <Dialog
+      <FormDialog
         open={createOpen}
-        onOpenChange={(open) => {
-          if (!open && creating) return
-          setCreateOpen(open)
-        }}
+        dirty={createName.length > 0}
+        busy={creating}
+        onClose={closeCreate}
       >
-        <DialogContent variant="admin" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>New automation</DialogTitle>
-            <DialogDescription>
-              Name it, then build the flow on the canvas.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <Card size="sm">
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="automation-name">Name</Label>
-                  <Input
-                    id="automation-name"
-                    value={createName}
-                    maxLength={80}
-                    autoFocus
-                    placeholder="Weekly changelog email"
-                    onChange={(event) => setCreateName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault()
-                        void handleCreate()
-                      }
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={creating}
-              onClick={() => setCreateOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={creating || !createName.trim()}
-              onClick={() => void handleCreate()}
-            >
-              {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Create automation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {(requestClose) => (
+          <DialogContent variant="admin" className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>New automation</DialogTitle>
+              <DialogDescription>
+                Name it, then build the flow on the canvas.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <Card size="sm">
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="automation-name">Name</Label>
+                    <Input
+                      id="automation-name"
+                      value={createName}
+                      maxLength={80}
+                      autoFocus
+                      placeholder="Weekly changelog email"
+                      onChange={(event) => setCreateName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault()
+                          void handleCreate()
+                        }
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creating}
+                onClick={requestClose}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={creating || !createName.trim()}
+                onClick={() => void handleCreate()}
+              >
+                {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                Create automation
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </FormDialog>
 
       <ConfirmDialog
         open={deleteTargets !== null}
