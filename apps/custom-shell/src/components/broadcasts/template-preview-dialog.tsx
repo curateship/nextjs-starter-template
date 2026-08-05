@@ -1,6 +1,14 @@
 import { Loader2Icon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
@@ -87,22 +95,28 @@ export function TemplatePreviewDialog({
             </div>
           </div>
           {onToggleDefault ? (
-            <label className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-foreground/5 bg-muted/40 p-4">
-              <span className="grid gap-0.5">
-                <span className="text-[15px] font-medium">
-                  Start new newsletters from this
-                </span>
-                <span className="text-sm text-muted-foreground">
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Starting template</CardTitle>
+                <CardDescription>
                   Only one template can do this, so turning it on turns it off
                   for whichever one had it.
-                </span>
-              </span>
-              <Switch
-                checked={Boolean(isDefault)}
-                disabled={settingDefault || deleting}
-                onCheckedChange={onToggleDefault}
-              />
-            </label>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="default-newsletter-template">
+                    Start new newsletters from this
+                  </Label>
+                  <Switch
+                    id="default-newsletter-template"
+                    checked={Boolean(isDefault)}
+                    disabled={settingDefault || deleting}
+                    onCheckedChange={onToggleDefault}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           ) : null}
         </DialogBody>
         <DialogFooter>
