@@ -38,7 +38,6 @@ import {
   TableHeader,
   TableRow,
   TableSortButton,
-  type TableSortDirection,
 } from "@/components/ui/table"
 import {
   createBroadcast,
@@ -55,8 +54,9 @@ import { quoteOneLine } from "@/lib/quote-text"
 import { useLastValue } from "@/lib/use-last-value"
 import { useAsyncAction } from "@/lib/use-async-action"
 import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
 
-type SortColumn = "name" | "status" | "updated"
+type SortColumn = "name" | "status" | "sent" | "updated"
 
 const STATUS_LABELS: Record<BroadcastListItem["status"], string> = {
   draft: "Draft",
@@ -83,8 +83,11 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   const navigate = useNavigate()
   const { config } = useShellRuntime()
   const [broadcasts, setBroadcasts] = React.useState(initial.broadcasts)
-  const [sort, setSort] = React.useState<SortColumn>("updated")
-  const [direction, setDirection] = React.useState<TableSortDirection>("desc")
+  const { sort, direction, toggleSort } = useTableSort<SortColumn>(
+    "updated",
+    "desc",
+    (column) => (column === "updated" || column === "sent" ? "desc" : "asc")
+  )
   const [search, setSearch] = React.useState("")
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
@@ -101,15 +104,6 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   // so its heading keeps reading the name it opened with.
   const closingDeleteTarget = useLastValue(deleteTarget)
 
-  const toggleSort = (column: SortColumn) => {
-    if (column === sort) {
-      setDirection((current) => (current === "asc" ? "desc" : "asc"))
-      return
-    }
-    setSort(column)
-    setDirection("asc")
-  }
-
   const sorted = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
     const query = search.trim().toLowerCase()
@@ -123,8 +117,9 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       .sort((left, right) => {
         if (sort === "name") return factor * left.name.localeCompare(right.name)
         if (sort === "status") {
-          return factor * left.status.localeCompare(right.status)
+          return factor * STATUS_LABELS[left.status].localeCompare(STATUS_LABELS[right.status])
         }
+        if (sort === "sent") return factor * (left.totalSent - right.totalSent)
         return factor * left.updated_at.localeCompare(right.updated_at)
       })
   }, [broadcasts, direction, search, sort])
@@ -242,7 +237,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                   Name
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden sm:table-cell">
                 <TableSortButton
                   active={sort === "status"}
                   direction={direction}
@@ -251,7 +246,9 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                   Status
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">Sent</TableHead>
+              <TableHead column="meta" className="hidden md:table-cell">
+                <TableSortButton active={sort === "sent"} direction={direction} onClick={() => toggleSort("sent")}>Sent</TableSortButton>
+              </TableHead>
               <TableHead column="meta">
                 <TableSortButton
                   active={sort === "updated"}
@@ -309,13 +306,13 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                 {item.name}
               </Link>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="meta" className="hidden sm:table-cell">
               <Badge variant={item.status === "paused" ? "destructive" : "secondary"}>
                 {STATUS_LABELS[item.status]}
               </Badge>
             </TableCell>
-            <TableCell column="mutedMeta">{progressText(item)}</TableCell>
-            <TableCell column="mutedMeta">{formatDate(item.updated_at)}</TableCell>
+            <TableCell column="mutedMeta" className="hidden md:table-cell">{progressText(item)}</TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">{formatDate(item.updated_at)}</TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
                 <Button

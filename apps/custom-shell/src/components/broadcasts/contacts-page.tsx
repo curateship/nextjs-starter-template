@@ -30,7 +30,6 @@ import {
   TableHeader,
   TableRow,
   TableSortButton,
-  type TableSortDirection,
 } from "@/components/ui/table"
 import {
   deleteContacts,
@@ -48,6 +47,7 @@ import { quoteOneLine } from "@/lib/quote-text"
 import { useLastValue } from "@/lib/use-last-value"
 import { useAsyncAction } from "@/lib/use-async-action"
 import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
 
 function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
@@ -77,8 +77,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   const [data, setData] = React.useState(initial)
   const [search, setSearch] = React.useState("")
   const [tag, setTag] = React.useState<string | null>(null)
-  const [sort, setSort] = React.useState<ContactSortColumn>("created")
-  const [direction, setDirection] = React.useState<TableSortDirection>("desc")
+  const { sort, direction, toggleSort } = useTableSort<ContactSortColumn>("created", "desc", (column) => column === "created" ? "desc" : "asc")
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [loading, setLoading] = React.useState(false)
@@ -138,15 +137,6 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   }, [search, tag, pageSize, sort, direction])
 
   /** Same column flips the arrow; a new column starts ascending. */
-  const toggleSort = (column: ContactSortColumn) => {
-    if (column === sort) {
-      setDirection((current) => (current === "asc" ? "desc" : "asc"))
-      return
-    }
-    setSort(column)
-    setDirection("asc")
-  }
-
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize))
 
   const handleAdd = async () => {
@@ -253,7 +243,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                   Email
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden sm:table-cell">
                 <TableSortButton
                   active={sort === "name"}
                   direction={direction}
@@ -263,8 +253,8 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                 </TableSortButton>
               </TableHead>
               {/* Tags are a list, so there is no single value to order by. */}
-              <TableHead column="meta">Tags</TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden md:table-cell">Tags</TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
                 <TableSortButton
                   active={sort === "status"}
                   direction={direction}
@@ -324,7 +314,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                 {contact.email}
               </span>
             </TableCell>
-            <TableCell column="mutedMeta">
+            <TableCell column="mutedMeta" className="hidden sm:table-cell">
               <span className="flex items-center gap-2">
                 <span className="truncate">{fullName(contact) || "—"}</span>
                 {contact.isAccount ? (
@@ -334,7 +324,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                 ) : null}
               </span>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="meta" className="hidden md:table-cell">
               {contact.tags.length === 0 ? (
                 <span className="text-muted-foreground">—</span>
               ) : (
@@ -367,7 +357,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                 {contactStatusLabel(contact.status)}
               </Badge>
             </TableCell>
-            <TableCell column="mutedMeta">
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {formatDate(contact.created_at)}
             </TableCell>
             <TableCell column="actions">

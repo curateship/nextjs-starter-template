@@ -64,6 +64,7 @@ import {
 import { formatDate } from "@/lib/format-time"
 import {
   useListSearchNavigate,
+  useListSort,
   useSearchBoxText,
 } from "@/lib/list-search"
 
@@ -254,15 +255,9 @@ export function AdminUsersDashboard({
     `${search}|${role}|${status}|${sort}|${direction}|${page}|${pageSize}`
   )
 
-  const toggleSort = React.useCallback(
-    (column: SortColumn) => {
-      setListSearch(
-        sort === column
-          ? { direction: direction === "asc" ? "desc" : "asc" }
-          : { sort: column, direction: "asc" }
-      )
-    },
-    [direction, setListSearch, sort]
+  const toggleSort = useListSort<SortColumn>(
+    { sort, direction },
+    (column) => (column === "created" ? "desc" : "asc")
   )
 
   const runAction = React.useCallback(
