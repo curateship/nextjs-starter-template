@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -382,13 +383,7 @@ function RunRow({
           {detailError ? (
             <ErrorBanner message={detailError} onRetry={() => void load()} />
           ) : !detail ? (
-            <span
-              className="flex items-center gap-2 text-xs text-muted-foreground"
-              role="status"
-            >
-              <Loader2Icon className="size-3.5 animate-spin" />
-              Loading…
-            </span>
+            <LoadingRow label="Loading…" />
           ) : (
             <>
               {detail.status === "waiting_approval" ? (

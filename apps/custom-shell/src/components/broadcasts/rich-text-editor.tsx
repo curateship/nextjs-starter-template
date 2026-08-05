@@ -25,6 +25,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { focusRing } from "@/lib/focus-ring"
 
 function ToolbarButton({
   label,
@@ -329,7 +330,10 @@ export function RichTextEditor({
                 onClick={() =>
                   editor.chain().focus().insertContent(`{{${tag}}}`).run()
                 }
-                className="rounded-md border bg-background px-2 py-1 font-mono text-xs text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={cn(
+                  "rounded-md border bg-background px-2 py-1 font-mono text-xs text-foreground transition-colors hover:bg-muted",
+                  focusRing
+                )}
               >
                 {tag}
               </button>

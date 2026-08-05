@@ -13,6 +13,7 @@ import {
   isSupportedNode,
 } from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
+import { focusRing } from "@/lib/focus-ring"
 
 import { AutomationNodeIcon } from "./automation-node-icon"
 import { NODE_HEIGHT, NODE_WIDTH, nodeOutputPorts, portOut } from "./canvas-model"
@@ -64,7 +65,8 @@ export function AutomationCanvasNode({
         onMoveStart(event)
       }}
       className={cn(
-        "pointer-events-auto absolute top-0 left-0 box-border cursor-grab rounded-xl border border-foreground/5 bg-card shadow-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing",
+        "pointer-events-auto absolute top-0 left-0 box-border cursor-grab rounded-xl border border-foreground/5 bg-card shadow-sm active:cursor-grabbing",
+        focusRing,
         unsupported && "border-dashed border-muted-foreground/40 bg-muted/40",
         selected && "border-primary ring-3 ring-primary/15",
         invalid && "border-destructive"
@@ -123,7 +125,8 @@ export function AutomationCanvasNode({
             onConnectFinish()
           }}
           className={cn(
-            "absolute -left-2 size-4 rounded-full border-2 bg-card transition-transform outline-none hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+            "absolute -left-2 size-4 rounded-full border-2 bg-card transition-transform hover:scale-125",
+            focusRing,
             connecting ? "border-primary" : "border-muted-foreground/60"
           )}
           style={{ top: NODE_HEIGHT / 2 - 8 }}
@@ -154,7 +157,10 @@ export function AutomationCanvasNode({
                 event.stopPropagation()
                 onConnectStart(port.id)
               }}
-              className="absolute -right-2 size-4 rounded-full border-2 border-muted-foreground/60 bg-card transition-transform outline-none hover:scale-125 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn(
+                "absolute -right-2 size-4 rounded-full border-2 border-muted-foreground/60 bg-card transition-transform hover:scale-125 focus-visible:border-primary",
+                focusRing
+              )}
               style={{ top: centerY - 8 }}
             />
           </React.Fragment>

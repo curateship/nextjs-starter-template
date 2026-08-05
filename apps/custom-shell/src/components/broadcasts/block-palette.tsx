@@ -17,6 +17,7 @@ import { TemplatePreviewDialog } from "@/components/broadcasts/template-preview-
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -27,6 +28,7 @@ import {
   type BroadcastTemplateItem,
 } from "@/lib/api/broadcasts"
 import { showErrorToast } from "@/lib/error-toast"
+import { focusRing, focusRingInset } from "@/lib/focus-ring"
 import { plural } from "@/lib/plural"
 import {
   BROADCAST_BLOCK_KINDS,
@@ -228,7 +230,8 @@ function PaletteCard({
         onClick={onClick}
         className={cn(
           "flex w-full items-start gap-2 overflow-hidden rounded-lg border bg-card p-2 text-left transition-colors",
-          "hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50",
+          "hover:border-primary/40 hover:bg-muted/30 disabled:opacity-50",
+          focusRingInset,
           // A border, not only a tint: which block the options panel is showing
           // has to survive a screen that cannot draw the grey.
           selected
@@ -260,7 +263,10 @@ function PaletteCard({
           aria-label={actionLabel}
           title={actionLabel}
           onClick={onAction}
-          className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,background-color,opacity] group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+          className={cn(
+            "absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,background-color,opacity] group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-muted hover:text-foreground disabled:opacity-50",
+            focusRing
+          )}
         >
           <PlusIcon className="size-4" />
         </button>
@@ -366,9 +372,7 @@ function TemplatesTab({
           {error ? (
             <ErrorBanner message={error} />
           ) : templates === null ? (
-            <p className="py-8 text-center text-xs text-muted-foreground">
-              Loading…
-            </p>
+            <LoadingRow label="Loading…" />
           ) : templates.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
               No templates yet. Build an email you like, then save it here to

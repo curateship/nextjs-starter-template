@@ -14,6 +14,7 @@ import {
   useRememberedChoice,
 } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
+import { focusRingInset } from "@/lib/focus-ring"
 
 import {
   canConnectNodes,
@@ -408,7 +409,8 @@ export function AutomationFlowCanvas({
         // already muted, so a tinted drawing surface melts into it and the
         // panel reads as "cut off". White-card-on-muted is how every other
         // surface in this shell reads; the dot grid marks the drawing area.
-        "relative min-h-0 flex-1 touch-none overflow-hidden bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "relative min-h-0 flex-1 touch-none overflow-hidden bg-card select-none",
+        focusRingInset,
         panning
           ? "cursor-grabbing"
           : connect

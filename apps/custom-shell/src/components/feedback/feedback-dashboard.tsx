@@ -25,6 +25,8 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
+import { focusRing } from "@/lib/focus-ring"
+import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -575,7 +577,7 @@ export function FeedbackDashboard({
             <TableCell column="meta">
               <button
                 type="button"
-                className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={cn("rounded-md", focusRing)}
                 onClick={() => openFeedbackComments(item)}
                 title="View comments"
                 aria-label={`View ${item.comment_count} ${plural(item.comment_count, "comment", "comments")}`}

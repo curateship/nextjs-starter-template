@@ -19,6 +19,7 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { PasswordInput } from "@/components/ui/password-input"
 import {
   Table,
@@ -339,9 +340,7 @@ function PasskeysCard() {
               onRetry={() => setReloads((count) => count + 1)}
             />
           ) : !list ? (
-            <div className="flex justify-center p-6">
-              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-            </div>
+            <LoadingRow label="Loading…" className="min-h-56" />
           ) : list.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">
               No passkeys yet.
@@ -551,9 +550,7 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
               onRetry={() => setReloads((count) => count + 1)}
             />
           ) : !list ? (
-            <div className="flex justify-center p-6">
-              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-            </div>
+            <LoadingRow label="Loading…" className="min-h-56" />
           ) : (
             <Table>
               <TableHeader>
