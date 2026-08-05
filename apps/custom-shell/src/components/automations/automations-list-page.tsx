@@ -151,7 +151,11 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   }
 
   const handleCreate = async () => {
-    if (creating || !createName.trim()) return
+    if (creating) return
+    if (!createName.trim()) {
+      showErrorToast("Automation name is required.")
+      return
+    }
     await runCreate(async () => {
       const created = await createAutomation(createName)
       toast.success(`Created "${created.name}".`)
@@ -453,6 +457,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                       autoFocus
                       placeholder="Weekly changelog email"
                       onChange={(event) => setCreateName(event.target.value)}
+                      aria-invalid={!createName.trim() || undefined}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") {
                           event.preventDefault()
@@ -475,7 +480,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               </Button>
               <Button
                 type="button"
-                disabled={creating || !createName.trim()}
+                disabled={creating}
                 onClick={() => void handleCreate()}
               >
                 {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}

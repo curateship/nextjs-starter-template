@@ -142,7 +142,11 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize))
 
   const handleAdd = async () => {
-    if (saving || !form.email.trim()) return
+    if (saving) return
+    if (!form.email.trim()) {
+      showErrorToast("Email address is required.")
+      return
+    }
     await runSave(async () => {
       await saveContact({
         email: form.email.trim(),
@@ -428,6 +432,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                     type="email"
                     autoFocus
                     value={form.email}
+                    aria-invalid={!form.email.trim() || undefined}
                     placeholder="ada@example.com"
                     onChange={(event) =>
                       setForm((current) => ({
@@ -500,7 +505,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
             </Button>
             <Button
               type="button"
-              disabled={saving || !form.email.trim()}
+              disabled={saving}
               onClick={() => void handleAdd()}
             >
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}

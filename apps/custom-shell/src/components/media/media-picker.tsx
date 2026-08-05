@@ -505,8 +505,14 @@ export function MediaPicker({
               </Button>
               <Button
                 type="button"
-                disabled={!selectedMedia}
-                onClick={() => selectedMedia && chooseMedia(selectedMedia)}
+                aria-invalid={!selectedMedia || undefined}
+                onClick={() => {
+                  if (!selectedMedia) {
+                    showErrorToast("Choose a file before selecting it.")
+                    return
+                  }
+                  chooseMedia(selectedMedia)
+                }}
               >
                 Select
               </Button>
