@@ -18,6 +18,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react"
+import * as React from "react"
 
 import {
   DRAG_HANDLE_CLASS,
@@ -181,6 +182,7 @@ export function BroadcastCanvas({
                       selected={block.id === selectedBlockId}
                       disabled={disabled}
                       onSelect={() => onSelect(block.id)}
+                      onClearSelection={() => onSelect(null)}
                       onInsertAfter={(kind) => onInsert(kind, index + 1)}
                       onDuplicate={() => onDuplicate(block.id)}
                       onDelete={() => onDelete(block.id)}
@@ -303,6 +305,7 @@ function SortableBlock({
   selected,
   disabled,
   onSelect,
+  onClearSelection,
   onInsertAfter,
   onDuplicate,
   onDelete,
@@ -312,10 +315,13 @@ function SortableBlock({
   selected: boolean
   disabled?: boolean
   onSelect: () => void
+  onClearSelection: () => void
   onInsertAfter: (kind: BroadcastBlockKind) => void
   onDuplicate: () => void
   onDelete: () => void
 }) {
+  const [escapeDismissed, setEscapeDismissed] = React.useState(false)
+
   // Translate only. Blocks are nowhere near the same height — a divider next to
   // a paragraph — and dnd-kit's full transform carries a stretch factor so a row
   // can morph into its neighbour's space, which skews the block mid-drag. The
@@ -333,6 +339,7 @@ function SortableBlock({
       // tell it landed on nothing and clear the selection.
       data-block=""
       className={cn("group relative", isDragging ? "z-20" : "hover:z-10")}
+      onPointerEnter={() => setEscapeDismissed(false)}
     >
       <div
         role="button"
@@ -344,11 +351,21 @@ function SortableBlock({
           // this, clicking the footer to edit it follows the unsubscribe link
           // and throws you out of the editor.
           event.preventDefault()
+          setEscapeDismissed(false)
           onSelect()
         }}
         onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault()
+            event.stopPropagation()
+            setEscapeDismissed(true)
+            onClearSelection()
+            event.currentTarget.blur()
+            return
+          }
           if (event.key !== "Enter" && event.key !== " ") return
           event.preventDefault()
+          setEscapeDismissed(false)
           onSelect()
         }}
         className={cn(
@@ -357,7 +374,7 @@ function SortableBlock({
           // Drawn over the block rather than around it, so showing it can never
           // nudge the email's layout by a pixel.
           "after:pointer-events-none after:absolute after:-inset-px after:z-10 after:rounded-[inherit] after:border-2 after:border-transparent after:transition-colors",
-          "group-hover:after:border-foreground/70",
+          !escapeDismissed && "group-hover:after:border-foreground/70",
           "focus-visible:after:border-foreground",
           selected && "after:border-foreground"
         )}
