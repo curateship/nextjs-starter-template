@@ -7,6 +7,7 @@ import {
   createDefaultDashboardWidgets,
   type DashboardWidgetLayout,
 } from "@/lib/dashboard-widgets"
+import { scaffoldStyling } from "@/lib/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
 import {
@@ -721,6 +722,23 @@ export function createDefaultModalStyling(): ShellModalStyling {
 }
 
 export function createDefaultStyling(): ShellStyling {
+  if (scaffoldStyling) {
+    return {
+      ...scaffoldStyling,
+      cardBorderColor: { ...scaffoldStyling.cardBorderColor },
+      dividerColor: { ...scaffoldStyling.dividerColor },
+      content: { ...scaffoldStyling.content },
+      chrome: { ...scaffoldStyling.chrome },
+      modal: {
+        ...scaffoldStyling.modal,
+        background: { ...scaffoldStyling.modal.background },
+        borderColor: { ...scaffoldStyling.modal.borderColor },
+        cardBackground: { ...scaffoldStyling.modal.cardBackground },
+        cardBorderColor: { ...scaffoldStyling.modal.cardBorderColor },
+      },
+    }
+  }
+
   return {
     gutter: 14,
     cardBorderWidth: 1,
