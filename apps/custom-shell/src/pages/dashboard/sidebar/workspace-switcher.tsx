@@ -216,7 +216,7 @@ function WorkspaceLogo({
       <img
         src={favicon}
         alt={`${name || "Workspace"} favicon`}
-        className="h-full w-auto object-contain"
+        className="size-full rounded-md object-cover"
       />
     )
   }

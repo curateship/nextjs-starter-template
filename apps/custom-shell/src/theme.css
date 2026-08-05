@@ -360,6 +360,21 @@ body.app-font {
   );
 }
 
+/*
+ * Blur the stable page canvas instead of sampling it through the modal overlay.
+ * A backdrop filter is recalculated when the modal's own scroll viewport paints,
+ * which makes Chromium briefly show an unblurred frame during scrolling. Radix
+ * portals dialogs and sheets beside this canvas, so they remain sharp while the
+ * page behind them keeps the same 4px glass blur without scroll-time repaints.
+ */
+body:has(
+    [data-slot="dialog-overlay"][data-state="open"],
+    [data-slot="sheet-overlay"][data-state="open"]
+  )
+  > [data-slot="app-canvas"] {
+  filter: blur(4px);
+}
+
 [data-slot="dialog-content"] {
   background-color: var(--shell-modal-bg, var(--popover));
   --tw-ring-shadow: 0 0 #0000;
