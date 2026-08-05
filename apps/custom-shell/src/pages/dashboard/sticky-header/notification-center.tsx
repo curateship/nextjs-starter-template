@@ -322,7 +322,7 @@ export function NotificationCenter({
               : "Open notifications"
           }
         >
-          <BellIcon className="h-[1.15rem] w-[1.15rem]" />
+          <BellIcon className="size-5" />
           {unreadCount > 0 ? (
             // A circle at one digit that stretches into a pill at two or three,
             // capped at 99+ so a big number can never widen past the button.

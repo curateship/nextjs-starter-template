@@ -29,6 +29,7 @@ import {
 import { formatDate, formatDateTime } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
 import { formatTokenCount } from "@/lib/format-number"
+import { describeCode } from "@/lib/code-label"
 
 /**
  * What the last load returned, kept for as long as the page is open.
@@ -226,7 +227,7 @@ function RecentCallsTable({ recent }: { recent: MyAiRecentCall[] }) {
                 </TableCell>
                 <TableCell column="main" className="min-w-0">
                   <span className="inline-flex max-w-full items-center gap-2">
-                    <span className="truncate">{call.feature}</span>
+                    <span className="truncate">{describeCode(call.feature)}</span>
                     {/* A call that never ran or never finished cost nothing,
                         and the row says why instead of showing a quiet $0. */}
                     {call.status === "failed" ? (

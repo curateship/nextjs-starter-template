@@ -1,6 +1,7 @@
 import * as React from "react"
 import { SendIcon } from "lucide-react"
 import { toast } from "sonner"
+import { showErrorToast } from "@/lib/error-toast"
 
 import {
   EmailBlockEditor,
@@ -72,7 +73,7 @@ export function SystemEmailEditor({
           : "Email is not set up on this server, so it was only written to the log."
       )
     } catch (error) {
-      toast.error(getSystemEmailErrorMessage(error))
+      showErrorToast(getSystemEmailErrorMessage(error))
     } finally {
       setSendsVersion((current) => current + 1)
       setTesting(false)

@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { format } from "date-fns"
 import { BanIcon, HardDriveIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
+import { describeCode } from "@/lib/code-label"
 
 import { CancelSubscriptionDialog } from "@/components/admin/cancel-subscription-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -866,8 +867,10 @@ function subscriptionStatusText(status: string) {
     past_due: "Payment overdue",
     canceled: "Cancelled",
     incomplete: "Payment never finished",
+    incomplete_expired: "Payment expired",
+    unpaid: "Payment overdue",
     none: "No subscription",
   }
 
-  return labels[status] ?? status.replace(/[_-]+/g, " ")
+  return labels[status] ?? describeCode(status)
 }
