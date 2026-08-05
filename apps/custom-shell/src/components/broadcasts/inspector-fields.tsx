@@ -180,7 +180,7 @@ export function ColorField({
               "size-9 rounded-lg border transition-[box-shadow,border-color] disabled:opacity-50",
               normalized === swatch.value
                 ? "border-foreground ring-2 ring-foreground/20"
-                : "border-black/10 hover:border-black/25"
+                : "border-foreground/10 hover:border-foreground/25"
             )}
             style={{ backgroundColor: swatch.value }}
           />
@@ -192,7 +192,7 @@ export function ColorField({
             "relative size-9 cursor-pointer overflow-hidden rounded-lg border transition-colors",
             custom
               ? "border-foreground ring-2 ring-foreground/20"
-              : "border-black/10 hover:border-black/25",
+              : "border-foreground/10 hover:border-foreground/25",
             disabled && "pointer-events-none opacity-50"
           )}
           style={{ backgroundColor: custom ? value : undefined }}

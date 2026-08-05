@@ -124,6 +124,7 @@ export function AccountProfilePage({
               }}
               aspect="square"
               emptyLabel="Add photo"
+              inlinePicker
               className="max-w-20"
             />
             <div className="grid gap-2 sm:flex-1">

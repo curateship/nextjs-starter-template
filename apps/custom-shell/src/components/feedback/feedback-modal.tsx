@@ -641,6 +641,7 @@ export function FeedbackModal({
                   Only the author and admins will ever see it on the board. */}
                 <div className="px-3 pb-3">
                   <ImageUpload
+                    inlinePicker
                     label="Screenshot"
                     showLabel={false}
                     value={composerAttachment}

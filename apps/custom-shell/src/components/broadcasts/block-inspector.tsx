@@ -92,7 +92,7 @@ function AlignmentField({
               "flex size-9 items-center justify-center rounded-lg border transition-colors disabled:opacity-50",
               value === option.value
                 ? "border-foreground bg-foreground text-background"
-                : "border-black/10 bg-background text-muted-foreground hover:border-black/25 hover:text-foreground"
+                : "border-foreground/10 bg-background text-muted-foreground hover:border-foreground/25 hover:text-foreground"
             )}
           >
             <option.icon className="size-4" />

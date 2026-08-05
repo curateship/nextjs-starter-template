@@ -8,6 +8,7 @@ import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Popover,
   PopoverContent,
@@ -380,15 +381,7 @@ export function NotificationCenter({
                   the rows already in hand while they refresh, rather than
                   flashing a spinner over data that is very likely still right. */}
               {loading && notifications.length === 0 ? (
-                <div
-                  className="grid h-56 place-items-center text-sm text-muted-foreground"
-                  role="status"
-                >
-                  <span className="flex items-center gap-2">
-                    <Loader2Icon className="size-4 animate-spin" />
-                    Loading…
-                  </span>
-                </div>
+                <LoadingRow label="Loading…" className="min-h-56" />
               ) : visibleNotifications.length > 0 ? (
                 <div className="space-y-3">
                   {visibleNotifications.map((item) => (

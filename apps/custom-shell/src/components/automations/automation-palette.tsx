@@ -9,6 +9,7 @@ import {
   type AutomationPaletteItem,
 } from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
+import { focusRingInset, focusRing } from "@/lib/focus-ring"
 
 import { AutomationNodeIcon } from "./automation-node-icon"
 
@@ -183,7 +184,10 @@ function PaletteNodeCard({
           onDragStart(item.key)
         }}
         onDragEnd={onDragEnd}
-        className="flex w-full cursor-grab items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 pr-10 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing active:[clip-path:inset(0_round_var(--radius-lg))]"
+        className={cn(
+          "flex w-full cursor-grab items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 pr-10 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 active:cursor-grabbing active:[clip-path:inset(0_round_var(--radius-lg))]",
+          focusRingInset
+        )}
       >
         <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <AutomationNodeIcon icon={item.icon} className="size-3.5" />
@@ -204,7 +208,10 @@ function PaletteNodeCard({
         type="button"
         aria-label={`Add ${item.name} node`}
         onClick={() => onAdd(item.key)}
-        className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,background-color,opacity] group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className={cn(
+          "absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[color,background-color,opacity] group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-muted hover:text-foreground",
+          focusRing
+        )}
       >
         <PlusIcon className="size-4" />
       </button>

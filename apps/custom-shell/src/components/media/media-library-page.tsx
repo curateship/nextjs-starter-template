@@ -1065,6 +1065,12 @@ function MediaDetailsDialog({
               {item ? `Uploaded by ${item.owner_name} (${item.owner_email})` : null}
             </DialogDescription>
           </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSave()
+            }}
+          >
           <DialogBody>
             {item ? (
               <>
@@ -1150,9 +1156,8 @@ function MediaDetailsDialog({
                   Cancel
                 </Button>
                 <Button
-                  type="button"
+                  type="submit"
                   disabled={saving}
-                  onClick={() => void handleSave()}
                 >
                   {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
                   Save changes
@@ -1164,6 +1169,7 @@ function MediaDetailsDialog({
               </Button>
             )}
           </DialogFooter>
+          </form>
         </DialogContent>
       )}
     </FormDialog>

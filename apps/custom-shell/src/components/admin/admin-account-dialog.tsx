@@ -30,6 +30,7 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Select,
   SelectContent,
@@ -194,9 +195,7 @@ export function AdminAccountDialog({
                 </DialogBody>
               ) : loading || !loaded ? (
                 <DialogBody>
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
-                  </div>
+                  <LoadingRow label="Loading…" className="min-h-96" />
                 </DialogBody>
               ) : (
                 <DialogBody>

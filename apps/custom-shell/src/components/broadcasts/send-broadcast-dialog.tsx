@@ -290,6 +290,12 @@ export function SendBroadcastDialog({
             way to stop it is Pause.
           </DialogDescription>
         </DialogHeader>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleConfirm()
+          }}
+        >
         <DialogBody>
           <Card size="sm">
             <CardHeader>
@@ -479,9 +485,8 @@ export function SendBroadcastDialog({
             Cancel
           </Button>
           <Button
-            type="button"
+            type="submit"
             disabled={busy || (mode === "schedule" && !scheduleValue)}
-            onClick={() => void handleConfirm()}
           >
             {busy ? (
               <Loader2Icon className="size-4 animate-spin" />
@@ -493,6 +498,7 @@ export function SendBroadcastDialog({
             {mode === "now" ? "Send it now" : "Schedule it"}
           </Button>
         </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

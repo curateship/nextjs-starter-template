@@ -30,6 +30,7 @@ import {
   type PreviewWidth,
 } from "@/lib/broadcasts/preview-width"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { focusRing } from "@/lib/focus-ring"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
@@ -66,7 +67,8 @@ function WidthToggle({
           title={`Show it ${PREVIEW_WIDTHS[option.value]} px wide`}
           onClick={() => onChange(option.value)}
           className={cn(
-            "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+            "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
+            focusRing,
             value === option.value
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground"

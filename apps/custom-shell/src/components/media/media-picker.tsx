@@ -25,7 +25,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { focusRing, focusRingInset } from "@/lib/focus-ring"
 import { useAsyncAction } from "@/lib/use-async-action"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -58,6 +60,8 @@ type MediaPickerProps = {
   onSelectMedia: (mediaUrl: string, altText?: string) => void
   currentMediaUrl?: string
   showVideos?: boolean
+  /** Renders as a step inside the owner window instead of a nested dialog. */
+  inline?: boolean
   /** Which crop shape starts selected when an uploaded image is cropped. */
   defaultCropAspect?: CropAspectKey
 }
@@ -69,6 +73,7 @@ export function MediaPicker({
   currentMediaUrl,
   showVideos = true,
   defaultCropAspect,
+  inline = false,
 }: MediaPickerProps) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
@@ -265,9 +270,20 @@ export function MediaPicker({
     onOpenChange(nextOpen)
   }
 
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent variant="admin">
+  React.useEffect(() => {
+    if (!inline || !open) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      event.stopPropagation()
+      handleOpenChange(false)
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [inline, open, cropFile])
+
+  const pickerContent = (
+    <>
         {cropFile ? (
           <ImageCropStep
             file={cropFile.file}
@@ -344,7 +360,13 @@ export function MediaPicker({
                 ) : null}
 
                 {upload ? (
-                  <div className="rounded-lg border bg-muted/30 p-3">
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void handleUpload()
+                    }}
+                    className="rounded-lg border bg-muted/30 p-3"
+                  >
                     <div className="flex gap-3">
                       <MediaThumbnail
                         url={upload.previewUrl}
@@ -391,8 +413,7 @@ export function MediaPicker({
                           />
                         </div>
                         <Button
-                          type="button"
-                          onClick={handleUpload}
+                          type="submit"
                           disabled={uploading}
                         >
                           {uploading ? (
@@ -404,22 +425,14 @@ export function MediaPicker({
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  </form>
                 ) : null}
 
                 {/* No scroll box of its own: the dialog body is already a
                 ScrollArea, and a second one would trap the wheel. */}
                 <div className="min-h-64 rounded-lg border p-3">
                   {loading ? (
-                    <div
-                      className="grid h-56 place-items-center text-sm text-muted-foreground"
-                      role="status"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Loader2Icon className="size-4 animate-spin" />
-                        Loading…
-                      </span>
-                    </div>
+                    <LoadingRow label="Loading…" className="min-h-56" />
                   ) : mediaItems.length === 0 ? (
                     <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
                       <div className="grid justify-items-center gap-3">
@@ -522,7 +535,18 @@ export function MediaPicker({
             </DialogFooter>
           </>
         )}
-      </DialogContent>
+    </>
+  )
+
+  return inline ? (
+    open ? (
+      <div className="grid gap-4 rounded-xl border bg-card p-4" data-media-picker-step="">
+        {pickerContent}
+      </div>
+    ) : null
+  ) : (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent variant="admin">{pickerContent}</DialogContent>
     </Dialog>
   )
 }
@@ -574,7 +598,10 @@ function MediaTile({
         <>
           <button
             type="button"
-            className="block h-full w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className={cn(
+              "block h-full w-full text-left",
+              focusRingInset
+            )}
             onClick={onSelect}
             onDoubleClick={onChoose}
             aria-pressed={selected}
@@ -592,7 +619,10 @@ function MediaTile({
             // Only the badge plays, so the rest of the tile still just picks.
             <button
               type="button"
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/60 p-2 transition outline-none hover:bg-foreground/80 focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn(
+                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/60 p-2 transition hover:bg-foreground/80",
+                focusRing
+              )}
               onClick={onPlay}
               aria-label={`Play ${item.original_name}`}
             >

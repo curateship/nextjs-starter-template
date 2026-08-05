@@ -44,6 +44,7 @@ import {
 } from "@/lib/broadcasts/preview-width"
 import { renderBroadcastBlockHtml } from "@/lib/broadcasts/render"
 import { cn } from "@/lib/utils"
+import { focusRing } from "@/lib/focus-ring"
 
 /**
  * Whether this block would show a reader nothing at all.
@@ -221,7 +222,10 @@ function SubjectCard({
       // block of text inside it, labels and values run together.
       aria-label="Edit the subject and preview line"
       title="Edit the subject and preview line"
-      className="grid w-full grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5 rounded-t-xl border-b border-black/10 px-5 py-4 text-left hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className={cn(
+        "grid w-full grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5 rounded-t-xl border-b border-black/10 px-5 py-4 text-left hover:bg-neutral-50",
+        focusRing
+      )}
     >
       <PreviewFieldLabel>Subject</PreviewFieldLabel>
       <FieldValue value={subject} placeholder="What this email is about" />
@@ -511,7 +515,10 @@ function BlockControls({
         type="button"
         aria-label={`Copy the ${name} block`}
         title="Make a copy"
-        className="flex size-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className={cn(
+          "flex size-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900",
+          focusRing
+        )}
         onClick={(event) => {
           event.stopPropagation()
           onDuplicate()
@@ -523,7 +530,10 @@ function BlockControls({
         type="button"
         aria-label={`Remove the ${name} block`}
         title="Remove"
-        className="flex size-7 items-center justify-center rounded-md text-neutral-500 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className={cn(
+          "flex size-7 items-center justify-center rounded-md text-neutral-500 hover:bg-red-50 hover:text-red-600",
+          focusRing
+        )}
         onClick={(event) => {
           event.stopPropagation()
           onDelete()
