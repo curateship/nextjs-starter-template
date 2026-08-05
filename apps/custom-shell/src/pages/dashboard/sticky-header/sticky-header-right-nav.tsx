@@ -28,9 +28,9 @@ function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Sun className="size-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+        <Button variant="ghost" size="icon" data-nav-shape="icon">
+          <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
@@ -75,7 +75,12 @@ function TopRightLinkButton({ link }: { link: ShellTopRightLink }) {
 
   if (isExternalHref(link.href)) {
     return (
-      <Button asChild variant="outline" data-icon="inline-start">
+      <Button
+        asChild
+        variant="outline"
+        data-icon="inline-start"
+        data-nav-shape="text"
+      >
         <a href={link.href} target="_blank" rel="noreferrer">
           {body}
         </a>
@@ -84,7 +89,12 @@ function TopRightLinkButton({ link }: { link: ShellTopRightLink }) {
   }
 
   return (
-    <Button asChild variant="outline" data-icon="inline-start">
+    <Button
+      asChild
+      variant="outline"
+      data-icon="inline-start"
+      data-nav-shape="text"
+    >
       <Link {...toLinkProps(link.href)}>{body}</Link>
     </Button>
   )
@@ -101,7 +111,7 @@ export function StickyHeaderRightNav({
   const navItems = normalizeTopRightNavigation(items)
 
   return (
-    <div className="flex items-center gap-2 pr-1">
+    <div className="flex items-center gap-1 pr-1 [&>[data-nav-shape=icon]+[data-nav-shape=text]]:ml-2 [&>[data-nav-shape=text]+[data-nav-shape=icon]]:ml-2">
       {navItems.map((item) => {
         if (item.type === "link") {
           // The same rules the sidebar renders by: an unnamed or address-less
@@ -123,6 +133,7 @@ export function StickyHeaderRightNav({
               type="button"
               variant="outline"
               data-icon="inline-start"
+              data-nav-shape="text"
               aria-label="Send feedback"
               onClick={onOpenFeedback}
             >
