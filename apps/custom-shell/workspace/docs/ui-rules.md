@@ -11,9 +11,9 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 
 ## Spacing and Page Layout
 
-- The app shell owns page padding. Where an app uses `DashboardContent`, it is the single source of truth for the page gutter and section spacing. In Trading, `src/components/ui/dashboard-content.tsx` defines `p-2 space-y-2 md:p-3 md:space-y-3`, or 8px on narrow screens and 12px on desktop.
-- Use the same site gap between page sections, cards, columns, and full-screen workspace panels: `gap-2 md:gap-3` or `space-y-2 md:space-y-3`.
-- Do not add page-level padding wrappers or invent other layout gaps such as `gap-3`, `gap-8`, or ad-hoc margins. Small internal gaps such as `gap-1` and `gap-2` are allowed inside a card.
+- The app shell owns page padding and the gap between page-level blocks. Where an app uses `DashboardContent`, it is the single source of truth for both through its shell gutter. Custom Shell keeps that gutter configurable, so pages must render their cards and tables directly into `DashboardContent` instead of adding another spacing wrapper.
+- Fixed public surfaces use the same site scale: `gap-2 md:gap-3` or `space-y-2 md:space-y-3` (8px narrow, 12px desktop). Shared dashboard toolbars use the same scale as their responsive layout: `gap-2 sm:gap-3`.
+- Do not add page-level padding wrappers or invent another outer layout gap. Internal card and form spacing may use the smaller established values (`gap-1`, `gap-2`, `space-y-4`, and `space-y-6`) when separating controls, field groups, or prose inside a surface. Those values are not substitutes for the page-level gutter.
 - Centralize full-bleed page exceptions in one app-level route predicate instead of wrapping or unwrapping individual routes. In Trading, use `isFullBleedLocation` in `src/lib/full-bleed-location.ts` for the Trade terminal, bot workspace, Automation editor, and backtest chart.
 - Derive page spacing from the currently mounted route so navigation and content change together. Do not use a destination or delayed resolved URL that can carry the previous page's spacing into the next page.
 - Design narrow and desktop layouts together. Avoid arbitrary widths, radii, shadows, gradients, pills, or badges.

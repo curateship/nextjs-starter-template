@@ -13,7 +13,7 @@ function DashboardToolbar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4",
+        "flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:gap-3",
         className
       )}
       {...props}

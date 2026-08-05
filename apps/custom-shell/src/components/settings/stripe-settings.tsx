@@ -358,7 +358,7 @@ export function StripeSettings() {
           </span>
         }
         description="Payment processing for plans and subscriptions. Two full sets of keys — live and sandbox — and one switch saying which set the app charges through. Secrets are scrambled before they are stored and never leave the server."
-        contentClassName="space-y-8"
+        contentClassName="space-y-6"
       >
         {loadError ? (
           <ErrorBanner
