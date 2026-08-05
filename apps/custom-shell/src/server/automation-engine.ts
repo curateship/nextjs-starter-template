@@ -9,7 +9,7 @@ import {
 } from "@/lib/automations/run"
 import { readAutomationsPaused } from "@/server/automation-pause"
 import {
-  automationExecutors,
+  automationExecutorFor,
   type AutomationExecutorResult,
 } from "@/server/automation-executors"
 import { db, type CustomShellDb } from "@/server/db"
@@ -177,7 +177,7 @@ async function processRun(
       return
     }
 
-    const executor = automationExecutors[node.kind]
+    const executor = automationExecutorFor(node.kind)
     const startedAt = now()
 
     if (!executor) {

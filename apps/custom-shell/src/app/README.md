@@ -10,12 +10,24 @@ writes nothing anywhere else in shell code. Neither side is ever in the other's
 file, so there is nothing to reconcile.
 
 - `options.ts` — the app's answers. Catalogue: `src/lib/app-options.ts`.
+- `server-options.ts` — the answers that only run on the server. Catalogue:
+  `src/server/app-options.ts`.
 
-The catalogue defines what can be set and what each option means. Anything not
+Two files because of one line: everything in `options.ts` can be seen by the
+browser, and everything in `server-options.ts` never is. Drawing and wording go
+in the first; anything that reaches the database or calls something outside goes
+in the second. An automation step an app adds is split across both — how it
+draws in one, what it does in the other.
+
+Each catalogue defines what can be set and what each option means. Anything not
 offered there is a compile error, on purpose: the shell always knows every way
 an app can deviate from it. Need something that is not on offer? Add it to
 custom-shell first, defaulting to today's behaviour — the procedure is in
 `apps/custom-shell/CLAUDE.md`.
 
-**In custom-shell itself this file stays empty forever.** A value here would make
+New server functions still go in `src/lib/api/`, never here: the guard test only
+walks that folder, so an endpoint declared in this one would be an unguarded
+door nobody is told about.
+
+**In custom-shell itself both files stay empty forever.** A value here would make
 every app ever copied from the shell conflict on it on every merge.

@@ -3,6 +3,7 @@ import {
   approvalDeadline,
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
+import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
   readAutomationAudience,
@@ -42,9 +43,9 @@ export type AutomationExecutor = (
 ) => Promise<AutomationExecutorResult>
 
 /**
- * Every node kind that can actually run. A kind with a descriptor but no
- * executor here still draws and compiles; reaching one at run time fails the
- * run in plain words rather than pretending the step happened.
+ * Every node kind the shell itself can run. A kind with a descriptor but no
+ * executor still draws and compiles; reaching one at run time fails the run in
+ * plain words rather than pretending the step happened.
  */
 export const automationExecutors: Record<string, AutomationExecutor> = {
   placeholder: async () => ({
@@ -87,4 +88,45 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       deadlineAt: approvalDeadline(now(), timeoutDays),
     }
   },
+}
+
+let appExecutors: Record<string, AutomationExecutor> | null = null
+
+/**
+ * The steps this app added, checked once against the shell's own.
+ *
+ * Read on demand rather than at the top of this file: the app's answers import
+ * app code, which imports shell code, which can lead back here.
+ */
+function checkedAppExecutors(): Record<string, AutomationExecutor> {
+  if (appExecutors) return appExecutors
+  const supplied = appAutomationExecutors()
+  for (const kind of Object.keys(supplied)) {
+    // An app adds steps; it never takes one of the shell's over. Letting it
+    // would change what already-saved flows do with nothing on screen saying
+    // so.
+    if (Object.hasOwn(automationExecutors, kind)) {
+      throw new Error(
+        `This app supplies its own "${kind}" automation step, but the shell already runs one. An app's own step needs a kind the shell isn't already using.`
+      )
+    }
+  }
+  appExecutors = supplied
+  return appExecutors
+}
+
+/**
+ * What runs a step of this kind — the shell's own first — or null if nothing
+ * does.
+ *
+ * `hasOwn` rather than plain indexing because a kind is whatever a saved graph
+ * says it is, and `automationExecutors["constructor"]` would otherwise hand
+ * back something off `Object`'s prototype and the engine would try to run it.
+ */
+export function automationExecutorFor(
+  kind: string
+): AutomationExecutor | null {
+  if (Object.hasOwn(automationExecutors, kind)) return automationExecutors[kind]
+  const supplied = checkedAppExecutors()
+  return Object.hasOwn(supplied, kind) ? supplied[kind] : null
 }

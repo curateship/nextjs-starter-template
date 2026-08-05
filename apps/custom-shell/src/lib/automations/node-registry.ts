@@ -1,7 +1,13 @@
+import { lazy, type ComponentType } from "react"
+import { CircleHelpIcon } from "lucide-react"
+
+import { appAutomationNodes } from "@/lib/app-options"
+
 import type { AutomationNode, AutomationSourcePort } from "./graph"
 import type {
   AutomationNodeDescriptor,
-  AutomationNodeIconName,
+  AutomationNodeFieldsProps,
+  AutomationNodeIcon,
   AutomationNodePort,
   AutomationPaletteGroup,
 } from "./node-descriptor"
@@ -11,22 +17,18 @@ import { placeholderNode } from "./nodes/placeholder"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
 
 export type {
-  AutomationNodeIconName,
+  AutomationNodeIcon,
   AutomationNodePort,
   AutomationPaletteGroup,
 } from "./node-descriptor"
 
-/** Every node kind this app ships, one descriptor module each under `nodes/`. */
-const AUTOMATION_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
+/** Every node kind the shell itself ships, one descriptor module each under `nodes/`. */
+const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
   audienceNode,
   placeholderNode,
   waitForApprovalNode,
 ]
-
-const descriptorsByKind = new Map(
-  AUTOMATION_NODE_DESCRIPTORS.map((descriptor) => [descriptor.kind, descriptor])
-)
 
 export const AUTOMATION_PALETTE_GROUPS: readonly AutomationPaletteGroup[] = [
   "Triggers",
@@ -41,32 +43,86 @@ export type AutomationPaletteItem = {
   group: AutomationPaletteGroup
   description: string
   name: string
-  icon: AutomationNodeIconName
+  icon: AutomationNodeIcon
 }
 
-export const AUTOMATION_PALETTE_ITEMS: readonly AutomationPaletteItem[] =
-  AUTOMATION_NODE_DESCRIPTORS.flatMap((descriptor) => {
-    if (!descriptor.palette) return []
-    return [
-      {
-        ...descriptor.palette,
-        name: descriptor.name(descriptor.createSettings()),
-        icon: descriptor.icon,
-      },
-    ]
-  }).sort(
-    (left, right) =>
-      AUTOMATION_PALETTE_GROUPS.indexOf(left.group) -
-      AUTOMATION_PALETTE_GROUPS.indexOf(right.group)
-  )
+type Registry = {
+  descriptors: readonly AutomationNodeDescriptor[]
+  byKind: Map<string, AutomationNodeDescriptor>
+  paletteItems: readonly AutomationPaletteItem[]
+  paletteKeys: Set<string>
+}
 
-export const AUTOMATION_PALETTE_KEYS: readonly string[] =
-  AUTOMATION_PALETTE_ITEMS.map((item) => item.key)
+let registry: Registry | null = null
 
-const paletteKeySet = new Set(AUTOMATION_PALETTE_KEYS)
+/**
+ * The shell's nodes plus whatever the app added, worked out the first time
+ * anything asks and kept.
+ *
+ * Deliberately not a module-level constant. An app's extra nodes come from its
+ * options file, which imports app components, which import shell components,
+ * which can import this file — a real circle. Building the list while modules
+ * are still loading would read a half-built one. Everything here is called from
+ * a component, a loader or a request, all of which happen long after boot.
+ */
+function automationRegistry(): Registry {
+  if (registry) return registry
+
+  const descriptors = [...SHELL_NODE_DESCRIPTORS, ...appAutomationNodes()]
+
+  const byKind = new Map<string, AutomationNodeDescriptor>()
+  const paletteKeys = new Set<string>()
+  for (const descriptor of descriptors) {
+    // An app adds steps; it never replaces one. Silently winning would change
+    // what the shell's own flows do, and a saved graph naming that kind would
+    // quietly start meaning something else.
+    if (byKind.has(descriptor.kind)) {
+      throw new Error(
+        `Two automation steps both call themselves "${descriptor.kind}". An app's own step needs a kind the shell isn't already using.`
+      )
+    }
+    byKind.set(descriptor.kind, descriptor)
+
+    const key = descriptor.palette?.key
+    if (key === undefined) continue
+    if (paletteKeys.has(key)) {
+      throw new Error(
+        `Two automation steps both claim the palette key "${key}". An app's own step needs a key the shell isn't already using.`
+      )
+    }
+    paletteKeys.add(key)
+  }
+
+  const paletteItems = descriptors
+    .flatMap((descriptor) =>
+      descriptor.palette
+        ? [
+            {
+              ...descriptor.palette,
+              name: descriptor.name(descriptor.createSettings()),
+              icon: descriptor.icon,
+            },
+          ]
+        : []
+    )
+    .sort(
+      (left, right) =>
+        AUTOMATION_PALETTE_GROUPS.indexOf(left.group) -
+        AUTOMATION_PALETTE_GROUPS.indexOf(right.group)
+    )
+
+  registry = { descriptors, byKind, paletteItems, paletteKeys }
+  return registry
+}
+
+export function automationPaletteItems(): readonly AutomationPaletteItem[] {
+  return automationRegistry().paletteItems
+}
 
 export function isAutomationPaletteKey(value: unknown): value is string {
-  return typeof value === "string" && paletteKeySet.has(value)
+  return (
+    typeof value === "string" && automationRegistry().paletteKeys.has(value)
+  )
 }
 
 /** Drops stale keys (removed node kinds) from a stored favorites list. */
@@ -84,15 +140,15 @@ export function cleanAutomationPaletteKeys(value: unknown): string[] {
 export function descriptorForNode(
   node: AutomationNode
 ): AutomationNodeDescriptor | null {
-  return descriptorsByKind.get(node.kind) ?? null
+  return automationRegistry().byKind.get(node.kind) ?? null
 }
 
 export function isSupportedNode(node: AutomationNode): boolean {
-  return descriptorsByKind.has(node.kind)
+  return automationRegistry().byKind.has(node.kind)
 }
 
 function descriptorForPaletteKey(key: string): AutomationNodeDescriptor {
-  const descriptor = AUTOMATION_NODE_DESCRIPTORS.find(
+  const descriptor = automationRegistry().descriptors.find(
     (item) => item.palette?.key === key
   )
   if (!descriptor) throw new Error(`Unknown automation node key: ${key}`)
@@ -131,10 +187,37 @@ export function automationNodeDescription(node: AutomationNode): string {
   return descriptor.description(node.settings)
 }
 
-export function automationNodeIcon(
+/** A step nobody recognises gets the question mark, not nothing. */
+export function automationNodeIcon(node: AutomationNode): AutomationNodeIcon {
+  return descriptorForNode(node)?.icon ?? CircleHelpIcon
+}
+
+/**
+ * The node's settings panel, when the node brings its own.
+ *
+ * Every node points at its own panel file — the shell's four and any an app
+ * adds alike, so there is one way to do this rather than two.
+ *
+ * The descriptor holds a pointer to that file rather than the component, so the
+ * engine never loads it (see the `fields` doc comment). Turning the pointer
+ * into something drawable is React's `lazy`, and it is done once per node kind
+ * and kept: a fresh one each call would be a different component every render,
+ * and the panel would be thrown away and rebuilt on every keystroke.
+ */
+const lazyFields = new Map<string, ComponentType<AutomationNodeFieldsProps>>()
+
+export function automationNodeFields(
   node: AutomationNode
-): AutomationNodeIconName {
-  return descriptorForNode(node)?.icon ?? "circleHelp"
+): ComponentType<AutomationNodeFieldsProps> | null {
+  const descriptor = descriptorForNode(node)
+  if (!descriptor?.fields) return null
+
+  const cached = lazyFields.get(descriptor.kind)
+  if (cached) return cached
+
+  const component = lazy(descriptor.fields)
+  lazyFields.set(descriptor.kind, component)
+  return component
 }
 
 export function automationNodeOutputPorts(
