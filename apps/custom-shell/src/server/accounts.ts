@@ -4,6 +4,8 @@ import {
   count,
   desc,
   eq,
+  exists,
+  gt,
   ilike,
   inArray,
   ne,
@@ -30,6 +32,7 @@ import { getDefaultPlan, getPlan } from "@/server/plans"
 import {
   customShellAiAllowanceOverrides,
   customShellPlans,
+  customShellRateLimits,
   customShellSessions,
   customShellSubscriptions,
   customShellUsers,
@@ -53,7 +56,7 @@ export type AccountSort =
 export type AccountListQuery = {
   search: string
   role: "all" | "admin" | "member"
-  status: "all" | "active" | "suspended" | "pending_deletion"
+  status: "all" | "active" | "suspended" | "pending_deletion" | "locked_out"
   page: number
   pageSize: number
   sort: AccountSort
@@ -82,6 +85,7 @@ export type AccountRow = {
   subscriptionSource: string | null
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
+  lockedOut: boolean
   /** Their own monthly AI ceiling in cents, null when they follow their plan. */
   aiOverrideCents: number | null
   createdAt: string
@@ -93,6 +97,18 @@ export async function listAccounts(
 ) {
   const filters: SQL[] = []
   const search = query.search.trim()
+  const lockedOut = exists(
+    database
+      .select({ one: sql`1` })
+      .from(customShellRateLimits)
+      .where(
+        and(
+          gt(customShellRateLimits.blockedUntil, now()),
+          sql`${customShellRateLimits.key} like 'login:%'`,
+          sql`right(${customShellRateLimits.key}, length(${customShellUsers.email})) = ${customShellUsers.email}`
+        )
+      )
+  )
 
   if (search) {
     const pattern = `%${search}%`
@@ -105,7 +121,11 @@ export async function listAccounts(
   if (query.role !== "all") {
     filters.push(eq(customShellUsers.role, query.role))
   }
-  if (query.status !== "all") {
+  if (query.status === "locked_out") {
+    filters.push(
+      sql`${customShellUsers.status} = 'active' and ${lockedOut}`
+    )
+  } else if (query.status !== "all") {
     filters.push(eq(customShellUsers.status, query.status))
   }
 
@@ -115,12 +135,12 @@ export async function listAccounts(
     name: customShellUsers.name,
     email: customShellUsers.email,
     role: customShellUsers.role,
-    // The Status column shows a computed standing (active, not verified,
-    // invited, suspended, deleting), so its sort ranks the same ladder rather
-    // than the raw status word.
+    // The Status column shows a computed standing, so its sort ranks the same
+    // ladder rather than the raw status word.
     status: sql`case
       when ${customShellUsers.status} = 'pending_deletion' then 4
       when ${customShellUsers.status} = 'suspended' then 3
+      when ${lockedOut} then 2
       when ${customShellUsers.emailVerifiedAt} is null
         and coalesce(${customShellUsers.passwordHash}, '') = '' then 2
       when ${customShellUsers.emailVerifiedAt} is null then 1
@@ -136,6 +156,7 @@ export async function listAccounts(
       subscription: customShellSubscriptions,
       plan: customShellPlans,
       aiOverride: customShellAiAllowanceOverrides,
+      lockedOut,
     })
     .from(customShellUsers)
     .leftJoin(
@@ -163,7 +184,9 @@ export async function listAccounts(
   const defaultPlan = await getDefaultPlan(database)
   const timestamp = now()
 
-  const accounts = rows.map((row) => toAccountRow(row, defaultPlan, timestamp))
+  const accounts = rows.map((row) =>
+    toAccountRow(row, defaultPlan, timestamp, Boolean(row.lockedOut))
+  )
 
   return { accounts, total: totals?.total ?? 0 }
 }
@@ -174,6 +197,7 @@ type AccountJoin = {
   subscription: typeof customShellSubscriptions.$inferSelect | null
   plan: typeof customShellPlans.$inferSelect | null
   aiOverride?: typeof customShellAiAllowanceOverrides.$inferSelect | null
+  lockedOut?: unknown
 }
 
 /**
@@ -184,7 +208,8 @@ type AccountJoin = {
 function toAccountRow(
   row: AccountJoin,
   defaultPlan: { name: string; slug: string } | null | undefined,
-  timestamp: Date
+  timestamp: Date,
+  lockedOut = false
 ): AccountRow {
   const paid =
     Boolean(row.plan) && subscriptionIsActive(row.subscription, timestamp)
@@ -210,6 +235,7 @@ function toAccountRow(
     cancelAtPeriodEnd: paid
       ? Boolean(row.subscription?.cancelAtPeriodEnd)
       : false,
+    lockedOut,
     aiOverrideCents: row.aiOverride?.monthlyCents ?? null,
     createdAt: row.user.createdAt.toISOString(),
   }

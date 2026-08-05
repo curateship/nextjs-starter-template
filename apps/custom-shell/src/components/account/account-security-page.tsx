@@ -4,6 +4,7 @@ import { startRegistration } from "@simplewebauthn/browser"
 import { Loader2Icon, LogOutIcon, Trash2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -342,9 +343,7 @@ function PasskeysCard() {
           ) : !list ? (
             <LoadingRow label="Loading…" className="min-h-56" />
           ) : list.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No passkeys yet.
-            </p>
+            <EmptyRow>No passkeys yet.</EmptyRow>
           ) : (
             <Table>
               <TableHeader>

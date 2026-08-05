@@ -33,6 +33,7 @@ import {
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
 import { NavLinkDestinationCard } from "@/components/settings/nav-link-destination-card"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -1122,50 +1123,56 @@ export function SidebarSettings({
             noFlashKey: cardNoFlashKey,
           }}
         >
-          <DndContext
-            id="custom-shell-sidebar-sections"
-            sensors={sensors}
-            collisionDetection={collisionDetection}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-            onDragCancel={handleDragCancel}
-          >
-            <SortableContext
-              items={sections.map((section) => section.id)}
-              strategy={verticalListSortingStrategy}
+          {sections.length === 0 ? (
+            <EmptyRow>
+              No sidebar sections yet. Use “Add Section” to create one.
+            </EmptyRow>
+          ) : (
+            <DndContext
+              id="custom-shell-sidebar-sections"
+              sensors={sensors}
+              collisionDetection={collisionDetection}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
             >
-              <CardGroup>
-                {sections.map((section) => (
-                  <SortableSectionCard
-                    key={section.id}
-                    section={section}
-                    isDraggingItem={isDraggingItem}
-                    isNew={section.id === newSectionId}
-                    openItemId={openItemId}
-                    onOpenItemChange={handleOpenItemChange}
-                    newChildId={newChildId}
-                    onSectionTitleChange={handleSectionTitleChange}
-                    onSectionDelete={(sectionId) =>
-                      setPendingDeleteSectionId(sectionId)
-                    }
-                    onItemAdd={handleAddItem}
-                    onItemChange={handleItemChange}
-                    onItemDelete={(_sectionId, itemId) =>
-                      setPendingDelete({ kind: "link", itemId })
-                    }
-                    onChildAdd={handleChildAdd}
-                    onChildChange={handleChildChange}
-                    onChildDelete={(_sectionId, itemId, childId) =>
-                      setPendingDelete({ kind: "child", itemId, childId })
-                    }
-                    onChildDragEnd={handleChildDragEnd}
-                    onSaveConfig={onSaveConfig}
-                  />
-                ))}
-              </CardGroup>
-            </SortableContext>
-          </DndContext>
+              <SortableContext
+                items={sections.map((section) => section.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <CardGroup>
+                  {sections.map((section) => (
+                    <SortableSectionCard
+                      key={section.id}
+                      section={section}
+                      isDraggingItem={isDraggingItem}
+                      isNew={section.id === newSectionId}
+                      openItemId={openItemId}
+                      onOpenItemChange={handleOpenItemChange}
+                      newChildId={newChildId}
+                      onSectionTitleChange={handleSectionTitleChange}
+                      onSectionDelete={(sectionId) =>
+                        setPendingDeleteSectionId(sectionId)
+                      }
+                      onItemAdd={handleAddItem}
+                      onItemChange={handleItemChange}
+                      onItemDelete={(_sectionId, itemId) =>
+                        setPendingDelete({ kind: "link", itemId })
+                      }
+                      onChildAdd={handleChildAdd}
+                      onChildChange={handleChildChange}
+                      onChildDelete={(_sectionId, itemId, childId) =>
+                        setPendingDelete({ kind: "child", itemId, childId })
+                      }
+                      onChildDragEnd={handleChildDragEnd}
+                      onSaveConfig={onSaveConfig}
+                    />
+                  ))}
+                </CardGroup>
+              </SortableContext>
+            </DndContext>
+          )}
         </CollapsibleSettingsCard>
       </CardGroup>
       {/* The tab's own actions, and the only reset on the page — it wipes the

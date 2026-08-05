@@ -82,9 +82,20 @@ function SampleBadge({ className }: { className?: string }) {
   )
 }
 
-export function EmptyRow({ children }: { children: React.ReactNode }) {
+export function EmptyRow({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
   return (
-    <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+    <p
+      className={cn(
+        "px-4 py-8 text-center text-sm text-muted-foreground sm:px-5",
+        className
+      )}
+    >
       {children}
     </p>
   )

@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -162,10 +163,10 @@ export function AutomationRunsPanel({
                 <ErrorBanner message={error} onRetry={() => void refresh()} />
               ) : null}
               {runs.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
+                <EmptyRow>
                   This flow has not run yet. Press Run now on the automations
                   list to try it.
-                </p>
+                </EmptyRow>
               ) : (
                 runs.map((run) => (
                   <RunRow
@@ -208,10 +209,10 @@ export function AutomationRunsPanel({
                 <ErrorBanner message={error} onRetry={() => void refresh()} />
               ) : null}
               {waiting.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
+                <EmptyRow>
                   Nothing is waiting on you. Runs that stop at an approval
                   checkpoint appear here, from every flow you own.
-                </p>
+                </EmptyRow>
               ) : (
                 waiting.map((run) => (
                   <RunRow

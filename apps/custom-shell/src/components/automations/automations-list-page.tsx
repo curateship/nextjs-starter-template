@@ -433,7 +433,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
 
       <FormDialog
         open={createOpen}
-        dirty={createName.length > 0}
+        dirty={Boolean(createName.trim())}
         busy={creating}
         onClose={closeCreate}
       >

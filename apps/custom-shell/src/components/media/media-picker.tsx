@@ -14,6 +14,7 @@ import {
   type CropAspectKey,
 } from "@/components/media/image-crop-step"
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import {
@@ -434,7 +435,7 @@ export function MediaPicker({
                   {loading ? (
                     <LoadingRow label="Loading…" className="min-h-56" />
                   ) : mediaItems.length === 0 ? (
-                    <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
+                    <EmptyRow className="grid min-h-56 place-items-center">
                       <div className="grid justify-items-center gap-3">
                         <ImageIcon className="size-10" />
                         {searchTerm ? (
@@ -454,7 +455,7 @@ export function MediaPicker({
                           </p>
                         )}
                       </div>
-                    </div>
+                    </EmptyRow>
                   ) : (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                       {mediaItems.map((item) => (

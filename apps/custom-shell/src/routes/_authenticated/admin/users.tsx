@@ -22,6 +22,7 @@ export const USER_STATUS_FILTERS = [
   "active",
   "suspended",
   "pending_deletion",
+  "locked_out",
 ] as const
 export const USER_SORT_COLUMNS = [
   "name",

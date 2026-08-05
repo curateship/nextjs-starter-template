@@ -12,7 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -275,13 +275,17 @@ export function SendBroadcastDialog({
     }
   }
 
+  const dirty =
+    Boolean(tagText.trim()) || Boolean(testEmail.trim()) || mode === "schedule"
+
   return (
-    <Dialog
+    <FormDialog
       open={open}
-      onOpenChange={(next) => {
-        if (!busy) onOpenChange(next)
-      }}
+      dirty={dirty}
+      busy={busy}
+      onClose={() => onOpenChange(false)}
     >
+      {(requestClose) => (
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Review and send</DialogTitle>
@@ -476,11 +480,11 @@ export function SendBroadcastDialog({
               Do not send it
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={() => onOpenChange(false)}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={requestClose}
           >
             Cancel
           </Button>
@@ -500,6 +504,7 @@ export function SendBroadcastDialog({
         </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+      )}
+    </FormDialog>
   )
 }
