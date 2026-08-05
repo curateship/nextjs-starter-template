@@ -34,7 +34,7 @@ export function DataCleanupCard() {
       storageId="data-cleanup"
       title="Old data"
       description="The app deletes what it can no longer use, by itself, once a day."
-      contentClassName="space-y-4"
+      contentClassName="space-y-6"
     >
       <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
         <li>Sign-ins that have expired or run past the limits above.</li>
