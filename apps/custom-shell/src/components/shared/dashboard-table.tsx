@@ -451,6 +451,7 @@ function DashboardTablePaginationFooter({
   // picker, the load-more footer) showed a dropdown that could only reopen on
   // the value it already had, so they get the range on its own.
   const canChangePageSize = pageSizeOptions.length > 1
+  const pageSizeId = React.useId()
 
   return (
     <div
@@ -460,13 +461,18 @@ function DashboardTablePaginationFooter({
       <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
         {canChangePageSize ? (
           <>
-            <span className="hidden sm:inline">Rows per page:</span>
+            <label
+              htmlFor={pageSizeId}
+              className="sr-only sm:not-sr-only"
+            >
+              Rows per page:
+            </label>
             <Select
               value={String(pageSize)}
               onValueChange={(value) => onPageSizeChange?.(Number(value))}
               disabled={!onPageSizeChange}
             >
-              <DashboardToolbarSelectTrigger>
+              <DashboardToolbarSelectTrigger id={pageSizeId}>
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>

@@ -121,7 +121,7 @@ export function SaveTemplateDialog({
             </Button>
             <Button type="button" disabled={busy} onClick={() => void submit()}>
               {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Save it
+              Save template
             </Button>
           </DialogFooter>
         </DialogContent>

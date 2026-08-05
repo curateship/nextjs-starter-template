@@ -407,7 +407,7 @@ export function TopRightSettings({
         onOpenChange={setResetOpen}
         title="Reset this menu?"
         description={reset.description}
-        confirmLabel="Reset"
+        confirmLabel={reset.label}
         onConfirm={() => {
           setResetOpen(false)
           reset.onReset()

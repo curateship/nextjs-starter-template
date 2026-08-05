@@ -1196,7 +1196,7 @@ export function SidebarSettings({
         onOpenChange={setResetOpen}
         title="Reset this sidebar?"
         description={reset.description}
-        confirmLabel="Reset"
+        confirmLabel={reset.label}
         onConfirm={() => {
           setResetOpen(false)
           reset.onReset()

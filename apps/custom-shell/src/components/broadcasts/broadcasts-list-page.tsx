@@ -412,7 +412,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
               onClick={() => void handleCreate()}
             >
               {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Create it
+              Create newsletter
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -430,7 +430,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
             : "Delete this newsletter?"
         }
         description="The email and everything in it goes for good. Anything already sent stays sent — this cannot unsend it."
-        confirmLabel="Delete it"
+        confirmLabel="Delete newsletter"
         loading={deleting}
         onConfirm={() =>
           void removeMany(deleteTarget ? [deleteTarget.id] : [], () =>
@@ -444,7 +444,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedCount} ${plural(selectedCount, "newsletter", "newsletters")}?`}
         description="They go for good, along with everything written in them. Anything already sent stays sent — this cannot unsend it."
-        confirmLabel={`Delete ${selectedCount}`}
+        confirmLabel={`Delete ${selectedCount} ${plural(selectedCount, "newsletter", "newsletters")}`}
         loading={deleting}
         onConfirm={() =>
           void removeMany([...selection.selected], () =>
