@@ -21,7 +21,7 @@ import {
   getAdminUserErrorMessage,
   type CancelSubscriptionMode,
 } from "@/lib/api/admin-users"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDate } from "@/lib/format-time"
 
 /** Just the fields the cancel needs, so any screen with a row can open it. */
@@ -56,7 +56,7 @@ export function CancelSubscriptionDialog({
   const [mode, setMode] = React.useState<CancelSubscriptionMode>(
     alreadyEnding ? "immediate" : "period_end"
   )
-  const [cancelling, setCancelling] = React.useState(false)
+  const [run, cancelling] = useAsyncAction(getAdminUserErrorMessage)
 
   const endDate = account?.currentPeriodEnd
     ? formatDate(account.currentPeriodEnd)
@@ -65,9 +65,7 @@ export function CancelSubscriptionDialog({
   const handleConfirm = React.useCallback(async () => {
     if (!account) return
 
-    dismissErrorToast()
-    setCancelling(true)
-    try {
+    await run(async () => {
       const result = await cancelAccountSubscription(account.id, mode)
       toast.success(
         granted
@@ -77,11 +75,7 @@ export function CancelSubscriptionDialog({
             : "Subscription cancelled. They are back on the free plan."
       )
       await onDone()
-    } catch (cancelError) {
-      showErrorToast(getAdminUserErrorMessage(cancelError))
-    } finally {
-      setCancelling(false)
-    }
+    })
   }, [account, granted, mode, onDone])
 
   return (

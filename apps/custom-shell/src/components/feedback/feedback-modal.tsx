@@ -321,9 +321,13 @@ export function FeedbackModal({
         if (!active) return
         setLoadError(getFeedbackErrorMessage(feedbackLoadError))
       } finally {
-        if (!active) return
-        setLoadingFeedback(false)
-        setLoadingThreadId(null)
+        // Written the positive way round on purpose. A `return` inside a
+        // `finally` throws away whatever was on its way out of the block, so
+        // an error raised by the catch above would have vanished silently.
+        if (active) {
+          setLoadingFeedback(false)
+          setLoadingThreadId(null)
+        }
       }
     }
 

@@ -88,6 +88,7 @@ import {
   MEDIA_VIEW_STORAGE_KEY,
   useRememberedChoice,
 } from "@/lib/remembered-choice"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useClientPage } from "@/lib/use-client-page"
 import { useSelection } from "@/lib/use-selection"
@@ -247,7 +248,7 @@ export function MediaLibraryPage({
   // The confirmation is still on screen while it fades out, after the selection
   // has been cleared — so it keeps counting what it opened with, not "0 files".
   const closingDeleteCount = useLastValue(deleteIds)?.length ?? 0
-  const [deleting, setDeleting] = React.useState(false)
+  const [runDelete, deleting] = useAsyncAction(getAdminMediaErrorMessage)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const problem = orphanKindOf(typeFilter)
@@ -269,7 +270,7 @@ export function MediaLibraryPage({
   // keys have been cleared, so it keeps counting what it opened with.
   const closingCleanCount = useLastValue(confirmKeys)?.length ?? 0
   const [deletingAll, setDeletingAll] = React.useState(false)
-  const [cleaning, setCleaning] = React.useState(false)
+  const [runClean, cleaning] = useAsyncAction(getAdminMediaErrorMessage)
 
   const query = React.useMemo(
     () => ({ search, ownerId, fileType: mediaType, page, pageSize, sort, direction }),
@@ -439,9 +440,7 @@ export function MediaLibraryPage({
     if (!deleteIds?.length) return
 
     const ids = deleteIds
-    dismissErrorToast()
-    setDeleting(true)
-    try {
+    await runDelete(async () => {
       const result = await deleteMediaAsAdminAction(ids)
       toast.success(
         `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "file" : "files"}.`
@@ -454,11 +453,7 @@ export function MediaLibraryPage({
       setDeleteIds(null)
       setOpenMedia(null)
       await refresh()
-    } catch (deleteError) {
-      showErrorToast(getAdminMediaErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
+    })
   }
 
   async function handleClean() {
@@ -466,9 +461,7 @@ export function MediaLibraryPage({
 
     const keys = new Set(confirmKeys)
     const selected = orphanData.orphans.filter((row) => keys.has(orphanKey(row)))
-    setCleaning(true)
-    dismissErrorToast()
-    try {
+    await runClean(async () => {
       // Each request re-verifies against a fresh scan, so a "delete all" over a
       // big bucket goes in batches rather than one oversized call.
       let deleted = 0
@@ -498,11 +491,7 @@ export function MediaLibraryPage({
       // A cleaned-up record was media a moment ago, so the library behind the
       // filter is stale too.
       await Promise.all([rescan(), refresh()])
-    } catch (cleanError) {
-      showErrorToast(getAdminMediaErrorMessage(cleanError))
-    } finally {
-      setCleaning(false)
-    }
+    })
   }
 
   // Ticks are cleared whenever the query changes, so everything held is on the
@@ -996,24 +985,17 @@ function MediaDetailsDialog({
   onSaved: () => Promise<void>
 }) {
   const [altText, setAltText] = React.useState(item?.alt_text ?? "")
-  const [saving, setSaving] = React.useState(false)
+  const [run, saving] = useAsyncAction(getMediaErrorMessage)
   // Somebody else's file has nothing to edit, so it always closes instantly.
   const dirty = editable && altText !== (item?.alt_text ?? "")
 
   async function handleSave() {
     if (!item) return
 
-    setSaving(true)
-    dismissErrorToast()
-    try {
+    await run(async () => {
       await updateMedia(item.id, altText)
-      toast.success("Media updated.")
       await onSaved()
-    } catch (saveError) {
-      showErrorToast(getMediaErrorMessage(saveError))
-    } finally {
-      setSaving(false)
-    }
+    }, "Media updated.")
   }
 
   return (

@@ -33,7 +33,7 @@ import {
   createAccountAsAdmin,
   getAdminUserErrorMessage,
 } from "@/lib/api/admin-users"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 
 /**
  * Adds a person directly: the account exists at once, and they get an email
@@ -52,15 +52,13 @@ export function AddAccountDialog({
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [role, setRole] = React.useState<"admin" | "member">("member")
-  const [saving, setSaving] = React.useState(false)
+  const [run, saving] = useAsyncAction(getAdminUserErrorMessage)
   const nameInputRef = React.useRef<HTMLInputElement>(null)
 
   const dirty = Boolean(name.trim() || email.trim() || role !== "member")
 
   const handleCreate = React.useCallback(async () => {
-    dismissErrorToast()
-    setSaving(true)
-    try {
+    await run(async () => {
       const { delivered } = await createAccountAsAdmin(
         email.trim(),
         name.trim(),
@@ -75,12 +73,8 @@ export function AddAccountDialog({
       setEmail("")
       setRole("member")
       await onCreated()
-    } catch (createError) {
-      showErrorToast(getAdminUserErrorMessage(createError))
-    } finally {
-      setSaving(false)
-    }
-  }, [email, name, onCreated, role])
+    })
+  }, [email, name, onCreated, role, run])
 
   return (
     <FormDialog open={open} dirty={dirty} busy={saving} onClose={onClose}>

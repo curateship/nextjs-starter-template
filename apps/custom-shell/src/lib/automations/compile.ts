@@ -1,11 +1,13 @@
 import { z } from "zod"
 
+import { automationSettingValueSchema } from "./graph"
 import type {
   AutomationEdge,
   AutomationGraph,
   AutomationNode,
   AutomationValidationError,
 } from "./graph"
+import type { AutomationNodeSettings } from "./node-descriptor"
 import {
   automationNodeConnectionError,
   automationNodeSourcePortIsValid,
@@ -25,7 +27,7 @@ export const automationCompiledConfigSchema = z.object({
     z.string(),
     z.object({
       kind: z.string(),
-      settings: z.record(z.string(), z.unknown()),
+      settings: z.record(z.string(), automationSettingValueSchema),
     })
   ),
   edges: z.array(
@@ -89,7 +91,7 @@ export function compileAutomationGraph(
   // schema lets half-filled nodes save; nothing compiles until every node
   // passes. Unknown kinds are reported, never thrown — the draft stays
   // readable and editable around them.
-  const parsedSettings = new Map<string, Record<string, unknown>>()
+  const parsedSettings = new Map<string, AutomationNodeSettings>()
   for (const node of nodes) {
     const descriptor = descriptorForNode(node)
     if (!descriptor) {

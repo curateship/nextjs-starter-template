@@ -1,3 +1,4 @@
+import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
 import { PGlite } from "@electric-sql/pglite"
 import { and, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -52,7 +53,7 @@ afterEach(async () => {
 })
 
 /** A flow drawn as a straight line of the kinds passed in. */
-function graphOf(kinds: Array<{ kind: string; settings: Record<string, unknown> }>) {
+function graphOf(kinds: Array<{ kind: string; settings: AutomationNodeSettings }>) {
   const nodes = kinds.map((node, index) => ({
     id: `n${index}`,
     kind: node.kind,
@@ -82,7 +83,7 @@ const approval = {
 
 async function insertAutomation(
   userId: string,
-  nodes: Array<{ kind: string; settings: Record<string, unknown> }>,
+  nodes: Array<{ kind: string; settings: AutomationNodeSettings }>,
   name = `flow-${uuid()}`
 ) {
   const graph = graphOf(nodes)

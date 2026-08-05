@@ -67,9 +67,18 @@ import {
   useSearchBoxText,
 } from "@/lib/list-search"
 
+// Type-only, so nothing is imported at run time — the route imports this
+// component, and a real import back would be a circle.
+import type { USER_SORT_COLUMNS } from "@/routes/_authenticated/admin/users"
+
 const usersRoute = getRouteApi("/_authenticated/admin/users")
 
-type SortColumn = "name" | "email" | "role" | "plan" | "created"
+/**
+ * Taken from the route's own list rather than written out again. Spelled out
+ * by hand it had gone stale: "status" was missing, so the Status header never
+ * lit up as the one being sorted by even though the sort itself worked.
+ */
+type SortColumn = (typeof USER_SORT_COLUMNS)[number]
 
 
 

@@ -38,6 +38,7 @@ import {
 } from "@/lib/api/workspaces"
 import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 
 /** What the picker starts on before anything is chosen. */
 const defaultIcon = "briefcaseBusiness" satisfies IconKey
@@ -75,7 +76,7 @@ export function WorkspaceFormDialog({
   const [draft, setDraft] = React.useState<WorkspaceDraft>(() =>
     draftFor(editing)
   )
-  const [saving, setSaving] = React.useState(false)
+  const [run, saving] = useAsyncAction(getWorkspaceErrorMessage)
   const [nameInvalid, setNameInvalid] = React.useState(false)
   const nameInputRef = React.useRef<HTMLInputElement>(null)
   const fieldId = React.useId()
@@ -111,9 +112,7 @@ export function WorkspaceFormDialog({
     }
 
     setNameInvalid(false)
-    dismissErrorToast()
-    setSaving(true)
-    try {
+    await run(async () => {
       if (editing) {
         await updateWorkspace(editing.id, name, draft.icon)
       } else {
@@ -122,11 +121,7 @@ export function WorkspaceFormDialog({
       await router.invalidate()
       toast.success(editing ? "Workspace updated." : "Workspace created.")
       onClose()
-    } catch (error) {
-      showErrorToast(getWorkspaceErrorMessage(error))
-    } finally {
-      setSaving(false)
-    }
+    })
   }
 
   return (

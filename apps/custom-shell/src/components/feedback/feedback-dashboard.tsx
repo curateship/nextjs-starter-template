@@ -63,6 +63,7 @@ import {
 import { FeedbackCommentsModal } from "@/components/feedback/feedback-comments-modal"
 import { FeedbackTagsSelect } from "@/components/feedback/feedback-tags-select"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 import {
@@ -82,16 +83,18 @@ import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
+// Type-only, so nothing is imported at run time — the route imports this
+// component, and a real import back would be a circle.
+import type { FEEDBACK_SORT_COLUMNS } from "@/routes/_authenticated/admin/feedback"
+
 const feedbackRoute = getRouteApi("/_authenticated/admin/feedback")
 
-type FeedbackSortColumn =
-  | "message"
-  | "type"
-  | "status"
-  | "author"
-  | "created"
-  | "comments"
-  | "votes"
+/**
+ * Taken from the route's own list rather than written out again. Written twice
+ * they drifted: this one had "status" and the route's did not, so clicking the
+ * Status header sorted by date instead and nothing said so.
+ */
+type FeedbackSortColumn = (typeof FEEDBACK_SORT_COLUMNS)[number]
 
 type FeedbackDashboardProps = {
   refreshToken: number
@@ -136,8 +139,8 @@ export function FeedbackDashboard({
     React.useState<FeedbackItem | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
-  const [massDeleting, setMassDeleting] = React.useState(false)
-  const [quickDeleting, setQuickDeleting] = React.useState(false)
+  const [runMassDelete, massDeleting] = useAsyncAction(getFeedbackErrorMessage)
+  const [runQuickDelete, quickDeleting] = useAsyncAction(getFeedbackErrorMessage)
   const [reloadCount, setReloadCount] = React.useState(0)
   // Flips once, when the first load lands. After that every refetch already has
   // real numbers on screen, so the count and the footer never blank out again.
@@ -305,39 +308,25 @@ export function FeedbackDashboard({
     const ids = Array.from(selectedIds)
     if (!ids.length) return
 
-    setMassDeleting(true)
-    dismissErrorToast()
-    try {
+    await runMassDelete(async () => {
       const result = await deleteFeedbackMany(ids)
       const deletedIds = new Set(result.feedbackIds)
       setFeedback((current) =>
         current.filter((item) => !deletedIds.has(item.id))
       )
-      toast.success("Feedback deleted.")
       setSelectedIds(new Set())
       setMassDeleteOpen(false)
-    } catch (deleteError) {
-      showErrorToast(getFeedbackErrorMessage(deleteError))
-    } finally {
-      setMassDeleting(false)
-    }
+    }, "Feedback deleted.")
   }
 
   const handleQuickDelete = async () => {
     if (!deletingFeedback) return
 
-    setQuickDeleting(true)
-    dismissErrorToast()
-    try {
+    await runQuickDelete(async () => {
       await deleteFeedback(deletingFeedback.id)
       handleDeleted(deletingFeedback.id)
-      toast.success("Feedback deleted.")
       setDeletingFeedback(null)
-    } catch (deleteError) {
-      showErrorToast(getFeedbackErrorMessage(deleteError))
-    } finally {
-      setQuickDeleting(false)
-    }
+    }, "Feedback deleted.")
   }
 
   return (
@@ -714,7 +703,7 @@ function EditFeedbackModal({
     React.useState<FeedbackStatus>("open")
   const [feedbackTags, setFeedbackTags] = React.useState<FeedbackTag[]>([])
   const [message, setMessage] = React.useState("")
-  const [saving, setSaving] = React.useState(false)
+  const [run, saving] = useAsyncAction(getFeedbackErrorMessage)
   const [deleting, setDeleting] = React.useState(false)
   const [confirmingDelete, setConfirmingDelete] = React.useState(false)
 
@@ -735,9 +724,7 @@ function EditFeedbackModal({
       return
     }
 
-    setSaving(true)
-    dismissErrorToast()
-    try {
+    await run(async () => {
       const updated = await updateFeedback({
         feedbackId: feedback.id,
         type: feedbackType,
@@ -746,13 +733,8 @@ function EditFeedbackModal({
         message: trimmedMessage,
       })
       onUpdated(updated)
-      toast.success("Feedback updated.")
       onOpenChange(false)
-    } catch (saveError) {
-      showErrorToast(getFeedbackErrorMessage(saveError))
-    } finally {
-      setSaving(false)
-    }
+    }, "Feedback updated.")
   }
 
   const handleDelete = async () => {
@@ -977,7 +959,7 @@ function MergeFeedbackDialog({
   onMerged: (sourceId: string, target: FeedbackItem) => void
 }) {
   const [targetId, setTargetId] = React.useState("")
-  const [merging, setMerging] = React.useState(false)
+  const [run, merging] = useAsyncAction(getFeedbackErrorMessage)
 
   // A fresh pick every time the window opens on a new duplicate — a survivor
   // chosen for one merge means nothing for the next. Adjusted during render
@@ -997,21 +979,14 @@ function MergeFeedbackDialog({
   const handleMerge = async () => {
     if (!feedback || !target) return
 
-    setMerging(true)
-    dismissErrorToast()
-    try {
+    await run(async () => {
       const updated = await mergeFeedback({
         sourceId: feedback.id,
         targetId: target.id,
       })
       onMerged(feedback.id, updated)
-      toast.success("Feedback merged.")
       onOpenChange(false)
-    } catch (mergeError) {
-      showErrorToast(getFeedbackErrorMessage(mergeError))
-    } finally {
-      setMerging(false)
-    }
+    }, "Feedback merged.")
   }
 
   return (

@@ -33,6 +33,7 @@ import {
   automationRunStepStatusLabels,
 } from "@/lib/automations/run"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { focusRingInset } from "@/lib/focus-ring"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
@@ -76,7 +77,7 @@ export function AutomationRunsPanel({
   const [deleteTarget, setDeleteTarget] = React.useState<AutomationRunItem | null>(
     null
   )
-  const [deleting, setDeleting] = React.useState(false)
+  const [runDelete, deleting] = useAsyncAction(getAutomationRunErrorMessage)
 
   const refresh = React.useCallback(async () => {
     setError(null)
@@ -111,18 +112,11 @@ export function AutomationRunsPanel({
 
   async function confirmDelete() {
     if (!deleteTarget || deleting) return
-    setDeleting(true)
-    dismissErrorToast()
-    try {
+    await runDelete(async () => {
       await deleteAutomationRun(deleteTarget.id)
-      toast.success("Run deleted.")
       setDeleteTarget(null)
       await refresh()
-    } catch (deleteError) {
-      showErrorToast(getAutomationRunErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
+    }, "Run deleted.")
   }
 
   const tabTrigger =

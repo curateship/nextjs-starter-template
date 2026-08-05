@@ -27,7 +27,7 @@ import {
   unblockRateLimits,
   type LockedOutBlock,
 } from "@/lib/api/admin-locks"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime } from "@/lib/format-time"
 import { plural } from "@/lib/plural"
 
@@ -48,7 +48,7 @@ export function LockedOutDialog({
   const [error, setError] = React.useState<string | null>(null)
   const [reloadCount, setReloadCount] = React.useState(0)
   const [confirmKeys, setConfirmKeys] = React.useState<string[] | null>(null)
-  const [unblocking, setUnblocking] = React.useState(false)
+  const [run, unblocking] = useAsyncAction(getAdminLocksErrorMessage)
 
   // "Time left" is measured against this clock, refreshed with the list and
   // once a minute while the window sits open — so a block that runs out on its
@@ -103,9 +103,7 @@ export function LockedOutDialog({
   async function handleUnblock() {
     if (!confirmKeys?.length) return
 
-    setUnblocking(true)
-    dismissErrorToast()
-    try {
+    await run(async () => {
       const { unblockedCount } = await unblockRateLimits(confirmKeys)
       toast.success(
         unblockedCount === 1
@@ -115,11 +113,7 @@ export function LockedOutDialog({
       const cleared = new Set(confirmKeys)
       setBlocks((current) => current.filter((block) => !cleared.has(block.key)))
       setConfirmKeys(null)
-    } catch (unblockError) {
-      showErrorToast(getAdminLocksErrorMessage(unblockError))
-    } finally {
-      setUnblocking(false)
-    }
+    })
   }
 
   const confirmBlocks = confirmKeys

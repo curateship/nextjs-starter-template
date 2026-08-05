@@ -15,7 +15,6 @@ import { toast } from "sonner"
 
 import { describeBulkResult } from "@/lib/bulk-result"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -55,6 +54,7 @@ import {
   type NotificationType,
 } from "@/lib/api/notification"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { useSelection } from "@/lib/use-selection"
 import {
   useListSearchNavigate,
@@ -187,7 +187,7 @@ export function NotificationsPage({
   const [loading, setLoading] = React.useState(false)
   const selection = useSelection()
   const selectedIds = selection.selected
-  const [deleting, setDeleting] = React.useState(false)
+  const [runDelete, deleting] = useAsyncAction(getNotificationErrorMessage)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [clearAllOpen, setClearAllOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -252,9 +252,7 @@ export function NotificationsPage({
     const notificationIds = Array.from(selectedIds)
     if (!notificationIds.length) return
 
-    setDeleting(true)
-    dismissErrorToast()
-    try {
+    await runDelete(async () => {
       const { count } = await deleteAdminNotifications(notificationIds)
       toast.success(
         describeBulkResult({
@@ -268,17 +266,11 @@ export function NotificationsPage({
       selection.clear()
       setMassDeleteOpen(false)
       await refresh()
-    } catch (deleteError) {
-      showErrorToast(getNotificationErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
+    })
   }
 
   async function clearAll() {
-    setDeleting(true)
-    dismissErrorToast()
-    try {
+    await runDelete(async () => {
       const { count } = await clearAdminNotifications()
       toast.success(
         `${count} ${count === 1 ? "notification" : "notifications"} deleted.`
@@ -290,11 +282,7 @@ export function NotificationsPage({
       setPage(1)
       selection.clear()
       setClearAllOpen(false)
-    } catch (deleteError) {
-      showErrorToast(getNotificationErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
+    })
   }
 
   // An announcement notice has nowhere to go — it is the words themselves — so

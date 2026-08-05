@@ -1,3 +1,4 @@
+import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
 import { describe, expect, it } from "vitest"
 
 import { compileAutomationGraph } from "./compile"
@@ -13,7 +14,7 @@ function placeholder(id: string, note = "") {
   return { id, kind: "placeholder", x: 0, y: 0, settings: { note } }
 }
 
-function aiStep(id: string, settings: Record<string, unknown> = {}) {
+function aiStep(id: string, settings: AutomationNodeSettings = {}) {
   return {
     id,
     kind: "aiStep",

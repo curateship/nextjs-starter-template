@@ -8,12 +8,30 @@ import { z } from "zod"
  * renamed or removed — unknown kinds still parse, render as "unsupported", and
  * are reported at compile time instead of crashing the page.
  */
+/**
+ * One value inside a node's settings bag.
+ *
+ * Settings are stored as JSON and travel to the browser inside the loader's
+ * answer, so this says exactly that: anything JSON can hold, and nothing else.
+ * It used to be `unknown`, which is not the same claim — the router cannot
+ * prove `unknown` is safe to send, so it refused, and the refusal spread up
+ * until the whole automation editor screen lost its type. Every reader already
+ * narrows with `typeof` before using a setting, so nothing here loses safety.
+ */
+export type AutomationSettingValue =
+  | string
+  | number
+  | boolean
+  | null
+  | AutomationSettingValue[]
+  | { [key: string]: AutomationSettingValue }
+
 export type AutomationNode = {
   id: string
   kind: string
   x: number
   y: number
-  settings: Record<string, unknown>
+  settings: Record<string, AutomationSettingValue>
 }
 
 export type AutomationSourcePort = string
@@ -50,6 +68,22 @@ export type AutomationValidationError = {
   message: string
 }
 
+/**
+ * The same claim as `AutomationSettingValue` above, made to zod. `z.lazy` is
+ * how a schema refers to itself, which is what nesting needs.
+ */
+export const automationSettingValueSchema: z.ZodType<AutomationSettingValue> = z.lazy(
+  () =>
+    z.union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(automationSettingValueSchema),
+      z.record(z.string(), automationSettingValueSchema),
+    ])
+)
+
 const idSchema = z.string().min(1).max(64)
 
 // The maximum stored size of one graph document. The node/edge count limits
@@ -69,7 +103,7 @@ export const automationGraphSchema = z
           kind: z.string().min(1).max(64),
           x: z.number().finite(),
           y: z.number().finite(),
-          settings: z.record(z.string(), z.unknown()),
+          settings: z.record(z.string(), automationSettingValueSchema),
         })
       )
       .max(100),

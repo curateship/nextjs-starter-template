@@ -6,7 +6,7 @@ import type {
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { type CustomShellDb } from "@/server/db"
+
 import {
   deletePasskey,
   finishPasskeyAuthentication,
@@ -39,10 +39,11 @@ afterEach(async () => {
 const rp: RelyingParty = {
   name: "Custom Shell",
   id: "localhost",
-  origin: "http://localhost:3002",
+  // From local-apps.json like everywhere else — the port is never typed out.
+  origin: `http://localhost:${__DEV_APP_PORT__}`,
 }
 
-const testDb = () => database as unknown as CustomShellDb
+const testDb = () => database
 
 /** A saved credential the tests can point sign-in responses at. */
 async function createTestPasskey(userId: string, credentialId: string) {

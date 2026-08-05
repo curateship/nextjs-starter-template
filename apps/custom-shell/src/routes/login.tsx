@@ -21,6 +21,7 @@ import {
 import { useAppName } from "@/lib/branding"
 import { carriedEmail } from "@/lib/carried-email"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { safeRedirectPath } from "@/lib/redirect-path"
 
 /**
@@ -67,7 +68,7 @@ function LoginRoute() {
   // the form into a restore: same email, same password, one deliberate click.
   const [deleted, setDeleted] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
-  const [resending, setResending] = React.useState(false)
+  const [runResend, resending] = useAsyncAction(getAuthErrorMessage)
 
   // Why a Google sign-in did not finish. It arrives as a redirect from the
   // callback rather than a thrown error, so the toast is fired here.
@@ -129,18 +130,12 @@ function LoginRoute() {
 
   const handleResend = React.useCallback(async () => {
     if (resending) return
-    dismissErrorToast()
-    setResending(true)
-    try {
+    await runResend(async () => {
       await resendVerification(email)
       setUnverified(false)
       setNotice("We sent a new verification link to your email.")
-    } catch (resendError) {
-      showErrorToast(getAuthErrorMessage(resendError))
-    } finally {
-      setResending(false)
-    }
-  }, [email, resending])
+    })
+  }, [email, resending, runResend])
 
   return (
     <AuthShell

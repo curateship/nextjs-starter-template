@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -91,7 +92,7 @@ export function MediaPicker({
     previewUrl: string
   } | null>(null)
   const [altText, setAltText] = React.useState("")
-  const [uploading, setUploading] = React.useState(false)
+  const [runUpload, uploading] = useAsyncAction(getMediaErrorMessage)
   /** The one video allowed to play at a time, so tiles never talk over each other. */
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const pageSize = 12
@@ -230,18 +231,12 @@ export function MediaPicker({
   async function handleUpload() {
     if (!upload) return
 
-    setUploading(true)
-    dismissErrorToast()
-    try {
+    await runUpload(async () => {
       const item = await uploadMedia(upload.file, altText)
       onSelectMedia(item.url, item.alt_text ?? undefined)
       clearUpload()
       onOpenChange(false)
-    } catch (uploadError) {
-      showErrorToast(getMediaErrorMessage(uploadError))
-    } finally {
-      setUploading(false)
-    }
+    })
   }
 
   // An empty library and an empty filter are different things, so the message

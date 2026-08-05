@@ -38,6 +38,7 @@ import type {
   AutomationNode,
   AutomationValidationError,
 } from "@/lib/automations/graph"
+import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
 import {
   automationNodeDescription,
   automationNodeName,
@@ -425,7 +426,7 @@ function AiStepFields({
   const keyStatus = keyStatuses?.find((status) => status.provider === provider)
   const keyMissing = keyStatuses !== null && !keyStatus?.configured
 
-  const setSettings = (settings: Record<string, unknown>) =>
+  const setSettings = (settings: AutomationNodeSettings) =>
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
@@ -574,7 +575,7 @@ function AudienceFields({
   const slugKnown = choices.some((plan) => plan.slug === planSlug)
   const noPlans = plans !== null && choices.length === 0
 
-  const setSettings = (settings: Record<string, unknown>) =>
+  const setSettings = (settings: AutomationNodeSettings) =>
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
@@ -695,7 +696,7 @@ function WaitForApprovalFields({
     ? [...APPROVAL_TIMEOUT_CHOICES]
     : [...APPROVAL_TIMEOUT_CHOICES, timeoutDays].sort((a, b) => a - b)
 
-  const setSettings = (settings: Record<string, unknown>) =>
+  const setSettings = (settings: AutomationNodeSettings) =>
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
