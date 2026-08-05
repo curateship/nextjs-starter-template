@@ -15,7 +15,9 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { TemplatePreviewDialog } from "@/components/broadcasts/template-preview-dialog"
 import { Button } from "@/components/ui/button"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -374,10 +376,10 @@ function TemplatesTab({
           ) : templates === null ? (
             <LoadingRow label="Loading…" />
           ) : templates.length === 0 ? (
-            <p className="py-8 text-center text-xs text-muted-foreground">
+            <EmptyRow>
               No templates yet. Build an email you like, then save it here to
               start the next one from it.
-            </p>
+            </EmptyRow>
           ) : (
             templates.map((template) => (
               <PaletteCard
@@ -403,22 +405,22 @@ function TemplatesTab({
       </ScrollArea>
 
       <div className="shrink-0 border-t border-foreground/10 p-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="w-full"
+        <DisabledReason
           disabled={!hasBlocks}
-          title={
-            hasBlocks
-              ? undefined
-              : "Add something to the email first — there is nothing to save yet."
-          }
-          onClick={onSaveAsTemplate}
+          reason="Add something to the email first — there is nothing to save yet."
         >
-          <PlusIcon className="size-3.5" />
-          Save this as a template
-        </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={!hasBlocks}
+            onClick={onSaveAsTemplate}
+          >
+            <PlusIcon className="size-3.5" />
+            Save this as a template
+          </Button>
+        </DisabledReason>
       </div>
 
       <TemplatePreviewDialog

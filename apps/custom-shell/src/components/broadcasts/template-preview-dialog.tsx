@@ -1,6 +1,7 @@
 import { Loader2Icon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Card,
   CardContent,
@@ -147,13 +148,18 @@ export function TemplatePreviewDialog({
           >
             Cancel
           </Button>
-          <Button
-            type="button"
-            disabled={blocks.length === 0 || deleting}
-            onClick={onApply}
+          <DisabledReason
+            disabled={blocks.length === 0}
+            reason="This template has no blocks yet. Add a block before using it."
           >
-            Use it
-          </Button>
+            <Button
+              type="button"
+              disabled={blocks.length === 0 || deleting}
+              onClick={onApply}
+            >
+              Use it
+            </Button>
+          </DisabledReason>
         </DialogFooter>
       </DialogContent>
     </Dialog>

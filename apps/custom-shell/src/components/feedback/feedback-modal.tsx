@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/select"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { FormDialog } from "@/components/ui/form-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -223,6 +223,14 @@ export function FeedbackModal({
   // Bumped by "Try again" on a failed load. The deep link is unchanged, so the
   // retry is a plain reload: nothing you were typing is thrown away.
   const [reloads, setReloads] = React.useState(0)
+
+  const dirty =
+    Boolean(message.trim()) ||
+    Boolean(composerAttachment) ||
+    Object.values(commentInputs).some((value) => Boolean(value.trim())) ||
+    Boolean(editingCommentMessage.trim())
+  const busy =
+    isSubmitting || submittingCommentId !== null || busyCommentId !== null
 
   // The deep link the popup was last opened with. A different one means a
   // notification is pointing at one specific item and wants a clean view;
@@ -605,7 +613,13 @@ export function FeedbackModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <FormDialog
+        open={open}
+        dirty={dirty}
+        busy={busy}
+        onClose={() => onOpenChange(false)}
+      >
+        {() => (
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Send feedback</DialogTitle>
@@ -1252,7 +1266,8 @@ export function FeedbackModal({
             </CardGroup>
           </DialogBody>
         </DialogContent>
-      </Dialog>
+        )}
+      </FormDialog>
       {/* The same question the admin table asks, worded the same way, so a
           comment cannot go on one click here either. */}
       <ConfirmDialog

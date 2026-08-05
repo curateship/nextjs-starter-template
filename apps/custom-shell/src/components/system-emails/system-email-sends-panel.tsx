@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -127,10 +128,10 @@ export function SystemEmailSendsPanel({
           </div>
 
           {!loading && sends.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <EmptyRow>
               Nobody has been sent this yet. Every one that goes out from now on
               shows up here.
-            </p>
+            </EmptyRow>
           ) : null}
 
           {sends.length > 0 ? (

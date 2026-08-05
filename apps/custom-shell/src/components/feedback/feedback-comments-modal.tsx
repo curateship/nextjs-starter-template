@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   deleteFeedbackComment,
@@ -125,9 +126,7 @@ export function FeedbackCommentsModal({
                   {loading ? (
                     <LoadingRow label="Loading comments…" />
                   ) : comments.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">
-                      No comments yet.
-                    </p>
+                    <EmptyRow>No comments yet.</EmptyRow>
                   ) : (
                     <ul className="flex flex-col divide-y">
                       {comments.map((comment) => (

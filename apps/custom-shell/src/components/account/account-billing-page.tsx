@@ -4,6 +4,7 @@ import { ExternalLinkIcon } from "lucide-react"
 import { showErrorToast } from "@/lib/error-toast"
 
 import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Badge } from "@/components/ui/badge"
@@ -271,9 +272,10 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
                   <TableRow>
                     <TableCell
                       colSpan={5}
-                      className="h-24 text-center text-sm text-muted-foreground"
                     >
-                      No invoices yet. They appear here after your first payment.
+                      <EmptyRow>
+                        No invoices yet. They appear here after your first payment.
+                      </EmptyRow>
                     </TableCell>
                   </TableRow>
                 ) : (

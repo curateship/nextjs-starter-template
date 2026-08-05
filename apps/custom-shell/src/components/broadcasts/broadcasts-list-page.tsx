@@ -325,7 +325,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                   variant="ghost"
                   size="icon"
                   aria-label={`Make a copy of ${item.name}`}
-                  disabled={duplicatingId !== null}
+                  disabled={duplicatingId === item.id}
                   onClick={() => void handleDuplicate(item)}
                 >
                   {duplicatingId === item.id ? (
