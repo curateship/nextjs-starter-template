@@ -1,11 +1,12 @@
 import * as React from "react"
-import { MonitorIcon, SmartphoneIcon } from "lucide-react"
+import { MailIcon, MonitorIcon, SmartphoneIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { BlockInspector } from "@/components/broadcasts/block-inspector"
 import { BlockPalette } from "@/components/broadcasts/block-palette"
 import { BroadcastCanvas } from "@/components/broadcasts/broadcast-canvas"
 import { SaveTemplateDialog } from "@/components/broadcasts/template-dialogs"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
@@ -15,6 +16,11 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   getBroadcastErrorMessage,
   saveBroadcastBlockDefault,
@@ -60,23 +66,28 @@ function WidthToggle({
   return (
     <div className="flex items-center gap-0.5">
       {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={value === option.value}
-          title={`Show it ${PREVIEW_WIDTHS[option.value]} px wide`}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
-            focusRing,
-            value === option.value
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <option.icon className="size-3.5" />
-          {option.label}
-        </button>
+        <Tooltip key={option.value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-pressed={value === option.value}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
+                focusRing,
+                value === option.value
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <option.icon className="size-3.5" />
+              {option.label}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {PREVIEW_WIDTHS[option.value]} px wide
+          </TooltipContent>
+        </Tooltip>
       ))}
     </div>
   )
@@ -471,40 +482,26 @@ export function EmailBlockEditor({
     />
   )
 
-  /**
-   * The email panel's own header: how it is being viewed on the left, what can
-   * be done with it on the right. It belongs to this panel rather than to a bar
-   * across the whole editor, because every control on it acts on the email in
-   * the panel underneath — and it lines up with the 44px headers the blocks and
-   * options panels already have.
-   */
   const canvasHeader = (
-    // Three columns with equal give either side, so the name sits in the middle
-    // of the panel rather than in the middle of whatever is left over — the two
-    // sides are different widths and always will be.
-    <div className="grid h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-foreground/10 px-3">
-      <div className="flex items-center gap-2">
-        <WidthToggle value={previewWidth} onChange={setPreviewWidth} />
-        <span className="text-xs whitespace-nowrap text-muted-foreground">
-          {PREVIEW_WIDTHS[previewWidth]} px wide
-        </span>
-      </div>
-      <span className="truncate text-sm font-semibold" title={title}>
-        {title}
-      </span>
-      <div className="flex items-center justify-end">
-        {/*
-          The rule's worry is that `headerAction` might call `saveNow` while
-          the page is being drawn, and `saveNow` reads refs. It does not: both
-          callers (`broadcast-editor.tsx`, `system-email-editor.tsx`) only ever
-          hang it off a button's onClick. Keep it that way — a caller that
-          called it during render really would be the bug this is guarding
-          against.
-        */}
-        {/* eslint-disable-next-line react-hooks/refs */}
-        {headerAction?.(saveNow)}
-      </div>
-    </div>
+    <WorkspacePanelHeader
+      icon={<MailIcon className="size-4" />}
+      title={title}
+      action={
+        <div className="flex items-center gap-2">
+          <WidthToggle value={previewWidth} onChange={setPreviewWidth} />
+          {/*
+            The rule's worry is that `headerAction` might call `saveNow` while
+            the page is being drawn, and `saveNow` reads refs. It does not: both
+            callers (`broadcast-editor.tsx`, `system-email-editor.tsx`) only ever
+            hang it off a button's onClick. Keep it that way — a caller that
+            called it during render really would be the bug this is guarding
+            against.
+          */}
+          {/* eslint-disable-next-line react-hooks/refs */}
+          {headerAction?.(saveNow)}
+        </div>
+      }
+    />
   )
 
   const inspector = (

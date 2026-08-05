@@ -60,12 +60,12 @@ function ResizableHandle({
 
 /**
  * What a workspace's bottom panel collapses to: exactly its own header (the
- * 44px row plus the card's top and bottom hairlines). The panel stays on
+ * 50.4px row plus the card's top and bottom hairlines). The panel stays on
  * screen when collapsed — its header holds the reopen controls, and the handle
  * above it keeps its gap so the bar stays draggable back open. Pass `gap`
  * alone to that handle, never `collapsed`.
  */
-const BOTTOM_COLLAPSED_HEIGHT = "46px"
+const BOTTOM_COLLAPSED_HEIGHT = "52.4px"
 
 function WorkspacePanel({
   className,

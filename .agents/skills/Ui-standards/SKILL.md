@@ -85,7 +85,7 @@ these buttons, their size, colour or icons, and never put them in the page heade
 is not guaranteed to exist and the toggles must sit with the panel they survive in.
 
 **The bottom panel collapses to its own header, not to nothing.** Use the shared
-`BOTTOM_COLLAPSED_HEIGHT` (`src/components/ui/resizable.tsx`, 58px = the 56px header row plus the
+`BOTTOM_COLLAPSED_HEIGHT` (`src/components/ui/resizable.tsx`, 52.4px = the 50.4px header row plus the
 card's two hairlines). Collapsing to `0%` would take away the very buttons that reopen the panels.
 
 **Therefore the handle above the bottom panel keeps its gap: pass `gap` alone, never

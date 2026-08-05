@@ -137,13 +137,11 @@ export function BroadcastEditor({
           broadcast.status === "draft" || broadcast.status === "scheduled" ? (
             <Button
               type="button"
-              size="sm"
-              className="h-8"
               onClick={() => {
                 void saveNow().then(() => setSendOpen(true))
               }}
             >
-              <SendIcon className="size-3.5" />
+              <SendIcon className="size-4" />
               Review and send
             </Button>
           ) : null

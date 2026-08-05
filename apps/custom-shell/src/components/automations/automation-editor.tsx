@@ -1,11 +1,23 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
+import {
+  Loader2Icon,
+  PauseIcon,
+  PlayIcon,
+  WorkflowIcon,
+} from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
+import { toast } from "sonner"
 
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
+import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -20,7 +32,11 @@ import {
   automationPaletteKeyForNode,
   createAutomationNode,
 } from "@/lib/automations/node-registry"
-import type { AutomationRunsPanelData } from "@/lib/api/automation-runs"
+import {
+  getAutomationRunErrorMessage,
+  runAutomationNow,
+  type AutomationRunsPanelData,
+} from "@/lib/api/automation-runs"
 import {
   getAutomationErrorMessage,
   saveAutomation,
@@ -57,7 +73,13 @@ export function AutomationEditor({
   /** The run a bell notice linked to, opened in the bottom panel on arrival. */
   openRunId?: string
 }) {
-  const { reportSaveStatus } = useShellRuntime()
+  const navigate = useNavigate()
+  const {
+    config,
+    automationPauseBusy,
+    onAutomationPauseChange,
+    reportSaveStatus,
+  } = useShellRuntime()
   // Nothing on this page renames an automation any more, so the name is only
   // ever the one it loaded with — but it still has to ride along on every save,
   // or the record would be written back without it.
@@ -80,6 +102,8 @@ export function AutomationEditor({
     height: 0,
   })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
+  const [running, setRunning] = React.useState(false)
+  const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   // Known before the first render on both sides, so the editor opens in the
   // layout it is going to keep instead of painting the phone version — a
   // full-width canvas with no palette and no inspector — and rebuilding itself.
@@ -223,9 +247,9 @@ export function AutomationEditor({
     return () => clearTimeout(timer)
   }, [saveStatus])
 
-  // This editor has no bar of its own, so its saving is reported in the sticky
-  // header alongside every other auto-save in the app. Clearing on the way out
-  // matters: without it "Saved" would still be sitting there on the next page.
+  // Saving is reported in the sticky app header alongside every other
+  // auto-save. Clearing on the way out matters: without it "Saved" would still
+  // be sitting there on the next page.
   React.useEffect(() => {
     reportSaveStatus(saveStatus)
   }, [reportSaveStatus, saveStatus])
@@ -235,6 +259,37 @@ export function AutomationEditor({
   }, [reportSaveStatus])
 
   const compiled = React.useMemo(() => compileAutomationGraph(graph), [graph])
+  const paused = config.automationPause.enabled
+
+  const handlePauseChange = async (enabled: boolean) => {
+    if (automationPauseBusy) return
+    if (await onAutomationPauseChange(enabled)) setConfirmPauseOpen(false)
+  }
+
+  const handleRunNow = async () => {
+    if (running || paused || !compiled.config) return
+    setRunning(true)
+    try {
+      await saveNow()
+      const current = latestRef.current
+      if (serialize(current.name, current.graph) !== lastSavedRef.current) return
+
+      const { runId } = await runAutomationNow(initial.id)
+      dismissErrorToast()
+      toast.success(`Started "${name}".`)
+      runsPanelRef.current?.expand()
+      await navigate({
+        to: "/admin/automations/$automationId",
+        params: { automationId: initial.id },
+        search: { run: runId },
+        replace: true,
+      })
+    } catch (error) {
+      showErrorToast(getAutomationRunErrorMessage(error))
+    } finally {
+      setRunning(false)
+    }
+  }
   const selectedNode =
     previewNode ??
     (selectedNodeId
@@ -397,6 +452,56 @@ export function AutomationEditor({
       }
     />
   )
+  const canvasHeader = (
+    <WorkspacePanelHeader
+      icon={<WorkflowIcon className="size-4" />}
+      title={name}
+      action={
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={automationPauseBusy}
+            onClick={() =>
+              paused
+                ? void handlePauseChange(false)
+                : setConfirmPauseOpen(true)
+            }
+          >
+            {automationPauseBusy ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : paused ? (
+              <PlayIcon className="size-4" />
+            ) : (
+              <PauseIcon className="size-4" />
+            )}
+            {paused ? "Resume all" : "Pause all"}
+          </Button>
+          <DisabledReason
+            disabled={paused || !compiled.config}
+            reason={
+              paused
+                ? "Every automation is paused. Resume them to start this flow."
+                : "Fix the steps marked in red before running this automation."
+            }
+          >
+            <Button
+              type="button"
+              disabled={paused || !compiled.config || running}
+              onClick={() => void handleRunNow()}
+            >
+              {running ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <PlayIcon className="size-4" />
+              )}
+              Run
+            </Button>
+          </DisabledReason>
+        </div>
+      }
+    />
+  )
   const workspace = desktop ? (
     <ResizablePanelGroup
       key={horizontalLayout.layoutKey}
@@ -430,14 +535,17 @@ export function AutomationEditor({
       </ResizablePanel>
       <ResizableHandle gap collapsed={paletteCollapsed} />
       <ResizablePanel id="canvas" defaultSize="60%" minSize="30%">
-        <WorkspacePanel className="relative flex">
-          {canvas}
-          {paletteCollapsed ? (
-            <PanelReopenTab side="left" label="Show node palette" onClick={togglePalette} />
-          ) : null}
-          {inspectorCollapsed ? (
-            <PanelReopenTab side="right" label="Show inspector" onClick={toggleInspector} />
-          ) : null}
+        <WorkspacePanel className="flex flex-col">
+          {canvasHeader}
+          <div className="relative flex min-h-0 flex-1">
+            {canvas}
+            {paletteCollapsed ? (
+              <PanelReopenTab side="left" label="Show node palette" onClick={togglePalette} />
+            ) : null}
+            {inspectorCollapsed ? (
+              <PanelReopenTab side="right" label="Show inspector" onClick={toggleInspector} />
+            ) : null}
+          </div>
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={inspectorCollapsed} />
@@ -464,7 +572,10 @@ export function AutomationEditor({
     // a width to fill it shrinks to its content — the canvas has no width of
     // its own, so the whole panel collapsed to its two border edges and read as
     // a stray line down the page.
-    <WorkspacePanel className="flex min-w-0 flex-1">{canvas}</WorkspacePanel>
+    <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+      {canvasHeader}
+      {canvas}
+    </WorkspacePanel>
   )
 
   return (
@@ -512,6 +623,7 @@ export function AutomationEditor({
           >
             <WorkspacePanel onDoubleClick={runsDoubleClick}>
               <AutomationRunsPanel
+                key={`${initial.id}:${openRunId ?? "runs"}`}
                 automationId={initial.id}
                 initial={initialRuns}
                 openRunId={openRunId}
@@ -521,6 +633,15 @@ export function AutomationEditor({
         </ResizablePanelGroup>
       </div>
 
+      <ConfirmDialog
+        open={confirmPauseOpen}
+        onOpenChange={setConfirmPauseOpen}
+        title="Pause every automation?"
+        description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
+        confirmLabel="Pause automations"
+        loading={automationPauseBusy}
+        onConfirm={() => void handlePauseChange(true)}
+      />
     </div>
   )
 }

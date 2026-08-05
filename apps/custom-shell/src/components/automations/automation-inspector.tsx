@@ -5,9 +5,12 @@ import {
   PlusIcon,
   StarIcon,
   Trash2Icon,
+  WorkflowIcon,
 } from "lucide-react"
 
 import { InspectorNote } from "@/components/automations/inspector-card"
+import { AutomationNodeIcon } from "@/components/automations/automation-node-icon"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
@@ -17,6 +20,7 @@ import type {
 import {
   automationNodeDescription,
   automationNodeFields,
+  automationNodeIcon,
   automationNodeName,
   isSupportedNode,
 } from "@/lib/automations/node-registry"
@@ -58,45 +62,43 @@ export function AutomationInspector({
         className
       )}
     >
-      {/* Same 44px header height and hairline as the palette's tab row and the
-          activity log's title bar, so the line runs unbroken across all three
-          panels. The node's description cannot live here or a wordy node would
-          push this panel's heading out of step — it sits at the top of the body
-          instead. */}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-foreground/10 px-4">
-        <h2 className="truncate text-sm font-semibold">
-          {selectedNode ? automationNodeName(selectedNode) : "Automation"}
-        </h2>
-        {previewing ? (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            Not added yet
-          </span>
-        ) : null}
-        {selectedNode && onToggleFavorite ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`${favorite ? "Remove" : "Add"} ${automationNodeName(selectedNode)} ${favorite ? "from" : "to"} favorites`}
-            aria-pressed={favorite}
-            disabled={savingFavorite}
-            onClick={onToggleFavorite}
-            className={cn(
-              "-mr-1 ml-auto",
-              favorite && "text-amber-500 dark:text-amber-400"
-            )}
-          >
-            {savingFavorite ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <StarIcon className={cn("size-4", favorite && "fill-current")} />
-            )}
-          </Button>
-        ) : null}
-      </div>
+      <WorkspacePanelHeader
+        icon={
+          selectedNode ? (
+            <AutomationNodeIcon
+              icon={automationNodeIcon(selectedNode)}
+              className="size-4"
+            />
+          ) : (
+            <WorkflowIcon className="size-4" />
+          )
+        }
+        title={selectedNode ? automationNodeName(selectedNode) : "Automation"}
+        meta={previewing ? "Not added yet" : undefined}
+        action={
+          selectedNode && onToggleFavorite ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`${favorite ? "Remove" : "Add"} ${automationNodeName(selectedNode)} ${favorite ? "from" : "to"} favorites`}
+              aria-pressed={favorite}
+              disabled={savingFavorite}
+              onClick={onToggleFavorite}
+              className={cn(favorite && "text-amber-500 dark:text-amber-400")}
+            >
+              {savingFavorite ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <StarIcon className={cn("size-4", favorite && "fill-current")} />
+              )}
+            </Button>
+          ) : undefined
+        }
+      />
       <div ref={scrollRef} className="relative min-h-0 flex-1">
         <ScrollArea className="h-full">
-          <div className="grid gap-4 p-4">
+          <div className="grid gap-4 p-4 sm:p-5">
             <p className="text-xs text-muted-foreground">
               {selectedNode
                 ? automationNodeDescription(selectedNode)

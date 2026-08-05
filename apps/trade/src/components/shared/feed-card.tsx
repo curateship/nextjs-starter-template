@@ -1,14 +1,15 @@
 import * as React from "react"
 
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardAction, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 /**
  * The pieces every list card shares: a hairline header row with an icon, a
  * title, a quiet count beside it, and whatever belongs on the right. It is
- * built from the shared card header parts, so these titles are the same
- * heading font and size as every other admin card rather than a second look.
+ * built from the shared workspace header, so editor panels and admin cards use
+ * the same heading font, size and spacing rather than two separate patterns.
  */
 
 export function FeedCard({ className, ...props }: React.ComponentProps<"div">) {
@@ -35,33 +36,23 @@ export function CardTop({
   sample?: boolean
 }) {
   return (
-    <CardHeader className="min-h-14 items-center border-b pt-4 sm:px-5">
-      <CardTitle className="flex min-w-0 items-center gap-2.5">
-        <Icon
-          className={cn("size-4 shrink-0 text-muted-foreground", iconClassName)}
-          aria-hidden
-        />
-        <span className="truncate">{title}</span>
-        {sample ? <SampleBadge /> : null}
-        {meta ? (
-          <span
-            className={cn(
-              "shrink-0 text-xs font-normal text-muted-foreground",
-              metaClassName
-            )}
-          >
+    <WorkspacePanelHeader
+      icon={<Icon className={cn("size-4", iconClassName)} />}
+      title={
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="truncate">{title}</span>
+          {sample ? <SampleBadge /> : null}
+        </span>
+      }
+      meta={
+        meta ? (
+          <span className={cn("shrink-0 font-normal", metaClassName)}>
             {meta}
           </span>
-        ) : null}
-      </CardTitle>
-      {/* `row-span-1` undoes `CardAction`'s default of two. That default is for
-          a header with a description under the title; this one never has one,
-          so the second row stayed empty and a few pixels tall — enough to pull
-          the title up off the middle of the row. */}
-      {action ? (
-        <CardAction className="row-span-1 self-center">{action}</CardAction>
-      ) : null}
-    </CardHeader>
+        ) : null
+      }
+      action={action}
+    />
   )
 }
 

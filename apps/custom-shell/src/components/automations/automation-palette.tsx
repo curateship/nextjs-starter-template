@@ -2,7 +2,11 @@ import * as React from "react"
 import { LayoutGridIcon, PlusIcon, StarIcon } from "lucide-react"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  WorkspacePanelTab,
+  WorkspacePanelTabsHeader,
+} from "@/components/shared/workspace-panel-header"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   AUTOMATION_PALETTE_GROUPS,
   automationPaletteItems,
@@ -61,27 +65,22 @@ export function AutomationPalette({
         className
       )}
     >
-      {/* Underline tabs (per the design mock), not the segmented pill style:
-          transparent list on the header's border-b, active trigger drawing a
-          2px underline that sits on that line. */}
-      <div className="shrink-0 border-b border-foreground/10 px-3">
-        <TabsList className="-mb-px h-11 w-full justify-start gap-5 rounded-none bg-transparent p-0">
-          <TabsTrigger
-            value="fav"
-            className="h-full flex-none gap-1.5 rounded-none border-b-2 border-transparent px-0.5 text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <StarIcon className="size-4 fill-current" />
-            Fav
-          </TabsTrigger>
-          <TabsTrigger
-            value="all"
-            className="h-full flex-none gap-1.5 rounded-none border-b-2 border-transparent px-0.5 text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <LayoutGridIcon className="size-4" />
-            All nodes
-          </TabsTrigger>
-        </TabsList>
-      </div>
+      <WorkspacePanelTabsHeader>
+        <WorkspacePanelTab
+          value="fav"
+          contentClassName="gap-[3px]"
+          icon={<StarIcon className="size-4 fill-current" />}
+        >
+          Fav
+        </WorkspacePanelTab>
+        <WorkspacePanelTab
+          value="all"
+          contentClassName="gap-[3px]"
+          icon={<LayoutGridIcon className="size-4" />}
+        >
+          All nodes
+        </WorkspacePanelTab>
+      </WorkspacePanelTabsHeader>
       <PaletteTab
         value="fav"
         groups={paletteGroupsFor("fav", favoriteNodeKeys)}
@@ -120,7 +119,7 @@ function PaletteTab({
   return (
     <TabsContent value={value} className="min-h-0 overflow-hidden">
       <ScrollArea className="h-full">
-        <div className="flex flex-col gap-4 p-3">
+        <div className="flex flex-col gap-4 p-4 sm:p-5">
           {groups.map((group) => (
             <section
               key={group.label}

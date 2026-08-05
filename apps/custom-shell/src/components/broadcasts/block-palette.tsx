@@ -16,12 +16,16 @@ import { Badge } from "@/components/ui/badge"
 import { TemplatePreviewDialog } from "@/components/broadcasts/template-preview-dialog"
 import { Button } from "@/components/ui/button"
 import { EmptyRow } from "@/components/shared/feed-card"
+import {
+  WorkspacePanelTab,
+  WorkspacePanelTabsHeader,
+} from "@/components/shared/workspace-panel-header"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   deleteBroadcastTemplates,
   setDefaultBroadcastTemplate,
@@ -51,10 +55,6 @@ const BLOCK_ICONS: Record<
   divider: MinusIcon,
   footer: PanelBottomIcon,
 }
-
-/** The underline tab row, shared by both tabs so they cannot drift apart. */
-const TAB_TRIGGER =
-  "h-full flex-none gap-1.5 rounded-none border-b-2 border-transparent px-0.5 text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none"
 
 /**
  * The left panel: what an email can be built out of, and the ones already built.
@@ -133,25 +133,26 @@ export function BlockPalette({
       }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
-      {/* Underline tabs, not the segmented pill style: a transparent list on
-          the header's own border, with the active one drawing a 2px underline
-          that sits on that line. The same row the node palette uses. */}
-      <div className="shrink-0 border-b border-foreground/10 px-3">
-        <TabsList className="-mb-px h-11 w-full justify-start gap-5 rounded-none bg-transparent p-0">
-          <TabsTrigger value="blocks" className={TAB_TRIGGER}>
-            <LayoutGridIcon className="size-4" />
-            Blocks
-          </TabsTrigger>
-          <TabsTrigger value="templates" className={TAB_TRIGGER}>
-            <LayoutTemplateIcon className="size-4" />
-            Templates
-          </TabsTrigger>
-        </TabsList>
-      </div>
+      <WorkspacePanelTabsHeader>
+        <WorkspacePanelTab
+          value="blocks"
+          contentClassName="gap-[3px]"
+          icon={<LayoutGridIcon className="size-4" />}
+        >
+          Blocks
+        </WorkspacePanelTab>
+        <WorkspacePanelTab
+          value="templates"
+          contentClassName="gap-[3px]"
+          icon={<LayoutTemplateIcon className="size-4" />}
+        >
+          Templates
+        </WorkspacePanelTab>
+      </WorkspacePanelTabsHeader>
 
       <TabsContent value="blocks" className="min-h-0 overflow-hidden">
         <ScrollArea className="h-full">
-          <div className="grid gap-2 p-3">
+          <div className="grid gap-2 p-4 sm:p-5">
             {BROADCAST_BLOCK_KINDS.map((kind) => {
               const Icon = BLOCK_ICONS[kind]
               const meta = BROADCAST_BLOCK_META[kind]
@@ -370,7 +371,7 @@ function TemplatesTab({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-2 p-3">
+        <div className="grid gap-2 p-4 sm:p-5">
           {error ? (
             <ErrorBanner message={error} />
           ) : templates === null ? (

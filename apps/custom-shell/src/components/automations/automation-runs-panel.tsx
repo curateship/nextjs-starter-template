@@ -16,9 +16,13 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { EmptyRow } from "@/components/shared/feed-card"
+import {
+  WorkspacePanelTab,
+  WorkspacePanelTabsHeader,
+} from "@/components/shared/workspace-panel-header"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   decideApproval,
   deleteAutomationRun,
@@ -122,9 +126,6 @@ export function AutomationRunsPanel({
     }, "Run deleted.")
   }
 
-  const tabTrigger =
-    "h-full flex-none gap-1.5 rounded-none border-b-2 border-transparent px-0.5 text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-
   return (
     <>
       <Tabs
@@ -132,40 +133,39 @@ export function AutomationRunsPanel({
         onValueChange={(value) => setTab(value as PanelTab)}
         className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
       >
-        {/* The same 44px header, underline tabs and hairline as the palette on
-            the other side of the canvas — and the row the panel collapses to,
-            so the counts stay readable while it is shut. */}
-        <div className="shrink-0 border-b border-foreground/10 px-4">
-          <TabsList className="-mb-px h-11 w-full justify-start gap-5 rounded-none bg-transparent p-0">
-            <TabsTrigger value="runs" className={tabTrigger}>
-              <HistoryIcon className="size-4" />
-              Runs
-              <span className="text-xs tabular-nums">{total}</span>
-            </TabsTrigger>
-            <TabsTrigger value="waiting" className={tabTrigger}>
-              <UserCheckIcon className="size-4" />
-              Waiting on you
-              {waitingTotal > 0 ? (
-                <Badge variant="destructive" className="px-1.5 tabular-nums">
-                  {waitingTotal}
-                </Badge>
-              ) : (
-                <span className="text-xs tabular-nums">0</span>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        <WorkspacePanelTabsHeader>
+          <WorkspacePanelTab
+            value="runs"
+            icon={<HistoryIcon className="size-4" />}
+          >
+            Runs
+            <span className="text-xs tabular-nums">{total}</span>
+          </WorkspacePanelTab>
+          <WorkspacePanelTab
+            value="waiting"
+            icon={<UserCheckIcon className="size-4" />}
+          >
+            Waiting on you
+            {waitingTotal > 0 ? (
+              <Badge variant="destructive" className="px-1.5 tabular-nums">
+                {waitingTotal}
+              </Badge>
+            ) : (
+              <span className="text-xs tabular-nums">0</span>
+            )}
+          </WorkspacePanelTab>
+        </WorkspacePanelTabsHeader>
 
         <TabsContent value="runs" className="min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <div className="grid gap-2 p-4">
+            <div className="grid gap-2 p-4 sm:p-5">
               {error ? (
                 <ErrorBanner message={error} onRetry={() => void refresh()} />
               ) : null}
               {runs.length === 0 ? (
                 <EmptyRow>
-                  This flow has not run yet. Press Run now on the automations
-                  list to try it.
+                  This flow has not run yet. Press Run above the canvas to try
+                  it.
                 </EmptyRow>
               ) : (
                 runs.map((run) => (
@@ -204,7 +204,7 @@ export function AutomationRunsPanel({
 
         <TabsContent value="waiting" className="min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <div className="grid gap-2 p-4">
+            <div className="grid gap-2 p-4 sm:p-5">
               {error ? (
                 <ErrorBanner message={error} onRetry={() => void refresh()} />
               ) : null}

@@ -1,10 +1,11 @@
 import * as React from "react"
-import { PauseIcon, PlayIcon } from "lucide-react"
+import { PauseIcon, PlayIcon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getBroadcastErrorMessage,
@@ -35,7 +36,7 @@ const STATUS_LABELS: Record<BroadcastStatus, string> = {
  * The bottom panel: where this newsletter has got to.
  *
  * Everything that has to survive the panel being dragged shut lives in the
- * header row — the state and the counts — because that 46px strip is all that
+ * header row — the state and the counts — because that collapsed header is all
  * is left on screen when it is collapsed, and "how far along is it" is exactly
  * the question you collapse the panel still wanting answered.
  */
@@ -125,44 +126,50 @@ export function BroadcastStatusPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-foreground/10 px-3">
-        <span className="text-sm font-medium">Sending</span>
-        <Badge variant={broadcast.status === "paused" ? "destructive" : "secondary"}>
-          {STATUS_LABELS[broadcast.status]}
-        </Badge>
-        {/* This strip is all that is left when the panel is dragged shut, so
-            everything you collapse it still wanting to know lives here — how
-            far along it is, and when the next batch goes. */}
-        <span className="truncate text-xs text-muted-foreground">
-          {started
-            ? `${broadcast.totalSent} of ${broadcast.totalRecipients} sent` +
-              (broadcast.totalFailed > 0
-                ? ` · ${broadcast.totalFailed} did not go through`
-                : "") +
-              (nextBatch ? ` · ${nextBatch}` : "")
-            : "Not sent yet"}
-        </span>
-        {broadcast.status === "sending" || broadcast.status === "paused" ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="ml-auto h-8"
-            disabled={statusBusy}
-            onClick={() => void toggleStatus()}
-          >
-            {broadcast.status === "sending" ? (
-              <PauseIcon className="size-3.5" />
-            ) : (
-              <PlayIcon className="size-3.5" />
-            )}
-            {broadcast.status === "sending" ? "Pause" : "Start again"}
-          </Button>
-        ) : null}
-      </div>
+      <WorkspacePanelHeader
+        icon={<SendIcon className="size-4" />}
+        title="Sending"
+        meta={
+          <span className="flex min-w-0 items-center gap-2">
+            <Badge
+              variant={
+                broadcast.status === "paused" ? "destructive" : "secondary"
+              }
+            >
+              {STATUS_LABELS[broadcast.status]}
+            </Badge>
+            <span className="truncate">
+              {started
+                ? `${broadcast.totalSent} of ${broadcast.totalRecipients} sent` +
+                  (broadcast.totalFailed > 0
+                    ? ` · ${broadcast.totalFailed} did not go through`
+                    : "") +
+                  (nextBatch ? ` · ${nextBatch}` : "")
+                : "Not sent yet"}
+            </span>
+          </span>
+        }
+        action={
+          broadcast.status === "sending" || broadcast.status === "paused" ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={statusBusy}
+              onClick={() => void toggleStatus()}
+            >
+              {broadcast.status === "sending" ? (
+                <PauseIcon className="size-4" />
+              ) : (
+                <PlayIcon className="size-4" />
+              )}
+              {broadcast.status === "sending" ? "Pause" : "Start again"}
+            </Button>
+          ) : undefined
+        }
+      />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-3">
+        <div className="grid gap-4 p-4 sm:p-5">
           {error ? <ErrorBanner message={error} /> : null}
 
           {broadcast.pausedReason ? (

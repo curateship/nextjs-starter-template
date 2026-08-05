@@ -3,6 +3,8 @@ import {
   AlignCenterIcon,
   AlignLeftIcon,
   AlignRightIcon,
+  MailIcon,
+  SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -14,6 +16,7 @@ import {
 } from "@/components/broadcasts/inspector-fields"
 import { RichTextEditor } from "@/components/broadcasts/rich-text-editor"
 import { ImageUpload } from "@/components/shared/image-upload"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -511,34 +514,46 @@ export function BlockInspector({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-foreground/10 px-3">
-        <span className="truncate text-sm font-medium">
-          {block ? BROADCAST_BLOCK_META[block.kind].name : "Email settings"}
-        </span>
-        {block ? (
-          <DisabledReason
-            disabled={Boolean(disabled)}
-            reason="Finish saving this block before removing it."
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={editingDefault ? "Close this block" : "Remove this block"}
-              disabled={disabled}
-              onClick={onDelete}
+      <WorkspacePanelHeader
+        icon={
+          block ? (
+            <MailIcon className="size-4" />
+          ) : (
+            <SettingsIcon className="size-4" />
+          )
+        }
+        title={block ? BROADCAST_BLOCK_META[block.kind].name : "Email settings"}
+        action={
+          block ? (
+            <DisabledReason
+              disabled={Boolean(disabled)}
+              reason="Finish saving this block before removing it."
             >
-              {/* Nothing is destroyed by closing a block that is in no email, so
-                  it does not get the red bin. */}
-              <Trash2Icon
-                className={cn("size-4", !editingDefault && "text-destructive")}
-              />
-            </Button>
-          </DisabledReason>
-        ) : null}
-      </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={
+                  editingDefault ? "Close this block" : "Remove this block"
+                }
+                disabled={disabled}
+                onClick={onDelete}
+              >
+                {/* Nothing is destroyed by closing a block that is in no email, so
+                    it does not get the red bin. */}
+                <Trash2Icon
+                  className={cn(
+                    "size-4",
+                    !editingDefault && "text-destructive"
+                  )}
+                />
+              </Button>
+            </DisabledReason>
+          ) : undefined
+        }
+      />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-3">
+        <div className="grid gap-4 p-4 sm:p-5">
           {block && editingDefault ? (
             <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
               This block is not in the email. What you change here is how every
