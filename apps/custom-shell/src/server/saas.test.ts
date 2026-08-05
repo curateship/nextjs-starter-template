@@ -1792,4 +1792,32 @@ describe("admin account management", () => {
     expect(accounts).toHaveLength(1)
     expect(accounts[0].email).toBe("dana@example.test")
   })
+
+  it("filters accounts with an active sign-in lock", async () => {
+    await createUser({ role: "admin" })
+    const locked = await createUser({ email: "locked@example.test" })
+    await createUser({ email: "open@example.test" })
+
+    const lockKey = `login:127.0.0.1:${locked.email}`
+    await enforceRateLimit(lockKey, { maxAttempts: 1, windowSeconds: 60 }, database)
+    await expect(
+      enforceRateLimit(lockKey, { maxAttempts: 1, windowSeconds: 60 }, database)
+    ).rejects.toThrow("RATE_LIMITED")
+
+    const result = await listAccounts(
+      {
+        search: "",
+        role: "all",
+        status: "locked_out",
+        page: 1,
+        pageSize: 25,
+        sort: "name",
+        direction: "asc",
+      },
+      database
+    )
+
+    expect(result.accounts.map((account) => account.id)).toEqual([locked.id])
+    expect(result.accounts[0].lockedOut).toBe(true)
+  })
 })

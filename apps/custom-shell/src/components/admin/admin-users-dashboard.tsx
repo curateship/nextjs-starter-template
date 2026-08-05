@@ -6,7 +6,6 @@ import {
   PlusIcon,
   RotateCcwIcon,
   SettingsIcon,
-  ShieldBanIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
@@ -24,7 +23,6 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AddAccountDialog } from "@/components/admin/add-account-dialog"
-import { LockedOutDialog } from "@/components/admin/locked-out-dialog"
 import {
   AdminAccountDialog,
   type AdminAccountTab,
@@ -203,7 +201,6 @@ export function AdminUsersDashboard({
   const [error, setError] = React.useState<string | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [adding, setAdding] = React.useState(false)
-  const [lockedOutOpen, setLockedOutOpen] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
@@ -439,16 +436,9 @@ export function AdminUsersDashboard({
                 <SelectItem value="pending_deletion">
                   Scheduled for deletion
                 </SelectItem>
+                <SelectItem value="locked_out">Locked out</SelectItem>
               </SelectContent>
             </Select>
-            <DashboardToolbarButton
-              type="button"
-              variant="outline"
-              onClick={() => setLockedOutOpen(true)}
-            >
-              <ShieldBanIcon className="size-4" />
-              Locked out
-            </DashboardToolbarButton>
             <DashboardToolbarButton type="button" onClick={() => setAdding(true)}>
               <PlusIcon className="size-4" />
               Add account
@@ -686,8 +676,6 @@ export function AdminUsersDashboard({
         }}
       />
 
-      <LockedOutDialog open={lockedOutOpen} onOpenChange={setLockedOutOpen} />
-
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
@@ -810,6 +798,9 @@ function AccountStatusBadge({ account }: { account: AccountRow }) {
   }
   if (account.status === "suspended") {
     return <Badge variant="destructive">Suspended</Badge>
+  }
+  if (account.lockedOut) {
+    return <Badge variant="destructive">Locked out</Badge>
   }
   if (!account.emailVerified) {
     // No password and no verified email: an invited account whose
