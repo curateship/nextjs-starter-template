@@ -5,6 +5,7 @@ import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopLeftNavLimit,
@@ -47,10 +48,13 @@ export async function readDashboardRowsPerPage(
 }
 
 /**
- * The two branded things a signed-out visitor sees: the app name and the logo.
- * Public pages (sign in, register, pricing) show them before there is a session,
- * so like rows-per-page this reads the settings row on its own rather than going
- * through the workspace lookup.
+ * Everything a signed-out visitor's page needs before there is a session: the
+ * app name, the logo, and the look every public page wears. Like rows-per-page
+ * this reads the settings row on its own rather than going through the
+ * workspace lookup, because a visitor has no workspace.
+ *
+ * The root route loads this on the server, which is what puts the theme in the
+ * first paint instead of applying it after the page has already been drawn.
  */
 export async function readBranding(
   database: CustomShellDb = db
@@ -148,6 +152,10 @@ export function parseShellGlobals(value: unknown) {
     // meant to be on — so only an explicit `false` turns it off.
     liveNotifications: settings.liveNotifications !== false,
     maintenance: normalizeMaintenance(settings.maintenance),
+    // Rows saved before this switch existed have no value, and the default is
+    // running — so an existing install's automations keep going exactly as
+    // they did.
+    automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
   }
 }
@@ -174,6 +182,7 @@ export function pickShellGlobals(
     | "memberTopRightNavigation"
     | "liveNotifications"
     | "maintenance"
+    | "automationPause"
     | "sessionPolicy"
   >
 ) {
@@ -191,6 +200,7 @@ export function pickShellGlobals(
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
     maintenance: settings.maintenance,
+    automationPause: settings.automationPause,
     sessionPolicy: settings.sessionPolicy,
   }
 }

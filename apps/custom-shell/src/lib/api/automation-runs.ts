@@ -84,6 +84,8 @@ const runErrorMessages: Record<string, string> = {
     "This flow has more than one starting step, so there is no single place to begin. Connect the steps into one line and try again.",
   ALREADY_DECIDED:
     "That run was already decided — somebody else got there first, or the deadline passed.",
+  AUTOMATIONS_PAUSED:
+    "Every automation is paused right now, so nothing new can be started. Resume them first.",
 }
 
 export const getAutomationRunErrorMessage = createErrorMessage(

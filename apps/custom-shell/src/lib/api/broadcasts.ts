@@ -12,6 +12,11 @@ import {
   type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
 import {
+  dripConfigSchema,
+  parseDripConfig,
+  type DripConfig,
+} from "@/lib/broadcasts/drip"
+import {
   cancelBroadcastSchedule,
   countBroadcastAudience,
   pauseBroadcast,
@@ -61,6 +66,9 @@ export type BroadcastListItem = {
   totalFailed: number
   sent_at: string | null
   scheduled_at: string | null
+  /** When the next batch may go, for a paced send that is between batches. */
+  next_batch_at: string | null
+  batchesSent: number
   updated_at: string
 }
 
@@ -69,6 +77,7 @@ export type BroadcastDetail = BroadcastListItem & {
   fromName: string | null
   blocks: BroadcastBlock[]
   audienceFilter: BroadcastAudienceFilter
+  dripConfig: DripConfig
   pausedReason: string | null
   created_at: string
 }
@@ -110,6 +119,8 @@ function toListItem(row: CustomShellBroadcast): BroadcastListItem {
     totalFailed: row.totalFailed,
     sent_at: row.sentAt?.toISOString() ?? null,
     scheduled_at: row.scheduledAt?.toISOString() ?? null,
+    next_batch_at: row.nextBatchAt?.toISOString() ?? null,
+    batchesSent: row.batchesSent,
     updated_at: row.updatedAt.toISOString(),
   }
 }
@@ -121,6 +132,7 @@ function toDetail(row: CustomShellBroadcast): BroadcastDetail {
     fromName: row.fromName,
     blocks: parseStoredBlocks(row.blocks),
     audienceFilter: parseAudienceFilter(row.audienceFilter),
+    dripConfig: parseDripConfig(row.dripConfig),
     pausedReason: row.pausedReason,
     created_at: row.createdAt.toISOString(),
   }
@@ -145,6 +157,8 @@ const broadcastErrorMessages: Record<string, string> = {
   NOT_SENDING: "That newsletter is not sending right now.",
   NOT_PAUSED: "That newsletter is not paused.",
   TIME_IN_PAST: "Pick a time in the future.",
+  DRIP_SETTINGS_INVALID:
+    "Those batch settings contradict each other. Check the smallest is not bigger than the largest.",
   CREATE_FAILED: "We could not create that. Please try again.",
 }
 
@@ -177,6 +191,7 @@ const updateSchema = broadcastIdSchema.extend({
   fromName: z.string().max(255).nullable().optional(),
   blocks: broadcastBlocksSchema.optional(),
   audienceFilter: broadcastAudienceFilterSchema.optional(),
+  dripConfig: dripConfigSchema.optional(),
 })
 
 const templateIdSchema = z.object({ templateId: z.string().min(1).max(36) })

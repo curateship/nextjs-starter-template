@@ -230,8 +230,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // action (lib/api/maintenance.ts). An admin whose settings page loaded
       // before somebody turned it on must not switch it back off by renaming
       // the app, so the switch keeps whatever the row already says; only its
-      // message comes from this save. The session policy is kept whole for
-      // the same reason — its one writer is lib/api/session-policy.ts.
+      // message comes from this save. The session policy and the automations
+      // kill switch are kept whole for the same reason — their one writer each
+      // is lib/api/session-policy.ts and lib/api/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
 
       // The logo is drawn on the signed-out pages, so what gets stored has to
@@ -250,7 +251,14 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       }
 
       const globalSettings = {
-        ...pickShellGlobals(data),
+        // The kill switch is not in this request's shape at all, on purpose:
+        // the settings page never sends it, so there is no version of this
+        // save — not even from a tab left open across a deploy — that can
+        // start every automation running again.
+        ...pickShellGlobals({
+          ...data,
+          automationPause: existingGlobals.automationPause,
+        }),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,
           message: data.maintenance.message,

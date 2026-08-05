@@ -2,8 +2,15 @@ import * as React from "react"
 import { CalendarClockIcon, Loader2Icon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -34,6 +41,11 @@ import {
   type BroadcastDetail,
 } from "@/lib/api/broadcasts"
 import type { BroadcastAudienceFilter } from "@/lib/broadcasts/blocks"
+import {
+  estimateDripBatches,
+  validateDripConfig,
+  type DripConfig,
+} from "@/lib/broadcasts/drip"
 
 /** The datetime-local value for "in about an hour", in the reader's own clock. */
 function defaultScheduleValue() {
@@ -45,6 +57,29 @@ function defaultScheduleValue() {
 function toLocalInputValue(date: Date) {
   const pad = (value: number) => String(value).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/**
+ * How long this send will take, given who it is going to.
+ *
+ * Deliberately "at least": the estimate counts the waits between batches but
+ * not the hours the newsletter is asleep, so an overnight gap makes the real
+ * answer much longer. Saying "about 4 hours" and taking three days would be
+ * worse than not saying it.
+ */
+function describeHowLong(drip: DripConfig, recipients: number) {
+  const { batches, minutes } = estimateDripBatches(drip, recipients)
+  if (batches === 1) return "That all fits in one batch, so it goes out in one go."
+
+  const spread =
+    minutes < 90
+      ? `${minutes} minutes`
+      : minutes < 60 * 36
+        ? `${Math.round(minutes / 60)} hours`
+        : `${Math.round(minutes / (60 * 24))} days`
+  const hours = drip.windows.length > 0 ? ", plus any time spent waiting for your sending hours" : ""
+
+  return `About ${batches} batches, taking at least ${spread}${hours}.`
 }
 
 function SummaryRow({
@@ -91,6 +126,7 @@ export function SendBroadcastDialog({
     key: string
     total: number
   } | null>(null)
+  const [drip, setDrip] = React.useState<DripConfig>(broadcast.dripConfig)
   const [mode, setMode] = React.useState<"now" | "schedule">("now")
   const [scheduleValue, setScheduleValue] = React.useState(
     defaultScheduleValue()
@@ -113,6 +149,7 @@ export function SendBroadcastDialog({
           ? broadcast.audienceFilter.tags.join(", ")
           : ""
       )
+      setDrip(broadcast.dripConfig)
       setMode(broadcast.status === "scheduled" ? "schedule" : "now")
       if (broadcast.scheduled_at) {
         setScheduleValue(toLocalInputValue(new Date(broadcast.scheduled_at)))
@@ -182,12 +219,22 @@ export function SendBroadcastDialog({
   }
 
   const handleConfirm = async () => {
+    const dripProblem = validateDripConfig(drip)
+    if (dripProblem) {
+      setError(dripProblem)
+      return
+    }
+
     setBusy(true)
     setError(null)
     try {
-      // Save the chosen audience before sending, so what goes out matches what
-      // this screen just said it would.
-      await updateBroadcast({ broadcastId: broadcast.id, audienceFilter })
+      // Save the chosen audience and pace before sending, so what goes out
+      // matches what this screen just said it would.
+      await updateBroadcast({
+        broadcastId: broadcast.id,
+        audienceFilter,
+        dripConfig: drip,
+      })
       const updated =
         mode === "now"
           ? await sendBroadcastNow(broadcast.id)
@@ -199,7 +246,9 @@ export function SendBroadcastDialog({
       onOpenChange(false)
       toast.success(
         mode === "now"
-          ? "It is going out now. Watch the bar along the bottom."
+          ? drip.enabled
+            ? "The first batch is going out now. Watch the bar along the bottom."
+            : "It is going out now. Watch the bar along the bottom."
           : "Scheduled. It goes out on its own at that time."
       )
     } catch (confirmError) {
@@ -373,6 +422,29 @@ export function SendBroadcastDialog({
                   </div>
                 ) : null}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>How fast it goes out</CardTitle>
+              <CardDescription>
+                Starts from your workspace default. Changing it here only
+                affects this newsletter.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DripSettingsFields
+                idPrefix="send-drip"
+                value={drip}
+                onChange={setDrip}
+                disabled={busy}
+              />
+              {drip.enabled && countedTotal !== null && countedTotal > 0 ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  {describeHowLong(drip, countedTotal)}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
 

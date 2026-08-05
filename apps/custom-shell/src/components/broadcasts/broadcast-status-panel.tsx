@@ -16,6 +16,7 @@ import {
   type BroadcastStatus,
 } from "@/lib/api/broadcasts"
 import { describeAudienceFilter } from "@/lib/broadcasts/blocks"
+import { describeNextBatch } from "@/lib/broadcasts/drip"
 import { formatDateTime } from "@/lib/format-time"
 import { cn } from "@/lib/utils"
 
@@ -55,6 +56,12 @@ export function BroadcastStatusPanel({
     0,
     broadcast.totalRecipients - broadcast.totalSent - broadcast.totalFailed
   )
+  // Only while it is actually sending: a paused newsletter has a stale next
+  // time on it, and promising a batch that is not coming is worse than silence.
+  const nextBatch =
+    broadcast.status === "sending"
+      ? describeNextBatch(broadcast.next_batch_at)
+      : null
 
   // Reload the list whenever the counts move, which is the signal that another
   // batch went out. A draft has nothing to show and never asks.
@@ -122,12 +129,16 @@ export function BroadcastStatusPanel({
         <Badge variant={broadcast.status === "paused" ? "destructive" : "secondary"}>
           {STATUS_LABELS[broadcast.status]}
         </Badge>
+        {/* This strip is all that is left when the panel is dragged shut, so
+            everything you collapse it still wanting to know lives here — how
+            far along it is, and when the next batch goes. */}
         <span className="truncate text-xs text-muted-foreground">
           {started
             ? `${broadcast.totalSent} of ${broadcast.totalRecipients} sent` +
               (broadcast.totalFailed > 0
                 ? ` · ${broadcast.totalFailed} did not go through`
-                : "")
+                : "") +
+              (nextBatch ? ` · ${nextBatch}` : "")
             : "Not sent yet"}
         </span>
         {broadcast.status === "sending" || broadcast.status === "paused" ? (
@@ -166,11 +177,12 @@ export function BroadcastStatusPanel({
                 failed={broadcast.totalFailed}
                 total={broadcast.totalRecipients}
               />
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">
                 <Stat label="Sent" value={broadcast.totalSent} />
                 <Stat label="Did not go through" value={broadcast.totalFailed} />
                 <Stat label="Still to go" value={remaining} />
                 <Stat label="Everyone" value={broadcast.totalRecipients} />
+                <Stat label="Batches" value={broadcast.batchesSent} />
               </dl>
             </>
           ) : (

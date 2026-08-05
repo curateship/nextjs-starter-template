@@ -62,6 +62,8 @@ import {
   createDefaultTopRightNavigation,
   isActiveShellHref,
   isShellItem,
+  MAX_AUTOMATION_PAUSE_NAME_LENGTH,
+  normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
@@ -3910,6 +3912,46 @@ describe("member sidebar", () => {
     expect(parseShellGlobals(saved).memberSections).toEqual([
       { id: "section-kept", title: "Kept", entries: [] },
     ])
+  })
+
+  it("carries the automations kill switch through a save and back", () => {
+    // Same trap as the member sidebar above, with a worse ending: miss this in
+    // `pickShellGlobals` and any settings save would quietly start every
+    // automation running again while the switch still says "paused".
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      automationPause: {
+        enabled: true,
+        changedBy: "Tyler",
+        changedAt: "2026-08-04T23:04:00.000Z",
+      },
+    })
+
+    expect(parseShellGlobals(saved).automationPause).toEqual({
+      enabled: true,
+      changedBy: "Tyler",
+      changedAt: "2026-08-04T23:04:00.000Z",
+    })
+    // A row written before the switch existed reads as "running", so an
+    // install that upgrades into this keeps its automations going.
+    expect(parseShellGlobals({ appName: "x" }).automationPause.enabled).toBe(
+      false
+    )
+  })
+
+  it("reads anything that is not a real flag as automations running", () => {
+    // The kill switch fails safe in the direction of working, not stopped: a
+    // junk value silently freezing every automation is far worse than one that
+    // is ignored.
+    expect(normalizeAutomationPause("on").enabled).toBe(false)
+    expect(normalizeAutomationPause({ enabled: "true" }).enabled).toBe(false)
+    expect(normalizeAutomationPause(null).enabled).toBe(false)
+    expect(normalizeAutomationPause({ enabled: true }).enabled).toBe(true)
+    // Who flipped it is text on a card, so it is capped rather than trusted.
+    expect(
+      normalizeAutomationPause({ enabled: true, changedBy: "x".repeat(500) })
+        .changedBy.length
+    ).toBe(MAX_AUTOMATION_PAUSE_NAME_LENGTH)
   })
 
   it("carries the member home route through a save and back", () => {

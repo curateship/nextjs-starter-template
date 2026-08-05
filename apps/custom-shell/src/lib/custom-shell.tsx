@@ -414,6 +414,8 @@ export type ShellConfig = {
   liveNotifications: boolean
   /** App-wide lockout: members see the maintenance page, admins keep working. */
   maintenance: ShellMaintenance
+  /** App-wide stop on every automation run. See ShellAutomationPause. */
+  automationPause: ShellAutomationPause
   /** App-wide limits on how long a sign-in lasts. See ShellSessionPolicy. */
   sessionPolicy: ShellSessionPolicy
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
@@ -489,6 +491,60 @@ export function normalizeMaintenance(value: unknown): ShellMaintenance {
 /** The message to show, falling back to the default when none was written. */
 export function resolveMaintenanceMessage(message: string) {
   return message.trim() || DEFAULT_MAINTENANCE_MESSAGE
+}
+
+
+// ---------------------------------------------------------------------------
+// The automations kill switch (Automations page). App-wide like maintenance
+// mode, and in the same global settings row: one flow misbehaving at eleven at
+// night is stopped in one click rather than by pausing flows one at a time.
+//
+// Nothing is thrown away while it is on. A run that was part-way through stays
+// exactly where it stopped and carries on from there when you switch it back
+// off — see `server/automation-pause.ts` for the whole rule in one place.
+
+export type ShellAutomationPause = {
+  enabled: boolean
+  /**
+   * The name of the admin who last flipped it, either way, and when — the
+   * record of the flip. Empty on an install where nobody ever has.
+   *
+   * This app has no activity log any more (the table was dropped in migration
+   * 0009), so the record of who stopped everything and when lives on the switch
+   * itself and is shown on screen while it is on.
+   */
+  changedBy: string
+  /** When they flipped it, as an ISO timestamp. Empty when nobody ever has. */
+  changedAt: string
+}
+
+/** A name longer than this is not a name; it is somebody pasting an essay. */
+export const MAX_AUTOMATION_PAUSE_NAME_LENGTH = 120
+
+export function createDefaultAutomationPause(): ShellAutomationPause {
+  return { enabled: false, changedBy: "", changedAt: "" }
+}
+
+/**
+ * A saved value can predate this setting or have been hand-edited in the
+ * database. Only a real `true` stops the engine — anything else reads as
+ * running, because a junk value in the row silently freezing every automation
+ * is far worse than one that is ignored.
+ */
+export function normalizeAutomationPause(value: unknown): ShellAutomationPause {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return createDefaultAutomationPause()
+  }
+
+  const pause = value as Partial<ShellAutomationPause>
+  return {
+    enabled: pause.enabled === true,
+    changedBy:
+      typeof pause.changedBy === "string"
+        ? pause.changedBy.slice(0, MAX_AUTOMATION_PAUSE_NAME_LENGTH)
+        : "",
+    changedAt: typeof pause.changedAt === "string" ? pause.changedAt : "",
+  }
 }
 
 
@@ -855,6 +911,7 @@ export function createDefaultShellConfig(): ShellConfig {
     memberSections: createDefaultMemberSections(),
     liveNotifications: true,
     maintenance: createDefaultMaintenance(),
+    automationPause: createDefaultAutomationPause(),
     sessionPolicy: createDefaultSessionPolicy(),
     styling: createDefaultStyling(),
     dashboardWidgets: createDefaultDashboardWidgets(),

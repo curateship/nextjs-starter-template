@@ -3,6 +3,7 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
@@ -17,11 +18,13 @@ import {
   removeResendWebhookSecret,
   saveEmailApiKey,
   saveEmailSenderSettings,
+  saveNewsletterDripDefaults,
   saveResendWebhookSecret,
   testEmailKey,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
 } from "@/lib/api/email-settings"
+import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
 import { emailStatusLine } from "@/lib/email-delivery"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { cn } from "@/lib/utils"
@@ -53,6 +56,8 @@ export function EmailSettings() {
     fromEmail: string
     fromName: string
   } | null>(null)
+  // The pace a new newsletter starts from, as edited; null until the load.
+  const [drip, setDrip] = React.useState<DripConfig | null>(null)
   // The key and webhook secret as typed but not yet saved.
   const [keyDraft, setKeyDraft] = React.useState("")
   const [webhookDraft, setWebhookDraft] = React.useState("")
@@ -66,7 +71,7 @@ export function EmailSettings() {
   // "Test this key" right after typing blurs the field, the blur starts the
   // save, and a save that disabled the buttons would swallow that very click.
   const [saving, setSaving] = React.useState<
-    "sender" | "key" | "webhook" | null
+    "sender" | "key" | "webhook" | "drip" | null
   >(null)
   // The last test's verdict, already worded for the user.
   const [testResult, setTestResult] = React.useState("")
@@ -110,6 +115,7 @@ export function EmailSettings() {
         setSender((prev) =>
           prev ?? { fromEmail: next.fromEmail, fromName: next.fromName }
         )
+        setDrip((prev) => prev ?? next.dripDefaults)
         setLoadError(null)
       })
       .catch((error) => {
@@ -176,6 +182,47 @@ export function EmailSettings() {
     } finally {
       setSaving(null)
     }
+  }
+
+  const saveDrip = async (next: DripConfig) => {
+    // Settings that contradict each other are simply not sent. The blur below
+    // is what says so out loud — complaining 1.2 seconds after every keystroke
+    // would fire halfway through typing a two-digit number.
+    if (validateDripConfig(next)) return
+    setSaving("drip")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveNewsletterDripDefaults(next))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const scheduleDripSave = (next: DripConfig) => {
+    clearTimeout(timers.current.drip)
+    timers.current.drip = setTimeout(() => void saveDrip(next), SAVE_DELAY_MS)
+  }
+
+  // Fires when focus leaves the card, which is when a half-typed number has
+  // become a finished answer worth judging.
+  const flushDripSave = () => {
+    if (!drip) return
+    clearTimeout(timers.current.drip)
+    const invalid = validateDripConfig(drip)
+    if (invalid) {
+      showErrorToast(`Not saved. ${invalid}`)
+      return
+    }
+    if (saving !== null) {
+      scheduleDripSave(drip)
+      return
+    }
+    void saveDrip(drip)
   }
 
   const scheduleSenderSave = (fromEmail: string, fromName: string) => {
@@ -464,6 +511,40 @@ export function EmailSettings() {
               />
             </div>
           </>
+        )}
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="newsletter-drip"
+        title="How fast newsletters go out"
+        description="Sending a big list all at once is what a spam machine looks like to a mail server. These settings let a newsletter out a few hundred at a time instead. They are the starting point for every new newsletter — each one can still be changed on its own before it is sent."
+      >
+        {status && drip ? (
+          // Focus leaving the card is the moment to judge what was typed, so
+          // the handler sits on the container rather than on each of the eight
+          // fields. React's onBlur bubbles, so it also fires on every hop from
+          // one field to the next inside the card — and the containment check
+          // is what stops "the smallest cannot be bigger than the largest"
+          // firing on the way to the box that fixes it.
+          <div
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget)) return
+              flushDripSave()
+            }}
+          >
+            <DripSettingsFields
+              idPrefix="drip-defaults"
+              value={drip}
+              onChange={(next) => {
+                setDrip(next)
+                scheduleDripSave(next)
+              }}
+            />
+          </div>
+        ) : loadError ? null : (
+          <div className="flex justify-center p-6">
+            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+          </div>
         )}
       </CollapsibleSettingsCard>
 
