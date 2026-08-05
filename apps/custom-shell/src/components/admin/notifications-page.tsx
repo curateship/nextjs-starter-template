@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner"
 
 import { describeBulkResult } from "@/lib/bulk-result"
+import { plural } from "@/lib/plural"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { Badge } from "@/components/ui/badge"
@@ -273,7 +274,7 @@ export function NotificationsPage({
     await runDelete(async () => {
       const { count } = await clearAdminNotifications()
       toast.success(
-        `${count} ${count === 1 ? "notification" : "notifications"} deleted.`
+        `${count} ${plural(count, "notification", "notifications")} deleted.`
       )
       // Nothing survives a clear-all, so there is nothing left to go and ask
       // the server for.
@@ -550,11 +551,11 @@ export function NotificationsPage({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} notification${selectedIds.size === 1 ? "" : "s"}?`}
+        title={`Delete ${selectedIds.size} ${plural(selectedIds.size, "notification", "notifications")}?`}
         description={describeSelection(
           notifications.filter((item) => selectedIds.has(item.id))
         )}
-        confirmLabel={selectedIds.size === 1 ? "Delete notification" : "Delete notifications"}
+        confirmLabel={`Delete ${plural(selectedIds.size, "notification", "notifications")}`}
         loading={deleting}
         onConfirm={() => void deleteSelected()}
       />

@@ -6,7 +6,7 @@ import {
   Loader2Icon,
   MegaphoneIcon,
   PlusIcon,
-  SettingsIcon,
+  PencilIcon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -458,7 +458,7 @@ export function AdminAnnouncementsDashboard({
                     title="Announcement settings"
                     aria-label={`Edit ${announcement.title}`}
                   >
-                    <SettingsIcon className="size-4" />
+                    <PencilIcon className="size-4" />
                   </Button>
                   <Button
                     type="button"

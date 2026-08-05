@@ -1,4 +1,4 @@
-/** "1 thing", "3 things" — the one place an s gets added. */
-export function plural(count: number, word: string) {
-  return count === 1 ? word : `${word}s`
+/** "thing", "things" — the one place count-based wording is chosen. */
+export function plural(count: number, one: string, many = `${one}s`) {
+  return count === 1 ? one : many
 }

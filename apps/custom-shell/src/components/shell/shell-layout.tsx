@@ -70,6 +70,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
 import { clampSidebarWidth } from "@/lib/sidebar-width"
 import { setToastSeconds } from "@/lib/toast-duration"
+import { plural } from "@/lib/plural"
 import { clampToastSeconds } from "@/lib/toast-seconds"
 
 // Debounce window before an edit on the settings page is auto-saved.
@@ -351,7 +352,7 @@ export function ShellLayout({
           state.pause.enabled
             ? state.held_runs > 0
               ? `Every automation is paused. ${state.held_runs} ${
-                  state.held_runs === 1 ? "run is" : "runs are"
+                  plural(state.held_runs, "run is", "runs are")
                 } held where they stopped.`
               : "Every automation is paused. Nothing was part-way through."
             : "Automations are running again."

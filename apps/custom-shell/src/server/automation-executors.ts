@@ -10,6 +10,7 @@ import {
 } from "@/server/automation-audience"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
+import { plural } from "@/lib/plural"
 
 /**
  * What a step is handed, and what it may answer with.
@@ -72,7 +73,7 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       summary:
         matched === 0
           ? `Nobody matched just now — ${who}. The rest of the flow has no one to act on.`
-          : `Matched ${matched} ${matched === 1 ? "person" : "people"} — ${who}.`,
+          : `Matched ${matched} ${plural(matched, "person", "people")} — ${who}.`,
     }
   },
 

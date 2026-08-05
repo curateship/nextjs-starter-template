@@ -136,6 +136,7 @@ them, and a second copy in the header only drifts.
 - Use one primary button per action group, `outline` for secondary actions, `ghost` for low-emphasis actions, and destructive styling only for irreversible actions.
 - Order footer actions as Cancel, then primary or destructive. Disable running actions and show a compact loading indicator.
 - Icon-only buttons require an accessible name and a tooltip when their meaning is not obvious.
+- Use the shared `Tooltip` for icon-only toolbar, header, and standalone actions. Repeated table-row actions may rely on their accessible name and the table's column context so rows do not become noisy. Disabled controls use `DisabledReason`; never rely on a browser `title` for a disabled or phone-only button.
 - Use the established Lucide action icons consistently: `PencilIcon` for edit, `Trash2Icon` for delete, `PlusIcon` for add, and `Loader2Icon` for loading.
 - Give every field a visible label with an `id`/`htmlFor` pair, and preserve entered values after errors. Report every error through the shared persistent toast; keep `aria-invalid` on the field when it is field-specific.
 - Field help belongs in a hover tooltip on the label, never in a paragraph under the control. Use the shared `FieldLabel` (`src/components/ui/field-label.tsx`): it renders the label with a small `InfoIcon` that reveals the hint on hover. Helper text under an input reads like an error, pushes the next field down, and makes side-by-side fields different heights. The icon is not a form control (`tabIndex={-1}`); it never takes focus from the field.
@@ -215,4 +216,3 @@ them, and a second copy in the header only drifts.
 - Do not communicate state with color alone. Associate form errors with their fields.
 - Verify loading, empty, error, disabled, success, long-content, narrow-screen, dark-theme, and keyboard behavior when relevant.
 - Validate the changed workflow in the running app when browser or native validation is available.
-

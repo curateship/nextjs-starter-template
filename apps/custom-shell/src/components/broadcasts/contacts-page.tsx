@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon, PlusIcon, Trash2Icon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
+import { plural } from "@/lib/plural"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -180,7 +181,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
       const { deleted } = await deleteContacts(ids)
       selection.clear()
       toast.success(
-        deleted === 1 ? "Deleted them." : `Deleted ${deleted} contacts.`
+        `Deleted ${deleted} ${plural(deleted, "contact", "contacts")}.`
       )
       done()
       await refresh()
@@ -531,7 +532,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedCount} contact${selectedCount === 1 ? "" : "s"}?`}
+        title={`Delete ${selectedCount} ${plural(selectedCount, "contact", "contacts")}?`}
         description="They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off instead."
         confirmLabel={`Delete ${selectedCount}`}
         loading={deleting}

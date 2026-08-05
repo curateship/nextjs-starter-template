@@ -16,6 +16,7 @@ import {
 import { RichTextEditor } from "@/components/broadcasts/rich-text-editor"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -516,21 +517,25 @@ export function BlockInspector({
           {block ? BROADCAST_BLOCK_META[block.kind].name : "Email settings"}
         </span>
         {block ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={editingDefault ? "Close this block" : "Remove this block"}
-            title={editingDefault ? "Close this block" : "Remove this block"}
-            disabled={disabled}
-            onClick={onDelete}
+          <DisabledReason
+            disabled={Boolean(disabled)}
+            reason="Finish saving this block before removing it."
           >
-            {/* Nothing is destroyed by closing a block that is in no email, so
-                it does not get the red bin. */}
-            <Trash2Icon
-              className={cn("size-4", !editingDefault && "text-destructive")}
-            />
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={editingDefault ? "Close this block" : "Remove this block"}
+              disabled={disabled}
+              onClick={onDelete}
+            >
+              {/* Nothing is destroyed by closing a block that is in no email, so
+                  it does not get the red bin. */}
+              <Trash2Icon
+                className={cn("size-4", !editingDefault && "text-destructive")}
+              />
+            </Button>
+          </DisabledReason>
         ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1">

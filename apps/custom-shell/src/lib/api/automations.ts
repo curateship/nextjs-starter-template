@@ -14,6 +14,7 @@ import {
   type AutomationValidationError,
 } from "@/lib/automations/graph"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
+import { plural } from "@/lib/plural"
 
 export type AutomationListItem = {
   id: string
@@ -54,7 +55,7 @@ export function toAutomationListItem(
     isValid,
     nodeCount,
     summary: isValid
-      ? `${nodeCount} step${nodeCount === 1 ? "" : "s"}`
+      ? `${nodeCount} ${plural(nodeCount, "step", "steps")}`
       : nodeCount === 0
         ? "Empty draft"
         : "Needs attention",

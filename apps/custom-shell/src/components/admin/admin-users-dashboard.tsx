@@ -30,6 +30,7 @@ import {
   type AdminAccountTab,
 } from "@/components/admin/admin-account-dialog"
 import { showErrorToast } from "@/lib/error-toast"
+import { plural } from "@/lib/plural"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import {
   Select,
@@ -98,7 +99,7 @@ function describeDeletion({
   const parts = []
   if (marked) {
     parts.push(
-      `${marked} ${marked === 1 ? "account" : "accounts"} scheduled for deletion`
+      `${marked} ${plural(marked, "account", "accounts")} scheduled for deletion`
     )
   }
   if (deleted) {
@@ -344,7 +345,7 @@ export function AdminUsersDashboard({
     const ok = await runAction(
       () => restoreAccountsAsAdmin(selectedDeletedIds),
       ({ restored }) =>
-        `${restored} ${restored === 1 ? "account" : "accounts"} restored.`
+        `${restored} ${plural(restored, "account", "accounts")} restored.`
     )
     setMassRestoring(false)
     if (ok) setSelectedIds(new Set())
@@ -639,17 +640,21 @@ export function AdminUsersDashboard({
                 >
                   <SettingsIcon className="size-4" />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
+                <DisabledReason
                   disabled={account.id === currentUserId}
-                  onClick={() => setDeleteTarget(account)}
-                  title="Delete account"
-                  aria-label={`Delete ${account.name}`}
+                  reason="You cannot delete your own account."
                 >
-                  <Trash2Icon className="size-4" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={account.id === currentUserId}
+                    onClick={() => setDeleteTarget(account)}
+                    aria-label={`Delete ${account.name}`}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </DisabledReason>
               </div>
             </TableCell>
           </TableRow>
@@ -769,7 +774,7 @@ export function AdminUsersDashboard({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "account" : "accounts"}?`}
+        title={`Delete ${selectedIds.size} ${plural(selectedIds.size, "account", "accounts")}?`}
         description={`Those people are signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days. Any that were already scheduled for deletion are removed for good now.${describePaidPlans(selectedPaidCount)}`}
         confirmLabel="Delete accounts"
         loading={massDeleting}

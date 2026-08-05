@@ -27,6 +27,7 @@ import {
   type BroadcastTemplateItem,
 } from "@/lib/api/broadcasts"
 import { showErrorToast } from "@/lib/error-toast"
+import { plural } from "@/lib/plural"
 import {
   BROADCAST_BLOCK_KINDS,
   BROADCAST_BLOCK_META,
@@ -379,7 +380,7 @@ function TemplatesTab({
                 key={template.id}
                 icon={<LayoutTemplateIcon className="size-3.5" />}
                 name={template.name}
-                description={`${template.blocks.length} block${template.blocks.length === 1 ? "" : "s"}`}
+                description={`${template.blocks.length} ${plural(template.blocks.length, "block", "blocks")}`}
                 badge={
                   template.isDefault ? (
                     <Badge variant="secondary" className="shrink-0">

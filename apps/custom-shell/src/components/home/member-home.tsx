@@ -212,7 +212,7 @@ function FeedbackCard({
                   <MessageSquareIcon className="size-3.5" aria-hidden />
                   <span className="tabular-nums">{item.comment_count}</span>
                   <span className="sr-only">
-                    {item.comment_count === 1 ? "reply" : "replies"}
+                    {plural(item.comment_count, "reply", "replies")}
                   </span>
                 </span>
                 <span className="tabular-nums">

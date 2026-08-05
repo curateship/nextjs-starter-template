@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { BroadcastBlock } from "@/lib/broadcasts/blocks"
+import { plural } from "@/lib/plural"
 import { renderBroadcastBlockHtml } from "@/lib/broadcasts/render"
 
 /**
@@ -65,7 +66,7 @@ export function TemplatePreviewDialog({
         <DialogHeader>
           <DialogTitle>{name}</DialogTitle>
           <DialogDescription>
-            {blocks.length} block{blocks.length === 1 ? "" : "s"}.{" "}
+            {blocks.length} {plural(blocks.length, "block", "blocks")}.{" "}
             {applying
               ? "Using it swaps out everything currently in the email. The subject line and who it goes to are left alone."
               : "Using it fills the email with these blocks."}

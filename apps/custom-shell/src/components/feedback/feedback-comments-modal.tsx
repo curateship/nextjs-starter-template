@@ -30,6 +30,7 @@ import {
 import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
+import { plural } from "@/lib/plural"
 
 /**
  * The comments behind one feedback row, opened from its Comments count. The
@@ -117,7 +118,7 @@ export function FeedbackCommentsModal({
                   <CardTitle>
                     {loading || comments.length === 0
                       ? "Comments"
-                      : `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`}
+                      : `${comments.length} ${plural(comments.length, "comment", "comments")}`}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

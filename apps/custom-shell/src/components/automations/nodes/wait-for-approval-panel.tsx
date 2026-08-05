@@ -20,6 +20,7 @@ import {
   APPROVAL_TIMEOUT_CHOICES,
   APPROVAL_TIMEOUT_DAYS,
 } from "@/lib/automations/nodes/wait-for-approval"
+import { plural } from "@/lib/plural"
 
 export default function WaitForApprovalFields({
   node,
@@ -84,7 +85,7 @@ export default function WaitForApprovalFields({
           <SelectContent>
             {timeoutChoices.map((days) => (
               <SelectItem key={days} value={String(days)}>
-                {days === 1 ? "1 day" : `${days} days`}
+                {days} {plural(days, "day", "days")}
               </SelectItem>
             ))}
           </SelectContent>

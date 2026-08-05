@@ -1,7 +1,7 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
-import { PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -25,6 +25,7 @@ import {
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
 import { describeBulkResult } from "@/lib/bulk-result"
+import { plural } from "@/lib/plural"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { showErrorToast } from "@/lib/error-toast"
@@ -287,7 +288,7 @@ export function WorkspacesDashboard({
                   aria-label={`Edit ${workspace.name}`}
                   title={`Edit ${workspace.name}`}
                 >
-                  <SettingsIcon className="size-4" />
+                  <PencilIcon className="size-4" />
                 </Button>
                 <DisabledReason
                   disabled={workspaces.length <= 1}
@@ -314,7 +315,7 @@ export function WorkspacesDashboard({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "workspace" : "workspaces"}?`}
+        title={`Delete ${selectedIds.size} ${plural(selectedIds.size, "workspace", "workspaces")}?`}
         description="Their settings and navigation are removed. This cannot be undone."
         confirmLabel="Delete workspaces"
         loading={busy}

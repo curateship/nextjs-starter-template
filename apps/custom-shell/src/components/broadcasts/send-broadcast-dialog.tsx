@@ -41,6 +41,7 @@ import {
   type BroadcastDetail,
 } from "@/lib/api/broadcasts"
 import type { BroadcastAudienceFilter } from "@/lib/broadcasts/blocks"
+import { plural } from "@/lib/plural"
 import {
   estimateDripBatches,
   validateDripConfig,
@@ -347,7 +348,7 @@ export function SendBroadcastDialog({
                     ? "Counting…"
                     : countedTotal === 0
                       ? "Nobody matches that yet."
-                      : `${countedTotal.toLocaleString()} ${countedTotal === 1 ? "person" : "people"} will get this.`}
+                      : `${countedTotal.toLocaleString()} ${plural(countedTotal, "person", "people")} will get this.`}
                 </p>
               </div>
             </CardContent>

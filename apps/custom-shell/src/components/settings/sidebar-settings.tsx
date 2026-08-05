@@ -71,6 +71,7 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
+import { plural } from "@/lib/plural"
 
 const sectionDropPrefix = "section-drop:"
 
@@ -338,7 +339,7 @@ function SortableSidebarItem({
           </span>
           {children.length ? (
             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-              {children.length} child{children.length === 1 ? "" : "ren"}
+              {children.length} {plural(children.length, "child", "children")}
             </span>
           ) : null}
           {!item.visible ? (
