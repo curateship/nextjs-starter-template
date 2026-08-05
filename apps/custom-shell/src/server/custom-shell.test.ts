@@ -1491,8 +1491,9 @@ describe("custom shell workspaces", () => {
     // The feed links live under the Overview now, so the walk has
     // to look one level down as well.
     const hrefs = parseWorkspaceSettings(undefined).sections.flatMap((section) =>
+      // An entry is either a link or a divider, and a divider has no address.
       section.entries.flatMap((entry) => [
-        entry.href ?? "",
+        "href" in entry ? (entry.href ?? "") : "",
         ...("children" in entry ? (entry.children ?? []) : []).map(
           (child) => child.href
         ),

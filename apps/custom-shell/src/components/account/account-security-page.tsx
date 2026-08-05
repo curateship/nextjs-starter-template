@@ -48,6 +48,7 @@ import {
 } from "@/lib/api/passkeys"
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime, formatTimeAgo } from "@/lib/format-time"
 import { useLastValue } from "@/lib/use-last-value"
 import { useBrowserSupportsWebAuthn } from "@/lib/use-webauthn-support"
@@ -106,7 +107,7 @@ function ChangePasswordCard({
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [confirmTouched, setConfirmTouched] = React.useState(false)
   const [saved, setSaved] = React.useState(false)
-  const [saving, setSaving] = React.useState(false)
+  const [run, saving] = useAsyncAction(getAuthErrorMessage)
 
   const confirmMismatches =
     confirmPassword.length > 0 && confirmPassword !== newPassword
@@ -118,7 +119,6 @@ function ChangePasswordCard({
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      dismissErrorToast()
       setSaved(false)
 
       if (newPassword !== confirmPassword) {
@@ -127,23 +127,19 @@ function ChangePasswordCard({
         return
       }
 
-      setSaving(true)
-      try {
-        await changePassword(
-          hasPassword ? currentPassword : undefined,
-          newPassword
-        )
-        setCurrentPassword("")
-        setNewPassword("")
-        setConfirmPassword("")
-        setConfirmTouched(false)
-        setSaved(true)
-        onPasswordChanged()
-      } catch (changeError) {
-        showErrorToast(getAuthErrorMessage(changeError))
-      } finally {
-        setSaving(false)
-      }
+      setSaved(
+        await run(async () => {
+          await changePassword(
+            hasPassword ? currentPassword : undefined,
+            newPassword
+          )
+          setCurrentPassword("")
+          setNewPassword("")
+          setConfirmPassword("")
+          setConfirmTouched(false)
+          onPasswordChanged()
+        })
+      )
     },
     [
       confirmPassword,
@@ -151,6 +147,7 @@ function ChangePasswordCard({
       hasPassword,
       newPassword,
       onPasswordChanged,
+      run,
     ]
   )
 
@@ -254,8 +251,8 @@ function PasskeysCard() {
   const [reloads, setReloads] = React.useState(0)
   const supported = useBrowserSupportsWebAuthn()
   const [name, setName] = React.useState("")
-  const [adding, setAdding] = React.useState(false)
-  const [removing, setRemoving] = React.useState(false)
+  const [runAdd, adding] = useAsyncAction(describeAddPasskeyError)
+  const [runRemove, removing] = useAsyncAction(getAuthErrorMessage)
   // The passkey the confirmation is asking about, or null when it is closed.
   const [pendingRemove, setPendingRemove] =
     React.useState<PasskeyListItem | null>(null)
@@ -281,11 +278,9 @@ function PasskeysCard() {
   const handleAdd = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      dismissErrorToast()
       setResult(null)
-      setAdding(true)
 
-      try {
+      await runAdd(async () => {
         const { options, challengeId } = await beginPasskeyRegistration()
         // The browser takes over here: fingerprint, face, or device PIN.
         const response = await startRegistration({ optionsJSON: options })
@@ -297,32 +292,22 @@ function PasskeysCard() {
         setName("")
         setResult("Passkey added.")
         setReloads((count) => count + 1)
-      } catch (addError) {
-        showErrorToast(describeAddPasskeyError(addError))
-      } finally {
-        setAdding(false)
-      }
+      })
     },
-    [name]
+    [name, runAdd]
   )
 
   const handleRemove = React.useCallback(async () => {
     if (!pendingRemove) return
-    dismissErrorToast()
     setResult(null)
-    setRemoving(true)
 
-    try {
+    await runRemove(async () => {
       await removePasskey(pendingRemove.id)
       setPendingRemove(null)
       setResult("Passkey removed. You can still sign in with your password.")
       setReloads((count) => count + 1)
-    } catch (removeError) {
-      showErrorToast(getAuthErrorMessage(removeError))
-    } finally {
-      setRemoving(false)
-    }
-  }, [pendingRemove])
+    })
+  }, [pendingRemove, runRemove])
 
   return (
     <Card>

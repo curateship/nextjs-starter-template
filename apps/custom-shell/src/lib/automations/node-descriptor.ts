@@ -1,6 +1,10 @@
 import type { z } from "zod"
 
-import type { AutomationNode, AutomationSourcePort } from "./graph"
+import type {
+  AutomationNode,
+  AutomationSettingValue,
+  AutomationSourcePort,
+} from "./graph"
 
 export type AutomationPaletteGroup =
   | "Triggers"
@@ -21,7 +25,7 @@ export type AutomationNodePort = {
   label: string
 }
 
-export type AutomationNodeSettings = Record<string, unknown>
+export type AutomationNodeSettings = Record<string, AutomationSettingValue>
 
 /**
  * Everything the app needs to know about one automation node kind, in one

@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import { Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -28,7 +27,7 @@ import {
   type FeedbackCommentItem,
   type FeedbackItem,
 } from "@/lib/api/feedback"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 
@@ -55,7 +54,7 @@ export function FeedbackCommentsModal({
   const [reloadCount, setReloadCount] = React.useState(0)
   const [deletingComment, setDeletingComment] =
     React.useState<FeedbackCommentItem | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
+  const [runDelete, deleting] = useAsyncAction(getFeedbackErrorMessage)
 
   const feedbackId = feedback?.id ?? null
 
@@ -84,21 +83,14 @@ export function FeedbackCommentsModal({
 
   const handleDelete = async () => {
     if (!deletingComment) return
-    dismissErrorToast()
-    setDeleting(true)
-    try {
+    await runDelete(async () => {
       await deleteFeedbackComment(deletingComment.id)
       setComments((current) =>
         current.filter((comment) => comment.id !== deletingComment.id)
       )
       if (feedbackId) onCommentDeleted(feedbackId)
       setDeletingComment(null)
-      toast.success("Comment deleted.")
-    } catch (deleteError) {
-      showErrorToast(getFeedbackErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
+    }, "Comment deleted.")
   }
 
   return (

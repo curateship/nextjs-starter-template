@@ -13,7 +13,8 @@ import {
   resendVerification,
   verifyEmail,
 } from "@/lib/api/auth"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 
 export const Route = createFileRoute("/verify-email")({
   validateSearch: z.object({ token: z.string().optional() }),
@@ -99,23 +100,14 @@ function VerifyEmailRoute() {
 function RequestNewLink() {
   const [email, setEmail] = React.useState("")
   const [sent, setSent] = React.useState(false)
-  const [sending, setSending] = React.useState(false)
+  const [run, sending] = useAsyncAction(getAuthErrorMessage)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      dismissErrorToast()
-      setSending(true)
-      try {
-        await resendVerification(email)
-        setSent(true)
-      } catch (resendError) {
-        showErrorToast(getAuthErrorMessage(resendError))
-      } finally {
-        setSending(false)
-      }
+      setSent(await run(() => resendVerification(email)))
     },
-    [email]
+    [email, run]
   )
 
   return (

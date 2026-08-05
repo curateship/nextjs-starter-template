@@ -489,6 +489,15 @@ export function EmailBlockEditor({
         {title}
       </span>
       <div className="flex items-center justify-end">
+        {/*
+          The rule's worry is that `headerAction` might call `saveNow` while
+          the page is being drawn, and `saveNow` reads refs. It does not: both
+          callers (`broadcast-editor.tsx`, `system-email-editor.tsx`) only ever
+          hang it off a button's onClick. Keep it that way — a caller that
+          called it during render really would be the bug this is guarding
+          against.
+        */}
+        {/* eslint-disable-next-line react-hooks/refs */}
         {headerAction?.(saveNow)}
       </div>
     </div>

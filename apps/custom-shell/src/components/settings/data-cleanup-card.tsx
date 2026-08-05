@@ -9,7 +9,7 @@ import {
   LINK_KEEP_DAYS,
   READ_NOTICE_KEEP_DAYS,
 } from "@/lib/data-cleanup"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 
 /**
  * Settings → Security. The app tidies itself once a day off an admin's first
@@ -19,20 +19,14 @@ import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
  * rather than a toast: a toast is gone before anybody has finished reading it.
  */
 export function DataCleanupCard() {
-  const [running, setRunning] = React.useState(false)
+  const [runCleanup, running] = useAsyncAction(getCleanupErrorMessage)
   const [result, setResult] = React.useState<string | null>(null)
 
   const run = async () => {
-    setRunning(true)
     setResult(null)
-    dismissErrorToast()
-    try {
+    await runCleanup(async () => {
       setResult(describeCleanupResult(await runDataCleanup()))
-    } catch (error) {
-      showErrorToast(getCleanupErrorMessage(error))
-    } finally {
-      setRunning(false)
-    }
+    })
   }
 
   return (

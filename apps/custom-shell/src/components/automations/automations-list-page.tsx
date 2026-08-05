@@ -56,9 +56,11 @@ import {
   type AutomationsPage,
 } from "@/lib/api/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDate } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useClientPage } from "@/lib/use-client-page"
 import { useLastValue } from "@/lib/use-last-value"
 import { useSelection } from "@/lib/use-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -76,20 +78,18 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [sort, setSort] = React.useState<SortColumn>("updated")
   const [direction, setDirection] = React.useState<TableSortDirection>("desc")
   const [search, setSearch] = React.useState("")
-  const [page, setPage] = React.useState(1)
   const { config, automationPauseBusy, onAutomationPauseChange } =
     useShellRuntime()
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
-  const [creating, setCreating] = React.useState(false)
+  const [runCreate, creating] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
   const [deleteTargets, setDeleteTargets] = React.useState<
     AutomationListItem[] | null
   >(null)
-  const [deleting, setDeleting] = React.useState(false)
+  const [runDelete, deleting] = useAsyncAction(getAutomationErrorMessage)
   const selection = useSelection()
   const selectedIds = selection.selected
   // The confirmation is still on screen while it fades out, after Cancel has
@@ -124,15 +124,15 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       })
   }, [automations, direction, search, sort])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
-  const visible = React.useMemo(
-    () => sorted.slice((page - 1) * pageSize, page * pageSize),
-    [page, pageSize, sorted]
+  // Paging, and the jump back to page 1 when the search or sort changes. The
+  // shared helper does that adjustment while drawing rather than in an effect,
+  // which is what stops the list drawing once on the old page and again on the
+  // new one.
+  const { page, pageSize, visible, footer } = useClientPage(
+    sorted,
+    config.dashboardRowsPerPage,
+    `${search}|${sort}|${direction}`
   )
-
-  React.useEffect(() => {
-    setPage(1)
-  }, [search, sort, direction, pageSize])
 
   useClearSelectionOnListChange(
     selection.setSelected,
@@ -157,19 +157,13 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
 
   const handleCreate = async () => {
     if (creating || !createName.trim()) return
-    setCreating(true)
-    try {
+    await runCreate(async () => {
       const created = await createAutomation(createName)
-      dismissErrorToast()
       toast.success(`Created "${created.name}".`)
       setCreateOpen(false)
       setCreateName("")
       await openEditor(created.id)
-    } catch (error) {
-      showErrorToast(getAutomationErrorMessage(error))
-    } finally {
-      setCreating(false)
-    }
+    })
   }
 
   const handleDuplicate = async (automation: AutomationListItem) => {
@@ -226,11 +220,9 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
 
   const handleDelete = async () => {
     if (!deleteTargets?.length || deleting) return
-    setDeleting(true)
-    try {
+    await runDelete(async () => {
       const ids = new Set(deleteTargets.map((item) => item.id))
       await deleteAutomations([...ids])
-      dismissErrorToast()
       setAutomations((current) => current.filter((item) => !ids.has(item.id)))
       toast.success(
         deleteTargets.length === 1 && deleteTargets[0]
@@ -239,11 +231,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       )
       selection.clear()
       setDeleteTargets(null)
-    } catch (error) {
-      showErrorToast(getAutomationErrorMessage(error))
-    } finally {
-      setDeleting(false)
-    }
+    })
   }
 
   // One copy of the switch, shared with the header badge, which is the only
@@ -348,18 +336,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             : "No automations yet. Create the first one."
         }
         emptyColSpan={5}
-        footer={{
-          type: "pagination",
-          page,
-          pageSize,
-          total: sorted.length,
-          totalPages,
-          onPageChange: (next) => setPage(Math.max(1, Math.min(next, totalPages))),
-          onPageSizeChange: (next) => {
-            setPage(1)
-            setPageSize(next)
-          },
-        }}
+        footer={footer}
       >
         {visible.map((automation) => (
           <TableRow

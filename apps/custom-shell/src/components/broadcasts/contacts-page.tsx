@@ -46,6 +46,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { formatDate } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 import { useLastValue } from "@/lib/use-last-value"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { useSelection } from "@/lib/use-selection"
 
 function fullName(contact: ContactItem) {
@@ -82,7 +83,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [loading, setLoading] = React.useState(false)
   const [addOpen, setAddOpen] = React.useState(false)
-  const [saving, setSaving] = React.useState(false)
+  const [runSave, saving] = useAsyncAction(getContactErrorMessage)
   const [form, setForm] = React.useState({
     email: "",
     firstName: "",
@@ -94,7 +95,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   const [deleteTarget, setDeleteTarget] = React.useState<ContactItem | null>(
     null
   )
-  const [deleting, setDeleting] = React.useState(false)
+  const [runDelete, deleting] = useAsyncAction(getContactErrorMessage)
   const closingDeleteTarget = useLastValue(deleteTarget)
   const selection = useSelection()
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
@@ -150,8 +151,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
 
   const handleAdd = async () => {
     if (saving || !form.email.trim()) return
-    setSaving(true)
-    try {
+    await runSave(async () => {
       await saveContact({
         email: form.email.trim(),
         firstName: form.firstName.trim() || null,
@@ -161,16 +161,10 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
           .map((entry) => entry.trim())
           .filter(Boolean),
       })
-      dismissErrorToast()
-      toast.success(`Added ${form.email.trim()}.`)
       setAddOpen(false)
       setForm({ email: "", firstName: "", lastName: "", tags: "" })
       await refresh()
-    } catch (error) {
-      showErrorToast(getContactErrorMessage(error))
-    } finally {
-      setSaving(false)
-    }
+    }, `Added ${form.email.trim()}.`)
   }
 
   const handleToggleStatus = async (contact: ContactItem) => {
@@ -192,21 +186,15 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   /** Both the single row and the selection go through here. */
   const removeMany = async (ids: string[], done: () => void) => {
     if (deleting || ids.length === 0) return
-    setDeleting(true)
-    try {
+    await runDelete(async () => {
       const { deleted } = await deleteContacts(ids)
-      dismissErrorToast()
       selection.clear()
       toast.success(
         deleted === 1 ? "Deleted them." : `Deleted ${deleted} contacts.`
       )
       done()
       await refresh()
-    } catch (error) {
-      showErrorToast(getContactErrorMessage(error))
-    } finally {
-      setDeleting(false)
-    }
+    })
   }
 
   const visibleIds = data.contacts.map((contact) => contact.id)

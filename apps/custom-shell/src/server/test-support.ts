@@ -8,8 +8,15 @@ import { customShellUsers, type CustomShellUser } from "@/server/schema"
 import * as schema from "@/server/schema"
 import { now, uuid } from "@/server/security"
 
-/** The in-memory database a test file runs against. */
-export type TestDatabase = ReturnType<typeof drizzle<typeof schema>>
+/**
+ * The in-memory database a test file runs against.
+ *
+ * Deliberately the app's own database type, not pglite's. The two drivers are
+ * different types that behave the same for everything here, and saying so once
+ * at this boundary is what lets a test hand its database straight to any
+ * server function — otherwise every such call needs its own cast.
+ */
+export type TestDatabase = CustomShellDb
 
 /**
  * A fresh in-memory database for one test. Replays every migration in order,
@@ -31,8 +38,8 @@ export async function createTestDatabase(): Promise<{
     await client.exec(await readFile(new URL(migration, folder), "utf8"))
   }
 
-  const db = drizzle(client, { schema })
-  setDbForTests(db as unknown as CustomShellDb)
+  const db = drizzle(client, { schema }) as unknown as CustomShellDb
+  setDbForTests(db)
   return { client, db }
 }
 

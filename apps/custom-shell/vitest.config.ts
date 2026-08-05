@@ -1,7 +1,14 @@
 import path from "node:path"
 import { defineConfig } from "vitest/config"
 
+import { DEV_APP_PORT } from "./app-port"
+
 export default defineConfig({
+  // The same value the dev server and the build get, so a test sees the real
+  // port rather than a stand-in. See `app-port.ts`.
+  define: {
+    __DEV_APP_PORT__: JSON.stringify(DEV_APP_PORT),
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

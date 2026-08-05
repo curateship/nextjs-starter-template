@@ -1,3 +1,4 @@
+import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -123,7 +124,7 @@ describe("reading a saved audience", () => {
 })
 
 describe("the compiler", () => {
-  const graphOf = (settings: Record<string, unknown>) => ({
+  const graphOf = (settings: AutomationNodeSettings) => ({
     ...EMPTY_AUTOMATION_GRAPH,
     nodes: [{ id: "n0", kind: "audience", x: 0, y: 0, settings }],
   })
@@ -230,7 +231,7 @@ describe("counting who matches", () => {
 })
 
 describe("the step the engine runs", () => {
-  const runStep = (settings: Record<string, unknown>) =>
+  const runStep = (settings: AutomationNodeSettings) =>
     automationExecutors.audience({
       database: db,
       run: {} as CustomShellAutomationRun,

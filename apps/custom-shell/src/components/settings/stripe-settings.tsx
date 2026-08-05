@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -26,6 +25,7 @@ import {
   type StripeTextField,
 } from "@/lib/api/stripe-settings"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 
 // An edit saves itself this long after the last keystroke; leaving the field
@@ -132,7 +132,7 @@ export function StripeSettings() {
     null
   )
   // True while the Remove call itself runs.
-  const [removeBusy, setRemoveBusy] = React.useState(false)
+  const [runRemove, removeBusy] = useAsyncAction(getStripeSettingsErrorMessage)
 
   // The auto-save's outcome, shown in the shared sticky header like every
   // other settings save.
@@ -256,17 +256,10 @@ export function StripeSettings() {
   }
 
   const remove = async (field: StripeSecretField) => {
-    setRemoveBusy(true)
-    dismissErrorToast()
-    try {
+    await runRemove(async () => {
       setStatus(await removeStripeSecret(field))
       setRemoving(null)
-      toast.success(`The ${SECRET_NAMES[field]} was removed.`)
-    } catch (error) {
-      showErrorToast(getStripeSettingsErrorMessage(error))
-    } finally {
-      setRemoveBusy(false)
-    }
+    }, `The ${SECRET_NAMES[field]} was removed.`)
   }
 
   const renderSecretField = ({ id, label, placeholder }: SecretFieldConfig) => {

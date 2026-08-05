@@ -16,6 +16,10 @@ import { getFeedbackErrorMessage } from "@/lib/api/feedback"
 export const FEEDBACK_SORT_COLUMNS = [
   "message",
   "type",
+  // The table has always had a Status header you can click. It was missing
+  // here, so the address value was refused and the list quietly fell back to
+  // sorting by date — the roadmap-order sort in the dashboard never ran.
+  "status",
   "author",
   "created",
   "comments",

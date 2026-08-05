@@ -27,6 +27,7 @@ import {
 } from "@/lib/api/auth"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime } from "@/lib/format-time"
 import type { AuthUser } from "@/lib/api/auth"
 
@@ -56,7 +57,7 @@ export function AccountProfilePage({
   const [name, setName] = React.useState(user.name)
   const [avatarUrl, setAvatarUrl] = React.useState(user.avatarUrl)
   const [saved, setSaved] = React.useState(false)
-  const [saving, setSaving] = React.useState(false)
+  const [run, saving] = useAsyncAction(getAuthErrorMessage)
   // Nothing to write when both fields match what's already stored, so the
   // footer's Save button switches off rather than sending a pointless request.
   const dirty = name.trim() !== user.name || avatarUrl !== user.avatarUrl
@@ -68,21 +69,15 @@ export function AccountProfilePage({
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      dismissErrorToast()
       setSaved(false)
-      setSaving(true)
-
-      try {
-        await updateProfile(name, avatarUrl)
-        setSaved(true)
-        onSaved()
-      } catch (saveError) {
-        showErrorToast(getAuthErrorMessage(saveError))
-      } finally {
-        setSaving(false)
-      }
+      setSaved(
+        await run(async () => {
+          await updateProfile(name, avatarUrl)
+          onSaved()
+        })
+      )
     },
-    [avatarUrl, name, onSaved]
+    [avatarUrl, name, onSaved, run]
   )
 
   return (

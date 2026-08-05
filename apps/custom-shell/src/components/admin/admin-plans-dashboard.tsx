@@ -40,6 +40,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { useAsyncAction } from "@/lib/use-async-action"
 import {
   SortableTableHeader,
   type SortableColumn,
@@ -162,7 +163,7 @@ export function AdminPlansDashboard({
   const [archiving, setArchiving] = React.useState(false)
   const selection = useSelection()
   const selectedIds = selection.selected
-  const [massArchiving, setMassArchiving] = React.useState(false)
+  const [run, massArchiving] = useAsyncAction(getPlanErrorMessage)
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -219,9 +220,7 @@ export function AdminPlansDashboard({
   // One request for the whole selection, and the server decides what it can
   // take — the default plan and anything already archived are left alone.
   const confirmMassArchive = React.useCallback(async () => {
-    setMassArchiving(true)
-    dismissErrorToast()
-    try {
+    await run(async () => {
       const { archived, kept } = await archiveAdminPlans([...selectedIds])
       await refresh()
       // Anything that would not go stays ticked, so the rows still on screen
@@ -245,12 +244,8 @@ export function AdminPlansDashboard({
         })
       )
       setMassArchiveOpen(false)
-    } catch (archiveError) {
-      showErrorToast(getPlanErrorMessage(archiveError))
-    } finally {
-      setMassArchiving(false)
-    }
-  }, [refresh, selectedIds, selection])
+    })
+  }, [refresh, run, selectedIds, selection])
 
   return (
     <>

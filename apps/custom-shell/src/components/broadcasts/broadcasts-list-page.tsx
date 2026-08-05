@@ -53,6 +53,7 @@ import { describeNextBatch } from "@/lib/broadcasts/drip"
 import { formatDate } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 import { useLastValue } from "@/lib/use-last-value"
+import { useAsyncAction } from "@/lib/use-async-action"
 import { useSelection } from "@/lib/use-selection"
 
 type SortColumn = "name" | "status" | "updated"
@@ -89,11 +90,11 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
-  const [creating, setCreating] = React.useState(false)
+  const [runCreate, creating] = useAsyncAction(getBroadcastErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] =
     React.useState<BroadcastListItem | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
+  const [runDelete, deleting] = useAsyncAction(getBroadcastErrorMessage)
   const selection = useSelection()
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   // The confirmation is still fading out after Cancel has cleared the target,
@@ -146,19 +147,13 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
 
   const handleCreate = async () => {
     if (creating || !createName.trim()) return
-    setCreating(true)
-    try {
+    await runCreate(async () => {
       const created = await createBroadcast(createName)
-      dismissErrorToast()
       toast.success(`Created "${created.name}".`)
       setCreateOpen(false)
       setCreateName("")
       await openEditor(created.id)
-    } catch (error) {
-      showErrorToast(getBroadcastErrorMessage(error))
-    } finally {
-      setCreating(false)
-    }
+    })
   }
 
   const handleDuplicate = async (item: BroadcastListItem) => {
@@ -179,10 +174,8 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   /** Both the single row and the selection go through here. */
   const removeMany = async (ids: string[], done: () => void) => {
     if (deleting || ids.length === 0) return
-    setDeleting(true)
-    try {
+    await runDelete(async () => {
       const { deleted } = await deleteBroadcasts(ids)
-      dismissErrorToast()
       const gone = new Set(ids)
       setBroadcasts((current) => current.filter((item) => !gone.has(item.id)))
       selection.clear()
@@ -190,11 +183,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
         deleted === 1 ? "Deleted it." : `Deleted ${deleted} newsletters.`
       )
       done()
-    } catch (error) {
-      showErrorToast(getBroadcastErrorMessage(error))
-    } finally {
-      setDeleting(false)
-    }
+    })
   }
 
   const visibleIds = visible.map((item) => item.id)
