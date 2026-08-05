@@ -68,18 +68,14 @@ export function AutomationPalette({
       <WorkspacePanelTabsHeader>
         <WorkspacePanelTab
           value="fav"
-          contentClassName="gap-[3px]"
           icon={<StarIcon className="size-4 fill-current" />}
-        >
-          Fav
-        </WorkspacePanelTab>
+          label="Fav"
+        />
         <WorkspacePanelTab
           value="all"
-          contentClassName="gap-[3px]"
           icon={<LayoutGridIcon className="size-4" />}
-        >
-          All nodes
-        </WorkspacePanelTab>
+          label="All nodes"
+        />
       </WorkspacePanelTabsHeader>
       <PaletteTab
         value="fav"

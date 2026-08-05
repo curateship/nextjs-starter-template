@@ -74,13 +74,14 @@ export function WorkspacePanelTabsHeader({
 
 export function WorkspacePanelTab({
   icon,
-  contentClassName,
+  label,
+  count,
   className,
-  children,
   ...props
 }: React.ComponentProps<typeof TabsTrigger> & {
   icon: React.ReactNode
-  contentClassName?: string
+  label: React.ReactNode
+  count?: number
 }) {
   return (
     <TabsTrigger
@@ -90,11 +91,16 @@ export function WorkspacePanelTab({
       )}
       {...props}
     >
-      <span className={cn("flex items-center gap-2", contentClassName)}>
+      <span className="flex items-center gap-[3px]">
         <WorkspacePanelHeaderIcon className="size-7 group-data-[state=active]/panel-tab:text-foreground">
           {icon}
         </WorkspacePanelHeaderIcon>
-        {children}
+        {label}
+        {count !== undefined ? (
+          <span className="ml-[3px] inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-xs leading-none font-medium text-muted-foreground tabular-nums">
+            {count}
+          </span>
+        ) : null}
       </span>
     </TabsTrigger>
   )

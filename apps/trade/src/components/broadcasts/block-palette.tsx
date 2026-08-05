@@ -136,18 +136,14 @@ export function BlockPalette({
       <WorkspacePanelTabsHeader>
         <WorkspacePanelTab
           value="blocks"
-          contentClassName="gap-[3px]"
           icon={<LayoutGridIcon className="size-4" />}
-        >
-          Blocks
-        </WorkspacePanelTab>
+          label="Blocks"
+        />
         <WorkspacePanelTab
           value="templates"
-          contentClassName="gap-[3px]"
           icon={<LayoutTemplateIcon className="size-4" />}
-        >
-          Templates
-        </WorkspacePanelTab>
+          label="Templates"
+        />
       </WorkspacePanelTabsHeader>
 
       <TabsContent value="blocks" className="min-h-0 overflow-hidden">

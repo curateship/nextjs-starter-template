@@ -137,23 +137,15 @@ export function AutomationRunsPanel({
           <WorkspacePanelTab
             value="runs"
             icon={<HistoryIcon className="size-4" />}
-          >
-            Runs
-            <span className="text-xs tabular-nums">{total}</span>
-          </WorkspacePanelTab>
+            label="Runs"
+            count={total}
+          />
           <WorkspacePanelTab
             value="waiting"
             icon={<UserCheckIcon className="size-4" />}
-          >
-            Waiting on you
-            {waitingTotal > 0 ? (
-              <Badge variant="destructive" className="px-1.5 tabular-nums">
-                {waitingTotal}
-              </Badge>
-            ) : (
-              <span className="text-xs tabular-nums">0</span>
-            )}
-          </WorkspacePanelTab>
+            label="Waiting on you"
+            count={waitingTotal}
+          />
         </WorkspacePanelTabsHeader>
 
         <TabsContent value="runs" className="min-h-0 flex-1">
