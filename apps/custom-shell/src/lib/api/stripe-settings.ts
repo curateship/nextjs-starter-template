@@ -34,7 +34,7 @@ export const getStripeSettingsErrorMessage = createErrorMessage(
       "The saved key can't be read back because the server's scrambling secret changed. Paste the key again to fix it.",
     EMPTY_KEY: "Paste a key before saving.",
   },
-  "Something went wrong with the Stripe settings. Please try again."
+  "We could not load or save the Stripe settings. Please try again."
 )
 
 const secretFieldSchema = z.enum(STRIPE_SECRET_FIELDS)

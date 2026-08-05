@@ -292,7 +292,7 @@ export function ActivityCard({
                     <span
                       className={cn(
                         "mt-3.5 size-2 shrink-0 rounded-full",
-                        event.read ? "bg-transparent" : "bg-red-500"
+                        event.read ? "bg-transparent" : "bg-red-500 dark:bg-red-400"
                       )}
                       aria-hidden
                     />

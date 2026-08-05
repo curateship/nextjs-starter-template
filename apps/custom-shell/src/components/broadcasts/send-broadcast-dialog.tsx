@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -211,7 +212,7 @@ export function SendBroadcastDialog({
     try {
       const result = await sendTestEmail(broadcast.id, testEmail.trim())
       if (result.ok) toast.success(`Test copy sent to ${testEmail.trim()}`)
-      else setError(result.error ?? "The test copy did not go through")
+      else setError(result.error ?? "We could not send the test copy.")
     } catch (testError) {
       setError(getBroadcastErrorMessage(testError))
     } finally {
@@ -330,17 +331,18 @@ export function SendBroadcastDialog({
                 </div>
                 {audienceKind === "tags" ? (
                   <div className="grid gap-1">
-                    <Label htmlFor="send-tags">Tags</Label>
+                    <FieldLabel
+                      htmlFor="send-tags"
+                      hint="Separate them with commas. Anyone with at least one of them gets it."
+                    >
+                      Tags
+                    </FieldLabel>
                     <Input
                       id="send-tags"
                       value={tagText}
                       placeholder="customers, beta"
                       onChange={(event) => setTagText(event.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Separate them with commas. Anyone with at least one of
-                      them gets it.
-                    </p>
                   </div>
                 ) : null}
                 <p className="text-sm">
@@ -410,16 +412,18 @@ export function SendBroadcastDialog({
                 </div>
                 {mode === "schedule" ? (
                   <div className="grid gap-1">
-                    <Label htmlFor="send-schedule-at">Send at</Label>
+                    <FieldLabel
+                      htmlFor="send-schedule-at"
+                      hint="That is your own clock, not the server's."
+                    >
+                      Send at
+                    </FieldLabel>
                     <Input
                       id="send-schedule-at"
                       type="datetime-local"
                       value={scheduleValue}
                       onChange={(event) => setScheduleValue(event.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      That is your own clock, not the server's.
-                    </p>
                   </div>
                 ) : null}
               </div>

@@ -391,7 +391,12 @@ function BackgroundField({
   return (
     <div className="grid gap-6">
       <div className="grid gap-2">
-        <Label htmlFor={`${idPrefix}-mode`}>Mode</Label>
+        <FieldLabel
+          htmlFor={`${idPrefix}-mode`}
+          hint={value.mode === "default" ? defaultHint : undefined}
+        >
+          Mode
+        </FieldLabel>
         <Select
           value={value.mode}
           disabled={disabled}
@@ -414,9 +419,6 @@ function BackgroundField({
             </SelectItem>
           </SelectContent>
         </Select>
-        {value.mode === "default" ? (
-          <p className="text-xs text-muted-foreground">{defaultHint}</p>
-        ) : null}
       </div>
 
       {value.mode === "muted" ? (

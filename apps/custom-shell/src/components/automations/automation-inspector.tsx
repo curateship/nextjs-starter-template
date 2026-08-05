@@ -81,7 +81,10 @@ export function AutomationInspector({
             aria-pressed={favorite}
             disabled={savingFavorite}
             onClick={onToggleFavorite}
-            className={cn("-mr-1 ml-auto", favorite && "text-amber-500")}
+            className={cn(
+              "-mr-1 ml-auto",
+              favorite && "text-amber-500 dark:text-amber-400"
+            )}
           >
             {savingFavorite ? (
               <Loader2Icon className="size-4 animate-spin" />

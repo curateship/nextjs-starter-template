@@ -51,7 +51,7 @@ export const getAiErrorMessage = createErrorMessage(
     AI_LIMIT_REACHED:
       "This month's AI allowance is used up. It starts fresh on the 1st.",
   },
-  "Something went wrong with the AI features. Please try again."
+  "We could not load or save the AI settings. Please try again."
 )
 
 const loadAiUsageDashboardFn = createServerFn({ method: "GET" })

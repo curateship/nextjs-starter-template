@@ -8,7 +8,6 @@ import {
 
 import {
   ColorField,
-  FieldLabel,
   InspectorCard,
   SliderField,
   SwitchField,
@@ -17,6 +16,7 @@ import { RichTextEditor } from "@/components/broadcasts/rich-text-editor"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -46,7 +46,9 @@ function TextField({
 }) {
   return (
     <div className="grid gap-2">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id} hint={help}>
+        {label}
+      </FieldLabel>
       <Input
         id={id}
         value={value}
@@ -54,9 +56,6 @@ function TextField({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
-      {help ? (
-        <p className="text-sm leading-relaxed text-muted-foreground">{help}</p>
-      ) : null}
     </div>
   )
 }

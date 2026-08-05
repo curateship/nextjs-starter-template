@@ -107,7 +107,9 @@ export function WorkspaceFormDialog({
     const name = draft.name.trim()
     if (!name) {
       setNameInvalid(true)
-      showErrorToast("Workspace name is required")
+      showErrorToast(
+        "Add a workspace name — settings can't be saved without one."
+      )
       return
     }
 

@@ -62,7 +62,7 @@ export const getAdminMediaErrorMessage = createErrorMessage(
       "File storage is not set up. Add the CUSTOM_SHELL_R2_* environment variables first.",
     SCAN_FAILED: "Storage could not be read, so orphans are unknown right now.",
   },
-  "We could not complete that request. Please try again."
+  "We could not update the media library. Please try again."
 )
 
 /** Storage is unusable without R2, so say that instead of "try again". */

@@ -90,7 +90,7 @@ const runErrorMessages: Record<string, string> = {
 
 export const getAutomationRunErrorMessage = createErrorMessage(
   runErrorMessages,
-  "We could not do that. Please try again."
+  "We could not update that automation run. Please try again."
 )
 
 const loadRunsPanelFn = createServerFn({ method: "GET" })
