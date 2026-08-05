@@ -100,6 +100,11 @@ export const AUTH_TOKEN_TTL_MS = {
   // Same day-long life as a verification link, and for the same reason: it is
   // an address being proved, and somebody may not read that inbox until later.
   change_email: EMAIL_CHANGE_HOURS * 60 * 60 * 1000,
+  // The "this wasn't me" link, and exactly as long-lived as the change it
+  // stops. A minute less would leave a window where the change can still be
+  // confirmed and no longer stopped; a minute more would be a link that can
+  // only ever report that it is too late.
+  revoke_email_change: EMAIL_CHANGE_HOURS * 60 * 60 * 1000,
 } as const
 
 export type AuthTokenPurpose = keyof typeof AUTH_TOKEN_TTL_MS
@@ -262,6 +267,25 @@ export async function requireSessionOwner(database: CustomShellDb = db) {
   return context.viewedBy ?? context.user
 }
 
+/**
+ * The signed-in account, and only when the browser really is that person.
+ *
+ * `requireUser` answers with the member an admin is *looking at the app as*,
+ * which is right for reading their screen and wrong for changing how their
+ * account is signed in to. This refuses instead, so an admin has to leave the
+ * view — and be themselves — before credentials on either account can change.
+ */
+export async function requireOwnAccount(database: CustomShellDb = db) {
+  const context = await findSessionContext(database)
+  if (!context) {
+    throw new Error("AUTH_REQUIRED")
+  }
+  if (context.viewedBy) {
+    throw new Error("VIEW_AS_ACTIVE")
+  }
+  return context.user
+}
+
 export async function requireAdmin(database: CustomShellDb = db) {
   const user = await requireUser(database)
   if (!isAdmin(user)) {
@@ -337,11 +361,17 @@ export async function createUserSession(
   return token
 }
 
-/** Signs out every other device by dropping their sessions. */
+/**
+ * Signs out every other device by dropping their sessions.
+ *
+ * Takes only what it uses, so a caller inside a transaction can hand it the
+ * transaction — stopping an email change signs the account out as part of the
+ * same all-or-nothing write that cancels the change.
+ */
 export async function deleteOtherSessions(
   userId: string,
   currentToken: string | undefined,
-  database: CustomShellDb = db
+  database: Pick<CustomShellDb, "delete"> = db
 ) {
   const deleted = await database
     .delete(customShellSessions)
@@ -425,20 +455,15 @@ function stillSignedIn(
 }
 
 /**
- * Deletes the sessions this account has that would already be refused, and
- * answers how many went.
- *
- * Called at sign-in, so the pile clears itself without a background job. It is
- * only ever the signer's own rows, and only ones the very next request would
- * have deleted anyway — this brings the deletion forward, it does not sign
- * anybody out who was still getting in.
+ * The opposite of `stillSignedIn` above: the session is out of its own lifetime,
+ * or past one of the two limits from Settings → Security. Written once because
+ * both the sign-in tidy-up and the app-wide cleanup delete on exactly this rule,
+ * and two copies of it could drift apart into two different answers.
  */
-export async function pruneRefusedSessions(
-  userId: string,
-  database: CustomShellDb = db
+function refusedSessions(
+  policy: { maxAgeDays: number; idleMinutes: number },
+  timestamp: Date
 ) {
-  const policy = await readSessionPolicyRow(database)
-  const timestamp = now()
   const refused = [lte(customShellSessions.expiresAt, timestamp)]
 
   if (policy.maxAgeDays > 0) {
@@ -458,9 +483,62 @@ export async function pruneRefusedSessions(
     )
   }
 
+  return or(...refused)
+}
+
+/**
+ * Deletes the sessions this account has that would already be refused, and
+ * answers how many went.
+ *
+ * Called at sign-in, so the pile clears itself without a background job. It is
+ * only ever the signer's own rows, and only ones the very next request would
+ * have deleted anyway — this brings the deletion forward, it does not sign
+ * anybody out who was still getting in.
+ */
+export async function pruneRefusedSessions(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const policy = await readSessionPolicyRow(database)
+
   const deleted = await database
     .delete(customShellSessions)
-    .where(and(eq(customShellSessions.userId, userId), or(...refused)))
+    .where(
+      and(
+        eq(customShellSessions.userId, userId),
+        refusedSessions(policy, now())
+      )
+    )
+    .returning({ id: customShellSessions.id })
+
+  return deleted.length
+}
+
+/**
+ * The same deletion, for everybody at once and capped, which is what the
+ * app-wide cleanup in `server/cleanup.ts` needs. Accounts that never come back
+ * leave sessions nobody ever signs in to clear.
+ *
+ * The cap is applied by picking the ids first: Postgres has no `limit` on a
+ * delete, and an uncapped one on a long-neglected app could sit there deleting
+ * for the length of somebody's page load.
+ */
+export async function purgeRefusedSessions(
+  limit: number,
+  database: CustomShellDb = db,
+  at: Date = now()
+) {
+  const policy = await readSessionPolicyRow(database)
+
+  const doomed = database
+    .select({ id: customShellSessions.id })
+    .from(customShellSessions)
+    .where(refusedSessions(policy, at))
+    .limit(limit)
+
+  const deleted = await database
+    .delete(customShellSessions)
+    .where(inArray(customShellSessions.id, doomed))
     .returning({ id: customShellSessions.id })
 
   return deleted.length

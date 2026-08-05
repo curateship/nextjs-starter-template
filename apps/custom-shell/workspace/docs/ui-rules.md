@@ -11,12 +11,25 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 
 ## Spacing and Page Layout
 
-- The app shell owns page padding. Where an app uses `DashboardContent`, it is the single source of truth for the page gutter and section spacing. In Trading, `src/components/ui/dashboard-content.tsx` defines `p-2 space-y-2 md:p-3 md:space-y-3`, or 8px on narrow screens and 12px on desktop.
-- Use the same site gap between page sections, cards, columns, and full-screen workspace panels: `gap-2 md:gap-3` or `space-y-2 md:space-y-3`.
-- Do not add page-level padding wrappers or invent other layout gaps such as `gap-3`, `gap-8`, or ad-hoc margins. Small internal gaps such as `gap-1` and `gap-2` are allowed inside a card.
+- The app shell owns page padding and the gap between page-level blocks. Where an app uses `DashboardContent`, it is the single source of truth for both through its shell gutter. Custom Shell keeps that gutter configurable, so pages must render their cards and tables directly into `DashboardContent` instead of adding another spacing wrapper.
+- Fixed public surfaces use the same site scale: `gap-2 md:gap-3` or `space-y-2 md:space-y-3` (8px narrow, 12px desktop). Shared dashboard toolbars use the same scale as their responsive layout: `gap-2 sm:gap-3`.
+- Do not add page-level padding wrappers or invent another outer layout gap. Internal card and form spacing may use the smaller established values (`gap-1`, `gap-2`, `space-y-4`, and `space-y-6`) when separating controls, field groups, or prose inside a surface. Those values are not substitutes for the page-level gutter.
 - Centralize full-bleed page exceptions in one app-level route predicate instead of wrapping or unwrapping individual routes. In Trading, use `isFullBleedLocation` in `src/lib/full-bleed-location.ts` for the Trade terminal, bot workspace, Automation editor, and backtest chart.
 - Derive page spacing from the currently mounted route so navigation and content change together. Do not use a destination or delayed resolved URL that can carry the previous page's spacing into the next page.
 - Design narrow and desktop layouts together. Avoid arbitrary widths, radii, shadows, gradients, pills, or badges.
+
+## Dashboards
+
+- The Overview dashboard's cards are widgets an admin arranges in Settings →
+  Widgets: a full-width top slot and two columns, with anything left out simply
+  not drawn. A new card belongs in the catalogue (`src/lib/dashboard-widgets.ts`)
+  rather than hardcoded into the page, or it cannot be moved or switched off.
+- A card that fills the panel it is given needs a height cap wherever it is
+  placed outside one. In a resizable column a chart sizing itself to its panel
+  is correct; in the top slot, which has no panel, the same card grows to the
+  whole window and pushes everything else off the screen.
+- An arrangement an admin can empty needs an empty state that says so and links
+  back to the settings tab that fills it, rather than rendering a blank page.
 
 ## Sidebar
 
@@ -41,8 +54,10 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Use one primary button per action group, `outline` for secondary actions, `ghost` for low-emphasis actions, and destructive styling only for irreversible actions.
 - Order footer actions as Cancel, then primary or destructive. Disable running actions and show a compact loading indicator.
 - Icon-only buttons require an accessible name and a tooltip when their meaning is not obvious.
+- Use the shared `Tooltip` for icon-only toolbar, header, and standalone actions. Repeated table-row actions may rely on their accessible name and the table's column context so rows do not become noisy. Disabled controls use `DisabledReason`; never rely on a browser `title` for a disabled or phone-only button.
 - Use the established Lucide action icons consistently: `PencilIcon` for edit, `Trash2Icon` for delete, `PlusIcon` for add, and `Loader2Icon` for loading.
-- Give every field a visible label. Keep help and error text beside the field and preserve entered values after errors.
+- Give every field a visible label. Keep help beside the field and preserve entered values after errors. Report every error through the shared persistent toast; keep `aria-invalid` on the field when it is field-specific.
+- Required fields are checked when the user tries the action (or when an auto-save field is left). Keep the primary action enabled, show the shared persistent toast naming the missing field, and set `aria-invalid` on that field. Never rely on a native browser bubble or a disabled button that gives no explanation.
 - Draggable or repeatable text-field lists start with one default row. Users add more rows explicitly; do not create multiple empty rows by default.
 - Use `gap-1` label-to-control, `gap-2` within field groups, and `gap-4` between form sections.
 
@@ -58,11 +73,14 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Every data column header must be sortable when it represents a sortable value. Use the shared `TableSortButton`; selection and action columns are not sortable.
 - Use a 40px header (`h-10`), compact cells (`px-5 py-2`), a muted header, and the shared rounded surface.
 - Keep the main column flexible, metadata compact, and actions in the final column.
+- Where the row's title opens something, the whole row opens the same thing: pass it to `TableRow` as `rowAction`, which adds the pointer cursor and the grey `hover:bg-muted/50` tint. A row with nothing to open gets no `rowAction` and stays flat. Mark the actions column `TableCell column="actions"` so the row never claims a click meant for a button there.
 - Order table-card toolbar controls from left to right: mass delete, search, filters, settings, edit actions, then create buttons. Omit unavailable controls without changing the order of the remaining controls.
 - Use horizontal scrolling for real overflow and hide low-priority columns on narrow screens.
 - Keep loading, empty, error, and pagination states inside the table surface.
 
 ## Modals
+
+- A record with more to say than a row opens as a window from its list, not as a page of its own. Tabs sit beside the title in the header; the window takes only an id and loads its own data; `?open=<id>` in the address is what makes it linkable and lets Back close it. Give the window one fixed height so switching tabs does not resize it, and keep the tab holding typed work mounted so edits survive a switch.
 
 - Use shared `Dialog` for forms and `AlertDialog` or the established confirmation component for destructive actions. Do not nest modals.
 - Form modals use the app's established admin variant, with a visible header, scrollable body, and footer. In Trading, use `DialogContent variant="admin"`; do not invent shells, overlays, close buttons, or footer layouts.
