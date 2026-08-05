@@ -51,6 +51,13 @@ function isToastInteraction(event: { target: EventTarget | null }) {
   )
 }
 
+function focusPageAfterClose(content: HTMLElement) {
+  const target = document.querySelector<HTMLElement>("[data-focus-return]")
+  if (!target || target === content || !target.isConnected) return false
+  target.focus()
+  return true
+}
+
 function DialogContent({
   className,
   children,
@@ -59,11 +66,18 @@ function DialogContent({
   onPointerDownOutside,
   onInteractOutside,
   onFocusOutside,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   variant?: DialogContentVariant
   showCloseButton?: boolean
 }) {
+  const returnFocusRef = React.useRef<HTMLElement | null>(
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+  )
+
   return (
     <DialogPortal>
       {/* Overlay is an explicit close target. Radix's own outside-press dismiss
@@ -95,6 +109,32 @@ function DialogContent({
         onFocusOutside={(event) => {
           onFocusOutside?.(event)
           if (isToastInteraction(event)) event.preventDefault()
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          if (event.defaultPrevented) return
+
+          const activeElement = document.activeElement
+          const content = event.currentTarget
+          if (!(content instanceof HTMLElement)) return
+
+          const returnFocus = returnFocusRef.current
+          if (
+            returnFocus?.isConnected &&
+            !returnFocus.matches(":disabled")
+          ) {
+            returnFocus.focus()
+            event.preventDefault()
+            return
+          }
+
+          if (
+            activeElement === document.body ||
+            activeElement === content ||
+            content.contains(activeElement)
+          ) {
+            if (focusPageAfterClose(content)) event.preventDefault()
+          }
         }}
         {...props}
       >
