@@ -14,10 +14,7 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountProfilePage } from "@/components/account/account-profile-page"
-import {
-  AccountBillingPage,
-  BillingTabSkeleton,
-} from "@/components/account/account-billing-page"
+import { AccountBillingPage } from "@/components/account/account-billing-page"
 import { AccountSecurityPage } from "@/components/account/account-security-page"
 import type { AuthUser } from "@/lib/api/auth"
 import {
@@ -243,13 +240,27 @@ export function AccountDialog({
 
 const PROFILE_FORM_ID = "account-profile-form"
 
+type BillingTabData = {
+  overview: BillingOverview
+  invoices: BillingInvoice[]
+  cardWarning: CardExpiryWarning | null
+}
+
+/**
+ * What the last load returned, kept for as long as the page is open.
+ *
+ * This tab unmounts when you leave it, so without this a trip to Profile and
+ * back emptied the panel and then filled it again — everything on the tab
+ * jumped as the cards came back. A fresh load still runs on every visit.
+ *
+ * Only ever written from the browser (the load happens in an effect), so this
+ * cannot carry one person's billing into another's page on the server.
+ */
+let lastBilling: BillingTabData | null = null
+
 /** Billing data isn't in the shell, so fetch it when the tab first mounts. */
 function BillingTab() {
-  const [data, setData] = React.useState<{
-    overview: BillingOverview
-    invoices: BillingInvoice[]
-    cardWarning: CardExpiryWarning | null
-  } | null>(null)
+  const [data, setData] = React.useState<BillingTabData | null>(lastBilling)
   const [error, setError] = React.useState<string | null>(null)
   // Bumped by "Try again", which re-runs the same load rather than making the
   // reader close the window and come back.
@@ -259,6 +270,7 @@ function BillingTab() {
     let cancelled = false
     loadBillingPage()
       .then((result) => {
+        lastBilling = result
         if (!cancelled) setData(result)
       })
       .catch((loadError) => {
@@ -269,7 +281,10 @@ function BillingTab() {
     }
   }, [reloads])
 
-  if (error) {
+  // Only when there is nothing else to show. Once `lastBilling` is filled, a
+  // refresh that fails leaves the cards from last time standing rather than
+  // replacing a working page with a banner.
+  if (error && !data) {
     return (
       <ErrorBanner
         message={error}
@@ -283,8 +298,11 @@ function BillingTab() {
     )
   }
 
+  // Only on the very first visit of the page's life, since `lastBilling` covers
+  // every one after it. Nothing is drawn rather than a stand-in: the placeholder
+  // that used to sit here read as a flash of its own.
   if (!data) {
-    return <BillingTabSkeleton />
+    return null
   }
 
   return (
