@@ -84,7 +84,9 @@ function RootComponent() {
     <RootDocument>
       <ThemeProvider>
         <TooltipProvider>
-          <Outlet />
+          <div data-slot="app-canvas">
+            <Outlet />
+          </div>
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>

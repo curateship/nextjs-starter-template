@@ -33,7 +33,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/10",
         className
       )}
       {...props}
@@ -81,7 +81,7 @@ function DialogContent({
           // inside it sets the outside world to pointer-events:none, so an
           // inside click dismisses the dropdown instead of passing through to
           // the backdrop (which is a close target) and closing the whole modal.
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 !pointer-events-auto outline-none max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!ring-0 max-sm:overflow-y-auto sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-4rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:overflow-hidden data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 !pointer-events-auto outline-none max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!ring-0 max-sm:overflow-y-auto sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-4rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:overflow-hidden data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:zoom-in-95 data-closed:animate-out data-closed:zoom-out-95",
           className
         )}
         onPointerDownOutside={(event) => {
