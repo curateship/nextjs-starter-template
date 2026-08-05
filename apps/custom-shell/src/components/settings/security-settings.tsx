@@ -122,7 +122,7 @@ export function SecuritySettings({
         }}
         title="Tighten session limits?"
         description="Anyone already past the new limit is signed out the moment you confirm — including you, if your own sign-in is past it. Everyone else stays signed in and is signed out when they reach it."
-        confirmLabel="Apply"
+        confirmLabel="Apply session limits"
         loading={sessionPolicyBusy}
         onConfirm={() => {
           if (!pending) return

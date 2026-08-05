@@ -308,7 +308,10 @@ export function MediaPicker({
                       value={filterType}
                       onValueChange={handleFilterChange}
                     >
-                      <SelectTrigger className="w-full sm:w-36">
+                      <SelectTrigger
+                        className="w-full sm:w-36"
+                        aria-label="Media type filter"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

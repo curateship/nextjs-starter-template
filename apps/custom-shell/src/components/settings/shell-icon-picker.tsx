@@ -138,6 +138,7 @@ export function ShellIconPicker({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 className="pl-9"
+                aria-label="Search icons"
                 placeholder="Search icons"
               />
             </div>
@@ -162,6 +163,7 @@ export function ShellIconPicker({
                     autoFocus
                     value={customIconName}
                     onChange={(event) => setCustomIconName(event.target.value)}
+                    aria-label="Lucide icon name"
                     placeholder="octagon-x"
                   />
                   {customLucideIcon ? (

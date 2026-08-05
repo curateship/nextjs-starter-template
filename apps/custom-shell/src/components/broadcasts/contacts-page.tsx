@@ -509,7 +509,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
               onClick={() => void handleAdd()}
             >
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Add them
+              Add contact
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -527,7 +527,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
             : "Delete this contact?"
         }
         description="They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off instead."
-        confirmLabel="Delete them"
+        confirmLabel="Delete contact"
         loading={deleting}
         onConfirm={() =>
           void removeMany(deleteTarget ? [deleteTarget.id] : [], () =>
@@ -541,7 +541,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
         onOpenChange={setMassDeleteOpen}
         title={`Delete ${selectedCount} ${plural(selectedCount, "contact", "contacts")}?`}
         description="They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off instead."
-        confirmLabel={`Delete ${selectedCount}`}
+        confirmLabel={`Delete ${selectedCount} ${plural(selectedCount, "contact", "contacts")}`}
         loading={deleting}
         onConfirm={() =>
           void removeMany([...selection.selected], () =>
