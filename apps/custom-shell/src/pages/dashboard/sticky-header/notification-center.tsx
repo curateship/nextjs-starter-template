@@ -317,13 +317,14 @@ export function NotificationCenter({
           variant="ghost"
           size="icon"
           className="relative"
+          data-nav-shape="icon"
           aria-label={
             unreadCount > 0
               ? `Open notifications, ${unreadCount} unread`
               : "Open notifications"
           }
         >
-          <BellIcon className="size-5" />
+          <BellIcon className="size-4" />
           {unreadCount > 0 ? (
             // A circle at one digit that stretches into a pill at two or three,
             // capped at 99+ so a big number can never widen past the button.
