@@ -13,6 +13,11 @@ import {
 import { approvalDeadline } from "@/lib/automations/nodes/wait-for-approval"
 import { automationExecutors } from "@/server/automation-executors"
 import {
+  countHeldAutomationRuns,
+  readAutomationsPaused,
+  setAutomationPause,
+} from "@/server/automation-pause"
+import {
   decideAutomationApproval,
   deleteAutomationRuns,
   runAutomationTick,
@@ -683,5 +688,226 @@ describe("run history", () => {
       .where(eq(customShellAutomationRuns.id, run.id))
 
     expect(await db.select().from(customShellNotifications)).toHaveLength(0)
+  })
+})
+
+/**
+ * The kill switch: one flag that stops every flow at once, loses nothing and
+ * doubles nothing. See `server/automation-pause.ts` for the rule these check.
+ */
+describe("the automations kill switch", () => {
+  /** A step that hits the switch while the engine is inside it. */
+  const SWITCH_FLIPPER = "test-switch-flipper"
+
+  async function pause(database = db) {
+    await setAutomationPause(
+      { enabled: true, changedBy: "Tyler" },
+      database
+    )
+  }
+
+  async function resume(database = db) {
+    await setAutomationPause(
+      { enabled: false, changedBy: "Tyler" },
+      database
+    )
+  }
+
+  it("claims nothing at all while it is on", async () => {
+    const user = await insertUser(db, { role: "admin" })
+    const automation = await insertAutomation(user.id, [
+      placeholder,
+      placeholder,
+    ])
+    const run = await startAutomationRun(user.id, automation.id, db)
+
+    await pause()
+    const result = await runAutomationTick(db)
+
+    expect(result.paused).toBe(true)
+    expect(result.processed).toBe(0)
+
+    // Untouched: still due, still on its first step, with nothing recorded.
+    const row = await readRun(run.id)
+    expect(row.status).toBe("active")
+    expect(row.currentNodeId).toBe("n0")
+    expect(row.claimToken).toBeNull()
+    const detail = await getAutomationRun(user.id, run.id, db)
+    expect(detail?.steps).toEqual([])
+  })
+
+  it("refuses to start a flow by hand, rather than queueing one quietly", async () => {
+    const user = await insertUser(db, { role: "admin" })
+    const automation = await insertAutomation(user.id, [placeholder])
+
+    await pause()
+    await expect(
+      startAutomationRun(user.id, automation.id, db)
+    ).rejects.toThrow("AUTOMATIONS_PAUSED")
+
+    // Nothing was written, so there is no surprise run waiting to fire on
+    // resume — which is the whole reason this one path refuses instead of
+    // holding.
+    expect(await countHeldAutomationRuns(db)).toBe(0)
+  })
+
+  it("finishes the step it is inside, then holds the run where it stands", async () => {
+    const user = await insertUser(db, { role: "admin" })
+
+    // The switch goes on part-way through the walk, from inside a step. The
+    // promise is that this step finishes and nothing after it starts.
+    automationExecutors[SWITCH_FLIPPER] = async ({ database }) => {
+      await setAutomationPause(
+        { enabled: true, changedBy: "Tyler" },
+        database as typeof db
+      )
+      return { type: "next", summary: "Hit the switch." }
+    }
+
+    try {
+      const automation = await insertAutomation(user.id, [placeholder])
+      await db
+        .update(customShellAutomations)
+        .set({
+          compiledConfig: {
+            v: 1,
+            kind: "automation",
+            nodes: {
+              n0: { kind: SWITCH_FLIPPER, settings: {} },
+              n1: { kind: "placeholder", settings: { note: "" } },
+              n2: { kind: "placeholder", settings: { note: "" } },
+            },
+            edges: [
+              { from: "n0", sourcePort: "then", to: "n1" },
+              { from: "n1", sourcePort: "then", to: "n2" },
+            ],
+          },
+        })
+        .where(eq(customShellAutomations.id, automation.id))
+
+      const run = await startAutomationRun(user.id, automation.id, db)
+      await runAutomationTick(db)
+
+      // The step that hit the switch finished and was recorded; the two after
+      // it never started.
+      let detail = await getAutomationRun(user.id, run.id, db)
+      expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0"])
+
+      // Held, not killed: still active, claim handed back, and pointing at the
+      // step it was about to take.
+      let row = await readRun(run.id)
+      expect(row.status).toBe("active")
+      expect(row.currentNodeId).toBe("n1")
+      expect(row.claimToken).toBeNull()
+      expect(await countHeldAutomationRuns(db)).toBe(1)
+
+      // Passes while it is on change nothing, however many there are.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        expect((await runAutomationTick(db)).paused).toBe(true)
+      }
+      expect((await readRun(run.id)).currentNodeId).toBe("n1")
+
+      // Switch it back off and the run carries on from exactly where it
+      // stopped — the first step is not walked a second time.
+      await resume()
+      await runAutomationTick(db)
+
+      detail = await getAutomationRun(user.id, run.id, db)
+      expect(detail?.status).toBe("completed")
+      expect(detail?.steps.map((step) => step.nodeId)).toEqual([
+        "n0",
+        "n1",
+        "n2",
+      ])
+      row = await readRun(run.id)
+      expect(row.status).toBe("completed")
+      expect(await countHeldAutomationRuns(db)).toBe(0)
+    } finally {
+      delete automationExecutors[SWITCH_FLIPPER]
+    }
+  })
+
+  it("stops approval deadlines counting down instead of auto-rejecting", async () => {
+    const user = await insertUser(db, { role: "admin", name: "Tyler" })
+    const automation = await insertAutomation(user.id, [
+      approval,
+      placeholder,
+    ])
+    const run = await startAutomationRun(user.id, automation.id, db)
+    await runAutomationTick(db)
+    expect((await readRun(run.id)).status).toBe("waiting_approval")
+
+    // Its deadline passes while everything is paused. Auto-rejecting here
+    // would be the switch throwing away work nobody could have answered for.
+    await db
+      .update(customShellAutomationRuns)
+      .set({ approvalDeadlineAt: new Date(now().getTime() - 1000) })
+      .where(eq(customShellAutomationRuns.id, run.id))
+    await pause()
+
+    expect((await runAutomationTick(db)).expired).toBe(0)
+    expect((await readRun(run.id)).status).toBe("waiting_approval")
+    // A parked run is waiting on a person, not on the switch, so it is not
+    // counted among the runs being held.
+    expect(await countHeldAutomationRuns(db)).toBe(0)
+
+    // Off again, and the deadline it missed is answered on the next pass.
+    await resume()
+    expect((await runAutomationTick(db)).expired).toBe(1)
+    const detail = await getAutomationRun(user.id, run.id, db)
+    expect(detail?.approvalDecision).toBe("timed_out")
+  })
+
+  it("holds an approved run rather than refusing the decision", async () => {
+    const user = await insertUser(db, { role: "admin", name: "Tyler" })
+    const automation = await insertAutomation(user.id, [
+      approval,
+      placeholder,
+    ])
+    const run = await startAutomationRun(user.id, automation.id, db)
+    await runAutomationTick(db)
+    await pause()
+
+    // Saying yes is a decision, not work starting, so it is still allowed —
+    // an investigation should not leave the approval queue frozen.
+    expect(
+      await decideAutomationApproval({
+        runId: run.id,
+        decision: "approved",
+        decidedByUserId: user.id,
+        decidedByName: user.name,
+        database: db,
+      })
+    ).toBe(true)
+
+    await runAutomationTick(db)
+    // The step after the checkpoint waits for the switch like everything else.
+    expect((await readRun(run.id)).status).toBe("active")
+    let detail = await getAutomationRun(user.id, run.id, db)
+    expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0"])
+
+    await resume()
+    await runAutomationTick(db)
+    detail = await getAutomationRun(user.id, run.id, db)
+    expect(detail?.status).toBe("completed")
+    expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0", "n1"])
+  })
+
+  it("remembers who flipped it and reads a missing setting as running", async () => {
+    // A database that has never held this setting must read as running, or an
+    // install that upgrades into the switch would freeze on the first tick.
+    expect(await readAutomationsPaused(db)).toBe(false)
+
+    const saved = await setAutomationPause(
+      { enabled: true, changedBy: "Tyler" },
+      db
+    )
+    expect(saved.enabled).toBe(true)
+    expect(saved.changedBy).toBe("Tyler")
+    expect(saved.changedAt).not.toBe("")
+    expect(await readAutomationsPaused(db)).toBe(true)
+
+    await resume()
+    expect(await readAutomationsPaused(db)).toBe(false)
   })
 })

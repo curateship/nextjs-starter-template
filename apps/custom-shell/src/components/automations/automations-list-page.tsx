@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CopyIcon,
   Loader2Icon,
+  PauseIcon,
   PlayIcon,
   PlusIcon,
   SettingsIcon,
@@ -76,8 +77,10 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [direction, setDirection] = React.useState<TableSortDirection>("desc")
   const [search, setSearch] = React.useState("")
   const [page, setPage] = React.useState(1)
-  const { config } = useShellRuntime()
+  const { config, automationPauseBusy, onAutomationPauseChange } =
+    useShellRuntime()
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
+  const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
   const [creating, setCreating] = React.useState(false)
@@ -209,6 +212,18 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
     }
   }
 
+  /**
+   * The kill switch. Pausing asks first, because it stops everything at once;
+   * resuming does not, because it is the way back out of a mistake and putting
+   * a question in front of it is the last thing anybody wants at that moment.
+   */
+  const handlePauseChange = async (enabled: boolean) => {
+    if (automationPauseBusy) return
+    // The toast says how many runs were caught mid-flight; nothing on this page
+    // needs the number, so the answer is only checked for having worked.
+    if (await onAutomationPauseChange(enabled)) setConfirmPauseOpen(false)
+  }
+
   const handleDelete = async () => {
     if (!deleteTargets?.length || deleting) return
     setDeleting(true)
@@ -230,6 +245,10 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       setDeleting(false)
     }
   }
+
+  // One copy of the switch, shared with the header badge, which is the only
+  // place that says "everything is stopped" — this page just offers the toggle.
+  const paused = config.automationPause.enabled
 
   return (
     <>
@@ -259,6 +278,22 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
+            <DashboardToolbarButton
+              variant="outline"
+              disabled={automationPauseBusy}
+              onClick={() =>
+                paused ? void handlePauseChange(false) : setConfirmPauseOpen(true)
+              }
+            >
+              {automationPauseBusy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : paused ? (
+                <PlayIcon className="size-4" />
+              ) : (
+                <PauseIcon className="size-4" />
+              )}
+              {paused ? "Resume all" : "Pause all"}
+            </DashboardToolbarButton>
             <DashboardToolbarButton onClick={() => setCreateOpen(true)}>
               <PlusIcon className="size-4" />
               New automation
@@ -360,14 +395,18 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             <TableCell column="actions">
               <div className="flex items-center gap-1">
                 <DisabledReason
-                  disabled={!automation.isValid}
-                  reason="This flow has something to fix before it can run. Open it and check the steps marked in red."
+                  disabled={paused || !automation.isValid}
+                  reason={
+                    paused
+                      ? "Every automation is paused. Resume them to start this flow."
+                      : "This flow has something to fix before it can run. Open it and check the steps marked in red."
+                  }
                 >
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={!automation.isValid || runningId !== null}
+                    disabled={paused || !automation.isValid || runningId !== null}
                     aria-label={`Run ${automation.name} now`}
                     onClick={() => void handleRunNow(automation)}
                   >
@@ -498,6 +537,18 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         }
         loading={deleting}
         onConfirm={() => void handleDelete()}
+      />
+
+      <ConfirmDialog
+        open={confirmPauseOpen}
+        onOpenChange={(open) => {
+          if (!open) setConfirmPauseOpen(false)
+        }}
+        title="Pause every automation?"
+        description="Every flow stops as soon as you confirm, and no new one can be started by hand. A run part-way through finishes the step it is on, then holds its place — nothing is thrown away, and everything picks up where it left off when you resume."
+        confirmLabel="Pause automations"
+        loading={automationPauseBusy}
+        onConfirm={() => void handlePauseChange(true)}
       />
     </>
   )

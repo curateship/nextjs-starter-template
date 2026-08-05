@@ -7,6 +7,7 @@ import {
   automationNextNodeId,
   type AutomationApprovalDecision,
 } from "@/lib/automations/run"
+import { readAutomationsPaused } from "@/server/automation-pause"
 import {
   automationExecutors,
   type AutomationExecutorResult,
@@ -59,6 +60,14 @@ const RETRY_BACKOFF_MS = 30_000
  * any checkpoint whose deadline has passed.
  */
 export async function runAutomationTick(database: CustomShellDb = db) {
+  // The kill switch, asked before anything is claimed. Nothing below runs while
+  // it is on — not the walk, and not the deadline sweep, because auto-rejecting
+  // a checkpoint nobody could answer during the pause would be the switch
+  // throwing work away. See `server/automation-pause.ts` for the whole rule.
+  if (await readAutomationsPaused(database)) {
+    return { processed: 0, failed: 0, expired: 0, paused: true }
+  }
+
   const claimToken = uuid()
 
   // The claim and the pick happen in one statement. SKIP LOCKED means a second
@@ -100,7 +109,7 @@ export async function runAutomationTick(database: CustomShellDb = db) {
 
   const expired = await sweepExpiredApprovals(database)
 
-  return { processed, failed, expired }
+  return { processed, failed, expired, paused: false }
 }
 
 /** Walks one claimed run as far as this pass allows. */
@@ -286,6 +295,17 @@ async function processRun(
     // touching it — including the release below, which is guarded too and
     // would do nothing anyway.
     if (!stillOurs) return
+
+    // The kill switch again, between steps rather than only once a pass. A pass
+    // can be inside a long flow for minutes, and the promise the switch makes is
+    // that the step already running finishes and nothing after it starts — not
+    // that everything already claimed runs to the end. The step just taken is
+    // recorded and `currentNodeId` now points at the next one, so handing the
+    // claim back here holds the run exactly where it stands.
+    if (await readAutomationsPaused(database)) {
+      await release({ status: "active", attempts, wakeAt: now() })
+      return
+    }
   }
 
   // Budget spent on one very long flow. Hand the claim back and finish it on
@@ -512,6 +532,15 @@ export async function startAutomationRun(
   automationId: string,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomationRun> {
+  // Refused rather than held, and this is the one place the kill switch works
+  // that way. Everything already going is kept and resumes; but somebody is
+  // standing here having just pressed a button, and telling them "everything is
+  // paused" beats saving a run they never see that fires the moment the switch
+  // goes back off.
+  if (await readAutomationsPaused(database)) {
+    throw new Error("AUTOMATIONS_PAUSED")
+  }
+
   const [automation] = await database
     .select()
     .from(customShellAutomations)

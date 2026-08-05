@@ -9,18 +9,6 @@ type ThemeProviderProps = {
   defaultTheme?: Theme
   storageKey?: string
   disableTransitionOnChange?: boolean
-  /**
-   * Light or dark decided for this page, outranking both the saved choice and
-   * the system. Set on the public pages when the admin's public theme pins one
-   * (`lib/public-theme.ts`); left off everywhere else.
-   *
-   * It has to outrank the saved choice, not merely default it. A public theme's
-   * background and text are one colour each, not a light-and-dark pair, so a
-   * light look landing on a visitor who once picked dark paints dark text on a
-   * dark card. The public pages have no switcher either, so there is nothing
-   * for the visitor to lose here — the admin owns that side's look.
-   */
-  forcedTheme?: ResolvedTheme
 }
 
 type ThemeProviderState = {
@@ -94,7 +82,6 @@ export function ThemeProvider({
   defaultTheme = "system",
   storageKey = "theme",
   disableTransitionOnChange = true,
-  forcedTheme,
   ...props
 }: ThemeProviderProps) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
@@ -118,11 +105,6 @@ export function ThemeProvider({
     [storageKey]
   )
 
-  // What actually gets painted. The saved choice is still kept and still what
-  // the switcher shows — a page that pins a scheme only overrules it while you
-  // are on it.
-  const appliedTheme: Theme = forcedTheme ?? theme
-
   const applyTheme = React.useCallback(
     (nextTheme: Theme) => {
       const root = document.documentElement
@@ -143,9 +125,9 @@ export function ThemeProvider({
   )
 
   React.useEffect(() => {
-    applyTheme(appliedTheme)
+    applyTheme(theme)
 
-    if (appliedTheme !== "system") {
+    if (theme !== "system") {
       return undefined
     }
 
@@ -159,7 +141,7 @@ export function ThemeProvider({
     return () => {
       mediaQuery.removeEventListener("change", handleChange)
     }
-  }, [appliedTheme, applyTheme])
+  }, [theme, applyTheme])
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -179,15 +161,19 @@ export function ThemeProvider({
         return
       }
 
-      setTheme(
-        theme === "dark"
-          ? "light"
-          : theme === "light"
-            ? "dark"
-            : getSystemTheme() === "dark"
-              ? "light"
-              : "dark"
-      )
+      setThemeState((currentTheme) => {
+        const nextTheme =
+          currentTheme === "dark"
+            ? "light"
+            : currentTheme === "light"
+              ? "dark"
+              : getSystemTheme() === "dark"
+                ? "light"
+                : "dark"
+
+        localStorage.setItem(storageKey, nextTheme)
+        return nextTheme
+      })
     }
 
     window.addEventListener("keydown", handleKeyDown)
@@ -195,7 +181,7 @@ export function ThemeProvider({
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [setTheme, theme])
+  }, [storageKey])
 
   React.useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {

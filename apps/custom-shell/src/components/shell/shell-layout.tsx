@@ -27,6 +27,7 @@ import {
   isShellEntryNamed,
   isShellItem,
   MODAL_STYLE_VAR_NAMES,
+  normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeStyling,
@@ -47,6 +48,11 @@ import type { AuthUser } from "@/lib/api/auth"
 import { logout } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
 import {
+  getAutomationPauseErrorMessage,
+  saveAutomationPause,
+  type AutomationPauseState,
+} from "@/lib/api/automation-pause"
+import {
   getMaintenanceErrorMessage,
   saveMaintenance,
 } from "@/lib/api/maintenance"
@@ -62,7 +68,6 @@ import {
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
-import { normalizePublicTheme } from "@/lib/public-theme"
 import { clampSidebarWidth } from "@/lib/sidebar-width"
 import { setToastSeconds } from "@/lib/toast-duration"
 import { clampToastSeconds } from "@/lib/toast-seconds"
@@ -76,12 +81,23 @@ type ShellRuntime = {
   feedbackRefreshToken: number
   /** True while the maintenance switch is being written. */
   maintenanceBusy: boolean
+  /** True while the automations kill switch is being written. */
+  automationPauseBusy: boolean
   /** True while the session policy is being written. */
   sessionPolicyBusy: boolean
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
   /** Writes the maintenance switch on its own; never via the settings save. */
   onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
+  /**
+   * Flips the automations kill switch, from the header badge or the automations
+   * page. Answers with the saved switch and how many runs are still held, so
+   * the page that asked can say the number without a second round trip; null
+   * when the write failed.
+   */
+  onAutomationPauseChange: (
+    enabled: boolean
+  ) => Promise<AutomationPauseState | null>
   /** Writes the session policy on its own; never via the settings save. */
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   onOpenFeedback: () => void
@@ -157,6 +173,7 @@ export function ShellLayout({
   )
   const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
   const [maintenanceBusy, setMaintenanceBusy] = React.useState(false)
+  const [automationPauseBusy, setAutomationPauseBusy] = React.useState(false)
   const [sessionPolicyBusy, setSessionPolicyBusy] = React.useState(false)
   const lastSettingsRef = React.useRef(settings)
 
@@ -316,6 +333,40 @@ export function ShellLayout({
     []
   )
 
+  // The automations kill switch writes on its own for the same reason
+  // maintenance does, and it lives up here rather than on the automations page
+  // because the header badge flips it too — from any screen in the app.
+  const handleAutomationPauseChange = React.useCallback(
+    async (enabled: boolean) => {
+      setAutomationPauseBusy(true)
+      try {
+        const state = await saveAutomationPause(enabled)
+        setConfig((current) => ({ ...current, automationPause: state.pause }))
+        latestConfigRef.current = {
+          ...latestConfigRef.current,
+          automationPause: state.pause,
+        }
+        dismissErrorToast()
+        toast.success(
+          state.pause.enabled
+            ? state.held_runs > 0
+              ? `Every automation is paused. ${state.held_runs} ${
+                  state.held_runs === 1 ? "run is" : "runs are"
+                } held where they stopped.`
+              : "Every automation is paused. Nothing was part-way through."
+            : "Automations are running again."
+        )
+        return state
+      } catch (error) {
+        showErrorToast(getAutomationPauseErrorMessage(error))
+        return null
+      } finally {
+        setAutomationPauseBusy(false)
+      }
+    },
+    []
+  )
+
   // The session policy writes on its own for the same reason maintenance does:
   // it must never ride along with a settings save that could carry a stale
   // copy of it. The value is already saved when this resolves; the local
@@ -404,18 +455,22 @@ export function ShellLayout({
       saveStatus,
       feedbackRefreshToken,
       maintenanceBusy,
+      automationPauseBusy,
       sessionPolicyBusy,
       onConfigChange: handleConfigChange,
       onSaveConfig: handleSaveConfig,
       onMaintenanceChange: handleMaintenanceChange,
+      onAutomationPauseChange: handleAutomationPauseChange,
       onSessionPolicyChange: handleSessionPolicyChange,
       onOpenFeedback: () => openFeedback(),
       onOpenFeedbackThread: openFeedback,
       reportSaveStatus: setPageSaveStatus,
     }),
     [
+      automationPauseBusy,
       config,
       feedbackRefreshToken,
+      handleAutomationPauseChange,
       handleConfigChange,
       handleMaintenanceChange,
       handleSaveConfig,
@@ -474,6 +529,12 @@ export function ShellLayout({
                 user.role === "admin" && config.maintenance.enabled
               }
               maintenanceBusy={maintenanceBusy}
+              automationPause={
+                user.role === "admin" && config.automationPause.enabled
+                  ? config.automationPause
+                  : null
+              }
+              automationPauseBusy={automationPauseBusy}
               viewingAs={
                 viewedBy
                   ? {
@@ -488,6 +549,9 @@ export function ShellLayout({
                   ...config.maintenance,
                   enabled: false,
                 })
+              }
+              onResumeAutomations={() =>
+                void handleAutomationPauseChange(false)
               }
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
@@ -574,11 +638,8 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     // before this setting existed keeps it on.
     liveNotifications: settings.liveNotifications !== false,
     maintenance: normalizeMaintenance(settings.maintenance),
+    automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
-    // Carried, not used: nothing in the signed-in app is dressed by the public
-    // theme. It rides along so a settings save writes back what it loaded
-    // instead of wiping the public pages' look.
-    publicTheme: normalizePublicTheme(settings.publicTheme),
     styling: normalizeStyling(settings.styling),
     dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
   }

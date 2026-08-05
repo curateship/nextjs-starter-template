@@ -5,12 +5,12 @@ import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopLeftNavLimit,
   type ShellConfig,
 } from "@/lib/custom-shell"
-import { normalizePublicTheme, type PublicTheme } from "@/lib/public-theme"
 import { clampToastSeconds } from "@/lib/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -58,13 +58,9 @@ export async function readDashboardRowsPerPage(
  */
 export async function readBranding(
   database: CustomShellDb = db
-): Promise<{ appName: string; logo: string; publicTheme: PublicTheme }> {
+): Promise<{ appName: string; logo: string }> {
   const globals = await readShellGlobals(database)
-  return {
-    appName: globals.appName,
-    logo: globals.logo,
-    publicTheme: globals.publicTheme,
-  }
+  return { appName: globals.appName, logo: globals.logo }
 }
 
 /**
@@ -156,12 +152,11 @@ export function parseShellGlobals(value: unknown) {
     // meant to be on — so only an explicit `false` turns it off.
     liveNotifications: settings.liveNotifications !== false,
     maintenance: normalizeMaintenance(settings.maintenance),
+    // Rows saved before this switch existed have no value, and the default is
+    // running — so an existing install's automations keep going exactly as
+    // they did.
+    automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
-    // Guarded field by field for the same reason as the app name and logo: this
-    // one lands on the pages a signed-out visitor sees. A row saved before the
-    // theme existed has no value at all, and the defaults are today's look, so
-    // an install that never touches it is unchanged.
-    publicTheme: normalizePublicTheme(settings.publicTheme),
   }
 }
 
@@ -187,8 +182,8 @@ export function pickShellGlobals(
     | "memberTopRightNavigation"
     | "liveNotifications"
     | "maintenance"
+    | "automationPause"
     | "sessionPolicy"
-    | "publicTheme"
   >
 ) {
   return {
@@ -205,7 +200,7 @@ export function pickShellGlobals(
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
     maintenance: settings.maintenance,
+    automationPause: settings.automationPause,
     sessionPolicy: settings.sessionPolicy,
-    publicTheme: settings.publicTheme,
   }
 }

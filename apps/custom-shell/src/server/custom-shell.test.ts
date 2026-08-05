@@ -62,6 +62,8 @@ import {
   createDefaultTopRightNavigation,
   isActiveShellHref,
   isShellItem,
+  MAX_AUTOMATION_PAUSE_NAME_LENGTH,
+  normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
   normalizeTopRightNavigation,
@@ -70,11 +72,6 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
-import {
-  createDefaultPublicTheme,
-  noFlashThemeScript,
-  publicThemeStyle,
-} from "@/lib/public-theme"
 import { loadMembershipSummary } from "@/server/membership"
 import { startViewingAs, stopViewingAs } from "@/server/view-as"
 import { loadAccountDetail } from "@/server/account-detail"
@@ -3917,6 +3914,46 @@ describe("member sidebar", () => {
     ])
   })
 
+  it("carries the automations kill switch through a save and back", () => {
+    // Same trap as the member sidebar above, with a worse ending: miss this in
+    // `pickShellGlobals` and any settings save would quietly start every
+    // automation running again while the switch still says "paused".
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      automationPause: {
+        enabled: true,
+        changedBy: "Tyler",
+        changedAt: "2026-08-04T23:04:00.000Z",
+      },
+    })
+
+    expect(parseShellGlobals(saved).automationPause).toEqual({
+      enabled: true,
+      changedBy: "Tyler",
+      changedAt: "2026-08-04T23:04:00.000Z",
+    })
+    // A row written before the switch existed reads as "running", so an
+    // install that upgrades into this keeps its automations going.
+    expect(parseShellGlobals({ appName: "x" }).automationPause.enabled).toBe(
+      false
+    )
+  })
+
+  it("reads anything that is not a real flag as automations running", () => {
+    // The kill switch fails safe in the direction of working, not stopped: a
+    // junk value silently freezing every automation is far worse than one that
+    // is ignored.
+    expect(normalizeAutomationPause("on").enabled).toBe(false)
+    expect(normalizeAutomationPause({ enabled: "true" }).enabled).toBe(false)
+    expect(normalizeAutomationPause(null).enabled).toBe(false)
+    expect(normalizeAutomationPause({ enabled: true }).enabled).toBe(true)
+    // Who flipped it is text on a card, so it is capped rather than trusted.
+    expect(
+      normalizeAutomationPause({ enabled: true, changedBy: "x".repeat(500) })
+        .changedBy.length
+    ).toBe(MAX_AUTOMATION_PAUSE_NAME_LENGTH)
+  })
+
   it("carries the member home route through a save and back", () => {
     // Same trap as the member sidebar above: a global the settings page saves
     // has to be named in `pickShellGlobals` or it is dropped on every save,
@@ -3966,104 +4003,6 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ appName: "x" }).topLeftNavLimit).toBe(0)
     expect(parseShellGlobals({ topLeftNavLimit: 99 }).topLeftNavLimit).toBe(0)
     expect(parseShellGlobals({ topLeftNavLimit: "5" }).topLeftNavLimit).toBe(0)
-  })
-
-  it("carries the public pages' theme through a save and back", () => {
-    // Same trap as the four above: miss it in `pickShellGlobals` and every
-    // settings save quietly resets how the front page and sign-in pages look.
-    const saved = pickShellGlobals({
-      ...createDefaultShellConfig(),
-      publicTheme: {
-        ...createDefaultPublicTheme(),
-        brandColor: "#1d4ed8",
-        colorScheme: "dark",
-        font: "inter",
-        radius: 2,
-      },
-    })
-
-    expect(parseShellGlobals(saved).publicTheme).toEqual({
-      brandColor: "#1d4ed8",
-      backgroundColor: "",
-      textColor: "",
-      font: "inter",
-      radius: 2,
-      colorScheme: "dark",
-    })
-  })
-
-  it("reads a row with no saved theme as today's look", () => {
-    // The whole promise of shipping this before there are any controls for it:
-    // an install that has never saved a theme has to be pixel-identical.
-    const theme = parseShellGlobals({ appName: "x" }).publicTheme
-
-    expect(theme).toEqual(createDefaultPublicTheme())
-    // Nothing set means nothing painted — the CSS variables that would replace
-    // a theme color are simply not emitted.
-    const style = publicThemeStyle(theme) as Record<string, string>
-    expect(style["--primary"]).toBeUndefined()
-    expect(style["--background"]).toBeUndefined()
-    expect(style["--foreground"]).toBeUndefined()
-    // 10px is the 0.625rem theme.css already uses, written so it still tracks
-    // a visitor's own text size.
-    expect(style["--radius"]).toBe("0.625rem")
-    expect(style["--app-font-sans"]).toBe("ui-sans-serif, system-ui, sans-serif")
-  })
-
-  it("refuses junk in the theme rather than painting it", () => {
-    // These values land on a page a signed-out visitor sees, so a hand-edited
-    // row must read as "nothing set", never reach the paint.
-    const theme = parseShellGlobals({
-      publicTheme: {
-        brandColor: "red; background: url(https://evil.test/x.png)",
-        backgroundColor: 42,
-        textColor: "#GGGGGG",
-        font: "comic-sans",
-        radius: 9000,
-        colorScheme: "neon",
-      },
-    }).publicTheme
-
-    expect(theme).toEqual({
-      brandColor: "",
-      backgroundColor: "",
-      textColor: "",
-      font: "system",
-      radius: 24,
-      colorScheme: "system",
-    })
-    // A theme saved as something that is not an object at all reads the same.
-    expect(parseShellGlobals({ publicTheme: "dark" }).publicTheme).toEqual(
-      createDefaultPublicTheme()
-    )
-  })
-
-  it("puts readable text on whatever brand color it is given", () => {
-    // Nobody picks the text that sits on a button, so a pale brand with the
-    // default near-white label would be an unreadable button.
-    const light = publicThemeStyle({
-      ...createDefaultPublicTheme(),
-      brandColor: "#fde047",
-    }) as Record<string, string>
-    const dark = publicThemeStyle({
-      ...createDefaultPublicTheme(),
-      brandColor: "#1d4ed8",
-    }) as Record<string, string>
-
-    expect(light["--primary-foreground"]).toBe("oklch(0.205 0 0)")
-    expect(dark["--primary-foreground"]).toBe("oklch(0.985 0 0)")
-  })
-
-  it("decides light or dark before the page paints", () => {
-    // The script runs in <head>, ahead of the stylesheet, so a visitor never
-    // sees one scheme swap to the other. The saved default is what somebody
-    // who has never picked gets; a saved choice still wins.
-    expect(noFlashThemeScript("dark")).toContain(
-      "localStorage.getItem('theme')||'dark'"
-    )
-    expect(noFlashThemeScript("system")).toContain(
-      "localStorage.getItem('theme')||'system'"
-    )
   })
 
   it("still refuses to show a member an admin page put on their list", async () => {

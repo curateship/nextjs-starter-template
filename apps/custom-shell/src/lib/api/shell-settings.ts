@@ -11,11 +11,6 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
-import {
-  MAX_PUBLIC_RADIUS,
-  PUBLIC_COLOR_SCHEMES,
-  PUBLIC_THEME_FONTS,
-} from "@/lib/public-theme"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 import { db } from "@/server/db"
@@ -106,25 +101,6 @@ const shellModalStylingSchema = z.object({
   cardBorderColor: shellBackgroundSchema,
 })
 
-/**
- * The public pages' look. Nothing on the Settings screens edits it yet — the
- * preset gallery and fine-tuning tasks bring the controls — so today this only
- * carries back what the page loaded.
- *
- * The three colors are checked on the way out instead, by `normalizePublicTheme`
- * in `lib/public-theme.ts`: anything that is not a hex color reads as "no color
- * set". Rejecting them here would take an unrelated settings edit down with
- * them, and nothing paints straight from this row.
- */
-const publicThemeSchema = z.object({
-  brandColor: z.string().max(64),
-  backgroundColor: z.string().max(64),
-  textColor: z.string().max(64),
-  font: z.enum(PUBLIC_THEME_FONTS),
-  radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
-  colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
-})
-
 const shellStylingSchema = z.object({
   gutter: z.number().int().min(0).max(48),
   cardBorderWidth: z.number().int().min(0).max(3),
@@ -194,7 +170,6 @@ const shellConfigSchema = z.object({
     maxAgeDays: z.number().int().min(0),
     idleMinutes: z.number().int().min(0),
   }),
-  publicTheme: publicThemeSchema,
   styling: shellStylingSchema,
   dashboardWidgets: dashboardWidgetsSchema,
 })
@@ -255,8 +230,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // action (lib/api/maintenance.ts). An admin whose settings page loaded
       // before somebody turned it on must not switch it back off by renaming
       // the app, so the switch keeps whatever the row already says; only its
-      // message comes from this save. The session policy is kept whole for
-      // the same reason — its one writer is lib/api/session-policy.ts.
+      // message comes from this save. The session policy and the automations
+      // kill switch are kept whole for the same reason — their one writer each
+      // is lib/api/session-policy.ts and lib/api/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
 
       // The logo is drawn on the signed-out pages, so what gets stored has to
@@ -275,7 +251,14 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       }
 
       const globalSettings = {
-        ...pickShellGlobals(data),
+        // The kill switch is not in this request's shape at all, on purpose:
+        // the settings page never sends it, so there is no version of this
+        // save — not even from a tab left open across a deploy — that can
+        // start every automation running again.
+        ...pickShellGlobals({
+          ...data,
+          automationPause: existingGlobals.automationPause,
+        }),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,
           message: data.maintenance.message,

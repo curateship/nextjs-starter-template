@@ -151,7 +151,7 @@ export function SettingsPage({
             reset={{
               label: "Reset all to defaults",
               description:
-                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, the public pages' theme, and all styling go back to their defaults. This cannot be undone.",
+                "Every sidebar section and link is deleted. The workspace name, subheader, home route, favicon, rows per page, sidebar width, top-right menu, and all styling go back to their defaults. This cannot be undone.",
               onReset: () => onConfigChange(createDefaultShellConfig()),
             }}
           />

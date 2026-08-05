@@ -6,11 +6,13 @@ import {
   EyeIcon,
   Loader2Icon,
   PanelLeftIcon,
+  PauseIcon,
   TriangleAlertIcon,
 } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { announcementLevelBannerClassNames } from "@/lib/announcement"
+import { formatDateTime } from "@/lib/format-time"
 import { useStopViewingAs } from "@/lib/use-stop-viewing-as"
 import { Button } from "@/components/ui/button"
 import { StickyHeaderRightNav } from "@/pages/dashboard/sticky-header/sticky-header-right-nav"
@@ -47,9 +49,16 @@ type StickyHeaderProps = {
   /** Admins only: the app is closed to members and this is the reminder. */
   maintenanceOn?: boolean
   maintenanceBusy?: boolean
+  /**
+   * Admins only, and set only while everything is stopped: the reminder, and
+   * who stopped it. Absent means automations are running.
+   */
+  automationPause?: { changedBy: string; changedAt: string } | null
+  automationPauseBusy?: boolean
   /** Set while an admin is looking at the app as somebody else. */
   viewingAs?: ViewingAsSummary | null
   onTurnOffMaintenance?: () => void
+  onResumeAutomations?: () => void
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
@@ -66,8 +75,11 @@ export function StickyHeader({
   saveStatus,
   maintenanceOn,
   maintenanceBusy,
+  automationPause,
+  automationPauseBusy,
   viewingAs,
   onTurnOffMaintenance,
+  onResumeAutomations,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderProps) {
@@ -107,6 +119,13 @@ export function StickyHeader({
             <MaintenanceBadge
               busy={Boolean(maintenanceBusy)}
               onTurnOff={onTurnOffMaintenance}
+            />
+          ) : null}
+          {automationPause && onResumeAutomations ? (
+            <AutomationsPausedBadge
+              pause={automationPause}
+              busy={Boolean(automationPauseBusy)}
+              onResume={onResumeAutomations}
             />
           ) : null}
           <SaveStatusIndicator status={saveStatus} />
@@ -175,6 +194,86 @@ function MaintenanceBadge({
           <Loader2Icon className="size-4 animate-spin" />
         ) : (
           <TriangleAlertIcon className="size-4" />
+        )}
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * The reminder that every automation is stopped.
+ *
+ * Same shape and the same red as the maintenance reminder, and there for the
+ * same reason: the switch gets hit at eleven at night in the middle of
+ * something going wrong, and an admin who moves on to another screen must not
+ * be able to leave it on by forgetting about it. It resumes from right here,
+ * with no walk back to the automations page to find the switch.
+ *
+ * Who hit the switch and when is one hover away rather than gone. This app has
+ * no activity log any more, so that sentence is the whole record of the flip —
+ * it must be readable somewhere, and this badge is the one thing on screen
+ * whenever the switch is on.
+ *
+ * How many runs are being held is deliberately not up here: the header does not
+ * refetch on a timer, and a stale count reads worse than no count. The toast
+ * fired when the switch was thrown says the number.
+ *
+ * A phone header has room for one control, not two, so below `sm` the words and
+ * the button collapse into a single red button that does the same job.
+ */
+function AutomationsPausedBadge({
+  pause,
+  busy,
+  onResume,
+}: {
+  pause: { changedBy: string; changedAt: string }
+  busy: boolean
+  onResume: () => void
+}) {
+  // Only when the row really recorded it — an install whose switch was flipped
+  // by hand in the database has neither, and half a sentence is worse than none.
+  const who =
+    pause.changedBy && pause.changedAt
+      ? ` Paused by ${pause.changedBy} on ${formatDateTime(pause.changedAt)}.`
+      : ""
+  const fullSentence = `Every automation is stopped. Runs already going are held where they stopped and carry on when you resume.${who}`
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* The announcement is the words, not the buttons beside them — a live
+          region wrapped around a control re-reads the control every time. */}
+      <span
+        role="status"
+        title={fullSentence}
+        className="hidden items-center gap-1.5 rounded-md bg-destructive/10 px-2 py-1 text-sm font-medium text-destructive sm:inline-flex"
+      >
+        <PauseIcon className="h-4 w-4 shrink-0" aria-hidden />
+        Automations paused
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        className="hidden sm:inline-flex"
+        disabled={busy}
+        onClick={onResume}
+      >
+        {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+        Resume
+      </Button>
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon"
+        className="sm:hidden"
+        title={fullSentence}
+        aria-label={`${fullSentence} Resume them.`}
+        disabled={busy}
+        onClick={onResume}
+      >
+        {busy ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
+          <PauseIcon className="size-4" />
         )}
       </Button>
     </div>
