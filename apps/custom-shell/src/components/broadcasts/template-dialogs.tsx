@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/broadcasts"
 import type { BroadcastBlock } from "@/lib/broadcasts/blocks"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { plural } from "@/lib/plural"
 
 export function SaveTemplateDialog({
   open,
@@ -80,9 +81,8 @@ export function SaveTemplateDialog({
           <DialogHeader>
             <DialogTitle>Save this as a template</DialogTitle>
             <DialogDescription>
-              Keeps these {blocks.length} block
-              {blocks.length === 1 ? "" : "s"} so the next email can start from
-              them.
+              Keeps these {blocks.length} {plural(blocks.length, "block", "blocks")} so the
+              next email can start from them.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

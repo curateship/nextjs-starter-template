@@ -15,6 +15,12 @@ import { announcementLevelBannerClassNames } from "@/lib/announcement"
 import { formatDateTime } from "@/lib/format-time"
 import { useStopViewingAs } from "@/lib/use-stop-viewing-as"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { StickyHeaderRightNav } from "@/pages/dashboard/sticky-header/sticky-header-right-nav"
 import {
   StickyHeaderLeftNav,
@@ -180,22 +186,31 @@ function MaintenanceBadge({
         {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
         Turn off
       </Button>
-      <Button
-        type="button"
-        variant="destructive"
-        size="icon"
-        className="sm:hidden"
-        title="Maintenance mode is on — turn it off"
-        aria-label="Maintenance mode is on — turn it off"
+      <DisabledReason
         disabled={busy}
-        onClick={onTurnOff}
+        reason="Maintenance mode is still turning off."
       >
-        {busy ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
-          <TriangleAlertIcon className="size-4" />
-        )}
-      </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              className="sm:hidden"
+              aria-label="Maintenance mode is on — turn it off"
+              disabled={busy}
+              onClick={onTurnOff}
+            >
+              {busy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <TriangleAlertIcon className="size-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Maintenance mode is on — turn it off</TooltipContent>
+        </Tooltip>
+      </DisabledReason>
     </div>
   )
 }
@@ -260,22 +275,28 @@ function AutomationsPausedBadge({
         {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
         Resume
       </Button>
-      <Button
-        type="button"
-        variant="destructive"
-        size="icon"
-        className="sm:hidden"
-        title={fullSentence}
-        aria-label={`${fullSentence} Resume them.`}
-        disabled={busy}
-        onClick={onResume}
-      >
-        {busy ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
-          <PauseIcon className="size-4" />
-        )}
-      </Button>
+      <DisabledReason disabled={busy} reason="Wait for automations to resume.">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              className="sm:hidden"
+              aria-label={`${fullSentence} Resume them.`}
+              disabled={busy}
+              onClick={onResume}
+            >
+              {busy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <PauseIcon className="size-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{fullSentence}</TooltipContent>
+        </Tooltip>
+      </DisabledReason>
     </div>
   )
 }
@@ -331,22 +352,28 @@ function ViewAsBadge({ viewingAs }: { viewingAs: ViewingAsSummary }) {
         {leaving ? <Loader2Icon className="size-4 animate-spin" /> : null}
         Stop viewing
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className={cn("sm:hidden", announcementLevelBannerClassNames.warning)}
-        title={fullSentence}
-        aria-label={`${fullSentence} Stop viewing.`}
-        disabled={leaving}
-        onClick={() => void stopViewing()}
-      >
-        {leaving ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
-          <EyeIcon className="size-4" />
-        )}
-      </Button>
+      <DisabledReason disabled={leaving} reason="Finish leaving this view first.">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={cn("sm:hidden", announcementLevelBannerClassNames.warning)}
+              aria-label={`${fullSentence} Stop viewing.`}
+              disabled={leaving}
+              onClick={() => void stopViewing()}
+            >
+              {leaving ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <EyeIcon className="size-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{fullSentence}</TooltipContent>
+        </Tooltip>
+      </DisabledReason>
     </div>
   )
 }

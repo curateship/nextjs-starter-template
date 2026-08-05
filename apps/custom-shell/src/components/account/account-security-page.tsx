@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -50,6 +51,7 @@ import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime, formatTimeAgo } from "@/lib/format-time"
+import { plural } from "@/lib/plural"
 import { useLastValue } from "@/lib/use-last-value"
 import { useBrowserSupportsWebAuthn } from "@/lib/use-webauthn-support"
 
@@ -377,17 +379,21 @@ function PasskeysCard() {
                         : "Never"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
+                      <DisabledReason
                         disabled={adding || removing}
-                        title="Remove this passkey"
-                        aria-label={`Remove ${passkey.name}`}
-                        onClick={() => setPendingRemove(passkey)}
+                        reason="Wait for the current passkey action to finish."
                       >
-                        <Trash2Icon className="size-4" />
-                      </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={adding || removing}
+                          aria-label={`Remove ${passkey.name}`}
+                          onClick={() => setPendingRemove(passkey)}
+                        >
+                          <Trash2Icon className="size-4" />
+                        </Button>
+                      </DisabledReason>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -588,26 +594,30 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
                     </TableCell>
                     <TableCell className="text-right">
                       {session.isCurrent ? null : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
+                        <DisabledReason
                           disabled={working}
-                          title="Sign out this device"
-                          aria-label={`Sign out ${session.device}`}
-                          onClick={() =>
-                            void run(session.id, async () => {
-                              await revokeSession(session.id)
-                              return `Signed out ${session.device}.`
-                            })
-                          }
+                          reason="Wait for the current session action to finish."
                         >
-                          {runningId === session.id ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : (
-                            <LogOutIcon className="size-4" />
-                          )}
-                        </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={working}
+                            aria-label={`Sign out ${session.device}`}
+                            onClick={() =>
+                              void run(session.id, async () => {
+                                await revokeSession(session.id)
+                                return `Signed out ${session.device}.`
+                              })
+                            }
+                          >
+                            {runningId === session.id ? (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            ) : (
+                              <LogOutIcon className="size-4" />
+                            )}
+                          </Button>
+                        </DisabledReason>
                       )}
                     </TableCell>
                   </TableRow>
@@ -625,7 +635,7 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
               onClick={() =>
                 void run("all-others", async () => {
                   const { removed } = await signOutOtherSessions()
-                  return `Signed out ${removed} other ${removed === 1 ? "device" : "devices"}.`
+                  return `Signed out ${removed} other ${plural(removed, "device", "devices")}.`
                 })
               }
             >
@@ -636,9 +646,9 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
             </Button>
             {hidden > 0 ? (
               <span className="text-sm text-muted-foreground">
-                {hidden} older {hidden === 1 ? "device is" : "devices are"} not
+                {hidden} older {plural(hidden, "device is", "devices are")} not
                 shown. Signing out all other devices clears{" "}
-                {hidden === 1 ? "it" : "them"} too.
+                {plural(hidden, "it", "them")} too.
               </span>
             ) : null}
           </div>

@@ -1,3 +1,5 @@
+import { plural } from "@/lib/plural"
+
 /**
  * Plan features are free-form per product, but always JSON-safe scalars so they
  * survive the trip from the database to the browser unchanged.
@@ -52,8 +54,7 @@ function describeFeature(key: string, value: PlanFeatureValue) {
 
   if (wording) {
     if (typeof value === "number" && wording.count) {
-      const noun = value === 1 ? wording.count.one : wording.count.many
-      return `${formatCount(value)} ${noun}`
+      return `${formatCount(value)} ${plural(value, wording.count.one, wording.count.many)}`
     }
     if (typeof value === "number" && wording.dollarsAMonth) {
       return `$${formatCount(value)} ${wording.dollarsAMonth} a month`

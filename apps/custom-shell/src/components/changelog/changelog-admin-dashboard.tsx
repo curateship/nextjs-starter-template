@@ -54,6 +54,7 @@ import {
   type ChangelogEntry,
 } from "@/lib/api/changelog"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { plural } from "@/lib/plural"
 import { formatDate } from "@/lib/format-time"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useClientPage } from "@/lib/use-client-page"
@@ -366,7 +367,7 @@ export function ChangelogAdminDashboard({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "update" : "updates"}?`}
+        title={`Delete ${selectedIds.size} ${plural(selectedIds.size, "update", "updates")}?`}
         description="They disappear from everyone's What's new panel. This cannot be undone."
         confirmLabel="Delete updates"
         loading={massDeleting}

@@ -1,3 +1,5 @@
+import { plural } from "@/lib/plural"
+
 /**
  * The rules for throwing away data that has outlived its use, and the words the
  * settings card says afterwards.
@@ -57,23 +59,21 @@ const EMPTY_RESULT = "Nothing to clean up — there was no old data."
 /** One line naming what a run deleted, or saying it found nothing. */
 export function describeCleanupResult(counts: CleanupCounts) {
   const parts = [
-    plural(counts.sessions, "expired sign-in", "expired sign-ins"),
-    plural(counts.authTokens, "used email link", "used email links"),
-    plural(
-      counts.throttles,
-      "finished attempt limit",
-      "finished attempt limits"
-    ),
-    plural(
-      counts.notifications,
-      `notice read over ${READ_NOTICE_KEEP_DAYS} days ago`,
-      `notices read over ${READ_NOTICE_KEEP_DAYS} days ago`
-    ),
-    plural(
-      counts.emailSends,
-      `email record over ${EMAIL_SEND_KEEP_DAYS} days old`,
-      `email records over ${EMAIL_SEND_KEEP_DAYS} days old`
-    ),
+    counts.sessions > 0
+      ? `${counts.sessions} ${plural(counts.sessions, "expired sign-in", "expired sign-ins")}`
+      : null,
+    counts.authTokens > 0
+      ? `${counts.authTokens} ${plural(counts.authTokens, "used email link", "used email links")}`
+      : null,
+    counts.throttles > 0
+      ? `${counts.throttles} ${plural(counts.throttles, "finished attempt limit", "finished attempt limits")}`
+      : null,
+    counts.notifications > 0
+      ? `${counts.notifications} ${plural(counts.notifications, `notice read over ${READ_NOTICE_KEEP_DAYS} days ago`, `notices read over ${READ_NOTICE_KEEP_DAYS} days ago`)}`
+      : null,
+    counts.emailSends > 0
+      ? `${counts.emailSends} ${plural(counts.emailSends, `email record over ${EMAIL_SEND_KEEP_DAYS} days old`, `email records over ${EMAIL_SEND_KEEP_DAYS} days old`)}`
+      : null,
   ].filter((part) => part !== null)
 
   if (parts.length === 0) return EMPTY_RESULT
@@ -84,12 +84,6 @@ export function describeCleanupResult(counts: CleanupCounts) {
   return Object.values(counts).some((count) => count >= CLEANUP_BATCH_LIMIT)
     ? `${sentence} That is the most one run takes — press it again to clear the rest.`
     : sentence
-}
-
-/** `null` for none, so a table with nothing to delete stays out of the sentence. */
-function plural(count: number, one: string, many: string) {
-  if (count <= 0) return null
-  return `${count} ${count === 1 ? one : many}`
 }
 
 function joinWithAnd(parts: string[]) {

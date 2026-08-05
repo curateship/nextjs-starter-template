@@ -406,7 +406,7 @@ export function MediaPicker({
 
                 {/* No scroll box of its own: the dialog body is already a
                 ScrollArea, and a second one would trap the wheel. */}
-                <div className="min-h-[260px] rounded-lg border p-3">
+                <div className="min-h-64 rounded-lg border p-3">
                   {loading ? (
                     <div
                       className="grid h-56 place-items-center text-sm text-muted-foreground"

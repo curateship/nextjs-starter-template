@@ -9,6 +9,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
+import { plural } from "@/lib/plural"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -175,7 +176,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       setBroadcasts((current) => current.filter((item) => !gone.has(item.id)))
       selection.clear()
       toast.success(
-        deleted === 1 ? "Deleted it." : `Deleted ${deleted} newsletters.`
+        `Deleted ${deleted} ${plural(deleted, "newsletter", "newsletters")}.`
       )
       done()
     })
@@ -436,7 +437,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedCount} newsletter${selectedCount === 1 ? "" : "s"}?`}
+        title={`Delete ${selectedCount} ${plural(selectedCount, "newsletter", "newsletters")}?`}
         description="They go for good, along with everything written in them. Anything already sent stays sent — this cannot unsend it."
         confirmLabel={`Delete ${selectedCount}`}
         loading={deleting}

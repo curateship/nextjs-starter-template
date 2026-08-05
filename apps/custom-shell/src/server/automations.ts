@@ -17,6 +17,7 @@ import {
   type CustomShellAutomation,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
+import { plural } from "@/lib/plural"
 
 const NAME_MAX_LENGTH = 80
 
@@ -78,7 +79,7 @@ export function automationSummary(inspected: InspectedAutomation): string {
   if (!inspected.readable) return "Unreadable — needs attention"
   if (inspected.compiledConfig !== null && inspected.errors.length === 0) {
     const steps = Object.keys(inspected.compiledConfig.nodes).length
-    return `${steps} step${steps === 1 ? "" : "s"}`
+    return `${steps} ${plural(steps, "step", "steps")}`
   }
   return inspected.graph.nodes.length === 0 ? "Empty draft" : "Needs attention"
 }

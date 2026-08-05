@@ -56,6 +56,7 @@ import {
   type AdminPlan,
 } from "@/lib/api/admin-plans"
 import { describeBulkResult } from "@/lib/bulk-result"
+import { plural } from "@/lib/plural"
 import {
   useListSearchNavigate,
   useListSort,
@@ -465,7 +466,7 @@ export function AdminPlansDashboard({
       <ConfirmDialog
         open={massArchiveOpen}
         onOpenChange={setMassArchiveOpen}
-        title={`Archive ${selectedIds.size} ${selectedIds.size === 1 ? "plan" : "plans"}?`}
+        title={`Archive ${selectedIds.size} ${plural(selectedIds.size, "plan", "plans")}?`}
         description="They disappear from the pricing page. Anyone already on them keeps their plan until their subscription ends."
         confirmLabel="Archive plans"
         loading={massArchiving}

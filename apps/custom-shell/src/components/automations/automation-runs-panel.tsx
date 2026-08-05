@@ -33,6 +33,7 @@ import {
   automationRunStepStatusLabels,
 } from "@/lib/automations/run"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { plural } from "@/lib/plural"
 import { useAsyncAction } from "@/lib/use-async-action"
 import { focusRingInset } from "@/lib/focus-ring"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
@@ -354,7 +355,7 @@ function RunRow({
             </span>
           ) : null}
           <span className="shrink-0 text-xs text-muted-foreground">
-            {run.step_count} {run.step_count === 1 ? "step" : "steps"}
+            {run.step_count} {plural(run.step_count, "step", "steps")}
           </span>
           <span
             className="ml-auto shrink-0 text-xs text-muted-foreground"

@@ -18,6 +18,7 @@ import {
   type ShellConfig,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import { plural } from "@/lib/plural"
 
 /**
  * Settings → Security. The session policy saves through its own confirmed
@@ -142,7 +143,7 @@ function tightens(current: number, next: number) {
 function maxAgeLabel(days: number) {
   if (days === 0) return "Never — people stay signed in"
   if (days === 365) return "After 1 year"
-  return days === 1 ? "After 1 day" : `After ${days} days`
+  return `After ${days} ${plural(days, "day", "days")}`
 }
 
 function idleLabel(minutes: number) {
@@ -150,8 +151,8 @@ function idleLabel(minutes: number) {
   if (minutes < 60) return `After ${minutes} minutes away`
   if (minutes < 1440) {
     const hours = minutes / 60
-    return hours === 1 ? "After 1 hour away" : `After ${hours} hours away`
+    return `After ${hours} ${plural(hours, "hour away", "hours away")}`
   }
   const days = minutes / 1440
-  return days === 1 ? "After 1 day away" : `After ${days} days away`
+  return `After ${days} ${plural(days, "day away", "days away")}`
 }

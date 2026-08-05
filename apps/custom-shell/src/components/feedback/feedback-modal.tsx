@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -76,6 +77,7 @@ import {
 import { focusRing } from "@/lib/focus-ring"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
+import { plural } from "@/lib/plural"
 import { cn } from "@/lib/utils"
 
 function getInitial(name: string) {
@@ -999,8 +1001,7 @@ export function FeedbackModal({
                                   aria-label="Toggle feedback comments"
                                 >
                                   <MessageSquareIcon className="size-4" />
-                                  {item.comment_count} Comment
-                                  {item.comment_count === 1 ? "" : "s"}
+                                  {item.comment_count} {plural(item.comment_count, "Comment", "Comments")}
                                 </Button>
                               </div>
                               {isThreadOpen ? (
@@ -1210,25 +1211,31 @@ export function FeedbackModal({
                                           )
                                         }
                                       />
-                                      <Button
-                                        type="button"
-                                        size="icon"
-                                        className="absolute right-1 bottom-1 size-7 rounded-full"
-                                        onClick={() =>
-                                          void handleCommentSubmit(item.id)
-                                        }
+                                      <DisabledReason
                                         disabled={
                                           submittingCommentId === item.id
                                         }
-                                        title="Post comment"
-                                        aria-label="Post comment"
+                                        reason="Wait for the comment to finish posting."
                                       >
-                                        {submittingCommentId === item.id ? (
-                                          <Loader2Icon className="size-4 animate-spin" />
-                                        ) : (
-                                          <SendIcon className="size-4" />
-                                        )}
-                                      </Button>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          className="absolute right-1 bottom-1 size-7 rounded-full"
+                                          onClick={() =>
+                                            void handleCommentSubmit(item.id)
+                                          }
+                                          disabled={
+                                            submittingCommentId === item.id
+                                          }
+                                          aria-label="Post comment"
+                                        >
+                                          {submittingCommentId === item.id ? (
+                                            <Loader2Icon className="size-4 animate-spin" />
+                                          ) : (
+                                            <SendIcon className="size-4" />
+                                          )}
+                                        </Button>
+                                      </DisabledReason>
                                     </div>
                                   </div>
                                 </div>

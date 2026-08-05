@@ -1,3 +1,5 @@
+import { plural } from "@/lib/plural"
+
 /**
  * What a bulk action actually did, in one line.
  *
@@ -24,7 +26,7 @@ export function describeBulkResult({
   /** What happened to them, past tense — "deleted". */
   verb: string
 }) {
-  const things = `${done} ${done === 1 ? one : many}`
+  const things = `${done} ${plural(done, one, many)}`
   return kept
     ? `${things} ${verb}, ${kept} could not be ${verb}.`
     : `${things} ${verb}.`

@@ -1,10 +1,9 @@
 import * as React from "react"
-import { AlertCircleIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { showErrorToast } from "@/lib/error-toast"
 
-// The one error banner for data surfaces: a flat band that states what failed
-// and, when the surface can reload, offers the retry right in the banner.
+// Compatibility wrapper for existing call sites. All failures use the shared
+// persistent toast, including failures that used to render as a banner.
 export function ErrorBanner({
   message,
   onRetry,
@@ -12,24 +11,24 @@ export function ErrorBanner({
   message: React.ReactNode
   onRetry?: () => void
 }) {
-  return (
-    <div
-      role="alert"
-      className="flex items-center gap-2 bg-destructive/10 px-4 py-2 text-sm text-destructive"
-    >
-      <AlertCircleIcon className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1">{message}</span>
-      {onRetry ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={onRetry}
-        >
-          Try again
-        </Button>
-      ) : null}
-    </div>
-  )
+  const retryRef = React.useRef(onRetry)
+  const lastMessageRef = React.useRef<React.ReactNode>(undefined)
+
+  React.useEffect(() => {
+    retryRef.current = onRetry
+  }, [onRetry])
+
+  React.useEffect(() => {
+    if (Object.is(lastMessageRef.current, message)) return
+    lastMessageRef.current = message
+
+    showErrorToast(
+      message,
+      onRetry
+        ? { label: "Try again", onClick: () => retryRef.current?.() }
+        : undefined
+    )
+  }, [message, onRetry])
+
+  return null
 }

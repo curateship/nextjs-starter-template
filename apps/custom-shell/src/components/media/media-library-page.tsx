@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { plural } from "@/lib/plural"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -497,7 +498,7 @@ export function MediaLibraryPage({
     await runDelete(async () => {
       const result = await deleteMediaAsAdminAction(ids)
       toast.success(
-        `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "file" : "files"}.`
+        `Deleted ${result.deletedCount} ${plural(result.deletedCount, "file", "files")}.`
       )
       selection.setSelected((current) => {
         const next = new Set(current)
@@ -532,7 +533,7 @@ export function MediaLibraryPage({
         deleted += result.deletedCount
       }
       toast.success(
-        `Cleaned up ${deleted} ${deleted === 1 ? "orphan" : "orphans"}.`
+        `Cleaned up ${deleted} ${plural(deleted, "orphan", "orphans")}.`
       )
       selection.setSelected((current) => {
         const next = new Set(current)
@@ -972,9 +973,9 @@ export function MediaLibraryPage({
         onOpenChange={(open) => {
           if (!open && !deleting) setDeleteIds(null)
         }}
-        title={`Delete ${closingDeleteCount} ${closingDeleteCount === 1 ? "file" : "files"}?`}
+        title={`Delete ${closingDeleteCount} ${plural(closingDeleteCount, "file", "files")}?`}
         description="The file is erased from storage and removed from its owner's library. This cannot be undone."
-        confirmLabel={closingDeleteCount === 1 ? "Delete file" : "Delete files"}
+        confirmLabel={`Delete ${plural(closingDeleteCount, "file", "files")}`}
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
       />
@@ -997,9 +998,7 @@ export function MediaLibraryPage({
             setDeletingAll(false)
           }
         }}
-        title={`${deletingAll ? "Delete all" : "Delete"} ${closingCleanCount} ${
-          closingCleanCount === 1 ? "orphan" : "orphans"
-        }?`}
+        title={`${deletingAll ? "Delete all" : "Delete"} ${closingCleanCount} ${plural(closingCleanCount, "orphan", "orphans")}?`}
         // "Delete all" clears what is on screen, so a filtered list says so
         // rather than letting the word "all" imply the whole bucket.
         description={`${
@@ -1009,7 +1008,7 @@ export function MediaLibraryPage({
         }Files with no record in the database are erased from storage, and records whose file is missing are removed from the database. This cannot be undone.`}
         confirmLabel={
           deletingAll
-            ? `Delete all ${closingCleanCount === 1 ? "orphan" : "orphans"}`
+            ? `Delete all ${plural(closingCleanCount, "orphan", "orphans")}`
             : "Delete orphans"
         }
         loading={cleaning}
@@ -1218,7 +1217,7 @@ function MediaTableRow({
             </button>
             {item.alt_text ? (
               <div
-                className="max-w-[280px] truncate text-xs text-muted-foreground"
+                className="max-w-72 truncate text-xs text-muted-foreground"
                 title={item.alt_text}
               >
                 {item.alt_text}

@@ -25,6 +25,7 @@ import {
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
 import { describeBulkResult } from "@/lib/bulk-result"
+import { plural } from "@/lib/plural"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { showErrorToast } from "@/lib/error-toast"
@@ -314,7 +315,7 @@ export function WorkspacesDashboard({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? "workspace" : "workspaces"}?`}
+        title={`Delete ${selectedIds.size} ${plural(selectedIds.size, "workspace", "workspaces")}?`}
         description="Their settings and navigation are removed. This cannot be undone."
         confirmLabel="Delete workspaces"
         loading={busy}

@@ -184,7 +184,7 @@ function TableHead({ className, column, ...props }: TableHeadProps) {
       className={cn(
         "h-10 px-5 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
         column === "main" &&
-          "w-full min-w-[320px] text-left text-xs font-medium text-muted-foreground sm:text-sm",
+          "w-full min-w-80 text-left text-xs font-medium text-muted-foreground sm:text-sm",
         column === "meta" &&
           "w-px whitespace-nowrap text-left text-xs font-medium text-muted-foreground sm:text-sm",
         column === "preview" &&
@@ -236,7 +236,7 @@ function TableCell({ className, column, ...props }: TableCellProps) {
       data-column={column}
       className={cn(
         "px-5 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-        column === "main" && "min-w-[320px]",
+        column === "main" && "min-w-80",
         // "actions" is "meta" that a clickable row keeps its hands off. It
         // looks identical; the difference is only who owns the click.
         (column === "meta" || column === "actions") &&

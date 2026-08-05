@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { resolveBackground, type ShellStyling } from "@/lib/custom-shell"
+import { pageGutter } from "@/lib/shell-gutter"
 
 export function DashboardContent({
   className,
@@ -13,9 +14,10 @@ export function DashboardContent({
     return (
       <main
         className={cn(
-          "min-w-0 w-full flex-1 overflow-auto bg-muted/60 p-3 space-y-4 sm:p-4 sm:space-y-6 md:p-6",
+          "flex min-w-0 w-full flex-1 flex-col overflow-auto bg-muted/60",
           className
         )}
+        style={{ padding: pageGutter, gap: pageGutter }}
         {...props}
       />
     )

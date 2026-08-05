@@ -6,6 +6,7 @@ import {
   Loader2Icon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
+  PlusIcon,
   SaveIcon,
   SettingsIcon,
   ThumbsUpIcon,
@@ -63,6 +64,7 @@ import {
 import { FeedbackCommentsModal } from "@/components/feedback/feedback-comments-modal"
 import { FeedbackTagsSelect } from "@/components/feedback/feedback-tags-select"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { plural } from "@/lib/plural"
 import { useAsyncAction } from "@/lib/use-async-action"
 import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
@@ -413,7 +415,7 @@ export function FeedbackDashboard({
             </Select>
 
             <DashboardToolbarButton type="button" onClick={onOpenFeedback}>
-              <MessageSquarePlusIcon className="size-4" />
+              <PlusIcon className="size-4" />
               New feedback
             </DashboardToolbarButton>
           </>
@@ -576,7 +578,7 @@ export function FeedbackDashboard({
                 className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 onClick={() => openFeedbackComments(item)}
                 title="View comments"
-                aria-label={`View ${item.comment_count} comment${item.comment_count === 1 ? "" : "s"}`}
+                aria-label={`View ${item.comment_count} ${plural(item.comment_count, "comment", "comments")}`}
               >
                 <Badge
                   variant="secondary"
@@ -679,9 +681,9 @@ export function FeedbackDashboard({
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedIds.size} feedback item${selectedIds.size === 1 ? "" : "s"}?`}
+        title={`Delete ${selectedIds.size} feedback ${plural(selectedIds.size, "item", "items")}?`}
         description="Their comments and votes go with them, and the people who wrote them are not told. This cannot be undone."
-        confirmLabel={selectedIds.size === 1 ? "Delete item" : "Delete items"}
+        confirmLabel={`Delete ${plural(selectedIds.size, "item", "items")}`}
         loading={massDeleting}
         disabled={selectedIds.size === 0}
         onConfirm={handleMassDelete}

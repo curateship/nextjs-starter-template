@@ -54,8 +54,9 @@ Use these rules for every new or modified interface. App-specific UI guides may 
 - Use one primary button per action group, `outline` for secondary actions, `ghost` for low-emphasis actions, and destructive styling only for irreversible actions.
 - Order footer actions as Cancel, then primary or destructive. Disable running actions and show a compact loading indicator.
 - Icon-only buttons require an accessible name and a tooltip when their meaning is not obvious.
+- Use the shared `Tooltip` for icon-only toolbar, header, and standalone actions. Repeated table-row actions may rely on their accessible name and the table's column context so rows do not become noisy. Disabled controls use `DisabledReason`; never rely on a browser `title` for a disabled or phone-only button.
 - Use the established Lucide action icons consistently: `PencilIcon` for edit, `Trash2Icon` for delete, `PlusIcon` for add, and `Loader2Icon` for loading.
-- Give every field a visible label. Keep help and error text beside the field and preserve entered values after errors.
+- Give every field a visible label. Keep help beside the field and preserve entered values after errors. Report every error through the shared persistent toast; keep `aria-invalid` on the field when it is field-specific.
 - Draggable or repeatable text-field lists start with one default row. Users add more rows explicitly; do not create multiple empty rows by default.
 - Use `gap-1` label-to-control, `gap-2` within field groups, and `gap-4` between form sections.
 
