@@ -422,6 +422,12 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
               added twice.
             </DialogDescription>
           </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleAdd()
+            }}
+          >
           <DialogBody>
             <Card size="sm">
               <CardContent className="grid gap-4">
@@ -504,14 +510,14 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
               Cancel
             </Button>
             <Button
-              type="button"
+              type="submit"
               disabled={saving}
-              onClick={() => void handleAdd()}
             >
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Add contact
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
         )}
       </FormDialog>

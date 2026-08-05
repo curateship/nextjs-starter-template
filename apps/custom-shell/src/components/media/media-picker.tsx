@@ -58,6 +58,8 @@ type MediaPickerProps = {
   onSelectMedia: (mediaUrl: string, altText?: string) => void
   currentMediaUrl?: string
   showVideos?: boolean
+  /** Renders as a step inside the owner window instead of a nested dialog. */
+  inline?: boolean
   /** Which crop shape starts selected when an uploaded image is cropped. */
   defaultCropAspect?: CropAspectKey
 }
@@ -69,6 +71,7 @@ export function MediaPicker({
   currentMediaUrl,
   showVideos = true,
   defaultCropAspect,
+  inline = false,
 }: MediaPickerProps) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
@@ -265,9 +268,20 @@ export function MediaPicker({
     onOpenChange(nextOpen)
   }
 
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent variant="admin">
+  React.useEffect(() => {
+    if (!inline || !open) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      event.stopPropagation()
+      handleOpenChange(false)
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [inline, open, cropFile])
+
+  const pickerContent = (
+    <>
         {cropFile ? (
           <ImageCropStep
             file={cropFile.file}
@@ -344,7 +358,13 @@ export function MediaPicker({
                 ) : null}
 
                 {upload ? (
-                  <div className="rounded-lg border bg-muted/30 p-3">
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void handleUpload()
+                    }}
+                    className="rounded-lg border bg-muted/30 p-3"
+                  >
                     <div className="flex gap-3">
                       <MediaThumbnail
                         url={upload.previewUrl}
@@ -391,8 +411,7 @@ export function MediaPicker({
                           />
                         </div>
                         <Button
-                          type="button"
-                          onClick={handleUpload}
+                          type="submit"
                           disabled={uploading}
                         >
                           {uploading ? (
@@ -404,7 +423,7 @@ export function MediaPicker({
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  </form>
                 ) : null}
 
                 {/* No scroll box of its own: the dialog body is already a
@@ -522,7 +541,18 @@ export function MediaPicker({
             </DialogFooter>
           </>
         )}
-      </DialogContent>
+    </>
+  )
+
+  return inline ? (
+    open ? (
+      <div className="grid gap-4 rounded-xl border bg-card p-4" data-media-picker-step="">
+        {pickerContent}
+      </div>
+    ) : null
+  ) : (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent variant="admin">{pickerContent}</DialogContent>
     </Dialog>
   )
 }
