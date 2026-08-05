@@ -166,7 +166,7 @@ export function WorkspaceSwitcher({
                   })}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild className="gap-2 p-2">
-                    <Link to="/workspaces">
+                    <Link to="/workspaces" search={{ open: undefined }}>
                       <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
                         {renderShellIcon("settings")}
                       </div>

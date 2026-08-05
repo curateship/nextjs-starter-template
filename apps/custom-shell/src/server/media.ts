@@ -535,6 +535,26 @@ export async function listAllMedia(
   }
 }
 
+/** One admin-visible file, used when a shared link names a file off the page. */
+export async function getAdminMedia(mediaId: string): Promise<AdminMediaItem | null> {
+  const [row] = await db
+    .select({ media: customShellMedia, owner: customShellUsers })
+    .from(customShellMedia)
+    .innerJoin(customShellUsers, eq(customShellUsers.id, customShellMedia.userId))
+    .where(eq(customShellMedia.id, mediaId))
+    .limit(1)
+
+  return row
+    ? {
+        ...serializeMedia(row.media),
+        owner_id: row.owner.id,
+        owner_name: row.owner.name,
+        owner_email: row.owner.email,
+        storage_path: row.media.storagePath,
+      }
+    : null
+}
+
 function buildAdminMediaWhere(query: AdminMediaListQuery) {
   const filters: SQL[] = []
   const search = query.search.trim()

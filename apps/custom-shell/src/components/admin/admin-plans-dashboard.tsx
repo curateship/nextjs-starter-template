@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
+import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   Loader2Icon,
   PackageIcon,
@@ -143,6 +143,7 @@ export function AdminPlansDashboard({
   // Search, sort and page live in the address, so Back returns this exact
   // list — see `lib/list-search.ts`.
   const listSearch = plansRoute.useSearch()
+  const navigate = useNavigate()
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
   const currentPage = listSearch.page ?? 1
@@ -166,6 +167,33 @@ export function AdminPlansDashboard({
   const [run, massArchiving] = useAsyncAction(getPlanErrorMessage)
   const [massArchiveOpen, setMassArchiveOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const setOpenPlan = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+  const openPlan = React.useCallback(
+    (plan: AdminPlan) => {
+      setEditing(plan)
+      setOpenPlan(plan.id)
+    },
+    [setOpenPlan]
+  )
+
+  React.useEffect(() => {
+    const plan = plans.find((item) => item.id === listSearch.open)
+    if (plan) setEditing(plan)
+    else if (!creating) setEditing(null)
+  }, [creating, listSearch.open, plans])
 
   const sortedPlans = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -325,7 +353,7 @@ export function AdminPlansDashboard({
           <TableRow
             key={plan.id}
             className="group"
-            rowAction={() => setEditing(plan)}
+            rowAction={() => openPlan(plan)}
           >
             <TableCell column="select">
               <Checkbox
@@ -338,12 +366,16 @@ export function AdminPlansDashboard({
             <TableCell column="main">
               <button
                 type="button"
-                className="text-left text-sm font-medium group-hover:underline"
-                onClick={() => setEditing(plan)}
+                className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
+                onClick={() => openPlan(plan)}
+                title={plan.name}
               >
                 {plan.name}
               </button>
-              <span className="ml-2 text-xs text-muted-foreground">
+              <span
+                className="ml-2 inline-block max-w-96 truncate align-bottom text-xs text-muted-foreground"
+                title={plan.slug}
+              >
                 {plan.slug}
               </span>
             </TableCell>
@@ -381,7 +413,7 @@ export function AdminPlansDashboard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => setEditing(plan)}
+                  onClick={() => openPlan(plan)}
                   title="Plan settings"
                   aria-label={`Plan settings for ${plan.name}`}
                 >
@@ -420,10 +452,12 @@ export function AdminPlansDashboard({
         onClose={() => {
           setCreating(false)
           setEditing(null)
+          setOpenPlan(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
           setEditing(null)
+          setOpenPlan(undefined)
           await refresh()
         }}
       />

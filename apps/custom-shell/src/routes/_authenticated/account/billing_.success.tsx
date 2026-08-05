@@ -3,6 +3,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { CheckCircle2Icon } from "lucide-react"
 
 import { useOpenAccount } from "@/components/account/account-dialog"
+import { routeErrorComponent } from "@/components/shell/route-error"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -11,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { loadBillingOverview } from "@/lib/api/billing"
+import { getBillingErrorMessage, loadBillingOverview } from "@/lib/api/billing"
 
 const POLL_INTERVAL_MS = 1_500
 const POLL_ATTEMPTS = 8
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/_authenticated/account/billing_/success")
   {
     loader: async () => ({ overview: await loadBillingOverview() }),
     component: BillingSuccessRoute,
+    errorComponent: routeErrorComponent(getBillingErrorMessage),
   }
 )
 

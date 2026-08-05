@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
+import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
 import {
   GitMergeIcon,
@@ -109,6 +109,7 @@ export function FeedbackDashboard({
   openId,
 }: FeedbackDashboardProps) {
   const { config } = useShellRuntime()
+  const navigate = useNavigate()
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
   // Search, filter, sort and page live in the address, so opening a record and
   // pressing Back returns this exact list — see `lib/list-search.ts`.
@@ -145,10 +146,34 @@ export function FeedbackDashboard({
   // Flips once, when the first load lands. After that every refetch already has
   // real numbers on screen, so the count and the footer never blank out again.
   const [firstLoadDone, setFirstLoadDone] = React.useState(false)
+  const setOpenFeedback = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+  const openFeedbackComments = React.useCallback(
+    (item: FeedbackItem) => {
+      setViewingComments(item)
+      setOpenFeedback(item.id)
+    },
+    [setOpenFeedback]
+  )
 
   // A link from elsewhere opens the conversation, which is where a reply is
   // written — it waits for the list below to arrive before it can.
   useOpenFromLink({ openId, records: feedback, onOpen: setViewingComments })
+  React.useEffect(() => {
+    if (!openId) setViewingComments(null)
+  }, [openId])
 
   React.useEffect(() => {
     let active = true
@@ -555,7 +580,7 @@ export function FeedbackDashboard({
               <button
                 type="button"
                 className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                onClick={() => setViewingComments(item)}
+                onClick={() => openFeedbackComments(item)}
                 title="View comments"
                 aria-label={`View ${item.comment_count} comment${item.comment_count === 1 ? "" : "s"}`}
               >
@@ -639,7 +664,10 @@ export function FeedbackDashboard({
         feedback={viewingComments}
         open={Boolean(viewingComments)}
         onOpenChange={(open) => {
-          if (!open) setViewingComments(null)
+          if (!open) {
+            setViewingComments(null)
+            setOpenFeedback(undefined)
+          }
         }}
         onCommentDeleted={(feedbackId) => {
           setFeedback((current) =>

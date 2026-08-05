@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
   EyeIcon,
   Loader2Icon,
@@ -102,6 +103,7 @@ export function ChangelogAdminDashboard({
   openId?: string
 }) {
   const { config } = useShellRuntime()
+  const navigate = useNavigate()
   const [entries, setEntries] = React.useState(initialEntries)
   const [searchQuery, setSearchQuery] = React.useState("")
   const { sort, direction, toggleSort } = useTableSort<ChangelogSortColumn>(
@@ -122,8 +124,32 @@ export function ChangelogAdminDashboard({
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const setOpenEntry = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+  const openEntry = React.useCallback(
+    (entry: ChangelogEntry) => {
+      setEditing(entry)
+      setOpenEntry(entry.id)
+    },
+    [setOpenEntry]
+  )
 
   useOpenFromLink({ openId, records: entries, onOpen: setEditing })
+  React.useEffect(() => {
+    if (!openId && !creating) setEditing(null)
+  }, [creating, openId])
 
   const sortedEntries = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -244,7 +270,7 @@ export function ChangelogAdminDashboard({
           <TableRow
             key={entry.id}
             className="group"
-            rowAction={() => setEditing(entry)}
+            rowAction={() => openEntry(entry)}
           >
             <TableCell column="select">
               <Checkbox
@@ -257,7 +283,7 @@ export function ChangelogAdminDashboard({
               <button
                 type="button"
                 className="block text-left text-sm font-medium group-hover:underline"
-                onClick={() => setEditing(entry)}
+                onClick={() => openEntry(entry)}
               >
                 {entry.title}
               </button>
@@ -293,7 +319,7 @@ export function ChangelogAdminDashboard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => setEditing(entry)}
+                  onClick={() => openEntry(entry)}
                   title="Update settings"
                   aria-label={`Edit ${entry.title}`}
                 >
@@ -322,10 +348,12 @@ export function ChangelogAdminDashboard({
         onClose={() => {
           setCreating(false)
           setEditing(null)
+          setOpenEntry(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
           setEditing(null)
+          setOpenEntry(undefined)
           await refresh()
         }}
       />

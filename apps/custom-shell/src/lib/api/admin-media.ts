@@ -5,6 +5,7 @@ import { z } from "zod"
 import {
   cleanMediaOrphans,
   deleteMediaAsAdmin,
+  getAdminMedia,
   listAllMedia,
   listMediaOwners,
   loadOrphanDashboard,
@@ -47,6 +48,8 @@ export type AdminMediaListQueryInput = z.input<typeof listQuerySchema>
 const deleteSchema = z.object({
   mediaIds: z.array(z.string().min(1).max(36)).min(1).max(100),
 })
+
+const mediaIdSchema = z.object({ id: z.string().min(1).max(36) })
 
 const cleanOrphansSchema = z.object({
   mediaIds: z.array(z.string().min(1).max(36)).max(500).default([]),
@@ -96,6 +99,11 @@ const loadOrphanDashboardFn = createServerFn({ method: "GET" })
     return loadOrphanDashboard()
   })
 
+const loadAdminMediaItemFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(mediaIdSchema)
+  .handler(({ data }) => getAdminMedia(data.id))
+
 const deleteAdminMediaFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(deleteSchema)
@@ -116,6 +124,10 @@ export function loadAdminMediaPage(query: AdminMediaListQueryInput) {
 
 export function loadOrphans() {
   return loadOrphanDashboardFn()
+}
+
+export function loadAdminMediaItem(id: string) {
+  return loadAdminMediaItemFn({ data: { id } })
 }
 
 export function deleteMediaAsAdminAction(mediaIds: string[]) {

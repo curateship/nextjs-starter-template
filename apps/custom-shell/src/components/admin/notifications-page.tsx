@@ -504,7 +504,10 @@ export function NotificationsPage({
                     <p className="text-sm font-medium">
                       {notificationTypeLabels[item.type]}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p
+                      className="max-w-96 truncate text-xs text-muted-foreground"
+                      title={notificationActor(item)}
+                    >
                       {notificationActor(item)}
                     </p>
                   </div>

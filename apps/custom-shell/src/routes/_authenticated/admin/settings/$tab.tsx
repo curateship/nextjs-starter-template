@@ -5,9 +5,12 @@ import {
   SettingsPage,
 } from "@/components/settings/settings-page"
 import { useShellRuntime } from "@/components/shell/shell-layout"
+import { routeErrorComponent } from "@/components/shell/route-error"
+import { getShellSettingsErrorMessage } from "@/lib/api/shell-settings"
 
 export const Route = createFileRoute("/_authenticated/admin/settings/$tab")({
   component: SettingsTabRoute,
+  errorComponent: routeErrorComponent(getShellSettingsErrorMessage),
 })
 
 function SettingsTabRoute() {
