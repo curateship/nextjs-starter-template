@@ -4358,15 +4358,32 @@ fn sync_workspace_branch(workspace: &WorkspaceRecord) -> Result<(), String> {
         return Err("Commit or discard changes before syncing".to_string());
     }
 
-    push_workspace_branch(workspace)?;
+    // Refresh develop from the server first, so we sync against the real latest
+    // instead of a stale local copy. Without this fetch the sync could publish
+    // onto — and pull down — an out-of-date develop.
     run_git(&workspace.git_root, &["checkout", "develop"])?;
-    run_git(&workspace.git_root, &["pull", "origin", "develop"])?;
-    run_git(
-        &workspace.git_root,
-        &["merge", "--no-ff", "--no-edit", &workspace.branch],
-    )?;
+    run_git(&workspace.git_root, &["pull", "--ff-only", "origin", "develop"])?;
+
+    // Pull develop DOWN into this workspace's branch. A real merge (fast-forward
+    // when possible, a merge commit when the branch has its own history) so an
+    // older branch still receives develop's updates. The previous --ff-only step
+    // silently did nothing on any branch that had diverged, which is why
+    // workspaces drifted hundreds of commits behind. On a clash, undo the
+    // half-finished merge and stop cleanly rather than leaving the workspace in a
+    // conflicted state.
+    if run_git(&workspace.worktree_root, &["merge", "--no-edit", "develop"]).is_err() {
+        let _ = run_git(&workspace.worktree_root, &["merge", "--abort"]);
+        return Err(
+            "develop has changes that clash with this workspace. Open the changes, resolve them, then sync again."
+                .to_string(),
+        );
+    }
+
+    // Publish this branch UP into develop. After the merge above develop is an
+    // ancestor of the branch, so this fast-forwards develop with no extra commit.
+    push_workspace_branch(workspace)?;
+    run_git(&workspace.git_root, &["merge", "--ff-only", &workspace.branch])?;
     run_git(&workspace.git_root, &["push", "origin", "develop"])?;
-    run_git(&workspace.worktree_root, &["merge", "--ff-only", "develop"])?;
     push_workspace_branch(workspace)
 }
 
