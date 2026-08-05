@@ -13,6 +13,8 @@ export function DashboardContent({
   if (!styling) {
     return (
       <main
+        data-focus-return=""
+        tabIndex={-1}
         className={cn(
           "flex min-w-0 w-full flex-1 flex-col overflow-auto bg-muted/60",
           className
@@ -31,6 +33,8 @@ export function DashboardContent({
 
   return (
     <main
+      data-focus-return=""
+      tabIndex={-1}
       data-content-styling=""
       data-flat={isFlat ? "true" : undefined}
       className={cn(
