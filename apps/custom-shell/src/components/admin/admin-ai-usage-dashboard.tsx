@@ -37,6 +37,7 @@ import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
 import { formatDate } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
 import { formatSharePercent, formatTokenCount } from "@/lib/format-number"
+import { describeCode } from "@/lib/code-label"
 import { pageGutter } from "@/lib/shell-gutter"
 import { useClientPage } from "@/lib/use-client-page"
 import { useTableSort } from "@/lib/use-table-sort"
@@ -151,7 +152,7 @@ export function AdminAiUsageDashboard({
           nameLabel="Feature"
           rows={data.byFeature.map((row) => ({
             key: row.feature,
-            name: row.feature,
+            name: describeCode(row.feature),
             calls: row.calls,
             tokens: row.tokens,
             costCents: row.costCents,

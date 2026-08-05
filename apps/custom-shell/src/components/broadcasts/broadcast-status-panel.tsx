@@ -18,6 +18,7 @@ import {
 import { describeAudienceFilter } from "@/lib/broadcasts/blocks"
 import { describeNextBatch } from "@/lib/broadcasts/drip"
 import { formatDateTime } from "@/lib/format-time"
+import { showErrorToast } from "@/lib/error-toast"
 import { cn } from "@/lib/utils"
 
 const DELIVERY_PAGE_SIZE = 25
@@ -116,7 +117,7 @@ export function BroadcastStatusPanel({
           : "Started again. It picks up where it left off."
       )
     } catch (statusError) {
-      toast.error(getBroadcastErrorMessage(statusError))
+      showErrorToast(getBroadcastErrorMessage(statusError))
     } finally {
       setStatusBusy(false)
     }

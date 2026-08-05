@@ -1831,7 +1831,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
     },
     {
       id: "section-platform-settings",
-      title: "Platform Settings",
+      title: "Platform settings",
       entries: [
         {
           type: "item",

@@ -5,6 +5,7 @@
  * that decides. Checking here only saves someone a 100MB round trip to be told
  * no, so the wording matches on both sides.
  */
+import { formatFileSize } from "@/lib/format-bytes"
 
 export const IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -45,8 +46,9 @@ export function getMediaUploadError(file: File, allowVideo: boolean) {
       : "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) are allowed."
   }
 
-  if (file.size > (isImage ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES)) {
-    return `File size too large. Maximum size is ${isImage ? "10MB" : "100MB"}.`
+  const maximumSize = isImage ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES
+  if (file.size > maximumSize) {
+    return `File size too large. Maximum size is ${formatFileSize(maximumSize)}.`
   }
 
   return null

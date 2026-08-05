@@ -47,7 +47,7 @@ export const iconMeta = {
     icon: LayoutDashboardIcon,
   },
   bookOpen: {
-    label: "Book Open",
+    label: "Book open",
     icon: BookOpenIcon,
   },
   package: {
@@ -55,7 +55,7 @@ export const iconMeta = {
     icon: PackageIcon,
   },
   folderOpen: {
-    label: "Folder Open",
+    label: "Folder open",
     icon: FolderOpenIcon,
   },
   mail: {
@@ -91,7 +91,7 @@ export const iconMeta = {
     icon: ClipboardCheckIcon,
   },
   creditCard: {
-    label: "Credit Card",
+    label: "Credit card",
     icon: CreditCardIcon,
   },
   heartPulse: {
@@ -111,7 +111,7 @@ export const iconMeta = {
     icon: WorkflowIcon,
   },
   appWindow: {
-    label: "App Window",
+    label: "App window",
     icon: AppWindowIcon,
   },
   briefcaseBusiness: {

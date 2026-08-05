@@ -137,7 +137,7 @@ export const BROADCAST_BLOCK_META: Record<
   { name: string; description: string }
 > = {
   header: { name: "Header", description: "Logo banner" },
-  richText: { name: "Rich Text", description: "Formatted text content" },
+  richText: { name: "Rich text", description: "Formatted text content" },
   button: { name: "Button", description: "A button to click" },
   divider: { name: "Divider", description: "Horizontal separator" },
   footer: { name: "Footer", description: "Company info and unsubscribe" },
