@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
-import { mkdir, readdir, readFile } from "node:fs/promises"
+import { mkdir, readdir, readFile, unlink } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import pg from "pg"
@@ -44,6 +44,7 @@ const earlierMigrationProof = Object.freeze({
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const envFile = path.join(root, ".env.local")
 const packageFile = path.join(root, "package.json")
+const scaffoldDatabaseFile = path.join(root, ".scaffold-database.json")
 
 await loadEnv(envFile)
 
@@ -63,7 +64,9 @@ startPostgres()
 await waitForDatabase(maintenanceUrl.toString())
 await ensureDatabase(maintenanceUrl.toString(), targetDatabase)
 await runMigrations(databaseUrl)
-await seedAdminUser(databaseUrl)
+if (!(await importScaffoldDatabase(databaseUrl))) {
+  await seedAdminUser(databaseUrl)
+}
 
 async function loadEnv(file) {
   if (!existsSync(file)) return
@@ -282,6 +285,124 @@ async function seedAdminUser(url) {
   } finally {
     await client.end()
   }
+}
+
+async function importScaffoldDatabase(url) {
+  if (!existsSync(scaffoldDatabaseFile)) return false
+
+  const snapshot = JSON.parse(
+    await readFile(scaffoldDatabaseFile, "utf8"),
+    reviveBuffer
+  )
+  if (snapshot?.version !== 1 || !Array.isArray(snapshot.tables)) {
+    throw new Error("The Custom Shell database snapshot is invalid.")
+  }
+
+  const client = new Client({ connectionString: url })
+  await client.connect()
+  try {
+    const targetResult = await client.query(
+      `select table_name
+         from information_schema.tables
+        where table_schema = 'public'
+          and table_type = 'BASE TABLE'
+        order by table_name`
+    )
+    const columnResult = await client.query(
+      `select table_name, column_name, data_type
+         from information_schema.columns
+        where table_schema = 'public'`
+    )
+    const targetTables = targetResult.rows.map((row) => row.table_name)
+    const targetTableSet = new Set(targetTables)
+    const targetColumns = new Map()
+    for (const column of columnResult.rows) {
+      const columns = targetColumns.get(column.table_name) ?? new Map()
+      columns.set(column.column_name, column.data_type)
+      targetColumns.set(column.table_name, columns)
+    }
+    const snapshotTableSet = new Set(
+      snapshot.tables.map((table) => table?.name)
+    )
+
+    if (
+      snapshot.tables.length !== targetTables.length ||
+      snapshotTableSet.size !== targetTableSet.size ||
+      targetTables.some((table) => !snapshotTableSet.has(table))
+    ) {
+      throw new Error(
+        "The Custom Shell database snapshot does not match this scaffold."
+      )
+    }
+
+    await client.query("begin")
+    try {
+      await client.query("set local session_replication_role = replica")
+      if (targetTables.length) {
+        await client.query(
+          `truncate ${targetTables.map(quoteIdentifier).join(", ")} restart identity cascade`
+        )
+      }
+
+      for (const table of snapshot.tables) {
+        if (!targetTableSet.has(table.name) || !Array.isArray(table.rows)) {
+          throw new Error("The Custom Shell database snapshot is invalid.")
+        }
+
+        for (const row of table.rows) {
+          if (!row || typeof row !== "object" || Array.isArray(row)) {
+            throw new Error(
+              "The Custom Shell database snapshot contains an invalid row."
+            )
+          }
+          const columns = Object.keys(row)
+          if (!columns.length) continue
+          const columnTypes = targetColumns.get(table.name)
+          if (!columnTypes || columns.some((column) => !columnTypes.has(column))) {
+            throw new Error(
+              "The Custom Shell database snapshot contains an unknown column."
+            )
+          }
+          const placeholders = columns.map((_, index) => `$${index + 1}`)
+          await client.query(
+            `insert into ${quoteIdentifier(table.name)} (${columns
+              .map(quoteIdentifier)
+              .join(", ")}) values (${placeholders.join(", ")})`,
+            columns.map((column) => {
+              const value = row[column]
+              const dataType = columnTypes.get(column)
+              return value !== null && (dataType === "json" || dataType === "jsonb")
+                ? JSON.stringify(value)
+                : value
+            })
+          )
+        }
+      }
+
+      await client.query("commit")
+    } catch (error) {
+      await client.query("rollback").catch(() => {})
+      throw error
+    }
+  } finally {
+    await client.end()
+  }
+
+  await unlink(scaffoldDatabaseFile)
+  return true
+}
+
+function reviveBuffer(_key, value) {
+  if (
+    value?.type === "Buffer" &&
+    Array.isArray(value.data) &&
+    value.data.every(
+      (byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255
+    )
+  ) {
+    return Buffer.from(value.data)
+  }
+  return value
 }
 
 function quoteIdentifier(value) {
