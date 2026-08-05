@@ -1218,7 +1218,7 @@ function MediaTableRow({
             </button>
             {item.alt_text ? (
               <div
-                className="max-w-[280px] truncate text-xs text-muted-foreground"
+                className="max-w-72 truncate text-xs text-muted-foreground"
                 title={item.alt_text}
               >
                 {item.alt_text}

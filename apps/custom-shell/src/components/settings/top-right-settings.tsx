@@ -88,7 +88,7 @@ function SortableBuiltInChip({
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <span className="flex h-9 max-w-[220px] items-center gap-2 px-3 text-sm font-medium">
+        <span className="flex h-9 max-w-56 items-center gap-2 px-3 text-sm font-medium">
           <Icon className="h-4 w-4 shrink-0" />
           <span className="truncate">{meta.label}</span>
           {/* A switched-off built-in stays right here wearing this pill — that
@@ -154,7 +154,7 @@ function SortableLinkChip({
           type="button"
           variant="ghost"
           onClick={() => onDialogOpenChange(true)}
-          className="h-9 max-w-[220px] justify-start gap-2 px-3 text-sm font-medium"
+          className="h-9 max-w-56 justify-start gap-2 px-3 text-sm font-medium"
           aria-label={`Edit settings for ${itemName}`}
           title={isNamed ? `${item.label} settings` : "Menu link settings"}
         >
@@ -378,7 +378,7 @@ export function TopRightSettings({
               <button
                 type="button"
                 onClick={handleAddLink}
-                className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
                 aria-label="Add link"
                 title="Add link"
               >
