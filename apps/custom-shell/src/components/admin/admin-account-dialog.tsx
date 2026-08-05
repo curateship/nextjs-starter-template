@@ -438,7 +438,10 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
               them, so it takes the field spacing back. */}
           <div className="mt-2">
             <Button asChild variant="outline">
-              <Link to="/admin/media" search={{ owner: profile.id }}>
+              <Link
+                to="/admin/media"
+                search={{ owner: profile.id, media: undefined, orphan: undefined }}
+              >
                 <HardDriveIcon className="size-4" />
                 {storage.files ? "Open their files" : "Open the library"}
               </Link>

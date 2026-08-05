@@ -11,7 +11,6 @@ import {
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -31,6 +30,19 @@ import { formatDate, formatDateTime } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
 
 /**
+ * What the last load returned, kept for as long as the page is open.
+ *
+ * The Billing tab unmounts when you leave it, so without this every trip back
+ * started from nothing and the card grew from a header to its full height as
+ * the numbers landed — that growth is what reads as a flash. A fresh load still
+ * runs on every visit; it just swaps the numbers in place.
+ *
+ * Only ever written from the browser (the load happens in an effect), so this
+ * cannot carry one person's numbers into another's page on the server.
+ */
+let lastUsage: MyAiUsage | null = null
+
+/**
  * The signed-in person's own AI numbers, on the account window's Billing tab:
  * how much of this month's allowance is gone, what it went on, and the last
  * few calls. The point is that being cut off is a number you were watching,
@@ -41,7 +53,9 @@ import { formatMoney } from "@/lib/money"
  * invoices down with it.
  */
 export function AccountAiUsageCard() {
-  const [usage, setUsage] = React.useState<MyAiUsage | null>(null)
+  // Starts from whatever the last load returned, so a return trip to this tab
+  // draws the card at its full height straight away. See `lastUsage`.
+  const [usage, setUsage] = React.useState<MyAiUsage | null>(lastUsage)
   const [error, setError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
 
@@ -49,6 +63,7 @@ export function AccountAiUsageCard() {
     let cancelled = false
     loadMyAiUsage()
       .then((result) => {
+        lastUsage = result
         if (!cancelled) setUsage(result)
       })
       .catch((loadError) => {
@@ -69,7 +84,10 @@ export function AccountAiUsageCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {error ? (
+        {/* The banner only when there is nothing else to show: once `lastUsage`
+            is filled, a refresh that fails leaves last time's figures standing
+            rather than replacing them with an error. */}
+        {error && !usage ? (
           <ErrorBanner
             message={error}
             onRetry={() => {
@@ -78,7 +96,9 @@ export function AccountAiUsageCard() {
             }}
           />
         ) : !usage ? (
-          <AiUsageSkeleton />
+          // Nothing while the figures are in the air. The stand-in that sat here
+          // read as a flash every time the Billing tab was opened.
+          null
         ) : usage.calls === 0 && usage.recent.length === 0 ? (
           // Never used AI at all: one sentence, not an empty grid.
           <p className="text-sm text-muted-foreground">
@@ -230,25 +250,5 @@ function RecentCallsTable({ recent }: { recent: MyAiRecentCall[] }) {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
     </TableSurface>
-  )
-}
-
-/** Mirrors the loaded layout's shape so the card does not jump when data lands. */
-function AiUsageSkeleton() {
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-2">
-        <div className="flex justify-between">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-4 w-24" />
-        </div>
-        <Skeleton className="h-1.5 w-full rounded-full" />
-      </div>
-      <div className="flex gap-8">
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-4 w-36" />
-      </div>
-      <Skeleton className="h-28 w-full" />
-    </div>
   )
 }

@@ -389,7 +389,7 @@ export function StripeSettings() {
 
             {SECTIONS.map((section) => (
               <div key={section.title} className="space-y-4">
-                <h3 className="text-sm font-semibold">{section.title}</h3>
+                <h2 className="text-sm font-semibold">{section.title}</h2>
                 {renderSecretField(section.secret)}
                 {renderTextField(section.publishable)}
                 {renderSecretField(section.webhook)}

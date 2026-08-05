@@ -65,7 +65,7 @@ export function ChangelogPage({
           <div className="flex flex-col gap-6 p-5">
             {visibleEntries.map((entry) => (
               <article key={entry.id} className="flex flex-col gap-1">
-                <h2 className="text-sm font-medium">{entry.title}</h2>
+                <p className="text-sm font-medium">{entry.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {entry.publishedAt
                     ? formatDate(entry.publishedAt)

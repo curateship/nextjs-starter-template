@@ -19,6 +19,14 @@ export const Route = createFileRoute("/_authenticated/admin/media")({
       typeof search.owner === "string" && search.owner.length <= 36
         ? search.owner
         : undefined,
+    media:
+      typeof search.media === "string" && search.media.length <= 36
+        ? search.media
+        : undefined,
+    orphan:
+      typeof search.orphan === "string" && search.orphan.length <= 512
+        ? search.orphan
+        : undefined,
   }),
   loaderDeps: ({ search }) => ({ owner: search.owner }),
   // No page size here: the server reads the configured rows-per-page and sends
@@ -31,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/admin/media")({
 
 function AdminMediaRoute() {
   const data = Route.useLoaderData()
-  const { owner } = Route.useSearch()
+  const { owner, media, orphan } = Route.useSearch()
   const { user } = authenticatedRoute.useLoaderData()
 
   return (
@@ -40,6 +48,8 @@ function AdminMediaRoute() {
       initialData={data}
       initialOwnerId={owner ?? "all"}
       currentUserId={user.id}
+      openMediaId={media}
+      openOrphanKey={orphan}
     />
   )
 }

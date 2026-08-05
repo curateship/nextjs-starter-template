@@ -30,6 +30,10 @@ import {
   type PreviewWidth,
 } from "@/lib/broadcasts/preview-width"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import {
+  useBlankSpaceDoubleClick,
+  usePanelToggle,
+} from "@/lib/panel-collapse"
 import { panelLayoutKey, useRememberedPanelLayout } from "@/lib/panel-layout"
 import { cn } from "@/lib/utils"
 import { useWideScreen } from "@/lib/wide-screen"
@@ -169,6 +173,7 @@ export function EmailBlockEditor({
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const bottomPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const horizontalLayout = useRememberedPanelLayout(
     layout === "broadcast"
       ? panelLayoutKey.broadcastEditorHorizontal
@@ -180,18 +185,15 @@ export function EmailBlockEditor({
       : panelLayoutKey.systemEmailEditorVertical
   )
 
-  const togglePalette = React.useCallback(() => {
-    const panel = palettePanelRef.current
-    if (!panel) return
-    if (panel.isCollapsed()) panel.expand()
-    else panel.collapse()
-  }, [])
-  const toggleInspector = React.useCallback(() => {
-    const panel = inspectorPanelRef.current
-    if (!panel) return
-    if (panel.isCollapsed()) panel.expand()
-    else panel.collapse()
-  }, [])
+  const togglePalette = usePanelToggle(palettePanelRef)
+  const toggleInspector = usePanelToggle(inspectorPanelRef)
+  const toggleBottom = usePanelToggle(bottomPanelRef)
+
+  // Double-clicking the empty part of a panel shuts it, and double-clicking
+  // what is left of it opens it again.
+  const paletteDoubleClick = useBlankSpaceDoubleClick(togglePalette)
+  const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
+  const bottomDoubleClick = useBlankSpaceDoubleClick(toggleBottom)
 
   // ----- Auto-save: 700ms debounce, one queue, newest answer wins -----
   const serialize = React.useCallback(
@@ -541,7 +543,10 @@ export function EmailBlockEditor({
         maxSize="26%"
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel collapsed={paletteCollapsed}>
+        <WorkspacePanel
+          collapsed={paletteCollapsed}
+          onDoubleClick={paletteDoubleClick}
+        >
           <BlockPalette
             disabled={!editable}
             hasBlocks={fields.blocks.length > 0}
@@ -586,7 +591,10 @@ export function EmailBlockEditor({
         maxSize="34%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel collapsed={inspectorCollapsed}>
+        <WorkspacePanel
+          collapsed={inspectorCollapsed}
+          onDoubleClick={inspectorDoubleClick}
+        >
           {inspector}
         </WorkspacePanel>
       </ResizablePanel>
@@ -625,13 +633,16 @@ export function EmailBlockEditor({
           <ResizableHandle gap />
           <ResizablePanel
             id="status"
+            panelRef={bottomPanelRef}
             defaultSize="26%"
             minSize="12%"
             maxSize="60%"
             collapsible
             collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
           >
-            <WorkspacePanel>{bottomPanel}</WorkspacePanel>
+            <WorkspacePanel onDoubleClick={bottomDoubleClick}>
+              {bottomPanel}
+            </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

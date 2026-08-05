@@ -17,7 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -56,42 +55,6 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 
 function invoiceStatusLabel(status: string) {
   return INVOICE_STATUS_LABELS[status] ?? describeCode(status)
-}
-
-// Stand-in shown while the Billing tab fetches its data on open. It mirrors the
-// real layout's shape and height so the modal doesn't flash blank or resize when
-// the content lands (a skeleton, not a spinner).
-export function BillingTabSkeleton() {
-  return (
-    <CardGroup className="w-full">
-      <Card>
-        <CardHeader className="gap-2">
-          <Skeleton className="h-5 w-28" />
-          <Skeleton className="h-4 w-56" />
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
-          <Skeleton className="h-6 w-20 rounded-full" />
-          <Skeleton className="ml-auto h-9 w-36" />
-        </CardContent>
-      </Card>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {[0, 1].map((index) => (
-          <Card key={index}>
-            <CardHeader className="gap-2">
-              <Skeleton className="h-5 w-24" />
-              <Skeleton className="h-8 w-32" />
-            </CardHeader>
-            <CardContent className="space-y-2.5">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-5/6" />
-              <Skeleton className="h-4 w-4/6" />
-              <Skeleton className="h-9 w-full" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </CardGroup>
-  )
 }
 
 export function AccountBillingPage({

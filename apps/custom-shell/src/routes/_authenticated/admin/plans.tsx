@@ -11,6 +11,7 @@ import {
   readPage,
   readSearchText,
 } from "@/lib/list-search"
+import { readOpenSearch } from "@/lib/use-open-from-link"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 export const PLAN_SORT_COLUMNS = [
@@ -22,6 +23,7 @@ export const PLAN_SORT_COLUMNS = [
 ] as const
 
 type PlansSearch = {
+  open?: string
   q?: string
   sort?: (typeof PLAN_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
@@ -31,6 +33,7 @@ type PlansSearch = {
 /** The list state the address carries, every value checked before use. */
 function readPlansSearch(search: Record<string, unknown>): PlansSearch {
   return {
+    ...readOpenSearch(search),
     q: readSearchText(search.q),
     sort: readOneOf(search.sort, PLAN_SORT_COLUMNS),
     direction: readDirection(search.direction),

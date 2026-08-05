@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { format } from "date-fns"
 import {
   EyeOffIcon,
@@ -175,6 +175,7 @@ export function AdminAnnouncementsDashboard({
 }) {
   const { config } = useShellRuntime()
   const router = useRouter()
+  const navigate = useNavigate()
   // Search, sort and page live in the address, so Back returns this exact
   // list — see `lib/list-search.ts`.
   const listSearch = announcementsRoute.useSearch()
@@ -202,8 +203,32 @@ export function AdminAnnouncementsDashboard({
   const selection = useSelection()
   const selectedIds = selection.selected
   const [error, setError] = React.useState<string | null>(null)
+  const setOpenAnnouncement = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+  const openAnnouncement = React.useCallback(
+    (announcement: Announcement) => {
+      setEditing(announcement)
+      setOpenAnnouncement(announcement.id)
+    },
+    [setOpenAnnouncement]
+  )
 
   useOpenFromLink({ openId, records: announcements, onOpen: setEditing })
+  React.useEffect(() => {
+    if (!openId && !creating) setEditing(null)
+  }, [creating, openId])
 
   // One reading of the clock, taken once. Every row's status and the sort then
   // agree with each other, and — because a fresh number on every render would
@@ -361,7 +386,7 @@ export function AdminAnnouncementsDashboard({
             <TableRow
               key={announcement.id}
               className="group"
-              rowAction={() => setEditing(announcement)}
+              rowAction={() => openAnnouncement(announcement)}
             >
               <TableCell column="select">
                 <Checkbox
@@ -374,7 +399,7 @@ export function AdminAnnouncementsDashboard({
                 <button
                   type="button"
                   className="block text-left text-sm font-medium group-hover:underline"
-                  onClick={() => setEditing(announcement)}
+                  onClick={() => openAnnouncement(announcement)}
                 >
                   {announcement.title}
                 </button>
@@ -429,7 +454,7 @@ export function AdminAnnouncementsDashboard({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={() => setEditing(announcement)}
+                    onClick={() => openAnnouncement(announcement)}
                     title="Announcement settings"
                     aria-label={`Edit ${announcement.title}`}
                   >
@@ -459,10 +484,12 @@ export function AdminAnnouncementsDashboard({
         onClose={() => {
           setCreating(false)
           setEditing(null)
+          setOpenAnnouncement(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
           setEditing(null)
+          setOpenAnnouncement(undefined)
           await refresh()
         }}
       />

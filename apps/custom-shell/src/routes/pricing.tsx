@@ -91,7 +91,7 @@ function PricingRoute() {
   return (
     <PublicPageFrame>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 md:gap-3">
-        <header className="flex flex-col gap-2 text-center">
+        <header className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-semibold">Plans</h1>
           <p className="text-sm text-muted-foreground">
             Start free. Move up when you need more.

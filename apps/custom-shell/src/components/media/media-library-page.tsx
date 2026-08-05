@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
 import {
   GridIcon,
@@ -63,6 +64,7 @@ import {
 import {
   cleanOrphanedMedia,
   getAdminMediaErrorMessage,
+  loadAdminMediaItem,
   deleteMediaAsAdminAction,
   loadAdminMediaPage,
   loadOrphans,
@@ -211,11 +213,16 @@ export function MediaLibraryPage({
   initialData,
   initialOwnerId,
   currentUserId,
+  openMediaId,
+  openOrphanKey,
 }: {
   initialData: AdminMediaPageData
   initialOwnerId: string
   currentUserId: string
+  openMediaId?: string
+  openOrphanKey?: string
 }) {
+  const navigate = useNavigate()
   const [data, setData] = React.useState(initialData)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
@@ -271,6 +278,21 @@ export function MediaLibraryPage({
   const closingCleanCount = useLastValue(confirmKeys)?.length ?? 0
   const [deletingAll, setDeletingAll] = React.useState(false)
   const [runClean, cleaning] = useAsyncAction(getAdminMediaErrorMessage)
+  const setOpenRecord = React.useCallback(
+    (key: "media" | "orphan", id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          delete next.media
+          delete next.orphan
+          if (id) next[key] = id
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
 
   const query = React.useMemo(
     () => ({ search, ownerId, fileType: mediaType, page, pageSize, sort, direction }),
@@ -347,6 +369,38 @@ export function MediaLibraryPage({
   )
 
   const media = data.media.media
+  React.useEffect(() => {
+    if (!openMediaId) {
+      setOpenMedia(null)
+      return
+    }
+
+    const visibleItem = media.find((item) => item.id === openMediaId)
+    if (visibleItem) {
+      setOpenMedia(visibleItem)
+      return
+    }
+
+    let active = true
+    void loadAdminMediaItem(openMediaId)
+      .then((item) => {
+        if (active) setOpenMedia(item)
+      })
+      .catch(() => {
+        if (active) setOpenMedia(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [media, openMediaId])
+  React.useEffect(() => {
+    if (openOrphanKey && !orphanData) void rescan()
+    if (orphanData) {
+      setOpenOrphan(
+        orphanData.orphans.find((item) => orphanKey(item) === openOrphanKey) ?? null
+      )
+    }
+  }, [openOrphanKey, orphanData, rescan])
   const visibleIds = media.map((item) => item.id)
 
   const matchingOrphans = React.useMemo(() => {
@@ -787,7 +841,7 @@ export function MediaLibraryPage({
                           row={row}
                           selected={selectedIds.has(orphanKey(row))}
                           onToggle={() => selection.toggle(orphanKey(row))}
-                          onOpen={() => setOpenOrphan(row)}
+                          onOpen={() => setOpenRecord("orphan", orphanKey(row))}
                           onDelete={() => {
                             setDeletingAll(false)
                             setConfirmKeys([orphanKey(row)])
@@ -799,7 +853,7 @@ export function MediaLibraryPage({
                           key={item.id}
                           item={item}
                           selected={selectedIds.has(item.id)}
-                          onOpen={() => setOpenMedia(item)}
+                          onOpen={() => setOpenRecord("media", item.id)}
                           onDelete={() => setDeleteIds([item.id])}
                           onToggle={() => selection.toggle(item.id)}
                         />
@@ -874,7 +928,7 @@ export function MediaLibraryPage({
                   row={row}
                   selected={selectedIds.has(orphanKey(row))}
                   onToggle={() => selection.toggle(orphanKey(row))}
-                  onOpen={() => setOpenOrphan(row)}
+                  onOpen={() => setOpenRecord("orphan", orphanKey(row))}
                   onDelete={() => {
                     setDeletingAll(false)
                     setConfirmKeys([orphanKey(row)])
@@ -887,7 +941,7 @@ export function MediaLibraryPage({
                   item={item}
                   selected={selectedIds.has(item.id)}
                   onToggle={() => selection.toggle(item.id)}
-                  onOpen={() => setOpenMedia(item)}
+                  onOpen={() => setOpenRecord("media", item.id)}
                   onDelete={() => setDeleteIds([item.id])}
                 />
               ))}
@@ -903,12 +957,12 @@ export function MediaLibraryPage({
         open={Boolean(openMedia) && !deleteIds}
         item={openMedia}
         editable={openMedia?.owner_id === currentUserId}
-        onClose={() => setOpenMedia(null)}
+        onClose={() => setOpenRecord("media", undefined)}
         onDelete={() => {
           if (openMedia) setDeleteIds([openMedia.id])
         }}
         onSaved={async () => {
-          setOpenMedia(null)
+          setOpenRecord("media", undefined)
           await refresh()
         }}
       />
@@ -928,7 +982,7 @@ export function MediaLibraryPage({
       <OrphanDetailsDialog
         open={Boolean(openOrphan) && !confirmKeys}
         orphan={openOrphan}
-        onClose={() => setOpenOrphan(null)}
+        onClose={() => setOpenRecord("orphan", undefined)}
         onDelete={() => {
           setDeletingAll(false)
           if (openOrphan) setConfirmKeys([orphanKey(openOrphan)])

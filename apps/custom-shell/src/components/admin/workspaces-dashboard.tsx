@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 import { PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
@@ -41,6 +41,7 @@ const WORKSPACE_COLUMNS: SortableColumn<WorkspaceSortColumn>[] = [
   { key: "name", label: "Workspace", column: "main" },
   { key: "status", label: "Status", column: "meta" },
 ]
+const workspacesRoute = getRouteApi("/_authenticated/workspaces")
 
 export function WorkspacesDashboard({
   initialWorkspaces: workspaces,
@@ -48,6 +49,8 @@ export function WorkspacesDashboard({
   initialWorkspaces: WorkspaceItem[]
 }) {
   const router = useRouter()
+  const navigate = useNavigate()
+  const { open: openWorkspaceId } = workspacesRoute.useSearch()
   const { config } = useShellRuntime()
   const [searchQuery, setSearchQuery] = React.useState("")
   const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
@@ -60,6 +63,20 @@ export function WorkspacesDashboard({
     useTableSort<WorkspaceSortColumn>("name")
   const selection = useSelection()
   const selectedIds = selection.selected
+  const setOpenWorkspace = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
 
   const sortedWorkspaces = React.useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1
@@ -99,7 +116,23 @@ export function WorkspacesDashboard({
   function openEditForm(workspace: WorkspaceItem) {
     setEditing(workspace)
     setFormOpen(true)
+    setOpenWorkspace(workspace.id)
   }
+
+  React.useEffect(() => {
+    if (openWorkspaceId) {
+      const workspace = workspaces.find((item) => item.id === openWorkspaceId)
+      if (workspace) {
+        setEditing(workspace)
+        setFormOpen(true)
+      }
+      return
+    }
+    if (!formOpen || editing) {
+      setEditing(null)
+      setFormOpen(false)
+    }
+  }, [editing, formOpen, openWorkspaceId, workspaces])
 
   // One request for the whole selection, and the server decides what it can
   // take — one workspace always has to survive, so the last one never goes.
@@ -291,7 +324,11 @@ export function WorkspacesDashboard({
       <WorkspaceFormDialog
         open={formOpen}
         editing={editing}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setEditing(null)
+          setFormOpen(false)
+          setOpenWorkspace(undefined)
+        }}
       />
 
       <ConfirmDialog

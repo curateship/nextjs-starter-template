@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { ChangelogPage } from "@/components/changelog/changelog-page"
-import { loadChangelog } from "@/lib/api/changelog"
+import { routeErrorComponent } from "@/components/shell/route-error"
+import { getChangelogErrorMessage, loadChangelog } from "@/lib/api/changelog"
 
 export const Route = createFileRoute("/_authenticated/changelog/whats-new")({
   loader: () => loadChangelog(),
   component: WhatsNewRoute,
+  errorComponent: routeErrorComponent(getChangelogErrorMessage),
 })
 
 function WhatsNewRoute() {

@@ -562,8 +562,9 @@ export function AdminUsersDashboard({
             <TableCell column="main">
               <button
                 type="button"
-                className="block text-left text-sm font-medium group-hover:underline"
+                className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
                 onClick={() => openAccount(account.id, "details")}
+                title={account.name}
               >
                 {account.name}
               </button>

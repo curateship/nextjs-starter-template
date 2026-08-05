@@ -1,8 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { ChangelogAdminDashboard } from "@/components/changelog/changelog-admin-dashboard"
-import { loadAdminChangelog } from "@/lib/api/changelog"
+import { getChangelogErrorMessage, loadAdminChangelog } from "@/lib/api/changelog"
 import { readOpenSearch } from "@/lib/use-open-from-link"
+import { routeErrorComponent } from "@/components/shell/route-error"
 
 /**
  * Where updates are written. Only an admin has anything to do here, so anyone
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/_authenticated/changelog/")({
     return { entries }
   },
   component: ChangelogIndexRoute,
+  errorComponent: routeErrorComponent(getChangelogErrorMessage),
 })
 
 function ChangelogIndexRoute() {

@@ -29,6 +29,10 @@ import {
 } from "@/lib/api/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import {
+  useBlankSpaceDoubleClick,
+  usePanelToggle,
+} from "@/lib/panel-collapse"
+import {
   panelLayoutKey,
   useRememberedPanelLayout,
 } from "@/lib/panel-layout"
@@ -89,6 +93,7 @@ export function AutomationEditor({
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const runsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const horizontalLayout = useRememberedPanelLayout(
     panelLayoutKey.automationEditorHorizontal
   )
@@ -96,18 +101,15 @@ export function AutomationEditor({
     panelLayoutKey.automationEditorVertical
   )
 
-  const togglePalette = React.useCallback(() => {
-    const panel = palettePanelRef.current
-    if (!panel) return
-    if (panel.isCollapsed()) panel.expand()
-    else panel.collapse()
-  }, [])
-  const toggleInspector = React.useCallback(() => {
-    const panel = inspectorPanelRef.current
-    if (!panel) return
-    if (panel.isCollapsed()) panel.expand()
-    else panel.collapse()
-  }, [])
+  const togglePalette = usePanelToggle(palettePanelRef)
+  const toggleInspector = usePanelToggle(inspectorPanelRef)
+  const toggleRuns = usePanelToggle(runsPanelRef)
+
+  // Double-clicking the empty part of a panel shuts it, and double-clicking
+  // what is left of it opens it again.
+  const paletteDoubleClick = useBlankSpaceDoubleClick(togglePalette)
+  const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
+  const runsDoubleClick = useBlankSpaceDoubleClick(toggleRuns)
 
   React.useEffect(() => {
     graphRef.current = graph
@@ -413,7 +415,10 @@ export function AutomationEditor({
         maxSize="26%"
         onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel collapsed={paletteCollapsed}>
+        <WorkspacePanel
+          collapsed={paletteCollapsed}
+          onDoubleClick={paletteDoubleClick}
+        >
           <AutomationPalette
             favoriteNodeKeys={favoriteNodeKeys}
             onSelect={previewPaletteNode}
@@ -446,7 +451,12 @@ export function AutomationEditor({
         maxSize="34%"
         onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel collapsed={inspectorCollapsed}>{inspector}</WorkspacePanel>
+        <WorkspacePanel
+          collapsed={inspectorCollapsed}
+          onDoubleClick={inspectorDoubleClick}
+        >
+          {inspector}
+        </WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
@@ -488,6 +498,7 @@ export function AutomationEditor({
           <ResizableHandle gap />
           <ResizablePanel
             id="runs"
+            panelRef={runsPanelRef}
             // A shade taller than the old canvas log: this one holds rows that
             // open, and a run's steps need somewhere to land.
             defaultSize="28%"
@@ -499,7 +510,7 @@ export function AutomationEditor({
             collapsible
             collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
           >
-            <WorkspacePanel>
+            <WorkspacePanel onDoubleClick={runsDoubleClick}>
               <AutomationRunsPanel
                 automationId={initial.id}
                 initial={initialRuns}
