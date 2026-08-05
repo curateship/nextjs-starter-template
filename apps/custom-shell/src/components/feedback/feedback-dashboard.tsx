@@ -79,7 +79,7 @@ import {
   feedbackTypeLabels,
 } from "@/lib/feedback-type"
 import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
+import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/list-search"
 import { useOpenFromLink } from "@/lib/use-open-from-link"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
@@ -275,16 +275,10 @@ export function FeedbackDashboard({
     `${searchQuery}|${typeFilter}|${sortColumn}|${sortDirection}|${currentPage}|${pageSize}`
   )
 
-  const toggleSort = (column: FeedbackSortColumn) => {
-    setListSearch(
-      sortColumn === column
-        ? {
-            direction: sortDirection === "asc" ? "desc" : "asc",
-            page: undefined,
-          }
-        : { sort: column, direction: "asc", page: undefined }
-    )
-  }
+  const toggleSort = useListSort<FeedbackSortColumn>(
+    { sort: sortColumn, direction: sortDirection },
+    (column) => (column === "created" || column === "votes" || column === "comments" ? "desc" : "asc")
+  )
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))

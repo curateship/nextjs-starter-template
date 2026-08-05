@@ -40,7 +40,6 @@ import {
   TableHeader,
   TableRow,
   TableSortButton,
-  type TableSortDirection,
 } from "@/components/ui/table"
 import {
   getAutomationRunErrorMessage,
@@ -63,9 +62,10 @@ import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useClientPage } from "@/lib/use-client-page"
 import { useLastValue } from "@/lib/use-last-value"
 import { useSelection } from "@/lib/use-selection"
+import { useTableSort } from "@/lib/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
-type SortColumn = "name" | "steps" | "updated"
+type SortColumn = "name" | "status" | "updated"
 
 /**
  * The flows list: open, create, duplicate, delete. Deliberately small — the
@@ -75,8 +75,7 @@ type SortColumn = "name" | "steps" | "updated"
 export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const navigate = useNavigate()
   const [automations, setAutomations] = React.useState(initial.automations)
-  const [sort, setSort] = React.useState<SortColumn>("updated")
-  const [direction, setDirection] = React.useState<TableSortDirection>("desc")
+  const { sort, direction, toggleSort } = useTableSort<SortColumn>("updated", "desc", (column) => column === "updated" ? "desc" : "asc")
   const [search, setSearch] = React.useState("")
   const { config, automationPauseBusy, onAutomationPauseChange } =
     useShellRuntime()
@@ -96,15 +95,6 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   // already cleared the targets — so its heading reads the names it opened with.
   const closingDeleteTargets = useLastValue(deleteTargets)
 
-  const toggleSort = (column: SortColumn) => {
-    if (column === sort) {
-      setDirection((current) => (current === "asc" ? "desc" : "asc"))
-      return
-    }
-    setSort(column)
-    setDirection("asc")
-  }
-
   // The loader brings the whole list in one go, so finding and paging happen
   // here. If it ever grows past that, this wants a server parameter instead.
   const sorted = React.useMemo(() => {
@@ -119,7 +109,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       )
       .sort((left, right) => {
         if (sort === "name") return factor * left.name.localeCompare(right.name)
-        if (sort === "steps") return factor * (left.nodeCount - right.nodeCount)
+        if (sort === "status") return factor * left.summary.localeCompare(right.summary)
         return factor * left.updated_at.localeCompare(right.updated_at)
       })
   }, [automations, direction, search, sort])
@@ -307,11 +297,11 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   Name
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden sm:table-cell">
                 <TableSortButton
-                  active={sort === "steps"}
+                  active={sort === "status"}
                   direction={direction}
-                  onClick={() => toggleSort("steps")}
+                onClick={() => toggleSort("status")}
                 >
                   Status
                 </TableSortButton>
@@ -361,12 +351,12 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                 {automation.name}
               </Link>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="meta" className="hidden sm:table-cell">
               <Badge variant={automation.isValid ? "secondary" : "outline"}>
                 {automation.summary}
               </Badge>
             </TableCell>
-            <TableCell column="mutedMeta">
+            <TableCell column="mutedMeta" className="hidden md:table-cell">
               {formatDate(automation.updated_at)}
             </TableCell>
             <TableCell column="actions">

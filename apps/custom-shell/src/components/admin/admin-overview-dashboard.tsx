@@ -23,7 +23,7 @@ import {
 } from "recharts"
 
 import { ActivityCard } from "@/components/shared/activity-card"
-import { EmptyChart, LegendDot } from "@/components/shared/chart-card"
+import { chartHeightClassName, EmptyChart, LegendDot } from "@/components/shared/chart-card"
 import {
   DashboardPanels,
   type DashboardBlock,
@@ -79,6 +79,7 @@ import { emailIsOff, emailOffConsequence } from "@/lib/email-delivery"
 import { buildFeedsNeedsYou } from "@/lib/feeds-needs-you"
 import { focusRingInset } from "@/lib/focus-ring"
 import { formatDate } from "@/lib/format-time"
+import { formatSharePercent } from "@/lib/format-number"
 import { buildMembershipFigures } from "@/lib/membership-figures"
 import { percentChange } from "@/lib/percent-change"
 import { plural } from "@/lib/plural"
@@ -432,7 +433,7 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
       {data.length === 0 ? (
         <EmptyChart message="Nobody has joined yet." />
       ) : (
-        <div className="h-[200px] w-full min-w-0 sm:h-[240px] xl:h-auto xl:min-h-[120px] xl:flex-1">
+        <div className={`${chartHeightClassName} xl:h-auto xl:min-h-[120px] xl:flex-1`}>
           <ChartContainer config={joiningConfig} className="h-full w-full">
             <ComposedChart data={data}>
               <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -638,9 +639,7 @@ function PlanMembership({ overview }: { overview: AdminOverview }) {
           </p>
         ) : (
           plans.map((plan) => {
-            const share = everyone
-              ? Math.round((plan.people / everyone) * 100)
-              : 0
+            const share = formatSharePercent(plan.people, everyone)
             return (
               <MeterRow
                 key={plan.planId}
@@ -649,7 +648,7 @@ function PlanMembership({ overview }: { overview: AdminOverview }) {
                   <>
                     {plan.people.toLocaleString()}{" "}
                     <span className="font-normal text-muted-foreground">
-                      {share}%
+                      {share}
                     </span>
                   </>
                 }

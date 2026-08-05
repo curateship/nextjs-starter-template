@@ -11,7 +11,6 @@ import {
   TableHeader,
   TableRow,
   TableSortButton,
-  type TableSortDirection,
 } from "@/components/ui/table"
 import type { SystemEmailListItem } from "@/lib/api/system-emails"
 import {
@@ -20,6 +19,7 @@ import {
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
 import { formatDate } from "@/lib/format-time"
+import { useTableSort } from "@/lib/use-table-sort"
 
 type SortColumn = "name" | "subject" | "sends" | "edited"
 
@@ -39,23 +39,12 @@ export function SystemEmailsPage({
   const navigate = useNavigate()
   // Starts in the order the five are declared, which is roughly the order
   // somebody meets them: register, sign in, forget the password.
-  const [sort, setSort] = React.useState<SortColumn | null>(null)
-  const [direction, setDirection] = React.useState<TableSortDirection>("asc")
+  const { sort, direction, toggleSort } = useTableSort<SortColumn>("name", "asc", (column) => column === "sends" || column === "edited" ? "desc" : "asc")
 
   const openEditor = (kind: SystemEmailKind) =>
     navigate({ to: "/admin/system-emails/$kind", params: { kind } })
 
-  const toggleSort = (column: SortColumn) => {
-    if (column === sort) {
-      setDirection((current) => (current === "asc" ? "desc" : "asc"))
-      return
-    }
-    setSort(column)
-    setDirection("asc")
-  }
-
   const rows = React.useMemo(() => {
-    if (!sort) return initial
     const factor = direction === "asc" ? 1 : -1
     return [...initial].sort((left, right) => {
       if (sort === "name") {
@@ -107,7 +96,7 @@ export function SystemEmailsPage({
                 Email
               </TableSortButton>
             </TableHead>
-            <TableHead column="meta">
+            <TableHead column="meta" className="hidden sm:table-cell">
               <TableSortButton
                 active={sort === "subject"}
                 direction={direction}
@@ -116,7 +105,7 @@ export function SystemEmailsPage({
                 Subject
               </TableSortButton>
             </TableHead>
-            <TableHead column="meta">
+            <TableHead column="meta" className="hidden md:table-cell">
               <TableSortButton
                 active={sort === "sends"}
                 direction={direction}
@@ -163,12 +152,12 @@ export function SystemEmailsPage({
               {SYSTEM_EMAIL_META[item.kind].whenSent}
             </span>
           </TableCell>
-          <TableCell column="mutedMeta">
+          <TableCell column="mutedMeta" className="hidden sm:table-cell">
             <span className="block max-w-72 truncate" title={item.subject}>
               {item.subject}
             </span>
           </TableCell>
-          <TableCell column="mutedMeta">
+          <TableCell column="mutedMeta" className="hidden md:table-cell">
             {item.recentSent === 0 && item.recentFailed === 0
               ? "None"
               : `${item.recentSent} sent` +

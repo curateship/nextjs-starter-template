@@ -10,7 +10,7 @@ import {
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { ChartCard, EmptyChart, LegendDot } from "@/components/shared/chart-card"
+import { chartHeightClassName, ChartCard, EmptyChart, LegendDot } from "@/components/shared/chart-card"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { StatStrip, type StatFigure } from "@/components/shared/stat-strip"
 import {
@@ -32,6 +32,7 @@ import {
   type TrafficSummary,
 } from "@/lib/api/traffic"
 import { shade } from "@/lib/chart-colours"
+import { formatSharePercent } from "@/lib/format-number"
 import { useListSearchNavigate } from "@/lib/list-search"
 import { pageGutter } from "@/lib/shell-gutter"
 import { useTableSort } from "@/lib/use-table-sort"
@@ -94,7 +95,7 @@ export function AdminTrafficDashboard({
       key: "memberShare",
       icon: UsersIcon,
       label: "Member share",
-      value: formatShare(data.totals.memberViews, data.totals.views),
+      value: formatSharePercent(data.totals.memberViews, data.totals.views),
       footer: "of views by signed-in members",
     },
   ]
@@ -181,7 +182,7 @@ function ViewsChart({ daily }: { daily: TrafficSummary["daily"] }) {
   }))
 
   return (
-    <div className="h-[200px] w-full min-w-0 sm:h-[240px]">
+    <div className={chartHeightClassName}>
       <ChartContainer config={viewsConfig} className="h-full w-full">
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -247,7 +248,7 @@ function DeviceCard({
       {totalViews === 0 ? (
         <EmptyChart message="No visits have been counted yet." />
       ) : (
-        <div className="h-[200px] w-full min-w-0 sm:h-[240px]">
+        <div className={chartHeightClassName}>
           <ChartContainer config={config} className="h-full w-full">
             <BarChart
               layout="vertical"
@@ -360,9 +361,4 @@ function TopTable({
       ))}
     </DashboardTable>
   )
-}
-
-function formatShare(part: number, whole: number) {
-  if (!whole) return "0%"
-  return `${Math.round((part / whole) * 100)}%`
 }

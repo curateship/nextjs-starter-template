@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { ChartCard, EmptyChart } from "@/components/shared/chart-card"
+import { chartHeightClassName, ChartCard, EmptyChart } from "@/components/shared/chart-card"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { StatStrip, type StatFigure } from "@/components/shared/stat-strip"
@@ -36,6 +36,7 @@ import type {
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
 import { formatDate } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
+import { formatSharePercent, formatTokenCount } from "@/lib/format-number"
 import { pageGutter } from "@/lib/shell-gutter"
 import { useClientPage } from "@/lib/use-client-page"
 import { useTableSort } from "@/lib/use-table-sort"
@@ -89,7 +90,7 @@ export function AdminAiUsageDashboard({
       key: "tokens",
       icon: HashIcon,
       label: "Tokens",
-      value: formatTokens(data.totals.tokens),
+      value: formatTokenCount(data.totals.tokens),
       footer: "in and out together",
     },
     {
@@ -185,7 +186,7 @@ function SpendChart({ daily }: { daily: AiUsageDashboard["daily"] }) {
   }))
 
   return (
-    <div className="h-[200px] w-full min-w-0 sm:h-[240px]">
+    <div className={chartHeightClassName}>
       <ChartContainer config={spendConfig} className="h-full w-full">
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -209,7 +210,7 @@ function SpendChart({ daily }: { daily: AiUsageDashboard["daily"] }) {
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(value) => formatMoney(Math.round(Number(value) * 100))}
+                formatter={(value) => formatMoney(Number(value) * 100)}
               />
             }
           />
@@ -361,10 +362,10 @@ function PersonTable({
             <TableCell column="mutedMeta">
               {row.calls.toLocaleString()}
             </TableCell>
-            <TableCell column="mutedMeta">{formatTokens(row.tokens)}</TableCell>
+            <TableCell column="mutedMeta">{formatTokenCount(row.tokens)}</TableCell>
             <TableCell column="meta">{formatMoney(row.costCents)}</TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
-              {formatShare(row.costCents, totalCostCents)}
+              {formatSharePercent(row.costCents, totalCostCents)}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden md:table-cell">
               {formatAllowance(row)}
@@ -491,7 +492,7 @@ function BreakdownTable({
             ) : null}
           </TableCell>
           <TableCell column="mutedMeta">{row.calls.toLocaleString()}</TableCell>
-          <TableCell column="mutedMeta">{formatTokens(row.tokens)}</TableCell>
+          <TableCell column="mutedMeta">{formatTokenCount(row.tokens)}</TableCell>
           <TableCell column="meta">{formatMoney(row.costCents)}</TableCell>
         </TableRow>
       ))}
@@ -500,17 +501,3 @@ function BreakdownTable({
 }
 
 // --- Formatting ---------------------------------------------------------------
-
-/** 1234 → "1,234"; 1,234,567 → "1.2M" — big token counts read as magnitude. */
-function formatTokens(tokens: number) {
-  if (tokens < 100_000) return tokens.toLocaleString()
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(tokens)
-}
-
-function formatShare(costCents: number, totalCostCents: number) {
-  if (!totalCostCents) return "0%"
-  return `${Math.round((costCents / totalCostCents) * 100)}%`
-}

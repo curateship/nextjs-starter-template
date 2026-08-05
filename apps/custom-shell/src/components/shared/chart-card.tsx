@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
+export const chartHeightClassName = "h-[200px] w-full min-w-0 sm:h-[240px]"
+
 /**
  * The card every chart sits in: a hairline header row with a bordered icon
  * chip, the title in the shared heading font, and whatever belongs on the
@@ -92,7 +94,7 @@ export function LegendDot({
 
 export function EmptyChart({ message }: { message: string }) {
   return (
-    <div className="flex h-full min-h-[144px] items-center justify-center">
+    <div className="flex h-full min-h-[200px] items-center justify-center sm:min-h-[240px]">
       <p className="text-center text-sm text-muted-foreground">{message}</p>
     </div>
   )

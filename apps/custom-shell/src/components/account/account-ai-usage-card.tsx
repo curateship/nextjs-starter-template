@@ -28,6 +28,7 @@ import {
 } from "@/lib/api/ai"
 import { formatDate, formatDateTime } from "@/lib/format-time"
 import { formatMoney } from "@/lib/money"
+import { formatTokenCount } from "@/lib/format-number"
 
 /**
  * What the last load returned, kept for as long as the page is open.
@@ -117,7 +118,7 @@ export function AccountAiUsageCard() {
               />
               <UsageFigure
                 label="Tokens this month"
-                value={usage.tokens.toLocaleString()}
+                value={formatTokenCount(usage.tokens)}
               />
             </div>
             <RecentCallsTable recent={usage.recent} />
