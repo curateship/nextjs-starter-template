@@ -36,7 +36,7 @@ export const getEmailSettingsErrorMessage = createErrorMessage(
     DRIP_SETTINGS_INVALID:
       "Those batch settings contradict each other. Check the smallest is not bigger than the largest.",
   },
-  "Something went wrong with the email settings. Please try again."
+  "We could not load or save the email settings. Please try again."
 )
 
 async function currentWorkspaceId(userId: string) {

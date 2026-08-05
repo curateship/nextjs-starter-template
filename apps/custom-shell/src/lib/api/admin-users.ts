@@ -71,7 +71,7 @@ export const getAdminUserErrorMessage = createErrorMessage(
     RESTORE_WINDOW_PASSED:
       "That account was deleted too long ago to bring back.",
   },
-  "We could not complete that request. Please try again."
+  "We could not update that account. Please try again."
 )
 
 const listAccountsFn = createServerFn({ method: "GET" })
@@ -275,4 +275,3 @@ export function deleteAccountsAsAdmin(userIds: string[]) {
 export function restoreAccountsAsAdmin(userIds: string[]) {
   return restoreAccountsFn({ data: { userIds } })
 }
-

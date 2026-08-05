@@ -223,9 +223,9 @@ function SubjectCard({
       title="Edit the subject and preview line"
       className="grid w-full grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5 rounded-t-xl border-b border-black/10 px-5 py-4 text-left hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
-      <FieldLabel>Subject</FieldLabel>
+      <PreviewFieldLabel>Subject</PreviewFieldLabel>
       <FieldValue value={subject} placeholder="What this email is about" />
-      <FieldLabel>Preview</FieldLabel>
+      <PreviewFieldLabel>Preview</PreviewFieldLabel>
       <FieldValue
         value={preheader}
         placeholder="The grey line the inbox shows next to it"
@@ -235,7 +235,7 @@ function SubjectCard({
   )
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function PreviewFieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <span className="text-[10px] font-semibold tracking-[0.08em] text-neutral-400 uppercase">
       {children}

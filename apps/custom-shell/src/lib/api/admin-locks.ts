@@ -107,7 +107,7 @@ export function getAdminLocksErrorMessage(error: unknown) {
 
   return matched
     ? adminLocksErrorMessages[matched]
-    : "We could not complete that request. Please try again."
+    : "We could not clear those sign-in limits. Please try again."
 }
 
 /**

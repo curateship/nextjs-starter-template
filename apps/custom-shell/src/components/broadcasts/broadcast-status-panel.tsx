@@ -213,7 +213,9 @@ export function BroadcastStatusPanel({
                   <span
                     className={cn(
                       "size-1.5 shrink-0 rounded-full",
-                      delivery.status === "sent" ? "bg-emerald-500" : "bg-destructive"
+                      delivery.status === "sent"
+                        ? "bg-emerald-500 dark:bg-emerald-400"
+                        : "bg-destructive"
                     )}
                     aria-hidden
                   />
@@ -273,7 +275,10 @@ function ProgressBar({
       role="img"
       aria-label={`${sent} of ${total} sent, ${failed} did not go through`}
     >
-      <div className="bg-emerald-500" style={{ width: `${sentWidth}%` }} />
+      <div
+        className="bg-emerald-500 dark:bg-emerald-400"
+        style={{ width: `${sentWidth}%` }}
+      />
       <div className="bg-destructive" style={{ width: `${failedWidth}%` }} />
     </div>
   )

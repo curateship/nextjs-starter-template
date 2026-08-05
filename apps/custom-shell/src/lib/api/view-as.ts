@@ -22,7 +22,7 @@ export const getViewAsErrorMessage = createErrorMessage(
       "That account is suspended, so there is nothing to look at. Unsuspend it first.",
     VIEW_AS_NOT_ACTIVE: "You are not viewing the app as anybody.",
   },
-  "We could not do that. Please try again."
+  "We could not change who you are viewing as. Please try again."
 )
 
 const startFn = createServerFn({ method: "POST" })

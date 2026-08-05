@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import {
   DialogBody,
@@ -465,7 +466,12 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="contact-tags">Tags</Label>
+                  <FieldLabel
+                    htmlFor="contact-tags"
+                    hint="Separate them with commas. Tags are how a newsletter goes to some people rather than everyone."
+                  >
+                    Tags
+                  </FieldLabel>
                   <Input
                     id="contact-tags"
                     value={form.tags}
@@ -477,10 +483,6 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                       }))
                     }
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Separate them with commas. Tags are how a newsletter goes to
-                    some people rather than everyone.
-                  </p>
                 </div>
               </CardContent>
             </Card>

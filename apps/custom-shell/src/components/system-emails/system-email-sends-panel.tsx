@@ -145,7 +145,7 @@ export function SystemEmailSendsPanel({
                       className={cn(
                         "size-1.5 shrink-0 rounded-full",
                         send.status === "sent"
-                          ? "bg-emerald-500"
+                          ? "bg-emerald-500 dark:bg-emerald-400"
                           : "bg-destructive"
                       )}
                       aria-hidden

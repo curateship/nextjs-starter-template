@@ -14,6 +14,7 @@ export function DashboardContent({
     return (
       <main
         data-focus-return=""
+        data-scroll-restoration-id="dashboard-content"
         tabIndex={-1}
         className={cn(
           "flex min-w-0 w-full flex-1 flex-col overflow-auto bg-muted/60",
@@ -34,6 +35,7 @@ export function DashboardContent({
   return (
     <main
       data-focus-return=""
+      data-scroll-restoration-id="dashboard-content"
       tabIndex={-1}
       data-content-styling=""
       data-flat={isFlat ? "true" : undefined}
