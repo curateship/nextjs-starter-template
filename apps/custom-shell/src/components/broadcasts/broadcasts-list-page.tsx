@@ -142,7 +142,11 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
     })
 
   const handleCreate = async () => {
-    if (creating || !createName.trim()) return
+    if (creating) return
+    if (!createName.trim()) {
+      showErrorToast("Newsletter name is required.")
+      return
+    }
     await runCreate(async () => {
       const created = await createBroadcast(createName)
       toast.success(`Created "${created.name}".`)
@@ -382,6 +386,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                     autoFocus
                     placeholder="March update"
                     onChange={(event) => setCreateName(event.target.value)}
+                    aria-invalid={!createName.trim() || undefined}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter") return
                       event.preventDefault()
@@ -403,7 +408,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
             </Button>
             <Button
               type="button"
-              disabled={creating || !createName.trim()}
+              disabled={creating}
               onClick={() => void handleCreate()}
             >
               {creating ? <Loader2Icon className="size-4 animate-spin" /> : null}

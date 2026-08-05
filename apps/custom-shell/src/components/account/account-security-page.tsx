@@ -123,6 +123,18 @@ function ChangePasswordCard({
       event.preventDefault()
       setSaved(false)
 
+      if (hasPassword && !currentPassword) {
+        showErrorToast("Current password is required.")
+        return
+      }
+      if (!newPassword) {
+        showErrorToast("New password is required.")
+        return
+      }
+      if (!confirmPassword) {
+        showErrorToast("Confirm password is required.")
+        return
+      }
       if (newPassword !== confirmPassword) {
         setConfirmTouched(true)
         showErrorToast(MISMATCH_MESSAGE)
@@ -178,7 +190,7 @@ function ChangePasswordCard({
                   setSaved(false)
                   setCurrentPassword(event.target.value)
                 }}
-                required
+                aria-invalid={!currentPassword || undefined}
               />
             </div>
           ) : null}
@@ -195,7 +207,7 @@ function ChangePasswordCard({
                 setSaved(false)
                 setNewPassword(event.target.value)
               }}
-              required
+              aria-invalid={!newPassword || undefined}
             />
           </div>
           <div className="grid gap-2">
@@ -220,8 +232,7 @@ function ChangePasswordCard({
                 // every character typed would be unreadable.
                 if (confirmMismatches) showErrorToast(MISMATCH_MESSAGE)
               }}
-              aria-invalid={mismatch || undefined}
-              required
+              aria-invalid={!confirmPassword || mismatch || undefined}
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -703,6 +714,12 @@ function DeleteAccountCard({
 
   const handleDelete = React.useCallback(async () => {
     dismissErrorToast()
+    if (!confirmation) {
+      showErrorToast(
+        hasPassword ? "Password is required." : "Email address is required."
+      )
+      return
+    }
     setDeleting(true)
 
     try {
@@ -712,7 +729,7 @@ function DeleteAccountCard({
       showErrorToast(getAuthErrorMessage(deleteError))
       setDeleting(false)
     }
-  }, [confirmation])
+  }, [confirmation, hasPassword])
 
   return (
     <Card>
@@ -736,7 +753,6 @@ function DeleteAccountCard({
         description={describeSelfDeletion(hasPassword, isPaid)}
         confirmLabel="Delete account"
         loading={deleting}
-        disabled={!confirmation}
         onConfirm={() => void handleDelete()}
       >
         <Card size="sm">
@@ -755,6 +771,7 @@ function DeleteAccountCard({
                     autoComplete="current-password"
                     value={confirmation}
                     onChange={(event) => setConfirmation(event.target.value)}
+                    aria-invalid={!confirmation || undefined}
                   />
                 </>
               ) : (
@@ -771,6 +788,7 @@ function DeleteAccountCard({
                     autoComplete="email"
                     value={confirmation}
                     onChange={(event) => setConfirmation(event.target.value)}
+                    aria-invalid={!confirmation || undefined}
                   />
                 </>
               )}

@@ -48,6 +48,14 @@ function ResetPasswordRoute() {
       event.preventDefault()
       dismissErrorToast()
 
+      if (!password) {
+        showErrorToast("New password is required.")
+        return
+      }
+      if (!confirmPassword) {
+        showErrorToast("Confirm password is required.")
+        return
+      }
       if (password !== confirmPassword) {
         setConfirmTouched(true)
         showErrorToast(MISMATCH_MESSAGE)
@@ -114,7 +122,7 @@ function ResetPasswordRoute() {
           minLength={8}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          required
+          aria-invalid={!password || undefined}
         />
       </div>
       <div className="grid gap-2">
@@ -136,8 +144,7 @@ function ResetPasswordRoute() {
             // every character typed would be unreadable.
             if (confirmMismatches) showErrorToast(MISMATCH_MESSAGE)
           }}
-          aria-invalid={mismatch || undefined}
-          required
+          aria-invalid={!confirmPassword || mismatch || undefined}
         />
       </div>
       <Button type="submit" className="w-full" disabled={loading}>

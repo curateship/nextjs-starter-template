@@ -542,6 +542,15 @@ function PlanDialog({
   const handleSave = React.useCallback(async () => {
     dismissErrorToast()
 
+    if (!draft.name.trim()) {
+      showErrorToast("Plan name is required.")
+      return
+    }
+    if (!draft.slug.trim()) {
+      showErrorToast("Plan short id is required.")
+      return
+    }
+
     let features: PlanFeatures
     try {
       features = parseFeatures(draft.features)
@@ -642,6 +651,7 @@ function PlanDialog({
                       ref={nameInputRef}
                       value={draft.name}
                       onChange={(event) => update("name", event.target.value)}
+                      aria-invalid={!draft.name.trim() || undefined}
                     />
                   </Field>
                   <Field
@@ -653,6 +663,7 @@ function PlanDialog({
                       id="plan-slug"
                       value={draft.slug}
                       onChange={(event) => update("slug", event.target.value)}
+                      aria-invalid={!draft.slug.trim() || undefined}
                     />
                   </Field>
                 </div>

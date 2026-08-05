@@ -33,6 +33,7 @@ import {
   createAccountAsAdmin,
   getAdminUserErrorMessage,
 } from "@/lib/api/admin-users"
+import { showErrorToast } from "@/lib/error-toast"
 import { useAsyncAction } from "@/lib/use-async-action"
 
 /**
@@ -58,6 +59,14 @@ export function AddAccountDialog({
   const dirty = Boolean(name.trim() || email.trim() || role !== "member")
 
   const handleCreate = React.useCallback(async () => {
+    if (!name.trim()) {
+      showErrorToast("Account name is required.")
+      return
+    }
+    if (!email.trim()) {
+      showErrorToast("Email address is required.")
+      return
+    }
     await run(async () => {
       const { delivered } = await createAccountAsAdmin(
         email.trim(),
@@ -117,7 +126,7 @@ export function AddAccountDialog({
                         value={name}
                         onChange={(event) => setName(event.target.value)}
                         maxLength={255}
-                        required
+                        aria-invalid={!name.trim() || undefined}
                       />
                     </div>
                     <div className="grid gap-2">
@@ -133,7 +142,7 @@ export function AddAccountDialog({
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
                         maxLength={255}
-                        required
+                        aria-invalid={!email.trim() || undefined}
                       />
                     </div>
                   </div>
