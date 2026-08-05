@@ -4,7 +4,7 @@ import {
   EyeIcon,
   Loader2Icon,
   PlusIcon,
-  PencilIcon,
+  SettingsIcon,
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -324,7 +324,7 @@ export function ChangelogAdminDashboard({
                   title="Update settings"
                   aria-label={`Edit ${entry.title}`}
                 >
-                  <PencilIcon className="size-4" />
+                  <SettingsIcon className="size-4" />
                 </Button>
                 <Button
                   type="button"

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -288,7 +288,7 @@ export function WorkspacesDashboard({
                   aria-label={`Edit ${workspace.name}`}
                   title={`Edit ${workspace.name}`}
                 >
-                  <PencilIcon className="size-4" />
+                  <SettingsIcon className="size-4" />
                 </Button>
                 <DisabledReason
                   disabled={workspaces.length <= 1}
