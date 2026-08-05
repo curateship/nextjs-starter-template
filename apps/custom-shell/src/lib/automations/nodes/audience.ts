@@ -1,3 +1,4 @@
+import { UsersIcon } from "lucide-react"
 import { z } from "zod"
 
 import { defineNode } from "../node-descriptor"
@@ -97,8 +98,9 @@ export const audienceNode = defineNode({
     )
     return wording.charAt(0).toUpperCase() + wording.slice(1)
   },
-  icon: "users",
+  icon: UsersIcon,
   outputPorts: [{ id: "then", label: "Then" }],
   hasInput: true,
   connectionError: () => null,
+  fields: () => import("@/components/automations/nodes/audience-panel"),
 })

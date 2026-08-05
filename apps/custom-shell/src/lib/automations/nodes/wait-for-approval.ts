@@ -1,3 +1,4 @@
+import { UserCheckIcon } from "lucide-react"
 import { z } from "zod"
 
 import { defineNode } from "../node-descriptor"
@@ -57,12 +58,13 @@ export const waitForApprovalNode = defineNode({
       typeof settings.summary === "string" ? settings.summary.trim() : ""
     return summary || "Waits for somebody to approve before going on."
   },
-  icon: "userCheck",
+  icon: UserCheckIcon,
   // One output. Approving continues down it; rejecting ends the run, so there
   // is no "no" path to draw — the flow simply stops.
   outputPorts: [{ id: "then", label: "Then" }],
   hasInput: true,
   connectionError: () => null,
+  fields: () => import("@/components/automations/nodes/wait-for-approval-panel"),
 })
 
 /** The deadline a checkpoint parked now would carry. */

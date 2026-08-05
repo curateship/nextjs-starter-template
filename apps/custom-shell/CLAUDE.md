@@ -39,24 +39,48 @@ One file holds an app's answers:
 | App writes here | Shell reads it in |
 | --- | --- |
 | `src/app/options.ts` | `src/lib/app-options.ts` |
+| `src/app/server-options.ts` | `src/server/app-options.ts` |
 
-The shell file is the catalogue: it defines what can be changed and what each
-option means. Anything not offered there is a compile error, on purpose — the
-shell always knows every way an app can deviate from it.
+Two pairs because of one line: `options.ts` can be seen by the browser and
+`server-options.ts` never is, since only `src/lib/api/*`, `src/routes/api/**`
+and `src/server/*` may import `@/server/*`. Drawing and wording go in the first;
+anything that reaches the database or calls something outside goes in the
+second.
 
-**In this repo the app file stays empty forever.** The moment the shell puts a
-value in it, every app copied from it conflicts on that file on every merge.
+The shell file in each pair is the catalogue: it defines what can be changed and
+what each option means. Anything not offered there is a compile error, on
+purpose — the shell always knows every way an app can deviate from it.
 
-What is on offer today — exactly one. An option is added when a real app needs
-it, never on the guess that one might:
+**In this repo both app files stay empty forever.** The moment the shell puts a
+value in one, every app copied from it conflicts on that file on every merge.
+
+What is on offer today. An option is added when a real app needs it, never on
+the guess that one might:
 
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
+- `automations.nodes` — extra steps in the automation palette, each carrying its
+  own icon and a pointer to its settings panel, paired with
+- `automations.executors` (server) — what those steps do when a flow reaches
+  them, keyed by the same `kind`
 
-If an option ever needs to run server-side code (a hook inside a shell flow, say),
-it needs a second pair of files — `src/app/server-options.ts` read by
-`src/server/app-options.ts` — because only `src/lib/api/*`, `src/routes/api/**`
-and `src/server/*` may import `@/server/*`. Build that pair when the first such
-option actually exists, not before.
+An app adds a step; it never replaces one of the shell's. A `kind` or a palette
+key the shell already uses is refused out loud.
+
+**The shell's own nodes are written exactly the same way**, so there is one way
+to add a node rather than two. A node is:
+
+- `src/lib/automations/nodes/<kind>.ts` — what it is: its palette card, its
+  icon, its settings rules, and a pointer to its panel.
+- `src/components/automations/nodes/<kind>-panel.tsx` — its settings panel.
+- an executor — what it does when a flow reaches it.
+
+The panel is a separate file and the descriptor points at it with
+`fields: () => import("@/components/automations/nodes/<kind>-panel")`, never the
+component itself. The engine reads descriptors, so anything a descriptor's
+module imports is loaded on the server too — and a panel with a dropdown in it
+imports `@/lib/api/*`, which builds a server function as it loads and throws
+outside a request, at boot. The pointer is never followed until a browser draws
+the panel. There is nothing to remember: the type accepts nothing else.
 
 ### Where a setting belongs
 
@@ -87,7 +111,8 @@ Steps 1 and 2 settle most of these without touching the shell at all.
 4. **Prove the shell did not change.** With the option unset: `npm run test`,
    then open the app in a real browser. It must behave exactly as before.
 5. **Merge shell → app** using the checklist in the monorepo's root `CLAUDE.md`.
-6. **Set the option** in the app's `src/app/options.ts`.
+6. **Set the option** in the app's `src/app/options.ts`, or
+   `src/app/server-options.ts` if it runs on the server.
 
 The shell is opinionated at the core and open at the edges. Auth, sessions,
 security and the guard rules are the core: an app that wants those to work
@@ -101,18 +126,24 @@ differently should say so out loud rather than switch it off quietly.
   it; a const read during boot throws.
 - **Call readers inside a component or a loader, never at the top level of a
   module.** Route files are the one exception: nothing imports them back, so the
-  circle cannot reach them.
+  circle cannot reach them. This is why the node registry works its list out on
+  first use instead of at import — a module-level list would be built while the
+  app's own nodes are still loading.
 - **A default is written once, in the reader.** `ShellConfig` already gets
   defaulted in three separate places; app options must not become a fourth.
 - **`src/app/**` never declares a `createServerFn`.** The guard test only walks
   `src/lib/api`, so an endpoint declared in `src/app` would be an unguarded door
   nobody is told about. New endpoints go in `src/lib/api/`, which never
-  conflicts anyway.
+  conflicts anyway. This matters most in `server-options.ts`, which is allowed
+  to reach the database.
+- **`src/app/options.ts` never imports `src/app/server-options.ts`.** That is
+  the back door that would drag the database into the browser bundle.
 
-`src/lib/app-options.test.ts` covers the defaults and the last rule. The first
-three are conventions no test can see, so they are on whoever writes the code.
-Defaults are checked by passing an empty object rather than by reading this app's
-own answers, so the check keeps working inside an app that has set an option.
+`src/lib/app-options.test.ts` and `src/server/app-options.test.ts` cover the
+defaults and the last two rules. The first three are conventions no test can
+see, so they are on whoever writes the code. Defaults are checked by passing an
+empty object rather than by reading this app's own answers, so the check keeps
+working inside an app that has set an option.
 
 ## Verifying locally
 

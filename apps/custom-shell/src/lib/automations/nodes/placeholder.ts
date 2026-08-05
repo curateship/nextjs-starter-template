@@ -1,3 +1,4 @@
+import { SquareDashedIcon } from "lucide-react"
 import { z } from "zod"
 
 import { defineNode } from "../node-descriptor"
@@ -23,8 +24,9 @@ export const placeholderNode = defineNode({
     const note = typeof settings.note === "string" ? settings.note.trim() : ""
     return note || "Does nothing yet — a stand-in while real nodes are built."
   },
-  icon: "squareDashed",
+  icon: SquareDashedIcon,
   outputPorts: [{ id: "then", label: "Then" }],
   hasInput: true,
   connectionError: () => null,
+  fields: () => import("@/components/automations/nodes/placeholder-panel"),
 })

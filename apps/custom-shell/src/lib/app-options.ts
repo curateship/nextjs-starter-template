@@ -1,6 +1,7 @@
 import type { ComponentType } from "react"
 
 import { appOptions } from "@/app/options"
+import type { AutomationNodeDescriptor } from "@/lib/automations/node-descriptor"
 
 /**
  * Everything an app built from this shell is allowed to change about it.
@@ -27,6 +28,34 @@ import { appOptions } from "@/app/options"
  */
 export type AppOptions = {
   landing?: LandingOptions
+  automations?: AutomationOptions
+}
+
+type AutomationOptions = {
+  /**
+   * Extra steps this app adds to the automation palette.
+   *
+   * The shell's own steps are always there; these are added to them. Each one
+   * is an ordinary node descriptor, written in the app's own folder, carrying
+   * its own icon and its own settings panel — everything the canvas, the
+   * inspector and the compiler need, so none of them has to be told about it
+   * separately.
+   *
+   * What a step *does* is the other half, and it is server-side: the executor
+   * goes in `src/app/server-options.ts`, under the same `kind`.
+   *
+   * A step is only ever added, never replaced. A `kind` or a palette key that
+   * the shell already uses is refused out loud rather than quietly winning,
+   * because the shell's own flows are built on those names.
+   *
+   * The settings panel is the one part that goes in a file of its own, and the
+   * descriptor points at it — `fields: () => import("./send-sms-panel")`. The
+   * reason is on `fields` in `node-descriptor.ts`; the short version is that
+   * the engine reads these descriptors, and a panel with a dropdown in it
+   * reaches the database. Nothing to remember: that pointer is the only thing
+   * the type will accept.
+   */
+  nodes?: readonly AutomationNodeDescriptor[]
 }
 
 type LandingOptions = {
@@ -106,4 +135,18 @@ export function landingPageOverride(
   options: AppOptions = appOptions
 ): PublicPage | null {
   return options.landing?.page ?? null
+}
+
+/**
+ * The steps this app adds to the automation palette, or none.
+ *
+ * Read by `node-registry.ts`, which adds them to the shell's own list the first
+ * time anything asks for it — never while modules are still loading, because
+ * an app's node imports app components which import shell components which
+ * import this file.
+ */
+export function appAutomationNodes(
+  options: AppOptions = appOptions
+): readonly AutomationNodeDescriptor[] {
+  return options.automations?.nodes ?? []
 }

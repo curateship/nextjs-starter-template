@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import { z } from "zod"
 
-import { landingPageOverride } from "@/lib/app-options"
+import { appAutomationNodes, landingPageOverride } from "@/lib/app-options"
+import { defineNode } from "@/lib/automations/node-descriptor"
 
 /**
  * App options are how an app built from this shell changes the shell's
@@ -26,9 +28,29 @@ import { landingPageOverride } from "@/lib/app-options"
  * says.
  */
 
+/** The least a node can be and still be one — stands in for an app's own step. */
+function testNode(kind: string) {
+  return defineNode({
+    kind,
+    palette: { key: kind, group: "Actions", description: "A test step" },
+    createSettings: () => ({}),
+    settingsSchema: z.object({}),
+    name: () => kind,
+    description: () => "A test step",
+    icon: () => null,
+    outputPorts: [{ id: "then", label: "Then" }],
+    hasInput: true,
+    connectionError: () => null,
+  })
+}
+
 describe("an option nobody set means what the shell always did", () => {
   it("keeps the shell's own front page", () => {
     expect(landingPageOverride({})).toBeNull()
+  })
+
+  it("adds no automation steps of its own", () => {
+    expect(appAutomationNodes({})).toEqual([])
   })
 })
 
@@ -36,6 +58,11 @@ describe("an app's answer wins", () => {
   it("hands over the front page", () => {
     const page = { Component: () => null }
     expect(landingPageOverride({ landing: { page } })).toBe(page)
+  })
+
+  it("hands over the app's own automation steps", () => {
+    const nodes = [testNode("sendSms")]
+    expect(appAutomationNodes({ automations: { nodes } })).toBe(nodes)
   })
 })
 
@@ -55,5 +82,12 @@ describe("the app's options file stays on its own side of the line", () => {
     // An endpoint declared in src/app would be invisible to the guard scanner,
     // which only walks src/lib/api — an unguarded door nobody is told about.
     expect(source()).not.toContain("createServerFn")
+  })
+
+  it("keeps its server-side twin out of the browser", () => {
+    // server-options.ts is the same app's answers on the other side of the
+    // line, and everything it holds reaches the database. Importing it from
+    // here would drag all of that into the browser bundle by the back door.
+    expect(source()).not.toContain("@/app/server-options")
   })
 })

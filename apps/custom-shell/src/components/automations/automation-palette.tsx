@@ -5,31 +5,28 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AUTOMATION_PALETTE_GROUPS,
-  AUTOMATION_PALETTE_ITEMS,
+  automationPaletteItems,
   type AutomationPaletteItem,
 } from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
 
 import { AutomationNodeIcon } from "./automation-node-icon"
 
-const paletteGroups = AUTOMATION_PALETTE_GROUPS.map((label) => ({
-  label,
-  items: AUTOMATION_PALETTE_ITEMS.filter((item) => item.group === label),
-}))
-
+// Read inside the call, never at the top of the file: the list includes any
+// steps the app added, and those are not there yet while modules are loading.
 function paletteGroupsFor(
   view: "fav" | "all",
   favoriteNodeKeys: readonly string[]
 ) {
+  const items = automationPaletteItems()
   const favorites = new Set(favoriteNodeKeys)
-  return paletteGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter(
-        (item) => view === "all" || favorites.has(item.key)
-      ),
-    }))
-    .filter((group) => group.items.length > 0)
+  return AUTOMATION_PALETTE_GROUPS.map((label) => ({
+    label,
+    items: items.filter(
+      (item) =>
+        item.group === label && (view === "all" || favorites.has(item.key))
+    ),
+  })).filter((group) => group.items.length > 0)
 }
 
 export function AutomationPalette({

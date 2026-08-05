@@ -1,28 +1,19 @@
-import {
-  CircleHelpIcon,
-  SparklesIcon,
-  SquareDashedIcon,
-  UserCheckIcon,
-  UsersIcon,
-} from "lucide-react"
+import type { AutomationNodeIcon as NodeIcon } from "@/lib/automations/node-registry"
 
-import type { AutomationNodeIconName } from "@/lib/automations/node-registry"
-
-const icons = {
-  squareDashed: SquareDashedIcon,
-  circleHelp: CircleHelpIcon,
-  sparkles: SparklesIcon,
-  userCheck: UserCheckIcon,
-  users: UsersIcon,
-} satisfies Record<AutomationNodeIconName, typeof SquareDashedIcon>
-
+/**
+ * A node's icon, drawn from the component the node itself supplied.
+ *
+ * A component of its own rather than rendering the icon at each call site: a
+ * capitalised local read as JSX is exactly what a component genuinely made
+ * during a render looks like, and the lint rule that catches those cannot tell
+ * the two apart. Taking it as a prop keeps both call sites clear of that.
+ */
 export function AutomationNodeIcon({
-  icon,
+  icon: Icon,
   className,
 }: {
-  icon: AutomationNodeIconName
+  icon: NodeIcon
   className?: string
 }) {
-  const Icon = icons[icon]
   return <Icon className={className} />
 }

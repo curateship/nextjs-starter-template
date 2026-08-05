@@ -1,3 +1,4 @@
+import { SparklesIcon } from "lucide-react"
 import { z } from "zod"
 
 import { AI_PROVIDERS, DEFAULT_AI_MODEL } from "@/lib/ai-models"
@@ -48,8 +49,9 @@ export const aiStepNode = defineNode({
         : ""
     return instructions || "Asks an AI to write or decide something."
   },
-  icon: "sparkles",
+  icon: SparklesIcon,
   outputPorts: [{ id: "then", label: "Then" }],
   hasInput: true,
   connectionError: () => null,
+  fields: () => import("@/components/automations/nodes/ai-step-panel"),
 })
