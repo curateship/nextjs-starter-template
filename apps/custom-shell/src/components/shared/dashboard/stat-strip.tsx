@@ -17,9 +17,8 @@ export type StatFigure = {
   key: string
   /** Where this figure is explained in full. Not every figure has a page. */
   to?: string
-  icon: React.ComponentType<{ className?: string }>
   label: string
-  /** What it was before, on the quiet line above the number. */
+  /** The quiet second line under the label, saying what the number is of. */
   before?: string | null
   value: string
   change?: Change | null
@@ -100,25 +99,28 @@ export function StatStrip({
 function StatFigureBody({ figure }: { figure: StatFigure }) {
   const body = (
     <>
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <figure.icon className="size-4 shrink-0" aria-hidden />
-        <span className="truncate text-xs font-medium sm:text-sm">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold" title={figure.label}>
           {figure.label}
-        </span>
+        </p>
+        {/* Fixed height so the numbers below line up across the row whether or
+            not a figure has a second line to carry. */}
+        <p className="h-4 truncate text-xs text-muted-foreground">
+          {figure.before}
+        </p>
       </div>
-      <p className="h-4 truncate text-xs text-muted-foreground/70 tabular-nums">
-        {figure.before}
-      </p>
       {/* Mono and tabular so the figures line up across the row and do not
           jump about as they change. */}
-      <p className="font-mono text-2xl leading-tight font-semibold tracking-tight tabular-nums lg:text-[28px]">
+      <p className="font-mono text-3xl leading-tight font-semibold tracking-tight tabular-nums">
         {figure.value}
       </p>
-      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
         {figure.change ? (
           <ChangeBadge change={figure.change} caption={figure.changeCaption} />
         ) : null}
-        <span className="text-muted-foreground">{figure.footer}</span>
+        <span className="min-w-0 truncate text-muted-foreground">
+          {figure.footer}
+        </span>
       </div>
     </>
   )
@@ -126,14 +128,14 @@ function StatFigureBody({ figure }: { figure: StatFigure }) {
   // A figure with nowhere to go is not a link — a keyboard stop that does
   // nothing is worse than no keyboard stop.
   if (!figure.to) {
-    return <div className="min-w-0 flex-1 space-y-1">{body}</div>
+    return <div className="min-w-0 flex-1 space-y-2">{body}</div>
   }
 
   return (
     <Link
       to={figure.to}
       className={cn(
-        "group/figure -m-2 min-w-0 flex-1 space-y-1 rounded-lg p-2 transition-colors hover:bg-accent/40",
+        "group/figure -m-2 min-w-0 flex-1 space-y-2 rounded-lg p-2 transition-colors hover:bg-accent/40",
         focusRing
       )}
     >
@@ -151,18 +153,23 @@ export function ChangeBadge({
 }) {
   const Icon = change.up ? ArrowUpRightIcon : ArrowDownRightIcon
   return (
-    // Never colour alone: the arrow points the way the number went.
-    <span
-      className={cn(
-        "flex items-center gap-0.5 font-medium whitespace-nowrap tabular-nums",
-        change.up ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
-      )}
-    >
-      <Icon className="size-3 shrink-0" aria-hidden />
-      {change.up ? "+" : "-"}
-      {Math.round(change.percent)}%
+    // Never colour alone: the arrow points the way the number went, so the pill
+    // still reads in greyscale.
+    <span className="flex items-center gap-1.5 whitespace-nowrap">
+      <span
+        className={cn(
+          "flex items-center gap-0.5 rounded-full px-2 py-0.5 font-medium tabular-nums",
+          change.up
+            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+            : "bg-destructive/10 text-destructive"
+        )}
+      >
+        <Icon className="size-3 shrink-0" aria-hidden />
+        {change.up ? "+" : "-"}
+        {Math.round(change.percent)}%
+      </span>
       {caption ? (
-        <span className="ml-1 font-normal text-muted-foreground">{caption}</span>
+        <span className="font-normal text-muted-foreground">{caption}</span>
       ) : null}
     </span>
   )

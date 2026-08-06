@@ -16,7 +16,6 @@
  *    it does not get a stand-in — it gets left out.
  *
  * What is missing and why:
- * - Traffic. There is no pageview or visitor tracking in this app at all.
  * - Automation runs. There is no run engine yet, so nothing records a run,
  *   a failure, or a success rate. The only real health signal an automation
  *   has is whether it compiles, which the card shows beside these.
@@ -54,51 +53,3 @@ export function automationSuccessRate(automationId: string): Sampled<number> {
 
 /** What the runs figure is counted over, once there is something to count. */
 export const AUTOMATION_RUNS_CAPTION = "last 30 days"
-
-export type TrafficSource = { label: string; percent: number }
-
-export type TrafficSummary = {
-  sessions: number
-  users: number
-  sources: TrafficSource[]
-}
-
-/** Visits and where they came from. Nothing in the app tracks either. */
-export function trafficSummary(): Sampled<TrafficSummary> {
-  return sampled({
-    sessions: 128_400,
-    users: 61_200,
-    sources: [
-      { label: "Organic search", percent: 41 },
-      { label: "Direct", percent: 26 },
-      { label: "Newsletter", percent: 18 },
-      { label: "Referral and paid", percent: 15 },
-    ],
-  })
-}
-
-const TRAFFIC_DAYS = [
-  4100, 4600, 4300, 5200, 5000, 3900, 3600, 5100, 5400, 5900, 5700, 4400, 6300,
-] as const
-
-/**
- * Visits per day for the bar chart. The labels are worked out from the day
- * passed in rather than read off a clock, so the server and the browser draw
- * the same axis.
- */
-export function trafficByDay(
-  today: Date
-): Sampled<{ label: string; sessions: number }[]> {
-  const day = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  })
-
-  return sampled(
-    TRAFFIC_DAYS.map((sessions, index) => {
-      const date = new Date(today)
-      date.setDate(date.getDate() - (TRAFFIC_DAYS.length - 1 - index))
-      return { label: day.format(date), sessions }
-    })
-  )
-}

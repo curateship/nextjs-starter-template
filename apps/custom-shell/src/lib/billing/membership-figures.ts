@@ -1,10 +1,3 @@
-import {
-  BarChart3Icon,
-  CircleDollarSignIcon,
-  UserPlusIcon,
-  UsersIcon,
-} from "lucide-react"
-
 import type { StatFigure } from "@/components/shared/dashboard/stat-strip"
 import type { MembershipSummary } from "@/lib/api/admin-overview"
 import { formatMoney } from "@/lib/format/money"
@@ -21,7 +14,6 @@ export function buildMembershipFigures(
     {
       key: "people",
       to: "/admin/users",
-      icon: UsersIcon,
       label: "People",
       value: revenue.totalUsers.toLocaleString(),
       // The only honest month-on-month figure in the app: joining dates are on
@@ -33,7 +25,6 @@ export function buildMembershipFigures(
     {
       key: "joined",
       to: "/admin/users",
-      icon: UserPlusIcon,
       label: "Joined this month",
       value: summary.newThisMonth.toLocaleString(),
       before: `${summary.newLastMonth.toLocaleString()} joined last month`,
@@ -46,7 +37,6 @@ export function buildMembershipFigures(
       // question about the plans they are on, and the Membership page this
       // used to open is gone.
       to: "/admin/plans",
-      icon: BarChart3Icon,
       label: "Paying",
       value: revenue.paidSubscribers.toLocaleString(),
       // These two carry a plain fact where the others carry last month's
@@ -61,7 +51,6 @@ export function buildMembershipFigures(
     {
       key: "revenue",
       to: "/admin/plans",
-      icon: CircleDollarSignIcon,
       label: "Revenue a month",
       value: formatMoney(revenue.monthlyRecurringCents, revenue.currency),
       // Averaging what nobody pays over nobody is not a figure, it is a zero

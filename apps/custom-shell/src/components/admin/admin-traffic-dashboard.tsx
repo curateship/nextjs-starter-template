@@ -1,12 +1,9 @@
 import * as React from "react"
 import {
-  EyeIcon,
   FileTextIcon,
   Globe2Icon,
   LineChartIcon,
   MonitorSmartphoneIcon,
-  SunIcon,
-  UsersIcon,
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
@@ -26,6 +23,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TableCell, TableRow } from "@/components/ui/table"
 import {
+  TRAFFIC_RANGE_LABELS,
   TRAFFIC_RANGES,
   type TrafficKeyCount,
   type TrafficRange,
@@ -42,12 +40,6 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
  * they came from, and what they read it on. Every figure is a sum over the
  * per-day counter rows the beacon writes — nothing here can name a person.
  */
-
-const RANGE_LABELS: Record<TrafficRange, string> = {
-  7: "7 days",
-  30: "30 days",
-  90: "90 days",
-}
 
 // One hue, two lightness steps — identity also rides on the legend and the
 // tooltip, never on the colour alone.
@@ -71,14 +63,12 @@ export function AdminTrafficDashboard({
   const figures: StatFigure[] = [
     {
       key: "views",
-      icon: EyeIcon,
       label: "Page views",
       value: data.totals.views.toLocaleString(),
-      footer: `last ${RANGE_LABELS[range]}`,
+      footer: `last ${TRAFFIC_RANGE_LABELS[range]}`,
     },
     {
       key: "unique",
-      icon: UsersIcon,
       label: "Unique visitors",
       value: data.totals.uniqueVisitors.toLocaleString(),
       // Shared and rotating internet connections blur the count either way.
@@ -86,14 +76,12 @@ export function AdminTrafficDashboard({
     },
     {
       key: "today",
-      icon: SunIcon,
       label: "Views today",
       value: data.viewsToday.toLocaleString(),
       footer: "since midnight UTC",
     },
     {
       key: "memberShare",
-      icon: UsersIcon,
       label: "Member share",
       value: formatSharePercent(data.totals.memberViews, data.totals.views),
       footer: "of views by signed-in members",
@@ -128,7 +116,7 @@ export function AdminTrafficDashboard({
               <TabsList className="h-8 p-[3px]">
                 {TRAFFIC_RANGES.map((key) => (
                   <TabsTrigger key={key} value={String(key)} className="h-full">
-                    {RANGE_LABELS[key]}
+                    {TRAFFIC_RANGE_LABELS[key]}
                   </TabsTrigger>
                 ))}
               </TabsList>

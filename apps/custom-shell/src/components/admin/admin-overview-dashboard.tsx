@@ -2,19 +2,15 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   CreditCardIcon,
-  GlobeIcon,
   LayersIcon,
-  LayoutDashboardIcon,
   LineChartIcon,
+  LayoutDashboardIcon,
   MailWarningIcon,
-  MessageSquarePlusIcon,
   UsersIcon,
   WorkflowIcon,
 } from "lucide-react"
 import {
   Area,
-  Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -22,18 +18,16 @@ import {
   YAxis,
 } from "recharts"
 
-import { ActivityCard } from "@/components/shared/dashboard/activity-card"
 import { chartHeightClassName, EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
 import {
   DashboardPanels,
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
-import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
-import {
-  NeedsYouCard,
-  type NeedsYouItem,
-} from "@/components/shared/dashboard/needs-you-card"
+import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
+import { InboxCard } from "@/components/shared/dashboard/inbox-card"
+import type { NeedsYouItem } from "@/components/shared/dashboard/needs-you-card"
 import { SampleValue } from "@/components/shared/dashboard/sample-figure"
+import { VisitorsCard } from "@/components/shared/dashboard/visitors-card"
 import { StatStrip, ChangeBadge, type StatFigure } from "@/components/shared/dashboard/stat-strip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -54,14 +48,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { UnderlineTab, UnderlineTabsList } from "@/components/ui/underline-tabs"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   AUTOMATION_RUNS_CAPTION,
   automationRuns,
   automationSuccessRate,
-  trafficByDay,
-  trafficSummary,
 } from "@/lib/dashboard/admin-overview-sample"
 import type { AdminOverview, OverviewAutomation } from "@/lib/api/admin-overview"
 import {
@@ -181,24 +174,18 @@ function renderWidget(
           className={className}
         />
       )
-    case "needs-you":
+    case "inbox":
       return (
-        <NeedsYouCard
-          items={buildOverviewNeedsYou(overview)}
-          className={className}
-        />
-      )
-    case "activity":
-      return (
-        <ActivityCard
-          items={overview.feeds.notifications.latest}
+        <InboxCard
+          needsYou={buildOverviewNeedsYou(overview)}
+          activity={overview.feeds.notifications.latest}
           className={className}
         />
       )
     case "people":
       return <PeopleCard overview={overview} className={className} />
     case "traffic":
-      return <TrafficCard className={className} />
+      return <VisitorsCard className={className} />
     case "automations":
       return (
         <AutomationsCard
@@ -248,7 +235,6 @@ function buildOverviewFigures({
     {
       key: "feedback",
       to: "/admin/feedback",
-      icon: MessageSquarePlusIcon,
       label: "Feedback this week",
       value: feeds.feedback.last7Days.toLocaleString(),
       before: `${feeds.feedback.previous7Days.toLocaleString()} the week before`,
@@ -288,7 +274,14 @@ function buildOverviewNeedsYou({
         .map((automation) => automation.name)
         .join(", "),
       action: "Open",
-      to: "/admin/automations",
+      // One broken automation opens straight in its editor, which is where the
+      // fix is. Several, and the list is the only honest destination.
+      ...(broken.length === 1 && broken[0]
+        ? {
+            to: "/admin/automations/$automationId",
+            params: { automationId: broken[0].id },
+          }
+        : { to: "/admin/automations" }),
     })
   }
 
@@ -299,7 +292,9 @@ function buildOverviewNeedsYou({
       title: `${membership.suspended.toLocaleString()} suspended ${plural(membership.suspended, "account")}`,
       detail: "Nobody suspended can sign in until somebody lifts it",
       action: "Review",
+      // Lands on the suspended accounts, not on everybody.
       to: "/admin/users",
+      search: { status: "suspended" },
     })
   }
 
@@ -369,35 +364,46 @@ function PeopleCard({
 
   return (
     <FeedCard className={className}>
-      <CardTop
-        icon={current.icon}
-        title={current.title}
-        // Dropped rather than truncating the heading once the tabs and this
-        // count no longer both fit — which is most widths in this column.
-        metaClassName="hidden 2xl:inline"
-        meta={
-          tab === "joining"
-            ? `${membership.newLastMonth.toLocaleString()} last month`
-            : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
-        }
-        action={
-          <Tabs
-            value={tab}
-            onValueChange={(value) => setTab(value as PeopleTab)}
-          >
-            <TabsList>
-              {PEOPLE_TABS.map((entry) => (
-                <TabsTrigger key={entry.value} value={entry.value}>
-                  {entry.tab}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        }
-      />
-      {tab === "joining" ? <JoiningChart overview={overview} /> : null}
-      {tab === "members" ? <NewestMembers overview={overview} /> : null}
-      {tab === "plans" ? <PlanMembership overview={overview} /> : null}
+      <Tabs
+        className="flex min-h-0 flex-1 gap-0"
+        value={tab}
+        onValueChange={(value) => setTab(value as PeopleTab)}
+      >
+        <CardHeaderRow
+          icon={current.icon}
+          title={current.title}
+          // Dropped rather than truncating the heading once the tabs and this
+          // count no longer both fit — which is most widths in this column.
+          metaClassName="hidden 2xl:flex"
+          meta={
+            tab === "joining"
+              ? `${membership.newLastMonth.toLocaleString()} last month`
+              : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
+          }
+        >
+          {/* `-mb-px` so the line under the chosen tab lands on the card's own
+              hairline rather than a pixel above it. */}
+          <UnderlineTabsList className="-mb-px">
+            {PEOPLE_TABS.map((entry) => (
+              <UnderlineTab
+                key={entry.value}
+                value={entry.value}
+                label={entry.tab}
+              />
+            ))}
+          </UnderlineTabsList>
+        </CardHeaderRow>
+
+        <TabsContent value="joining" className="flex min-h-0 flex-col">
+          <JoiningChart overview={overview} />
+        </TabsContent>
+        <TabsContent value="members" className="flex min-h-0 flex-col">
+          <NewestMembers overview={overview} />
+        </TabsContent>
+        <TabsContent value="plans" className="flex min-h-0 flex-col">
+          <PlanMembership overview={overview} />
+        </TabsContent>
+      </Tabs>
     </FeedCard>
   )
 }
@@ -558,67 +564,6 @@ function NewestMembers({ overview }: { overview: AdminOverview }) {
         View all accounts
       </Link>
     </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Right column: traffic. Nothing in the app records a visit, so every figure
-// on this card is a stand-in and the card says so.
-
-const trafficConfig: ChartConfig = {
-  sessions: { label: "Visits", color: "var(--primary)" },
-}
-
-function TrafficCard({ className }: { className?: string }) {
-  const summary = trafficSummary().value
-  const days = trafficByDay(new Date()).value
-
-  return (
-    <Card className={cn("flex min-w-0 flex-col gap-0 py-0", className)}>
-      <CardTop
-        icon={GlobeIcon}
-        title="Traffic"
-        sample
-        meta={`${summary.sessions.toLocaleString()} visits · ${summary.users.toLocaleString()} people`}
-      />
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 py-4 sm:px-5 sm:py-5">
-        <div className="h-[140px] w-full min-w-0 xl:h-auto xl:min-h-[90px] xl:flex-1">
-          <ChartContainer config={trafficConfig} className="h-full w-full">
-            <BarChart data={days} barSize={18}>
-              <XAxis
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10 }}
-                interval={3}
-              />
-              <YAxis hide />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar
-                dataKey="sessions"
-                radius={[4, 4, 0, 0]}
-                fill="var(--color-sessions)"
-              />
-            </BarChart>
-          </ChartContainer>
-        </div>
-        <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-          {summary.sources.map((source) => (
-            <div
-              key={source.label}
-              className="flex min-w-0 items-center justify-between gap-3 text-sm"
-            >
-              <span className="min-w-0 truncate text-muted-foreground">
-                {source.label}
-              </span>
-              <SampleValue className="shrink-0 font-medium tabular-nums">
-                {source.percent}%
-              </SampleValue>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 

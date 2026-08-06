@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AiSettings } from "@/components/settings/ai-settings"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
@@ -87,41 +87,19 @@ export function SettingsPage({
         className="flex w-full shrink-0 flex-col lg:w-48"
         style={{ gap: pageGutter }}
       >
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Platform</CardTitle>
-          </CardHeader>
-          <CardContent className="px-2">
-            <nav className="flex flex-col gap-1">
-              {settingsTabs.map((tab) => (
-                <SettingsTabLink
-                  key={tab.id}
-                  tabId={tab.id}
-                  label={tab.label}
-                  active={activeTab === tab.id}
-                />
-              ))}
-            </nav>
-          </CardContent>
-        </Card>
+        <SettingsTabGroup
+          storageId="settings-rail-platform"
+          title="Platform"
+          tabs={settingsTabs}
+          activeTab={activeTab}
+        />
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Members</CardTitle>
-          </CardHeader>
-          <CardContent className="px-2">
-            <nav className="flex flex-col gap-1">
-              {memberSettingsTabs.map((tab) => (
-                <SettingsTabLink
-                  key={tab.id}
-                  tabId={tab.id}
-                  label={tab.label}
-                  active={activeTab === tab.id}
-                />
-              ))}
-            </nav>
-          </CardContent>
-        </Card>
+        <SettingsTabGroup
+          storageId="settings-rail-members"
+          title="Members"
+          tabs={memberSettingsTabs}
+          activeTab={activeTab}
+        />
       </div>
 
       <div className="min-w-0 flex-1">
@@ -236,6 +214,42 @@ export function SettingsPage({
         {activeTab === "ai" ? <AiSettings /> : null}
       </div>
     </div>
+  )
+}
+
+/**
+ * One card in the settings rail. It collapses so a long rail can be folded down
+ * to the group you are working in, and the choice is remembered per browser.
+ */
+function SettingsTabGroup({
+  storageId,
+  title,
+  tabs,
+  activeTab,
+}: {
+  storageId: string
+  title: string
+  tabs: readonly { id: SettingsTabId; label: string }[]
+  activeTab: SettingsTabId
+}) {
+  return (
+    <CollapsibleSettingsCard
+      storageId={storageId}
+      size="sm"
+      title={title}
+      contentClassName="px-2 pt-2"
+    >
+      <nav className="flex flex-col gap-1">
+        {tabs.map((tab) => (
+          <SettingsTabLink
+            key={tab.id}
+            tabId={tab.id}
+            label={tab.label}
+            active={activeTab === tab.id}
+          />
+        ))}
+      </nav>
+    </CollapsibleSettingsCard>
   )
 }
 

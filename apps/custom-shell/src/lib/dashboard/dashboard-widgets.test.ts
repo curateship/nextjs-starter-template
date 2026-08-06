@@ -96,7 +96,22 @@ describe("where a widget sits", () => {
 
     expect(unplacedDashboardWidgets(layout).map((widget) => widget.id)).toEqual([
       "figures",
-      "needs-you",
+      "traffic",
+      "automations",
+    ])
+  })
+
+  it("carries an old Needs you / Activity pair over to the one card", () => {
+    const layout = normalizeDashboardWidgets({
+      top: ["figures"],
+      left: ["needs-you", "activity"],
+      right: ["people"],
+    })
+
+    // Both old ids point at the same card, and one card cannot be in two
+    // places — so the second is dropped rather than drawn twice.
+    expect(layout.left).toEqual(["inbox"])
+    expect(unplacedDashboardWidgets(layout).map((widget) => widget.id)).toEqual([
       "traffic",
       "automations",
     ])

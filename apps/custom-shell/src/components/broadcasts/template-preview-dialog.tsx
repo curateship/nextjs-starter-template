@@ -74,7 +74,7 @@ export function TemplatePreviewDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="rounded-xl bg-muted/40 p-4">
+          <div className="rounded-lg bg-muted/40 p-4">
             <div className="mx-auto max-w-[600px] overflow-hidden rounded-lg bg-white ring-1 ring-black/10">
               {blocks.length === 0 ? (
                 <p className="px-6 py-16 text-center text-sm text-neutral-500">

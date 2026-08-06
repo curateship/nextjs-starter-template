@@ -1,11 +1,9 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { CheckCircle2Icon, TriangleAlertIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { plural } from "@/lib/format/plural"
 import { titleLink } from "@/lib/nav/title-link"
 import { cn } from "@/lib/utils"
 
@@ -13,15 +11,10 @@ import { cn } from "@/lib/utils"
  * The handful of things somebody has to do something about, most pressing
  * first. A row only appears while it is true.
  *
- * The card only draws what it is handed. Which rows belong on it is a question
- * about a page's own numbers, so the rules live apart from it —
+ * It only draws what it is handed. Which rows belong on it is a question about
+ * a page's own numbers, so the rules live apart from it —
  * `buildOverviewNeedsYou` puts the Overview's list together out of the four
  * feeds' rules and its own.
- *
- * The heading is settable rather than fixed. Only the Overview carries one of
- * these today, but the card is written to be handed a different list under a
- * different title, which is what it was doing when the Membership page still
- * had its own.
  */
 
 export type NeedsYouItem = {
@@ -33,37 +26,19 @@ export type NeedsYouItem = {
   to: string
   /** Set when the destination has a piece of its path to fill in, like a tab. */
   params?: Record<string, string>
-  /** Set when the row is about one record the page can open on arrival. */
-  search?: { open: string }
+  /**
+   * The address the destination list should arrive on: `{ open }` to open one
+   * record, or the list's own filter and sort values so the page lands already
+   * showing the rows this row is about rather than everything.
+   */
+  search?: Record<string, string>
   /** Set when the row points at a block further down the same page. */
   hash?: string
 }
 
-export function NeedsYouCard({
-  items,
-  title = "Needs you",
-  icon,
-  className,
-}: {
-  items: NeedsYouItem[]
-  /** Defaults to "Needs you" — set it when a page carries a narrower list. */
-  title?: string
-  /** Shown instead of the warning triangle while there are rows. */
-  icon?: React.ComponentType<{ className?: string }>
-  className?: string
-}) {
+export function NeedsYouList({ items }: { items: NeedsYouItem[] }) {
   return (
-    <FeedCard className={className}>
-      <CardTop
-        icon={items.length ? (icon ?? TriangleAlertIcon) : CheckCircle2Icon}
-        iconClassName={items.length ? "text-amber-500 dark:text-amber-400" : ""}
-        title={title}
-        meta={
-          items.length
-            ? `${items.length} ${plural(items.length, "thing")}`
-            : undefined
-        }
-      />
+    <>
       {items.length ? (
         // Scrolls inside the card when the column gives it less height than
         // the list needs, so the header stays put and the page does not grow.
@@ -130,6 +105,6 @@ export function NeedsYouCard({
       ) : (
         <EmptyRow>Nothing needs you right now.</EmptyRow>
       )}
-    </FeedCard>
+    </>
   )
 }

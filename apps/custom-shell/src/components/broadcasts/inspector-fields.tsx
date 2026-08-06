@@ -47,7 +47,7 @@ export function InspectorCard({
       open={open}
       onOpenChange={setOpen}
       className={cn(
-        "group/card rounded-xl border border-foreground/5 bg-muted/40 p-4",
+        "group/card rounded-lg border border-foreground/5 bg-muted/40 p-4",
         // Fields sit on the page background rather than the transparent the
         // shared Input defaults to. On a grey card, transparent means the card
         // shows through and a box you type into looks like a box you cannot.

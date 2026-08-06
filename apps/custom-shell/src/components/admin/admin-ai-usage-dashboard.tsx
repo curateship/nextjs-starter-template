@@ -2,13 +2,9 @@ import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CpuIcon,
-  HashIcon,
   LineChartIcon,
-  TriangleAlertIcon,
   UsersIcon,
-  WalletIcon,
   WorkflowIcon,
-  ZapIcon,
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
@@ -75,28 +71,24 @@ export function AdminAiUsageDashboard({
   const figures: StatFigure[] = [
     {
       key: "spend",
-      icon: WalletIcon,
       label: "Spend",
       value: formatMoney(data.totals.costCents),
       footer: RANGE_LABELS[range].toLowerCase(),
     },
     {
       key: "calls",
-      icon: ZapIcon,
       label: "AI calls",
       value: data.totals.calls.toLocaleString(),
       footer: RANGE_LABELS[range].toLowerCase(),
     },
     {
       key: "tokens",
-      icon: HashIcon,
       label: "Tokens",
       value: formatTokenCount(data.totals.tokens),
       footer: "in and out together",
     },
     {
       key: "failed",
-      icon: TriangleAlertIcon,
       label: "Failed calls",
       value: data.totals.failed.toLocaleString(),
       footer: data.totals.failed ? "recorded, never dropped" : "none recorded",

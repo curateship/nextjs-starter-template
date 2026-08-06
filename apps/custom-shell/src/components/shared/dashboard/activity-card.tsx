@@ -1,17 +1,18 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { BellIcon, GaugeIcon, MegaphoneIcon, PencilLineIcon } from "lucide-react"
+import { GaugeIcon, MegaphoneIcon, PencilLineIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
+import { EmptyRow } from "@/components/shared/feed-card"
 import { titleLink } from "@/lib/nav/title-link"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs } from "@/components/ui/tabs"
+import { UnderlineTab, UnderlineTabsList } from "@/components/ui/underline-tabs"
 import {
   isAiLimitNotification,
   type NotificationItem,
 } from "@/lib/api/notification"
-import { focusRingInset } from "@/lib/layout/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 import {
   dayRangeText,
   daysBetween,
@@ -21,11 +22,11 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Every notice the app has sent, newest first, in days.
+ * Every notice the app has sent, newest first, grouped into days.
  *
- * It stays a card of its own rather than being folded into the Overview: it
- * carries its own All/Unread state and its own day grouping, and the page it
- * sits on is long enough already.
+ * It is a feed rather than a card: it is the Activity tab of the combined
+ * Needs you / Activity widget, which owns the card and its header. Its own
+ * All/Unread switch rides along on the footer strip below the feed.
  */
 
 type ActivityEvent = {
@@ -201,25 +202,31 @@ function countUnread(events: ActivityEvent[]) {
   return events.filter((event) => !event.read).length
 }
 
-export function ActivityCard({
+/**
+ * The feed, with no card or header around it, and the strip along the bottom:
+ * the All/Unread switch on the left and the link to the full table on the
+ * right. The switch lives down here rather than up in the header because the
+ * header belongs to whoever owns the card, and on the combined Needs you /
+ * Activity widget that header is already carrying its own tabs.
+ */
+export function ActivityFeed({
   items,
-  className,
+  filter,
+  onFilterChange,
+  unread,
   footerTo = "/admin/notifications",
   footerLabel = "View all notifications",
 }: {
   items: NotificationItem[]
-  className?: string
-  /** Where the strip along the bottom goes. Pass null to leave it off. */
+  filter: "all" | "unread"
+  onFilterChange: (filter: "all" | "unread") => void
+  /** How many are unopened, shown after the Unread tab. */
+  unread: number
   footerTo?: string | null
   footerLabel?: string
 }) {
-  // Opens on what has not been read: the whole point of glancing at this card
-  // is what you have missed, and "All" is one click away when you want it.
-  const [filter, setFilter] = React.useState<"all" | "unread">("unread")
-
   const events = React.useMemo(() => items.map(toActivityEvent), [items])
-  const unread = events.filter((event) => !event.read)
-  const shown = filter === "unread" ? unread : events
+  const shown = filter === "unread" ? events.filter((e) => !e.read) : events
 
   // The heading a group carries, the days it covers, and how much of it is
   // still unopened — grouped in the order the events already came in.
@@ -233,33 +240,7 @@ export function ActivityCard({
   }
 
   return (
-    // The card takes whatever height is left in the column and the feed scrolls
-    // inside it, so the header and the footer link never move.
-    <FeedCard className={className}>
-      <CardTop
-        icon={BellIcon}
-        title="Activity"
-        action={
-          <Tabs
-            value={filter}
-            onValueChange={(value) => setFilter(value as "all" | "unread")}
-          >
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              {/* The count is what this tab will show, not the whole table's
-                  unread figure — a number that did not match the rows under it
-                  would be the tray's dishonest bell all over again. */}
-              <TabsTrigger value="unread">
-                Unread
-                {unread.length > 0 ? (
-                  <span className="tabular-nums">{unread.length}</span>
-                ) : null}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
-      />
-
+    <>
       <ScrollArea className="min-h-0 flex-1">
         {groups.length ? (
           <div className="flex flex-col divide-y">
@@ -357,18 +338,34 @@ export function ActivityCard({
         )}
       </ScrollArea>
 
-      {footerTo ? (
-        <Link
-          to={footerTo}
-          className={cn(
-            "flex items-center justify-center border-t px-4 py-3 text-sm font-medium transition-colors hover:bg-accent/40 sm:px-5",
-            // Runs to the card's edge, same as the squares above.
-            focusRingInset
-          )}
+      <div className="flex h-12 shrink-0 items-stretch justify-between gap-4 border-t px-4 sm:px-5">
+        <Tabs
+          className="h-full"
+          value={filter}
+          onValueChange={(value) => onFilterChange(value as "all" | "unread")}
         >
-          {footerLabel}
-        </Link>
-      ) : null}
-    </FeedCard>
+          {/* `-mb-px` so the line under the chosen tab lands on the card's own
+              hairline rather than a pixel above it. */}
+          <UnderlineTabsList className="-mb-px text-sm">
+            <UnderlineTab value="all" label="All" />
+            {/* The count is what this tab will show, not the whole table's
+                unread figure — a number that did not match the rows under it
+                would be the tray's dishonest bell all over again. */}
+            <UnderlineTab value="unread" label="Unread" count={unread} />
+          </UnderlineTabsList>
+        </Tabs>
+        {footerTo ? (
+          <Link
+            to={footerTo}
+            className={cn(
+              "flex shrink-0 items-center rounded-md text-sm font-medium transition-colors hover:text-muted-foreground",
+              focusRing
+            )}
+          >
+            {footerLabel}
+          </Link>
+        ) : null}
+      </div>
+    </>
   )
 }

@@ -1,5 +1,4 @@
 import {
-  BellIcon,
   GaugeIcon,
   GlobeIcon,
   TriangleAlertIcon,
@@ -26,11 +25,21 @@ export type DashboardWidgetSlot = (typeof DASHBOARD_WIDGET_SLOTS)[number]
 
 export type DashboardWidgetId =
   | "figures"
-  | "needs-you"
-  | "activity"
+  | "inbox"
   | "people"
   | "traffic"
   | "automations"
+
+/**
+ * Widgets that no longer exist, and what took their place. "Needs you" and
+ * "Activity" were two cards; they are now two tabs of one. A workspace that
+ * saved the old ids keeps its dashboard — the first of the pair becomes the
+ * combined card and the second is dropped as a repeat.
+ */
+const RETIRED_WIDGET_IDS: Record<string, DashboardWidgetId> = {
+  "needs-you": "inbox",
+  activity: "inbox",
+}
 
 export type DashboardWidgetLayout = Record<
   DashboardWidgetSlot,
@@ -64,19 +73,12 @@ const DASHBOARD_WIDGETS: DashboardWidget[] = [
     minSize: "16%",
   },
   {
-    id: "needs-you",
-    label: "Needs you",
-    description: "Everything waiting on an admin, most costly to ignore first.",
+    id: "inbox",
+    label: "Needs you & activity",
+    description:
+      "Two tabs in one card: everything waiting on an admin, then what has happened lately.",
     icon: TriangleAlertIcon,
-    size: 4,
-    minSize: "18%",
-  },
-  {
-    id: "activity",
-    label: "Latest activity",
-    description: "What has happened in the app lately, newest first.",
-    icon: BellIcon,
-    size: 6,
+    size: 10,
     minSize: "20%",
   },
   {
@@ -90,10 +92,10 @@ const DASHBOARD_WIDGETS: DashboardWidget[] = [
   },
   {
     id: "traffic",
-    label: "Traffic",
-    description: "Visits over the last month. Stand-in figures for now.",
+    label: "Visitors over time",
+    description: "Views per day, for today, a week, a month or a year.",
     icon: GlobeIcon,
-    size: 3,
+    size: 4,
     minSize: "18%",
   },
   {
@@ -118,7 +120,7 @@ export function findDashboardWidget(id: string): DashboardWidget | undefined {
 export function createDefaultDashboardWidgets(): DashboardWidgetLayout {
   return {
     top: ["figures"],
-    left: ["needs-you", "activity"],
+    left: ["inbox"],
     right: ["people", "traffic", "automations"],
   }
 }
@@ -152,12 +154,13 @@ export function normalizeDashboardWidgets(value: unknown): DashboardWidgetLayout
   const layout = {} as DashboardWidgetLayout
   for (const slot of DASHBOARD_WIDGET_SLOTS) {
     const ids = Array.isArray(saved[slot]) ? (saved[slot] as unknown[]) : []
-    layout[slot] = ids.filter((id): id is DashboardWidgetId => {
-      if (typeof id !== "string") return false
-      if (!widgetsById.has(id as DashboardWidgetId)) return false
-      if (seen.has(id as DashboardWidgetId)) return false
-      seen.add(id as DashboardWidgetId)
-      return true
+    layout[slot] = ids.flatMap((raw) => {
+      if (typeof raw !== "string") return []
+      const id = (RETIRED_WIDGET_IDS[raw] ?? raw) as DashboardWidgetId
+      if (!widgetsById.has(id)) return []
+      if (seen.has(id)) return []
+      seen.add(id)
+      return [id]
     })
   }
 

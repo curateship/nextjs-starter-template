@@ -29,7 +29,9 @@ export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
       title: `${notifications.unread.toLocaleString()} ${plural(notifications.unread, "notice")} nobody has opened`,
       detail: `${waitedText(notifications.oldestUnreadAt)} · ${notifications.sentLast7Days.toLocaleString()} sent this week`,
       action: "Review",
+      // Straight to the unopened ones, not the whole log.
       to: "/admin/notifications",
+      search: { read: "unread" },
     })
   }
 
@@ -51,7 +53,10 @@ export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
       title: `${feedback.noReply.toLocaleString()} feedback ${plural(feedback.noReply, "item")} with no reply`,
       detail: `${feedback.last7Days.toLocaleString()} new this week${weekOnWeekText(feedback.last7Days, feedback.previous7Days)} · ${feedback.total.toLocaleString()} in all`,
       action: "Reply",
+      // Feedback has no "no reply" filter, so the next best thing: fewest
+      // comments first, which puts the ones nobody answered at the top.
       to: "/admin/feedback",
+      search: { sort: "comments", direction: "asc" },
     })
   }
 

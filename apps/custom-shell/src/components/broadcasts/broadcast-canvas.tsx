@@ -153,7 +153,7 @@ export function BroadcastCanvas({
           {/* Subject, preview line and the blocks are one sheet of paper. No
               `overflow-hidden`: the corner tag and the hover toolbar sit
               slightly outside their block and would be clipped away. */}
-          <div className="rounded-xl bg-white ring-1 ring-black/10">
+          <div className="rounded-lg bg-white ring-1 ring-black/10">
             <SubjectCard
               subject={subject}
               preheader={preheader}
@@ -223,7 +223,7 @@ function SubjectCard({
       aria-label="Edit the subject and preview line"
       title="Edit the subject and preview line"
       className={cn(
-        "grid w-full grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5 rounded-t-xl border-b border-black/10 px-5 py-4 text-left hover:bg-neutral-50",
+        "grid w-full grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5 rounded-t-lg border-b border-black/10 px-5 py-4 text-left hover:bg-neutral-50",
         focusRing
       )}
     >
@@ -282,7 +282,7 @@ function EmptyEmail({
   onInsert: (kind: BroadcastBlockKind, index: number) => void
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-b-xl px-6 py-20 text-center">
+    <div className="flex flex-col items-center justify-center rounded-b-lg px-6 py-20 text-center">
       <MailIcon className="mb-3 size-9 text-neutral-300" />
       <p className="text-sm font-medium text-neutral-600">This email is empty</p>
       <p className="mb-4 text-xs text-neutral-400">
@@ -374,7 +374,7 @@ function SortableBlock({
         }}
         className={cn(
           "relative cursor-pointer outline-none",
-          last && "rounded-b-xl",
+          last && "rounded-b-lg",
           // Drawn over the block rather than around it, so showing it can never
           // nudge the email's layout by a pixel.
           "after:pointer-events-none after:absolute after:-inset-px after:z-10 after:rounded-[inherit] after:border-2 after:border-transparent after:transition-colors",
