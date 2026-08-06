@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, or } from "drizzle-orm"
 
-import type { PlanFeatures } from "@/lib/plan-features"
+import type { PlanFeatures } from "@/lib/billing/plan-features"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellPlans, type CustomShellPlan } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"

@@ -6,9 +6,9 @@ import {
   ACCOUNT_RESTORE_DAYS,
   isPendingDeletion,
 } from "@/lib/account-deletion"
-import { describeDevice } from "@/lib/device-label"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
+import { describeDevice } from "@/lib/format/device-label"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
+import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
 import {
   markAccountsForDeletion,
   purgeExpiredDeletions,

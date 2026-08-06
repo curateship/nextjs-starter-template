@@ -53,14 +53,14 @@ import {
   updateAdminChangelogEntry,
   type ChangelogEntry,
 } from "@/lib/api/changelog"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { plural } from "@/lib/plural"
-import { formatDate } from "@/lib/format-time"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useClientPage } from "@/lib/use-client-page"
-import { useOpenFromLink } from "@/lib/use-open-from-link"
-import { useSelection } from "@/lib/use-selection"
-import { useTableSort } from "@/lib/use-table-sort"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
+import { formatDate } from "@/lib/format/format-time"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type ChangelogSortColumn = "title" | "status" | "published"
 

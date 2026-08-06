@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { safeRedirectPath } from "@/lib/redirect-path"
+import { safeRedirectPath } from "@/lib/nav/redirect-path"
 import {
   browserRedirect,
   googleSignInEnabled,

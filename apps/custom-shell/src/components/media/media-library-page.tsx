@@ -14,8 +14,8 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { plural } from "@/lib/plural"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -78,24 +78,24 @@ import {
   type OrphanDashboard,
 } from "@/lib/api/admin-media"
 import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
-import { formatFileSize } from "@/lib/format-bytes"
-import { formatDate } from "@/lib/format-time"
+import { formatFileSize } from "@/lib/format/format-bytes"
+import { formatDate } from "@/lib/format/format-time"
 import {
   compareOrphans,
   orphanKey,
   type OrphanSort,
-} from "@/lib/media-orphans"
-import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
-import { useLastValue } from "@/lib/use-last-value"
+} from "@/lib/media/media-orphans"
+import { getMediaUploadError, mediaAccept } from "@/lib/media/media-upload"
+import { useLastValue } from "@/lib/hooks/use-last-value"
 import {
   MEDIA_VIEW_STORAGE_KEY,
   useRememberedChoice,
 } from "@/lib/remembered-choice"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useClientPage } from "@/lib/use-client-page"
-import { useSelection } from "@/lib/use-selection"
-import { useTableSort } from "@/lib/use-table-sort"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "list" | "gallery"

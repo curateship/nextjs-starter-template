@@ -25,21 +25,21 @@ import {
   type SegmentItem,
   type SegmentsPage as SegmentsPageData,
 } from "@/lib/api/contact-segments"
-import { describeSegmentRules } from "@/lib/contact-segments"
+import { describeSegmentRules } from "@/lib/contacts/contact-segments"
 import { describeBulkResult } from "@/lib/bulk-result"
-import { showErrorToast } from "@/lib/error-toast"
-import { formatDate } from "@/lib/format-time"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { formatDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
-} from "@/lib/list-search"
-import { plural } from "@/lib/plural"
+} from "@/lib/nav/list-search"
+import { plural } from "@/lib/format/plural"
 import { quoteOneLine } from "@/lib/quote-text"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useOpenFromLink } from "@/lib/use-open-from-link"
-import { useSelection } from "@/lib/use-selection"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
+import { useSelection } from "@/lib/hooks/use-selection"
 
 const segmentsRoute = getRouteApi("/_authenticated/admin/segments")
 

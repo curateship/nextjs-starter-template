@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { resolveBackground, type ShellStyling } from "@/lib/custom-shell"
-import { pageGutter } from "@/lib/shell-gutter"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 
 export function DashboardContent({
   className,

@@ -67,12 +67,12 @@ import {
   saveSidebarWidth,
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
-import { clampSidebarWidth } from "@/lib/sidebar-width"
-import { setToastSeconds } from "@/lib/toast-duration"
-import { plural } from "@/lib/plural"
-import { clampToastSeconds } from "@/lib/toast-seconds"
+import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
+import { setToastSeconds } from "@/lib/toast/toast-duration"
+import { plural } from "@/lib/format/plural"
+import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 
 // Debounce window before an edit on the settings page is auto-saved.
 const CONFIG_SAVE_DEBOUNCE_MS = 700
@@ -419,7 +419,7 @@ export function ShellLayout({
   }, [])
 
   // The Toaster lives above the router outlet and can't see the config, so
-  // hand it the saved duration whenever it changes. See lib/toast-duration.ts.
+  // hand it the saved duration whenever it changes. See lib/toast/toast-duration.ts.
   React.useEffect(() => {
     setToastSeconds(config.toastSeconds)
   }, [config.toastSeconds])

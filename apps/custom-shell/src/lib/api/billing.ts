@@ -14,7 +14,7 @@ import { loadEntitlements } from "@/server/billing/entitlements"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/billing/plans"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellUser } from "@/server/schema"
-import type { PlanFeatures } from "@/lib/plan-features"
+import type { PlanFeatures } from "@/lib/billing/plan-features"
 import { userGet, userPost } from "@/server/guards"
 
 export type PlanOption = {

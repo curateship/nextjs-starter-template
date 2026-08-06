@@ -6,7 +6,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { focusRingInset } from "@/lib/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import {
   collapseStorageKey,
   useRememberedCollapse,

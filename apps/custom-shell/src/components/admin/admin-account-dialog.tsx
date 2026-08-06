@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { format } from "date-fns"
 import { BanIcon, HardDriveIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
-import { describeCode } from "@/lib/code-label"
+import { describeCode } from "@/lib/format/code-label"
 
 import { CancelSubscriptionDialog } from "@/components/admin/cancel-subscription-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -54,16 +54,16 @@ import {
   type AssignablePlan,
 } from "@/lib/api/admin-users"
 import { saveAiAllowanceOverride } from "@/lib/api/ai"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { formatFileSize } from "@/lib/format-bytes"
-import { formatDate, formatDateTime, formatUtcDate } from "@/lib/format-time"
-import { formatMoney } from "@/lib/money"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { formatFileSize } from "@/lib/format/format-bytes"
+import { formatDate, formatDateTime, formatUtcDate } from "@/lib/format/format-time"
+import { formatMoney } from "@/lib/format/money"
 import {
   BILLING_HISTORY_START,
   describeSubscriptionEvent,
   SUBSCRIPTION_EVENT_LIMIT,
   type SubscriptionEvent,
-} from "@/lib/subscription-events"
+} from "@/lib/billing/subscription-events"
 
 /**
  * Everything about one person, in one window opened from the Users table.

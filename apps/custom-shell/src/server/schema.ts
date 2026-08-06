@@ -7,7 +7,7 @@ import type {
   AutomationRunStatus,
   AutomationRunStepStatus,
 } from "@/lib/automations/run"
-import type { PlanFeatures } from "@/lib/plan-features"
+import type { PlanFeatures } from "@/lib/billing/plan-features"
 import {
   bigint,
   boolean,
@@ -177,7 +177,7 @@ export const customShellFeedback = pgTable(
     /** Where the item sits on the roadmap; every new item starts open. */
     status: varchar("status", { length: 20 }).notNull().default("open"),
     message: text("message").notNull(),
-    // What the item is about, from the fixed list in `lib/feedback-tags.ts`.
+    // What the item is about, from the fixed list in `lib/feedback/feedback-tags.ts`.
     tags: text("tags")
       .array()
       .notNull()
@@ -619,7 +619,7 @@ export const customShellSubscriptionEvents = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    /** Our vocabulary, worded by `lib/subscription-events.ts`. */
+    /** Our vocabulary, worded by `lib/billing/subscription-events.ts`. */
     kind: varchar("kind", { length: 40 }).notNull(),
     /** The plan's name at the time, copied so a rename cannot rewrite history. */
     planName: varchar("plan_name", { length: 120 }),

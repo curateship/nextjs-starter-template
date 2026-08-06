@@ -9,7 +9,7 @@ import {
   PlusIcon,
 } from "lucide-react"
 
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { WorkspaceFormDialog } from "@/components/shared/workspace-form-dialog"
 import { Button } from "@/components/ui/button"
 import {

@@ -6,7 +6,7 @@ import { z } from "zod"
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { PasswordInput } from "@/components/ui/password-input"
 import {
   getAuthErrorMessage,

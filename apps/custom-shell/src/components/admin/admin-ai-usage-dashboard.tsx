@@ -33,14 +33,14 @@ import type {
   AiUsagePersonRow,
   AiUsageRange,
 } from "@/lib/api/ai"
-import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
-import { formatDate } from "@/lib/format-time"
-import { formatMoney } from "@/lib/money"
-import { formatSharePercent, formatTokenCount } from "@/lib/format-number"
-import { describeCode } from "@/lib/code-label"
-import { pageGutter } from "@/lib/shell-gutter"
-import { useClientPage } from "@/lib/use-client-page"
-import { useTableSort } from "@/lib/use-table-sort"
+import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
+import { formatDate } from "@/lib/format/format-time"
+import { formatMoney } from "@/lib/format/money"
+import { formatSharePercent, formatTokenCount } from "@/lib/format/format-number"
+import { describeCode } from "@/lib/format/code-label"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 /**
  * Settings → the sidebar's AI usage page: what AI cost, who spent it, and

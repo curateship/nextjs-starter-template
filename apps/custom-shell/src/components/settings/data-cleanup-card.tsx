@@ -9,7 +9,7 @@ import {
   LINK_KEEP_DAYS,
   READ_NOTICE_KEEP_DAYS,
 } from "@/lib/data-cleanup"
-import { useAsyncAction } from "@/lib/use-async-action"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
 /**
  * Settings → Security. The app tidies itself once a day off an admin's first

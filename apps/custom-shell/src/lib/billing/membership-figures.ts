@@ -7,9 +7,9 @@ import {
 
 import type { StatFigure } from "@/components/shared/stat-strip"
 import type { MembershipSummary } from "@/lib/api/admin-overview"
-import { formatMoney } from "@/lib/money"
-import { percentChange } from "@/lib/percent-change"
-import { plural } from "@/lib/plural"
+import { formatMoney } from "@/lib/format/money"
+import { percentChange } from "@/lib/format/percent-change"
+import { plural } from "@/lib/format/plural"
 
 /** The four member-and-money figures the Overview's stat strip opens with. */
 export function buildMembershipFigures(

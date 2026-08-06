@@ -20,8 +20,8 @@ import {
   getBroadcastErrorMessage,
 } from "@/lib/api/broadcasts"
 import type { BroadcastBlock } from "@/lib/broadcasts/blocks"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { plural } from "@/lib/plural"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
 
 export function SaveTemplateDialog({
   open,

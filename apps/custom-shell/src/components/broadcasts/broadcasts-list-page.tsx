@@ -9,7 +9,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -48,14 +48,14 @@ import {
   type BroadcastListItem,
   type BroadcastsPage,
 } from "@/lib/api/broadcasts"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { describeNextBatch } from "@/lib/broadcasts/drip"
-import { formatDate } from "@/lib/format-time"
+import { formatDate } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
-import { useLastValue } from "@/lib/use-last-value"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useSelection } from "@/lib/use-selection"
-import { useTableSort } from "@/lib/use-table-sort"
+import { useLastValue } from "@/lib/hooks/use-last-value"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "status" | "sent" | "updated"
 

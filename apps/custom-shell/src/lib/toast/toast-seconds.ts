@@ -8,7 +8,7 @@
  * root bundle that the signed-out pages load.
  *
  * Error toasts are deliberately exempt from all of this: `showErrorToast` pins
- * them until dismissed (see lib/error-toast.ts).
+ * them until dismissed (see lib/toast/error-toast.ts).
  */
 export const MIN_TOAST_SECONDS = 1
 export const MAX_TOAST_SECONDS = 60

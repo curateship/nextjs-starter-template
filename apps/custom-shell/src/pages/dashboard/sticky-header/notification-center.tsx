@@ -26,7 +26,7 @@ import {
   type NotificationItem,
 } from "@/lib/api/notification"
 import { notificationAction } from "@/lib/notification-action"
-import { useNotificationStream } from "@/lib/use-notification-stream"
+import { useNotificationStream } from "@/lib/hooks/use-notification-stream"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"

@@ -32,7 +32,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { focusRing } from "@/lib/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 import {
   cleanWrittenPageBody,
   writtenPageBodyIsEmpty,

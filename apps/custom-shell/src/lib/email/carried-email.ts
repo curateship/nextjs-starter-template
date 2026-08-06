@@ -8,7 +8,7 @@
  *
  * History state can still be edited by hand from the browser console, so the
  * value is checked here before it reaches a field — the same rule the
- * `?redirect=` guard follows in `redirect-path.ts`. This only asks whether the
+ * `?redirect=` guard follows in `nav/redirect-path.ts`. This only asks whether the
  * text looks like an address; whether an account exists is the server's answer,
  * unchanged.
  */

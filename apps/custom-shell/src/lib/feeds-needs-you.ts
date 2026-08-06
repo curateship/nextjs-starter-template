@@ -7,8 +7,8 @@ import {
 
 import type { NeedsYouItem } from "@/components/shared/needs-you-card"
 import type { FeedsAnnouncementRow, FeedsSummary } from "@/lib/api/admin-overview"
-import { daysBetween, formatTimeAgo, formatUtcDate } from "@/lib/format-time"
-import { plural } from "@/lib/plural"
+import { daysBetween, formatTimeAgo, formatUtcDate } from "@/lib/format/format-time"
+import { plural } from "@/lib/format/plural"
 
 /**
  * What the four feeds have waiting on somebody, most pressing first.

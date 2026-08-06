@@ -6,18 +6,18 @@ import {
   getContactLoadErrorMessage,
   loadContactsPage,
 } from "@/lib/api/contacts"
-import { CONTACT_SORT_COLUMNS } from "@/lib/contact-sort"
+import { CONTACT_SORT_COLUMNS } from "@/lib/contacts/contact-sort"
 import {
   readSegmentRulesParam,
   type SegmentRules,
-} from "@/lib/contact-segments"
+} from "@/lib/contacts/contact-segments"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import {
   readDirection,
   readOneOf,
   readPage,
   readSearchText,
-} from "@/lib/list-search"
+} from "@/lib/nav/list-search"
 
 type ContactsSearch = {
   q?: string

@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router"
 
 import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 import { NotificationCenter } from "@/pages/dashboard/sticky-header/notification-center"
-import { isExternalHref, toLinkProps } from "@/lib/nav-href"
+import { isExternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,

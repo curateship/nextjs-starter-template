@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/collapsible"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
-import { focusRingInset } from "@/lib/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 

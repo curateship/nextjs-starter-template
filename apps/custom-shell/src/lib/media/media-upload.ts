@@ -5,7 +5,7 @@
  * that decides. Checking here only saves someone a 100MB round trip to be told
  * no, so the wording matches on both sides.
  */
-import { formatFileSize } from "@/lib/format-bytes"
+import { formatFileSize } from "@/lib/format/format-bytes"
 
 export const IMAGE_MIME_TYPES = [
   "image/jpeg",

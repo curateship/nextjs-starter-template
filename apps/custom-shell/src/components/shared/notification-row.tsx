@@ -15,8 +15,8 @@ import {
   isAiLimitNotification,
   type NotificationItem,
 } from "@/lib/api/notification"
-import { focusRing } from "@/lib/focus-ring"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
 /**

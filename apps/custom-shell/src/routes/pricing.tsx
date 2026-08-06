@@ -1,7 +1,7 @@
 import * as React from "react"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { authLinkClassName } from "@/components/shell/auth-shell"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"

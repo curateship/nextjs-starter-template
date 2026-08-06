@@ -42,7 +42,7 @@ import {
   type BroadcastDetail,
 } from "@/lib/api/broadcasts"
 import type { BroadcastAudienceFilter } from "@/lib/broadcasts/blocks"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 import {
   estimateDripBatches,
   validateDripConfig,

@@ -12,8 +12,8 @@ import {
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { announcementLevelBannerClassNames } from "@/lib/announcement"
-import { formatDateTime } from "@/lib/format-time"
-import { useStopViewingAs } from "@/lib/use-stop-viewing-as"
+import { formatDateTime } from "@/lib/format/format-time"
+import { useStopViewingAs } from "@/lib/hooks/use-stop-viewing-as"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {

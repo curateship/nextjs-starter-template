@@ -30,7 +30,7 @@ import {
   TableSurface,
 } from "@/components/ui/table"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { focusRing } from "@/lib/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**

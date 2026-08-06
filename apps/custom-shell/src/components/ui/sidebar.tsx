@@ -7,7 +7,7 @@ import { useIsMobile } from "../../hooks/use-mobile"
 import {
   clampSidebarWidth,
   DEFAULT_SIDEBAR_WIDTH,
-} from "../../lib/sidebar-width"
+} from "../../lib/layout/sidebar-width"
 import { cn } from "../../lib/utils"
 import {
   Sheet,

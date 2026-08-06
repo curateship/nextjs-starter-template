@@ -24,12 +24,12 @@ import { adminPost, userGet, userPost } from "@/server/guards"
 import {
   FEEDBACK_STATUSES,
   type FeedbackStatus,
-} from "@/lib/feedback-status"
+} from "@/lib/feedback/feedback-status"
 import {
   FEEDBACK_TAGS,
   MAX_FEEDBACK_TAGS,
   type FeedbackTag,
-} from "@/lib/feedback-tags"
+} from "@/lib/feedback/feedback-tags"
 
 export type FeedbackType = "suggestion" | "bug_report" | "question" | "praise"
 

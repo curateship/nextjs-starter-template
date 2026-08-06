@@ -11,9 +11,9 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatMoney } from "@/lib/money"
+import { formatMoney } from "@/lib/format/money"
 import type { PlanOption } from "@/lib/api/billing"
-import { describePlanFeatures } from "@/lib/plan-features"
+import { describePlanFeatures } from "@/lib/billing/plan-features"
 
 export type BillingInterval = "monthly" | "yearly"
 

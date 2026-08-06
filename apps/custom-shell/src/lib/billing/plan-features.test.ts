@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { describePlanFeatures } from "@/lib/plan-features"
+import { describePlanFeatures } from "@/lib/billing/plan-features"
 
 describe("plan feature bullets", () => {
   it("says the keys the live plans actually use", () => {

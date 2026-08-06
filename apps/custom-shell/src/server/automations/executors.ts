@@ -13,7 +13,7 @@ import { syncContactsFromUsers } from "@/server/people/contacts"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
 import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 /**
  * What a step is handed, and what it may answer with.

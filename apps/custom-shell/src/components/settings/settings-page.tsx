@@ -10,8 +10,8 @@ import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
-import { focusRing } from "@/lib/focus-ring"
-import { pageGutter } from "@/lib/shell-gutter"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,

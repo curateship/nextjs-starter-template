@@ -45,10 +45,10 @@ import {
   segmentConditionIsComplete,
   type SegmentCondition,
   type SegmentKind,
-} from "@/lib/contact-segments"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { plural } from "@/lib/plural"
-import { SEARCH_SETTLE_MS } from "@/lib/list-search"
+} from "@/lib/contacts/contact-segments"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
+import { SEARCH_SETTLE_MS } from "@/lib/nav/list-search"
 
 /** How many contacts the hand-picked list offers at once. */
 const PICKER_PAGE_SIZE = 20

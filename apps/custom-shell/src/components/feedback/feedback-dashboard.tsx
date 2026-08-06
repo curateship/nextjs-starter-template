@@ -25,7 +25,7 @@ import {
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { focusRing } from "@/lib/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import {
@@ -65,26 +65,26 @@ import {
 } from "@/lib/api/feedback"
 import { FeedbackCommentsModal } from "@/components/feedback/feedback-comments-modal"
 import { FeedbackTagsSelect } from "@/components/feedback/feedback-tags-select"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { plural } from "@/lib/plural"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
 import {
   FEEDBACK_STATUSES,
   feedbackStatusClassNames,
   feedbackStatusLabels,
   type FeedbackStatus,
-} from "@/lib/feedback-status"
-import { feedbackTagLabels, type FeedbackTag } from "@/lib/feedback-tags"
+} from "@/lib/feedback/feedback-status"
+import { feedbackTagLabels, type FeedbackTag } from "@/lib/feedback/feedback-tags"
 import {
   feedbackTypeBadgeVariants,
   feedbackTypeClassNames,
   feedbackTypeLabels,
-} from "@/lib/feedback-type"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/list-search"
-import { useOpenFromLink } from "@/lib/use-open-from-link"
+} from "@/lib/feedback/feedback-type"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/nav/list-search"
+import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 // Type-only, so nothing is imported at run time — the route imports this
@@ -116,7 +116,7 @@ export function FeedbackDashboard({
   const navigate = useNavigate()
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
   // Search, filter, sort and page live in the address, so opening a record and
-  // pressing Back returns this exact list — see `lib/list-search.ts`.
+  // pressing Back returns this exact list — see `lib/nav/list-search.ts`.
   const listSearch = feedbackRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""

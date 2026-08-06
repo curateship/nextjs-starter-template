@@ -72,7 +72,7 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 const sectionDropPrefix = "section-drop:"
 

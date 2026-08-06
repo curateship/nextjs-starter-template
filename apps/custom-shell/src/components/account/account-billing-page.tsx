@@ -1,7 +1,7 @@
 import * as React from "react"
 import { ExternalLinkIcon } from "lucide-react"
 
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
 import { EmptyRow } from "@/components/shared/feed-card"
@@ -36,10 +36,10 @@ import {
   type CardExpiryWarning,
   type PlanOption,
 } from "@/lib/api/billing"
-import { describeCode } from "@/lib/code-label"
-import { formatDate, formatMonthAndYear } from "@/lib/format-time"
-import { formatMoney } from "@/lib/money"
-import { planSummary } from "@/lib/plan-summary"
+import { describeCode } from "@/lib/format/code-label"
+import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
+import { formatMoney } from "@/lib/format/money"
+import { planSummary } from "@/lib/billing/plan-summary"
 
 /**
  * Stripe's own words for an invoice, said the way a person would. Anything not

@@ -8,7 +8,7 @@ import {
   loadChangelog,
   type ChangelogEntry,
 } from "@/lib/api/changelog"
-import { formatDate } from "@/lib/format-time"
+import { formatDate } from "@/lib/format/format-time"
 
 /**
  * What's new: every published update, newest first, in full. This is what a

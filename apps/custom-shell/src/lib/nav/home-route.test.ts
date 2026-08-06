@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { configuredRouteTarget, withAccountTab } from "@/lib/home-route"
+import { configuredRouteTarget, withAccountTab } from "@/lib/nav/home-route"
 
 describe("configured home route", () => {
   it("keeps normalized internal routes", () => {

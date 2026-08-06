@@ -75,14 +75,14 @@ import {
   type DashboardWidgetId,
   type DashboardWidgetSlot,
 } from "@/lib/dashboard-widgets"
-import { emailIsOff, emailOffConsequence } from "@/lib/email-delivery"
+import { emailIsOff, emailOffConsequence } from "@/lib/email/email-delivery"
 import { buildFeedsNeedsYou } from "@/lib/feeds-needs-you"
-import { focusRingInset } from "@/lib/focus-ring"
-import { formatDate } from "@/lib/format-time"
-import { formatSharePercent } from "@/lib/format-number"
-import { buildMembershipFigures } from "@/lib/membership-figures"
-import { percentChange } from "@/lib/percent-change"
-import { plural } from "@/lib/plural"
+import { focusRingInset } from "@/lib/layout/focus-ring"
+import { formatDate } from "@/lib/format/format-time"
+import { formatSharePercent } from "@/lib/format/format-number"
+import { buildMembershipFigures } from "@/lib/billing/membership-figures"
+import { percentChange } from "@/lib/format/percent-change"
+import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 
 /**

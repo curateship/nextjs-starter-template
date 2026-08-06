@@ -8,7 +8,7 @@ import {
 import { and, eq } from "drizzle-orm"
 
 import { isPendingDeletion } from "@/lib/account-deletion"
-import { safeRedirectPath } from "@/lib/redirect-path"
+import { safeRedirectPath } from "@/lib/nav/redirect-path"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
 import {

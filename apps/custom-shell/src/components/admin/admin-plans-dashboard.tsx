@@ -39,8 +39,8 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import {
   SortableTableHeader,
   type SortableColumn,
@@ -56,17 +56,17 @@ import {
   type AdminPlan,
 } from "@/lib/api/admin-plans"
 import { describeBulkResult } from "@/lib/bulk-result"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
-} from "@/lib/list-search"
+} from "@/lib/nav/list-search"
 import { AI_ALLOWANCE_FEATURE_KEY } from "@/lib/ai-models"
-import { formatPlanPrice } from "@/lib/money"
-import type { PlanFeatures } from "@/lib/plan-features"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useSelection } from "@/lib/use-selection"
+import { formatPlanPrice } from "@/lib/format/money"
+import type { PlanFeatures } from "@/lib/billing/plan-features"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useSelection } from "@/lib/hooks/use-selection"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 const plansRoute = getRouteApi("/_authenticated/admin/plans")
@@ -142,7 +142,7 @@ export function AdminPlansDashboard({
   const { config } = useShellRuntime()
   const [plans, setPlans] = React.useState(initialPlans)
   // Search, sort and page live in the address, so Back returns this exact
-  // list — see `lib/list-search.ts`.
+  // list — see `lib/nav/list-search.ts`.
   const listSearch = plansRoute.useSearch()
   const navigate = useNavigate()
   const setListSearch = useListSearchNavigate()

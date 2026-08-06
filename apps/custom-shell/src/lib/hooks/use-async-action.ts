@@ -1,7 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The shape every button that calls the server takes: clear the last failure,

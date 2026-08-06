@@ -36,7 +36,7 @@ import {
   type SegmentCondition,
   type SegmentConditionType,
   type SegmentRuleOptions,
-} from "@/lib/contact-segments"
+} from "@/lib/contacts/contact-segments"
 
 /**
  * The rule builder, in one place because there are two screens that build the

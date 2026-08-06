@@ -27,9 +27,9 @@ import {
   AdminAccountDialog,
   type AdminAccountTab,
 } from "@/components/admin/admin-account-dialog"
-import { showErrorToast } from "@/lib/error-toast"
-import { plural } from "@/lib/plural"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import {
   Select,
   SelectContent,
@@ -60,12 +60,12 @@ import {
   getViewAsErrorMessage,
   startViewingAsMember,
 } from "@/lib/api/view-as"
-import { formatDate } from "@/lib/format-time"
+import { formatDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
-} from "@/lib/list-search"
+} from "@/lib/nav/list-search"
 
 // Type-only, so nothing is imported at run time — the route imports this
 // component, and a real import back would be a circle.
@@ -147,7 +147,7 @@ export function AdminUsersDashboard({
   defaultPageSize: number
 }) {
   // Search, filters, sort and page live in the address, so opening an account
-  // and pressing Back returns this exact list — see `lib/list-search.ts`.
+  // and pressing Back returns this exact list — see `lib/nav/list-search.ts`.
   const listSearch = usersRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const search = listSearch.q ?? ""

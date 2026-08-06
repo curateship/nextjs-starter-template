@@ -14,7 +14,7 @@ import {
   type AutomationValidationError,
 } from "@/lib/automations/graph"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 export type AutomationListItem = {
   id: string

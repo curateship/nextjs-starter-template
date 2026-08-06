@@ -11,8 +11,8 @@ import {
   readOneOf,
   readPage,
   readSearchText,
-} from "@/lib/list-search"
-import { readOpenSearch } from "@/lib/use-open-from-link"
+} from "@/lib/nav/list-search"
+import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 
 export const SEGMENT_SORT_COLUMNS = [
   "name",

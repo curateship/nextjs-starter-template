@@ -27,7 +27,7 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
-} from "@/lib/sidebar-width"
+} from "@/lib/layout/sidebar-width"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellWorkspaces,

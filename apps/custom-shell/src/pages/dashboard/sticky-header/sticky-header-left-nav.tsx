@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isExternalHref, toLinkProps } from "@/lib/nav-href"
+import { isExternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { cn } from "@/lib/utils"
 
 export type StickyHeaderLeftNavLink = {

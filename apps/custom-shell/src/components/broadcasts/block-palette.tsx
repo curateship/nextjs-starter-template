@@ -33,16 +33,16 @@ import {
   loadBroadcastTemplates,
   type BroadcastTemplateItem,
 } from "@/lib/api/broadcasts"
-import { showErrorToast } from "@/lib/error-toast"
-import { focusRing, focusRingInset } from "@/lib/focus-ring"
-import { plural } from "@/lib/plural"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
+import { plural } from "@/lib/format/plural"
 import {
   BROADCAST_BLOCK_KINDS,
   BROADCAST_BLOCK_META,
   type BroadcastBlock,
   type BroadcastBlockKind,
 } from "@/lib/broadcasts/blocks"
-import { useLastValue } from "@/lib/use-last-value"
+import { useLastValue } from "@/lib/hooks/use-last-value"
 import { cn } from "@/lib/utils"
 
 const BLOCK_ICONS: Record<

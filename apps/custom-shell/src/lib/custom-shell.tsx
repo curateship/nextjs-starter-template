@@ -11,9 +11,9 @@ import {
   createDefaultPageOverrides,
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
-import { scaffoldStyling } from "@/lib/scaffold-styling"
-import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
-import { DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
+import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
+import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -376,7 +376,7 @@ export type ShellConfig = {
    * means no limit, which is what every install had before this setting.
    */
   topLeftNavLimit: number
-  // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
+  // Draggable, per-workspace sidebar width in px. See lib/layout/sidebar-width.ts.
   sidebarWidth: number
   /** Route the home page (/) and /admin open for an admin; empty = Settings. */
   adminRoute: string

@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { BroadcastBlock } from "@/lib/broadcasts/blocks"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 import { renderBroadcastBlockHtml } from "@/lib/broadcasts/render"
 
 /**

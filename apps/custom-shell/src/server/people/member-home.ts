@@ -13,7 +13,7 @@ import {
 
 import type { FeedbackType } from "@/lib/api/feedback"
 import type { NotificationItem } from "@/lib/api/notification"
-import type { FeedbackStatus } from "@/lib/feedback-status"
+import type { FeedbackStatus } from "@/lib/feedback/feedback-status"
 
 /** How many of each list the home page shows. */
 const NOTIFICATIONS_SHOWN = 6

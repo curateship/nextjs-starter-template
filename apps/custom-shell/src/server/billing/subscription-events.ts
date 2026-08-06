@@ -4,7 +4,7 @@ import {
   SUBSCRIPTION_EVENT_LIMIT,
   type SubscriptionEvent,
   type SubscriptionEventKind,
-} from "@/lib/subscription-events"
+} from "@/lib/billing/subscription-events"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellSubscriptionEvents,

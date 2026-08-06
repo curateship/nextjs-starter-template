@@ -8,9 +8,9 @@ import {
 import {
   panelLayoutKey,
   useRememberedPanelLayout,
-} from "@/lib/panel-layout"
-import { pageGutter } from "@/lib/shell-gutter"
-import { useWideScreen } from "@/lib/wide-screen"
+} from "@/lib/layout/panel-layout"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import { useWideScreen } from "@/lib/layout/wide-screen"
 
 /**
  * The two-column body of an admin dashboard, with every divider draggable.

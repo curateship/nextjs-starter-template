@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
 
-import type { SegmentRules } from "@/lib/contact-segments"
-import type { ContactSortColumn } from "@/lib/contact-sort"
+import type { SegmentRules } from "@/lib/contacts/contact-segments"
+import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
 import { segmentConditions } from "@/server/people/contact-segments"
 import { db, type CustomShellDb } from "@/server/db"
 import {

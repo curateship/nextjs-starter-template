@@ -3,8 +3,8 @@ import { Link } from "@tanstack/react-router"
 import { ArrowDownRightIcon, ArrowUpRightIcon } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { focusRing } from "@/lib/focus-ring"
-import type { Change } from "@/lib/percent-change"
+import { focusRing } from "@/lib/layout/focus-ring"
+import type { Change } from "@/lib/format/percent-change"
 import { cn } from "@/lib/utils"
 
 /**

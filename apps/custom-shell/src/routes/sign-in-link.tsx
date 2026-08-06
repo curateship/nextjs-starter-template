@@ -19,8 +19,8 @@ import {
   requestSignInLink,
   signInWithLink,
 } from "@/lib/api/auth"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
 
 /**
  * One page for both halves of a sign-in link: with no token it asks for the

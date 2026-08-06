@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/view-as"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * Ends "view as somebody else" and puts the admin back in their own seat.

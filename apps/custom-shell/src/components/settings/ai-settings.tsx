@@ -20,7 +20,7 @@ import {
   type AiKeyTestResult,
   type AiProvider,
 } from "@/lib/api/ai"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 
 const PROVIDERS: {

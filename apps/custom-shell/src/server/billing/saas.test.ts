@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
-import { describeSubscriptionEvent } from "@/lib/subscription-events"
+import { describeSubscriptionEvent } from "@/lib/billing/subscription-events"
 import {
   markAccountsForDeletion,
   purgeExpiredDeletions,

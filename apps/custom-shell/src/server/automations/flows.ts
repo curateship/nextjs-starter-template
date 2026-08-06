@@ -17,7 +17,7 @@ import {
   type CustomShellAutomation,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 const NAME_MAX_LENGTH = 80
 

@@ -18,7 +18,7 @@ import {
   type ShellConfig,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 /**
  * Settings → Security. The session policy saves through its own confirmed

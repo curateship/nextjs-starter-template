@@ -1,6 +1,6 @@
 import { and, eq, gt, inArray, isNull, or, type SQL } from "drizzle-orm"
 
-import type { PlanFeatures } from "@/lib/plan-features"
+import type { PlanFeatures } from "@/lib/billing/plan-features"
 import { db, type CustomShellDb } from "@/server/db"
 import { getDefaultPlan, getPlan } from "@/server/billing/plans"
 import {

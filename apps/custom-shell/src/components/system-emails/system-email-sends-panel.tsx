@@ -10,7 +10,7 @@ import {
   type SystemEmailSendItem,
 } from "@/lib/api/system-emails"
 import { SYSTEM_EMAIL_META, type SystemEmailKind } from "@/lib/system-emails/kinds"
-import { formatDateTime } from "@/lib/format-time"
+import { formatDateTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 25

@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { AdminPagesDashboard } from "@/components/admin/admin-pages-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { getPagesErrorMessage, loadPagesOverview } from "@/lib/api/pages"
-import { readSearchText } from "@/lib/list-search"
+import { readSearchText } from "@/lib/nav/list-search"
 
 export const Route = createFileRoute("/_authenticated/admin/pages")({
   // The search lives in the address, so the page can be linked and reloaded.

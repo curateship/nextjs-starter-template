@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format-time"
+import { formatDate } from "@/lib/format/format-time"
 
 /**
  * The fields the sentence below reads. Both the account window's full billing

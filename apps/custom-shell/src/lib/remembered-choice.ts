@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { useEffectBeforePaint } from "@/lib/use-effect-before-paint"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 
 // Choices this browser remembers between visits — which sections are collapsed,
 // which way the media page is showing files. They are kept in localStorage,

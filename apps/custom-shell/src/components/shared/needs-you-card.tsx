@@ -5,8 +5,8 @@ import { CheckCircle2Icon, TriangleAlertIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { plural } from "@/lib/plural"
-import { titleLink } from "@/lib/title-link"
+import { plural } from "@/lib/format/plural"
+import { titleLink } from "@/lib/nav/title-link"
 import { cn } from "@/lib/utils"
 
 /**

@@ -37,8 +37,8 @@ import {
   type WorkspaceItem,
 } from "@/lib/api/workspaces"
 import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
 /** What the picker starts on before anything is chosen. */
 const defaultIcon = "briefcaseBusiness" satisfies IconKey

@@ -2,7 +2,7 @@ import type { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import type { SegmentCondition, SegmentRules } from "@/lib/contact-segments"
+import type { SegmentCondition, SegmentRules } from "@/lib/contacts/contact-segments"
 import {
   addContactsToSegment,
   countSegmentContacts,

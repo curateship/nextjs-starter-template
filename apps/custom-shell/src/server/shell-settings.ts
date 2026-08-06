@@ -12,7 +12,7 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
-import { clampToastSeconds } from "@/lib/toast-seconds"
+import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellSettings,

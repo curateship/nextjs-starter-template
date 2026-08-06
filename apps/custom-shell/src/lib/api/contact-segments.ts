@@ -9,7 +9,7 @@ import {
   segmentRulesSchema,
   type SegmentKind,
   type SegmentRules,
-} from "@/lib/contact-segments"
+} from "@/lib/contacts/contact-segments"
 import {
   addContactsToSegment,
   createWorkspaceSegment,

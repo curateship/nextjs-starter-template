@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 // Compatibility wrapper for existing call sites. All failures use the shared
 // persistent toast, including failures that used to render as a banner.

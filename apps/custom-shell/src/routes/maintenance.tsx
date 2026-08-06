@@ -8,7 +8,7 @@ import { getAuthErrorMessage, logout } from "@/lib/api/auth"
 import { loadMaintenance } from "@/lib/api/maintenance"
 import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/view-as"
 import { resolveMaintenanceMessage } from "@/lib/custom-shell"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * Where everyone but an admin lands while maintenance mode is on. It is a

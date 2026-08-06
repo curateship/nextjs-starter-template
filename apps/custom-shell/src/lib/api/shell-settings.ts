@@ -11,8 +11,8 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
-import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
-import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
+import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
 import { isOwnedImageUrl } from "@/server/media/library"
 import {

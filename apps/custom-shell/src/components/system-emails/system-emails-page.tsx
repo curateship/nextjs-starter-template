@@ -18,8 +18,8 @@ import {
   SYSTEM_EMAIL_META,
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
-import { formatDate } from "@/lib/format-time"
-import { useTableSort } from "@/lib/use-table-sort"
+import { formatDate } from "@/lib/format/format-time"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "subject" | "sends" | "edited"
 

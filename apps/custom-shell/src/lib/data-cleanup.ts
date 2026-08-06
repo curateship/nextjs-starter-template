@@ -1,4 +1,4 @@
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 /**
  * The rules for throwing away data that has outlived its use, and the words the

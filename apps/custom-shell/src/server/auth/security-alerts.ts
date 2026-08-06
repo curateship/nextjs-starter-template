@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm"
 
-import { describeDevice } from "@/lib/device-label"
+import { describeDevice } from "@/lib/format/device-label"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendAuthEmail } from "@/server/email/send"

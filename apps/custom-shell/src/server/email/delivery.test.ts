@@ -13,7 +13,7 @@ import {
   emailIsOff,
   emailOffConsequence,
   emailStatusLine,
-} from "@/lib/email-delivery"
+} from "@/lib/email/email-delivery"
 
 /**
  * The question this covers is "can this app send an email at all", which is

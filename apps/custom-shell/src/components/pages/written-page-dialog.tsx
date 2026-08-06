@@ -26,7 +26,7 @@ import {
   saveWrittenPage,
   type WrittenPage,
 } from "@/lib/api/pages"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   emptyWrittenPageBody,
   type WrittenPageNode,

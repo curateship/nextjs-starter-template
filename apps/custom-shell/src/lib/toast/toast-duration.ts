@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { clampToastSeconds, DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
+import { clampToastSeconds, DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 
 /**
  * How long a success toast stays up, shared between the shell (which knows the

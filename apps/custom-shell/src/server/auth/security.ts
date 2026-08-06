@@ -11,8 +11,8 @@ import { hash, verify } from "argon2"
 import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
 
 import { normalizeSessionPolicy } from "@/lib/custom-shell"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
+import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAuthTokens,

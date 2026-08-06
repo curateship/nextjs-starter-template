@@ -54,15 +54,15 @@ import {
   type AutomationListItem,
   type AutomationsPage,
 } from "@/lib/api/automations"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { formatDate } from "@/lib/format-time"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { formatDate } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useClientPage } from "@/lib/use-client-page"
-import { useLastValue } from "@/lib/use-last-value"
-import { useSelection } from "@/lib/use-selection"
-import { useTableSort } from "@/lib/use-table-sort"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useLastValue } from "@/lib/hooks/use-last-value"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type SortColumn = "name" | "status" | "updated"

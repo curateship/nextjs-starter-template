@@ -1,4 +1,4 @@
-import { focusRing } from "@/lib/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**

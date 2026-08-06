@@ -13,7 +13,7 @@ import {
   isSupportedNode,
 } from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
-import { focusRing } from "@/lib/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 
 import { AutomationNodeIcon } from "./automation-node-icon"
 import { NODE_HEIGHT, NODE_WIDTH, nodeOutputPorts, portOut } from "./canvas-model"

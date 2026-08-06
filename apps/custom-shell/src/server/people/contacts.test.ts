@@ -1,7 +1,7 @@
 import type { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import type { SegmentCondition } from "@/lib/contact-segments"
+import type { SegmentCondition } from "@/lib/contacts/contact-segments"
 import { createWorkspaceSegment } from "@/server/people/contact-segments"
 import { listWorkspaceContacts } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"

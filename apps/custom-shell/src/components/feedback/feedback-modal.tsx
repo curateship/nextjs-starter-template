@@ -56,28 +56,28 @@ import {
 } from "@/lib/api/feedback"
 import { FeedbackTagsSelect } from "@/components/feedback/feedback-tags-select"
 import { ImageUpload } from "@/components/shared/image-upload"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   FEEDBACK_STATUSES,
   feedbackStatusClassNames,
   feedbackStatusLabels,
   type FeedbackStatus,
-} from "@/lib/feedback-status"
+} from "@/lib/feedback/feedback-status"
 import {
   FEEDBACK_TAGS,
   feedbackTagLabels,
   type FeedbackTag,
-} from "@/lib/feedback-tags"
+} from "@/lib/feedback/feedback-tags"
 import {
   FEEDBACK_TYPES,
   feedbackTypeBadgeVariants,
   feedbackTypeClassNames,
   feedbackTypeLabels,
-} from "@/lib/feedback-type"
-import { focusRing } from "@/lib/focus-ring"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+} from "@/lib/feedback/feedback-type"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/quote-text"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 
 function getInitial(name: string) {

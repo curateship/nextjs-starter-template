@@ -2,7 +2,7 @@ import * as React from "react"
 import { createIsomorphicFn } from "@tanstack/react-start"
 import { getCookie } from "@tanstack/react-start/server"
 
-import { useEffectBeforePaint } from "@/lib/use-effect-before-paint"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 
 /**
  * Whether this window is wide enough for a side-by-side layout — known before

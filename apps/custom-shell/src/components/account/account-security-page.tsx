@@ -50,12 +50,12 @@ import {
   type PasskeyListItem,
 } from "@/lib/api/passkeys"
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { formatDateTime, formatTimeAgo } from "@/lib/format-time"
-import { plural } from "@/lib/plural"
-import { useLastValue } from "@/lib/use-last-value"
-import { useBrowserSupportsWebAuthn } from "@/lib/use-webauthn-support"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
+import { plural } from "@/lib/format/plural"
+import { useLastValue } from "@/lib/hooks/use-last-value"
+import { useBrowserSupportsWebAuthn } from "@/lib/hooks/use-webauthn-support"
 
 const MISMATCH_MESSAGE = "Those passwords do not match."
 

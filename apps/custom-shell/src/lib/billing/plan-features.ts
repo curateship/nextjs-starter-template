@@ -1,4 +1,4 @@
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 /**
  * Plan features are free-form per product, but always JSON-safe scalars so they

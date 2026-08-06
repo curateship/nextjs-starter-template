@@ -43,16 +43,16 @@ import {
   saveAutomationFavorites,
   type AutomationDetail,
 } from "@/lib/api/automations"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
-} from "@/lib/panel-collapse"
+} from "@/lib/layout/panel-collapse"
 import {
   panelLayoutKey,
   useRememberedPanelLayout,
-} from "@/lib/panel-layout"
-import { useWideScreen } from "@/lib/wide-screen"
+} from "@/lib/layout/panel-layout"
+import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"

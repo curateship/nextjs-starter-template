@@ -4,20 +4,20 @@ import { BellIcon, GaugeIcon, MegaphoneIcon, PencilLineIcon } from "lucide-react
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
-import { titleLink } from "@/lib/title-link"
+import { titleLink } from "@/lib/nav/title-link"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   isAiLimitNotification,
   type NotificationItem,
 } from "@/lib/api/notification"
-import { focusRingInset } from "@/lib/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import {
   dayRangeText,
   daysBetween,
   formatClockTime,
   formatDate,
-} from "@/lib/format-time"
+} from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
 /**

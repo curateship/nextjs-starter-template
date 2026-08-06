@@ -26,10 +26,10 @@ import {
   type MyAiRecentCall,
   type MyAiUsage,
 } from "@/lib/api/ai"
-import { formatDate, formatDateTime } from "@/lib/format-time"
-import { formatMoney } from "@/lib/money"
-import { formatTokenCount } from "@/lib/format-number"
-import { describeCode } from "@/lib/code-label"
+import { formatDate, formatDateTime } from "@/lib/format/format-time"
+import { formatMoney } from "@/lib/format/money"
+import { formatTokenCount } from "@/lib/format/format-number"
+import { describeCode } from "@/lib/format/code-label"
 
 /**
  * What the last load returned, kept for as long as the page is open.

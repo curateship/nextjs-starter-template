@@ -32,10 +32,10 @@ import {
   type TrafficSummary,
 } from "@/lib/api/traffic"
 import { shade } from "@/lib/chart-colours"
-import { formatSharePercent } from "@/lib/format-number"
-import { useListSearchNavigate } from "@/lib/list-search"
-import { pageGutter } from "@/lib/shell-gutter"
-import { useTableSort } from "@/lib/use-table-sort"
+import { formatSharePercent } from "@/lib/format/format-number"
+import { useListSearchNavigate } from "@/lib/nav/list-search"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 /**
  * The admin's Traffic page: how many people visit, what they read, where

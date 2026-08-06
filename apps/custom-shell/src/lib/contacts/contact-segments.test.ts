@@ -8,7 +8,7 @@ import {
   segmentConditionIsComplete,
   segmentReferences,
   type SegmentCondition,
-} from "@/lib/contact-segments"
+} from "@/lib/contacts/contact-segments"
 
 /**
  * The shape a segment's rules take, and what happens to a saved one that no

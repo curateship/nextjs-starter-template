@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { carriedEmail } from "@/lib/carried-email"
+import { carriedEmail } from "@/lib/email/carried-email"
 
 describe("carried email", () => {
   it("keeps a typed address and trims the spaces around it", () => {

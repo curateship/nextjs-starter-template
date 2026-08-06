@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
-import type { PlanFeatures } from "@/lib/plan-features"
+import type { PlanFeatures } from "@/lib/billing/plan-features"
 import {
   archivePlan,
   archivePlans,

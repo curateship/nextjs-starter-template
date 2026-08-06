@@ -25,14 +25,14 @@ import type {
 import {
   feedbackStatusClassNames,
   feedbackStatusLabels,
-} from "@/lib/feedback-status"
-import { feedbackTypeLabels } from "@/lib/feedback-type"
-import { focusRingInset } from "@/lib/focus-ring"
-import { formatDate } from "@/lib/format-time"
+} from "@/lib/feedback/feedback-status"
+import { feedbackTypeLabels } from "@/lib/feedback/feedback-type"
+import { focusRingInset } from "@/lib/layout/focus-ring"
+import { formatDate } from "@/lib/format/format-time"
 import { notificationAction } from "@/lib/notification-action"
-import { planSummary } from "@/lib/plan-summary"
-import { plural } from "@/lib/plural"
-import { pageGutter } from "@/lib/shell-gutter"
+import { planSummary } from "@/lib/billing/plan-summary"
+import { plural } from "@/lib/format/plural"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
 /**

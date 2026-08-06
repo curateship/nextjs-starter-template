@@ -37,14 +37,14 @@ import {
   type PublicPageRow,
   type WrittenPage,
 } from "@/lib/api/pages"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
-import { useTableSort } from "@/lib/use-table-sort"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 /**
  * The admin's Pages screen: every public page the app has, with its address,

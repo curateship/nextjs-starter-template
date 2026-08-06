@@ -44,7 +44,7 @@ import {
 } from "@/lib/broadcasts/preview-width"
 import { renderBroadcastBlockHtml } from "@/lib/broadcasts/render"
 import { cn } from "@/lib/utils"
-import { focusRing } from "@/lib/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
  * Whether this block would show a reader nothing at all.

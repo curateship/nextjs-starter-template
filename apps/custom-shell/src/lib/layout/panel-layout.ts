@@ -1,7 +1,7 @@
 import * as React from "react"
 import type { Layout } from "react-resizable-panels"
 
-import { useEffectBeforePaint } from "@/lib/use-effect-before-paint"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 
 /**
  * Where this browser last left the dividers of a resizable panel group.

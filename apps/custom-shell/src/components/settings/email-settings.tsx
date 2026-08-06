@@ -25,8 +25,8 @@ import {
   type EmailSettingsStatus,
 } from "@/lib/api/email-settings"
 import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
-import { emailStatusLine } from "@/lib/email-delivery"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { emailStatusLine } from "@/lib/email/email-delivery"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
 

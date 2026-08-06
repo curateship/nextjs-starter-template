@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { CONTACT_SORT_COLUMNS } from "@/lib/contact-sort"
+import { CONTACT_SORT_COLUMNS } from "@/lib/contacts/contact-sort"
 import {
   segmentRulesSchema,
   type SegmentKind,
   type SegmentRuleOptions,
-} from "@/lib/contact-segments"
+} from "@/lib/contacts/contact-segments"
 
 import {
   deleteWorkspaceContacts,
@@ -48,7 +48,7 @@ export type ContactItem = {
 }
 
 /** The one list of sortable columns, kept browser-safe — see `lib/contact-sort`. */
-export type { ContactSortColumn } from "@/lib/contact-sort"
+export type { ContactSortColumn } from "@/lib/contacts/contact-sort"
 
 export type ContactsPage = {
   contacts: ContactItem[]

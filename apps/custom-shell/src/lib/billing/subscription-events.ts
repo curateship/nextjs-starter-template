@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format-time"
+import { formatDate } from "@/lib/format/format-time"
 
 /**
  * The words for one member's billing history.

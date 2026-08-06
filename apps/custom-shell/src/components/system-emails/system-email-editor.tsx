@@ -1,7 +1,7 @@
 import * as React from "react"
 import { SendIcon } from "lucide-react"
 import { toast } from "sonner"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 import {
   EmailBlockEditor,

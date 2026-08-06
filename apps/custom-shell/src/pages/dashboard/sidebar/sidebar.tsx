@@ -28,7 +28,7 @@ import {
   type ShellConfig,
   type ShellSection,
 } from "@/lib/custom-shell"
-import { useBlankSpaceDoubleClick } from "@/lib/panel-collapse"
+import { useBlankSpaceDoubleClick } from "@/lib/layout/panel-collapse"
 import type { AuthUser } from "@/lib/api/auth"
 import type { PlanSummary } from "@/lib/api/billing"
 import type { WorkspaceItem } from "@/lib/api/workspaces"

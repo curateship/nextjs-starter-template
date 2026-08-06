@@ -23,8 +23,8 @@ import {
   type ShellConfig,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
-import { showErrorToast } from "@/lib/error-toast"
-import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 
 type GeneralSettingsProps = {
   config: ShellConfig

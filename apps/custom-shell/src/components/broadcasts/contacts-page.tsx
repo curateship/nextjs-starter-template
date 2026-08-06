@@ -10,7 +10,7 @@ import {
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -67,22 +67,22 @@ import {
   segmentConditionIsComplete,
   type SegmentCondition,
   type SegmentRuleOptions,
-} from "@/lib/contact-segments"
+} from "@/lib/contacts/contact-segments"
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { focusRing } from "@/lib/focus-ring"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
-import { formatDate } from "@/lib/format-time"
+import { formatDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
-} from "@/lib/list-search"
+} from "@/lib/nav/list-search"
 import { quoteOneLine } from "@/lib/quote-text"
-import { useLastValue } from "@/lib/use-last-value"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useSelection } from "@/lib/use-selection"
+import { useLastValue } from "@/lib/hooks/use-last-value"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useSelection } from "@/lib/hooks/use-selection"
 
 const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
 

@@ -33,8 +33,8 @@ import {
   createAccountAsAdmin,
   getAdminUserErrorMessage,
 } from "@/lib/api/admin-users"
-import { showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
 /**
  * Adds a person directly: the account exists at once, and they get an email

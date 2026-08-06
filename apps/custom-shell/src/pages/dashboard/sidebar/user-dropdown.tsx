@@ -24,7 +24,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { useStopViewingAs } from "@/lib/use-stop-viewing-as"
+import { useStopViewingAs } from "@/lib/hooks/use-stop-viewing-as"
 import {
   BadgeCheckIcon,
   BellIcon,

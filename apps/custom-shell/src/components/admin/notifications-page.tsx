@@ -14,9 +14,9 @@ import {
 import { toast } from "sonner"
 
 import { describeBulkResult } from "@/lib/bulk-result"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -54,14 +54,14 @@ import {
   type NotificationItem,
   type NotificationType,
 } from "@/lib/api/notification"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useSelection } from "@/lib/use-selection"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSelection } from "@/lib/hooks/use-selection"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
-} from "@/lib/list-search"
+} from "@/lib/nav/list-search"
 import { cn } from "@/lib/utils"
 
 const notificationsRoute = getRouteApi("/_authenticated/admin/notifications")
@@ -166,7 +166,7 @@ export function NotificationsPage({
   const [notifications, setNotifications] = React.useState(initialNotifications)
   const [total, setTotal] = React.useState(initialTotal)
   // Search, filters, sort and page live in the address, so opening a record
-  // and pressing Back returns this exact list — see `lib/list-search.ts`.
+  // and pressing Back returns this exact list — see `lib/nav/list-search.ts`.
   const listSearch = notificationsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const search = listSearch.q ?? ""

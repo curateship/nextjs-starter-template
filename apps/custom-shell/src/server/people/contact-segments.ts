@@ -23,7 +23,7 @@ import {
   type SegmentCondition,
   type SegmentKind,
   type SegmentRules,
-} from "@/lib/contact-segments"
+} from "@/lib/contacts/contact-segments"
 import { db, type CustomShellDb } from "@/server/db"
 import { activeSubscriptionCondition } from "@/server/billing/entitlements"
 import {

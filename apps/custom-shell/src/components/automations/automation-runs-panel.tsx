@@ -38,11 +38,11 @@ import {
   automationRunStatusLabel,
   automationRunStepStatusLabels,
 } from "@/lib/automations/run"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { plural } from "@/lib/plural"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { focusRingInset } from "@/lib/focus-ring"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { focusRingInset } from "@/lib/layout/focus-ring"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
 type PanelTab = "runs" | "waiting"

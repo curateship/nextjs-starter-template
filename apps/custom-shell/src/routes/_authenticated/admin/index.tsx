@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { configuredRouteTarget, DEFAULT_ADMIN_ROUTE } from "@/lib/home-route"
+import { configuredRouteTarget, DEFAULT_ADMIN_ROUTE } from "@/lib/nav/home-route"
 
 /**
  * `/admin` forwards to the configured home route, or the Overview by default.
