@@ -59,9 +59,13 @@ export async function readDashboardRowsPerPage(
  */
 export async function readBranding(
   database: CustomShellDb = db
-): Promise<{ appName: string; logo: string }> {
+): Promise<{ appName: string; logo: string; logoDark: string }> {
   const globals = await readShellGlobals(database)
-  return { appName: globals.appName, logo: globals.logo }
+  return {
+    appName: globals.appName,
+    logo: globals.logo,
+    logoDark: globals.logoDark,
+  }
 }
 
 /**
@@ -115,6 +119,13 @@ export function parseShellGlobals(value: unknown) {
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
+    // Same guard, same reason. A row saved before this setting existed has no
+    // value at all, which reads as "no dark logo" — so the one logo keeps being
+    // shown on both backgrounds, exactly as before.
+    logoDark:
+      typeof settings.logoDark === "string"
+        ? settings.logoDark
+        : fallback.logoDark,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
     dashboardRowsPerPage:
@@ -176,6 +187,7 @@ export function pickShellGlobals(
     ShellConfig,
     | "appName"
     | "logo"
+    | "logoDark"
     | "workspaceName"
     | "workspacePlan"
     | "dashboardRowsPerPage"
@@ -195,6 +207,7 @@ export function pickShellGlobals(
   return {
     appName: settings.appName,
     logo: settings.logo,
+    logoDark: settings.logoDark,
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,

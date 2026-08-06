@@ -156,6 +156,7 @@ const shellConfigSchema = z.object({
   memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
   logo: z.string(),
+  logoDark: z.string(),
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
@@ -235,19 +236,24 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
 
-      // The logo is drawn on the signed-out pages, so what gets stored has to
+      // The logos are drawn on the signed-out pages, so what gets stored has to
       // be a picture somebody here really uploaded — not any address a browser
       // felt like sending. Only a changed logo is checked: the settings page
       // saves the whole config, so a second admin renaming the app must not be
       // refused because the picture was uploaded from another account.
-      if (
-        data.logo &&
-        data.logo !== existingGlobals.logo &&
-        !(await isOwnedImageUrl(context.user.id, data.logo, tx))
-      ) {
-        throw new Error(
-          "That logo is no longer in your media library. Pick another one."
-        )
+      for (const [next, saved] of [
+        [data.logo, existingGlobals.logo],
+        [data.logoDark, existingGlobals.logoDark],
+      ]) {
+        if (
+          next &&
+          next !== saved &&
+          !(await isOwnedImageUrl(context.user.id, next, tx))
+        ) {
+          throw new Error(
+            "That logo is no longer in your media library. Pick another one."
+          )
+        }
       }
 
       const globalSettings = {

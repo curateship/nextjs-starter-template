@@ -113,14 +113,14 @@ export function loadShellBootstrap() {
  * trace rather than an app that quietly renamed itself.
  */
 const loadBrandingFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ appName: string; logo: string }> => {
+  async (): Promise<{ appName: string; logo: string; logoDark: string }> => {
     try {
       return await readBranding()
     } catch (error) {
       console.error("Branding could not be read; using the default", error)
       // Blank, not a name of its own: "" is already how the app says "use the
       // default", so this goes through the one place that decides what that is.
-      return { appName: "", logo: "" }
+      return { appName: "", logo: "", logoDark: "" }
     }
   }
 )

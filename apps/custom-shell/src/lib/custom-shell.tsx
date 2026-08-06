@@ -393,6 +393,13 @@ export type ShellConfig = {
    * show it are read before anybody has signed in or picked a workspace.
    */
   logo: string
+  /**
+   * The same brand image redrawn for a dark background, used only while the
+   * visitor is in dark mode. Optional: empty means the one logo above is shown
+   * on both backgrounds, which is exactly how the app behaved before this
+   * existed. A global for the same reason as `logo`.
+   */
+  logoDark: string
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
   /**
@@ -928,6 +935,7 @@ export function createDefaultShellConfig(): ShellConfig {
     memberHomeRoute: "",
     favicon: "",
     logo: "",
+    logoDark: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,
     // handed out only while the settings row has never held a member list.

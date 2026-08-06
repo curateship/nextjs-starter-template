@@ -622,6 +622,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
     favicon: settings.favicon ?? fallback.favicon,
     logo: settings.logo ?? fallback.logo,
+    logoDark: settings.logoDark ?? fallback.logoDark,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
     ),

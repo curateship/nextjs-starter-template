@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { BrandLogo } from "@/components/shell/brand-logo"
-import { useAppName, useBrandLogo } from "@/lib/branding"
+import { useAppName, useBrandLogo, useBrandLogoDark } from "@/lib/branding"
 import { cn } from "@/lib/utils"
 
 /**
@@ -23,6 +23,7 @@ export function PublicPageFrame({
 }) {
   const appName = useAppName()
   const logo = useBrandLogo()
+  const logoDark = useBrandLogoDark()
 
   return (
     <main
@@ -32,7 +33,7 @@ export function PublicPageFrame({
       )}
     >
       <div className="flex w-full flex-col items-center gap-2 md:gap-3">
-        <BrandLogo src={logo} appName={appName} />
+        <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
         <p className="text-sm font-medium text-foreground">{appName}</p>
         {children}
       </div>

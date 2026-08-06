@@ -4248,6 +4248,26 @@ describe("member sidebar", () => {
     expect(parseShellGlobals({ logo: 42 }).logo).toBe("")
   })
 
+  it("carries the dark-background logo through a save and back", () => {
+    // Same trap as the logo above, and it rides the same path: miss it in
+    // `pickShellGlobals` and every settings save quietly throws the dark logo
+    // away, so a dark logo silently goes back to vanishing on a dark page.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      logo: "https://media.example.test/owner/logo.png",
+      logoDark: "https://media.example.test/owner/logo-dark.png",
+    })
+
+    expect(parseShellGlobals(saved).logoDark).toBe(
+      "https://media.example.test/owner/logo-dark.png"
+    )
+    // A row written before this setting existed has no value, and junk stored
+    // in one is refused: both read as "no dark logo", which is what keeps the
+    // one logo showing on both backgrounds exactly as it did before.
+    expect(parseShellGlobals({ appName: "x" }).logoDark).toBe("")
+    expect(parseShellGlobals({ logoDark: 42 }).logoDark).toBe("")
+  })
+
   it("carries the top-bar link limit through a save and back", () => {
     // Same trap as the three above: miss it in `pickShellGlobals` and every
     // save drops the limit, so the top bar quietly goes back to a long row.
