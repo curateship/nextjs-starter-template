@@ -65,6 +65,10 @@ list covers is on screen without spending a row on it.
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain
   dash, not a zero in a pill.
+- **Sub-exchange markets keep their full name** — "xyz:SNDK", never a
+  stripped "SNDK" that could be read as a main-exchange coin. The (i)
+  tooltip names the venue; coin art and the letter fallback use the bare
+  name.
 - **Sort is drawn as column headers** — "Market / 24h Vol" left, "Change 24h"
   right, the shared `TableSortButton` — and clicking the sorted one flips the
   direction.
@@ -151,6 +155,28 @@ the finished page, so the empty page gets designed once, at the start.
 - Chart — "The chart goes here."
 - Account — "No account connected yet."
 - Positions / Open orders / Fills — each says what would be there.
+
+## Live prices
+
+The page keeps itself current instead of freezing at load. One connection per
+exchange streams every market's figures about once a second; the chart's
+working bar streams beside it.
+
+- **A tick repaints only what moved.** Each row and the header tooltip
+  subscribe to their own market; unchanged markets stay silent. The list's
+  ORDER stays on the loaded snapshot on purpose — rows shuffling under the
+  pointer every second would be worse than a sort that catches up on the next
+  refetch.
+- **Silence is the outage.** Feed health is judged by data arriving, not by
+  what the socket claims: a quiet spell tears the connection down and
+  rebuilds it on a capped backoff. (An on-screen "prices may be stale" label
+  existed briefly and was removed on 7 Aug 2026 at Tyler's direction — the
+  feed heals itself without announcing it.)
+- **Recovery refetches.** The first tick after a gap re-pulls the market
+  snapshot and the chart's candles, so nothing that moved during the outage
+  lingers on screen.
+- **A hidden tab lets the connection go** and reconnects — with the same
+  catch-up — when you come back.
 
 ## Rules that hold everywhere
 

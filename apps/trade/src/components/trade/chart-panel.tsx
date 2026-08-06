@@ -10,6 +10,7 @@ import {
   type CandleBar,
   type CandleInterval,
 } from "@/lib/protocols/contracts"
+import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
 import { cn } from "@/lib/utils"
 
 /**
@@ -75,6 +76,21 @@ export function ChartPanel({
 
   const wanted = selectedKey ? `${selectedKey}@${interval}` : null
 
+  // The working bar, streamed. Tagged with the market-and-interval it
+  // belongs to, so a tick that arrives just after a switch cannot draw on
+  // the wrong chart.
+  const [liveBar, setLiveBar] = React.useState<{
+    key: string
+    bar: CandleBar
+  } | null>(null)
+  useLiveCandle(selectedKey, interval, (bar) => {
+    if (wanted) setLiveBar({ key: wanted, bar })
+  })
+
+  // The feed came back after a gap: the working bar alone cannot patch a
+  // hole in history, so the snapshot is refetched.
+  useLiveCatchUp(() => setAttempt((count) => count + 1))
+
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
     let stale = false
@@ -130,7 +146,10 @@ export function ChartPanel({
           The exchange has no price history for this market at this timeframe.
         </PanelPlaceholder>
       ) : (
-        <PriceChart candles={current.candles} />
+        <PriceChart
+          candles={current.candles}
+          liveBar={liveBar?.key === wanted ? liveBar.bar : null}
+        />
       )}
     </div>
   )

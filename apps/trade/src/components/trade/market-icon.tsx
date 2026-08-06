@@ -25,12 +25,17 @@ export function MarketIcon({
   }
 
   if (!iconUrl || failed) {
+    // The letter comes from the coin itself, not a venue prefix — "xyz:SNDK"
+    // falls back to S, not x.
+    const bare = symbol.includes(":")
+      ? symbol.slice(symbol.indexOf(":") + 1)
+      : symbol
     return (
       <span
         className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground"
         aria-hidden
       >
-        {symbol.slice(0, 1)}
+        {bare.slice(0, 1)}
       </span>
     )
   }

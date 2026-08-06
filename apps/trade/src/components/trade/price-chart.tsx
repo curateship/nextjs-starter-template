@@ -21,7 +21,17 @@ import type { CandleBar } from "@/lib/protocols/contracts"
  * The library is loaded in the browser only — the server renders the empty
  * box, and the chart appears with the first paint after it.
  */
-export function PriceChart({ candles }: { candles: CandleBar[] }) {
+export function PriceChart({
+  candles,
+  liveBar,
+}: {
+  candles: CandleBar[]
+  /**
+   * The working bar from the live feed, applied to the last candle in place —
+   * a tick never re-renders the chart, let alone rebuilds it.
+   */
+  liveBar?: CandleBar | null
+}) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const chartRef = React.useRef<IChartApi | null>(null)
   const priceSeriesRef = React.useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -29,6 +39,11 @@ export function PriceChart({ candles }: { candles: CandleBar[] }) {
   // The candles the chart should be showing, readable by the async setup that
   // may still be importing the library when they change.
   const candlesRef = React.useRef(candles)
+  const colorsRef = React.useRef<ChartColors | null>(null)
+  // The newest time on the chart: the library refuses updates that go
+  // backwards, and a straggler tick from the previous market must be dropped,
+  // not drawn.
+  const lastTimeRef = React.useRef(0)
 
   React.useEffect(() => {
     const container = containerRef.current
@@ -82,7 +97,9 @@ export function PriceChart({ candles }: { candles: CandleBar[] }) {
       chartRef.current = chart
       priceSeriesRef.current = price
       volumeSeriesRef.current = volume
+      colorsRef.current = colors
       applyCandles(price, volume, candlesRef.current, colors)
+      lastTimeRef.current = candlesRef.current.at(-1)?.openTime ?? 0
       chart.timeScale().fitContent()
 
       // The shell's theme toggle stamps a class on <html>; recolour in place
@@ -90,6 +107,7 @@ export function PriceChart({ candles }: { candles: CandleBar[] }) {
       themeWatcher = new MutationObserver(() => {
         if (!containerRef.current) return
         const next = readChartColors(containerRef.current)
+        colorsRef.current = next
         chart.applyOptions({
           layout: { textColor: next.text },
           grid: {
@@ -132,9 +150,35 @@ export function PriceChart({ candles }: { candles: CandleBar[] }) {
     const price = priceSeriesRef.current
     const volume = volumeSeriesRef.current
     if (!price || !volume || !containerRef.current) return
-    applyCandles(price, volume, candles, readChartColors(containerRef.current))
+    const colors = readChartColors(containerRef.current)
+    colorsRef.current = colors
+    applyCandles(price, volume, candles, colors)
+    lastTimeRef.current = candles.at(-1)?.openTime ?? 0
     chartRef.current?.timeScale().fitContent()
   }, [candles])
+
+  // The live tick: the working bar changes in place, a fresh bar appends.
+  React.useEffect(() => {
+    const price = priceSeriesRef.current
+    const volume = volumeSeriesRef.current
+    const colors = colorsRef.current
+    if (!liveBar || !price || !volume || !colors) return
+    if (liveBar.openTime < lastTimeRef.current) return
+    lastTimeRef.current = liveBar.openTime
+    const time = (liveBar.openTime / 1000) as UTCTimestamp
+    price.update({
+      time,
+      open: liveBar.open,
+      high: liveBar.high,
+      low: liveBar.low,
+      close: liveBar.close,
+    })
+    volume.update({
+      time,
+      value: liveBar.volume,
+      color: liveBar.close >= liveBar.open ? colors.upSoft : colors.downSoft,
+    })
+  }, [liveBar])
 
   return <div ref={containerRef} className="h-full min-h-0 w-full" />
 }
