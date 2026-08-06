@@ -1188,6 +1188,12 @@ describe("custom shell workspaces", () => {
         href: "/admin/traffic",
         visible: true,
       },
+      {
+        type: "item",
+        label: "Pages",
+        href: "/admin/pages",
+        visible: true,
+      },
     ])
 
     const secondWorkspace = await createUserWorkspace(
@@ -2770,6 +2776,7 @@ describe("revenue folds into membership", () => {
       "item-admin-users",
       "item-admin-plans",
       "item-admin-traffic",
+      "item-admin-pages",
       "item-newsletter",
     ])
 
@@ -3515,6 +3522,7 @@ describe("feeds section", () => {
       "item-admin-overview",
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
     // The first three were grouped under Feeds, then handed on to the Overview
     // when Feeds went. No Feedback link: this sidebar predates it. What's new
@@ -3560,6 +3568,7 @@ describe("feeds section", () => {
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
   })
 
