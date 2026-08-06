@@ -4,8 +4,10 @@ import { createFileRoute, useRouter } from "@tanstack/react-router"
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
 import {
   getMarketsErrorMessage,
+  loadLastMarket,
   loadMarketFavorites,
   loadMarkets,
+  saveLastMarket,
 } from "@/lib/api/markets"
 
 /**
@@ -28,7 +30,7 @@ function readTradeSearch(search: Record<string, unknown>): TradeSearch {
 export const Route = createFileRoute("/_authenticated/trade")({
   validateSearch: readTradeSearch,
   loader: async () => {
-    const [markets, favorites] = await Promise.all([
+    const [markets, favorites, lastMarket] = await Promise.all([
       // A dead exchange must not take the page down with it: the workspace
       // still opens, and the list explains itself and offers a retry.
       loadMarkets()
@@ -39,14 +41,20 @@ export const Route = createFileRoute("/_authenticated/trade")({
         })),
       // Losing the stars is cosmetic — an empty set just draws no stars.
       loadMarketFavorites().catch(() => ({ marketKeys: [] as string[] })),
+      // Losing the memory only means a blank middle panel, never a broken page.
+      loadLastMarket().catch(() => ({ marketKey: null as string | null })),
     ])
-    return { markets, favoriteKeys: favorites.marketKeys }
+    return {
+      markets,
+      favoriteKeys: favorites.marketKeys,
+      lastMarketKey: lastMarket.marketKey,
+    }
   },
   component: TradeRoute,
 })
 
 function TradeRoute() {
-  const { markets, favoriteKeys } = Route.useLoaderData()
+  const { markets, favoriteKeys, lastMarketKey } = Route.useLoaderData()
   const { market } = Route.useSearch()
   const navigate = Route.useNavigate()
   const router = useRouter()
@@ -59,12 +67,27 @@ function TradeRoute() {
     [router]
   )
 
+  // The address wins; the account's memory fills a bare visit. A remembered
+  // market that no longer resolves shows the honest missing state — never a
+  // swap to some market that does.
+  const selectedKey = market ?? lastMarketKey ?? null
+
+  // Remember whichever market is on screen, so the next bare visit reopens
+  // it. Best-effort and ref-guarded: the same market is never saved twice in
+  // a row, and a failed save only loses the memory, not the view.
+  const lastSavedRef = React.useRef(lastMarketKey)
+  React.useEffect(() => {
+    if (!selectedKey || selectedKey === lastSavedRef.current) return
+    lastSavedRef.current = selectedKey
+    saveLastMarket(selectedKey).catch(() => {})
+  }, [selectedKey])
+
   return (
     <TradeWorkspace
       catalogs={markets.catalogs}
       marketsError={markets.error}
       initialFavoriteKeys={favoriteKeys}
-      selectedKey={market ?? null}
+      selectedKey={selectedKey}
       onSelectMarket={(key) =>
         void navigate({
           search: (current) => ({ ...current, market: key }),

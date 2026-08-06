@@ -53,9 +53,8 @@ export function PriceChart({
     let themeWatcher: MutationObserver | null = null
 
     void (async () => {
-      const { createChart, CandlestickSeries, HistogramSeries } = await import(
-        "lightweight-charts"
-      )
+      const { createChart, CandlestickSeries, HistogramSeries, CrosshairMode } =
+        await import("lightweight-charts")
       if (disposed || !containerRef.current) return
 
       const colors = readChartColors(containerRef.current)
@@ -70,6 +69,11 @@ export function PriceChart({
           vertLines: { color: colors.grid },
           horzLines: { color: colors.grid },
         },
+        // The library's default is "magnet": the horizontal line snaps to
+        // each candle's price, leaping close-to-close as the mouse crosses
+        // bars — which reads as the crosshair skipping all over the place.
+        // Normal simply follows the mouse.
+        crosshair: { mode: CrosshairMode.Normal },
         rightPriceScale: { borderColor: colors.grid },
         timeScale: { borderColor: colors.grid, timeVisible: true },
       })

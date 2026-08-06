@@ -6,7 +6,11 @@ import {
   type MarketRow,
   type NetworkId,
 } from "@/lib/protocols/contracts"
-import { namespaceMarketId, num } from "@/lib/protocols/hyperliquid/translate"
+import {
+  namespaceMarketId,
+  normalizeMarketCategory,
+  num,
+} from "@/lib/protocols/hyperliquid/translate"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
@@ -52,6 +56,12 @@ const metaAndCtxsSchema = z.tuple([
       z.object({
         name: z.string().min(1),
         isDelisted: z.boolean().optional(),
+        // The market's ground rules. Optional so one venue writing them
+        // strangely cannot take the whole list down — a missing rule shows
+        // as nothing, never as a guess.
+        szDecimals: z.number().int().min(0).max(12).optional(),
+        maxLeverage: z.number().positive().optional(),
+        onlyIsolated: z.boolean().optional(),
       })
     ),
   }),
@@ -69,7 +79,9 @@ const metaAndCtxsSchema = z.tuple([
 export function toMarketRows(
   data: z.infer<typeof metaAndCtxsSchema>,
   network: NetworkId,
-  dex: PerpDex = null
+  dex: PerpDex = null,
+  /** The exchange's own category per raw asset name, from `perpCategories`. */
+  categories: ReadonlyMap<string, string> = new Map()
 ): MarketRow[] {
   const [meta, ctxs] = data
   const rows: MarketRow[] = []
@@ -104,6 +116,10 @@ export function toMarketRows(
       // "BTC" from a sub-exchange would be a lookalike of the real one.
       symbol: marketId,
       subExchange: dex?.fullName || dex?.name || null,
+      category: normalizeMarketCategory(categories.get(asset.name), !dex),
+      sizeDecimals: asset.szDecimals ?? null,
+      maxLeverage: asset.maxLeverage ?? null,
+      isolatedOnly: asset.onlyIsolated ?? false,
       // The exchange's own coin art, from where its app serves it.
       iconUrl: `https://app.hyperliquid.xyz/coins/${encodeURIComponent(artSymbol)}.svg`,
       price,
@@ -133,18 +149,28 @@ export async function fetchHyperliquidMarkets(
   const client = infoClient(network)
   const dexs = perpDexsSchema.parse(await client.perpDexs())
 
-  const venues = await Promise.all(
-    dexs.map((dex) =>
-      client
-        .metaAndAssetCtxs({ dex: dex?.name ?? "" })
-        .then((response) => ({
-          dex,
-          data: metaAndCtxsSchema.parse(response),
-          error: null as unknown,
-        }))
-        .catch((error: unknown) => ({ dex, data: null, error }))
-    )
-  )
+  const [venues, categories] = await Promise.all([
+    Promise.all(
+      dexs.map((dex) =>
+        client
+          .metaAndAssetCtxs({ dex: dex?.name ?? "" })
+          .then((response) => ({
+            dex,
+            data: metaAndCtxsSchema.parse(response),
+            error: null as unknown,
+          }))
+          .catch((error: unknown) => ({ dex, data: null, error }))
+      )
+    ),
+    // One global coin → category list. Categories are a convenience, so a
+    // failed call degrades to the defaults instead of taking the list down.
+    client
+      .perpCategories()
+      .then((response) =>
+        new Map(z.array(z.tuple([z.string(), z.string()])).parse(response))
+      )
+      .catch(() => new Map<string, string>()),
+  ])
 
   const answered = venues.filter(
     (venue): venue is typeof venue & { data: z.infer<typeof metaAndCtxsSchema> } =>
@@ -159,6 +185,8 @@ export async function fetchHyperliquidMarkets(
     protocolLabel: "Hyperliquid",
     network,
     networkLabel: network === "mainnet" ? "Mainnet" : "Testnet",
-    rows: answered.flatMap(({ dex, data }) => toMarketRows(data, network, dex)),
+    rows: answered.flatMap(({ dex, data }) =>
+      toMarketRows(data, network, dex, categories)
+    ),
   }
 }

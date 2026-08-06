@@ -30,3 +30,18 @@ export const tradeMarketFavorites = pgTable("trade_market_favorites", {
     .notNull()
     .defaultNow(),
 })
+
+/**
+ * Each person's small trading preferences — one row per person, one column
+ * per remembered thing, starting with the market they were last looking at.
+ * Server-side so the memory follows the account, not the machine.
+ */
+export const tradePrefs = pgTable("trade_prefs", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  lastMarketKey: varchar("last_market_key", { length: 120 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})

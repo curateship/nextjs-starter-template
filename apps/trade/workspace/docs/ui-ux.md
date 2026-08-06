@@ -69,6 +69,17 @@ list covers is on screen without spending a row on it.
   stripped "SNDK" that could be read as a main-exchange coin. The (i)
   tooltip names the venue; coin art and the letter fallback use the bare
   name.
+- **The bottom bar carries a kind-of-market filter** beside the search —
+  crypto, stocks, indices, commodities, forex, other; only kinds actually in
+  the list are offered. It narrows the All tab only (stars are stars), is
+  remembered per browser, and reads as switched off on the other tabs.
+- **The (i) tooltip ends with the market's ground rules:** the smallest size
+  an order may use, the max leverage, and — where it applies — "Isolated
+  only", explained in the same line. A rule the exchange does not state
+  shows nothing, never a guess.
+- **A bare visit reopens your last market**, remembered against the account
+  (a second machine gets it too). A link with `?market=` always wins, and a
+  remembered market that no longer resolves shows the honest missing state.
 - **Sort is drawn as column headers** — "Market / 24h Vol" left, "Change 24h"
   right, the shared `TableSortButton` — and clicking the sorted one flips the
   direction.
