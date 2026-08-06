@@ -10,7 +10,7 @@ import {
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
-import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
+import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
@@ -232,7 +232,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // the app, so the switch keeps whatever the row already says; only its
       // message comes from this save. The session policy and the automations
       // kill switch are kept whole for the same reason — their one writer each
-      // is lib/api/session-policy.ts and lib/api/automation-pause.ts.
+      // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
 
       // The logo is drawn on the signed-out pages, so what gets stored has to

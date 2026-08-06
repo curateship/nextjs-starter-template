@@ -23,10 +23,10 @@ import {
   type StripeSecretStatus,
   type StripeSettingsStatus,
   type StripeTextField,
-} from "@/lib/api/stripe-settings"
+} from "@/lib/api/billing/stripe-settings"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 // An edit saves itself this long after the last keystroke; leaving the field
 // (or pressing Enter) saves straight away. Same rhythm as the Email tab.

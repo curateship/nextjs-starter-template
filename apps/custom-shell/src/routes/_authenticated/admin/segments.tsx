@@ -5,7 +5,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import {
   getSegmentLoadErrorMessage,
   loadSegmentsPage,
-} from "@/lib/api/contact-segments"
+} from "@/lib/api/people/contact-segments"
 import {
   readDirection,
   readOneOf,

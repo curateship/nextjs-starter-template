@@ -6,7 +6,7 @@ import {
 import {
   createDefaultDashboardWidgets,
   type DashboardWidgetLayout,
-} from "@/lib/dashboard-widgets"
+} from "@/lib/dashboard/dashboard-widgets"
 import {
   createDefaultPageOverrides,
   type ShellPageOverrides,
@@ -434,7 +434,7 @@ export type ShellConfig = {
   /**
    * Which cards the Overview dashboard draws, and where. Saved per workspace
    * like the sidebar, so two admins can arrange their own. See
-   * `lib/dashboard-widgets.ts`.
+   * `lib/dashboard/dashboard-widgets.ts`.
    */
   dashboardWidgets: DashboardWidgetLayout
 }

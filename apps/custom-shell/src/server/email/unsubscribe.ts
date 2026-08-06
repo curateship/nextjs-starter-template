@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { eq } from "drizzle-orm"
 
-import { escapeHtml } from "@/lib/escape-html"
+import { escapeHtml } from "@/lib/email/escape-html"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellContacts } from "@/server/schema"

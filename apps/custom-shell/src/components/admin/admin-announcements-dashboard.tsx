@@ -67,7 +67,7 @@ import {
   retireAdminAnnouncements,
   updateAdminAnnouncement,
   type Announcement,
-} from "@/lib/api/announcements"
+} from "@/lib/api/content/announcements"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatUtcDate } from "@/lib/format/format-time"
@@ -76,7 +76,7 @@ import {
   useListSort,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useSelection } from "@/lib/hooks/use-selection"

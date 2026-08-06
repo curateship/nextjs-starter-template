@@ -41,14 +41,14 @@ import {
   signOutOtherSessions,
   type AuthUser,
   type SessionList,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 import {
   beginPasskeyRegistration,
   finishPasskeyRegistration,
   loadPasskeys,
   removePasskey,
   type PasskeyListItem,
-} from "@/lib/api/passkeys"
+} from "@/lib/api/auth/passkeys"
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"

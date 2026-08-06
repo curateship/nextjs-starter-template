@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { SIGN_IN_ERROR_CODES, startWorkspaceFor } from "@/lib/api/auth"
+import { SIGN_IN_ERROR_CODES, startWorkspaceFor } from "@/lib/api/auth/auth"
 import {
   browserRedirect,
   exchangeGoogleCode,

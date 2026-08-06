@@ -8,7 +8,7 @@ import {
   confirmEmailChange,
   getAuthErrorMessage,
   loadCurrentUser,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
 import { showErrorToast } from "@/lib/toast/error-toast"
 

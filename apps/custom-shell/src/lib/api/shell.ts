@@ -7,10 +7,10 @@ import { readBranding, readShellSettings } from "@/server/shell-settings"
 import { readWorkspaceList } from "@/server/people/workspaces"
 
 import type { UserAnnouncement } from "@/lib/announcement"
-import { serializeUser, type AuthUser } from "@/lib/api/auth"
-import type { PlanSummary } from "@/lib/api/billing"
+import { serializeUser, type AuthUser } from "@/lib/api/auth/auth"
+import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
-import type { WorkspaceListResponse } from "@/lib/api/workspaces"
+import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 
 export type ShellBootstrap = {
   user: AuthUser | null

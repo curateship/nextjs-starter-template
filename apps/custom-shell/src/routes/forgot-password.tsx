@@ -21,7 +21,7 @@ import {
   loadCurrentUser,
   loadSignInOptions,
   requestPasswordReset,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 import { carriedEmail } from "@/lib/email/carried-email"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 

@@ -21,7 +21,7 @@ import type {
   MemberHome as MemberHomeData,
   MemberHomeFeedback,
   MemberHomePlan,
-} from "@/lib/api/member-home"
+} from "@/lib/api/people/member-home"
 import {
   feedbackStatusClassNames,
   feedbackStatusLabels,

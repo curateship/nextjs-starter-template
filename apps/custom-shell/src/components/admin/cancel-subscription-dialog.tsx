@@ -20,7 +20,7 @@ import {
   cancelAccountSubscription,
   getAdminUserErrorMessage,
   type CancelSubscriptionMode,
-} from "@/lib/api/admin-users"
+} from "@/lib/api/people/admin-users"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatDate } from "@/lib/format/format-time"
 

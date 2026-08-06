@@ -33,7 +33,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cropImageToFile, scaledSize } from "@/lib/media/crop-image"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { getMediaErrorMessage } from "@/lib/api/media"
+import { getMediaErrorMessage } from "@/lib/api/media/media"
 
 export type CropAspectKey = "free" | "square" | "wide"
 

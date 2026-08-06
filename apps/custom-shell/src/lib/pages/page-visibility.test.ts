@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { getPageVisibilityErrorMessage } from "@/lib/api/pages"
+import { getPageVisibilityErrorMessage } from "@/lib/api/content/pages"
 import { publicPages } from "@/lib/pages/page-registry"
 import {
   MAX_PAGE_OVERRIDES,

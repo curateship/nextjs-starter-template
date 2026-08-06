@@ -56,12 +56,12 @@ import {
   type ContactItem,
   type ContactSortColumn,
   type ContactsPage as ContactsPageData,
-} from "@/lib/api/contacts"
+} from "@/lib/api/people/contacts"
 import {
   addContactsToWorkspaceSegment,
   getSegmentErrorMessage,
-} from "@/lib/api/contact-segments"
-import { contactFilterOptions } from "@/lib/api/contacts"
+} from "@/lib/api/people/contact-segments"
+import { contactFilterOptions } from "@/lib/api/people/contacts"
 import {
   describeSegmentCondition,
   segmentConditionIsComplete,
@@ -78,7 +78,7 @@ import {
   useListSort,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"

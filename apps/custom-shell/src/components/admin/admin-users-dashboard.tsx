@@ -50,7 +50,7 @@ import {
   listAdminAccounts,
   restoreAccountsAsAdmin,
   type AccountRow,
-} from "@/lib/api/admin-users"
+} from "@/lib/api/people/admin-users"
 import {
   ACCOUNT_RESTORE_DAYS,
   isPendingDeletion,
@@ -59,7 +59,7 @@ import {
 import {
   getViewAsErrorMessage,
   startViewingAsMember,
-} from "@/lib/api/view-as"
+} from "@/lib/api/people/view-as"
 import { formatDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,

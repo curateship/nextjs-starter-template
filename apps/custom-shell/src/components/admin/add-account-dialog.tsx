@@ -32,7 +32,7 @@ import {
 import {
   createAccountAsAdmin,
   getAdminUserErrorMessage,
-} from "@/lib/api/admin-users"
+} from "@/lib/api/people/admin-users"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 

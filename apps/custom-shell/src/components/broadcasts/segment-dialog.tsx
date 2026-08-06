@@ -32,14 +32,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { loadContactsPage, type ContactItem } from "@/lib/api/contacts"
+import { loadContactsPage, type ContactItem } from "@/lib/api/people/contacts"
 import {
   getSegmentErrorMessage,
   loadSegmentMembers,
   saveSegment,
   type SegmentItem,
   type SegmentsPage,
-} from "@/lib/api/contact-segments"
+} from "@/lib/api/people/contact-segments"
 import {
   defaultSegmentRules,
   segmentConditionIsComplete,

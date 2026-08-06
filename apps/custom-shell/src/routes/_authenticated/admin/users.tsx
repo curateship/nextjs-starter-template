@@ -4,7 +4,7 @@ import { AdminUsersDashboard } from "@/components/admin/admin-users-dashboard"
 import {
   getAdminUserErrorMessage,
   loadAdminUsersPage,
-} from "@/lib/api/admin-users"
+} from "@/lib/api/people/admin-users"
 import {
   readDirection,
   readOneOf,

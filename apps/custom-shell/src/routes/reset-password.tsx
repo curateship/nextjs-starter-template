@@ -13,7 +13,7 @@ import {
   loadCurrentUser,
   PASSWORD_RULE_HINT,
   resetPassword,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 
 export const Route = createFileRoute("/reset-password")({
   validateSearch: z.object({ token: z.string().optional() }),

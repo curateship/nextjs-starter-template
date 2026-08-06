@@ -13,7 +13,7 @@ import {
   getBroadcast,
   updateBroadcast,
   type BroadcastDetail,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import {
   describeAudienceFilter,
   type BroadcastBlockDefaults,

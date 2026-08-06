@@ -9,7 +9,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import {
   getMemberHomeErrorMessage,
   loadMemberHomePage,
-} from "@/lib/api/member-home"
+} from "@/lib/api/people/member-home"
 import {
   DEFAULT_ADMIN_ROUTE,
   configuredRouteTarget,

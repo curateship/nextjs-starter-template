@@ -1,7 +1,7 @@
 import type {
   EmailDeliveryStatus,
   EmailSettingsStatus,
-} from "@/lib/api/email-settings"
+} from "@/lib/api/email/email-settings"
 
 /**
  * How the app says whether it can send email, in one place.

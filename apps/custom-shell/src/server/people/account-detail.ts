@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm"
 
-import { aiAllowanceCentsFromFeatures } from "@/lib/ai-models"
+import { aiAllowanceCentsFromFeatures } from "@/lib/ai/ai-models"
 import type { SubscriptionEvent } from "@/lib/billing/subscription-events"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadEntitlements } from "@/server/billing/entitlements"

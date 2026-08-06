@@ -17,7 +17,7 @@ import {
   messageForAuthCode,
   resendVerification,
   SIGN_IN_ERROR_CODES,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 import { useAppName } from "@/lib/branding"
 import { carriedEmail } from "@/lib/email/carried-email"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"

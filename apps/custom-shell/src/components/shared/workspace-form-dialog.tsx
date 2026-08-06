@@ -35,7 +35,7 @@ import {
   getWorkspaceErrorMessage,
   updateWorkspace,
   type WorkspaceItem,
-} from "@/lib/api/workspaces"
+} from "@/lib/api/people/workspaces"
 import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"

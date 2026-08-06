@@ -20,7 +20,7 @@ import {
   AI_PROVIDERS,
   DEFAULT_AI_MODEL,
   isAiProvider,
-} from "@/lib/ai-models"
+} from "@/lib/ai/ai-models"
 import { loadAiKeyStatuses, type AiKeyStatus } from "@/lib/api/ai"
 import type {
   AutomationNodeFieldsProps,

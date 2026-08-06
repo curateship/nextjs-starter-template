@@ -4,7 +4,7 @@ import { AdminAnnouncementsDashboard } from "@/components/admin/admin-announceme
 import {
   getAnnouncementErrorMessage,
   loadAdminAnnouncements,
-} from "@/lib/api/announcements"
+} from "@/lib/api/content/announcements"
 import {
   readDirection,
   readOneOf,

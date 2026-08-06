@@ -4,7 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
-import { getAuthErrorMessage, revokePendingEmailChange } from "@/lib/api/auth"
+import { getAuthErrorMessage, revokePendingEmailChange } from "@/lib/api/auth/auth"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**

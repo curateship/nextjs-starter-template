@@ -8,15 +8,15 @@ import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
-import { loadCurrentUser, type AuthUser } from "@/lib/api/auth"
+import { loadCurrentUser, type AuthUser } from "@/lib/api/auth/auth"
 import {
   getBillingErrorMessage,
   loadBillingOverview,
   loadPublicPricing,
   openPlanChange,
   type PlanOption,
-} from "@/lib/api/billing"
-import { requirePageVisible } from "@/lib/api/pages"
+} from "@/lib/api/billing/billing"
+import { requirePageVisible } from "@/lib/api/content/pages"
 
 export const Route = createFileRoute("/pricing")({
   loader: async () => {

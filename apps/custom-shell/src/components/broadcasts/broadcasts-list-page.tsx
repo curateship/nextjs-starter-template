@@ -47,11 +47,11 @@ import {
   getBroadcastErrorMessage,
   type BroadcastListItem,
   type BroadcastsPage,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { describeNextBatch } from "@/lib/broadcasts/drip"
 import { formatDate } from "@/lib/format/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSelection } from "@/lib/hooks/use-selection"

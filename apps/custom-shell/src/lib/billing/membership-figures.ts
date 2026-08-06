@@ -5,7 +5,7 @@ import {
   UsersIcon,
 } from "lucide-react"
 
-import type { StatFigure } from "@/components/shared/stat-strip"
+import type { StatFigure } from "@/components/shared/dashboard/stat-strip"
 import type { MembershipSummary } from "@/lib/api/admin-overview"
 import { formatMoney } from "@/lib/format/money"
 import { percentChange } from "@/lib/format/percent-change"

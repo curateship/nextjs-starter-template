@@ -21,7 +21,7 @@ import {
   type AiProvider,
 } from "@/lib/api/ai"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 const PROVIDERS: {
   id: AiProvider

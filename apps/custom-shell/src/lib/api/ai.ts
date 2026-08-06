@@ -7,7 +7,7 @@ import {
   AI_USAGE_RANGES,
   type AiProvider,
   type AiUsageRange,
-} from "@/lib/ai-models"
+} from "@/lib/ai/ai-models"
 import {
   getAiKeyStatuses,
   removeAiKey,

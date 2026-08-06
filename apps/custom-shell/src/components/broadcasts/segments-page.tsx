@@ -24,9 +24,9 @@ import {
   getSegmentErrorMessage,
   type SegmentItem,
   type SegmentsPage as SegmentsPageData,
-} from "@/lib/api/contact-segments"
+} from "@/lib/api/people/contact-segments"
 import { describeSegmentRules } from "@/lib/contacts/contact-segments"
-import { describeBulkResult } from "@/lib/bulk-result"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatDate } from "@/lib/format/format-time"
 import {
@@ -35,7 +35,7 @@ import {
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 import { plural } from "@/lib/format/plural"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"

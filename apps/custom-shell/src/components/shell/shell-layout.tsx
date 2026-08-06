@@ -13,11 +13,11 @@ import { AnnouncementBanners } from "@/components/shell/announcement-banner"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
+import { AppSidebar } from "@/components/shell/sidebar/sidebar"
 import {
   StickyHeader,
   type SaveStatus,
-} from "@/pages/dashboard/sticky-header/sticky-header"
+} from "@/components/shell/sticky-header/sticky-header"
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
@@ -45,14 +45,14 @@ import {
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { resolveAppName } from "@/lib/branding"
 import type { UserAnnouncement } from "@/lib/announcement"
-import type { AuthUser } from "@/lib/api/auth"
-import { logout } from "@/lib/api/auth"
-import type { PlanSummary } from "@/lib/api/billing"
+import type { AuthUser } from "@/lib/api/auth/auth"
+import { logout } from "@/lib/api/auth/auth"
+import type { PlanSummary } from "@/lib/api/billing/billing"
 import {
   getAutomationPauseErrorMessage,
   saveAutomationPause,
   type AutomationPauseState,
-} from "@/lib/api/automation-pause"
+} from "@/lib/api/automations/automation-pause"
 import {
   getMaintenanceErrorMessage,
   saveMaintenance,
@@ -60,15 +60,15 @@ import {
 import {
   getSessionPolicyErrorMessage,
   saveSessionPolicy,
-} from "@/lib/api/session-policy"
+} from "@/lib/api/auth/session-policy"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
   saveSidebarWidth,
 } from "@/lib/api/shell-settings"
-import type { WorkspaceListResponse } from "@/lib/api/workspaces"
+import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
+import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
 import { setToastSeconds } from "@/lib/toast/toast-duration"
 import { plural } from "@/lib/format/plural"

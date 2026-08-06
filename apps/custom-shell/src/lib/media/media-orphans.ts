@@ -1,4 +1,4 @@
-import { type MediaOrphan } from "@/lib/api/admin-media"
+import { type MediaOrphan } from "@/lib/api/media/admin-media"
 
 /** How the orphan rows can be ordered on the media library page. */
 export type OrphanSort = "file" | "problem" | "owner" | "size" | "created"

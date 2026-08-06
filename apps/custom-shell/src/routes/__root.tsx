@@ -20,7 +20,7 @@ import { resolveAppName } from "@/lib/branding"
 import { useDismissErrorToastOnNavigate } from "@/lib/toast/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
-import { ThemeProvider } from "@/pages/dashboard/sticky-header/light-dark-switcher"
+import { ThemeProvider } from "@/components/shell/sticky-header/light-dark-switcher"
 
 // The app name and logo change about as rarely as the shell config, so hold
 // them for the same minute rather than re-reading on every navigation.

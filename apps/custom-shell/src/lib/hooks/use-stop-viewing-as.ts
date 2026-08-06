@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/view-as"
+import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/people/view-as"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**

@@ -46,11 +46,11 @@ import {
   type MediaFileType,
   type MediaItem,
   type MediaListResponse,
-} from "@/lib/api/media"
+} from "@/lib/api/media/media"
 import { isCroppableImage } from "@/lib/media/crop-image"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { getMediaUploadError, mediaAccept } from "@/lib/media/media-upload"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { cn } from "@/lib/utils"
 
 type MediaFilter = "all" | MediaFileType

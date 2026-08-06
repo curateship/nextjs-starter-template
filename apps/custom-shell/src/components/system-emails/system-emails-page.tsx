@@ -12,7 +12,7 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import type { SystemEmailListItem } from "@/lib/api/system-emails"
+import type { SystemEmailListItem } from "@/lib/api/email/system-emails"
 import {
   RECENT_SEND_DAYS,
   SYSTEM_EMAIL_META,

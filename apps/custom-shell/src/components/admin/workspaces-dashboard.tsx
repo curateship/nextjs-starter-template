@@ -23,8 +23,8 @@ import {
   deleteWorkspaces,
   getWorkspaceErrorMessage,
   type WorkspaceItem,
-} from "@/lib/api/workspaces"
-import { describeBulkResult } from "@/lib/bulk-result"
+} from "@/lib/api/people/workspaces"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { DisabledReason } from "@/components/ui/disabled-reason"

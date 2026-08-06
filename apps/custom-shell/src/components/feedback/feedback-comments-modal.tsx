@@ -30,7 +30,7 @@ import {
 } from "@/lib/api/feedback"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { plural } from "@/lib/format/plural"
 
 /**

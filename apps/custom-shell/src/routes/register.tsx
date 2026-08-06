@@ -20,7 +20,7 @@ import {
   loadSignInOptions,
   PASSWORD_RULE_HINT,
   register,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 export const Route = createFileRoute("/register")({

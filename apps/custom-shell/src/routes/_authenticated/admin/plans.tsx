@@ -4,7 +4,7 @@ import { AdminPlansDashboard } from "@/components/admin/admin-plans-dashboard"
 import {
   getPlanErrorMessage,
   loadAdminPlans,
-} from "@/lib/api/admin-plans"
+} from "@/lib/api/billing/admin-plans"
 import {
   readDirection,
   readOneOf,

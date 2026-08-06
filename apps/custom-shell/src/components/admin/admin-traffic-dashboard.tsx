@@ -10,9 +10,9 @@ import {
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { chartHeightClassName, ChartCard, EmptyChart, LegendDot } from "@/components/shared/chart-card"
+import { chartHeightClassName, ChartCard, EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { StatStrip, type StatFigure } from "@/components/shared/stat-strip"
+import { StatStrip, type StatFigure } from "@/components/shared/dashboard/stat-strip"
 import {
   ChartContainer,
   ChartTooltip,
@@ -31,7 +31,7 @@ import {
   type TrafficRange,
   type TrafficSummary,
 } from "@/lib/api/traffic"
-import { shade } from "@/lib/chart-colours"
+import { shade } from "@/lib/dashboard/chart-colours"
 import { formatSharePercent } from "@/lib/format/format-number"
 import { useListSearchNavigate } from "@/lib/nav/list-search"
 import { pageGutter } from "@/lib/layout/shell-gutter"

@@ -8,7 +8,7 @@ import {
   getSystemEmailErrorMessage,
   loadSystemEmailSends,
   type SystemEmailSendItem,
-} from "@/lib/api/system-emails"
+} from "@/lib/api/email/system-emails"
 import { SYSTEM_EMAIL_META, type SystemEmailKind } from "@/lib/system-emails/kinds"
 import { formatDateTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"

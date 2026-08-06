@@ -22,19 +22,19 @@ import {
   YAxis,
 } from "recharts"
 
-import { ActivityCard } from "@/components/shared/activity-card"
-import { chartHeightClassName, EmptyChart, LegendDot } from "@/components/shared/chart-card"
+import { ActivityCard } from "@/components/shared/dashboard/activity-card"
+import { chartHeightClassName, EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
 import {
   DashboardPanels,
   type DashboardBlock,
-} from "@/components/shared/dashboard-panels"
+} from "@/components/shared/dashboard/dashboard-panels"
 import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import {
   NeedsYouCard,
   type NeedsYouItem,
-} from "@/components/shared/needs-you-card"
-import { SampleValue } from "@/components/shared/sample-figure"
-import { StatStrip, ChangeBadge, type StatFigure } from "@/components/shared/stat-strip"
+} from "@/components/shared/dashboard/needs-you-card"
+import { SampleValue } from "@/components/shared/dashboard/sample-figure"
+import { StatStrip, ChangeBadge, type StatFigure } from "@/components/shared/dashboard/stat-strip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -62,21 +62,21 @@ import {
   automationSuccessRate,
   trafficByDay,
   trafficSummary,
-} from "@/lib/admin-overview-sample"
+} from "@/lib/dashboard/admin-overview-sample"
 import type { AdminOverview, OverviewAutomation } from "@/lib/api/admin-overview"
 import {
   isPendingDeletion,
   restoreDeadline,
 } from "@/lib/account-deletion"
-import { shade } from "@/lib/chart-colours"
+import { shade } from "@/lib/dashboard/chart-colours"
 import {
   findDashboardWidget,
   isDashboardBoardEmpty,
   type DashboardWidgetId,
   type DashboardWidgetSlot,
-} from "@/lib/dashboard-widgets"
+} from "@/lib/dashboard/dashboard-widgets"
 import { emailIsOff, emailOffConsequence } from "@/lib/email/email-delivery"
-import { buildFeedsNeedsYou } from "@/lib/feeds-needs-you"
+import { buildFeedsNeedsYou } from "@/lib/dashboard/feeds-needs-you"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDate } from "@/lib/format/format-time"
 import { formatSharePercent } from "@/lib/format/format-number"
@@ -93,7 +93,7 @@ import { cn } from "@/lib/utils"
  * so a figure and its own page can never disagree. Two cards cannot be: the
  * app records no visitor traffic and has no automation run engine yet, so
  * those figures are stand-ins and say so on the card, in words. Every one of
- * them lives in `lib/admin-overview-sample.ts` — nothing else invents a
+ * them lives in `lib/dashboard/admin-overview-sample.ts` — nothing else invents a
  * number.
  */
 

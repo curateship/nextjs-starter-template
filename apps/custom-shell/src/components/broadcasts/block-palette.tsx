@@ -32,7 +32,7 @@ import {
   getBroadcastErrorMessage,
   loadBroadcastTemplates,
   type BroadcastTemplateItem,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
 import { plural } from "@/lib/format/plural"

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 import { useToastDurationMs } from "@/lib/toast/toast-duration"
-import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
+import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 
 function Toaster({ ...props }: ToasterProps) {
   const { theme } = useTheme()

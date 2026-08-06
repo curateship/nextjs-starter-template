@@ -32,7 +32,7 @@ import {
   type DashboardWidgetId,
   type DashboardWidgetLayout,
   type DashboardWidgetSlot,
-} from "@/lib/dashboard-widgets"
+} from "@/lib/dashboard/dashboard-widgets"
 import { cn } from "@/lib/utils"
 
 /**

@@ -17,7 +17,7 @@ import {
   createDefaultDashboardWidgets,
   normalizeDashboardWidgets,
   type DashboardWidgetLayout,
-} from "@/lib/dashboard-widgets"
+} from "@/lib/dashboard/dashboard-widgets"
 import {
   cleanBroadcastBlockDefaults,
   type BroadcastBlock,

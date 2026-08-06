@@ -17,7 +17,7 @@ import {
 import {
   dismissAnnouncementBanner,
   getAnnouncementErrorMessage,
-} from "@/lib/api/announcements"
+} from "@/lib/api/content/announcements"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 

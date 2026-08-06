@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { describeBulkResult } from "@/lib/bulk-result"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"

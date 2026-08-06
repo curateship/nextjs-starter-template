@@ -7,7 +7,7 @@ import {
   getChangelogErrorMessage,
   loadChangelog,
   type ChangelogEntry,
-} from "@/lib/api/changelog"
+} from "@/lib/api/content/changelog"
 import { formatDate } from "@/lib/format/format-time"
 
 /**

@@ -6,7 +6,7 @@ import {
   getBroadcast,
   getBroadcastLoadErrorMessage,
   loadBroadcastBlockDefaults,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 
 export const Route = createFileRoute(
   "/_authenticated/admin/newsletter_/$broadcastId"

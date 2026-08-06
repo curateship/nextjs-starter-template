@@ -5,7 +5,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import {
   getContactLoadErrorMessage,
   loadContactsPage,
-} from "@/lib/api/contacts"
+} from "@/lib/api/people/contacts"
 import { CONTACT_SORT_COLUMNS } from "@/lib/contacts/contact-sort"
 import {
   readSegmentRulesParam,

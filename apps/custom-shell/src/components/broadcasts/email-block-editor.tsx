@@ -24,7 +24,7 @@ import {
 import {
   getBroadcastErrorMessage,
   saveBroadcastBlockDefault,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import {
   createBroadcastBlock,
   type BroadcastBlock,
@@ -44,7 +44,7 @@ import {
 import { panelLayoutKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { cn } from "@/lib/utils"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 /**
  * Draws the email at phone width or at the 600px every inbox gives it. A view

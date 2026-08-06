@@ -1,4 +1,4 @@
-import { escapeHtml } from "@/lib/escape-html"
+import { escapeHtml } from "@/lib/email/escape-html"
 import { parseStoredBlocks } from "@/lib/broadcasts/blocks"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
 import {

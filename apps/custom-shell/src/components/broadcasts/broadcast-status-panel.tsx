@@ -15,7 +15,7 @@ import {
   type BroadcastDeliveryItem,
   type BroadcastDetail,
   type BroadcastStatus,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import { describeAudienceFilter } from "@/lib/broadcasts/blocks"
 import { describeNextBatch } from "@/lib/broadcasts/drip"
 import { formatDateTime } from "@/lib/format/format-time"

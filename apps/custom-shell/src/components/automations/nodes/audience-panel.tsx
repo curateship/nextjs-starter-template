@@ -13,11 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { loadAdminPlans, type AdminPlan } from "@/lib/api/admin-plans"
+import { loadAdminPlans, type AdminPlan } from "@/lib/api/billing/admin-plans"
 import {
   loadSegmentChoices,
   type SegmentChoice,
-} from "@/lib/api/contact-segments"
+} from "@/lib/api/people/contact-segments"
 import type {
   AutomationNodeFieldsProps,
   AutomationNodeSettings,

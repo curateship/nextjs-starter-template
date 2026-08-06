@@ -15,7 +15,7 @@ import {
   sendSystemEmailTest,
   updateSystemEmail,
   type SystemEmailDetail,
-} from "@/lib/api/system-emails"
+} from "@/lib/api/email/system-emails"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import { SYSTEM_EMAIL_META } from "@/lib/system-emails/kinds"
 

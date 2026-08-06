@@ -885,7 +885,7 @@ export const customShellPasskeyChallenges = pgTable(
  *
  * `userId` is kept but not cascaded: deleting an account must not erase what
  * it spent, so the rows go anonymous instead. `costCents` is whole cents from
- * the price list in src/lib/ai-models.ts. `monthStart` is the first day of
+ * the price list in src/lib/ai/ai-models.ts. `monthStart` is the first day of
  * the UTC month the call belongs to, always via `aiUsageMonthStart` —
  * indexed both ways the dashboard task will read it.
  */

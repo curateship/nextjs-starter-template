@@ -5,7 +5,7 @@ import {
   aiCostCents,
   type AiProvider,
   type AiUsageRange,
-} from "@/lib/ai-models"
+} from "@/lib/ai/ai-models"
 import { db } from "@/server/db"
 import { publishNotificationCreated } from "@/server/notifications/events"
 import { resolveEntitlements } from "@/server/billing/entitlements"
@@ -331,7 +331,7 @@ async function noteAiAlertOnce(
 // the (user, month) and (month, created_at) indexes, so a heavy month never
 // gets pulled into memory row by row.
 
-// The ranges themselves live in `lib/ai-models.ts` so the browser can import
+// The ranges themselves live in `lib/ai/ai-models.ts` so the browser can import
 // them without dragging this module — and the database driver — along.
 
 /** Where each range starts, counted back from `at`. */

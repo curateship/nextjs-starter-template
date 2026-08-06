@@ -36,7 +36,7 @@ import {
   type PagesOverview,
   type PublicPageRow,
   type WrittenPage,
-} from "@/lib/api/pages"
+} from "@/lib/api/content/pages"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import {

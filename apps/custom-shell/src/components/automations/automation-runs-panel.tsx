@@ -33,7 +33,7 @@ import {
   type AutomationRunDetailItem,
   type AutomationRunItem,
   type AutomationRunsPanelData,
-} from "@/lib/api/automation-runs"
+} from "@/lib/api/automations/automation-runs"
 import {
   automationRunStatusLabel,
   automationRunStepStatusLabels,

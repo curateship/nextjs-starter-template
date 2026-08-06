@@ -40,7 +40,7 @@ import {
   sendTestEmail,
   updateBroadcast,
   type BroadcastDetail,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import type { BroadcastAudienceFilter } from "@/lib/broadcasts/blocks"
 import { plural } from "@/lib/format/plural"
 import {

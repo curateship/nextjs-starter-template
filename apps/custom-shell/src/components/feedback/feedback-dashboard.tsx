@@ -69,7 +69,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import {
   FEEDBACK_STATUSES,
   feedbackStatusClassNames,

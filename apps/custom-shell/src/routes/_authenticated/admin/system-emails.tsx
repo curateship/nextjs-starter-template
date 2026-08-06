@@ -5,7 +5,7 @@ import { SystemEmailsPage } from "@/components/system-emails/system-emails-page"
 import {
   getSystemEmailLoadErrorMessage,
   loadSystemEmailsPage,
-} from "@/lib/api/system-emails"
+} from "@/lib/api/email/system-emails"
 
 export const Route = createFileRoute("/_authenticated/admin/system-emails")({
   loader: () => loadSystemEmailsPage(),

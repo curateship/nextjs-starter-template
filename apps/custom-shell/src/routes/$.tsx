@@ -3,7 +3,7 @@ import { createFileRoute, notFound, redirect } from "@tanstack/react-router"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { loadWrittenPage } from "@/lib/api/pages"
+import { loadWrittenPage } from "@/lib/api/content/pages"
 
 /**
  * Every address the app has no route for lands here, and this is where a page

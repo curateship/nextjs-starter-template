@@ -35,7 +35,7 @@ import {
   type BillingOverview,
   type CardExpiryWarning,
   type PlanOption,
-} from "@/lib/api/billing"
+} from "@/lib/api/billing/billing"
 import { describeCode } from "@/lib/format/code-label"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"

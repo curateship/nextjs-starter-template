@@ -76,8 +76,8 @@ import {
   type MediaOrphan,
   type MediaOwner,
   type OrphanDashboard,
-} from "@/lib/api/admin-media"
-import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media"
+} from "@/lib/api/media/admin-media"
+import { getMediaErrorMessage, updateMedia, uploadMedia } from "@/lib/api/media/media"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { formatDate } from "@/lib/format/format-time"
 import {

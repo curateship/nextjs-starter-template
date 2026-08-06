@@ -44,7 +44,7 @@ import {
 import {
   getAutomationRunErrorMessage,
   runAutomationNow,
-} from "@/lib/api/automation-runs"
+} from "@/lib/api/automations/automation-runs"
 import {
   createAutomation,
   deleteAutomations,
@@ -53,11 +53,11 @@ import {
   toAutomationListItem,
   type AutomationListItem,
   type AutomationsPage,
-} from "@/lib/api/automations"
+} from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatDate } from "@/lib/format/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useLastValue } from "@/lib/hooks/use-last-value"

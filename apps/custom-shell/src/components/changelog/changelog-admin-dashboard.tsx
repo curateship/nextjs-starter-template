@@ -52,7 +52,7 @@ import {
   loadAdminChangelog,
   updateAdminChangelogEntry,
   type ChangelogEntry,
-} from "@/lib/api/changelog"
+} from "@/lib/api/content/changelog"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
 import { formatDate } from "@/lib/format/format-time"

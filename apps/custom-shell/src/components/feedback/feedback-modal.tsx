@@ -76,7 +76,7 @@ import {
 } from "@/lib/feedback/feedback-type"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 

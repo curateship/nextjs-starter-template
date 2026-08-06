@@ -36,13 +36,13 @@ import {
   getAutomationRunErrorMessage,
   runAutomationNow,
   type AutomationRunsPanelData,
-} from "@/lib/api/automation-runs"
+} from "@/lib/api/automations/automation-runs"
 import {
   getAutomationErrorMessage,
   saveAutomation,
   saveAutomationFavorites,
   type AutomationDetail,
-} from "@/lib/api/automations"
+} from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
@@ -53,7 +53,7 @@ import {
   useRememberedPanelLayout,
 } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 

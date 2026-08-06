@@ -54,15 +54,15 @@ import {
   loadAdminPlans,
   updateAdminPlan,
   type AdminPlan,
-} from "@/lib/api/admin-plans"
-import { describeBulkResult } from "@/lib/bulk-result"
+} from "@/lib/api/billing/admin-plans"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
-import { AI_ALLOWANCE_FEATURE_KEY } from "@/lib/ai-models"
+import { AI_ALLOWANCE_FEATURE_KEY } from "@/lib/ai/ai-models"
 import { formatPlanPrice } from "@/lib/format/money"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"

@@ -12,10 +12,10 @@ import {
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { chartHeightClassName, ChartCard, EmptyChart } from "@/components/shared/chart-card"
+import { chartHeightClassName, ChartCard, EmptyChart } from "@/components/shared/dashboard/chart-card"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { StatStrip, type StatFigure } from "@/components/shared/stat-strip"
+import { StatStrip, type StatFigure } from "@/components/shared/dashboard/stat-strip"
 import {
   ChartContainer,
   ChartTooltip,

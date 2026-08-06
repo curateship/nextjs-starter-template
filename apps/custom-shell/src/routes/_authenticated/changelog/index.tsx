@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { ChangelogAdminDashboard } from "@/components/changelog/changelog-admin-dashboard"
-import { getChangelogErrorMessage, loadAdminChangelog } from "@/lib/api/changelog"
+import { getChangelogErrorMessage, loadAdminChangelog } from "@/lib/api/content/changelog"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { routeErrorComponent } from "@/components/shell/route-error"
 

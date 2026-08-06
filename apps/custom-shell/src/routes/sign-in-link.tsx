@@ -18,7 +18,7 @@ import {
   loadSignInOptions,
   requestSignInLink,
   signInWithLink,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
 

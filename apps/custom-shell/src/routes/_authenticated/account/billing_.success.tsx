@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getBillingErrorMessage, loadBillingOverview } from "@/lib/api/billing"
+import { getBillingErrorMessage, loadBillingOverview } from "@/lib/api/billing/billing"
 
 const POLL_INTERVAL_MS = 1_500
 const POLL_ATTEMPTS = 8

@@ -52,7 +52,7 @@ import {
   updateAccountStatus,
   type AccountDetail,
   type AssignablePlan,
-} from "@/lib/api/admin-users"
+} from "@/lib/api/people/admin-users"
 import { saveAiAllowanceOverride } from "@/lib/api/ai"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
