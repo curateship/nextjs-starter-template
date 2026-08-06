@@ -98,10 +98,30 @@ export function loadShellBootstrap() {
 /**
  * The app name and logo, with no session required — the root route needs them
  * for the browser tab title and the signed-out pages that show them.
+ *
+ * **Never throws.** This is the root route's loader, so a failure here takes
+ * down every page at once — including the not-found page, which is the one
+ * page whose whole job is to still work when things are broken. Branding is
+ * decoration: without it the app draws under its default name, which is a far
+ * better answer to a database being unreachable than the whole site turning
+ * into an error card.
+ *
+ * This does not paper over real failures. A page whose own loader needs the
+ * database still fails on its own query and still shows its own error, with
+ * the reason. All this stops is the chrome taking the page down with it — and
+ * it is written to the log on the way, so a swallowed failure still leaves a
+ * trace rather than an app that quietly renamed itself.
  */
 const loadBrandingFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ appName: string; logo: string }> => {
-    return readBranding()
+    try {
+      return await readBranding()
+    } catch (error) {
+      console.error("Branding could not be read; using the default", error)
+      // Blank, not a name of its own: "" is already how the app says "use the
+      // default", so this goes through the one place that decides what that is.
+      return { appName: "", logo: "" }
+    }
   }
 )
 

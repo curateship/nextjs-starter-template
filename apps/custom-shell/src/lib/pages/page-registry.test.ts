@@ -33,11 +33,23 @@ describe("the registry finds every public page", () => {
     expect(paths).toEqual(
       expect.arrayContaining([
         "/",
+        "/404",
         "/pricing",
         "/maintenance",
         ...SIGN_IN_FAMILY,
       ])
     )
+  })
+
+  it("lists the not-found page, which has no route file of its own", () => {
+    // Every other page is declared beside its route. This one is drawn by the
+    // router for anything that does not match, so its card is the only record
+    // the app has of it — without it the Pages screen would be missing the
+    // page a visitor is most likely to see by accident.
+    const notFound = pageForPath("/404")
+
+    expect(notFound?.name).toBe("Page not found")
+    expect(notFound?.canSwitchOff).toBe(false)
   })
 
   it("fills every page in completely", () => {

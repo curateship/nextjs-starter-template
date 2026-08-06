@@ -23,6 +23,10 @@ export type PageDeclaration = {
    * The page's address, matching its route file exactly — `"/pricing"` for
    * `src/routes/pricing.tsx`. Two declarations claiming the same address are
    * refused out loud when the list is built.
+   *
+   * `/404` is the one address with no route file behind it: the not-found page
+   * is drawn by the router for anything that does not match, so its address is
+   * where you go to *see* it rather than where it is served from.
    */
   path: string
   /** What an admin sees this page called in the pages dashboard. */
