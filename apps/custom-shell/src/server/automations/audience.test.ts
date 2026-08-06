@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import { EMPTY_AUTOMATION_GRAPH } from "@/lib/automations/graph"
 import {
+  AUDIENCE_SAMPLE_SIZE,
   countAutomationAudience,
   MissingAudiencePlanError,
   MissingAudienceSegmentError,
+  previewAutomationAudience,
   readAutomationAudience,
   type AutomationAudience,
 } from "@/server/automations/audience"
@@ -415,6 +417,78 @@ describe("counting who matches", () => {
     await insertContact("someone")
     await expect(
       countSynced(audienceOf("segment", "", uuid()))
+    ).rejects.toBeInstanceOf(MissingAudienceSegmentError)
+  })
+})
+
+describe("the preview the settings panel shows", () => {
+  /** Previews the way the panel does: contacts synced first, then the read. */
+  async function previewSynced(audience: AutomationAudience) {
+    await syncContactsFromUsers(WORKSPACE_ID, db)
+    return previewAutomationAudience(audience, WORKSPACE_ID, db)
+  }
+
+  it("counts exactly what a run would, and names the first few", async () => {
+    await insertContact("anna")
+    await insertContact("bob", { firstName: "Bob", lastName: "Stone" })
+
+    const preview = await previewSynced(audienceOf("everyone"))
+
+    // The owner is a contact like anybody else, so three.
+    expect(preview.total).toBe(3)
+    expect(preview.sample.map((contact) => contact.email)).toEqual([
+      "anna@example.test",
+      "bob@example.test",
+      owner.email,
+    ])
+    expect(preview.sample[1]?.name).toBe("Bob Stone")
+    // Nobody named is somebody with no name, not a gap to guess at.
+    expect(preview.sample[0]?.name).toBe("")
+  })
+
+  it("names only a handful however many match", async () => {
+    for (let index = 0; index < 9; index += 1) {
+      await insertContact(`person-${index}`)
+    }
+
+    const preview = await previewSynced(audienceOf("everyone"))
+    expect(preview.total).toBe(10)
+    expect(preview.sample).toHaveLength(AUDIENCE_SAMPLE_SIZE)
+  })
+
+  it("names the paying people, and not the ones who are not", async () => {
+    const plan = await planFor("pro")
+    await insertPayingUser(plan.id)
+    await insertUser(db)
+
+    const preview = await previewSynced(audienceOf("paying"))
+    expect(preview.total).toBe(1)
+    expect(preview.sample).toHaveLength(1)
+  })
+
+  it("says how big the whole list is, so a wide choice can be spotted", async () => {
+    await insertUser(db, { emailVerifiedAt: null })
+    await insertContact("waitlist")
+
+    const preview = await previewSynced(audienceOf("registered"))
+    // The owner is the only confirmed account; the list is three people.
+    expect(preview.total).toBe(1)
+    expect(preview.everyone).toBe(3)
+  })
+
+  it("does not go asking twice for the widest choice", async () => {
+    await insertContact("waitlist")
+
+    const preview = await previewSynced(audienceOf("everyone"))
+    expect(preview.everyone).toBe(preview.total)
+  })
+
+  it("refuses a deleted plan or segment rather than counting nobody", async () => {
+    await expect(
+      previewSynced(audienceOf("plan", "gone"))
+    ).rejects.toBeInstanceOf(MissingAudiencePlanError)
+    await expect(
+      previewSynced(audienceOf("segment", "", uuid()))
     ).rejects.toBeInstanceOf(MissingAudienceSegmentError)
   })
 })

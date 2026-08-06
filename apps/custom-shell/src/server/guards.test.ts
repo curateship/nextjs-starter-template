@@ -150,7 +150,7 @@ describe("every server function is guarded", () => {
     // The count is the whole point of this one. The endpoint files were sorted
     // into subfolders, and a walker that only read the top of the folder would
     // still pass every test above while checking a fraction of the doors.
-    expect(apiFiles()).toHaveLength(33)
+    expect(apiFiles()).toHaveLength(34)
   })
 
   it("locks every door that is not listed as an exception", () => {

@@ -61,6 +61,32 @@ export function audienceWording(
   return AUDIENCE_LABELS[kind].toLowerCase()
 }
 
+/**
+ * How much of the whole contact list a choice has to cover before the panel
+ * says so out loud.
+ *
+ * A nudge, not a rule — nothing is blocked. It exists for the "oops, that's
+ * everyone" moment, which is only worth catching while the flow is still a
+ * draft. Four in five is high enough that a real, narrower audience does not
+ * keep tripping it.
+ */
+const MOST_OF_THE_LIST = 0.8
+
+/**
+ * Whether a count is so close to the whole list that it is worth saying.
+ *
+ * The widest choice is deliberately not asked about: "everyone" reaching
+ * everyone is not news.
+ */
+export function audienceIsMostOfTheList(
+  kind: AutomationAudienceKind,
+  total: number,
+  everyone: number
+): boolean {
+  if (kind === "everyone") return false
+  return everyone > 0 && total > 0 && total >= everyone * MOST_OF_THE_LIST
+}
+
 export function isAudienceKind(value: unknown): value is AutomationAudienceKind {
   return (
     typeof value === "string" &&

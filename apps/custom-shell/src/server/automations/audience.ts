@@ -1,5 +1,6 @@
 import {
   and,
+  asc,
   countDistinct,
   eq,
   isNotNull,
@@ -228,26 +229,24 @@ export async function requireAudienceSegment(
 }
 
 /**
- * How many contacts match right now.
+ * One audience as a finished database condition — the plan and the segment
+ * looked up, and every rule folded in.
  *
- * A count rather than the rows, because that is what a run records and what the
- * inspector shows. The step that finally sends something asks for the people
- * themselves, through the same condition, at the moment it sends.
- *
- * Counts distinct contacts, because the subscriptions join can hand back the
- * same contact twice when an account carries two subscription rows — and this
- * is a count of people, not of rows.
+ * The one place a choice becomes a query. The count below, the sample the
+ * inspector shows and — later — the step that actually sends all read it, so
+ * the number somebody was shown while building the flow is the number the flow
+ * works on.
  *
  * `segment` can be passed in by a caller that already looked it up (the
  * executor wants its name for the run history); left out, it is fetched here.
  */
-export async function countAutomationAudience(
+async function audienceFilter(
   audience: AutomationAudience,
   workspaceId: string,
-  database: CustomShellDb = db,
-  timestamp: Date = now(),
+  database: CustomShellDb,
+  timestamp: Date,
   segment?: AudienceSegment | null
-): Promise<number> {
+): Promise<SQL> {
   const planId = await requireAudiencePlan(audience, database)
   const audienceSegment =
     segment ?? (await requireAudienceSegment(audience, workspaceId, database))
@@ -260,6 +259,26 @@ export async function countAutomationAudience(
       )
     : null
 
+  return audienceCondition(
+    audience,
+    workspaceId,
+    planId,
+    segmentFilter,
+    timestamp
+  )
+}
+
+/**
+ * How many contacts a finished condition matches.
+ *
+ * Counts distinct contacts, not rows: the query joins accounts and
+ * subscriptions to read the conditions, and a join is free to hand the same
+ * contact back more than once. This is a count of people.
+ */
+async function countMatching(
+  database: CustomShellDb,
+  filter: SQL
+): Promise<number> {
   const [row] = await database
     .select({ total: countDistinct(customShellContacts.id) })
     .from(customShellContacts)
@@ -271,9 +290,122 @@ export async function countAutomationAudience(
       customShellSubscriptions,
       eq(customShellSubscriptions.userId, customShellContacts.userId)
     )
-    .where(
-      audienceCondition(audience, workspaceId, planId, segmentFilter, timestamp)
-    )
+    .where(filter)
 
   return row?.total ?? 0
+}
+
+/**
+ * How many contacts match right now.
+ *
+ * A count rather than the rows, because that is what a run records. The step
+ * that finally sends something asks for the people themselves, through the same
+ * condition, at the moment it sends.
+ */
+export async function countAutomationAudience(
+  audience: AutomationAudience,
+  workspaceId: string,
+  database: CustomShellDb = db,
+  timestamp: Date = now(),
+  segment?: AudienceSegment | null
+): Promise<number> {
+  return countMatching(
+    database,
+    await audienceFilter(audience, workspaceId, database, timestamp, segment)
+  )
+}
+
+/** One of the handful of people the inspector shows by name. */
+export type AudienceSampleContact = {
+  id: string
+  email: string
+  /** Their name when the contact has one, and "" when it does not. */
+  name: string
+}
+
+/**
+ * What the node's settings panel says about a choice while it is being built.
+ *
+ * `total` is what a run would match if it went now, `everyone` is how many the
+ * widest choice would reach, and `sample` is the first few of them by email —
+ * enough to recognise the group without turning the panel into a member list.
+ */
+export type AudiencePreview = {
+  total: number
+  everyone: number
+  sample: AudienceSampleContact[]
+}
+
+/** How many people the panel names before it says "and n more". */
+export const AUDIENCE_SAMPLE_SIZE = 5
+
+/**
+ * The count, the whole list's size and a few names — everything the inspector
+ * needs to show the blast radius of a choice before anything runs.
+ *
+ * The sample is bounded to a handful of rows, so an audience of fifty thousand
+ * costs the same as one of five: a count and five rows, never the people
+ * themselves. `everyone` is the same query with the widest choice, and it is
+ * only what the "this is most of your list" nudge compares against — for the
+ * widest choice itself there is nothing to compare, so it is not asked for.
+ */
+export async function previewAutomationAudience(
+  audience: AutomationAudience,
+  workspaceId: string,
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<AudiencePreview> {
+  const filter = await audienceFilter(
+    audience,
+    workspaceId,
+    database,
+    timestamp
+  )
+
+  const [total, sample, everyone] = await Promise.all([
+    countMatching(database, filter),
+    // The same joins as the count, because the condition reads accounts and
+    // subscriptions — and distinct for the same reason, so a person cannot be
+    // named twice.
+    database
+      .selectDistinct({
+        id: customShellContacts.id,
+        email: customShellContacts.email,
+        firstName: customShellContacts.firstName,
+        lastName: customShellContacts.lastName,
+      })
+      .from(customShellContacts)
+      .leftJoin(
+        customShellUsers,
+        eq(customShellUsers.id, customShellContacts.userId)
+      )
+      .leftJoin(
+        customShellSubscriptions,
+        eq(customShellSubscriptions.userId, customShellContacts.userId)
+      )
+      .where(filter)
+      .orderBy(asc(customShellContacts.email))
+      .limit(AUDIENCE_SAMPLE_SIZE),
+    audience.kind === "everyone"
+      ? null
+      : countAutomationAudience(
+          { kind: "everyone", planSlug: "", segmentId: "" },
+          workspaceId,
+          database,
+          timestamp
+        ),
+  ])
+
+  return {
+    total,
+    everyone: everyone ?? total,
+    sample: sample.map((row) => ({
+      id: row.id,
+      email: row.email,
+      name: [row.firstName, row.lastName]
+        .filter((part) => part && part.trim())
+        .join(" ")
+        .trim(),
+    })),
+  }
 }
