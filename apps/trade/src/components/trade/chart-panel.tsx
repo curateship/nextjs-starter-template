@@ -1,8 +1,12 @@
 import * as React from "react"
 import { CandlestickChartIcon } from "lucide-react"
 
+import { PaintLayer } from "@/components/trade/paint/paint-layer"
+import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
+import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { PriceChart } from "@/components/trade/price-chart"
+import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
 import {
@@ -10,6 +14,7 @@ import {
   type CandleBar,
   type CandleInterval,
 } from "@/lib/protocols/contracts"
+import type { ChartView } from "@/lib/trade/chart-view"
 import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
 import { cn } from "@/lib/utils"
 
@@ -58,9 +63,15 @@ export function IntervalPicker({
 export function ChartPanel({
   selectedKey,
   interval,
+  initialChartView,
 }: {
   selectedKey: string | null
   interval: CandleInterval
+  /**
+   * The zoom and scroll this account left the chart at, from the route's
+   * loader — so the first chart drawn is already at it.
+   */
+  initialChartView: ChartView | null
 }) {
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
   // an answer whose key does not match what is wanted right now IS the
@@ -90,6 +101,14 @@ export function ChartPanel({
   // The feed came back after a gap: the working bar alone cannot patch a
   // hole in history, so the snapshot is refetched.
   useLiveCatchUp(() => setAttempt((count) => count + 1))
+
+  // The lines drawn on this market. They belong to the market, not to the
+  // timeframe, so switching between 4h and 1d leaves them where they are.
+  const paint = useChartDrawings(selectedKey)
+
+  // The zoom and scroll, which belong to neither: one view, carried onto
+  // whatever market and timeframe you open next.
+  const chartView = useRememberedChartView(initialChartView)
 
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
@@ -146,10 +165,38 @@ export function ChartPanel({
           The exchange has no price history for this market at this timeframe.
         </PanelPlaceholder>
       ) : (
-        <PriceChart
-          candles={current.candles}
-          liveBar={liveBar?.key === wanted ? liveBar.bar : null}
-        />
+        <>
+          <PriceChart
+            candles={current.candles}
+            // Market and timeframe in one — the tag these very candles were
+            // fetched under. It is what tells a new chart apart from more
+            // candles for the one already drawn.
+            viewKey={current.key}
+            readView={chartView.readView}
+            onViewChange={chartView.onViewChange}
+            liveBar={liveBar?.key === wanted ? liveBar.bar : null}
+            // The chart is handed a function and a surface, never a drawing.
+            // Everything below this line is the paint tools' business.
+            overlay={(surface) => (
+              <PaintLayer
+                surface={surface}
+                drawings={paint.drawings}
+                tool={paint.tool}
+                selectedId={paint.selectedId}
+                onSelect={paint.setSelectedId}
+                onCreate={paint.create}
+                onMove={paint.move}
+                onDelete={paint.remove}
+              />
+            )}
+          />
+          <PaintToolbar
+            tool={paint.tool}
+            onPickTool={paint.setTool}
+            drawingCount={paint.drawings.length}
+            onClearAll={() => void paint.clearAll()}
+          />
+        </>
       )}
     </div>
   )

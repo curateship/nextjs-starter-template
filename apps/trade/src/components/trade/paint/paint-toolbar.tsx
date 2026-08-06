@@ -1,0 +1,124 @@
+import * as React from "react"
+import type { ReactNode } from "react"
+import { MinusIcon, SlashIcon, Trash2Icon } from "lucide-react"
+
+import type { PaintTool } from "@/components/trade/paint/use-drawings"
+import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+/**
+ * The tools, as a small rail down the chart's left edge.
+ *
+ * On the chart rather than in the panel header because these belong to the
+ * drawing surface, not to the market: the header says which market this is
+ * and at what timeframe, and this says what the pointer is holding.
+ *
+ * The bin clears the whole chart, so it is asked about first. One line at a
+ * time is thrown away from the line itself — its own × while it is picked
+ * out, or Delete on the keyboard — and that one comes back with Undo.
+ */
+const TOOLS: Array<{
+  kind: PaintTool
+  label: string
+  hint: string
+  icon: ReactNode
+}> = [
+  {
+    kind: "level",
+    label: "Draw a level",
+    hint: "Draw a level — click where the price sits.",
+    icon: <MinusIcon />,
+  },
+  {
+    kind: "trendline",
+    label: "Draw a trendline",
+    hint: "Draw a trendline — drag from one point to the other, or tap both.",
+    icon: <SlashIcon />,
+  },
+]
+
+export function PaintToolbar({
+  tool,
+  onPickTool,
+  drawingCount,
+  onClearAll,
+}: {
+  tool: PaintTool | null
+  onPickTool: (next: PaintTool | null) => void
+  /** How many lines are on this chart; the bin appears once there is one. */
+  drawingCount: number
+  onClearAll: () => void
+}) {
+  const [confirming, setConfirming] = React.useState(false)
+
+  return (
+    // Above both the chart's own canvases and the layer the lines are drawn
+    // on, so the buttons stay clickable wherever a line happens to run. The
+    // paint marker keeps a press in here from letting the picked line go.
+    <div
+      data-chart-paint
+      className="absolute top-2 left-2 z-20 flex flex-col gap-0.5 rounded-lg border border-foreground/10 bg-card/85 p-0.5 shadow-sm backdrop-blur-sm"
+    >
+      {TOOLS.map((entry) => (
+        <Tooltip key={entry.kind}>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon-xs"
+              variant={tool === entry.kind ? "secondary" : "ghost"}
+              aria-pressed={tool === entry.kind}
+              aria-label={entry.label}
+              // Pressing the tool that is already in hand puts it down, so
+              // there is always a way back to plain panning.
+              onClick={() => onPickTool(tool === entry.kind ? null : entry.kind)}
+            >
+              {entry.icon}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{entry.hint}</TooltipContent>
+        </Tooltip>
+      ))}
+      {drawingCount > 0 ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              aria-label="Clear every drawing on this chart"
+              onClick={() => setConfirming(true)}
+            >
+              <Trash2Icon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            Clear every drawing on this chart.
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Clear every drawing on this chart?"
+        description={
+          drawingCount === 1
+            ? "The one drawing on this market goes. Other markets keep theirs, and this cannot be undone."
+            : `All ${drawingCount} drawings on this market go. Other markets keep theirs, and this cannot be undone.`
+        }
+        confirmLabel={
+          drawingCount === 1 ? "Delete 1 drawing" : `Delete ${drawingCount} drawings`
+        }
+        onConfirm={() => {
+          setConfirming(false)
+          onClearAll()
+        }}
+      />
+    </div>
+  )
+}

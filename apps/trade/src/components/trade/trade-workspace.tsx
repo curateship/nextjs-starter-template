@@ -35,6 +35,7 @@ import {
   type CandleInterval,
   type MarketCatalog,
 } from "@/lib/protocols/contracts"
+import type { ChartView } from "@/lib/trade/chart-view"
 import {
   CHART_INTERVAL_STORAGE_KEY,
   DEFAULT_CHART_INTERVAL,
@@ -146,6 +147,7 @@ export function TradeWorkspace({
   catalogs,
   marketsError,
   initialFavoriteKeys,
+  initialChartView,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -154,6 +156,8 @@ export function TradeWorkspace({
   /** The exchange call failed at load; the list shows this instead of rows. */
   marketsError: string | null
   initialFavoriteKeys: string[]
+  /** The zoom and scroll this account left the chart at. */
+  initialChartView: ChartView | null
   /** The picked market's key, carried in the address bar. */
   selectedKey: string | null
   onSelectMarket: (key: string) => void
@@ -280,7 +284,11 @@ export function TradeWorkspace({
       />
       <div className="relative flex min-h-0 flex-1">
         <div className="min-h-0 flex-1">
-          <ChartPanel selectedKey={selectedKey} interval={interval} />
+          <ChartPanel
+            selectedKey={selectedKey}
+            interval={interval}
+            initialChartView={initialChartView}
+          />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
             without remembering that the divider is still draggable. */}

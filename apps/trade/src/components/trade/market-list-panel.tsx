@@ -29,11 +29,13 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * All is the whole catalog — in this app the panel *is* the market list, so a
- * brand-new account still sees a market to pick. Fav is the starred set, and
- * Watch will be the markets with an alert once alerts exist.
+ * Fav is the starred set and the one the panel opens on — the markets you
+ * actually trade are a short list, and scrolling past hundreds of others to
+ * reach them every time is the wrong default. All is the whole catalog, one
+ * click away, and where stars are put on in the first place. Watch will be the
+ * markets with an alert once alerts exist.
  */
-type MarketTab = "all" | "fav" | "watch"
+type MarketTab = "fav" | "all" | "watch"
 
 type SortKey = "vol" | "change"
 
@@ -82,7 +84,7 @@ export function MarketListPanel({
   onToggleFavorite: (key: string) => void
   onRetry: () => void
 }) {
-  const [tab, setTab] = React.useState<MarketTab>("all")
+  const [tab, setTab] = React.useState<MarketTab>("fav")
   const [query, setQuery] = React.useState("")
   const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
     key: "vol",
@@ -163,7 +165,7 @@ export function MarketListPanel({
           {query.trim()
             ? "No market matches that search."
             : tab === "fav"
-              ? "Nothing starred yet. Star a market and it stays here."
+              ? "Nothing starred yet. Open All and star a market — it stays here."
               : category !== "all"
                 ? `No ${CATEGORY_LABELS[category].toLowerCase()} markets right now.`
                 : "The exchange listed no markets."}
@@ -202,14 +204,14 @@ export function MarketListPanel({
       <div className="shrink-0 overflow-x-auto">
         <WorkspacePanelTabsHeader>
           <WorkspacePanelTab
-            value="all"
-            icon={<LayoutGridIcon className="size-4" />}
-            label="All"
-          />
-          <WorkspacePanelTab
             value="fav"
             icon={<StarIcon className="size-4 fill-current" />}
             label="Fav"
+          />
+          <WorkspacePanelTab
+            value="all"
+            icon={<LayoutGridIcon className="size-4" />}
+            label="All"
           />
           <WorkspacePanelTab
             value="watch"
@@ -247,10 +249,10 @@ export function MarketListPanel({
         </TableSortButton>
       </div>
 
-      <TabsContent value="all" className="min-h-0 flex-1">
+      <TabsContent value="fav" className="min-h-0 flex-1">
         {list}
       </TabsContent>
-      <TabsContent value="fav" className="min-h-0 flex-1">
+      <TabsContent value="all" className="min-h-0 flex-1">
         {list}
       </TabsContent>
       <TabsContent value="watch" className="min-h-0 flex-1">
