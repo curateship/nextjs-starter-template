@@ -7,9 +7,12 @@ import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
   readAutomationAudience,
+  requireAudienceSegment,
 } from "@/server/automation-audience"
+import { syncContactsFromUsers } from "@/server/contacts"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
+import { getOrCreateCurrentWorkspace } from "@/server/workspaces"
 import { plural } from "@/lib/plural"
 
 /**
@@ -58,15 +61,43 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    * Works out who the rest of the flow is about and writes the answer into the
    * run's history — the choice and the number it matched, never the names.
    *
+   * The answer is a count of contacts, in the flow owner's current workspace —
+   * the same list a newsletter reads, so a person who unsubscribed can never be
+   * in an audience and an address with no account behind it can. The contact
+   * list is brought up to date with the accounts first, the same first move
+   * every send batch makes, so nobody who signed up since the last sync is
+   * missing from the count.
+   *
    * Matching nobody is not a failure: a flow that runs on a week when nobody
-   * qualifies should say so and carry on, not stop as broken. A plan the flow
-   * points at having been deleted *is* a failure, because carrying on would
-   * mean guessing.
+   * qualifies should say so and carry on, not stop as broken. A plan or a
+   * segment the flow points at having been deleted *is* a failure, because
+   * carrying on would mean guessing.
    */
-  [audienceNode.kind]: async ({ database, settings, now }) => {
+  [audienceNode.kind]: async ({ database, run, settings, now }) => {
     const audience = readAutomationAudience(settings)
-    const matched = await countAutomationAudience(audience, database, now())
-    const who = audienceWording(audience.kind, audience.planSlug)
+    const workspace = await getOrCreateCurrentWorkspace(run.userId, database)
+    await syncContactsFromUsers(workspace.id, database)
+
+    // Looked up here as well as inside the count so the run history can say
+    // the segment's name — and looked up by id, so a renamed segment still
+    // means the same people.
+    const segment = await requireAudienceSegment(
+      audience,
+      workspace.id,
+      database
+    )
+    const matched = await countAutomationAudience(
+      audience,
+      workspace.id,
+      database,
+      now(),
+      segment
+    )
+    const who = audienceWording(
+      audience.kind,
+      audience.planSlug,
+      segment?.name ?? ""
+    )
 
     return {
       type: "next",

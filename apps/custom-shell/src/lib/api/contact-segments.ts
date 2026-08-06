@@ -15,6 +15,7 @@ import {
   createWorkspaceSegment,
   deleteWorkspaceSegments,
   listSegmentMembers,
+  listSegmentNames,
   listWorkspaceContactSources,
   listWorkspaceSegments,
   updateWorkspaceSegment,
@@ -121,6 +122,23 @@ const loadSegmentsPageFn = createServerFn({ method: "GET" })
     }
   })
 
+export type SegmentChoice = {
+  id: string
+  name: string
+  kind: SegmentKind
+}
+
+/**
+ * Just the segments' names, for a dropdown that points a flow at one — the
+ * full page load above syncs contacts and counts every segment, which is far
+ * more work than a list of names needs.
+ */
+const listSegmentChoicesFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<SegmentChoice[]> => {
+    return listSegmentNames(await currentWorkspaceId(context.user.id))
+  })
+
 const loadSegmentMembersFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ segmentId: z.string().min(1).max(36) }))
@@ -188,6 +206,10 @@ const addToSegmentFn = createServerFn({ method: "POST" })
 
 export function loadSegmentsPage() {
   return loadSegmentsPageFn()
+}
+
+export function loadSegmentChoices() {
+  return listSegmentChoicesFn()
 }
 
 export function addContactsToWorkspaceSegment(

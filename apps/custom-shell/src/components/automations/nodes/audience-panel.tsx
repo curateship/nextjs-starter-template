@@ -14,6 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { loadAdminPlans, type AdminPlan } from "@/lib/api/admin-plans"
+import {
+  loadSegmentChoices,
+  type SegmentChoice,
+} from "@/lib/api/contact-segments"
 import type {
   AutomationNodeFieldsProps,
   AutomationNodeSettings,
@@ -41,6 +45,12 @@ export default function AudienceFields({
     : "everyone"
   const planSlug =
     typeof node.settings.planSlug === "string" ? node.settings.planSlug : ""
+  const segmentId =
+    typeof node.settings.segmentId === "string" ? node.settings.segmentId : ""
+  const segmentName =
+    typeof node.settings.segmentName === "string"
+      ? node.settings.segmentName
+      : ""
 
   // The plans to choose between. Advisory only, like the AI step's key check —
   // a failed load leaves the saved plan showing rather than blocking the panel.
@@ -65,6 +75,26 @@ export default function AudienceFields({
   const slugKnown = choices.some((plan) => plan.slug === planSlug)
   const noPlans = plans !== null && choices.length === 0
 
+  // The segments to choose between, loaded the same advisory way as the plans.
+  const [segments, setSegments] = React.useState<SegmentChoice[] | null>(null)
+  React.useEffect(() => {
+    if (audience !== "segment") return
+    let cancelled = false
+    loadSegmentChoices()
+      .then((rows) => {
+        if (!cancelled) setSegments(rows)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [audience])
+
+  const segmentKnown = (segments ?? []).some(
+    (segment) => segment.id === segmentId
+  )
+  const noSegments = segments !== null && segments.length === 0
+
   const setSettings = (settings: AutomationNodeSettings) =>
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
@@ -82,11 +112,14 @@ export default function AudienceFields({
           value={audience}
           onValueChange={(value) => {
             if (!isAudienceKind(value)) return
-            // A plan only means anything for the "one plan" choice, so moving
-            // away from it drops the plan rather than leaving it lying there.
+            // A plan only means anything for the "one plan" choice, and a
+            // segment only for the segment one, so moving away drops them
+            // rather than leaving them lying there.
             setSettings({
               audience: value,
               planSlug: value === "plan" ? planSlug : "",
+              segmentId: value === "segment" ? segmentId : "",
+              segmentName: value === "segment" ? segmentName : "",
             })
           }}
         >
@@ -154,12 +187,74 @@ export default function AudienceFields({
         </div>
       ) : null}
 
+      {audience === "segment" ? (
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`audience-${node.id}-segment`}
+            className="text-xs"
+            hint="Who is in the segment is worked out when the flow runs, not when you save it, so the segment can keep changing underneath."
+          >
+            Segment
+          </FieldLabel>
+          <Select
+            value={segmentId || undefined}
+            onValueChange={(value) => {
+              const picked = (segments ?? []).find(
+                (segment) => segment.id === value
+              )
+              // The name rides along for the node card's wording only — the
+              // run always looks the segment up by id.
+              setSettings({
+                segmentId: value,
+                segmentName: picked?.name ?? segmentName,
+              })
+            }}
+          >
+            <SelectTrigger
+              id={`audience-${node.id}-segment`}
+              className="w-full sm:w-fit"
+            >
+              <SelectValue placeholder="Choose a segment" />
+            </SelectTrigger>
+            <SelectContent>
+              {(segments ?? []).map((segment) => (
+                <SelectItem key={segment.id} value={segment.id}>
+                  {segment.name}
+                </SelectItem>
+              ))}
+              {/* A flow can point at a segment that has since been deleted.
+                  Keep it selectable so opening the node cannot silently change
+                  who the flow means; the run says plainly if the segment has
+                  gone. */}
+              {segmentId && !segmentKnown ? (
+                <SelectItem value={segmentId}>
+                  {segmentName || "A segment that no longer exists"}
+                </SelectItem>
+              ) : null}
+            </SelectContent>
+          </Select>
+          {noSegments ? (
+            <InspectorNote className="mt-1">
+              There are no segments yet. Make one in{" "}
+              <Link
+                to="/admin/segments"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Segments
+              </Link>{" "}
+              before this flow runs.
+            </InspectorNote>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* One note rather than a helper line under each field, matching the
           other node panels: what this choice means, then the rule that holds
           whatever you choose. */}
       <InspectorNote>
-        {AUDIENCE_HINTS[audience]} Suspended accounts and accounts being closed
-        are never included, whichever choice you make.
+        {AUDIENCE_HINTS[audience]} People who unsubscribed are never included,
+        and neither are suspended accounts or accounts being closed, whichever
+        choice you make.
       </InspectorNote>
     </InspectorCard>
   )

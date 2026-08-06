@@ -15,23 +15,27 @@ export const AUDIENCE_KINDS = [
   "registered",
   "paying",
   "plan",
+  "segment",
 ] as const
 
 export type AutomationAudienceKind = (typeof AUDIENCE_KINDS)[number]
 
 /** The dropdown's words, and the words the run history uses. */
 export const AUDIENCE_LABELS: Record<AutomationAudienceKind, string> = {
-  everyone: "Everyone with an account",
+  everyone: "Everyone on the contact list",
   registered: "Members who confirmed their email",
   paying: "Members paying for any plan",
   plan: "Members on one plan",
+  segment: "The people in a segment",
 }
 
 export const AUDIENCE_HINTS: Record<AutomationAudienceKind, string> = {
-  everyone: "Every account, including admins.",
+  everyone:
+    "Every subscribed contact — including addresses added by hand that never made an account, and admins.",
   registered: "Only accounts that have clicked the link in their sign-up email.",
   paying: "Anyone whose paid plan is running right now, on any plan.",
   plan: "Anyone paying for the one plan you pick below.",
+  segment: "Whoever is in the segment you pick, at the moment the flow runs.",
 }
 
 /**
@@ -41,12 +45,20 @@ export const AUDIENCE_HINTS: Record<AutomationAudienceKind, string> = {
  */
 export function audienceWording(
   kind: AutomationAudienceKind,
-  planSlug: string
+  planSlug: string,
+  segmentName = ""
 ): string {
-  if (kind !== "plan") return AUDIENCE_LABELS[kind].toLowerCase()
-  return planSlug
-    ? `members paying for the "${planSlug}" plan`
-    : "a plan nobody has picked yet"
+  if (kind === "plan") {
+    return planSlug
+      ? `members paying for the "${planSlug}" plan`
+      : "a plan nobody has picked yet"
+  }
+  if (kind === "segment") {
+    return segmentName
+      ? `the people in the "${segmentName}" segment`
+      : "a segment nobody has picked yet"
+  }
+  return AUDIENCE_LABELS[kind].toLowerCase()
 }
 
 export function isAudienceKind(value: unknown): value is AutomationAudienceKind {
@@ -69,7 +81,12 @@ export const audienceNode = defineNode({
     group: "Flow",
     description: "Decide who the rest of the flow is about",
   },
-  createSettings: () => ({ audience: "everyone", planSlug: "" }),
+  createSettings: () => ({
+    audience: "everyone",
+    planSlug: "",
+    segmentId: "",
+    segmentName: "",
+  }),
   settingsSchema: z
     .object({
       audience: z.enum(AUDIENCE_KINDS),
@@ -79,6 +96,14 @@ export const audienceNode = defineNode({
       // itself ("No plan with the id … exists any more") than a complaint about
       // its shape would give.
       planSlug: z.string().trim().max(50).default(""),
+      // The segment's row id — the one thing the run looks up, same reasoning
+      // as the plan slug above.
+      segmentId: z.string().trim().max(36).default(""),
+      // Display only, so the node card can say the segment's name without a
+      // trip to the database. The run never trusts it: who the flow means is
+      // always looked up by id, so a renamed segment still means the same
+      // people even while the card shows its old name.
+      segmentName: z.string().trim().max(120).default(""),
     })
     // No `path` on purpose: the compiler prefixes a message with the field it
     // came from, and "planSlug: …" is code-speak in a panel that otherwise
@@ -86,6 +111,11 @@ export const audienceNode = defineNode({
     .refine(
       (settings) => settings.audience !== "plan" || settings.planSlug !== "",
       { message: "Pick which plan this step means." }
+    )
+    .refine(
+      (settings) =>
+        settings.audience !== "segment" || settings.segmentId !== "",
+      { message: "Pick which segment this step means." }
     ),
   name: () => "Audience",
   // Display only, so an unreadable choice reads as the default rather than
@@ -94,7 +124,8 @@ export const audienceNode = defineNode({
   description: (settings) => {
     const wording = audienceWording(
       isAudienceKind(settings.audience) ? settings.audience : "everyone",
-      typeof settings.planSlug === "string" ? settings.planSlug.trim() : ""
+      typeof settings.planSlug === "string" ? settings.planSlug.trim() : "",
+      typeof settings.segmentName === "string" ? settings.segmentName.trim() : ""
     )
     return wording.charAt(0).toUpperCase() + wording.slice(1)
   },
