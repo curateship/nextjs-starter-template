@@ -37,7 +37,38 @@ import { cn } from "@/lib/utils"
  */
 type MarketTab = "fav" | "all" | "watch"
 
-type SortKey = "vol" | "change"
+type SortKey = "vol" | "type" | "change"
+
+/**
+ * Which way a column starts when you first click it: biggest first for the two
+ * numbers, A to Z for the kind of market — nobody wants a list of kinds
+ * backwards.
+ */
+const SORT_STARTS_DESC: Record<SortKey, boolean> = {
+  vol: true,
+  type: false,
+  change: true,
+}
+
+/**
+ * The one set of columns the header row and every market row are both drawn
+ * with — same side padding, same gap between columns. Written once because the
+ * whole point is that the two agree; two copies would drift apart the first
+ * time either was touched.
+ *
+ * The rows sit in a container with its own `p-1`, so their buttons carry 8px
+ * to reach the header's 12px.
+ */
+const ROW_COLUMNS = "gap-1 px-2"
+const ROW_COLUMNS_INSIDE_LIST = "gap-1 px-1"
+
+/**
+ * The width the day's-move column reserves. Set by the widest thing in it,
+ * which is the "Change 24h" header rather than any pill — with the column
+ * fixed, the pills line up under that label and the kind of market lines up
+ * under "Type" without either needing a width of its own.
+ */
+const CHANGE_COLUMN = "w-[5.5rem]"
 
 /** The category filter's choices — every category, plus off. */
 const CATEGORY_CHOICES = ["all", ...MARKET_CATEGORIES] as const
@@ -72,16 +103,15 @@ export function MarketListPanel({
   favorites,
   selectedKey,
   onSelect,
-  onToggleFavorite,
   onRetry,
 }: {
   catalogs: MarketCatalog[]
   /** The exchange call failed at load; shown in place of rows. */
   marketsError: string | null
+  /** Which markets are starred — read only; the star itself is in the header. */
   favorites: ReadonlySet<string>
   selectedKey: string | null
   onSelect: (key: string) => void
-  onToggleFavorite: (key: string) => void
   onRetry: () => void
 }) {
   const [tab, setTab] = React.useState<MarketTab>("fav")
@@ -98,13 +128,13 @@ export function MarketListPanel({
     CATEGORY_CHOICES
   )
 
-  // Clicking the sorted column flips it; clicking the other column takes
-  // over, biggest first.
+  // Clicking the sorted column flips it; clicking another column takes over at
+  // the direction that column starts in.
   const toggleSort = (key: SortKey) =>
     setSort((current) =>
       current.key === key
         ? { ...current, desc: !current.desc }
-        : { key, desc: true }
+        : { key, desc: SORT_STARTS_DESC[key] }
     )
 
   const rows = React.useMemo(
@@ -132,6 +162,17 @@ export function MarketListPanel({
 
     const direction = sort.desc ? -1 : 1
     return [...list].sort((a, b) => {
+      if (sort.key === "type") {
+        // By what the column actually says, so the order matches what you read.
+        const compared = CATEGORY_LABELS[a.category].localeCompare(
+          CATEGORY_LABELS[b.category]
+        )
+        // Within one kind, biggest first — a block of markets in no order at
+        // all would be worse than the volume sort it replaced.
+        return compared === 0
+          ? b.volume24hUsd - a.volume24hUsd
+          : compared * direction
+      }
       const [va, vb] =
         sort.key === "vol"
           ? [a.volume24hUsd, b.volume24hUsd]
@@ -155,7 +196,11 @@ export function MarketListPanel({
     .join(", ")
 
   const list = (
-    <ScrollArea className="h-full">
+    // `[&>div]:block!` because Radix wraps what it is given in a `display:
+    // table` box, which sizes itself to its widest row instead of to the
+    // panel — a long symbol would then push the change pill out of sight
+    // rather than being truncated.
+    <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
       {marketsError ? (
         <div className="p-3">
           <ErrorBanner message={marketsError} onRetry={onRetry} />
@@ -165,7 +210,7 @@ export function MarketListPanel({
           {query.trim()
             ? "No market matches that search."
             : tab === "fav"
-              ? "Nothing starred yet. Open All and star a market — it stays here."
+              ? "Nothing starred yet. Open a market and press the star beside its name — it stays here."
               : category !== "all"
                 ? `No ${CATEGORY_LABELS[category].toLowerCase()} markets right now.`
                 : "The exchange listed no markets."}
@@ -177,9 +222,7 @@ export function MarketListPanel({
               key={row.key}
               row={row}
               selected={row.key === selectedKey}
-              favorite={favorites.has(row.key)}
               onSelect={() => onSelect(row.key)}
-              onToggleFavorite={() => onToggleFavorite(row.key)}
             />
           ))}
         </div>
@@ -223,27 +266,48 @@ export function MarketListPanel({
 
       {/* Row two: the sort, drawn as the column headers it sorts — the same
           sort buttons every dashboard table uses. Left header over the
-          symbols, right header over the changes. */}
+          symbols, middle over the kinds, right header over the changes. */}
       {/* Scrolls sideways at the narrowest drags rather than wrapping a
           label onto two lines. */}
-      <div className="flex shrink-0 items-center justify-between gap-2 overflow-x-auto border-b border-foreground/10 px-3 text-muted-foreground">
+      {/* The headers use the row's own columns — same padding, same gap, the
+          first one stretching and the last one at the fixed CHANGE_COLUMN
+          width — so every label sits over the values it names. Spreading them
+          evenly instead lines up only the left one. */}
+      <div
+        className={cn(
+          "flex shrink-0 items-center overflow-x-auto border-b border-foreground/10 text-muted-foreground",
+          ROW_COLUMNS
+        )}
+      >
         {/* Stays at the small size on every screen — the table default steps
-            up to text-sm on wide screens, which overpowers a 16%-wide panel. */}
+            up to text-sm on wide screens, which overpowers a narrow panel. The
+            label-to-arrow gap is tightened for the same reason. */}
         <TableSortButton
           active={sort.key === "vol"}
           direction={sort.desc ? "desc" : "asc"}
           onClick={() => toggleSort("vol")}
-          className="whitespace-nowrap sm:text-xs"
+          className="flex-1 gap-1 whitespace-nowrap sm:text-xs"
         >
-          Market / 24h Vol
+          24h Vol
+        </TableSortButton>
+        <TableSortButton
+          active={sort.key === "type"}
+          direction={sort.desc ? "desc" : "asc"}
+          onClick={() => toggleSort("type")}
+          className="shrink-0 gap-1 whitespace-nowrap sm:text-xs"
+        >
+          Type
         </TableSortButton>
         <TableSortButton
           active={sort.key === "change"}
           direction={sort.desc ? "desc" : "asc"}
           onClick={() => toggleSort("change")}
-          // Reversed so the label sits flush right under the change column
-          // and the arrow points in toward the middle.
-          className="flex-row-reverse whitespace-nowrap sm:text-xs"
+          // Reversed so the label sits flush right over the pills and the
+          // arrow points in toward the middle.
+          className={cn(
+            "shrink-0 flex-row-reverse gap-1 whitespace-nowrap sm:text-xs",
+            CHANGE_COLUMN
+          )}
         >
           Change 24h
         </TableSortButton>
@@ -308,21 +372,18 @@ export function MarketListPanel({
 }
 
 /**
- * One market. Two buttons side by side — the star, then the row — because a
- * button inside a button is not HTML, and the keyboard should reach both.
+ * One market: what it is called, what kind of thing it is, and the day's move.
+ * The whole row is the one button — the star that used to sit at its left edge
+ * now lives in the market header, where it is always on screen.
  */
 function MarketRowLine({
   row,
   selected,
-  favorite,
   onSelect,
-  onToggleFavorite,
 }: {
   row: MarketRow
   selected: boolean
-  favorite: boolean
   onSelect: () => void
-  onToggleFavorite: () => void
 }) {
   // Subscribed per row, so a tick repaints exactly the rows whose numbers
   // moved. The list's ORDER stays on the loaded snapshot on purpose — rows
@@ -332,46 +393,40 @@ function MarketRowLine({
   const change24h = live?.change24h ?? row.change24h
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={selected ? "true" : undefined}
       className={cn(
-        "group flex items-center rounded-lg",
-        selected && "bg-muted"
+        "flex h-9 min-w-0 items-center rounded-lg text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        ROW_COLUMNS_INSIDE_LIST,
+        selected ? "bg-muted" : "hover:bg-muted/50"
       )}
     >
-      <button
-        type="button"
-        aria-label={
-          favorite ? `Unstar ${row.symbol}` : `Star ${row.symbol}`
-        }
-        aria-pressed={favorite}
-        onClick={onToggleFavorite}
-        className={cn(
-          "flex size-7 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-          // Revealed by hover or keyboard focus — but a finger has neither,
-          // so on touch screens the star is simply always there.
-          favorite
-            ? "text-amber-500"
-            : "text-transparent group-hover:text-muted-foreground focus-visible:text-muted-foreground pointer-coarse:text-muted-foreground"
-        )}
+      {/* The name gives way first, and carries its full self in a title —
+          a long sub-exchange symbol must not push the day's move off the
+          panel. */}
+      <span
+        title={row.symbol}
+        className="min-w-0 flex-1 truncate text-sm font-medium"
       >
-        <StarIcon
-          className="size-3.5"
-          fill={favorite ? "currentColor" : "none"}
-        />
-      </button>
-      <button
-        type="button"
-        onClick={onSelect}
-        aria-current={selected ? "true" : undefined}
-        className="flex h-9 min-w-0 flex-1 items-center justify-between gap-2 rounded-md pr-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <span className="truncate text-sm font-medium">{row.symbol}</span>
-        {/* Just the day's move, in a soft pill of its colour — the price
-            belongs to the market header. A market with no yesterday price
-            shows a plain dash, not a zero in a pill. */}
+        {row.symbol}
+      </span>
+      {/* What kind of thing this is, so a list of hundreds can be grouped into
+          coins, shares and the rest. Quiet on purpose: it is what you sort and
+          scan by, not what you read the row for. */}
+      <span className="shrink-0 text-xs text-muted-foreground">
+        {CATEGORY_LABELS[row.category]}
+      </span>
+      {/* Just the day's move, in a soft pill of its colour — the price
+          belongs to the market header. A market with no yesterday price
+          shows a plain dash, not a zero in a pill. The column is fixed and the
+          pill sits at its right edge, so pills of different lengths still end
+          in a straight line under the header. */}
+      <span className={cn("flex shrink-0 justify-end", CHANGE_COLUMN)}>
         <span
           className={cn(
-            "shrink-0 text-xs tabular-nums",
+            "text-xs tabular-nums",
             change24h === null
               ? "text-muted-foreground"
               : cn(
@@ -384,7 +439,7 @@ function MarketRowLine({
         >
           {change24h === null ? "—" : formatChange(change24h)}
         </span>
-      </button>
-    </div>
+      </span>
+    </button>
   )
 }
