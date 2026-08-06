@@ -1,14 +1,14 @@
-import {
-  ArrowDownRightIcon,
-  ArrowUpRightIcon,
-  CandlestickChartIcon,
-  ListIcon,
-  WalletIcon,
-} from "lucide-react"
+import * as React from "react"
+import { CandlestickChartIcon, InfoIcon, ListIcon, WalletIcon } from "lucide-react"
 
+import { MarketIcon } from "@/components/trade/market-icon"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import {
   formatChange,
@@ -16,15 +16,14 @@ import {
   formatFunding,
   formatPrice,
 } from "@/lib/trade/format"
-import { cn } from "@/lib/utils"
 
 /**
  * What the middle panel is showing.
  *
- * Three honest states and no fourth: nothing picked yet, a real market with
- * its live figures, or a saved market the exchange no longer lists — which
- * says so plainly. It never quietly swaps in a different market; a link that
- * pointed at something delisted should read as exactly that.
+ * Three honest states and no fourth: nothing picked yet, a real market, or a
+ * saved market the exchange no longer lists — which says so plainly. It never
+ * quietly swaps in a different market; a link that pointed at something
+ * delisted should read as exactly that.
  */
 export type MarketSelection =
   | { kind: "none" }
@@ -37,16 +36,21 @@ export type MarketSelection =
   | { kind: "missing"; marketId: string }
 
 /**
- * Which market you are looking at, and what it is doing — attached to the
- * chart it describes rather than floating in a bar over the whole page, so
- * the market's figures and the account's can never be read as each other's.
+ * One row: the market's name, its figures folded behind an info icon, and the
+ * chart's own controls on the right. The figures used to be a second row and
+ * the exchange a pair of chips; both are details you look up, not things to
+ * spend header height on — the tooltip holds them, and the search box already
+ * names the exchange.
  */
 export function MarketHeader({
   selection,
+  toolbar,
   onOpenMarkets,
   onOpenAccount,
 }: {
   selection: MarketSelection
+  /** The chart's controls — the interval picker — shown only with a market. */
+  toolbar?: React.ReactNode
   /**
    * Narrow screens only. The side panels are not on screen there, so the
    * header is what opens them; passing neither leaves the buttons off.
@@ -56,7 +60,7 @@ export function MarketHeader({
 }) {
   const sheetButtons =
     onOpenMarkets || onOpenAccount ? (
-      <div className="flex items-center gap-2">
+      <>
         {onOpenMarkets ? (
           <Button
             type="button"
@@ -81,6 +85,14 @@ export function MarketHeader({
             <WalletIcon className="size-4" />
           </Button>
         ) : null}
+      </>
+    ) : null
+
+  const action =
+    toolbar || sheetButtons ? (
+      <div className="flex items-center gap-2">
+        {toolbar}
+        {sheetButtons}
       </div>
     ) : undefined
 
@@ -90,7 +102,7 @@ export function MarketHeader({
         icon={<CandlestickChartIcon className="size-4" />}
         title="Pick a market"
         meta="Choose one from the Markets list to chart it."
-        action={sheetButtons}
+        action={action}
       />
     )
   }
@@ -101,82 +113,80 @@ export function MarketHeader({
         icon={<CandlestickChartIcon className="size-4" />}
         title={selection.marketId}
         meta="This market is not available on the connected exchange right now."
-        action={sheetButtons}
+        action={action}
       />
     )
   }
 
+  return (
+    <WorkspacePanelHeader
+      // The market's own art, not a generic chart glyph — the row carries the
+      // URL, so this header still has no idea which exchange it came from.
+      icon={
+        <MarketIcon
+          symbol={selection.row.symbol}
+          iconUrl={selection.row.iconUrl}
+        />
+      }
+      title={selection.row.symbol}
+      meta={<MarketInfo selection={selection} />}
+      action={action}
+    />
+  )
+}
+
+/**
+ * The market's figures, behind an info icon — click or hover. The exchange
+ * and network live in here too now that their chips are gone, so the answer
+ * to "which BTC is this?" is one hover away, not gone.
+ */
+function MarketInfo({
+  selection,
+}: {
+  selection: Extract<MarketSelection, { kind: "market" }>
+}) {
+  const [open, setOpen] = React.useState(false)
   const { row, protocolLabel, networkLabel } = selection
-  const figures: Array<{ label: string; value: string; tone?: "up" | "down" }> =
-    [
-      { label: "Price", value: formatPrice(row.price) },
-      ...(row.change24h !== null
-        ? [
-            {
-              label: "24h",
-              value: formatChange(row.change24h),
-              tone: (row.change24h >= 0 ? "up" : "down") as "up" | "down",
-            },
-          ]
-        : []),
-      { label: "24h volume", value: formatCompactUsd(row.volume24hUsd) },
-      ...(row.fundingHourly !== null
-        ? [{ label: "Funding", value: formatFunding(row.fundingHourly) }]
-        : []),
-      ...(row.openInterestUsd !== null
-        ? [
-            {
-              label: "Open interest",
-              value: formatCompactUsd(row.openInterestUsd),
-            },
-          ]
-        : []),
-    ]
+
+  const figures: Array<[string, string]> = [
+    ["Price", formatPrice(row.price)],
+    ...(row.change24h !== null
+      ? ([["24h", formatChange(row.change24h)]] as Array<[string, string]>)
+      : []),
+    ["24h volume", formatCompactUsd(row.volume24hUsd)],
+    ...(row.fundingHourly !== null
+      ? ([["Funding", formatFunding(row.fundingHourly)]] as Array<
+          [string, string]
+        >)
+      : []),
+    ...(row.openInterestUsd !== null
+      ? ([["Open interest", formatCompactUsd(row.openInterestUsd)]] as Array<
+          [string, string]
+        >)
+      : []),
+    ["Exchange", `${protocolLabel} · ${networkLabel}`],
+  ]
 
   return (
-    <div className="shrink-0">
-      <WorkspacePanelHeader
-        icon={<CandlestickChartIcon className="size-4" />}
-        title={row.symbol}
-        meta={
-          <span className="flex items-center gap-1.5">
-            <Badge variant="outline">{protocolLabel}</Badge>
-            <Badge variant="outline">{networkLabel}</Badge>
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={`About ${row.symbol}`}
+          onClick={() => setOpen((shown) => !shown)}
+          className="flex items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <InfoIcon className="size-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="flex-col items-stretch gap-1 py-2">
+        {figures.map(([label, value]) => (
+          <span key={label} className="flex items-baseline justify-between gap-6">
+            <span className="opacity-70">{label}</span>
+            <span className="tabular-nums">{value}</span>
           </span>
-        }
-        action={sheetButtons}
-      />
-      {/* Scrolls sideways rather than truncating: a figure that is half there
-          is worse than one you have to reach for, and this row is the only
-          place these numbers appear. */}
-      <div className="flex items-center gap-6 overflow-x-auto border-b border-foreground/10 px-4 py-2 sm:px-5">
-        {figures.map((figure) => (
-          <div
-            key={figure.label}
-            className="flex shrink-0 items-center gap-1.5"
-          >
-            <span className="text-xs text-muted-foreground">
-              {figure.label}
-            </span>
-            <span
-              className={cn(
-                "flex items-center gap-0.5 text-sm font-medium tabular-nums",
-                figure.tone === "up" &&
-                  "text-emerald-600 dark:text-emerald-400",
-                figure.tone === "down" && "text-destructive"
-              )}
-            >
-              {figure.tone === "up" ? (
-                <ArrowUpRightIcon className="size-3.5" aria-hidden />
-              ) : null}
-              {figure.tone === "down" ? (
-                <ArrowDownRightIcon className="size-3.5" aria-hidden />
-              ) : null}
-              {figure.value}
-            </span>
-          </div>
         ))}
-      </div>
-    </div>
+      </TooltipContent>
+    </Tooltip>
   )
 }

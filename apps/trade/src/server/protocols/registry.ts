@@ -1,9 +1,12 @@
 import type {
+  CandleBar,
+  CandleInterval,
   MarketCatalog,
   NetworkId,
   ProtocolCapabilities,
   ProtocolId,
 } from "@/lib/protocols/contracts"
+import { fetchHyperliquidCandles } from "@/server/protocols/hyperliquid/candles"
 import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
 
 /**
@@ -23,6 +26,11 @@ export type ProtocolEntry = {
   capabilities: ProtocolCapabilities
   markets: {
     fetch(network: NetworkId): Promise<MarketCatalog>
+    candles(
+      network: NetworkId,
+      marketId: string,
+      interval: CandleInterval
+    ): Promise<CandleBar[]>
   }
 }
 
@@ -32,7 +40,10 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     label: "Hyperliquid",
     defaultNetwork: "mainnet",
     capabilities: { markets: true },
-    markets: { fetch: fetchHyperliquidMarkets },
+    markets: {
+      fetch: fetchHyperliquidMarkets,
+      candles: fetchHyperliquidCandles,
+    },
   },
 }
 

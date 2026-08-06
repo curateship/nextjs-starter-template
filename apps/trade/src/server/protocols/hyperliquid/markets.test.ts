@@ -47,6 +47,11 @@ describe("turning Hyperliquid's answer into market rows", () => {
     expect(rows[0].key).toBe("hyperliquid:mainnet:BTC")
   })
 
+  it("carries the exchange's own coin art as data", () => {
+    // Screens draw this URL; none of them may ever build it.
+    expect(rows[0].iconUrl).toBe("https://app.hyperliquid.xyz/coins/BTC.svg")
+  })
+
   it("translates the figures, not just copies the strings", () => {
     const btc = rows[0]
     expect(btc.price).toBe(67400)

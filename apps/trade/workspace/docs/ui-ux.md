@@ -23,8 +23,20 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
   comes from, search, five tabs, a sort, and a star on every row. Live exchange
   data. (An earlier draft had a separate Favourites row below the list; it was
   replaced by the Fav tab — two homes for one list is duplication.)
-- **Middle — the market you picked.** Its header holds the name, the exchange,
-  the network and its live figures. The chart fills everything below.
+- **Middle — the market you picked.** One header row, nothing more: the
+  market's own logo (carried as data on the row, with a first-letter circle
+  when an exchange has no art), its name, an info icon, and the timeframe
+  picker on the right (1m–1d, remembered per browser, 4h the default). The
+  live figures — price, day's move, volume, funding, open interest, and which
+  exchange and network — live behind the info icon, click or hover. Below,
+  the real candle chart fills everything, volume tucked into its bottom
+  fifth. Candle green and red are the same colours as the list's pills, read
+  off the page rather than hard-coded. Loading, no-history and failed-fetch
+  states each say so inside the panel; the rest of the page stands.
+  **The chart is feature-blind by rule:** candles in, candles drawn. Paint
+  tools, alerts, indicators and orders arrive later as their own modules
+  against a small surface the chart will offer — the chart never learns what
+  a line means. Decided in `workspace/tasks/Platform/plain-price-chart.md`.
 - **Right, top — Account.** Which account you are trading with.
 - **Right, bottom — Order.** The form. Below the account, because the account is
   what decides where an order goes and what it is allowed to be — reading down
@@ -146,8 +158,12 @@ the finished page, so the empty page gets designed once, at the start.
   or unavailable, say so. Never quietly fall back to BTC or anything else.
 - **An unavailable action explains itself.** Never hide the reason, and never
   quietly change what the user asked for into something that is allowed.
-- **The exchange and network are always visible** wherever a market or an
-  account could otherwise be read as belonging to the wrong one.
+- **The exchange and network stay one glance or one hover away** wherever a
+  market or an account could be read as belonging to the wrong one — the
+  search box names them outright, the market header holds them behind its
+  info icon. (Softened from "always visible" on 6 Aug 2026, when the header
+  chips were traded for one clean row; if a second exchange ever makes the
+  hover too easy to miss, the labels come back on screen.)
 - **Every icon-only control has a label**, focus stays visible, and every panel
   is reachable with the Tab key alone.
 

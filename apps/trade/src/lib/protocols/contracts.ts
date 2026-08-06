@@ -96,6 +96,11 @@ export type MarketRow = {
   marketId: string
   /** What to print. The same as marketId on Hyperliquid. */
   symbol: string
+  /**
+   * Where the exchange serves this market's logo, or null when it has none.
+   * Carried as data so no screen ever builds an exchange's URL itself.
+   */
+  iconUrl: string | null
   /** Last mark price, in dollars. */
   price: number
   /** Move over the last day as a fraction, or null when the exchange had no yesterday price. */
@@ -119,4 +124,26 @@ export type MarketCatalog = {
   network: NetworkId
   networkLabel: string
   rows: MarketRow[]
+}
+
+/**
+ * The chart timeframes every protocol is asked in. The strings double as the
+ * stored per-browser choice, so they never change meaning once shipped.
+ */
+export const CANDLE_INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const
+
+export type CandleInterval = (typeof CANDLE_INTERVALS)[number]
+
+/**
+ * One bar of price history, in the app's own words: when it opened (epoch
+ * milliseconds), the four prices, and how much traded. Screens draw these;
+ * whatever shape the exchange sent stops at its own module.
+ */
+export type CandleBar = {
+  openTime: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
 }

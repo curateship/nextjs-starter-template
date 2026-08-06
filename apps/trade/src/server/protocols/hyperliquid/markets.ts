@@ -1,4 +1,3 @@
-import { InfoClient, HttpTransport } from "@nktkas/hyperliquid"
 import { z } from "zod"
 
 import {
@@ -7,6 +6,7 @@ import {
   type MarketRow,
   type NetworkId,
 } from "@/lib/protocols/contracts"
+import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
  * Everything this app knows about Hyperliquid lives in this folder, and this
@@ -18,21 +18,6 @@ import {
  * account — so there is nothing here to protect beyond not trusting the
  * response blindly.
  */
-
-// One client per network, reused across requests like every other app-wide
-// handle. The SDK's transport keeps no session state worth resetting.
-const clients = new Map<NetworkId, InfoClient>()
-
-function client(network: NetworkId): InfoClient {
-  let existing = clients.get(network)
-  if (!existing) {
-    existing = new InfoClient({
-      transport: new HttpTransport({ isTestnet: network === "testnet" }),
-    })
-    clients.set(network, existing)
-  }
-  return existing
-}
 
 /**
  * The slice of the exchange's answer this module actually reads, checked at
@@ -95,6 +80,8 @@ export function toMarketRows(
       }),
       marketId: asset.name,
       symbol: asset.name,
+      // The exchange's own coin art, from where its app serves it.
+      iconUrl: `https://app.hyperliquid.xyz/coins/${encodeURIComponent(asset.name)}.svg`,
       price,
       change24h:
         prevDay !== null && prevDay > 0 ? (price - prevDay) / prevDay : null,
@@ -111,7 +98,7 @@ export function toMarketRows(
 export async function fetchHyperliquidMarkets(
   network: NetworkId
 ): Promise<MarketCatalog> {
-  const response = await client(network).metaAndAssetCtxs()
+  const response = await infoClient(network).metaAndAssetCtxs()
   const data = metaAndCtxsSchema.parse(response)
 
   return {

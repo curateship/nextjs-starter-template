@@ -3,7 +3,7 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
 import { ActivityPanel } from "@/components/trade/activity-panel"
-import { ChartPanel } from "@/components/trade/chart-panel"
+import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
 import {
   MarketHeader,
   type MarketSelection,
@@ -30,9 +30,16 @@ import {
 } from "@/lib/api/markets"
 import { showErrorToast } from "@/lib/error-toast"
 import {
+  CANDLE_INTERVALS,
   parseMarketKey,
+  type CandleInterval,
   type MarketCatalog,
 } from "@/lib/protocols/contracts"
+import {
+  CHART_INTERVAL_STORAGE_KEY,
+  DEFAULT_CHART_INTERVAL,
+} from "@/lib/trade/chart-interval"
+import { useRememberedChoice } from "@/lib/remembered-choice"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
@@ -188,6 +195,14 @@ export function TradeWorkspace({
 
   const selection = resolveSelection(catalogs, selectedKey)
 
+  // The chart's timeframe, owned here so the header's picker and the chart's
+  // fetch read the same choice.
+  const [interval, setInterval] = useRememberedChoice<CandleInterval>(
+    CHART_INTERVAL_STORAGE_KEY,
+    DEFAULT_CHART_INTERVAL,
+    CANDLE_INTERVALS
+  )
+
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const accountPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -242,6 +257,13 @@ export function TradeWorkspace({
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
       <MarketHeader
         selection={selection}
+        // The chart's timeframe lives in the header row; it only makes sense
+        // once there is a market to chart.
+        toolbar={
+          selection.kind === "market" ? (
+            <IntervalPicker value={interval} onChange={setInterval} />
+          ) : undefined
+        }
         // On a wide screen both panels are already on screen, so the buttons
         // would only be a second way to do what the dividers already do.
         onOpenMarkets={desktop ? undefined : () => setOpenSheet("markets")}
@@ -249,7 +271,7 @@ export function TradeWorkspace({
       />
       <div className="relative flex min-h-0 flex-1">
         <div className="min-h-0 flex-1">
-          <ChartPanel />
+          <ChartPanel selectedKey={selectedKey} interval={interval} />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
             without remembering that the divider is still draggable. */}
