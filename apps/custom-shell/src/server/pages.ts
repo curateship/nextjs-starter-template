@@ -1,10 +1,20 @@
 import { and, eq, gte, sql } from "drizzle-orm"
 
 import type { PageDescriptor } from "@/lib/pages/page-descriptor"
-import { publicPages } from "@/lib/pages/page-registry"
+import { pageForPath, publicPages } from "@/lib/pages/page-registry"
+import {
+  pageVisibility,
+  type PageVisibility,
+  type ShellPageOverrides,
+} from "@/lib/pages/page-visibility"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellTrafficDailyFacts } from "@/server/schema"
+import {
+  customShellSettings,
+  customShellTrafficDailyFacts,
+  DEFAULT_SETTINGS_KEY,
+} from "@/server/schema"
 import { now } from "@/server/security"
+import { parseShellGlobals, readShellGlobals } from "@/server/shell-settings"
 import { OTHER_KEY, trafficDay } from "@/server/traffic"
 
 /**
@@ -24,6 +34,8 @@ export const PAGES_VISIT_DAYS = 30
 export type PublicPageRow = PageDescriptor & {
   /** Views of this address over the last `PAGES_VISIT_DAYS` days. */
   visits: number
+  /** Who may see it — always "everyone" for a page that cannot be switched off. */
+  visibility: PageVisibility
 }
 
 export type PagesOverview = {
@@ -53,14 +65,17 @@ export async function loadPagesOverview(
   )
   const facts = customShellTrafficDailyFacts
 
-  const factRows = await database
-    .select({
-      key: facts.key,
-      views: sql<string>`sum(${facts.views})`,
-    })
-    .from(facts)
-    .where(and(eq(facts.dimension, "path"), gte(facts.day, firstDay)))
-    .groupBy(facts.key)
+  const [factRows, globals] = await Promise.all([
+    database
+      .select({
+        key: facts.key,
+        views: sql<string>`sum(${facts.views})`,
+      })
+      .from(facts)
+      .where(and(eq(facts.dimension, "path"), gte(facts.day, firstDay)))
+      .groupBy(facts.key),
+    readShellGlobals(database),
+  ])
 
   const visitsByPath = new Map(
     factRows.map((row) => [row.key, Number(row.views)])
@@ -74,7 +89,97 @@ export async function loadPagesOverview(
     rows: publicPages().map((page) => ({
       ...page,
       visits: visitsByPath.get(page.path) ?? 0,
+      visibility: pageVisibility(globals.pages, page),
     })),
     approximate: visitsByPath.has(OTHER_KEY),
   }
+}
+
+/**
+ * Who may see one address, for the page's own loader to act on.
+ *
+ * An address the registry does not know answers "everyone": this decides
+ * whether a page the shell serves is hidden, and something that is not a
+ * declared page is the router's business, not this setting's.
+ */
+export async function readPageVisibility(
+  path: string,
+  database: CustomShellDb = db
+): Promise<PageVisibility> {
+  const page = pageForPath(path)
+  if (!page) return "everyone"
+
+  const globals = await readShellGlobals(database)
+  return pageVisibility(globals.pages, page)
+}
+
+/**
+ * Changes who may see a page, and answers with the whole map as saved.
+ *
+ * Refused for a page the shell will not switch off, and for an address no page
+ * declares. Both are refusals the screen already makes — repeated here because
+ * the screen is not the only way in, and switching off the sign-in page would
+ * lock every admin out of their own app.
+ */
+export async function setPageVisibility(
+  {
+    path,
+    visibility,
+  }: {
+    path: string
+    visibility: PageVisibility
+  },
+  database: CustomShellDb = db
+): Promise<ShellPageOverrides> {
+  const page = pageForPath(path)
+  if (!page) {
+    throw new Error(`There is no public page at "${path}".`)
+  }
+  if (!page.canSwitchOff) {
+    throw new Error(
+      `"${page.name}" is part of how people reach the app, so it cannot be hidden.`
+    )
+  }
+
+  return database.transaction(async (tx) => {
+    // Read, merge and write with the row locked, the same dance the
+    // maintenance switch and the automations kill switch do: this one row
+    // holds every global, so two saves landing together would each write back
+    // what they read and one would lose its changes.
+    const [existing] = await tx
+      .select({ settings: customShellSettings.settings })
+      .from(customShellSettings)
+      .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+      .limit(1)
+      .for("update")
+
+    const globals = parseShellGlobals(existing?.settings)
+    const pages = { ...globals.pages }
+    // Back to the default means no entry at all, so "never touched" and "set
+    // back to normal" are one state rather than two that behave the same.
+    if (visibility === "everyone") {
+      delete pages[path]
+    } else {
+      pages[path] = { visibility }
+    }
+
+    const settings = { ...globals, pages }
+    const timestamp = now()
+
+    if (existing) {
+      await tx
+        .update(customShellSettings)
+        .set({ settings, updatedAt: timestamp })
+        .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+    } else {
+      await tx.insert(customShellSettings).values({
+        key: DEFAULT_SETTINGS_KEY,
+        settings,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+    }
+
+    return pages
+  })
 }

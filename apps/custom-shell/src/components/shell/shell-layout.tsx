@@ -42,6 +42,7 @@ import {
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { resolveAppName } from "@/lib/branding"
 import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth"
@@ -641,6 +642,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     maintenance: normalizeMaintenance(settings.maintenance),
     automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+    pages: normalizePageOverrides(settings.pages),
     styling: normalizeStyling(settings.styling),
     dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
   }

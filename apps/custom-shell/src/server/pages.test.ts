@@ -2,7 +2,13 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { publicPages } from "@/lib/pages/page-registry"
-import { loadPagesOverview, PAGES_VISIT_DAYS } from "@/server/pages"
+import {
+  loadPagesOverview,
+  PAGES_VISIT_DAYS,
+  readPageVisibility,
+  setPageVisibility,
+} from "@/server/pages"
+import { readShellGlobals } from "@/server/shell-settings"
 import { customShellTrafficDailyFacts } from "@/server/schema"
 import { createTestDatabase, type TestDatabase } from "@/server/test-support"
 
@@ -112,5 +118,85 @@ describe("loadPagesOverview", () => {
     const overview = await loadPagesOverview(database, at)
 
     expect(overview.approximate).toBe(false)
+  })
+})
+
+describe("changing who can see a page", () => {
+  it("starts with every page open and nothing stored", async () => {
+    const overview = await loadPagesOverview(database, at)
+
+    expect(overview.rows.every((row) => row.visibility === "everyone")).toBe(
+      true
+    )
+    // The point of the default: an install nobody has configured has no row
+    // about pages at all.
+    expect((await readShellGlobals(database)).pages).toEqual({})
+  })
+
+  it("saves a change and reads it back everywhere", async () => {
+    await setPageVisibility(
+      { path: "/pricing", visibility: "members" },
+      database
+    )
+
+    expect(await readPageVisibility("/pricing", database)).toBe("members")
+
+    const overview = await loadPagesOverview(database, at)
+    const pricing = overview.rows.find((row) => row.path === "/pricing")
+    expect(pricing?.visibility).toBe("members")
+    // Everything else is untouched.
+    expect(
+      overview.rows.filter((row) => row.path !== "/pricing").every(
+        (row) => row.visibility === "everyone"
+      )
+    ).toBe(true)
+  })
+
+  it("forgets the page entirely when it goes back to everyone", async () => {
+    await setPageVisibility({ path: "/pricing", visibility: "off" }, database)
+    expect((await readShellGlobals(database)).pages).toEqual({
+      "/pricing": { visibility: "off" },
+    })
+
+    await setPageVisibility(
+      { path: "/pricing", visibility: "everyone" },
+      database
+    )
+
+    // Not `{ "/pricing": { visibility: "everyone" } }` — back to normal means
+    // nothing stored, the same state as never having been touched.
+    expect((await readShellGlobals(database)).pages).toEqual({})
+  })
+
+  it("refuses to hide a page the app cannot live without", async () => {
+    // The screen greys these out; this is the same refusal on the server, so
+    // a hand-made request cannot lock everyone out of their own app.
+    await expect(
+      setPageVisibility({ path: "/login", visibility: "off" }, database)
+    ).rejects.toThrow("cannot be hidden")
+
+    expect(await readPageVisibility("/login", database)).toBe("everyone")
+    expect((await readShellGlobals(database)).pages).toEqual({})
+  })
+
+  it("refuses an address no page declares", async () => {
+    await expect(
+      setPageVisibility({ path: "/nope", visibility: "off" }, database)
+    ).rejects.toThrow("no public page")
+  })
+
+  it("leaves the other app-wide settings alone", async () => {
+    // This writes into the one row that holds every global, so the read-merge
+    // -write has to keep what it did not come to change.
+    const before = await readShellGlobals(database)
+
+    await setPageVisibility({ path: "/pricing", visibility: "off" }, database)
+
+    const after = await readShellGlobals(database)
+    expect({ ...after, pages: before.pages }).toEqual(before)
+  })
+
+  it("answers everyone for an address that is not a page at all", async () => {
+    expect(await readPageVisibility("/admin/pages", database)).toBe("everyone")
   })
 })

@@ -75,6 +75,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "Finishing a passkey sign-in is what creates the session; the signed challenge is the guard.",
   "maintenance.ts:readMaintenanceFn":
     "The maintenance notice has to render for people who are not signed in.",
+  "pages.ts:readPageAccessFn":
+    "Decides what a signed-out visitor is shown on a public page, so a session check here would hide every page it protects.",
   "view-as.ts:stopFn":
     "While the view is on the app treats the caller as the member, so an admin check here would be a door that locks from the inside. The session row is the guard.",
   "shell.ts:loadBrandingFn":
