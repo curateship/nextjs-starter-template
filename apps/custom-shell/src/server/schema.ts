@@ -755,6 +755,40 @@ export const customShellAutomationRunSteps = pgTable(
   ]
 )
 
+/**
+ * Pages an admin wrote, as opposed to pages the code declares.
+ *
+ * The rest of the Pages batch is settings — a page exists because a
+ * `*.page.ts` sits beside a route. This holds the words themselves, which is
+ * why it is the one part of that batch with a table.
+ *
+ * `body` is the editor's document tree, never HTML: the public page draws it
+ * by turning named nodes into elements, so nothing here is ever handed to a
+ * browser as markup. See `lib/pages/written-page-body.ts`.
+ *
+ * Whether a written page is switched on lives where every other page's does —
+ * the app-wide settings row, keyed by address — so there is one switch rather
+ * than one per kind of page.
+ */
+export const customShellWrittenPages = pgTable(
+  "written_pages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    /** The address it answers on, always starting with "/". */
+    path: varchar("path", { length: 160 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: jsonb("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // Two written pages cannot claim one address even if both saves land at
+    // the same moment. A clash with a code page is refused in the server,
+    // which is the only place that knows both lists.
+    uniqueIndex("written_pages_path_key").on(table.path),
+  ]
+)
+
 export const customShellChangelogEntries = pgTable(
   "changelog_entries",
   {

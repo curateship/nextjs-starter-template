@@ -3,8 +3,8 @@ import {
   CheckIcon,
   Loader2Icon,
   MessageSquareIcon,
-  PencilIcon,
   SendIcon,
+  SettingsIcon,
   ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -1094,7 +1094,7 @@ export function FeedbackModal({
                                                       }
                                                       aria-label="Edit comment"
                                                     >
-                                                      <PencilIcon className="h-3.5 w-3.5" />
+                                                      <SettingsIcon className="h-3.5 w-3.5" />
                                                     </Button>
                                                   ) : null}
                                                   {comment.can_delete ? (

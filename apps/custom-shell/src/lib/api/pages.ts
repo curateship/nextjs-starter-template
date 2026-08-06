@@ -11,15 +11,24 @@ import { adminGet, adminPost } from "@/server/guards"
 import {
   loadPagesOverview as loadPagesOverviewQuery,
   readPageVisibility,
+  readWrittenPageForViewer,
   setPageVisibility,
   type PagesOverview,
   type PublicPageRow,
+  type WrittenPageView,
 } from "@/server/pages"
 import { findSessionContext } from "@/server/security"
+import {
+  createWrittenPage,
+  deleteWrittenPage,
+  MAX_WRITTEN_PAGE_TITLE,
+  updateWrittenPage,
+  type WrittenPage,
+} from "@/server/written-pages"
 
 import { createErrorMessage, describeAuthError } from "./error-message"
 
-export type { PagesOverview, PublicPageRow }
+export type { PagesOverview, PublicPageRow, WrittenPage, WrittenPageView }
 
 export const getPagesErrorMessage = createErrorMessage(
   { FORBIDDEN: "Only an admin can see the pages list." },
@@ -118,4 +127,102 @@ export async function requirePageVisible(path: string): Promise<void> {
   if (visibility === "members" && !signedIn) {
     throw redirect({ to: "/login", search: { redirect: path } })
   }
+}
+
+// ---------------------------------------------------------------------------
+// Pages an admin wrote. Three doors to change them, all admin-only, and one
+// public read that the written page's own route uses.
+
+const writtenPageInput = z.object({
+  path: z.string().min(1).max(160),
+  title: z.string().min(1).max(MAX_WRITTEN_PAGE_TITLE),
+  // The body is checked by `cleanWrittenPageBody` on the server rather than
+  // here: this is a tree of unknown depth, and the rule for it is "keep only
+  // what is allowed", which a cleaner expresses better than a schema. Anything
+  // at all may arrive; only the allowed shapes survive.
+  body: z.unknown(),
+})
+
+const createWrittenPageFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(writtenPageInput)
+  .handler(async ({ data }): Promise<WrittenPage> => {
+    return createWrittenPage(data)
+  })
+
+const updateWrittenPageFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(writtenPageInput.partial().extend({ id: z.string().min(1) }))
+  .handler(async ({ data }): Promise<WrittenPage> => {
+    const { id, ...rest } = data
+    return updateWrittenPage(id, rest)
+  })
+
+const deleteWrittenPageFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }): Promise<{ path: string }> => {
+    return deleteWrittenPage(data.id)
+  })
+
+/**
+ * What a visitor may be shown at a written page's address.
+ *
+ * No guard, like the visibility read above and for the same reason: these
+ * pages are public, so a session check here would hide every one of them.
+ *
+ * **Which is exactly why it decides visibility itself rather than handing the
+ * page over and leaving that to the route.** Anything this returns is readable
+ * by anyone who calls it directly, so a version that fetched first and checked
+ * second would give up a switched-off page's words to anybody who asked — the
+ * switch working in a browser and nowhere else.
+ */
+const readWrittenPageFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ path: z.string().min(1).max(160) }))
+  .handler(async ({ data }): Promise<WrittenPageView> => {
+    const session = await findSessionContext()
+    return readWrittenPageForViewer(data.path, Boolean(session))
+  })
+
+export function saveNewWrittenPage(input: {
+  path: string
+  title: string
+  body: unknown
+}) {
+  return createWrittenPageFn({ data: input })
+}
+
+export function saveWrittenPage(input: {
+  id: string
+  path?: string
+  title?: string
+  body?: unknown
+}) {
+  return updateWrittenPageFn({ data: input })
+}
+
+export function removeWrittenPage(id: string) {
+  return deleteWrittenPageFn({ data: { id } })
+}
+
+export function loadWrittenPage(path: string) {
+  return readWrittenPageFn({ data: { path } })
+}
+
+/**
+ * Why a written page could not be saved. Its refusals are already sentences an
+ * admin can act on — "About already answers on /about" — so they pass straight
+ * through rather than being flattened into one generic line.
+ */
+export function getWrittenPageErrorMessage(error: unknown) {
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ""
+  return (
+    describeAuthError(message) ??
+    (message || "That page could not be saved. Please try again.")
+  )
 }

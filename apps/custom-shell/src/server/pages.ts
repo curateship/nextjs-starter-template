@@ -16,12 +16,24 @@ import {
 import { now } from "@/server/security"
 import { parseShellGlobals, readShellGlobals } from "@/server/shell-settings"
 import { OTHER_KEY, trafficDay } from "@/server/traffic"
+import {
+  findWrittenPage,
+  listWrittenPages,
+  normalizeWrittenPagePath,
+  type WrittenPage,
+} from "@/server/written-pages"
 
 /**
- * The Pages dashboard's one read: the page registry joined to the visit
- * counts the traffic tracker already keeps. Nothing new is recorded here —
- * the beacon writes per-address counters (`recordVisit`), and this sums them
- * for exactly the addresses the registry declares.
+ * The Pages dashboard's one read: every public page joined to the visit counts
+ * the traffic tracker already keeps. Nothing new is recorded here — the beacon
+ * writes per-address counters (`recordVisit`), and this sums them.
+ *
+ * "Every public page" is two lists, combined here rather than in the registry.
+ * The registry is what the *code* declares; it is read by the browser and has
+ * to answer the same on both sides without asking anything, so it cannot hold
+ * rows from a database. Pages an admin wrote are read here, on the server,
+ * where a query is fine — and from this point on the two are one list and
+ * every page feature applies to both.
  */
 
 /**
@@ -36,6 +48,28 @@ export type PublicPageRow = PageDescriptor & {
   visits: number
   /** Who may see it — always "everyone" for a page that cannot be switched off. */
   visibility: PageVisibility
+  /**
+   * The row's id when an admin wrote this page, so the screen knows which ones
+   * it may edit. Null for a page the code declares — those are changed by
+   * changing the code.
+   */
+  writtenPageId: string | null
+}
+
+/**
+ * A written page seen as an ordinary page. It is switchable like any other,
+ * and it says it was written so the screen can offer Edit rather than leaving
+ * an admin wondering why some rows can be changed and others cannot.
+ */
+function descriptorForWrittenPage(page: WrittenPage): PageDescriptor {
+  return {
+    path: page.path,
+    name: page.title,
+    summary: "Written in the app by an admin.",
+    canSwitchOff: true,
+    layout: "card",
+    source: "shell",
+  }
 }
 
 export type PagesOverview = {
@@ -65,7 +99,7 @@ export async function loadPagesOverview(
   )
   const facts = customShellTrafficDailyFacts
 
-  const [factRows, globals] = await Promise.all([
+  const [factRows, globals, written] = await Promise.all([
     database
       .select({
         key: facts.key,
@@ -75,22 +109,35 @@ export async function loadPagesOverview(
       .where(and(eq(facts.dimension, "path"), gte(facts.day, firstDay)))
       .groupBy(facts.key),
     readShellGlobals(database),
+    listWrittenPages(database),
   ])
 
   const visitsByPath = new Map(
     factRows.map((row) => [row.key, Number(row.views)])
   )
 
-  return {
-    visitDays: PAGES_VISIT_DAYS,
-    // Registry first, counts second: a page nobody has visited still gets its
-    // row, and an address the tracker counted but nobody declared stays off
-    // the list — this screen is about the pages, not the traffic.
-    rows: publicPages().map((page) => ({
+  const rows: PublicPageRow[] = [
+    // Pages first, counts second: a page nobody has visited still gets its
+    // row, and an address the tracker counted but no page claims stays off the
+    // list — this screen is about the pages, not the traffic.
+    ...publicPages().map((page) => ({ ...page, writtenPageId: null })),
+    ...written.map((page) => ({
+      ...descriptorForWrittenPage(page),
+      writtenPageId: page.id,
+    })),
+  ]
+    .map((page) => ({
       ...page,
       visits: visitsByPath.get(page.path) ?? 0,
       visibility: pageVisibility(globals.pages, page),
-    })),
+    }))
+    // One order for both kinds, by address, so a written page sits where its
+    // address puts it rather than in a second group underneath.
+    .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
+
+  return {
+    visitDays: PAGES_VISIT_DAYS,
+    rows,
     approximate: visitsByPath.has(OTHER_KEY),
   }
 }
@@ -98,19 +145,74 @@ export async function loadPagesOverview(
 /**
  * Who may see one address, for the page's own loader to act on.
  *
- * An address the registry does not know answers "everyone": this decides
- * whether a page the shell serves is hidden, and something that is not a
- * declared page is the router's business, not this setting's.
+ * Both kinds of page are asked about here. A code page is known from the
+ * registry; a written page is known because a row exists, and it is always
+ * switchable — so hiding one has to work, or the switch on the Pages screen
+ * would be a lie for exactly the pages an admin can create themselves.
+ *
+ * An address neither list knows answers "everyone": this decides whether a
+ * page the app serves is hidden, and something that is not a page at all is
+ * the router's business, not this setting's.
  */
 export async function readPageVisibility(
   path: string,
   database: CustomShellDb = db
 ): Promise<PageVisibility> {
-  const page = pageForPath(path)
-  if (!page) return "everyone"
+  const codePage = pageForPath(path)
+  const page = codePage ?? {
+    path: normalizeWrittenPagePath(path),
+    canSwitchOff: true,
+  }
+
+  // Only worth a second query when the registry did not recognise it: a code
+  // page can never be a written one, because a written page cannot claim an
+  // address the registry already holds.
+  if (!codePage && !(await findWrittenPage(page.path, database))) {
+    return "everyone"
+  }
 
   const globals = await readShellGlobals(database)
   return pageVisibility(globals.pages, page)
+}
+
+/**
+ * What a visitor may be shown at a written page's address.
+ *
+ * **The visibility check belongs here, not in the route.** The endpoint this
+ * backs is public — it has to be, or no written page would be readable — so
+ * anything it hands back is readable by anyone who calls it, whatever the page
+ * that normally draws it does afterwards. Looking the page up first and
+ * checking second would mean a switched-off page still gave up its words to a
+ * direct call, which is the whole switch defeated.
+ *
+ * So the body only ever leaves here when the viewer may see it. Switched off
+ * is reported as missing, exactly as it looks in a browser.
+ */
+export type WrittenPageView =
+  | { status: "missing" }
+  | { status: "signIn" }
+  | { status: "ok"; page: WrittenPage }
+
+export async function readWrittenPageForViewer(
+  path: string,
+  signedIn: boolean,
+  database: CustomShellDb = db
+): Promise<WrittenPageView> {
+  const page = await findWrittenPage(path, database)
+  if (!page) return { status: "missing" }
+
+  const globals = await readShellGlobals(database)
+  const visibility = pageVisibility(globals.pages, {
+    path: page.path,
+    canSwitchOff: true,
+  })
+
+  // Indistinguishable from an address nobody wrote — a page that admitted to
+  // being switched off would be telling the caller it is there.
+  if (visibility === "off") return { status: "missing" }
+  if (visibility === "members" && !signedIn) return { status: "signIn" }
+
+  return { status: "ok", page }
 }
 
 /**
@@ -131,7 +233,17 @@ export async function setPageVisibility(
   },
   database: CustomShellDb = db
 ): Promise<ShellPageOverrides> {
-  const page = pageForPath(path)
+  const codePage = pageForPath(path)
+  // A written page is switchable like any other; it is simply known from a row
+  // rather than from a file. Looked up only when the registry does not know
+  // the address, because a written page can never have claimed one it does.
+  const written = codePage ? null : await findWrittenPage(path, database)
+  const page =
+    codePage ??
+    (written
+      ? { path: written.path, name: written.title, canSwitchOff: true }
+      : null)
+
   if (!page) {
     throw new Error(`There is no public page at "${path}".`)
   }
@@ -155,12 +267,16 @@ export async function setPageVisibility(
 
     const globals = parseShellGlobals(existing?.settings)
     const pages = { ...globals.pages }
+    // Keyed by the address the page actually answers on, not by what arrived:
+    // a written page's address is tidied on the way in ("/About" is "/about"),
+    // and a key written in the other spelling would be saved but never read.
+    const key = page.path
     // Back to the default means no entry at all, so "never touched" and "set
     // back to normal" are one state rather than two that behave the same.
     if (visibility === "everyone") {
-      delete pages[path]
+      delete pages[key]
     } else {
-      pages[path] = { visibility }
+      pages[key] = { visibility }
     }
 
     const settings = { ...globals, pages }

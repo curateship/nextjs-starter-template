@@ -1,6 +1,12 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ExternalLinkIcon, PanelsTopLeftIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  PanelsTopLeftIcon,
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -9,7 +15,9 @@ import {
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
+import { WrittenPageDialog } from "@/components/pages/written-page-dialog"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Select,
@@ -21,9 +29,13 @@ import {
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   getPageVisibilityErrorMessage,
+  getWrittenPageErrorMessage,
+  loadWrittenPage,
+  removeWrittenPage,
   savePageVisibility,
   type PagesOverview,
   type PublicPageRow,
+  type WrittenPage,
 } from "@/lib/api/pages"
 import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
@@ -99,6 +111,51 @@ export function AdminPagesDashboard({
     visibility: PageVisibility
   } | null>(null)
 
+  /**
+   * The written page being edited, or "new" while one is being written. Held
+   * as its own record rather than reusing the row, because the row carries a
+   * summary while the window needs the words.
+   */
+  const [editing, setEditing] = React.useState<WrittenPage | "new" | null>(null)
+  const [opening, setOpening] = React.useState<string | null>(null)
+  const [deleting, setDeleting] = React.useState<PublicPageRow | null>(null)
+  const [deleteRunning, setDeleteRunning] = React.useState(false)
+
+  /** The row only knows a page exists; the words come from its own read. */
+  async function openForEdit(row: PublicPageRow) {
+    setOpening(row.path)
+    dismissErrorToast()
+    try {
+      const page = await loadWrittenPage(row.path)
+      if (!page) {
+        showErrorToast("That page has already been deleted.")
+        await router.invalidate()
+        return
+      }
+      setEditing(page)
+    } catch (error) {
+      showErrorToast(getWrittenPageErrorMessage(error))
+    } finally {
+      setOpening(null)
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting?.writtenPageId) return
+    setDeleteRunning(true)
+    dismissErrorToast()
+    try {
+      await removeWrittenPage(deleting.writtenPageId)
+      await router.invalidate()
+      toast.success(`${deleting.name} was deleted.`)
+      setDeleting(null)
+    } catch (error) {
+      showErrorToast(getWrittenPageErrorMessage(error))
+    } finally {
+      setDeleteRunning(false)
+    }
+  }
+
   async function changeVisibility(row: PublicPageRow, next: PageVisibility) {
     setSaving({ path: row.path, visibility: next })
     dismissErrorToast()
@@ -124,18 +181,26 @@ export function AdminPagesDashboard({
   }, [data.rows, searchText, sort, direction])
 
   return (
+    <>
     <DashboardTable
       title="Pages"
       icon={<PanelsTopLeftIcon className="text-muted-foreground" />}
       count={rows.length}
       controls={
-        <DashboardToolbarSearch
-          name="pages-search"
-          aria-label="Search pages"
-          placeholder="Search name or address…"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-        />
+        <>
+          <DashboardToolbarSearch
+            name="pages-search"
+            aria-label="Search pages"
+            placeholder="Search name or address…"
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+          {/* The one primary action, last, as the toolbar order asks. */}
+          <Button type="button" onClick={() => setEditing("new")}>
+            <PlusIcon className="size-4" />
+            Write a page
+          </Button>
+        </>
       }
       header={
         <SortableTableHeader
@@ -203,20 +268,77 @@ export function AdminPagesDashboard({
           </TableCell>
           <TableCell column="meta">{row.visits.toLocaleString()}</TableCell>
           <TableCell column="actions">
-            <Button asChild variant="ghost" size="icon">
-              <a
-                href={row.path}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Open ${row.name} in a new tab`}
-              >
-                <ExternalLinkIcon className="size-4" />
-              </a>
-            </Button>
+            <div className="flex items-center">
+              <Button asChild variant="ghost" size="icon">
+                <a
+                  href={row.path}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${row.name} in a new tab`}
+                >
+                  <ExternalLinkIcon className="size-4" />
+                </a>
+              </Button>
+              {/* Only a page an admin wrote can be edited or deleted here. A
+                  coded page is changed by changing its code, so it gets no
+                  buttons rather than buttons that would refuse. */}
+              {row.writtenPageId ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={opening === row.path}
+                    aria-label={`Edit ${row.name}`}
+                    onClick={() => void openForEdit(row)}
+                  >
+                    <SettingsIcon className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete ${row.name}`}
+                    onClick={() => setDeleting(row)}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </>
+              ) : null}
+            </div>
           </TableCell>
         </TableRow>
       ))}
     </DashboardTable>
+
+    <WrittenPageDialog
+      open={editing !== null}
+      page={editing === "new" ? null : editing}
+      onClose={() => setEditing(null)}
+      onSaved={() => {
+        const wasNew = editing === "new"
+        setEditing(null)
+        void router.invalidate()
+        toast.success(wasNew ? "Page created." : "Page saved.")
+      }}
+    />
+
+    <ConfirmDialog
+      open={deleting !== null}
+      onOpenChange={(open) => {
+        if (!open) setDeleting(null)
+      }}
+      title="Delete this page?"
+      description={
+        deleting
+          ? `${deleting.name} goes for good, and ${deleting.path} stops existing — anyone following a link to it gets the not-found page.`
+          : null
+      }
+      confirmLabel="Delete page"
+      loading={deleteRunning}
+      onConfirm={confirmDelete}
+    />
+    </>
   )
 }
 

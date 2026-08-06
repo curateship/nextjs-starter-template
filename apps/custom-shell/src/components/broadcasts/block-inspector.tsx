@@ -14,7 +14,7 @@ import {
   SliderField,
   SwitchField,
 } from "@/components/broadcasts/inspector-fields"
-import { RichTextEditor } from "@/components/broadcasts/rich-text-editor"
+import { RichTextEditor } from "@/components/shared/rich-text-editor"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
@@ -228,6 +228,11 @@ function RichTextFields({
         <RichTextEditor
           value={content.htmlContent}
           disabled={disabled}
+          // Both asked for by name now that written pages share this editor
+          // and want neither: an email is the only thing here that
+          // personalises itself or carries a picture.
+          mergeTags
+          allowImages
           onChange={(html) => onContentChange("htmlContent", html)}
         />
       </InspectorCard>
