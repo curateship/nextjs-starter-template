@@ -14,8 +14,6 @@ export const tradePanelLayoutKey = {
   workspaceHorizontal: "trade-workspace-horizontal",
   /** The chart row above, the positions row below. */
   workspaceVertical: "trade-workspace-vertical",
-  /** The two rows stacked inside the left panel. */
-  marketsColumn: "trade-markets-column",
   /** The two rows stacked inside the right panel. */
   accountColumn: "trade-account-column",
 }

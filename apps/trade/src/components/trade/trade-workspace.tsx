@@ -4,8 +4,10 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 import { AccountPanel } from "@/components/trade/account-panel"
 import { ActivityPanel } from "@/components/trade/activity-panel"
 import { ChartPanel } from "@/components/trade/chart-panel"
-import { FavouritesPanel } from "@/components/trade/favourites-panel"
-import { MarketHeader } from "@/components/trade/market-header"
+import {
+  MarketHeader,
+  type MarketSelection,
+} from "@/components/trade/market-header"
 import { MarketListPanel } from "@/components/trade/market-list-panel"
 import { OrderPanel } from "@/components/trade/order-panel"
 import {
@@ -23,16 +25,51 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
+  getMarketFavoritesErrorMessage,
+  saveMarketFavorites,
+} from "@/lib/api/markets"
+import { showErrorToast } from "@/lib/error-toast"
+import {
+  parseMarketKey,
+  type MarketCatalog,
+} from "@/lib/protocols/contracts"
+import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/panel-layout"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
-import { SAMPLE_MARKET } from "@/lib/trade/sample-market"
 import { useWideScreen } from "@/lib/wide-screen"
 
 /** Which side panel a narrow screen has slid open, if any. */
 type OpenSheet = "markets" | "account" | null
+
+/**
+ * What the picked key means against what the exchanges actually list: a real
+ * row with its catalog's labels, nothing picked, or a well-formed key nothing
+ * lists — delisted, or saved by a build that knew markets this one does not.
+ * That last one is said out loud; it never falls back to another market.
+ */
+function resolveSelection(
+  catalogs: MarketCatalog[],
+  selectedKey: string | null
+): MarketSelection {
+  if (!selectedKey) return { kind: "none" }
+  const ref = parseMarketKey(selectedKey)
+  if (!ref) return { kind: "none" }
+  for (const catalog of catalogs) {
+    const row = catalog.rows.find((candidate) => candidate.key === selectedKey)
+    if (row) {
+      return {
+        kind: "market",
+        row,
+        protocolLabel: catalog.protocolLabel,
+        networkLabel: catalog.networkLabel,
+      }
+    }
+  }
+  return { kind: "missing", marketId: ref.marketId }
+}
 
 /**
  * A side panel, split into two rows with a divider between them.
@@ -93,11 +130,27 @@ function SideColumn({
  * remembered layout all behave identically on both pages and only have to be
  * got right once.
  *
- * Nothing here is connected yet. Every panel draws the empty state it will
- * still show on the finished page, and the only figures on screen are
- * stand-ins, marked as such in words as well as in style.
+ * The market list is live exchange data now. The account side is still the
+ * empty state it will show a new user — connecting anything comes after the
+ * protocol layer grows accounts.
  */
-export function TradeWorkspace() {
+export function TradeWorkspace({
+  catalogs,
+  marketsError,
+  initialFavoriteKeys,
+  selectedKey,
+  onSelectMarket,
+  onRetryMarkets,
+}: {
+  catalogs: MarketCatalog[]
+  /** The exchange call failed at load; the list shows this instead of rows. */
+  marketsError: string | null
+  initialFavoriteKeys: string[]
+  /** The picked market's key, carried in the address bar. */
+  selectedKey: string | null
+  onSelectMarket: (key: string) => void
+  onRetryMarkets: () => void
+}) {
   // Known before the first render on both sides, so the page opens in the
   // layout it is going to keep instead of painting the phone version and
   // rebuilding itself a beat later.
@@ -105,6 +158,35 @@ export function TradeWorkspace() {
   const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
   const [accountCollapsed, setAccountCollapsed] = React.useState(false)
   const [openSheet, setOpenSheet] = React.useState<OpenSheet>(null)
+
+  // ----- Favourites: optimistic, saved whole, reverted on failure ----------
+  const [favoriteKeys, setFavoriteKeys] = React.useState(initialFavoriteKeys)
+  const [savingFavorites, setSavingFavorites] = React.useState(false)
+  const favorites = React.useMemo(() => new Set(favoriteKeys), [favoriteKeys])
+
+  const toggleFavorite = React.useCallback(
+    async (key: string) => {
+      if (savingFavorites) return
+      const previous = favoriteKeys
+      const next = previous.includes(key)
+        ? previous.filter((candidate) => candidate !== key)
+        : [...previous, key]
+      setFavoriteKeys(next)
+      setSavingFavorites(true)
+      try {
+        const saved = await saveMarketFavorites(next)
+        setFavoriteKeys(saved.marketKeys)
+      } catch (error) {
+        setFavoriteKeys(previous)
+        showErrorToast(getMarketFavoritesErrorMessage(error))
+      } finally {
+        setSavingFavorites(false)
+      }
+    },
+    [favoriteKeys, savingFavorites]
+  )
+
+  const selection = resolveSelection(catalogs, selectedKey)
 
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const accountPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -142,12 +224,24 @@ export function TradeWorkspace() {
     setOpenSheet(null)
   }
 
+  const marketList = (
+    <MarketListPanel
+      catalogs={catalogs}
+      marketsError={marketsError}
+      favorites={favorites}
+      selectedKey={selectedKey}
+      onSelect={onSelectMarket}
+      onToggleFavorite={(key) => void toggleFavorite(key)}
+      onRetry={onRetryMarkets}
+    />
+  )
+
   const middle = (
     // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
     // a width to fill it shrinks to its content.
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
       <MarketHeader
-        market={SAMPLE_MARKET}
+        selection={selection}
         // On a wide screen both panels are already on screen, so the buttons
         // would only be a second way to do what the dividers already do.
         onOpenMarkets={desktop ? undefined : () => setOpenSheet("markets")}
@@ -195,15 +289,12 @@ export function TradeWorkspace() {
         maxSize="30%"
         onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
       >
-        <SideColumn
-          id="markets"
-          layoutKey={tradePanelLayoutKey.marketsColumn}
-          topSize="60%"
+        <WorkspacePanel
           collapsed={marketsCollapsed}
           onDoubleClick={marketsDoubleClick}
-          top={<MarketListPanel />}
-          bottom={<FavouritesPanel />}
-        />
+        >
+          {marketList}
+        </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={marketsCollapsed} />
       <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
@@ -281,17 +372,21 @@ export function TradeWorkspace() {
               {openSheet === "account" ? "Account" : "Markets"}
             </SheetTitle>
           </SheetHeader>
-          {/* Both rows, stacked, sharing the height. A divider between them
-              would be a third way to size the same thing on a screen with no
-              room to spare, so here they simply split it. */}
-          <div className="flex min-h-0 flex-1 flex-col divide-y divide-foreground/10">
-            <div className="min-h-0 flex-1">
-              {openSheet === "account" ? <AccountPanel /> : <MarketListPanel />}
+          {openSheet === "account" ? (
+            // Both rows, stacked, sharing the height. A divider between them
+            // would be a third way to size the same thing on a screen with no
+            // room to spare, so here they simply split it.
+            <div className="flex min-h-0 flex-1 flex-col divide-y divide-foreground/10">
+              <div className="min-h-0 flex-1">
+                <AccountPanel />
+              </div>
+              <div className="min-h-0 flex-1">
+                <OrderPanel />
+              </div>
             </div>
-            <div className="min-h-0 flex-1">
-              {openSheet === "account" ? <OrderPanel /> : <FavouritesPanel />}
-            </div>
-          </div>
+          ) : (
+            <div className="min-h-0 flex-1">{marketList}</div>
+          )}
         </SheetContent>
       </Sheet>
     </div>

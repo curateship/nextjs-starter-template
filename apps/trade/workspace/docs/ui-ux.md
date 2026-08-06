@@ -11,19 +11,18 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
 ```
 ┌────────────┬─────────────────────┬────────────┐
 │ Markets    │ MARKET HEADER       │ Account    │
-│            │ ─────────────────── ├────────────┤
-├────────────┤ Chart               │ Order      │
-│ Favourites │                     │            │
+│  All|Fav…  │ ─────────────────── ├────────────┤
+│  (list)    │ Chart               │ Order      │
+│            │                     │            │
 ├────────────┴─────────────────────┴────────────┤
 │ Positions | Open orders | Fills                │
 └───────────────────────────────────────────────┘
 ```
 
-- **Left, top — Markets.** Finding something to look at: search, filters and the
-  list.
-- **Left, bottom — Favourites.** The handful you actually watch. Its own row
-  rather than a tab inside the list, because a tab makes you give up one to see
-  the other.
+- **Left — Markets.** The whole panel is the market list: which exchange it
+  comes from, search, five tabs, a sort, and a star on every row. Live exchange
+  data. (An earlier draft had a separate Favourites row below the list; it was
+  replaced by the Fav tab — two homes for one list is duplication.)
 - **Middle — the market you picked.** Its header holds the name, the exchange,
   the network and its live figures. The chart fills everything below.
 - **Right, top — Account.** Which account you are trading with.
@@ -32,11 +31,51 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
   the panel is the same order as making the decision.
 - **Bottom — what you are holding.** Positions, open orders and fills, as tabs.
 
-Each side panel is **two rows with a divider between them**. The rows drag
+The right panel is **two rows with a divider between them**. The rows drag
 against each other and their split is remembered. The panel as a whole is what
 shuts, so both rows go together — and both cards have to be taken away at once,
 or a row with no width still paints its side borders and leaves a stray line
 down the workspace.
+
+## The market list
+
+The panel is shaped like the automation palette, its sibling on the other
+workspace: the underline tab row is the top of the panel, the sort headers sit
+under it, the list fills the middle, and the search is the bottom bar — its
+placeholder names the exchange ("Search Hyperliquid Mainnet"), so what the
+list covers is on screen without spending a row on it.
+
+- **Three tabs, with icons:** All (the whole catalog), Fav (starred), Watch
+  (markets with an alert, once alerts exist). A tab whose data source does not
+  exist yet says what it is waiting for instead of drawing an empty list that
+  reads like a bug.
+- **A row is the symbol and the day's move, nothing else.** The percentage is
+  signed and sits in a soft pill of its colour — green up, red down; the price
+  belongs to the market header; a market with no yesterday price shows a plain
+  dash, not a zero in a pill.
+- **Sort is drawn as column headers** — "Market / 24h Vol" left, "Change 24h"
+  right, the shared `TableSortButton` — and clicking the sorted one flips the
+  direction.
+- **Stars save to the account, not the browser**, so favourites follow you
+  between machines. Starring is optimistic and reverts with a toast if the save
+  fails.
+- **Markets nobody trades are hidden** (zero volume) — unless starred or
+  selected, which keeps your own markets visible no matter what.
+- **Selection lives in the address** as a full market key
+  (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
+  when a second exchange exists.
+- **The exchange call failing does not take the page down.** The list shows
+  the error and a retry; every other panel still works.
+
+## The protocol layer (where the exchange lives)
+
+- Screens draw `MarketRow`s from `src/lib/protocols/contracts.ts` — never an
+  exchange's raw response. A market is identified by protocol + network + id.
+- Everything Hyperliquid is in `src/server/protocols/hyperliquid/`, the only
+  folder allowed to import its SDK. `fence.test.ts` fails the suite if it
+  leaks, or if shared code ever asks `=== "hyperliquid"`.
+- Adding an exchange is a new folder plus one entry in
+  `src/server/protocols/registry.ts`. No screen changes.
 
 Two things the old Trading app had that this does not, on purpose:
 
@@ -65,11 +104,13 @@ fixed in one is fixed in both.
 Designed with the wide one, not bolted on.
 
 - The middle panel takes the whole width and stays the main thing.
-- Two labelled buttons in the market header slide the side panels in. Each sheet
-  carries both of that panel's rows, stacked, sharing the height — no divider,
-  because a screen with no room to spare does not need a third way to size the
-  same thing.
+- Two labelled buttons in the market header slide the side panels in. The
+  markets sheet is the full market list; the account sheet carries its two rows
+  stacked, sharing the height — no divider, because a screen with no room to
+  spare does not need a third way to size the same thing.
 - The bottom panel stays where it is — it already works at any width.
+- A slid-open sheet closes when the window crosses the width boundary, in
+  either direction.
 
 ## Stand-in figures
 
