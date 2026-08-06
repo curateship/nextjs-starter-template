@@ -96,13 +96,15 @@ describe("who may see a page", () => {
 })
 
 describe("the pages the app cannot live without", () => {
-  it("keeps the front page, the sign-in family and maintenance always on", () => {
+  it("keeps the front page, not-found, the sign-in family and maintenance always on", () => {
     const alwaysOnPaths = publicPages()
       .filter((page) => !page.canSwitchOff)
       .map((page) => page.path)
 
     expect(alwaysOnPaths).toEqual([
       "/",
+      // Where a dead link goes. Hiding it would mean nowhere to send one.
+      "/404",
       "/change-email",
       "/forgot-password",
       "/login",
