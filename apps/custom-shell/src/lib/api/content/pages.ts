@@ -21,6 +21,7 @@ import { findSessionContext } from "@/server/auth/security"
 import {
   createWrittenPage,
   deleteWrittenPage,
+  findWrittenPage,
   MAX_WRITTEN_PAGE_TITLE,
   updateWrittenPage,
   type WrittenPage,
@@ -184,6 +185,26 @@ const readWrittenPageFn = createServerFn({ method: "GET" })
     return readWrittenPageForViewer(data.path, Boolean(session))
   })
 
+/**
+ * The same page, for the admin who is about to change it.
+ *
+ * A separate door from the visitor's read above, because the two want opposite
+ * things. The visitor's read reports a switched-off page as missing, on
+ * purpose — that is the switch working. An admin editing the Pages screen has
+ * to reach exactly those pages: hiding a page they can no longer open again
+ * would make "Switched off" a one-way door.
+ *
+ * So this one skips visibility entirely and is guarded instead, which is the
+ * usual trade: the public read may be called by anyone and therefore decides
+ * for itself, and this one answers only an admin.
+ */
+const readWrittenPageForEditFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ path: z.string().min(1).max(160) }))
+  .handler(async ({ data }): Promise<WrittenPage | null> => {
+    return findWrittenPage(data.path)
+  })
+
 export function saveNewWrittenPage(input: {
   path: string
   title: string
@@ -205,8 +226,14 @@ export function removeWrittenPage(id: string) {
   return deleteWrittenPageFn({ data: { id } })
 }
 
+/** What the public route shows a visitor: the page, or why not. */
 export function loadWrittenPage(path: string) {
   return readWrittenPageFn({ data: { path } })
+}
+
+/** The page itself for the editor, switched off or not. Null if it is gone. */
+export function loadWrittenPageForEdit(path: string) {
+  return readWrittenPageForEditFn({ data: { path } })
 }
 
 /**

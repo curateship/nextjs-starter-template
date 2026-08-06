@@ -30,7 +30,7 @@ import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   getPageVisibilityErrorMessage,
   getWrittenPageErrorMessage,
-  loadWrittenPage,
+  loadWrittenPageForEdit,
   removeWrittenPage,
   savePageVisibility,
   type PagesOverview,
@@ -121,12 +121,18 @@ export function AdminPagesDashboard({
   const [deleting, setDeleting] = React.useState<PublicPageRow | null>(null)
   const [deleteRunning, setDeleteRunning] = React.useState(false)
 
-  /** The row only knows a page exists; the words come from its own read. */
+  /**
+   * The row only knows a page exists; the words come from its own read.
+   *
+   * The admin read, not the visitor one: a switched-off page is missing to a
+   * visitor by design, and asking that way would mean hiding a page and never
+   * being able to open it again.
+   */
   async function openForEdit(row: PublicPageRow) {
     setOpening(row.path)
     dismissErrorToast()
     try {
-      const page = await loadWrittenPage(row.path)
+      const page = await loadWrittenPageForEdit(row.path)
       if (!page) {
         showErrorToast("That page has already been deleted.")
         await router.invalidate()
