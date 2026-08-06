@@ -30,15 +30,27 @@ import { now } from "@/server/auth/security"
 /** How many recent rows each list card shows. */
 const LATEST_ANNOUNCEMENTS = 4
 const LATEST_CHANGELOG_ENTRIES = 4
-const LATEST_ACTIVITY = 8
 const TOP_FEEDBACK = 3
+
+/**
+ * How many events the activity feed is handed.
+ *
+ * It used to be eight, which is all a card showing only the newest few ever
+ * needed. The card now filters that list by kind and by the last 7 or 30 days,
+ * and a filter over eight rows finds nothing to show for most of its settings —
+ * so the card is handed a month's worth to filter instead. Past this many the
+ * only honest destination is the notifications table, which the card links to.
+ */
+const LATEST_ACTIVITY = 40
 
 /**
  * Notice rows read before the activity feed groups them. Publishing one update
  * writes a notice per person, so a handful of events can be hundreds of rows —
  * the feed shows one line per event and this is how far back it looks for them.
+ * Raised alongside `LATEST_ACTIVITY`: forty events cannot be found in a scan
+ * sized for eight.
  */
-const ACTIVITY_ROWS_SCANNED = 150
+const ACTIVITY_ROWS_SCANNED = 400
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -93,6 +105,8 @@ export type FeedsSummary = {
     published: number
     drafts: number
     lastPublishedAt: string | null
+    /** When the oldest unpublished draft was started. Null with no drafts. */
+    oldestDraftAt: string | null
     latest: FeedsChangelogRow[]
   }
   feedback: {
@@ -102,6 +116,11 @@ export type FeedsSummary = {
     previous7Days: number
     /** Feedback nobody has replied to yet. */
     noReply: number
+    /**
+     * When the longest-waiting unanswered piece of feedback came in. Null when
+     * everything has a reply.
+     */
+    oldestNoReplyAt: string | null
     /** The pieces people have voted for most. */
     topVoted: FeedsFeedbackRow[]
   }
@@ -113,6 +132,18 @@ export async function loadFeedsSummary(
   const today = now()
   const weekAgo = new Date(today.getTime() - WEEK_MS)
   const twoWeeksAgo = new Date(today.getTime() - 2 * WEEK_MS)
+
+  // "Nobody has answered this one." Written once and used by both the count of
+  // them and the date the oldest arrived, so the two can never come to mean
+  // slightly different things.
+  const hasNoReply = notExists(
+    database
+      .select({ one: sql`1` })
+      .from(customShellFeedbackComments)
+      .where(
+        eq(customShellFeedbackComments.feedbackId, customShellFeedback.id)
+      )
+  )
 
   // Four reads at once, like the membership overview — one after another would
   // be the whole page's wait on a faraway database. The pool falls over past
@@ -156,17 +187,12 @@ export async function loadFeedsSummary(
           previous7Days: sql`count(*) filter (where ${customShellFeedback.createdAt} >= ${twoWeeksAgo} and ${customShellFeedback.createdAt} < ${weekAgo})`.mapWith(
             Number
           ),
-          noReply: sql`count(*) filter (where ${notExists(
-            database
-              .select({ one: sql`1` })
-              .from(customShellFeedbackComments)
-              .where(
-                eq(
-                  customShellFeedbackComments.feedbackId,
-                  customShellFeedback.id
-                )
-              )
-          )})`.mapWith(Number),
+          noReply: sql`count(*) filter (where ${hasNoReply})`.mapWith(Number),
+          // The very same rows the count above counts, asked when the oldest
+          // of them arrived — so the urgent row can say how long it has
+          // waited. Comes back as a Date from Postgres and as text from the
+          // test driver, so it is read as either below.
+          oldestNoReplyAt: sql<Date | string | null>`min(${customShellFeedback.createdAt}) filter (where ${hasNoReply})`,
         })
         .from(customShellFeedback),
     ])
@@ -247,6 +273,14 @@ export async function loadFeedsSummary(
   }
 
   const publishedEntries = changelogRows.filter((entry) => entry.publishedAt)
+  // Worked out from rows already read rather than asked for separately.
+  const oldestDraft = changelogRows.reduce<Date | null>(
+    (oldest, entry) =>
+      !entry.publishedAt && (!oldest || entry.createdAt < oldest)
+        ? entry.createdAt
+        : oldest,
+    null
+  )
   const lastPublished = publishedEntries.reduce<Date | null>(
     (latest, entry) =>
       entry.publishedAt && (!latest || entry.publishedAt > latest)
@@ -280,6 +314,7 @@ export async function loadFeedsSummary(
       published: publishedEntries.length,
       drafts: changelogRows.length - publishedEntries.length,
       lastPublishedAt: lastPublished?.toISOString() ?? null,
+      oldestDraftAt: oldestDraft?.toISOString() ?? null,
       // Drafts sort ahead of published entries here, same as the Changelog
       // page itself: what needs finishing sits on top.
       latest: changelogRows
@@ -291,6 +326,7 @@ export async function loadFeedsSummary(
       last7Days: feedbackCounts?.last7Days ?? 0,
       previous7Days: feedbackCounts?.previous7Days ?? 0,
       noReply: feedbackCounts?.noReply ?? 0,
+      oldestNoReplyAt: toIsoString(feedbackCounts?.oldestNoReplyAt),
       topVoted: topFeedbackRows.map((row) => ({
         id: row.id,
         // The check constraint on the column keeps the value in this set.

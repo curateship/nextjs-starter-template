@@ -6,9 +6,10 @@ import type {
 /**
  * How the app says whether it can send email, in one place.
  *
- * Two screens ask the same question — the Email settings tab and the admin
- * Overview's "Needs you" card — and they must not answer it differently. The
- * rules live here so the wording and the cut-off are shared.
+ * Two screens ask the same question — the Email settings tab and the urgent
+ * rows at the top of the admin Overview's Activity card — and they must not
+ * answer it differently. The rules live here so the wording and the cut-off
+ * are shared.
  */
 
 /** True while there is no usable key anywhere, so nothing can go out. */

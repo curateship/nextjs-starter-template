@@ -18,6 +18,7 @@ import {
   normalizeDashboardWidgets,
   type DashboardWidgetLayout,
 } from "@/lib/dashboard/dashboard-widgets"
+import { cleanDismissedUrgent } from "@/lib/dashboard/urgent-items"
 import {
   cleanBroadcastBlockDefaults,
   type BroadcastBlock,
@@ -372,6 +373,8 @@ export type WorkspaceSettings = {
   styling: ShellStyling
   // Which cards the Overview dashboard draws, and where, saved per-workspace.
   dashboardWidgets: DashboardWidgetLayout
+  // Urgent rows waved off on the Overview's activity card, saved per-workspace.
+  dismissedUrgent: string[]
   // Starred palette nodes in the automation editor, saved per-workspace.
   automationFavoriteNodeKeys: string[]
   // How each kind of newsletter block starts out, saved per-workspace.
@@ -1832,6 +1835,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       // A workspace saved before widgets existed has none, and gets the
       // arrangement it was already looking at.
       dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
+      dismissedUrgent: cleanDismissedUrgent(settings.dismissedUrgent),
       automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
         settings.automationFavoriteNodeKeys
       ),
@@ -1869,6 +1873,7 @@ function cleanWorkspaceSettings(
       : fallback.sidebarWidth,
     styling: normalizeStyling(settings.styling),
     dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
+    dismissedUrgent: cleanDismissedUrgent(settings.dismissedUrgent),
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
@@ -1894,6 +1899,47 @@ export async function saveWorkspaceAutomationFavorites(
     .set({ settings, updatedAt: now() })
     .where(eq(customShellWorkspaces.id, workspace.id))
   return settings.automationFavoriteNodeKeys
+}
+
+/**
+ * The urgent rows this workspace has waved off.
+ *
+ * A plain read, never a get-or-create: drawing a page must not write a row, and
+ * by the time anything asks this the shell's own settings read has already made
+ * the workspace. Somebody who somehow has none has dismissed nothing.
+ */
+export async function readWorkspaceDismissedUrgent(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<string[]> {
+  const workspace = await findCurrentWorkspace(userId, database)
+  if (!workspace) return []
+  return parseWorkspaceSettings(workspace.settings).dismissedUrgent
+}
+
+/**
+ * Replaces the urgent rows this workspace has waved off, returning the saved
+ * list.
+ *
+ * The whole list rather than one key, the way the starred palette nodes are
+ * saved: dismissing and bringing one back are the same write, and a card that
+ * sends what it is holding cannot end up out of step with what was stored.
+ */
+export async function saveWorkspaceDismissedUrgent(
+  userId: string,
+  dismissedUrgent: string[],
+  database: CustomShellDb = db
+): Promise<string[]> {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  const settings = {
+    ...parseWorkspaceSettings(workspace.settings),
+    dismissedUrgent: cleanDismissedUrgent(dismissedUrgent),
+  }
+  await database
+    .update(customShellWorkspaces)
+    .set({ settings, updatedAt: now() })
+    .where(eq(customShellWorkspaces.id, workspace.id))
+  return settings.dismissedUrgent
 }
 
 /**
@@ -1945,6 +1991,7 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     styling: normalizeStyling(undefined),
     dashboardWidgets: createDefaultDashboardWidgets(),
+    dismissedUrgent: [],
     automationFavoriteNodeKeys: [],
     broadcastBlockDefaults: {},
   }

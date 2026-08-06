@@ -1,91 +1,15 @@
 import { createServerFn } from "@tanstack/react-start"
 import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, countUnreadNotifications as countUnreadNotificationRows, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications/inbox"
 import { userGet } from "@/server/guards"
+// The words and the kinds live apart from this module on purpose: it reaches
+// into `server/notifications/inbox.ts`, which reaches back, and a circle hands
+// out `undefined` to whichever side loads first. See `lib/notification-types`.
+import type {
+  AutomationApprovalState,
+  NotificationType,
+} from "@/lib/notification-types"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"
-
-export type NotificationType =
-  | "feedback_vote"
-  | "feedback_comment"
-  | "feedback_merged"
-  | "changelog"
-  | "announcement"
-  | "ai_limit_warning"
-  | "ai_limit_reached"
-  | "automation_approval"
-
-/**
- * What each kind of notice is called on screen. Kept here rather than in the
- * table because the server sorts the Type column by these words too — sorting
- * by the stored value would put "Announcement, Update, Comment, Thumbs up" in
- * that order and look random.
- */
-export const notificationTypeLabels: Record<NotificationType, string> = {
-  feedback_vote: "Thumbs up",
-  feedback_comment: "Comment",
-  feedback_merged: "Merged",
-  changelog: "Update",
-  announcement: "Announcement",
-  ai_limit_warning: "AI warning",
-  ai_limit_reached: "AI limit reached",
-  automation_approval: "Approval",
-}
-
-/**
- * The two things an approval notice can be about. They are about the same run,
- * so without this the second would read exactly like the first.
- */
-export type AutomationApprovalState = "pending" | "timed_out"
-
-/**
- * The words an approval notice carries. Like an announcement, the notice is the
- * message — the run it points at is where the buttons are, not the words.
- */
-export const automationApprovalNotificationText: Record<
-  AutomationApprovalState,
-  { message: string; detail: string }
-> = {
-  pending: {
-    message: "A run is waiting for your approval",
-    detail:
-      "Nothing after that step happens until you approve it. If nobody answers before the deadline, the run stops on its own.",
-  },
-  timed_out: {
-    message: "A run stopped — nobody approved it in time",
-    detail:
-      "The deadline passed with no answer, so the run was rejected and nothing after that step ran.",
-  },
-}
-
-export type AiLimitNotificationType = "ai_limit_warning" | "ai_limit_reached"
-
-export function isAiLimitNotification(
-  type: NotificationType
-): type is AiLimitNotificationType {
-  return type === "ai_limit_warning" || type === "ai_limit_reached"
-}
-
-/**
- * The words an AI-allowance notice carries. It is about the reader's own
- * account rather than a thing with a page, so — like an announcement — the
- * notice IS the message, and every place that shows one (the tray, the admin
- * table, the activity card) reads the same words from here.
- */
-export const aiLimitNotificationText: Record<
-  AiLimitNotificationType,
-  { message: string; detail: string }
-> = {
-  ai_limit_warning: {
-    message: "Your AI allowance is almost used up",
-    detail:
-      "You've passed 80% of this month's AI allowance. AI features pause when it runs out, and start fresh on the 1st.",
-  },
-  ai_limit_reached: {
-    message: "Your AI allowance is used up",
-    detail:
-      "AI features are paused until the 1st, when next month's allowance starts.",
-  },
-}
 
 export type NotificationItem = {
   id: string

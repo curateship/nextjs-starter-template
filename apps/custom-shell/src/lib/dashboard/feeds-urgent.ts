@@ -5,7 +5,7 @@ import {
   PencilLineIcon,
 } from "lucide-react"
 
-import type { NeedsYouItem } from "@/components/shared/dashboard/needs-you-card"
+import type { UrgentItem } from "@/lib/dashboard/urgent-items"
 import type { FeedsAnnouncementRow, FeedsSummary } from "@/lib/api/admin-overview"
 import { daysBetween, formatTimeAgo, formatUtcDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
@@ -18,9 +18,9 @@ import { plural } from "@/lib/format/plural"
  * app has been telling people, and they were written before the Overview
  * existed. A row only appears while it is true.
  */
-export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
+export function buildFeedsUrgent(summary: FeedsSummary): UrgentItem[] {
   const { notifications, changelog, feedback, announcements } = summary
-  const items: NeedsYouItem[] = []
+  const items: UrgentItem[] = []
 
   if (notifications.unread > 0) {
     items.push({
@@ -32,6 +32,7 @@ export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
       // Straight to the unopened ones, not the whole log.
       to: "/admin/notifications",
       search: { read: "unread" },
+      since: toDate(notifications.oldestUnreadAt),
     })
   }
 
@@ -43,6 +44,7 @@ export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
       detail: `${changelog.lastPublishedAt ? `Last shipped ${formatTimeAgo(changelog.lastPublishedAt)}` : "Nothing published yet"} · ${changelog.published.toLocaleString()} published in all`,
       action: "Open drafts",
       to: "/changelog",
+      since: toDate(changelog.oldestDraftAt),
     })
   }
 
@@ -57,6 +59,7 @@ export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
       // comments first, which puts the ones nobody answered at the top.
       to: "/admin/feedback",
       search: { sort: "comments", direction: "asc" },
+      since: toDate(feedback.oldestNoReplyAt),
     })
   }
 
@@ -70,6 +73,8 @@ export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
       action: "Open",
       to: "/admin/announcements",
       search: { open: next.id },
+      // The day it is due, which is ahead of today rather than behind it.
+      since: toDate(next.startsAt),
     })
   }
 
@@ -77,6 +82,11 @@ export function buildFeedsNeedsYou(summary: FeedsSummary): NeedsYouItem[] {
 }
 
 const RELATIVE_DAYS = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" })
+
+/** A stored date as a date, or nothing when the app never recorded one. */
+function toDate(value: string | null) {
+  return value ? new Date(value) : null
+}
 
 /** How long the longest-waiting unopened notice has been sitting there. */
 function waitedText(oldestUnreadAt: string | null) {

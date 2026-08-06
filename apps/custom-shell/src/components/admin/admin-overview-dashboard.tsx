@@ -24,8 +24,8 @@ import {
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
 import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
-import { InboxCard } from "@/components/shared/dashboard/inbox-card"
-import type { NeedsYouItem } from "@/components/shared/dashboard/needs-you-card"
+import { ActivityCard } from "@/components/shared/dashboard/activity-card"
+import type { UrgentItem } from "@/lib/dashboard/urgent-items"
 import { SampleValue } from "@/components/shared/dashboard/sample-figure"
 import { VisitorsCard } from "@/components/shared/dashboard/visitors-card"
 import { StatStrip, ChangeBadge, type StatFigure } from "@/components/shared/dashboard/stat-strip"
@@ -69,7 +69,7 @@ import {
   type DashboardWidgetSlot,
 } from "@/lib/dashboard/dashboard-widgets"
 import { emailIsOff, emailOffConsequence } from "@/lib/email/email-delivery"
-import { buildFeedsNeedsYou } from "@/lib/dashboard/feeds-needs-you"
+import { buildFeedsUrgent } from "@/lib/dashboard/feeds-urgent"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDate } from "@/lib/format/format-time"
 import { formatSharePercent } from "@/lib/format/format-number"
@@ -176,8 +176,9 @@ function renderWidget(
       )
     case "inbox":
       return (
-        <InboxCard
-          needsYou={buildOverviewNeedsYou(overview)}
+        <ActivityCard
+          urgent={buildOverviewUrgent(overview)}
+          dismissedUrgent={overview.dismissedUrgent}
           activity={overview.feeds.notifications.latest}
           className={className}
         />
@@ -249,16 +250,18 @@ function buildOverviewFigures({
 }
 
 // ---------------------------------------------------------------------------
-// Needs you: the four feeds rules, plus the three this page can see that the
-// four feeds cannot.
+// Urgent: the four feeds rules, plus the three this page can see that the
+// four feeds cannot. Which of them an admin has waved off is settled where the
+// card is drawn — every rule here still runs, so a row whose wording changes
+// comes back on its own.
 
-function buildOverviewNeedsYou({
+function buildOverviewUrgent({
   membership,
   feeds,
   automations,
   emailDelivery,
-}: AdminOverview): NeedsYouItem[] {
-  const items = buildFeedsNeedsYou(feeds)
+}: AdminOverview): UrgentItem[] {
+  const items = buildFeedsUrgent(feeds)
   const broken = automations.filter((automation) => !automation.isValid)
 
   // Ordered by how much it costs to leave alone: a suspended account and a
@@ -282,6 +285,13 @@ function buildOverviewNeedsYou({
             params: { automationId: broken[0].id },
           }
         : { to: "/admin/automations" }),
+      // When the longest-untouched broken one was last edited. Nothing records
+      // the moment an automation stopped compiling, but nobody can have broken
+      // it since they last changed it — so this is the earliest it can be.
+      since: broken.reduce<Date | null>((oldest, automation) => {
+        const edited = new Date(automation.updatedAt)
+        return !oldest || edited < oldest ? edited : oldest
+      }, null),
     })
   }
 
@@ -295,6 +305,9 @@ function buildOverviewNeedsYou({
       // Lands on the suspended accounts, not on everybody.
       to: "/admin/users",
       search: { status: "suspended" },
+      // Nothing records when an account was suspended, so this row honestly
+      // has no date rather than a guess at one.
+      since: null,
     })
   }
 
@@ -310,6 +323,8 @@ function buildOverviewNeedsYou({
       action: "Set it up",
       to: "/admin/settings/$tab",
       params: { tab: "email" },
+      // A setting, not an event: nothing records when it was switched off.
+      since: null,
     })
   }
 
@@ -321,6 +336,8 @@ function buildOverviewNeedsYou({
       detail: "They keep it until their period runs out",
       action: "Review people",
       to: "/admin/users",
+      // Stripe knows when each was cancelled; this app does not store it.
+      since: null,
     })
   }
 

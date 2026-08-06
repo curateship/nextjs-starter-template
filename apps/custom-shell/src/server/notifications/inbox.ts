@@ -31,12 +31,14 @@ import {
 } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/auth/security"
 import {
+  type NotificationItem,
+} from "@/lib/api/notification"
+import {
   aiLimitNotificationText,
   notificationTypeLabels,
   type AutomationApprovalState,
-  type NotificationItem,
   type NotificationType,
-} from "@/lib/api/notification"
+} from "@/lib/notification-types"
 
 type NotificationListResponse = {
   notifications: NotificationItem[]

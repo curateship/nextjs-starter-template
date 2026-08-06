@@ -7,10 +7,10 @@ import { cn } from "@/lib/utils"
  * A tab group drawn as plain words with a line under the one you are on,
  * rather than the segmented pills the rest of the app uses.
  *
- * It exists for tab groups that sit on a card's own edge — the Needs you /
- * Activity switch on its header, the All / Unread switch on its footer —
- * where a pill would read as a control floating on the hairline rather than
- * as part of it. Everywhere else, use the default segmented `Tabs`.
+ * It exists for tab groups that sit on a card's own edge — the Activity card's
+ * 7 / 30 day switch and the People card's Joining / Newest / Plans switch, both
+ * on the header hairline — where a pill would read as a control floating on the
+ * line rather than as part of it. Everywhere else, use the segmented `Tabs`.
  */
 
 export function UnderlineTabsList({

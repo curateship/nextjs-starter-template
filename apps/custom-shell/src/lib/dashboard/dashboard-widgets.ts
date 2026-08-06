@@ -32,9 +32,10 @@ export type DashboardWidgetId =
 
 /**
  * Widgets that no longer exist, and what took their place. "Needs you" and
- * "Activity" were two cards; they are now two tabs of one. A workspace that
- * saved the old ids keeps its dashboard — the first of the pair becomes the
- * combined card and the second is dropped as a repeat.
+ * "Activity" were two cards; they are now one feed, with what was waiting on
+ * somebody sitting at the top of it under "Urgent". A workspace that saved the
+ * old ids keeps its dashboard — the first of the pair becomes the one card and
+ * the second is dropped as a repeat.
  */
 const RETIRED_WIDGET_IDS: Record<string, DashboardWidgetId> = {
   "needs-you": "inbox",
@@ -74,9 +75,9 @@ const DASHBOARD_WIDGETS: DashboardWidget[] = [
   },
   {
     id: "inbox",
-    label: "Needs you & activity",
+    label: "Activity",
     description:
-      "Two tabs in one card: everything waiting on an admin, then what has happened lately.",
+      "One feed: what is waiting on an admin at the top, then everything the app has sent, filtered by kind and by the last 7 or 30 days.",
     icon: TriangleAlertIcon,
     size: 10,
     minSize: "20%",

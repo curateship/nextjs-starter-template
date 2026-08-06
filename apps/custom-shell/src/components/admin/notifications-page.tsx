@@ -43,17 +43,19 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
-  aiLimitNotificationText,
-  automationApprovalNotificationText,
   clearAdminNotifications,
   deleteAdminNotifications,
   getNotificationErrorMessage,
-  isAiLimitNotification,
   listAdminNotifications,
-  notificationTypeLabels,
   type NotificationItem,
-  type NotificationType,
 } from "@/lib/api/notification"
+import {
+  aiLimitNotificationText,
+  automationApprovalNotificationText,
+  isAiLimitNotification,
+  notificationTypeLabels,
+  type NotificationType,
+} from "@/lib/notification-types"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSelection } from "@/lib/hooks/use-selection"
