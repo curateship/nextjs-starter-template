@@ -2,12 +2,17 @@ import type { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import type { SegmentCondition } from "@/lib/contacts/contact-segments"
 import { DEFAULT_DRIP_CONFIG, type DripConfig } from "@/lib/broadcasts/drip"
-import { processDueBroadcasts } from "@/server/email/broadcast-send"
+import {
+  countBroadcastAudience,
+  processDueBroadcasts,
+} from "@/server/email/broadcast-send"
 import { type CustomShellDb } from "@/server/db"
 import { setEmailProviderFactoryForTests } from "@/server/email/provider"
 import {
   customShellBroadcasts,
+  customShellContactSegments,
   customShellContacts,
   customShellDeliveries,
   customShellEmailSettings,
@@ -88,6 +93,11 @@ async function readBroadcast() {
     .from(customShellBroadcasts)
     .where(eq(customShellBroadcasts.id, "bc-1"))
   return row
+}
+
+/** The same morning, a chosen number of hours on. */
+function later(hours: number) {
+  return new Date(MORNING.getTime() + hours * 60 * 60 * 1000)
 }
 
 /** Runs one pass of the ticker at a chosen moment. */
@@ -526,5 +536,175 @@ describe("what pacing does not change", () => {
     await tick(MORNING)
 
     expect(sentTo).toHaveLength(0)
+  })
+})
+
+/**
+ * Aiming a newsletter at a saved segment.
+ *
+ * The question every check here asks is the same one: are the people counted
+ * and the people mailed the same people? They have to be, because they are
+ * answered by the same segment code rather than by two copies of the rules.
+ */
+describe("sent to a saved segment", () => {
+  /** Saves a segment and gives back its id. */
+  async function insertSegment(
+    id: string,
+    conditions: SegmentCondition[]
+  ): Promise<string> {
+    const timestamp = new Date("2026-08-01T00:00:00Z")
+    await db.insert(customShellContactSegments).values({
+      id,
+      workspaceId: WORKSPACE_ID,
+      name: id,
+      description: "",
+      kind: "rules",
+      rules: { conditions },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    return id
+  }
+
+  async function tagContacts(emails: string[], tags: string[]) {
+    for (const email of emails) {
+      await db
+        .update(customShellContacts)
+        .set({ tags })
+        .where(eq(customShellContacts.email, email))
+    }
+  }
+
+  it("mails exactly the people the segment counted, and nobody else", async () => {
+    await insertContacts(10)
+    await tagContacts(
+      ["person0@example.test", "person1@example.test", "person2@example.test"],
+      ["vip"]
+    )
+    const segmentId = await insertSegment("seg-vip", [
+      { type: "tag", operator: "includes", tags: ["vip"] },
+    ])
+    const filter = { kind: "segment", segmentId } as const
+
+    const counted = await countBroadcastAudience(WORKSPACE_ID, filter, db)
+    await insertBroadcast({ audienceFilter: filter })
+
+    await tick(MORNING)
+
+    expect(counted).toBe(3)
+    expect(sentTo.sort()).toEqual([
+      "person0@example.test",
+      "person1@example.test",
+      "person2@example.test",
+    ])
+  })
+
+  it("never widens who is mailable: opted-out people stay out", async () => {
+    await insertContacts(4)
+    await tagContacts(
+      ["person0@example.test", "person1@example.test"],
+      ["vip"]
+    )
+    await db
+      .update(customShellContacts)
+      .set({ status: "unsubscribed" })
+      .where(eq(customShellContacts.email, "person1@example.test"))
+
+    // A segment that deliberately says nothing about status, so the only thing
+    // keeping the opted-out person out is the send path's own rule.
+    const segmentId = await insertSegment("seg-anyone-vip", [
+      { type: "tag", operator: "includes", tags: ["vip"] },
+    ])
+    const filter = { kind: "segment", segmentId } as const
+
+    expect(await countBroadcastAudience(WORKSPACE_ID, filter, db)).toBe(1)
+
+    await insertBroadcast({ audienceFilter: filter })
+    await tick(MORNING)
+
+    expect(sentTo).toEqual(["person0@example.test"])
+  })
+
+  it("stops mailing somebody who opts out partway through", async () => {
+    await insertContacts(6)
+    await tagContacts(
+      Array.from({ length: 6 }, (_, index) => `person${index}@example.test`),
+      ["vip"]
+    )
+    const segmentId = await insertSegment("seg-all-vip", [
+      { type: "tag", operator: "includes", tags: ["vip"] },
+    ])
+    await insertBroadcast({
+      audienceFilter: { kind: "segment", segmentId },
+      dripConfig: drip({ batchSizeMin: 2, batchSizeMax: 2 }),
+    })
+
+    await tick(MORNING)
+    expect(sentTo).toHaveLength(2)
+
+    await db
+      .update(customShellContacts)
+      .set({ status: "unsubscribed" })
+      .where(eq(customShellContacts.email, "person5@example.test"))
+
+    // Later, so the gap between batches has passed. The audience is worked out
+    // again here, which is the whole point of this check.
+    await tick(later(2))
+    await tick(later(4))
+
+    expect(sentTo).not.toContain("person5@example.test")
+    expect(sentTo).toHaveLength(5)
+  })
+
+  it("refuses to send when the segment has been deleted, rather than mailing everyone", async () => {
+    await insertContacts(10)
+    await insertBroadcast({
+      audienceFilter: { kind: "segment", segmentId: "seg-that-is-gone" },
+    })
+
+    await tick(MORNING)
+
+    const row = await readBroadcast()
+    expect(sentTo).toHaveLength(0)
+    expect(row.status).toBe("paused")
+    expect(row.pausedReason).toContain("deleted")
+  })
+
+  it("stops a send already in flight when its segment is deleted", async () => {
+    await insertContacts(10)
+    await tagContacts(
+      Array.from({ length: 10 }, (_, index) => `person${index}@example.test`),
+      ["vip"]
+    )
+    const segmentId = await insertSegment("seg-doomed", [
+      { type: "tag", operator: "includes", tags: ["vip"] },
+    ])
+    await insertBroadcast({
+      audienceFilter: { kind: "segment", segmentId },
+      dripConfig: drip({ batchSizeMin: 3, batchSizeMax: 3 }),
+    })
+
+    await tick(MORNING)
+    expect(sentTo).toHaveLength(3)
+
+    await db
+      .delete(customShellContactSegments)
+      .where(eq(customShellContactSegments.id, segmentId))
+
+    await tick(later(2))
+
+    expect(sentTo).toHaveLength(3)
+    expect((await readBroadcast()).status).toBe("paused")
+  })
+
+  it("counting a deleted segment says so instead of answering with everybody", async () => {
+    await insertContacts(10)
+    await expect(
+      countBroadcastAudience(
+        WORKSPACE_ID,
+        { kind: "segment", segmentId: "seg-that-is-gone" },
+        db
+      )
+    ).rejects.toThrow("SEGMENT_GONE")
   })
 })

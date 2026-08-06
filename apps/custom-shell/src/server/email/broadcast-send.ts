@@ -19,6 +19,10 @@ import {
   renderBroadcastEmailHtml,
 } from "@/lib/broadcasts/render"
 import { getWorkspaceBroadcast } from "@/server/email/broadcasts"
+import {
+  getSegmentDefinition,
+  segmentConditions,
+} from "@/server/people/contact-segments"
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import { db, type CustomShellDb } from "@/server/db"
 import { getEmailProvider } from "@/server/email/provider"
@@ -59,9 +63,20 @@ type AudienceContact = {
   lastName: string | null
 }
 
-function audienceConditions(
+/**
+ * Who this newsletter is for, as a database condition.
+ *
+ * A segment is not copied out into rules of its own here — it calls the segment
+ * code. That is what makes the number in the send window and the people who
+ * actually get the email one answer to one question rather than two that drift.
+ *
+ * Whatever the audience says, "still on the list" is always on top of it. A
+ * segment can narrow who gets an email; it can never widen it.
+ */
+async function audienceConditions(
   workspaceId: string,
-  filter: BroadcastAudienceFilter
+  filter: BroadcastAudienceFilter,
+  database: CustomShellDb
 ) {
   const conditions = [
     eq(customShellContacts.workspaceId, workspaceId),
@@ -71,6 +86,17 @@ function audienceConditions(
   ]
   if (filter.kind === "tags") {
     conditions.push(arrayOverlaps(customShellContacts.tags, filter.tags))
+  }
+  if (filter.kind === "segment") {
+    const segment = await getSegmentDefinition(
+      workspaceId,
+      filter.segmentId,
+      database
+    )
+    // The one failure this file refuses to guess at. Carrying on without the
+    // condition would mail the whole list, so it stops instead.
+    if (!segment) throw new Error("SEGMENT_GONE")
+    conditions.push(await segmentConditions(workspaceId, segment, database))
   }
   return and(...conditions)
 }
@@ -88,7 +114,7 @@ async function resolveBroadcastAudience(
       lastName: customShellContacts.lastName,
     })
     .from(customShellContacts)
-    .where(audienceConditions(workspaceId, filter))
+    .where(await audienceConditions(workspaceId, filter, database))
     .orderBy(asc(customShellContacts.createdAt), asc(customShellContacts.id))
 }
 
@@ -100,7 +126,7 @@ export async function countBroadcastAudience(
   const [row] = await database
     .select({ total: sql<number>`count(*)::int` })
     .from(customShellContacts)
-    .where(audienceConditions(workspaceId, filter))
+    .where(await audienceConditions(workspaceId, filter, database))
   return row?.total ?? 0
 }
 
@@ -453,11 +479,29 @@ async function processBroadcastBatch(
   // keyed on the contact, so somebody who was already mailed is still skipped.
   await syncContactsFromUsers(broadcast.workspaceId, database)
 
-  const audience = await resolveBroadcastAudience(
-    broadcast.workspaceId,
-    parseAudienceFilter(broadcast.audienceFilter),
-    database
-  )
+  // The audience is worked out fresh for every batch, not frozen when Send was
+  // pressed. That is what makes a segment worth pointing at: somebody who opts
+  // out halfway through simply stops being in it.
+  let audience: AudienceContact[]
+  try {
+    audience = await resolveBroadcastAudience(
+      broadcast.workspaceId,
+      parseAudienceFilter(broadcast.audienceFilter),
+      database
+    )
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "SEGMENT_GONE") throw error
+    // Pause and say so, rather than throwing out of the batch — a throw leaves
+    // the claim to go stale and the ticker retrying every fifteen seconds for
+    // ever, telling nobody why nothing is arriving.
+    await release({
+      status: "paused",
+      pausedReason:
+        "The segment this was going to has been deleted, so nothing more can go out. Pick who it is for again, then start it.",
+    })
+    return
+  }
+
   const deliveredRows = await database
     .select({ contactId: customShellDeliveries.contactId })
     .from(customShellDeliveries)

@@ -410,6 +410,22 @@ async function getWorkspaceSegment(
   return row ?? null
 }
 
+/**
+ * One segment, ready to be turned into a condition, or `null` if it is gone.
+ *
+ * The send path's way in. It gives back `null` rather than an empty segment on
+ * purpose: "no rules" means every contact, and a newsletter aimed at a segment
+ * somebody deleted must stop, not widen.
+ */
+export async function getSegmentDefinition(
+  workspaceId: string,
+  segmentId: string,
+  database: CustomShellDb = db
+): Promise<SegmentDefinition | null> {
+  const row = await getWorkspaceSegment(workspaceId, segmentId, database)
+  return row ? readSegment(row) : null
+}
+
 /** The contacts hand-picked into one segment, for the window that edits it. */
 export async function listSegmentMembers(
   workspaceId: string,

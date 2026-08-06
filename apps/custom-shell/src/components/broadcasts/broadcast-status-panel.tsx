@@ -42,9 +42,12 @@ const STATUS_LABELS: Record<BroadcastStatus, string> = {
  */
 export function BroadcastStatusPanel({
   broadcast,
+  segmentNames,
   onUpdated,
 }: {
   broadcast: BroadcastDetail
+  /** Every saved segment's name by id, so an audience can be named, not hinted at. */
+  segmentNames: Record<string, string>
   onUpdated: (detail: BroadcastDetail) => void
 }) {
   const [deliveries, setDeliveries] = React.useState<BroadcastDeliveryItem[]>([])
@@ -201,7 +204,7 @@ export function BroadcastStatusPanel({
           )}
 
           <p className="text-sm text-muted-foreground">
-            {describeAudienceFilter(broadcast.audienceFilter)}
+            {describeAudienceFilter(broadcast.audienceFilter, segmentNames)}
             {broadcast.scheduled_at
               ? ` · Goes out ${formatDateTime(broadcast.scheduled_at)}`
               : ""}

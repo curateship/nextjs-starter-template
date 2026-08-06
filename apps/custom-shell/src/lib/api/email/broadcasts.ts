@@ -152,6 +152,8 @@ const broadcastErrorMessages: Record<string, string> = {
   UNSUBSCRIBE_NOT_CONFIGURED:
     "This server cannot sign unsubscribe links, so nothing can go out. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY and try again.",
   NO_AUDIENCE: "Nobody matches that audience.",
+  SEGMENT_GONE:
+    "The segment this was going to has been deleted. Pick who it is for again.",
   NOT_SENDABLE: "Only a draft or a scheduled newsletter can be sent.",
   NOT_SCHEDULED: "That newsletter is not scheduled.",
   NOT_SENDING: "That newsletter is not sending right now.",
