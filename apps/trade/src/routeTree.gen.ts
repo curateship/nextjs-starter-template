@@ -26,6 +26,7 @@ import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
@@ -141,6 +142,11 @@ const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
+  id: '/trade',
+  path: '/trade',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
+  '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -389,6 +396,7 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
+  '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -441,6 +449,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -493,6 +502,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/changelog'
     | '/home'
+    | '/trade'
     | '/workspaces'
     | '/admin/ai'
     | '/admin/announcements'
@@ -541,6 +551,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/account'
     | '/home'
+    | '/trade'
     | '/workspaces'
     | '/admin/ai'
     | '/admin/announcements'
@@ -592,6 +603,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/changelog'
     | '/_authenticated/home'
+    | '/_authenticated/trade'
     | '/_authenticated/workspaces'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/announcements'
@@ -768,6 +780,13 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/trade': {
+      id: '/_authenticated/trade'
+      path: '/trade'
+      fullPath: '/trade'
+      preLoaderRoute: typeof AuthenticatedTradeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/workspaces': {
@@ -1096,6 +1115,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
 }
 
@@ -1104,6 +1124,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
 }
 
