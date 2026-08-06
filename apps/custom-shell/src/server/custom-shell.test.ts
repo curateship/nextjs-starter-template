@@ -126,6 +126,8 @@ import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
 import {
   addNewsletterLink,
   addOverviewLink,
+  addPagesLink,
+  addSegmentsLink,
   addSystemEmailsLink,
   addTrafficLink,
   removeMediaChildLinks,
@@ -1142,6 +1144,7 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
+          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -1218,6 +1221,7 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
+          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -1675,11 +1679,13 @@ describe("membership section", () => {
     // the AI usage link handed out beside Membership, Traffic after it,
     // Newsletter next — this saved sidebar has no Automations link and no
     // Platform Settings section, so it falls back to the end of the only
-    // section there is — and Membership folded into the Overview last.
+    // section there is — Membership folded into the Overview, and the Pages
+    // link handed out after Traffic last.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
       "item-newsletter",
     ])
     // Feeds held nothing but the audit link, which was taken out a step
@@ -1721,11 +1727,12 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The AI usage, Traffic and Newsletter links stay: all were handed out by
-    // the same upgrade, and none is what was deleted.
+    // The AI usage, Traffic, Pages and Newsletter links stay: all were handed
+    // out by the same upgrade, and none is what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
       "item-newsletter",
     ])
   })
@@ -1973,11 +1980,12 @@ describe("overview link", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
-      // navVersions 8 and 9 hand the AI usage and Traffic links to every
-      // older workspace. Membership is not on the list: navVersion 14 folds it
-      // into the Overview after those two have used it as their anchor.
+      // navVersions 8, 9 and 17 hand the AI usage, Traffic and Pages links to
+      // every older workspace. Membership is not on the list: navVersion 14
+      // folds it into the Overview after those have used it as their anchor.
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -2008,6 +2016,7 @@ describe("overview link", () => {
     expect(idsIn(reloaded.sections, 0)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
   })
 })
@@ -2184,6 +2193,7 @@ describe("traffic link", () => {
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -2211,7 +2221,149 @@ describe("traffic link", () => {
         )
       ).settings
     )
-    expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-ai-usage"])
+    // Pages stays: the same upgrade handed it out, and it was not what was
+    // deleted.
+    expect(idsIn(reloaded.sections, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-pages",
+    ])
+  })
+})
+
+describe("pages link", () => {
+  /** A sidebar as a workspace saved it before the Pages screen existed. */
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-traffic",
+            label: "Traffic",
+            href: "/admin/traffic",
+            icon: "chart-line",
+            visible: true,
+          },
+        ],
+      },
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  function idsIn(sections: ShellSection[], index: number) {
+    return sections[index].entries.map((entry) => entry.id)
+  }
+
+  it("puts Pages right after the Traffic link", () => {
+    const sections = addPagesLink(savedSections())
+
+    expect(idsIn(sections, 0)).toEqual([
+      "item-admin-traffic",
+      "item-admin-pages",
+    ])
+    expect(idsIn(sections, 1)).toEqual(["item-settings"])
+    expect(sections[0].entries[1]).toMatchObject({
+      href: "/admin/pages",
+      icon: "panelsTopLeft",
+      roles: ["admin"],
+      visible: true,
+    })
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addPagesLink(savedSections())
+    const twice = addPagesLink(once)
+
+    expect(idsIn(twice, 0)).toEqual([
+      "item-admin-traffic",
+      "item-admin-pages",
+    ])
+    // Nothing changed, so nothing to write back.
+    expect(twice).toBe(once)
+  })
+
+  it("leaves a link somebody rebuilt by hand alone", () => {
+    const sections = savedSections()
+    sections[1].entries.push({
+      type: "item",
+      id: "my-own-pages",
+      label: "Public pages",
+      href: "/admin/pages",
+      icon: "panelsTopLeft",
+      visible: true,
+    })
+
+    expect(addPagesLink(sections)).toBe(sections)
+  })
+
+  it("counts a hidden Pages link as already there", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-pages",
+      label: "Pages",
+      href: "/admin/pages",
+      icon: "panelsTopLeft",
+      visible: false,
+    })
+
+    expect(addPagesLink(sections)).toBe(sections)
+  })
+
+  it("counts one nested under another link as already there", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "item-admin-pages", label: "Pages", href: "/admin/pages" },
+    ]
+
+    expect(addPagesLink(sections)).toBe(sections)
+  })
+
+  it("falls back to the end of Administration when Traffic is gone", () => {
+    const sections = savedSections()
+    sections[0].entries = [
+      {
+        type: "item",
+        id: "item-admin-membership",
+        label: "Membership",
+        href: "/admin/membership",
+        icon: "id-card",
+        visible: true,
+      },
+    ]
+
+    expect(idsIn(addPagesLink(sections), 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-pages",
+    ])
+  })
+
+  it("falls back to the first section when Administration is gone", () => {
+    const sections = savedSections().slice(1)
+
+    expect(idsIn(addPagesLink(sections), 0)).toEqual([
+      "item-settings",
+      "item-admin-pages",
+    ])
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addPagesLink([])).toEqual([])
   })
 })
 
@@ -2246,6 +2398,7 @@ describe("newsletter link", () => {
       children: [
         { label: "Newsletters", href: "/admin/newsletter" },
         { label: "Contacts", href: "/admin/contacts" },
+        { label: "Segments", href: "/admin/segments" },
         { label: "System emails", href: "/admin/system-emails" },
       ],
     })
@@ -2387,6 +2540,102 @@ describe("system emails link", () => {
 
   it("leaves an emptied sidebar empty", () => {
     expect(addSystemEmailsLink([])).toEqual([])
+  })
+})
+
+describe("segments link", () => {
+  function sectionWith(entries: ShellSection["entries"]): ShellSection[] {
+    return [{ id: "section-platform-settings", title: "Platform", entries }]
+  }
+
+  /** A navVersion-15 sidebar: Newsletter with the three children it had then. */
+  const newsletter = {
+    type: "item" as const,
+    id: "item-newsletter",
+    label: "Newsletter",
+    href: "/admin/newsletter",
+    icon: "mail" as const,
+    visible: true,
+    children: [
+      { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
+      { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+      {
+        id: "item-newsletter-system-emails",
+        label: "System emails",
+        href: "/admin/system-emails",
+      },
+    ],
+  }
+
+  it("puts it directly after Contacts, where somebody would look for it", () => {
+    const [section] = addSegmentsLink(sectionWith([newsletter]))
+    const entry = section.entries[0]
+
+    expect(
+      isShellItem(entry) && entry.children?.map((child) => child.href)
+    ).toEqual([
+      "/admin/newsletter",
+      "/admin/contacts",
+      "/admin/segments",
+      "/admin/system-emails",
+    ])
+  })
+
+  /** Their link, their name, their place — only the way in is added. */
+  it("hangs it under a newsletter link somebody added by hand", () => {
+    const byHand = {
+      type: "item" as const,
+      id: "item-8576ee16",
+      label: "Broadcast",
+      href: "/admin/newsletter",
+      icon: "mails" as const,
+      visible: true,
+    }
+    const [section] = addSegmentsLink(sectionWith([byHand]))
+    const entry = section.entries[0]
+
+    expect(isShellItem(entry) && entry.label).toBe("Broadcast")
+    // A parent with no children has no row of chips, so its own page goes in
+    // beside the new link rather than disappearing from that row.
+    expect(
+      isShellItem(entry) && entry.children?.map((child) => child.href)
+    ).toEqual(["/admin/newsletter", "/admin/segments"])
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addSegmentsLink(sectionWith([newsletter]))
+    expect(addSegmentsLink(once)).toBe(once)
+  })
+
+  it("leaves a sidebar that already reaches Segments alone", () => {
+    const sections = sectionWith([
+      {
+        ...newsletter,
+        children: [
+          ...newsletter.children,
+          { id: "child-mine", label: "Groups", href: "/admin/segments" },
+        ],
+      },
+    ])
+    expect(addSegmentsLink(sections)).toBe(sections)
+  })
+
+  it("leaves a sidebar with no newsletter link alone", () => {
+    const sections = sectionWith([
+      {
+        type: "item" as const,
+        id: "item-media",
+        label: "Media",
+        href: "/admin/media",
+        icon: "image" as const,
+        visible: true,
+      },
+    ])
+    expect(addSegmentsLink(sections)).toEqual(sections)
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addSegmentsLink([])).toEqual([])
   })
 })
 

@@ -1,8 +1,14 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { CONTACT_SORT_COLUMNS } from "@/lib/contact-sort"
 import {
-  CONTACT_SORT_COLUMNS,
+  segmentRulesSchema,
+  type SegmentKind,
+  type SegmentRuleOptions,
+} from "@/lib/contact-segments"
+
+import {
   deleteWorkspaceContacts,
   listWorkspaceContacts,
   listWorkspaceTags,
@@ -10,7 +16,13 @@ import {
   syncContactsFromUsers,
   upsertWorkspaceContact,
 } from "@/server/contacts"
+import {
+  listSegmentNames,
+  listWorkspaceContactSources,
+} from "@/server/contact-segments"
 import { adminGet, adminPost } from "@/server/guards"
+import { listPlans } from "@/server/plans"
+import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { getOrCreateCurrentWorkspace } from "@/server/workspaces"
 
 import { createErrorMessage } from "./error-message"
@@ -35,18 +47,41 @@ export type ContactItem = {
   created_at: string
 }
 
-/**
- * Re-exported as a *type* on purpose. The page needs the column names, and a
- * type disappears at build time — importing the runtime value from `@/server/*`
- * into a component is what drags server code into the browser bundle and breaks
- * hydration across the whole app.
- */
-export type { ContactSortColumn } from "@/server/contacts"
+/** The one list of sortable columns, kept browser-safe — see `lib/contact-sort`. */
+export type { ContactSortColumn } from "@/lib/contact-sort"
 
 export type ContactsPage = {
   contacts: ContactItem[]
   total: number
   tags: string[]
+  /**
+   * Everything the list's filters can name, in the same shape the segment
+   * window's rule builder is handed — one builder, one set of choices.
+   */
+  sources: string[]
+  plans: { slug: string; name: string }[]
+  /**
+   * Every segment, with its kind. Any of them can be left out of a filter rule;
+   * only a hand-picked one can have people added to it, and the toolbar offers
+   * exactly those.
+   */
+  segments: { id: string; name: string; kind: SegmentKind }[]
+  /**
+   * How many rows this page holds. Settled on the server so the loader can ask
+   * for the first page at the size the table will actually show, rather than
+   * fetching one size and then immediately fetching another.
+   */
+  pageSize: number
+}
+
+/** The contacts page's own payload, read as the rule builder's choices. */
+export function contactFilterOptions(page: ContactsPage): SegmentRuleOptions {
+  return {
+    tags: page.tags,
+    sources: page.sources,
+    plans: page.plans,
+    segments: page.segments,
+  }
 }
 
 const contactErrorMessages: Record<string, string> = {
@@ -66,14 +101,18 @@ export const getContactLoadErrorMessage = createErrorMessage(
 
 const listSchema = z.object({
   search: z.string().trim().max(200).optional(),
-  tag: z.string().trim().max(100).optional(),
+  // The list's filters, in the same rules a segment is written in. Checked
+  // against the same schema, so nothing the browser sends can describe a group
+  // the segment builder could not.
+  rules: segmentRulesSchema.optional(),
   // Checked against the fixed list rather than passed through: this names a
   // column, and anything the database is asked to order by has to come from
   // us, never from whatever the browser sent.
   sort: z.enum(CONTACT_SORT_COLUMNS).optional(),
   direction: z.enum(["asc", "desc"]).optional(),
   limit: z.number().int().min(1).max(200).optional(),
-  offset: z.number().int().min(0).optional(),
+  /** 1-based. The offset is worked out from it, so there is one way to page. */
+  page: z.number().int().min(1).max(10_000).optional(),
 })
 
 const idsSchema = z.object({
@@ -99,13 +138,26 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
     // Opening the list is what brings it up to date with who has signed up.
     // Before the read, so somebody who joined a minute ago is on the page.
     await syncContactsFromUsers(workspaceId)
-    const [{ contacts, total }, tags] = await Promise.all([
-      listWorkspaceContacts(workspaceId, data),
-      listWorkspaceTags(workspaceId),
-    ])
+    const pageSize = data.limit ?? (await readDashboardRowsPerPage())
+    const [{ contacts, total }, tags, sources, segments, plans] =
+      await Promise.all([
+        listWorkspaceContacts(workspaceId, {
+          ...data,
+          limit: pageSize,
+          offset: ((data.page ?? 1) - 1) * pageSize,
+        }),
+        listWorkspaceTags(workspaceId),
+        listWorkspaceContactSources(workspaceId),
+        listSegmentNames(workspaceId),
+        listPlans(),
+      ])
     return {
       total,
+      pageSize,
       tags,
+      sources,
+      segments,
+      plans: plans.map((plan) => ({ slug: plan.slug, name: plan.name })),
       contacts: contacts.map((row) => ({
         id: row.id,
         email: row.email,

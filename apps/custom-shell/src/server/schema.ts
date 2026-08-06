@@ -1100,6 +1100,81 @@ export const customShellContacts = pgTable(
 )
 
 /**
+ * A group of contacts named once, so everything that has to say who something
+ * is for can point at the name instead of describing the group again.
+ *
+ * `kind` is the whole design:
+ *
+ * - `rules` — the conditions live in `rules` and the people are never saved.
+ *   Worked out fresh every time anything asks, which is what makes somebody who
+ *   unsubscribed this morning drop out of it this afternoon with nobody having
+ *   to remember. See `src/server/contact-segments.ts`.
+ * - `static` — the people were hand-picked and live in
+ *   `customShellContactSegmentMembers`, for the one-off list no rule describes.
+ */
+export const customShellContactSegments = pgTable(
+  "contact_segments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description").notNull().default(""),
+    kind: varchar("kind", { length: 20 }).notNull().default("rules"),
+    /** A flat list of conditions, all of which have to be true. */
+    rules: jsonb("rules")
+      .notNull()
+      .default(sql`'{"conditions":[]}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "contact_segments_kind_check",
+      sql`${table.kind} in ('rules', 'static')`
+    ),
+    // Case-insensitively unique: "Paying members" and "paying members" are the
+    // same group to a reader, and a list holding both is one nobody can point
+    // at with confidence.
+    uniqueIndex("ux_contact_segments_workspace_name").on(
+      table.workspaceId,
+      sql`lower(${table.name})`
+    ),
+    index("ix_contact_segments_workspace").on(table.workspaceId),
+  ]
+)
+
+/**
+ * Who is in a hand-picked segment. Empty for a rules segment, always.
+ *
+ * Both sides cascade: deleting the segment takes its membership with it, and a
+ * deleted contact stops being in every segment at once rather than leaving rows
+ * pointing at nobody.
+ */
+export const customShellContactSegmentMembers = pgTable(
+  "contact_segment_members",
+  {
+    segmentId: varchar("segment_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContactSegments.id, { onDelete: "cascade" }),
+    contactId: varchar("contact_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContacts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "contact_segment_members_pk",
+      columns: [table.segmentId, table.contactId],
+    }),
+    // "Which segments is this person in" — the direction the key above cannot
+    // answer.
+    index("ix_contact_segment_members_contact").on(table.contactId),
+  ]
+)
+
+/**
  * One email written out of blocks, and everything about sending it.
  *
  * `claimToken` / `claimedAt` are the same claim the automation runs use: a
@@ -1364,6 +1439,8 @@ export type CustomShellAutomationRunStep =
 export type CustomShellAnnouncement =
   typeof customShellAnnouncements.$inferSelect
 export type CustomShellContact = typeof customShellContacts.$inferSelect
+export type CustomShellContactSegment =
+  typeof customShellContactSegments.$inferSelect
 export type CustomShellBroadcast = typeof customShellBroadcasts.$inferSelect
 export type CustomShellBroadcastTemplate =
   typeof customShellBroadcastTemplates.$inferSelect

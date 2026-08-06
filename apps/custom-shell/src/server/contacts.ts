@@ -1,5 +1,8 @@
 import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
 
+import type { SegmentRules } from "@/lib/contact-segments"
+import type { ContactSortColumn } from "@/lib/contact-sort"
+import { segmentConditions } from "@/server/contact-segments"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
@@ -173,21 +176,17 @@ function cleanTags(tags: string[]): string[] {
   return [...seen]
 }
 
-/** The columns the contacts list can be ordered by. */
-export const CONTACT_SORT_COLUMNS = [
-  "email",
-  "name",
-  "status",
-  "created",
-] as const
-
-export type ContactSortColumn = (typeof CONTACT_SORT_COLUMNS)[number]
-
 export async function listWorkspaceContacts(
   workspaceId: string,
   options: {
     search?: string
-    tag?: string
+    /**
+     * The list's filters, written in exactly the same rules a segment is.
+     * One description of "who these people are" for the whole app, so the list
+     * you filtered down to and a segment you save from it cannot mean two
+     * different things — see `segmentConditions`.
+     */
+    rules?: SegmentRules
     sort?: ContactSortColumn
     direction?: "asc" | "desc"
     limit?: number
@@ -209,8 +208,16 @@ export async function listWorkspaceContacts(
     )
     if (searchFilter) filters.push(searchFilter)
   }
-  if (options.tag) {
-    filters.push(sql`${options.tag} = ANY(${customShellContacts.tags})`)
+  if (options.rules?.conditions.length) {
+    filters.push(
+      await segmentConditions(
+        workspaceId,
+        // Not a saved segment — a draft one, standing in for the filters on
+        // screen. The id is only there for the loop guard to hold on to.
+        { id: "contacts-filter", kind: "rules", rules: options.rules },
+        database
+      )
+    )
   }
   const where = and(...filters)
 

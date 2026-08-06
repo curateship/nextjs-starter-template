@@ -172,6 +172,21 @@ function trafficLink(): ShellItem {
   }
 }
 
+const PAGES_LINK_ID = "item-admin-pages"
+const PAGES_HREF = "/admin/pages"
+
+function pagesLink(): ShellItem {
+  return {
+    type: "item",
+    id: PAGES_LINK_ID,
+    label: "Pages",
+    href: PAGES_HREF,
+    icon: "panelsTopLeft",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
 /**
  * The retired Feeds parent. Its page is gone — the Overview shows what it
  * showed — and its four links hang off the Overview now.
@@ -276,29 +291,52 @@ const NEWSLETTER_LINK_ID = "item-newsletter"
 const NEWSLETTER_HREF = "/admin/newsletter"
 const CONTACTS_LINK_ID = "item-newsletter-contacts"
 const CONTACTS_HREF = "/admin/contacts"
+const SEGMENTS_LINK_ID = "item-newsletter-segments"
+const SEGMENTS_HREF = "/admin/segments"
 const SYSTEM_EMAILS_LINK_ID = "item-newsletter-system-emails"
 const SYSTEM_EMAILS_HREF = "/admin/system-emails"
 
 /**
- * Writing and sending a newsletter, with the list of people it goes to and the
- * app's own emails hanging off it — three questions always asked in the same
- * sitting, and a parent with children is what draws the row of chips along the
- * top of the page.
+ * Writing and sending a newsletter, with the list of people it goes to, the
+ * named groups of them, and the app's own emails hanging off it — questions
+ * always asked in the same sitting, and a parent with children is what draws
+ * the row of chips along the top of the page.
  */
 function newsletterChildLinks(): ShellChildItem[] {
   return [
-    {
-      id: `${NEWSLETTER_LINK_ID}-all`,
-      label: "Newsletters",
-      href: NEWSLETTER_HREF,
-    },
-    { id: CONTACTS_LINK_ID, label: "Contacts", href: CONTACTS_HREF },
-    {
-      id: SYSTEM_EMAILS_LINK_ID,
-      label: "System emails",
-      href: SYSTEM_EMAILS_HREF,
-    },
+    newsletterSelfChildLink(),
+    contactsChildLink(),
+    segmentsChildLink(),
+    systemEmailsChildLink(),
   ]
+}
+
+// One function each rather than positions in the list above: the upgrade steps
+// below reach for individual children, and a step that said "the third one"
+// would quietly start meaning something else the day a fourth was added.
+
+function newsletterSelfChildLink(): ShellChildItem {
+  return {
+    id: `${NEWSLETTER_LINK_ID}-all`,
+    label: "Newsletters",
+    href: NEWSLETTER_HREF,
+  }
+}
+
+function contactsChildLink(): ShellChildItem {
+  return { id: CONTACTS_LINK_ID, label: "Contacts", href: CONTACTS_HREF }
+}
+
+function segmentsChildLink(): ShellChildItem {
+  return { id: SEGMENTS_LINK_ID, label: "Segments", href: SEGMENTS_HREF }
+}
+
+function systemEmailsChildLink(): ShellChildItem {
+  return {
+    id: SYSTEM_EMAILS_LINK_ID,
+    label: "System emails",
+    href: SYSTEM_EMAILS_HREF,
+  }
 }
 
 function newsletterLink(): ShellItem {
@@ -319,7 +357,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 15
+export const NAVIGATION_VERSION = 17
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -691,6 +729,16 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 15) {
     sections = removeMediaChildLinks(sections)
+  }
+  // After `addNewsletterLink` above, so the parent it hangs a child on is there
+  // to hang it on.
+  if (settings.navVersion < 16) {
+    sections = addSegmentsLink(sections)
+  }
+  // After `addTrafficLink` above, so the link this one sits beside is there
+  // first.
+  if (settings.navVersion < 17) {
+    sections = addPagesLink(sections)
   }
 
   const [updated] = await database
@@ -1136,6 +1184,52 @@ export function addTrafficLink(sections: ShellSection[]): ShellSection[] {
 }
 
 /**
+ * Puts the Pages link in a sidebar saved before the page existed. Same shape
+ * and same rules as `addTrafficLink` above: an emptied sidebar stays empty, a
+ * link that is already there (by id or address, hidden included) is never
+ * doubled, and it runs once per workspace on the navVersion stamp. It lands
+ * right after Traffic — the public pages next to the visits they get.
+ */
+export function addPagesLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isPages = (link: { id: string; href?: string }) =>
+    link.id === PAGES_LINK_ID || link.href === PAGES_HREF
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isPages(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isPages))
+    )
+  )
+  if (alreadyThere) return sections
+
+  const isTraffic = (link: { id: string; href?: string }) =>
+    link.id === TRAFFIC_LINK_ID || link.href === TRAFFIC_HREF
+
+  const sectionIndex = sections.findIndex((section) =>
+    section.entries.some(isTraffic)
+  )
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  const index = sectionIndex >= 0 ? sectionIndex : Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const trafficAt = section.entries.findIndex(isTraffic)
+    const entries = [...section.entries]
+    entries.splice(
+      trafficAt >= 0 ? trafficAt + 1 : entries.length,
+      0,
+      pagesLink()
+    )
+    return { ...section, entries }
+  })
+}
+
+/**
  * Puts the Newsletter link into a sidebar that was saved before the section
  * existed, right above Automations — the two sit together because both are
  * "things the app sends on your behalf".
@@ -1179,10 +1273,8 @@ export function addNewsletterLink(sections: ShellSection[]): ShellSection[] {
             // Only once the parent has children at all does the row of chips
             // appear, and a parent whose own page is missing from that row
             // reads as a gap — so its own address goes in beside Contacts.
-            ...(children.length
-              ? children
-              : [newsletterChildLinks()[0]]),
-            newsletterChildLinks()[1],
+            ...(children.length ? children : [newsletterSelfChildLink()]),
+            contactsChildLink(),
           ],
         }
       }),
@@ -1228,7 +1320,7 @@ export function addNewsletterLink(sections: ShellSection[]): ShellSection[] {
  * link is already reachable — because this ran before, or because an admin put
  * it somewhere themselves — it is left exactly where they left it. A sidebar
  * with no Newsletter link at all is left alone too: `addNewsletterLink` builds
- * that parent complete with all three children, so there is nothing to fix.
+ * that parent complete with every child, so there is nothing to fix.
  */
 export function addSystemEmailsLink(sections: ShellSection[]): ShellSection[] {
   if (!sections.length) return sections
@@ -1247,7 +1339,7 @@ export function addSystemEmailsLink(sections: ShellSection[]): ShellSection[] {
   )
   if (reachable) return sections
 
-  const systemEmailsChild = newsletterChildLinks()[2]
+  const systemEmailsChild = systemEmailsChildLink()
 
   return sections.map((section) => ({
     ...section,
@@ -1259,10 +1351,58 @@ export function addSystemEmailsLink(sections: ShellSection[]): ShellSection[] {
         children: [
           // A parent with no children yet has no row of chips, and adding one
           // child would leave its own page missing from that row.
-          ...(children.length ? children : [newsletterChildLinks()[0]]),
+          ...(children.length ? children : [newsletterSelfChildLink()]),
           systemEmailsChild,
         ],
       }
+    }),
+  }))
+}
+
+/**
+ * Hangs "Segments" under the Newsletter link, right after Contacts — the two
+ * answer the same question and are always looked at together.
+ *
+ * Same rules as `addSystemEmailsLink` above: only ever adds a child, never
+ * doubles one that is already reachable however it got there, and leaves a
+ * sidebar with no Newsletter link alone, because `addNewsletterLink` builds
+ * that parent complete.
+ */
+export function addSegmentsLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isNewsletter = (link: { id: string; href?: string }) =>
+    link.id === NEWSLETTER_LINK_ID || link.href === NEWSLETTER_HREF
+  const isContacts = (link: { id: string; href?: string }) =>
+    link.id === CONTACTS_LINK_ID || link.href === CONTACTS_HREF
+  const isSegments = (link: { id: string; href?: string }) =>
+    link.id === SEGMENTS_LINK_ID || link.href === SEGMENTS_HREF
+
+  const reachable = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isSegments(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isSegments))
+    )
+  )
+  if (reachable) return sections
+
+  return sections.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) => {
+      if (!isShellItem(entry) || !isNewsletter(entry)) return entry
+      // A parent with no children yet has no row of chips, and adding one child
+      // would leave its own page missing from that row.
+      const children = entry.children?.length
+        ? [...entry.children]
+        : [newsletterSelfChildLink()]
+      const contactsAt = children.findIndex(isContacts)
+      children.splice(
+        contactsAt >= 0 ? contactsAt + 1 : children.length,
+        0,
+        segmentsChildLink()
+      )
+      return { ...entry, children }
     }),
   }))
 }
@@ -1827,6 +1967,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         overviewLink([...feedsChildLinks(), ...membershipChildLinks()]),
         aiUsageLink(),
         trafficLink(),
+        pagesLink(),
       ],
     },
     {
