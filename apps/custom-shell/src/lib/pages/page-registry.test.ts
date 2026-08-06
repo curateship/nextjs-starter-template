@@ -108,13 +108,10 @@ describe("building the list", () => {
     const declaration = { path: "/tour", name: "Tour", summary: "A tour." }
 
     expect(() =>
-      buildPageDescriptors(
-        [
-          { file: "src/routes/tour.page.ts", declaration },
-          { file: "src/routes/other.page.ts", declaration },
-        ],
-        "shell"
-      )
+      buildPageDescriptors([
+        { file: "src/routes/tour.page.ts", declaration },
+        { file: "src/routes/other.page.ts", declaration },
+      ])
     ).toThrow('Two pages both claim the address "/tour"')
   })
 
@@ -122,28 +119,22 @@ describe("building the list", () => {
     // A missing slash would link nowhere and never match a visit count, but
     // nothing downstream would look broken — so it is caught here instead.
     expect(() =>
-      buildPageDescriptors(
-        [
-          {
-            file: "src/routes/tour.page.ts",
-            declaration: { path: "tour", name: "Tour", summary: "A tour." },
-          },
-        ],
-        "shell"
-      )
+      buildPageDescriptors([
+        {
+          file: "src/routes/tour.page.ts",
+          declaration: { path: "tour", name: "Tour", summary: "A tour." },
+        },
+      ])
     ).toThrow('declares the address "tour"')
   })
 
-  it("fills in the defaults: switchable, card layout", () => {
-    const [page] = buildPageDescriptors(
-      [
-        {
-          file: "src/routes/tour.page.ts",
-          declaration: { path: "/tour", name: "Tour", summary: "A tour." },
-        },
-      ],
-      "app"
-    )
+  it("fills in the defaults: switchable, card layout, the shell's own", () => {
+    const [page] = buildPageDescriptors([
+      {
+        file: "src/routes/tour.page.ts",
+        declaration: { path: "/tour", name: "Tour", summary: "A tour." },
+      },
+    ])
 
     expect(page).toEqual({
       path: "/tour",
@@ -151,7 +142,25 @@ describe("building the list", () => {
       summary: "A tour.",
       canSwitchOff: true,
       layout: "card",
-      source: "app",
+      source: "shell",
     })
+  })
+
+  it("takes the app's own pages at their word", () => {
+    // The one thing an app writes. There is nothing in the file path to work
+    // it out from — an app's pages sit in `src/routes` beside the shell's.
+    const [page] = buildPageDescriptors([
+      {
+        file: "src/routes/tour.page.ts",
+        declaration: {
+          path: "/tour",
+          name: "Tour",
+          summary: "A tour.",
+          source: "app",
+        },
+      },
+    ])
+
+    expect(page.source).toBe("app")
   })
 })

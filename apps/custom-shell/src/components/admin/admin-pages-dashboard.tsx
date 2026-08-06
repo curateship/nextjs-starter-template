@@ -237,12 +237,26 @@ export function AdminPagesDashboard({
       {rows.map((row) => (
         <TableRow key={row.path}>
           <TableCell column="main">
-            <span
-              className="block max-w-full truncate text-sm font-medium"
-              title={row.name}
-            >
-              {row.name}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              {/* `min-w-0` on the name as well as the row: a flex child
+                  refuses to shrink below its own text by default, and without
+                  it a long name pushes out of the cell instead of truncating. */}
+              <span
+                className="min-w-0 truncate text-sm font-medium"
+                title={row.name}
+              >
+                {row.name}
+              </span>
+              {/* Only the app's own pages say anything. The shell's are the
+                  ordinary case and a caption on every row would be noise —
+                  and a page that never says where it came from reads as the
+                  shell's, which is what every page here is. */}
+              {row.source === "app" ? (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  Added by this app
+                </span>
+              ) : null}
+            </div>
             <span
               className="line-clamp-2 whitespace-normal text-xs text-muted-foreground"
               title={row.summary}

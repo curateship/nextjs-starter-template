@@ -22,16 +22,15 @@ type Registry = {
 let registry: Registry | null = null
 
 /**
- * Turns declarations into finished descriptors: defaults filled in, `source`
- * stamped, duplicate addresses refused out loud.
+ * Turns declarations into finished descriptors: every default filled in and
+ * duplicate addresses refused out loud.
  *
  * Separate from the registry itself so tests can feed it a hand-made list —
  * the glob above is fixed at build time, so a duplicate can't be staged
  * through it.
  */
 export function buildPageDescriptors(
-  entries: ReadonlyArray<{ file: string; declaration: PageDeclaration }>,
-  source: PageDescriptor["source"]
+  entries: ReadonlyArray<{ file: string; declaration: PageDeclaration }>
 ): PageDescriptor[] {
   const byPath = new Map<string, string>()
   const pages: PageDescriptor[] = []
@@ -63,7 +62,11 @@ export function buildPageDescriptors(
       summary: declaration.summary,
       canSwitchOff: declaration.canSwitchOff ?? true,
       layout: declaration.layout ?? "card",
-      source,
+      // Defaulted here rather than guessed from the file path: an app's pages
+      // live in `src/routes` beside the shell's, so the path says nothing.
+      // Writing nothing means "the shell's", which is what every page in this
+      // repo is.
+      source: declaration.source ?? "shell",
     })
   }
 
@@ -75,10 +78,10 @@ export function buildPageDescriptors(
  *
  * Deliberately not built at module load, the same way `node-registry.ts`
  * holds back: modules that import this one are still loading when this file
- * runs, and a later task folds in pages from the app's options file — which
- * imports app components, which import shell components, which can import
- * this file. Everything here is called from a component, a loader or a
- * request, all of which happen long after boot.
+ * runs, and the glob picks up an app's own declaration files too — which sit
+ * beside app routes, which import app components, which import shell
+ * components, which can import this file. Everything here is called from a
+ * component, a loader or a request, all of which happen long after boot.
  */
 function pageRegistry(): Registry {
   if (registry) return registry
@@ -108,7 +111,7 @@ function pageRegistry(): Registry {
         : 0
   )
 
-  const pages = buildPageDescriptors(entries, "shell")
+  const pages = buildPageDescriptors(entries)
   registry = {
     pages,
     byPath: new Map(pages.map((page) => [page.path, page])),

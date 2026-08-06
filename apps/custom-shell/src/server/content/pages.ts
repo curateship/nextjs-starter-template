@@ -68,6 +68,10 @@ function descriptorForWrittenPage(page: WrittenPage): PageDescriptor {
     summary: "Written in the app by an admin.",
     canSwitchOff: true,
     layout: "card",
+    // `source` says whose code a page is, and a written page has no code —
+    // the shell's own page-writing screen made it. So it takes the default and
+    // carries no "added by this app" label, which is the truth: whichever app
+    // this is, nobody added a file for it.
     source: "shell",
   }
 }

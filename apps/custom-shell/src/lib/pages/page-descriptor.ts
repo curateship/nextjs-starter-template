@@ -17,6 +17,15 @@
  */
 export type PageLayout = "marketing" | "card"
 
+/**
+ * Who ships a page: `"shell"` for the pages this template comes with,
+ * `"app"` for the ones an app built on top of it added itself.
+ *
+ * It is a label and nothing more — see `PageDescriptor["source"]` for what a
+ * wrong answer costs.
+ */
+export type PageSource = "shell" | "app"
+
 /** What a page's `*.page.ts` file writes down about it. */
 export type PageDeclaration = {
   /**
@@ -41,6 +50,14 @@ export type PageDeclaration = {
   canSwitchOff?: boolean
   /** The frame the page is drawn in. Defaults to `"card"`. */
   layout?: PageLayout
+  /**
+   * Who this page belongs to. Defaults to `"shell"`, so the shell's own pages
+   * say nothing and an app writes one word — `source: "app"` — in the pages it
+   * adds. Nothing works it out from the file path: an app's pages sit in
+   * `src/routes` beside the shell's by design, so the declaration is the only
+   * place that knows.
+   */
+  source?: PageSource
 }
 
 /**
@@ -55,10 +72,17 @@ export type PageDescriptor = {
   layout: PageLayout
   /**
    * Whether the shell ships this page or the app built on the shell added it.
-   * Filled in by the registry, never written by hand — a declaration file has
-   * no say in it.
+   *
+   * **Nothing behaves differently on the strength of it.** It is shown on the
+   * Pages dashboard so an admin can tell the two apart — they are maintained by
+   * different people — and it changes no permission, no visibility and no way
+   * of editing. So a wrong answer is a wrong caption and never a broken page:
+   * a shell page that claimed `"app"` would be labelled when it should not be,
+   * and an app page left at the default — much the commoner slip, since the
+   * default is what you get by writing nothing — simply reads as the shell's,
+   * exactly as every page does today.
    */
-  source: "shell" | "app"
+  source: PageSource
 }
 
 /** Identity helper so declaration literals stay fully typed where they are written. */
