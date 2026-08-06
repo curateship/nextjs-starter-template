@@ -40,6 +40,7 @@ import {
   DEFAULT_CHART_INTERVAL,
 } from "@/lib/trade/chart-interval"
 import { useRememberedChoice } from "@/lib/remembered-choice"
+import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
@@ -201,6 +202,14 @@ export function TradeWorkspace({
     CHART_INTERVAL_STORAGE_KEY,
     DEFAULT_CHART_INTERVAL,
     CANDLE_INTERVALS
+  )
+
+  // The live feed: one watch per catalog, torn down with the page. When the
+  // feed recovers from a gap it refetches the loader's snapshot, so figures
+  // that moved during the outage do not linger.
+  React.useEffect(
+    () => startLiveMarketData(catalogs, onRetryMarkets),
+    [catalogs, onRetryMarkets]
   )
 
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)

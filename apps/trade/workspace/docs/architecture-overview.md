@@ -91,11 +91,23 @@ something leaked and the fence test should have caught it.
 - **The Canvas and the Backtest stay outside this app's exchange boundary.**
   The Canvas will hand an automation to the Backtest or to a Bot tab through a
   door, not run either itself — decided in
-  `workspace/tasks/Platform/canvas-hands-off-to-backtest-and-bot.md`.
+  `workspace/tasks/archive/canvas-hands-off-to-backtest-and-bot.md`.
+
+## The roadmap
+
+The porting roadmap chosen on 7 Aug 2026 lives as 19 ordered task files in
+`workspace/tasks/` under `Markets/`, `Chart/`, `Account/` and `Trading/` —
+built category by category, in that order: public market data first, chart
+depth second, read-only accounts third, and the path to real money last,
+with testnet and paper trading before a real order can exist. Features
+rejected during that selection (alerts, bots and their orbit, the scanner
+family, and others) are on the record in those sessions and are not
+re-suggested.
 
 ## Where decisions live
 
-The task files under `workspace/tasks/Platform/` are the record: what was
-decided, when, and why, including the decisions made mid-build. The screen
-rules live in `workspace/docs/ui-ux.md`. When this file and a task file
-disagree, the task file is newer — fix this one.
+The task files under `workspace/tasks/` are the record: what was decided,
+when, and why, including the decisions made mid-build — finished and
+superseded ones move to `tasks/archive/`. The screen rules live in
+`workspace/docs/ui-ux.md`. When this file and a task file disagree, the task
+file is newer — fix this one.

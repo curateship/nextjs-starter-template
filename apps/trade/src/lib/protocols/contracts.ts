@@ -97,6 +97,12 @@ export type MarketRow = {
   /** What to print. The same as marketId on Hyperliquid. */
   symbol: string
   /**
+   * The sub-exchange this market trades on, by its full name — the extra
+   * venues an exchange hosts beside its main one — or null on the main one.
+   * Carried for the screens that must say which "BTC" this is.
+   */
+  subExchange: string | null
+  /**
    * Where the exchange serves this market's logo, or null when it has none.
    * Carried as data so no screen ever builds an exchange's URL itself.
    */
@@ -147,3 +153,22 @@ export type CandleBar = {
   close: number
   volume: number
 }
+
+/**
+ * The figures of one market that move while you watch — what a live feed
+ * pushes, in the same units as `MarketRow`'s copies of them.
+ */
+export type LiveFigures = {
+  price: number
+  change24h: number | null
+  volume24hUsd: number
+  fundingHourly: number | null
+  openInterestUsd: number | null
+}
+
+/**
+ * The health of a live feed, as screens describe it. Judged by data arriving,
+ * not by what the socket claims: "stale" means the numbers on screen may be
+ * old, "paused" means a hidden tab let go of the connection on purpose.
+ */
+export type LiveFeedStatus = "connecting" | "live" | "stale" | "paused"

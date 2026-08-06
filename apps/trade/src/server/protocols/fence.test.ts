@@ -20,9 +20,19 @@ import { describe, expect, it } from "vitest"
 
 const SRC = join(__dirname, "..", "..")
 
-/** Each exchange package, and the one folder allowed to import it. */
-const EXCHANGE_PACKAGES: Array<{ pkg: string; home: string }> = [
-  { pkg: "@nktkas/hyperliquid", home: join("server", "protocols", "hyperliquid") },
+/**
+ * Each exchange package, and the only folders allowed to import it: the
+ * protocol's server side, and its browser side (the live stream — public
+ * data the browser subscribes to directly).
+ */
+const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
+  {
+    pkg: "@nktkas/hyperliquid",
+    homes: [
+      join("server", "protocols", "hyperliquid"),
+      join("lib", "protocols", "hyperliquid"),
+    ],
+  },
 ]
 
 /** Where naming a concrete protocol id is legitimate. */
@@ -52,8 +62,8 @@ describe("the protocol fence", () => {
     expect(sources.length).toBeGreaterThan(100)
   })
 
-  it("keeps each exchange package inside its own folder", () => {
-    for (const { pkg, home } of EXCHANGE_PACKAGES) {
+  it("keeps each exchange package inside its own folders", () => {
+    for (const { pkg, homes } of EXCHANGE_PACKAGES) {
       // Real imports only — `from "pkg"` or `import("pkg")` — so this file
       // may name the package in its own list without fencing itself in.
       const imports = new RegExp(
@@ -61,10 +71,22 @@ describe("the protocol fence", () => {
       )
       const leaks = sources
         .filter(({ text }) => imports.test(text))
-        .filter(({ path }) => !path.startsWith(home + sep))
+        .filter(({ path }) => !homes.some((home) => path.startsWith(home + sep)))
         .map(({ path }) => path)
-      expect(leaks, `${pkg} imported outside ${home}`).toEqual([])
+      expect(leaks, `${pkg} imported outside ${homes.join(", ")}`).toEqual([])
     }
+  })
+
+  it("keeps the browser-side protocol folder off the server", () => {
+    // `lib/protocols/` is in the browser bundle; one `@/server` import there
+    // would drag the database toward the client. Real imports only — the
+    // rule gets written about in comments.
+    const serverImport = /(?:from\s*|import\s*\()\s*["'`]@\/server/
+    const offenders = sources
+      .filter(({ path }) => path.startsWith(join("lib", "protocols") + sep))
+      .filter(({ text }) => serverImport.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
   })
 
   it("keeps protocol comparisons out of shared code", () => {

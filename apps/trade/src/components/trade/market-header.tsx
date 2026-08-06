@@ -16,6 +16,7 @@ import {
   formatFunding,
   formatPrice,
 } from "@/lib/trade/format"
+import { useLiveFigures } from "@/lib/trade/live-market"
 
 /**
  * What the middle panel is showing.
@@ -148,23 +149,37 @@ function MarketInfo({
   const [open, setOpen] = React.useState(false)
   const { row, protocolLabel, networkLabel } = selection
 
+  // The tooltip reads the live feed over the loaded snapshot, so hovering a
+  // minute after opening the page still tells the truth.
+  const live = useLiveFigures(row.key)
+  const price = live?.price ?? row.price
+  const change24h = live?.change24h ?? row.change24h
+  const volume24hUsd = live?.volume24hUsd ?? row.volume24hUsd
+  const fundingHourly = live?.fundingHourly ?? row.fundingHourly
+  const openInterestUsd = live?.openInterestUsd ?? row.openInterestUsd
+
   const figures: Array<[string, string]> = [
-    ["Price", formatPrice(row.price)],
-    ...(row.change24h !== null
-      ? ([["24h", formatChange(row.change24h)]] as Array<[string, string]>)
+    ["Price", formatPrice(price)],
+    ...(change24h !== null
+      ? ([["24h", formatChange(change24h)]] as Array<[string, string]>)
       : []),
-    ["24h volume", formatCompactUsd(row.volume24hUsd)],
-    ...(row.fundingHourly !== null
-      ? ([["Funding", formatFunding(row.fundingHourly)]] as Array<
+    ["24h volume", formatCompactUsd(volume24hUsd)],
+    ...(fundingHourly !== null
+      ? ([["Funding", formatFunding(fundingHourly)]] as Array<
           [string, string]
         >)
       : []),
-    ...(row.openInterestUsd !== null
-      ? ([["Open interest", formatCompactUsd(row.openInterestUsd)]] as Array<
+    ...(openInterestUsd !== null
+      ? ([["Open interest", formatCompactUsd(openInterestUsd)]] as Array<
           [string, string]
         >)
       : []),
     ["Exchange", `${protocolLabel} · ${networkLabel}`],
+    // Which of the exchange's venues this market trades on — the label that
+    // says which "BTC" this is once sub-exchanges are in the list.
+    ...(row.subExchange !== null
+      ? ([["Sub-exchange", row.subExchange]] as Array<[string, string]>)
+      : []),
   ]
 
   return (

@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { formatChange } from "@/lib/trade/format"
+import { useLiveFigures } from "@/lib/trade/live-market"
 import type { MarketCatalog, MarketRow } from "@/lib/protocols/contracts"
 import { cn } from "@/lib/utils"
 
@@ -243,6 +244,13 @@ function MarketRowLine({
   onSelect: () => void
   onToggleFavorite: () => void
 }) {
+  // Subscribed per row, so a tick repaints exactly the rows whose numbers
+  // moved. The list's ORDER stays on the loaded snapshot on purpose — rows
+  // shuffling under the pointer every second would be worse than a sort
+  // that catches up on the next refetch.
+  const live = useLiveFigures(row.key)
+  const change24h = live?.change24h ?? row.change24h
+
   return (
     <div
       className={cn(
@@ -284,17 +292,17 @@ function MarketRowLine({
         <span
           className={cn(
             "shrink-0 text-xs tabular-nums",
-            row.change24h === null
+            change24h === null
               ? "text-muted-foreground"
               : cn(
                   "rounded-full px-2 py-0.5",
-                  row.change24h >= 0
+                  change24h >= 0
                     ? "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
                     : "bg-destructive/10 text-destructive dark:bg-destructive/20"
                 )
           )}
         >
-          {row.change24h === null ? "—" : formatChange(row.change24h)}
+          {change24h === null ? "—" : formatChange(change24h)}
         </span>
       </button>
     </div>

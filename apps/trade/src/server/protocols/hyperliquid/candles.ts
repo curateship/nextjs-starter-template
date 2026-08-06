@@ -5,6 +5,7 @@ import type {
   CandleInterval,
   NetworkId,
 } from "@/lib/protocols/contracts"
+import { num } from "@/lib/protocols/hyperliquid/translate"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
@@ -42,12 +43,6 @@ const candlesSchema = z.array(
     v: z.string(),
   })
 )
-
-/** A figure the exchange sent as a decimal string, or null if it was junk. */
-function num(value: string): number | null {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
 
 export function toCandleBars(
   data: z.infer<typeof candlesSchema>

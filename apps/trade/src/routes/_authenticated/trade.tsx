@@ -1,3 +1,4 @@
+import * as React from "react"
 import { createFileRoute, useRouter } from "@tanstack/react-router"
 
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
@@ -50,6 +51,14 @@ function TradeRoute() {
   const navigate = Route.useNavigate()
   const router = useRouter()
 
+  // Stable on purpose: the workspace keys its live-feed effect on this, and
+  // a fresh closure per render would resubscribe the feed on every market
+  // click.
+  const onRetryMarkets = React.useCallback(
+    () => void router.invalidate(),
+    [router]
+  )
+
   return (
     <TradeWorkspace
       catalogs={markets.catalogs}
@@ -62,7 +71,7 @@ function TradeRoute() {
           replace: true,
         })
       }
-      onRetryMarkets={() => void router.invalidate()}
+      onRetryMarkets={onRetryMarkets}
     />
   )
 }
