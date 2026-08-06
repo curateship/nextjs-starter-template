@@ -10,7 +10,20 @@ import { DEV_APP_PORT } from "./app-port"
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [tanstackStart(), nitro(), react(), tailwindcss(), tsconfigPaths()],
+  plugins: [
+    tanstackStart({
+      router: {
+        // `*.page.ts` files beside routes are page declarations (see
+        // src/lib/pages/page-registry.ts), not routes. Without this the route
+        // generator claims them and writes route boilerplate into them.
+        routeFileIgnorePattern: "\\.page\\.ts$",
+      },
+    }),
+    nitro(),
+    react(),
+    tailwindcss(),
+    tsconfigPaths(),
+  ],
   resolve: {
     alias: [
       {

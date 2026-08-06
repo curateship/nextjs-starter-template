@@ -7,6 +7,10 @@ import {
   createDefaultDashboardWidgets,
   type DashboardWidgetLayout,
 } from "@/lib/dashboard-widgets"
+import {
+  createDefaultPageOverrides,
+  type ShellPageOverrides,
+} from "@/lib/pages/page-visibility"
 import { scaffoldStyling } from "@/lib/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
@@ -419,6 +423,12 @@ export type ShellConfig = {
   automationPause: ShellAutomationPause
   /** App-wide limits on how long a sign-in lasts. See ShellSessionPolicy. */
   sessionPolicy: ShellSessionPolicy
+  /**
+   * What has been changed about individual public pages, keyed by address. A
+   * page with no entry is untouched and behaves as the shell ships it — see
+   * `lib/pages/page-visibility.ts`.
+   */
+  pages: ShellPageOverrides
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
   /**
@@ -931,6 +941,7 @@ export function createDefaultShellConfig(): ShellConfig {
     maintenance: createDefaultMaintenance(),
     automationPause: createDefaultAutomationPause(),
     sessionPolicy: createDefaultSessionPolicy(),
+    pages: createDefaultPageOverrides(),
     styling: createDefaultStyling(),
     dashboardWidgets: createDefaultDashboardWidgets(),
   }
