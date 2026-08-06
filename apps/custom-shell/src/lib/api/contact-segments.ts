@@ -20,11 +20,11 @@ import {
   listWorkspaceSegments,
   updateWorkspaceSegment,
   type SegmentDeleteResult,
-} from "@/server/contact-segments"
-import { listWorkspaceTags, syncContactsFromUsers } from "@/server/contacts"
+} from "@/server/people/contact-segments"
+import { listWorkspaceTags, syncContactsFromUsers } from "@/server/people/contacts"
 import { adminGet, adminPost } from "@/server/guards"
-import { listPlans } from "@/server/plans"
-import { getOrCreateCurrentWorkspace } from "@/server/workspaces"
+import { listPlans } from "@/server/billing/plans"
+import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "./error-message"
 

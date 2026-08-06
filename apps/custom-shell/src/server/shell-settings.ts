@@ -19,11 +19,11 @@ import {
   DEFAULT_SETTINGS_KEY,
   type CustomShellUser,
 } from "@/server/schema"
-import { isAdmin } from "@/server/security"
+import { isAdmin } from "@/server/auth/security"
 import {
   getOrCreateCurrentWorkspace,
   parseWorkspaceSettings,
-} from "@/server/workspaces"
+} from "@/server/people/workspaces"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb) {

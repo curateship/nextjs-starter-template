@@ -89,7 +89,7 @@ const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
  * The free text a row shows: the update's title for a changelog notice, the
  * broadcast's own title for an announcement, and the feedback it is about for
  * the rest. The database searches and sorts on the same three, in the same
- * order — see `subjectExpression` in `src/server/notifications.ts`.
+ * order — see `subjectExpression` in `src/server/notifications/inbox.ts`.
  */
 function notificationSubject(item: NotificationItem) {
   // An AI-allowance notice carries its own words — there is no thing it is

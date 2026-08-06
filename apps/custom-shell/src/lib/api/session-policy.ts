@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { adminPost } from "@/server/guards"
-import { setSessionPolicy } from "@/server/session-policy"
+import { setSessionPolicy } from "@/server/auth/session-policy"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 

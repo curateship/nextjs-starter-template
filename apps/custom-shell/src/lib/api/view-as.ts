@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireAppOrigin } from "@/server/origin"
-import { getSessionToken } from "@/server/security"
+import { requireAppOrigin } from "@/server/auth/origin"
+import { getSessionToken } from "@/server/auth/security"
 import { adminPost } from "@/server/guards"
-import { startViewingAs, stopViewingAs } from "@/server/view-as"
+import { startViewingAs, stopViewingAs } from "@/server/people/view-as"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 

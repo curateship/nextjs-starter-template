@@ -9,7 +9,7 @@ import {
   customShellTrafficVisitors,
   customShellTrafficVisits,
 } from "@/server/schema"
-import { createSecretToken, hashToken, now, uuid } from "@/server/security"
+import { createSecretToken, hashToken, now, uuid } from "@/server/auth/security"
 
 /**
  * The traffic tracker's engine room. The beacon route

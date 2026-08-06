@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, countUnreadNotifications as countUnreadNotificationRows, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications"
+import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, countUnreadNotifications as countUnreadNotificationRows, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications/inbox"
 import { userGet } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"

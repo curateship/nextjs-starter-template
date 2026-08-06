@@ -106,7 +106,7 @@ const SECRET_NAMES: Record<StripeSecretField, string> = {
  * Settings → Payments. The Stripe keys everything billing does runs on: a
  * live set and a sandbox set, with one switch saying which is in use — the
  * same shape as the Directory app's Stripe card. Secrets are saved encrypted
- * through server/stripe-settings.ts and the browser only ever sees a masked
+ * through server/billing/settings.ts and the browser only ever sees a masked
  * tail. Saving is automatic and reports through the sticky header's
  * Saving…/Saved indicator, like every other auto-save in the app.
  */

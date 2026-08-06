@@ -9,7 +9,7 @@ import {
   createPlan,
   listPlans,
   updatePlan,
-} from "@/server/plans"
+} from "@/server/billing/plans"
 import { adminGet, adminPost } from "@/server/guards"
 
 export type AdminPlan = {

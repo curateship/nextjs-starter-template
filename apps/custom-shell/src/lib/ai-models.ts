@@ -1,6 +1,6 @@
 /**
  * The one list of AI providers and the models an admin can pick from —
- * shared by the key store (server/ai-keys.ts), the Settings → AI card, and
+ * shared by the key store (server/ai/keys.ts), the Settings → AI card, and
  * the automation canvas's AI step. A fixed dropdown rather than free text so
  * the cost of every flow stays knowable; add a model here when a new one
  * should be offered. The usage-recording task extends this file with prices.
@@ -93,7 +93,7 @@ export function aiCostCents(
 
 /**
  * The windows the AI usage dashboard can show. Living here — not in
- * server/ai-usage.ts — keeps the constant importable by the browser: a runtime
+ * server/ai/usage.ts — keeps the constant importable by the browser: a runtime
  * value re-exported out of a `@/server/*` module drags the database driver
  * into the client bundle and kills hydration app-wide.
  */

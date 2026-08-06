@@ -16,8 +16,8 @@ import {
   type MediaOrphan,
   type MediaOwner,
   type OrphanDashboard,
-} from "@/server/media"
-import { R2StorageNotConfiguredError } from "@/server/media-storage"
+} from "@/server/media/library"
+import { R2StorageNotConfiguredError } from "@/server/media/storage"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 

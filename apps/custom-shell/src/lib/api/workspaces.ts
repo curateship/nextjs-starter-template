@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { describeAuthError } from "./error-message"
-import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/workspaces"
+import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/people/workspaces"
 import { userGet, userPost } from "@/server/guards"
 import { z } from "zod"
 

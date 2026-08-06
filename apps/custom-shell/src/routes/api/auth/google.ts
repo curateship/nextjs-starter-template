@@ -6,7 +6,7 @@ import {
   googleSignInEnabled,
   rememberGoogleHandshake,
   startGoogleSignIn,
-} from "@/server/google-auth"
+} from "@/server/auth/google"
 
 /**
  * "Continue with Google", step one: send the browser to Google.

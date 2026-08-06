@@ -2,11 +2,11 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { ShellAutomationPause } from "@/lib/custom-shell"
-import { runAutomationTick } from "@/server/automation-engine"
+import { runAutomationTick } from "@/server/automations/engine"
 import {
   countHeldAutomationRuns,
   setAutomationPause,
-} from "@/server/automation-pause"
+} from "@/server/automations/pause"
 import { adminPost } from "@/server/guards"
 
 import { createErrorMessage } from "./error-message"

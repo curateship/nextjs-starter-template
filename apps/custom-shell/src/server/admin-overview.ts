@@ -1,13 +1,13 @@
-import { loadNewestAccounts, type AccountRow } from "@/server/accounts"
-import { listUserAutomations } from "@/server/automations"
+import { loadNewestAccounts, type AccountRow } from "@/server/people/accounts"
+import { listUserAutomations } from "@/server/automations/flows"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   getEmailDeliveryStatus,
   type EmailDeliveryStatus,
-} from "@/server/email-settings"
-import { loadFeedsSummary, type FeedsSummary } from "@/server/feeds"
-import { loadMembershipSummary, type MembershipSummary } from "@/server/membership"
-import { getDefaultPlan } from "@/server/plans"
+} from "@/server/email/settings"
+import { loadFeedsSummary, type FeedsSummary } from "@/server/content/feeds"
+import { loadMembershipSummary, type MembershipSummary } from "@/server/people/membership"
+import { getDefaultPlan } from "@/server/billing/plans"
 
 /**
  * Everything the admin Overview draws. Nothing here is new data: it is the

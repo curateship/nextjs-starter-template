@@ -7,7 +7,7 @@ import {
   type MemberHome,
   type MemberHomeFeedback,
   type MemberHomePlan,
-} from "@/server/member-home"
+} from "@/server/people/member-home"
 
 // Browser code reaches a server type through a `lib/api` module and nowhere
 // else, so the home page's types need a door on this side.

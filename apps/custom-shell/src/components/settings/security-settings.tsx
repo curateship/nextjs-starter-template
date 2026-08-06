@@ -22,7 +22,7 @@ import { plural } from "@/lib/plural"
 
 /**
  * Settings → Security. The session policy saves through its own confirmed
- * write (see server/session-policy.ts), not the page's auto-save: making a
+ * write (see server/auth/session-policy.ts), not the page's auto-save: making a
  * limit stricter signs people out, so it asks first. Loosening a limit signs
  * nobody out and saves straight away.
  */

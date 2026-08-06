@@ -17,7 +17,7 @@ import {
   storedFilename,
   validateMediaContent,
   validateMediaFile,
-} from "@/server/media"
+} from "@/server/media/library"
 import {
   customShellAnnouncements,
   customShellAuthTokens,
@@ -39,7 +39,7 @@ import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
-import { loadMemberHome } from "@/server/member-home"
+import { loadMemberHome } from "@/server/people/member-home"
 import {
   createAnnouncement,
   deleteAnnouncements,
@@ -49,13 +49,13 @@ import {
   retireAnnouncements,
   updateAnnouncement,
   type AnnouncementInput,
-} from "@/server/announcements"
+} from "@/server/content/announcements"
 import {
   createChangelogEntry,
   deleteChangelogEntries,
   listPublishedChangelogEntries,
   updateChangelogEntry,
-} from "@/server/changelog"
+} from "@/server/content/changelog"
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
@@ -72,12 +72,12 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
-import { loadMembershipSummary } from "@/server/membership"
-import { startViewingAs, stopViewingAs } from "@/server/view-as"
-import { loadAccountDetail } from "@/server/account-detail"
-import { grantManualPlan } from "@/server/accounts"
+import { loadMembershipSummary } from "@/server/people/membership"
+import { startViewingAs, stopViewingAs } from "@/server/people/view-as"
+import { loadAccountDetail } from "@/server/people/account-detail"
+import { grantManualPlan } from "@/server/people/accounts"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
-import { setSessionPolicy } from "@/server/session-policy"
+import { setSessionPolicy } from "@/server/auth/session-policy"
 import {
   parseShellGlobals,
   pickShellGlobals,
@@ -89,7 +89,7 @@ import {
   getNotificationPage,
   listAdminNotifications,
   type AdminNotificationQuery,
-} from "@/server/notifications"
+} from "@/server/notifications/inbox"
 import {
   createAuthToken,
   createSessionExpiresAt,
@@ -105,9 +105,9 @@ import {
   signOutOtherDevices,
   uuid,
   verifyPassword,
-} from "@/server/security"
-import { markAccountsForDeletion } from "@/server/account-deletion"
-import { signInWithGoogle } from "@/server/google-auth"
+} from "@/server/auth/security"
+import { markAccountsForDeletion } from "@/server/people/account-deletion"
+import { signInWithGoogle } from "@/server/auth/google"
 import {
   cancelEmailChange,
   consumeEmailChange,
@@ -115,11 +115,11 @@ import {
   createEmailChangeToken,
   findPendingEmailChange,
   revokeEmailChange,
-} from "@/server/email-change"
+} from "@/server/people/email-change"
 import {
   consumeSignInLink,
   createSignInLinkToken,
-} from "@/server/sign-in-link"
+} from "@/server/auth/sign-in-link"
 import { describeDevice } from "@/lib/device-label"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
@@ -149,9 +149,9 @@ import {
   saveWorkspaceBroadcastBlockDefault,
   switchUserWorkspace,
   updateUserWorkspace,
-} from "@/server/workspaces"
-import { sanitizeBlocks } from "@/server/broadcasts"
-import { loadFeedsSummary } from "@/server/feeds"
+} from "@/server/people/workspaces"
+import { sanitizeBlocks } from "@/server/email/broadcasts"
+import { loadFeedsSummary } from "@/server/content/feeds"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
 function platformEntries(settings: { sections: { id: string; entries: unknown[] }[] }) {

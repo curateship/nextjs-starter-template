@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { handleUnsubscribeRequest } from "@/server/unsubscribe"
+import { handleUnsubscribeRequest } from "@/server/email/unsubscribe"
 
 /**
  * The unsubscribe link at the bottom of every newsletter.
@@ -11,7 +11,7 @@ import { handleUnsubscribeRequest } from "@/server/unsubscribe"
  * asks for.
  *
  * Neither is signed in and neither is checked for origin; the signature carried
- * in the address is what stands in for both. See `server/unsubscribe.ts`.
+ * in the address is what stands in for both. See `server/email/unsubscribe.ts`.
  */
 export const Route = createFileRoute("/unsubscribe")({
   server: {

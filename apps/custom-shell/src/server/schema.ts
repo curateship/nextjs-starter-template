@@ -808,7 +808,7 @@ export const customShellChangelogEntries = pgTable(
 /**
  * One API key per AI provider ("anthropic" | "openai"), app-wide. `apiKey` is
  * never the key as typed: it is the AES-256-GCM output of
- * `encryptSecret` (`src/server/encryption.ts`), stored as
+ * `encryptSecret` (`src/server/auth/encryption.ts`), stored as
  * base64(iv).base64(tag).base64(ciphertext), so a stolen database backup does
  * not contain a usable key.
  */
@@ -879,7 +879,7 @@ export const customShellPasskeyChallenges = pgTable(
 
 /**
  * One row per AI call — the meter on the only pipe in this app that spends
- * money per click. Written by `recordAiUsage` (src/server/ai-usage.ts) and
+ * money per click. Written by `recordAiUsage` (src/server/ai/usage.ts) and
  * never anywhere else; every call site goes through `runAiCall`, which
  * records failures too, so nothing runs unmeasured.
  *
@@ -1142,7 +1142,7 @@ export const customShellContacts = pgTable(
  * - `rules` — the conditions live in `rules` and the people are never saved.
  *   Worked out fresh every time anything asks, which is what makes somebody who
  *   unsubscribed this morning drop out of it this afternoon with nobody having
- *   to remember. See `src/server/contact-segments.ts`.
+ *   to remember. See `src/server/people/contact-segments.ts`.
  * - `static` — the people were hand-picked and live in
  *   `customShellContactSegmentMembers`, for the one-off list no rule describes.
  */

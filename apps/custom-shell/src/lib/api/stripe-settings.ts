@@ -14,7 +14,7 @@ import {
   type StripeSecretStatus,
   type StripeSettingsStatus,
   type StripeTextField,
-} from "@/server/stripe-settings"
+} from "@/server/billing/settings"
 
 import { createErrorMessage } from "./error-message"
 

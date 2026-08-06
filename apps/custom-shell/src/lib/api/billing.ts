@@ -9,10 +9,10 @@ import {
   listCustomerInvoices,
   type BillingInvoice,
   type CardExpiryWarning,
-} from "@/server/billing"
-import { loadEntitlements } from "@/server/entitlements"
-import { getPlanBySlug, listPurchasablePlans } from "@/server/plans"
-import { enforceRateLimit } from "@/server/rate-limit"
+} from "@/server/billing/stripe"
+import { loadEntitlements } from "@/server/billing/entitlements"
+import { getPlanBySlug, listPurchasablePlans } from "@/server/billing/plans"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellUser } from "@/server/schema"
 import type { PlanFeatures } from "@/lib/plan-features"
 import { userGet, userPost } from "@/server/guards"

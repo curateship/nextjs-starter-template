@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { getOrCreateCurrentWorkspace, parseWorkspaceSettings } from "@/server/workspaces"
+import { getOrCreateCurrentWorkspace, parseWorkspaceSettings } from "@/server/people/workspaces"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -14,7 +14,7 @@ import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
 import { db } from "@/server/db"
-import { isOwnedImageUrl } from "@/server/media"
+import { isOwnedImageUrl } from "@/server/media/library"
 import {
   customShellSettings,
   customShellWorkspaces,
@@ -25,7 +25,7 @@ import {
   pickShellGlobals,
 } from "@/server/shell-settings"
 import { adminPost, userPost } from "@/server/guards"
-import { now } from "@/server/security"
+import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
 

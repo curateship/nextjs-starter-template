@@ -24,7 +24,7 @@ import {
   scheduleBroadcast,
   sendTestBroadcast,
   startBroadcastSendNow,
-} from "@/server/broadcast-send"
+} from "@/server/email/broadcast-send"
 import {
   createWorkspaceBroadcast,
   createWorkspaceTemplate,
@@ -37,14 +37,14 @@ import {
   sanitizeBlocks,
   setDefaultWorkspaceTemplate,
   updateWorkspaceBroadcast,
-} from "@/server/broadcasts"
-import { listBroadcastDeliveries } from "@/server/deliveries"
+} from "@/server/email/broadcasts"
+import { listBroadcastDeliveries } from "@/server/email/deliveries"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   getOrCreateCurrentWorkspace,
   parseWorkspaceSettings,
   saveWorkspaceBroadcastBlockDefault,
-} from "@/server/workspaces"
+} from "@/server/people/workspaces"
 import type { CustomShellBroadcast } from "@/server/schema"
 
 import { createErrorMessage } from "./error-message"

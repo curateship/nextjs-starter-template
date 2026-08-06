@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { applyStripeEvent, stripe } from "@/server/billing"
-import { getActiveStripeConfig } from "@/server/stripe-settings"
+import { applyStripeEvent, stripe } from "@/server/billing/stripe"
+import { getActiveStripeConfig } from "@/server/billing/settings"
 
 /**
  * Stripe webhook receiver.

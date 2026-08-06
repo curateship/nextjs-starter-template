@@ -19,9 +19,9 @@ import {
   customShellSessions,
   customShellSystemEmailSends,
 } from "@/server/schema"
-import { setSessionPolicy } from "@/server/session-policy"
+import { setSessionPolicy } from "@/server/auth/session-policy"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { uuid } from "@/server/security"
+import { uuid } from "@/server/auth/security"
 
 let client: PGlite
 let database: CustomShellDb

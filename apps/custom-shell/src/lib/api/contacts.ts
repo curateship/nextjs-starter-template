@@ -15,15 +15,15 @@ import {
   setContactStatus,
   syncContactsFromUsers,
   upsertWorkspaceContact,
-} from "@/server/contacts"
+} from "@/server/people/contacts"
 import {
   listSegmentNames,
   listWorkspaceContactSources,
-} from "@/server/contact-segments"
+} from "@/server/people/contact-segments"
 import { adminGet, adminPost } from "@/server/guards"
-import { listPlans } from "@/server/plans"
+import { listPlans } from "@/server/billing/plans"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
-import { getOrCreateCurrentWorkspace } from "@/server/workspaces"
+import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "./error-message"
 

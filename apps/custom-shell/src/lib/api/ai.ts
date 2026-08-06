@@ -15,7 +15,7 @@ import {
   testAiKey,
   type AiKeyStatus,
   type AiKeyTestResult,
-} from "@/server/ai-keys"
+} from "@/server/ai/keys"
 import {
   loadAiUsageDashboard as loadAiUsageDashboardQuery,
   loadMyAiUsage as loadMyAiUsageQuery,
@@ -24,7 +24,7 @@ import {
   type AiUsagePersonRow,
   type MyAiRecentCall,
   type MyAiUsage,
-} from "@/server/ai-usage"
+} from "@/server/ai/usage"
 import { adminGet, adminPost, userGet } from "@/server/guards"
 
 export { AI_USAGE_RANGES }

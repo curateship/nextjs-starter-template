@@ -16,15 +16,15 @@ import {
   type PagesOverview,
   type PublicPageRow,
   type WrittenPageView,
-} from "@/server/pages"
-import { findSessionContext } from "@/server/security"
+} from "@/server/content/pages"
+import { findSessionContext } from "@/server/auth/security"
 import {
   createWrittenPage,
   deleteWrittenPage,
   MAX_WRITTEN_PAGE_TITLE,
   updateWrittenPage,
   type WrittenPage,
-} from "@/server/written-pages"
+} from "@/server/content/written-pages"
 
 import { createErrorMessage, describeAuthError } from "./error-message"
 

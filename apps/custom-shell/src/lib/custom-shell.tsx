@@ -512,7 +512,7 @@ export function resolveMaintenanceMessage(message: string) {
 //
 // Nothing is thrown away while it is on. A run that was part-way through stays
 // exactly where it stopped and carries on from there when you switch it back
-// off — see `server/automation-pause.ts` for the whole rule in one place.
+// off — see `server/automations/pause.ts` for the whole rule in one place.
 
 export type ShellAutomationPause = {
   enabled: boolean
@@ -561,7 +561,7 @@ export function normalizeAutomationPause(value: unknown): ShellAutomationPause {
 
 // ---------------------------------------------------------------------------
 // Session policy (Settings → Security). App-wide like maintenance mode, and
-// written only by its own confirmed save (server/session-policy.ts) — never by
+// written only by its own confirmed save (server/auth/session-policy.ts) — never by
 // the settings page's auto-save, so a stale page cannot quietly loosen it.
 
 export type ShellSessionPolicy = {
@@ -581,7 +581,7 @@ export const SESSION_IDLE_MINUTE_OPTIONS = [
 
 /**
  * The shortest idle limit allowed anywhere, not just in the dropdown. The
- * idle clock is only written once a minute (see server/security.ts), so a
+ * idle clock is only written once a minute (see server/auth/security.ts), so a
  * shorter limit would sign out people who are actively clicking around. A
  * hand-edited row or crafted save below it is raised to it.
  */

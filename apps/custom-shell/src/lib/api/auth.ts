@@ -13,10 +13,10 @@ import {
   markAccountsForDeletion,
   purgeExpiredDeletions,
   restoreOwnAccount,
-} from "@/server/account-deletion"
+} from "@/server/people/account-deletion"
 import { appUrlFor } from "@/server/app-url"
-import { cancelSubscriptionsForDeletion } from "@/server/billing"
-import { enforcePasswordNotBreached } from "@/server/breached-passwords"
+import { cancelSubscriptionsForDeletion } from "@/server/billing/stripe"
+import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { db } from "@/server/db"
 import {
   cancelEmailChange,
@@ -26,15 +26,15 @@ import {
   findPendingEmailChange,
   revokeEmailChange,
   type PendingEmailChange,
-} from "@/server/email-change"
-import { sendAuthEmail } from "@/server/email"
-import { enforceDeliverableEmail } from "@/server/email-deliverability"
-import { isOwnedImageUrl } from "@/server/media"
-import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
-import { googleSignInEnabled } from "@/server/google-auth"
+} from "@/server/people/email-change"
+import { sendAuthEmail } from "@/server/email/send"
+import { enforceDeliverableEmail } from "@/server/email/deliverability"
+import { isOwnedImageUrl } from "@/server/media/library"
+import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
+import { googleSignInEnabled } from "@/server/auth/google"
 import { customShellSessions, customShellUsers } from "@/server/schema"
-import { consumeSignInLink, createSignInLinkToken } from "@/server/sign-in-link"
-import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/turnstile"
+import { consumeSignInLink, createSignInLinkToken } from "@/server/auth/sign-in-link"
+import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import {
   clearSessionCookie,
   consumeAuthToken,
@@ -56,13 +56,13 @@ import {
   setSessionCookie,
   uuid,
   verifyPassword,
-} from "@/server/security"
-import { requestIp, requireAppOrigin } from "@/server/origin"
+} from "@/server/auth/security"
+import { requestIp, requireAppOrigin } from "@/server/auth/origin"
 import {
   alertEmailChanged,
   alertPasswordChanged,
   startSessionWithAlert,
-} from "@/server/security-alerts"
+} from "@/server/auth/security-alerts"
 
 export type AuthUser = {
   id: string
@@ -863,7 +863,7 @@ const deleteAccountFn = createServerFn({ method: "POST" })
       throw new Error("INVALID_CREDENTIALS")
     }
 
-    const { countOtherActiveAdmins } = await import("@/server/accounts")
+    const { countOtherActiveAdmins } = await import("@/server/people/accounts")
     if (
       user.role === "admin" &&
       (await countOtherActiveAdmins(user.id)) === 0
@@ -1029,7 +1029,7 @@ export function serializeUser(user: {
  * defaults that only the sign-in handlers ever need.
  */
 export async function startWorkspaceFor(userId: string) {
-  const { getOrCreateCurrentWorkspace } = await import("@/server/workspaces")
+  const { getOrCreateCurrentWorkspace } = await import("@/server/people/workspaces")
   await getOrCreateCurrentWorkspace(userId)
 }
 

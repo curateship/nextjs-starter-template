@@ -4,10 +4,10 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
-import { deleteMediaAsAdmin, findOwnedImageByUrl } from "@/server/media"
-import { getPublicMediaUrl } from "@/server/media-storage"
-import { publishNotificationCreated } from "@/server/notification-events"
-import { enforceRateLimit } from "@/server/rate-limit"
+import { deleteMediaAsAdmin, findOwnedImageByUrl } from "@/server/media/library"
+import { getPublicMediaUrl } from "@/server/media/storage"
+import { publishNotificationCreated } from "@/server/notifications/events"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 import {
   customShellFeedback,
   customShellFeedbackComments,
@@ -19,7 +19,7 @@ import {
   type CustomShellFeedbackComment,
   type CustomShellUser,
 } from "@/server/schema"
-import { now, uuid } from "@/server/security"
+import { now, uuid } from "@/server/auth/security"
 import { adminPost, userGet, userPost } from "@/server/guards"
 import {
   FEEDBACK_STATUSES,

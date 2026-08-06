@@ -14,9 +14,9 @@ import {
   type EmailDeliveryStatus,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
-} from "@/server/email-settings"
+} from "@/server/email/settings"
 import { adminGet, adminPost } from "@/server/guards"
-import { getOrCreateCurrentWorkspace } from "@/server/workspaces"
+import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "./error-message"
 

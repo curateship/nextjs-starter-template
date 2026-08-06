@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement } from "@/server/announcements"
+import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement } from "@/server/content/announcements"
 import { adminGet, adminPost, userPost } from "@/server/guards"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"

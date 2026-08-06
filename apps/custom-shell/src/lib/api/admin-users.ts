@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
-import { loadAccountDetail, type AccountDetail } from "@/server/account-detail"
+import { loadAccountDetail, type AccountDetail } from "@/server/people/account-detail"
 import {
   createAccountByAdmin,
   deleteUserAccount,
@@ -13,12 +13,12 @@ import {
   setUserStatus,
   updateUserRole,
   type AccountRow,
-} from "@/server/accounts"
+} from "@/server/people/accounts"
 import {
   cancelSubscriptionByAdmin,
   type CancelSubscriptionMode,
-} from "@/server/billing"
-import { listPlans } from "@/server/plans"
+} from "@/server/billing/stripe"
+import { listPlans } from "@/server/billing/plans"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 

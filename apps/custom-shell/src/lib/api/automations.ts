@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { adminGet, adminPost } from "@/server/guards"
-import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomations, inspectAutomation } from "@/server/automations"
-import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/workspaces"
+import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomations, inspectAutomation } from "@/server/automations/flows"
+import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/people/workspaces"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 

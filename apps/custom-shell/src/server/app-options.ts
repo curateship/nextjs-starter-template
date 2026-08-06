@@ -1,5 +1,5 @@
 import { appServerOptions } from "@/app/server-options"
-import type { AutomationExecutor } from "@/server/automation-executors"
+import type { AutomationExecutor } from "@/server/automations/executors"
 
 /**
  * The same idea as `src/lib/app-options.ts`, for the answers that can only run

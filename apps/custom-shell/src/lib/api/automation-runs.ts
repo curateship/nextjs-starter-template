@@ -6,13 +6,13 @@ import {
   deleteAutomationRuns,
   runAutomationTick,
   startAutomationRun,
-} from "@/server/automation-engine"
+} from "@/server/automations/engine"
 import {
   getAutomationRun as readAutomationRun,
   listRunsAwaitingApproval as readRunsAwaitingApproval,
   listRunsForAutomation as readRunsForAutomation,
   type AutomationRunRow,
-} from "@/server/automation-runs"
+} from "@/server/automations/runs"
 import { adminGet, adminPost } from "@/server/guards"
 
 import type {

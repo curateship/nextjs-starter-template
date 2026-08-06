@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireUser, isAdmin } from "@/server/security"
+import { requireUser, isAdmin } from "@/server/auth/security"
 import { adminPost, userGet } from "@/server/guards"
-import { listPublishedChangelogEntries, serializeChangelogEntry, listChangelogEntries, createChangelogEntry, updateChangelogEntry, deleteChangelogEntries } from "@/server/changelog"
+import { listPublishedChangelogEntries, serializeChangelogEntry, listChangelogEntries, createChangelogEntry, updateChangelogEntry, deleteChangelogEntries } from "@/server/content/changelog"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 

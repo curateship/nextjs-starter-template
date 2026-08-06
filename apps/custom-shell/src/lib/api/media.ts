@@ -19,13 +19,13 @@ import {
   type MediaListResponse,
   type MediaSortBy,
   type MediaSortDirection,
-} from "@/server/media"
-import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
-import { enforceRateLimit } from "@/server/rate-limit"
+} from "@/server/media/library"
+import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media/storage"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { customShellMedia } from "@/server/schema"
-import { now } from "@/server/security"
+import { now } from "@/server/auth/security"
 import { userGet, userPost } from "@/server/guards"
-import { uuid } from "@/server/security"
+import { uuid } from "@/server/auth/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse }
 export type { MediaSortBy, MediaSortDirection }

@@ -41,7 +41,7 @@ const SAVED_SENTINEL = "••••••••••••"
 /**
  * Settings → Email. The Resend key every email in the app sends with, and the
  * name and address they come from. The key is saved encrypted through
- * server/email-settings.ts and the browser only ever sees a masked tail.
+ * server/email/settings.ts and the browser only ever sees a masked tail.
  * Saving is automatic and reports through the sticky header's Saving…/Saved
  * indicator, like every other auto-save in the app — no Save button.
  */

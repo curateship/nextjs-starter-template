@@ -7,8 +7,8 @@ import type {
 import { z } from "zod"
 
 import { serializeUser, startWorkspaceFor } from "@/lib/api/auth"
-import { purgeExpiredDeletions } from "@/server/account-deletion"
-import { requestIp, requireAppOrigin } from "@/server/origin"
+import { purgeExpiredDeletions } from "@/server/people/account-deletion"
+import { requestIp, requireAppOrigin } from "@/server/auth/origin"
 import {
   deletePasskey,
   finishPasskeyAuthentication,
@@ -17,14 +17,14 @@ import {
   startPasskeyAuthentication,
   startPasskeyRegistration,
   type RelyingParty,
-} from "@/server/passkeys"
-import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
-import { startSessionWithAlert } from "@/server/security-alerts"
+} from "@/server/auth/passkeys"
+import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
+import { startSessionWithAlert } from "@/server/auth/security-alerts"
 import {
   describeRequestOrigin,
   requireOwnAccount,
   setSessionCookie,
-} from "@/server/security"
+} from "@/server/auth/security"
 import { readBranding } from "@/server/shell-settings"
 
 /** One passkey as the Security tab shows it. */

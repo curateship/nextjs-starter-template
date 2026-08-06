@@ -12,18 +12,18 @@ import {
   systemEmailKindSchema,
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
-import { sendAuthEmail } from "@/server/email"
+import { sendAuthEmail } from "@/server/email/send"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   getSystemEmail as getSystemEmailRow,
   listSystemEmailSends as listSends,
   listSystemEmails,
   updateSystemEmail as saveSystemEmail,
-} from "@/server/system-emails"
+} from "@/server/email/system-emails"
 import {
   getOrCreateCurrentWorkspace,
   parseWorkspaceSettings,
-} from "@/server/workspaces"
+} from "@/server/people/workspaces"
 import { appUrlFor } from "@/server/app-url"
 
 import { createErrorMessage } from "./error-message"

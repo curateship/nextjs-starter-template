@@ -1,7 +1,7 @@
 /**
  * The upload rules the browser checks before sending a file.
  *
- * These mirror `validateMediaFile` in `server/media.ts`, which is still the one
+ * These mirror `validateMediaFile` in `server/media/library.ts`, which is still the one
  * that decides. Checking here only saves someone a 100MB round trip to be told
  * no, so the wording matches on both sides.
  */
