@@ -83,6 +83,21 @@ export function parseMarketKey(key: string): MarketRef | null {
 }
 
 /**
+ * What kind of thing a market is, in the app's own words. Exchanges say this
+ * in their own vocabularies; each module translates into this one.
+ */
+export const MARKET_CATEGORIES = [
+  "crypto",
+  "stocks",
+  "indices",
+  "commodities",
+  "forex",
+  "other",
+] as const
+
+export type MarketCategory = (typeof MARKET_CATEGORIES)[number]
+
+/**
  * One market, in the app's own words. This is what screens draw — no screen
  * ever sees an exchange's raw response.
  *
@@ -102,6 +117,17 @@ export type MarketRow = {
    * Carried for the screens that must say which "BTC" this is.
    */
   subExchange: string | null
+  /** What kind of market this is, for filtering the list. */
+  category: MarketCategory
+  /**
+   * How many decimal places an order's size may have — 3 means the smallest
+   * size step is 0.001 of the coin. Null when the exchange does not say.
+   */
+  sizeDecimals: number | null
+  /** The most leverage this market allows, or null when the exchange does not say. */
+  maxLeverage: number | null
+  /** This market only trades isolated: a trade's stake is all it can lose. */
+  isolatedOnly: boolean
   /**
    * Where the exchange serves this market's logo, or null when it has none.
    * Carried as data so no screen ever builds an exchange's URL itself.

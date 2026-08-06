@@ -136,6 +136,13 @@ export function MarketHeader({
   )
 }
 
+/** The coin's own name, without a venue prefix — sizes are in coins. */
+function bareSymbol(symbol: string): string {
+  return symbol.includes(":")
+    ? symbol.slice(symbol.indexOf(":") + 1)
+    : symbol
+}
+
 /**
  * The market's figures, behind an info icon — click or hover. The exchange
  * and network live in here too now that their chips are gone, so the answer
@@ -180,6 +187,25 @@ function MarketInfo({
     ...(row.subExchange !== null
       ? ([["Sub-exchange", row.subExchange]] as Array<[string, string]>)
       : []),
+    // The market's ground rules — the same numbers the order form will
+    // enforce, surfaced where "why was my order refused?" gets asked. A rule
+    // the exchange does not state shows nothing rather than a guess.
+    ...(row.sizeDecimals !== null
+      ? ([
+          [
+            "Smallest size",
+            `${(10 ** -row.sizeDecimals).toFixed(row.sizeDecimals)} ${bareSymbol(row.symbol)}`,
+          ],
+        ] as Array<[string, string]>)
+      : []),
+    ...(row.maxLeverage !== null
+      ? ([["Max leverage", `${row.maxLeverage}×`]] as Array<[string, string]>)
+      : []),
+    ...(row.isolatedOnly
+      ? ([
+          ["Margin", "Isolated only — a trade's stake is all it can lose"],
+        ] as Array<[string, string]>)
+      : []),
   ]
 
   return (
@@ -198,7 +224,9 @@ function MarketInfo({
         {figures.map(([label, value]) => (
           <span key={label} className="flex items-baseline justify-between gap-6">
             <span className="opacity-70">{label}</span>
-            <span className="tabular-nums">{value}</span>
+            {/* Right-aligned so the one long value — the isolated-only
+                explainer — wraps tidily under itself. */}
+            <span className="text-right tabular-nums">{value}</span>
           </span>
         ))}
       </TooltipContent>

@@ -1,4 +1,4 @@
-import type { LiveFigures } from "@/lib/protocols/contracts"
+import type { LiveFigures, MarketCategory } from "@/lib/protocols/contracts"
 
 /**
  * The pure translation rules both halves of the Hyperliquid module share —
@@ -30,6 +30,33 @@ export function namespaceMarketId(dexName: string, assetName: string): string {
 }
 
 export type { LiveFigures }
+
+/**
+ * The exchange's category vocabulary into the app's — the same mapping the
+ * old app proved. A market the exchange left uncategorised is a crypto coin
+ * on the main exchange (that is all the main exchange lists) and "other" on
+ * a sub-exchange, where it could be anything.
+ */
+export function normalizeMarketCategory(
+  category: string | undefined,
+  isMainVenue: boolean
+): MarketCategory {
+  switch (category?.toLowerCase()) {
+    case "crypto":
+      return "crypto"
+    case "stocks":
+    case "preipo":
+      return "stocks"
+    case "indices":
+      return "indices"
+    case "commodities":
+      return "commodities"
+    case "fx":
+      return "forex"
+    default:
+      return isMainVenue ? "crypto" : "other"
+  }
+}
 
 /**
  * One market's streamed context into live figures — the same arithmetic the

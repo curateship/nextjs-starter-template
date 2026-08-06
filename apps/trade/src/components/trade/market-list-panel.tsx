@@ -5,14 +5,27 @@ import {
   WorkspacePanelTab,
   WorkspacePanelTabsHeader,
 } from "@/components/shared/workspace-panel-header"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { formatChange } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
-import type { MarketCatalog, MarketRow } from "@/lib/protocols/contracts"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import {
+  MARKET_CATEGORIES,
+  type MarketCatalog,
+  type MarketRow,
+} from "@/lib/protocols/contracts"
 import { cn } from "@/lib/utils"
 
 /**
@@ -23,6 +36,21 @@ import { cn } from "@/lib/utils"
 type MarketTab = "all" | "fav" | "watch"
 
 type SortKey = "vol" | "change"
+
+/** The category filter's choices — every category, plus off. */
+const CATEGORY_CHOICES = ["all", ...MARKET_CATEGORIES] as const
+type CategoryChoice = (typeof CATEGORY_CHOICES)[number]
+const CATEGORY_STORAGE_KEY = "trade-market-category"
+
+const CATEGORY_LABELS: Record<CategoryChoice, string> = {
+  all: "All",
+  crypto: "Crypto",
+  stocks: "Stocks",
+  indices: "Indices",
+  commodities: "Commodities",
+  forex: "Forex",
+  other: "Other",
+}
 
 /**
  * The left panel: every market the connected exchanges list, and the ways
@@ -60,6 +88,13 @@ export function MarketListPanel({
     key: "vol",
     desc: true,
   })
+  // Which kind of market the All tab shows, remembered like the chart's
+  // timeframe. Fav is deliberately untouched by it: stars are stars.
+  const [category, setCategory] = useRememberedChoice<CategoryChoice>(
+    CATEGORY_STORAGE_KEY,
+    "all",
+    CATEGORY_CHOICES
+  )
 
   // Clicking the sorted column flips it; clicking the other column takes
   // over, biggest first.
@@ -87,6 +122,11 @@ export function MarketListPanel({
         (!trimmed || row.symbol.toUpperCase().includes(trimmed))
     )
     if (tab === "fav") list = list.filter((row) => favorites.has(row.key))
+    // The category narrows the catalog view only. A starred market is shown
+    // because it is starred, whatever kind of market it is.
+    if (tab === "all" && category !== "all") {
+      list = list.filter((row) => row.category === category)
+    }
 
     const direction = sort.desc ? -1 : 1
     return [...list].sort((a, b) => {
@@ -96,7 +136,17 @@ export function MarketListPanel({
           : [a.change24h ?? 0, b.change24h ?? 0]
       return (va - vb) * direction
     })
-  }, [rows, query, tab, sort, favorites, selectedKey])
+  }, [rows, query, tab, sort, favorites, selectedKey, category])
+
+  // Only offer the kinds of market actually in the list — plus whatever the
+  // remembered choice is, so the control never shows a value it hides.
+  const presentCategories = React.useMemo(() => {
+    const present = new Set(rows.map((row) => row.category))
+    return CATEGORY_CHOICES.filter(
+      (choice) =>
+        choice === "all" || choice === category || present.has(choice)
+    )
+  }, [rows, category])
 
   const sourceLabels = catalogs
     .map((catalog) => `${catalog.protocolLabel} ${catalog.networkLabel}`)
@@ -114,7 +164,9 @@ export function MarketListPanel({
             ? "No market matches that search."
             : tab === "fav"
               ? "Nothing starred yet. Star a market and it stays here."
-              : "The exchange listed no markets."}
+              : category !== "all"
+                ? `No ${CATEGORY_LABELS[category].toLowerCase()} markets right now.`
+                : "The exchange listed no markets."}
         </p>
       ) : (
         <div className="flex flex-col p-1">
@@ -207,9 +259,35 @@ export function MarketListPanel({
         )}
       </TabsContent>
 
-      {/* The bottom bar: the search. Its placeholder names the exchange, so
-          what the list covers is on screen without spending a row on it. */}
-      <div className="shrink-0 border-t border-foreground/10 p-2">
+      {/* The bottom bar: the kind-of-market filter and the search. The
+          search placeholder names the exchange, so what the list covers is
+          on screen without spending a row on it. */}
+      <div className="flex shrink-0 items-center gap-1.5 border-t border-foreground/10 p-2">
+        {/* The filter narrows the catalog; on Fav and Watch it has nothing
+            to narrow. DisabledReason rather than a title: a title on a
+            disabled control never shows, because the pointer never lands. */}
+        <DisabledReason
+          disabled={tab !== "all"}
+          reason="The category filter works on the All tab."
+          className="shrink-0"
+        >
+          <Select
+            value={category}
+            onValueChange={(value) => setCategory(value as CategoryChoice)}
+            disabled={tab !== "all"}
+          >
+            <SelectTrigger aria-label="Kind of market" className="shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {presentCategories.map((choice) => (
+                <SelectItem key={choice} value={choice}>
+                  {CATEGORY_LABELS[choice]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </DisabledReason>
         <Input
           type="search"
           value={query}
@@ -220,7 +298,7 @@ export function MarketListPanel({
           aria-label={
             sourceLabels ? `Search ${sourceLabels}` : "Search markets"
           }
-          className="h-8"
+          className="h-8 min-w-0"
         />
       </div>
     </Tabs>

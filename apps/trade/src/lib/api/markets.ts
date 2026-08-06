@@ -8,6 +8,10 @@ import {
   loadMarketFavoriteKeys,
   saveMarketFavoriteKeys,
 } from "@/server/trade/market-favorites"
+import {
+  loadLastMarketKey,
+  saveLastMarketKey,
+} from "@/server/trade/prefs"
 
 import { createErrorMessage } from "./error-message"
 
@@ -69,8 +73,43 @@ const saveMarketFavoritesFn = createServerFn({ method: "POST" })
     }
   })
 
+/**
+ * The market this account was last looking at. Saved best-effort on every
+ * selection; a failed save loses the memory, never the current view.
+ */
+const lastMarketSchema = z.object({
+  marketKey: z
+    .string()
+    .max(120)
+    .refine((key) => parseMarketKey(key) !== null, {
+      message: "Not a market key.",
+    }),
+})
+
+const loadLastMarketFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<{ marketKey: string | null }> => {
+    return { marketKey: await loadLastMarketKey(context.user.id) }
+  })
+
+const saveLastMarketFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(lastMarketSchema)
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveLastMarketKey(context.user.id, data.marketKey)
+    return { saved: true }
+  })
+
 export function loadMarkets() {
   return loadMarketsFn()
+}
+
+export function loadLastMarket() {
+  return loadLastMarketFn()
+}
+
+export function saveLastMarket(marketKey: string) {
+  return saveLastMarketFn({ data: { marketKey } })
 }
 
 export function loadMarketFavorites() {

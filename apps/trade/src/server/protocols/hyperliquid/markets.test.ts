@@ -6,9 +6,9 @@ import { toMarketRows } from "@/server/protocols/hyperliquid/markets"
 const RESPONSE: Parameters<typeof toMarketRows>[0] = [
   {
     universe: [
-      { name: "BTC" },
+      { name: "BTC", szDecimals: 5, maxLeverage: 40 },
       { name: "OLD", isDelisted: true },
-      { name: "SOL" },
+      { name: "SOL", szDecimals: 2, maxLeverage: 20, onlyIsolated: true },
     ],
   },
   [
@@ -84,6 +84,49 @@ describe("turning Hyperliquid's answer into market rows", () => {
     expect(btc.fundingHourly).toBeCloseTo(0.0000125)
     // Open interest arrives in coins and is worth coins × price in dollars.
     expect(btc.openInterestUsd).toBeCloseTo(12000 * 67400)
+  })
+
+  it("carries the market's ground rules, and honestly says when one is missing", () => {
+    const [btc, sol] = toMarketRows(RESPONSE, "mainnet")
+    expect(btc.sizeDecimals).toBe(5)
+    expect(btc.maxLeverage).toBe(40)
+    expect(btc.isolatedOnly).toBe(false)
+    expect(sol.isolatedOnly).toBe(true)
+    // A venue that states no rules shows nothing, never a guess.
+    const [bare] = toMarketRows(
+      [
+        { universe: [{ name: "MYSTERY" }] },
+        [
+          {
+            markPx: "1",
+            prevDayPx: "1",
+            dayNtlVlm: "1",
+            funding: "0",
+            openInterest: "0",
+          },
+        ],
+      ],
+      "mainnet"
+    )
+    expect(bare.sizeDecimals).toBeNull()
+    expect(bare.maxLeverage).toBeNull()
+  })
+
+  it("translates the exchange's categories into the app's, keyed by raw name", () => {
+    const categories = new Map([
+      ["BTC", "crypto"],
+      ["xyz:AAPL", "preipo"],
+    ])
+    const [btc] = toMarketRows(RESPONSE, "mainnet", null, categories)
+    expect(btc.category).toBe("crypto")
+    const [aapl] = toMarketRows(SUB_RESPONSE, "mainnet", XYZ, categories)
+    // "preipo" is the exchange's word; the app says stocks.
+    expect(aapl.category).toBe("stocks")
+    // Uncategorised: crypto on the main exchange, other on a venue.
+    const [sol] = toMarketRows(RESPONSE, "mainnet").slice(1)
+    expect(sol.category).toBe("crypto")
+    const [bare] = toMarketRows(SUB_RESPONSE, "mainnet", XYZ).slice(1)
+    expect(bare.category).toBe("other")
   })
 
   it("drops a market whose price is junk instead of showing NaN", () => {
