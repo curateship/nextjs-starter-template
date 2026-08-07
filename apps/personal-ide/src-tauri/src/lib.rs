@@ -36,7 +36,7 @@ const DATABASE_SETUP_SCRIPT: &str = "scripts/setup-database.mjs";
 const SCAFFOLD_DATABASE_EXPORT_SCRIPT: &str = "scripts/export-scaffold-database.mjs";
 const SCAFFOLD_DATABASE_FILE: &str = ".scaffold-database.json";
 const SCAFFOLD_STYLING_EXPORT_SCRIPT: &str = "scripts/export-scaffold-styling.mjs";
-const SCAFFOLD_STYLING_FILE: &str = "src/lib/scaffold-styling.ts";
+const SCAFFOLD_STYLING_FILE: &str = "src/lib/layout/scaffold-styling.ts";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
 const DEFAULT_START_TASK_PROMPT: &str = "Work on task \"{{title}}\" from {{path}}.{{skill}} Update the task status frontmatter as progress changes.";
 const NEW_APP_NAME_ALLOWED_MESSAGE: &str =
@@ -2217,20 +2217,15 @@ fn rewrite_scaffold_metadata(
     database_port: u16,
 ) -> Result<(), String> {
     rewrite_package_metadata(app_root, app_name)?;
-    fs::write(
-        app_root.join("vite.config.ts"),
-        generated_vite_config(app_name),
-    )
-    .map_err(|error| error.to_string())?;
+    // vite.config.ts, AGENTS.md and the session cookie are copied untouched:
+    // the shell derives its dev port and cookie name from the app's
+    // package.json name, so renaming the package (above) is enough.
     fs::write(app_root.join("README.md"), generated_readme(app_name))
-        .map_err(|error| error.to_string())?;
-    fs::write(app_root.join("AGENTS.md"), generated_agents_md(app_name))
         .map_err(|error| error.to_string())?;
     ensure_generated_gitignore(app_root)?;
     write_generated_env(app_root, app_name, app_port, database_port)?;
     rewrite_root_title(app_root, app_name)?;
     rewrite_login_branding(app_root, app_name)?;
-    rewrite_session_cookie(app_root, app_name)?;
     Ok(())
 }
 
@@ -2358,47 +2353,10 @@ fn generated_database_port(app_name: &str, used_ports: &HashSet<u16>) -> Result<
     Err("No generated database ports are available.".to_string())
 }
 
-fn generated_vite_config(app_name: &str) -> String {
-    r#"import path from "path"
-import tailwindcss from "@tailwindcss/vite"
-import { tanstackStart } from "@tanstack/react-start/plugin/vite"
-import react from "@vitejs/plugin-react"
-import { nitro } from "nitro/vite"
-import { defineConfig } from "vite"
-import tsconfigPaths from "vite-tsconfig-paths"
-import localAppPorts from "../../local-apps.json"
-
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [tanstackStart(), nitro(), react(), tailwindcss(), tsconfigPaths()],
-  resolve: {
-    alias: [
-      {
-        find: "@",
-        replacement: path.resolve(__dirname, "./src"),
-      },
-    ],
-  },
-  server: {
-    port: localAppPorts["__APP_NAME__"],
-    strictPort: true,
-  },
-})
-"#
-    .replace("__APP_NAME__", app_name)
-}
-
 fn generated_readme(app_name: &str) -> String {
     let title = title_from_slug(app_name);
     format!(
         "# {title}\n\nGenerated from the Custom Shell scaffold.\n\n## Development\n\n```bash\nnpm install\nnpm run dev\n```\n\nThe local app port is defined in `../../local-apps.json`.\n"
-    )
-}
-
-fn generated_agents_md(app_name: &str) -> String {
-    let title = title_from_slug(app_name);
-    format!(
-        "# AGENTS.md\n\nGuidance for agents working in {title}.\n\n## App Context\n\nThis app was generated from the Custom Shell scaffold. Use local code and docs as the source of truth.\n\n## Working Rules\n\n- Keep changes small and direct.\n- Do not commit secrets.\n- Run the narrowest relevant checks before summarizing work.\n"
     )
 }
 
@@ -2452,38 +2410,6 @@ fn rewrite_login_branding(app_root: &Path, app_name: &str) -> Result<(), String>
             &format!("Use your {title} account."),
         );
     fs::write(path, contents).map_err(|error| error.to_string())
-}
-
-// Give each scaffolded app its own session cookie name so it does not share a
-// login with other apps on localhost (cookies are scoped by host, not port).
-// The scaffold is copied from Custom Shell, whose cookie is "custom_shell_session".
-fn rewrite_session_cookie(app_root: &Path, app_name: &str) -> Result<(), String> {
-    let path = app_root.join("src/server/security.ts");
-    if !path.is_file() {
-        return Ok(());
-    }
-
-    let cookie = session_cookie_name(app_name);
-    let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    let contents = contents.replace(
-        "SESSION_COOKIE_NAME = \"custom_shell_session\"",
-        &format!("SESSION_COOKIE_NAME = \"{cookie}\""),
-    );
-    fs::write(path, contents).map_err(|error| error.to_string())
-}
-
-// Derive the cookie name from the app name (e.g. `my-app` -> `my_app_session`),
-// matching the per-app naming convention already used by other apps.
-fn session_cookie_name(app_name: &str) -> String {
-    let mut slug = String::new();
-    for character in app_name.chars() {
-        if character.is_ascii_alphanumeric() {
-            slug.push(character.to_ascii_lowercase());
-        } else if !slug.ends_with('_') {
-            slug.push('_');
-        }
-    }
-    format!("{}_session", slug.trim_matches('_'))
 }
 
 fn copy_local_env_files(source_app: &Path, target_app: &Path) -> Result<(), String> {
@@ -3155,11 +3081,8 @@ mod tests {
             r#"<h1>Sign in to Custom Shell</h1><p>Use your Custom Shell account.</p>"#,
         )
         .expect("write login route");
-        fs::write(
-            root.join("src/server/security.ts"),
-            "export const SESSION_COOKIE_NAME = \"custom_shell_session\"\n",
-        )
-        .expect("write security module");
+        fs::write(root.join("vite.config.ts"), "import { DEV_APP_PORT } from \"./app-port\"\n")
+            .expect("write vite config");
         rewrite_scaffold_metadata(&root, "app-name", 3_012, 54_123)
             .expect("rewrite scaffold metadata");
 
@@ -3178,10 +3101,10 @@ mod tests {
         assert!(env.contains("CUSTOM_SHELL_POSTGRES_PORT=\"54123\""));
         assert!(!env.contains("custom_shell_"));
 
+        // The shell's own vite.config.ts must survive scaffolding untouched —
+        // it reads the port from local-apps.json by the app's package name.
         let vite = fs::read_to_string(root.join("vite.config.ts")).expect("read Vite config");
-        assert!(vite.contains("../../local-apps.json"));
-        assert!(vite.contains("localAppPorts[\"app-name\"]"));
-        assert!(!vite.contains("port: 3000"));
+        assert_eq!(vite, "import { DEV_APP_PORT } from \"./app-port\"\n");
 
         let readme = fs::read_to_string(root.join("README.md")).expect("read README");
         assert!(readme.contains("../../local-apps.json"));
@@ -3191,11 +3114,6 @@ mod tests {
         assert!(login.contains("Sign in to App Name"));
         assert!(login.contains("Use your App Name account."));
         assert!(!login.contains("Custom Shell account"));
-
-        let security =
-            fs::read_to_string(root.join("src/server/security.ts")).expect("read security");
-        assert!(security.contains("SESSION_COOKIE_NAME = \"app_name_session\""));
-        assert!(!security.contains("custom_shell_session"));
 
         let gitignore = fs::read_to_string(root.join(".gitignore")).expect("read gitignore");
         assert!(gitignore.contains(".scaffold-database.json"));
@@ -3239,7 +3157,7 @@ mod tests {
     #[test]
     fn generated_app_captures_custom_shell_styling() {
         let root = temp_path("scaffold-styling");
-        fs::create_dir_all(root.join("src/lib")).expect("create scaffold lib folder");
+        fs::create_dir_all(root.join("src/lib/layout")).expect("create scaffold layout folder");
         let styling = serde_json::json!({
             "gutter": 10,
             "cardBorderWidth": 1,
@@ -3261,8 +3179,8 @@ mod tests {
 
         write_scaffold_styling(&root, &styling).expect("write scaffold styling");
 
-        let generated =
-            fs::read_to_string(root.join("src/lib/scaffold-styling.ts")).expect("read styling");
+        let generated = fs::read_to_string(root.join("src/lib/layout/scaffold-styling.ts"))
+            .expect("read styling");
         assert!(generated.contains("export const scaffoldStyling: ShellStyling | null"));
         assert!(generated.contains("\"gutter\": 10"));
         assert!(generated.contains("\"overlayOpacity\": 29"));
