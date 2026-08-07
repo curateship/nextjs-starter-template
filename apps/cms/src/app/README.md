@@ -12,6 +12,10 @@ file, so there is nothing to reconcile.
 - `options.ts` — the app's answers. Catalogue: `src/lib/app-options.ts`.
 - `server-options.ts` — the answers that only run on the server. Catalogue:
   `src/server/app-options.ts`.
+- `open-endpoints.ts` — the app's own entries in the guard test's exception
+  lists, for an endpoint of the app's that has to be reachable by somebody who
+  is not signed in. Read by `src/server/guards.test.ts`, which applies every
+  check it applies to its own entries.
 
 Two files because of one line: everything in `options.ts` can be seen by the
 browser, and everything in `server-options.ts` never is. Drawing and wording go
@@ -36,5 +40,5 @@ New server functions still go in `src/lib/api/`, never here: the guard test only
 walks that folder, so an endpoint declared in this one would be an unguarded
 door nobody is told about.
 
-**In custom-shell itself both files stay empty forever.** A value here would make
-every app ever copied from the shell conflict on it on every merge.
+**In custom-shell itself all three files stay empty forever.** A value here would
+make every app ever copied from the shell conflict on it on every merge.

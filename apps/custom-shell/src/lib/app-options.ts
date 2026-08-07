@@ -28,7 +28,44 @@ import type { AutomationNodeDescriptor } from "@/lib/automations/node-descriptor
  */
 export type AppOptions = {
   landing?: LandingOptions
+  pages?: PagesOptions
   automations?: AutomationOptions
+}
+
+type PagesOptions = {
+  /**
+   * Lets the app answer an address before the shell's written pages do.
+   *
+   * `src/routes/$.tsx` is where every address without a route of its own ends
+   * up, and today that means one thing: a page an admin wrote. An app whose
+   * pages live in a table of its own — a docs tree, a knowledge base, one site
+   * out of many — has nowhere to put them without editing that route.
+   *
+   * So the route asks here first. Returning `null` means "not mine", and the
+   * written-page path runs exactly as it did before; anything else is rendered
+   * as the app's page. That is deliberately a hook and not a replacement: an
+   * app claims the addresses it knows and leaves every other one alone, so
+   * admin-written pages keep working underneath it.
+   *
+   * The loader may throw `notFound()` or `redirect()` itself when the app wants
+   * to answer an address *and* refuse it — a page that exists but is not for
+   * this reader. Falling through to the written pages would say "no such
+   * address", which is a different answer.
+   *
+   * Two things come with going first.
+   *
+   * **The app owns who may read what it claims.** The written-page path decides
+   * that for itself — a page switched off comes back as "missing", a members-only
+   * one as a sign-in — and an address the app answers never reaches it. Decide it
+   * inside the loader, and answer a page somebody may not see the same way as one
+   * that does not exist, or the difference tells them it is there.
+   *
+   * **An address the app claims hides an admin-written one at the same address.**
+   * Claim narrowly — a prefix the app owns, or a lookup that only answers for
+   * addresses actually in its own table — so an admin writing `/about` is not
+   * quietly overruled by a page nobody remembers claiming.
+   */
+  catchAll?: CatchAllPage
 }
 
 type AutomationOptions = {
@@ -77,10 +114,30 @@ type PageHead = { meta?: Array<Record<string, string>> }
  * draws. Kept together because a route needs all three to come from the same
  * place — a replacement that only swapped the component would still be running
  * the shell's loader behind it.
+ *
+ * `head` is handed what the loader returned, so a title can be part of the
+ * page rather than a second fetch. It is an argument the function may simply
+ * not take: a head that ignores its data is written `() => ({ ... })` and is
+ * still a valid one, which is why every head that existed before this argument
+ * did keeps working untouched.
  */
 export type PublicPage = {
-  head?: () => PageHead
+  head?: (context: { loaderData: unknown }) => PageHead
   loader?: () => Promise<unknown>
+  Component: ComponentType<{ data: unknown }>
+}
+
+/**
+ * A page the app answers arbitrary addresses with — the `pages.catchAll`
+ * option above.
+ *
+ * Unlike `PublicPage` the loader is compulsory and takes the address being
+ * asked for, because the whole job here is deciding whether this address is
+ * the app's at all. `null` is that answer, and it is the only way to give it.
+ */
+export type CatchAllPage = {
+  loader: (context: { path: string }) => Promise<unknown | null>
+  head?: (context: { data: unknown }) => PageHead
   Component: ComponentType<{ data: unknown }>
 }
 
@@ -94,11 +151,27 @@ export type PublicPage = {
  * returns.
  */
 export function definePublicPage<TData = undefined>(page: {
-  head?: () => PageHead
+  head?: (context: { loaderData: TData }) => PageHead
   loader?: () => Promise<TData>
   Component: ComponentType<{ data: TData }>
 }): PublicPage {
   return page as PublicPage
+}
+
+/**
+ * The same idea as `definePublicPage`, for the catch-all page, and for the same
+ * reason: the route renders whichever page is in use and needs one shape, while
+ * the app's own component keeps the type its own loader returns.
+ *
+ * `TData` is what the app answers *with*; the `null` that means "not mine" is
+ * added here, so the app writes its real type and still returns null freely.
+ */
+export function defineCatchAllPage<TData>(page: {
+  loader: (context: { path: string }) => Promise<TData | null>
+  head?: (context: { data: TData }) => PageHead
+  Component: ComponentType<{ data: TData }>
+}): CatchAllPage {
+  return page as CatchAllPage
 }
 
 /*
@@ -135,6 +208,24 @@ export function landingPageOverride(
   options: AppOptions = appOptions
 ): PublicPage | null {
   return options.landing?.page ?? null
+}
+
+/**
+ * The app's page for addresses nothing else claims, or null to leave the
+ * catch-all exactly as the shell wrote it.
+ *
+ * Null rather than a default page, for the same reason as the front page above:
+ * a default here would pull a page module into this file and rebuild the import
+ * circle the rules above exist to avoid.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function catchAllOverride(
+  options: AppOptions = appOptions
+): CatchAllPage | null {
+  return options.pages?.catchAll ?? null
 }
 
 /**

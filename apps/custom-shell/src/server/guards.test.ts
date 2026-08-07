@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
+import { appGuardedDeeper, appOpenEndpoints } from "@/app/open-endpoints"
 import { getFeedbackErrorMessage } from "@/lib/api/feedback"
 import { getMediaErrorMessage } from "@/lib/api/media/media"
 import { getWorkspaceErrorMessage } from "@/lib/api/people/workspaces"
@@ -17,6 +18,11 @@ import { getWorkspaceErrorMessage } from "@/lib/api/people/workspaces"
  * The two lists below are the exceptions, and they are the real content of
  * this test: adding to one is the only way to ship an endpoint without a guard
  * on it, which is the point — it cannot happen by forgetting.
+ *
+ * An app built on this shell has its own two lists in `src/app/open-endpoints.ts`,
+ * merged in below. They exist because a public page an app adds needs an
+ * endpoint anybody may call, and the app cannot write that down here — this is
+ * a shell file. Every check in this file applies to those entries too.
  */
 
 const API_DIR = join(process.cwd(), "src/lib/api")
@@ -139,7 +145,12 @@ function isGuarded({ body }: ServerFn) {
 
 describe("every server function is guarded", () => {
   const serverFns = collectServerFns()
-  const excused = { ...GUARDED_DEEPER, ...OPEN_TO_EVERYONE }
+  const excused = {
+    ...GUARDED_DEEPER,
+    ...OPEN_TO_EVERYONE,
+    ...appGuardedDeeper,
+    ...appOpenEndpoints,
+  }
 
   it("finds the server functions to check", () => {
     // A parser that quietly matched nothing would make every test below pass.
