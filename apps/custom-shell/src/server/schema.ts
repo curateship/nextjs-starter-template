@@ -6,6 +6,7 @@ import type {
   AutomationApprovalDecision,
   AutomationRunStatus,
   AutomationRunStepStatus,
+  AutomationTriggerFacts,
 } from "@/lib/automations/run"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import {
@@ -654,6 +655,15 @@ export const customShellAutomations = pgTable(
      * engine (a later task) reads exclusively from it, never from `graph`.
      */
     compiledConfig: jsonb("compiled_config").$type<AutomationCompiledConfig>(),
+    /**
+     * Whether this flow's trigger is live. Off until somebody says otherwise,
+     * including for every flow that existed before triggers did.
+     *
+     * Only ever about the trigger. Pressing Run by hand works either way — that
+     * is a person asking for it, and this switch is about the flow acting on
+     * its own.
+     */
+    enabled: boolean("enabled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -661,6 +671,24 @@ export const customShellAutomations = pgTable(
     unique("automations_user_name_unique").on(table.userId, table.name),
     index("ix_automations_user_updated").on(table.userId, table.updatedAt),
   ]
+)
+
+/**
+ * When a periodic trigger look last happened, one row per kind of look.
+ *
+ * A trial ending and a card running out are dates passing, and nothing tells us
+ * about a date passing — they are found by looking. The card look asks Stripe
+ * about every paying member, so it must be a daily job on a fifteen-second
+ * ticker. See `server/automations/triggers.ts` for how a scan is claimed.
+ */
+export const customShellAutomationTriggerScans = pgTable(
+  "automation_trigger_scans",
+  {
+    kind: varchar("kind", { length: 64 }).primaryKey(),
+    lastScannedAt: timestamp("last_scanned_at", {
+      withTimezone: true,
+    }).notNull(),
+  }
 )
 
 /**
@@ -706,6 +734,31 @@ export const customShellAutomationRuns = pgTable(
       () => customShellUsers.id,
       { onDelete: "set null" }
     ),
+    /**
+     * Who the run is about — never the same person as `userId`, which is the
+     * admin who owns the flow. Null for a run somebody started by hand.
+     *
+     * The reference clears rather than cascades: an account being deleted must
+     * not take the record of what was done to them with it. `subjectLabel` is
+     * the copy that survives it, and it is a copy on purpose — a renamed
+     * person's old runs still read as they did on the day.
+     */
+    subjectUserId: varchar("subject_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    subjectLabel: varchar("subject_label", { length: 200 }),
+    /** The node kind that started it, so the history can name the moment. */
+    triggerKind: varchar("trigger_kind", { length: 64 }),
+    /**
+     * The one thing this run was started for — a failed invoice, one trial's
+     * end date, one card in one billing period. Unique per automation, which is
+     * what makes a webhook delivered twice or two servers scanning at once
+     * start one run rather than two. Null for a run started by hand.
+     */
+    triggerKey: varchar("trigger_key", { length: 200 }),
+    /** What happened, in the plain values the steps after the trigger read. */
+    triggerFacts: jsonb("trigger_facts").$type<AutomationTriggerFacts>(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -716,6 +769,10 @@ export const customShellAutomationRuns = pgTable(
       "automation_runs_status_check",
       sql`${table.status} in ('active', 'waiting_approval', 'completed', 'failed', 'rejected')`
     ),
+    uniqueIndex("ux_automation_runs_trigger_key")
+      .on(table.automationId, table.triggerKey)
+      .where(sql`${table.triggerKey} is not null`),
+    index("ix_automation_runs_subject").on(table.subjectUserId),
     check(
       "automation_runs_decision_check",
       sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`

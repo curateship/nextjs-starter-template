@@ -348,6 +348,17 @@ function RunRow({
               {run.automation_name}
             </span>
           ) : null}
+          {/* Who it is about, which is the first thing anybody wants from a
+              run that started by itself. Absent on a run somebody pressed Run
+              for, which is about nobody in particular. */}
+          {run.subject_label ? (
+            <span
+              className="min-w-0 truncate text-xs text-muted-foreground"
+              title={run.subject_label}
+            >
+              {run.subject_label}
+            </span>
+          ) : null}
           <span className="shrink-0 text-xs text-muted-foreground">
             {run.step_count} {plural(run.step_count, "step", "steps")}
           </span>
@@ -396,6 +407,13 @@ function RunRow({
                 >
                   Open {detail.automation_name}
                 </Link>
+              ) : null}
+
+              {detail.trigger_name ? (
+                <p className="text-xs text-muted-foreground">
+                  Started by {detail.trigger_name}
+                  {detail.subject_label ? `, for ${detail.subject_label}` : ""}.
+                </p>
               ) : null}
 
               {detail.steps.length === 0 ? (

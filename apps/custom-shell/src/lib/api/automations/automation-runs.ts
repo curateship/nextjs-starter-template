@@ -31,6 +31,10 @@ export type AutomationRunItem = {
   approval_decision: AutomationApprovalDecision | null
   approval_deadline_at: string | null
   step_count: number
+  /** Who the run is about, as they read on the day. Null for a hand-started run. */
+  subject_label: string | null
+  /** The step that started it, or null when somebody pressed Run. */
+  trigger_name: string | null
   started_at: string
   finished_at: string | null
 }
@@ -248,6 +252,8 @@ function serializeRun(run: AutomationRunRow): AutomationRunItem {
       (run.approvalDecision as AutomationApprovalDecision | null) ?? null,
     approval_deadline_at: run.approvalDeadlineAt?.toISOString() ?? null,
     step_count: run.stepCount,
+    subject_label: run.subjectLabel,
+    trigger_name: run.triggerName,
     started_at: run.startedAt.toISOString(),
     finished_at: run.finishedAt?.toISOString() ?? null,
   }

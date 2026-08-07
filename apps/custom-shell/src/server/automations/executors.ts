@@ -1,5 +1,9 @@
 import { audienceNode, audienceWording } from "@/lib/automations/nodes/audience"
 import {
+  billingMomentNode,
+  readBillingMoment,
+} from "@/lib/automations/nodes/billing-moment"
+import {
   approvalDeadline,
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
@@ -13,6 +17,8 @@ import { syncContactsFromUsers } from "@/server/people/contacts"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
 import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
+import type { AutomationTriggerFacts } from "@/lib/automations/run"
+import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 
 /**
@@ -56,6 +62,31 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     type: "next",
     summary: "Did nothing — this is a stand-in step.",
   }),
+
+  /**
+   * The billing trigger, and all a trigger step does when the flow reaches it
+   * is say why the flow is running.
+   *
+   * The work happened before the run existed — the webhook, or the look that
+   * spotted the date. This writes the first line of the history, and it is the
+   * line that names the moment and the person.
+   *
+   * A flow started by hand has no moment and nobody to be about, and that is
+   * allowed on purpose: it is how you try the rest of a recovery flow without
+   * having to make a real payment fail.
+   */
+  [billingMomentNode.kind]: async ({ run, settings }) => {
+    const facts = run.triggerFacts
+    const who = run.subjectLabel?.trim()
+    if (!facts || !who) {
+      return {
+        type: "next",
+        summary:
+          "Started by hand, so there is nobody in particular this run is about. The steps after this one act on whoever they are set to.",
+      }
+    }
+    return { type: "next", summary: billingMomentLine(settings, facts, who) }
+  },
 
   /**
    * Works out who the rest of the flow is about and writes the answer into the
@@ -120,6 +151,65 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       deadlineAt: approvalDeadline(now(), timeoutDays),
     }
   },
+}
+
+/**
+ * One sentence saying what happened and to whom, in the words of whichever
+ * moment the node was set to.
+ *
+ * The moment comes from the node's own settings rather than from the facts,
+ * because the settings are the run's frozen copy of what the flow was watching
+ * for — the same thing that decided it should start at all.
+ */
+function billingMomentLine(
+  settings: Record<string, unknown>,
+  facts: AutomationTriggerFacts,
+  who: string
+): string {
+  const moment = readBillingMoment(settings)
+
+  if (moment === "trialEnding") {
+    const days = typeof facts.daysLeft === "number" ? facts.daysLeft : null
+    const ends = text(facts.trialEndsAt)
+    return days === null
+      ? `${who}'s free trial is running out.`
+      : `${who}'s free trial has ${days} ${plural(days, "day", "days")} left${
+          ends ? `, ending ${formatDate(ends)}` : ""
+        }.`
+  }
+
+  if (moment === "cardExpiring") {
+    const card = [text(facts.cardBrand), text(facts.cardLast4)]
+      .filter(Boolean)
+      .join(" ending ")
+    const expires = text(facts.cardExpiresOn)
+    const renews = text(facts.renewsAt)
+    return [
+      card
+        ? `${who}'s ${card} runs out${expires ? ` in ${expires}` : ""}.`
+        : `${who}'s saved card runs out${expires ? ` in ${expires}` : ""}.`,
+      renews ? `Their plan renews on ${formatDate(renews)}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+  }
+
+  const amount = text(facts.amountDue)
+  const next = text(facts.nextAttemptAt)
+  return [
+    amount
+      ? `${who}'s payment of ${amount} did not go through.`
+      : `${who}'s payment did not go through.`,
+    text(facts.invoiceNumber) ? `Bill ${text(facts.invoiceNumber)}.` : "",
+    next ? `Stripe tries again on ${formatDate(next)}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+/** A fact as a trimmed string, or "" for anything that is not text. */
+function text(value: AutomationTriggerFacts[string]): string {
+  return typeof value === "string" ? value.trim() : ""
 }
 
 let appExecutors: Record<string, AutomationExecutor> | null = null

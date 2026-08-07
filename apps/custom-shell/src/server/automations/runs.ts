@@ -1,7 +1,10 @@
 import { and, asc, count, desc, eq, sql } from "drizzle-orm"
 
 import { automationNodeName } from "@/lib/automations/node-registry"
-import type { AutomationRunStatus } from "@/lib/automations/run"
+import {
+  automationEntryNodeId,
+  type AutomationRunStatus,
+} from "@/lib/automations/run"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAutomationRuns,
@@ -38,6 +41,13 @@ export type AutomationRunRow = {
   approvalDecision: string | null
   approvalDeadlineAt: Date | null
   stepCount: number
+  /**
+   * Who the run is about, as they read on the day it started. Null for a run
+   * somebody set going by hand, which is about nobody in particular.
+   */
+  subjectLabel: string | null
+  /** The step that started it, named the way the canvas names it. */
+  triggerName: string | null
   startedAt: Date
   finishedAt: Date | null
 }
@@ -209,12 +219,16 @@ export async function getAutomationRun(
     steps: steps.map((step) => ({
       id: step.id,
       nodeId: step.nodeId,
+      // The settings come from the run's frozen copy of the flow, not from an
+      // empty bag: a step whose name depends on how it was set — a billing
+      // trigger, say — would otherwise be called by that node kind's default
+      // rather than by what this run actually did.
       stepName: automationNodeName({
         id: step.nodeId,
         kind: step.kind,
         x: 0,
         y: 0,
-        settings: {},
+        settings: row.run.configSnapshot?.nodes?.[step.nodeId]?.settings ?? {},
       }),
       status: step.status,
       summary: step.summary,
@@ -223,6 +237,35 @@ export async function getAutomationRun(
       finishedAt: step.finishedAt,
     })),
   }
+}
+
+/**
+ * The step that started this run, named as it was named on the day.
+ *
+ * Read out of the run's own frozen copy of the flow, settings and all, because
+ * one trigger kind covers several moments and only its settings say which. A
+ * name built from the bare kind would call every billing run by whichever
+ * moment happens to be that node's default.
+ *
+ * Null for a run somebody pressed Run for. Null too if the frozen copy cannot
+ * be read — a list of runs must not fall over on one bad row.
+ */
+function runTriggerName(run: CustomShellAutomationRun): string | null {
+  if (!run.triggerKind) return null
+  const config = run.configSnapshot
+  if (!config?.nodes) return null
+
+  const entryNodeId = automationEntryNodeId(config)
+  const entry = entryNodeId ? config.nodes[entryNodeId] : undefined
+  if (!entryNodeId || !entry) return null
+
+  return automationNodeName({
+    id: entryNodeId,
+    kind: entry.kind,
+    x: 0,
+    y: 0,
+    settings: entry.settings,
+  })
 }
 
 function toRunRow(
@@ -238,6 +281,8 @@ function toRunRow(
     approvalDecision: run.approvalDecision,
     approvalDeadlineAt: run.approvalDeadlineAt,
     stepCount,
+    subjectLabel: run.subjectLabel,
+    triggerName: runTriggerName(run),
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
   }

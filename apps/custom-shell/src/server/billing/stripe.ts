@@ -1,7 +1,17 @@
 import Stripe from "stripe"
 import { and, eq, inArray, isNull } from "drizzle-orm"
 
+import {
+  billingMomentNode,
+  isBillingMoment,
+} from "@/lib/automations/nodes/billing-moment"
+import { formatMoney } from "@/lib/format/money"
 import { appUrlFor } from "@/server/app-url"
+import {
+  automationSubjectLabel,
+  fireAutomationTrigger,
+  type AutomationTriggerEvent,
+} from "@/server/automations/triggers"
 import { db, type CustomShellDb } from "@/server/db"
 import { findSubscription, subscriptionIsActive } from "@/server/billing/entitlements"
 import {
@@ -498,6 +508,11 @@ export async function applyStripeEvent(
     ? await buildSubscriptionValues(database, subscription)
     : null
 
+  const failedInvoice =
+    event.type === "invoice.payment_failed"
+      ? await buildPaymentFailure(database, event.data.object as Stripe.Invoice)
+      : null
+
   return database.transaction(async (tx) => {
     // Claiming the event id first makes a duplicate delivery a no-op even when
     // both copies arrive at the same moment: the loser's insert matches nothing.
@@ -557,8 +572,84 @@ export async function applyStripeEvent(
       }
     }
 
+    // Started inside the same transaction as the event claim on purpose. A
+    // webhook that falls over half way through must not leave a flow running
+    // for something that was rolled back — and the claim being in here is what
+    // makes a delivery that arrives twice start the flow once.
+    if (failedInvoice) {
+      await fireAutomationTrigger(
+        billingMomentNode.kind,
+        isBillingMoment("paymentFailed"),
+        failedInvoice,
+        tx
+      )
+    }
+
     return true
   })
+}
+
+/**
+ * A bill Stripe could not collect, turned into the moment a flow starts from —
+ * or null when there is no flow to start.
+ *
+ * Null in three cases, and each of them is a real one: an invoice for a
+ * customer this app never created, an account that has since been suspended or
+ * deleted, and a bill with no invoice id, which is nothing to key a run to.
+ *
+ * The facts are the ones a recovery email actually needs. No card details: the
+ * app does not store those, and an invoice does not carry them.
+ */
+async function buildPaymentFailure(
+  database: CustomShellDb,
+  invoice: Stripe.Invoice
+): Promise<AutomationTriggerEvent | null> {
+  const customerId = idOf(invoice.customer)
+  if (!invoice.id || !customerId) {
+    return null
+  }
+
+  const [match] = await database
+    .select({ user: customShellUsers, planId: customShellSubscriptions.planId })
+    .from(customShellSubscriptions)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellSubscriptions.userId)
+    )
+    .where(
+      and(
+        eq(customShellSubscriptions.stripeCustomerId, customerId),
+        eq(customShellUsers.status, "active")
+      )
+    )
+    .limit(1)
+  if (!match) {
+    return null
+  }
+
+  const plan = match.planId ? await getPlan(match.planId, database) : null
+
+  return {
+    subjectUserId: match.user.id,
+    subjectLabel: automationSubjectLabel(match.user),
+    // The invoice, not the event: Stripe retries a bill it could not collect
+    // and every retry is another event about the same bill. Keying to the
+    // invoice is what stops one empty card becoming four apologetic emails.
+    key: `paymentFailed:${invoice.id}`,
+    facts: {
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.number,
+      amountDue: formatMoney(invoice.amount_due, invoice.currency),
+      amountDueCents: invoice.amount_due,
+      currency: invoice.currency,
+      attemptCount: invoice.attempt_count,
+      nextAttemptAt: invoice.next_payment_attempt
+        ? new Date(invoice.next_payment_attempt * 1_000).toISOString()
+        : null,
+      invoiceUrl: invoice.hosted_invoice_url ?? null,
+      planName: plan?.name ?? null,
+    },
+  }
 }
 
 async function resolveEventSubscription(

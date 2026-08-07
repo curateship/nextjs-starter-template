@@ -7,6 +7,7 @@ import {
   automationNextNodeId,
   type AutomationApprovalDecision,
 } from "@/lib/automations/run"
+import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
 import { readAutomationsPaused } from "@/server/automations/pause"
 import {
   automationExecutorFor,
@@ -56,8 +57,9 @@ const MAX_ATTEMPTS = 3
 const RETRY_BACKOFF_MS = 30_000
 
 /**
- * One pass: claim the runs that are due, walk each of them, then auto-reject
- * any checkpoint whose deadline has passed.
+ * One pass: look for the moments that start a flow, claim the runs that are
+ * due, walk each of them, then auto-reject any checkpoint whose deadline has
+ * passed.
  */
 export async function runAutomationTick(database: CustomShellDb = db) {
   // The kill switch, asked before anything is claimed. Nothing below runs while
@@ -65,8 +67,13 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   // a checkpoint nobody could answer during the pause would be the switch
   // throwing work away. See `server/automations/pause.ts` for the whole rule.
   if (await readAutomationsPaused(database)) {
-    return { processed: 0, failed: 0, expired: 0, paused: true }
+    return { processed: 0, failed: 0, expired: 0, started: 0, paused: true }
   }
+
+  // Before anything is claimed, so a run a trigger starts this instant is
+  // walked in this same pass rather than sitting still for fifteen seconds.
+  // Never throws — a scan that falls over must not stop the runs already going.
+  const { started } = await runBillingTriggerScans(database)
 
   const claimToken = uuid()
 
@@ -109,7 +116,7 @@ export async function runAutomationTick(database: CustomShellDb = db) {
 
   const expired = await sweepExpiredApprovals(database)
 
-  return { processed, failed, expired, paused: false }
+  return { processed, failed, expired, started, paused: false }
 }
 
 /** Walks one claimed run as far as this pass allows. */

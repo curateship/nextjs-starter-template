@@ -11,6 +11,10 @@ import {
   type AutomationGraph,
   type AutomationValidationError,
 } from "@/lib/automations/graph"
+import {
+  automationKindIsTrigger,
+  automationNodeName,
+} from "@/lib/automations/node-registry"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAutomations,
@@ -35,6 +39,9 @@ export type AutomationListRow = {
   summary: string
   isValid: boolean
   nodeCount: number
+  enabled: boolean
+  /** What the flow reacts to, in the palette's own words. Null when nothing. */
+  triggerName: string | null
   updatedAt: Date
 }
 
@@ -84,6 +91,31 @@ export function automationSummary(inspected: InspectedAutomation): string {
   return inspected.graph.nodes.length === 0 ? "Empty draft" : "Needs attention"
 }
 
+/**
+ * The step this flow starts from when something happens, named the way the
+ * canvas names it — or null when the flow only ever runs because somebody
+ * pressed Run.
+ *
+ * Read from the draft rather than the compiled copy, and that is the point: a
+ * flow still being drawn has no compiled copy, and the list saying "runs by
+ * hand" about a flow with a trigger sitting on it would simply be wrong. What
+ * actually *fires* is read from the compiled copy — see `listFlowsWatching` —
+ * so a half-finished flow describes itself here without being able to run.
+ *
+ * Null for two triggers as well as none: the compiler refuses that flow, so
+ * there is no honest single answer to give.
+ */
+export function automationTriggerName(
+  inspected: InspectedAutomation
+): string | null {
+  const triggers = inspected.graph.nodes.filter((node) =>
+    automationKindIsTrigger(node.kind)
+  )
+  return triggers.length === 1
+    ? automationNodeName(triggers[0])
+    : null
+}
+
 export async function listUserAutomations(
   userId: string,
   database: CustomShellDb = db
@@ -103,9 +135,54 @@ export async function listUserAutomations(
       isValid:
         inspected.compiledConfig !== null && inspected.errors.length === 0,
       nodeCount: inspected.graph.nodes.length,
+      enabled: row.enabled,
+      triggerName: automationTriggerName(inspected),
       updatedAt: row.updatedAt,
     }
   })
+}
+
+/**
+ * Switches a flow's trigger on or off.
+ *
+ * Two things are refused rather than quietly allowed, because both would leave
+ * a switch reading "on" over a flow that can never fire: a draft with errors in
+ * it has no compiled copy for a trigger to be read from, and a flow with no
+ * trigger step has nothing to react to. Switching *off* is never refused —
+ * getting out is always allowed, whatever state the flow is in.
+ *
+ * Nothing is caught up on the way back on. A payment that failed while the
+ * switch was off is not chased when it goes back on; only what happens next is.
+ */
+export async function setAutomationEnabled(
+  userId: string,
+  automationId: string,
+  enabled: boolean,
+  database: CustomShellDb = db
+): Promise<CustomShellAutomation> {
+  const row = await getUserAutomation(userId, automationId, database)
+  if (!row) throw new Error("NOT_FOUND")
+
+  if (enabled) {
+    const inspected = inspectAutomation(row)
+    if (!inspected.compiledConfig || inspected.errors.length > 0) {
+      throw new Error("NOT_RUNNABLE")
+    }
+    if (!automationTriggerName(inspected)) throw new Error("NO_TRIGGER")
+  }
+
+  const [updated] = await database
+    .update(customShellAutomations)
+    .set({ enabled, updatedAt: now() })
+    .where(
+      and(
+        eq(customShellAutomations.id, automationId),
+        eq(customShellAutomations.userId, userId)
+      )
+    )
+    .returning()
+  if (!updated) throw new Error("NOT_FOUND")
+  return updated
 }
 
 export async function getUserAutomation(

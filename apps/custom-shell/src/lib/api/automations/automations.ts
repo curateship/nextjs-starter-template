@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { adminGet, adminPost } from "@/server/guards"
-import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomations, inspectAutomation } from "@/server/automations/flows"
+import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomations, inspectAutomation, automationTriggerName, setAutomationEnabled } from "@/server/automations/flows"
 import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/people/workspaces"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
@@ -22,6 +22,10 @@ export type AutomationListItem = {
   summary: string
   isValid: boolean
   nodeCount: number
+  /** Whether this flow's trigger is live. Never about the Run button. */
+  enabled: boolean
+  /** What it reacts to, or null when it only ever runs by hand. */
+  trigger_name: string | null
   updated_at: string
 }
 
@@ -31,6 +35,8 @@ export type AutomationDetail = {
   graph: AutomationGraph
   compiledConfig: AutomationCompiledConfig | null
   errors: AutomationValidationError[]
+  enabled: boolean
+  trigger_name: string | null
   created_at: string
   updated_at: string
 }
@@ -54,6 +60,8 @@ export function toAutomationListItem(
     name: automation.name,
     isValid,
     nodeCount,
+    enabled: automation.enabled,
+    trigger_name: automation.trigger_name,
     summary: isValid
       ? `${nodeCount} ${plural(nodeCount, "step", "steps")}`
       : nodeCount === 0
@@ -75,12 +83,17 @@ const saveSchema = automationIdSchema.extend({
   name: nameSchema,
   graph: automationGraphSchema,
 })
+const enabledSchema = automationIdSchema.extend({ enabled: z.boolean() })
 const favoritesSchema = z.object({
   favoriteNodeKeys: z.array(z.string().min(1).max(64)).max(50),
 })
 
 const automationErrorMessages: Record<string, string> = {
   NOT_FOUND: "That automation no longer exists.",
+  NOT_RUNNABLE:
+    "This flow has something to fix before it can go live. Check the steps marked in red.",
+  NO_TRIGGER:
+    "This flow has no trigger step, so there is nothing for it to react to. Add one from the Triggers group.",
   NAME_REQUIRED: "Name the automation first.",
   NAME_TAKEN: "An automation with that name already exists.",
   COPY_LIMIT: "Could not find a free name for the copy.",
@@ -108,6 +121,8 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
         summary: row.summary,
         isValid: row.isValid,
         nodeCount: row.nodeCount,
+        enabled: row.enabled,
+        trigger_name: row.triggerName,
         updated_at: row.updatedAt.toISOString(),
       })),
     }
@@ -154,6 +169,23 @@ const duplicateAutomationFn = createServerFn({ method: "POST" })
     )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
+  })
+
+/**
+ * Switches a flow's trigger on or off. Nothing about the Run button, which
+ * works either way — that is a person asking for it.
+ */
+const setAutomationEnabledFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(enabledSchema)
+  .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    return serializeDetail(
+      await setAutomationEnabled(
+        context.user.id,
+        data.automationId,
+        data.enabled
+      )
+    )
   })
 
 const deleteAutomationsFn = createServerFn({ method: "POST" })
@@ -213,6 +245,10 @@ export function duplicateAutomation(automationId: string) {
   return duplicateAutomationFn({ data: { automationId } })
 }
 
+export function setAutomationLive(automationId: string, enabled: boolean) {
+  return setAutomationEnabledFn({ data: { automationId, enabled } })
+}
+
 export function deleteAutomations(automationIds: string[]) {
   return deleteAutomationsFn({ data: { automationIds } })
 }
@@ -235,6 +271,8 @@ async function serializeDetail(
     graph: inspected.graph,
     compiledConfig: inspected.compiledConfig,
     errors: inspected.errors,
+    enabled: row.enabled,
+    trigger_name: automationTriggerName(inspected),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
