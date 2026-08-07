@@ -18,6 +18,44 @@ export type NotificationType =
   | "ai_limit_reached"
   | "automation_approval"
 
+export const NOTIFICATION_TYPES = [
+  "feedback_vote",
+  "feedback_comment",
+  "feedback_merged",
+  "changelog",
+  "announcement",
+  "ai_limit_warning",
+  "ai_limit_reached",
+  "automation_approval",
+] as const satisfies readonly NotificationType[]
+
+export type NotificationTypeVisibility = Record<NotificationType, boolean>
+
+export function createDefaultNotificationTypeVisibility(): NotificationTypeVisibility {
+  return Object.fromEntries(
+    NOTIFICATION_TYPES.map((type) => [type, true])
+  ) as NotificationTypeVisibility
+}
+
+export function normalizeNotificationTypeVisibility(
+  value: unknown
+): NotificationTypeVisibility {
+  const saved =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<NotificationTypeVisibility>)
+      : {}
+
+  return Object.fromEntries(
+    NOTIFICATION_TYPES.map((type) => [type, saved[type] !== false])
+  ) as NotificationTypeVisibility
+}
+
+export function visibleNotificationTypes(
+  visibility: NotificationTypeVisibility
+): NotificationType[] {
+  return NOTIFICATION_TYPES.filter((type) => visibility[type])
+}
+
 /**
  * What each kind of notice is called on screen. Kept here rather than in the
  * table because the server sorts the Type column by these words too — sorting

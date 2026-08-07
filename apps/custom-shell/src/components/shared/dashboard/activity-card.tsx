@@ -34,7 +34,7 @@ export function ActivityCard({
             className="h-full"
             value={String(view)}
             onValueChange={(value) => {
-              if (value === "unread") {
+              if (value === "today" || value === "unread") {
                 setView(value)
                 return
               }

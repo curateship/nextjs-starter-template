@@ -12,6 +12,7 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -26,7 +27,7 @@ import {
 } from "@/server/people/workspaces"
 
 /** The app-wide globals row, already parsed and defaulted. */
-export async function readShellGlobals(database: CustomShellDb) {
+export async function readShellGlobals(database: CustomShellDb = db) {
   const [row] = await database
     .select()
     .from(customShellSettings)
@@ -163,6 +164,9 @@ export function parseShellGlobals(value: unknown) {
     // Rows saved before this setting existed have no value, and the feature is
     // meant to be on — so only an explicit `false` turns it off.
     liveNotifications: settings.liveNotifications !== false,
+    notificationTypes: normalizeNotificationTypeVisibility(
+      settings.notificationTypes
+    ),
     maintenance: normalizeMaintenance(settings.maintenance),
     // Rows saved before this switch existed have no value, and the default is
     // running — so an existing install's automations keep going exactly as
@@ -198,6 +202,7 @@ export function pickShellGlobals(
     | "memberSections"
     | "memberTopRightNavigation"
     | "liveNotifications"
+    | "notificationTypes"
     | "maintenance"
     | "automationPause"
     | "sessionPolicy"
@@ -218,6 +223,7 @@ export function pickShellGlobals(
     memberSections: settings.memberSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
+    notificationTypes: settings.notificationTypes,
     maintenance: settings.maintenance,
     automationPause: settings.automationPause,
     sessionPolicy: settings.sessionPolicy,

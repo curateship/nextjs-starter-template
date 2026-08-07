@@ -7,11 +7,12 @@
  * possible to check it without rendering anything.
  */
 
-/** The dated ranges plus the unread-only view. */
+/** The dated ranges plus the today and unread-only views. */
 export type ActivityRange = 7 | 30
-export type ActivityView = ActivityRange | "unread"
+export type ActivityView = "today" | ActivityRange | "unread"
 
 export const ACTIVITY_VIEWS: { value: ActivityView; label: string }[] = [
+  { value: "today", label: "Today" },
   { value: 7, label: "7 days" },
   { value: 30, label: "30 days" },
   { value: "unread", label: "Unread" },
@@ -42,6 +43,12 @@ export function keepShownActivity<Row extends ActivityRow>(
 ): Row[] {
   if (view === "unread") return rows.filter((row) => !row.read)
 
+  if (view === "today") {
+    const startOfToday = new Date(now)
+    startOfToday.setHours(0, 0, 0, 0)
+    return rows.filter((row) => row.createdAt >= startOfToday)
+  }
+
   const oldest = now.getTime() - view * DAY_MS
   return rows.filter((row) => row.createdAt.getTime() >= oldest)
 }
@@ -49,5 +56,6 @@ export function keepShownActivity<Row extends ActivityRow>(
 /** Why the feed is empty, in the words of the selected tab. */
 export function emptyActivityText(view: ActivityView) {
   if (view === "unread") return "All notifications have been read."
+  if (view === "today") return "Nothing has happened today."
   return `Nothing happened in the last ${view} days.`
 }

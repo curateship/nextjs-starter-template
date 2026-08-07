@@ -1,7 +1,7 @@
 import {
   GaugeIcon,
   GlobeIcon,
-  TriangleAlertIcon,
+  BellIcon,
   UsersIcon,
   WorkflowIcon,
   type LucideIcon,
@@ -32,10 +32,9 @@ export type DashboardWidgetId =
 
 /**
  * Widgets that no longer exist, and what took their place. "Needs you" and
- * "Activity" were two cards; they are now one feed, with what was waiting on
- * somebody sitting at the top of it under "Urgent". A workspace that saved the
- * old ids keeps its dashboard — the first of the pair becomes the one card and
- * the second is dropped as a repeat.
+ * "Activity" were two cards; they are now one activity feed. A workspace that
+ * saved the old ids keeps its dashboard — the first becomes the current card
+ * and the second is dropped as a repeat.
  */
 const RETIRED_WIDGET_IDS: Record<string, DashboardWidgetId> = {
   "needs-you": "inbox",
@@ -77,8 +76,8 @@ const DASHBOARD_WIDGETS: DashboardWidget[] = [
     id: "inbox",
     label: "Activity",
     description:
-      "One feed: what is waiting on an admin at the top, then everything the app has sent, filtered by kind and by the last 7 or 30 days.",
-    icon: TriangleAlertIcon,
+      "Notifications from today, the last 7 or 30 days, or everything still unread.",
+    icon: BellIcon,
     size: 10,
     minSize: "20%",
   },

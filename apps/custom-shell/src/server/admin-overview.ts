@@ -7,8 +7,8 @@ import { getDefaultPlan } from "@/server/billing/plans"
 
 /**
  * Everything the admin Overview draws. Nothing here is new data: it is the
- * Membership page's numbers and the four feeds' numbers read together, plus
- * the newest handful of accounts and the automations as they stand.
+ * Membership figures, recent activity, feedback figures, the newest handful
+ * of accounts, and the automations as they stand.
  *
  * This module exists for one reason — how many queries are in flight at once
  * can only be decided in one place. The pool falls over past five, and the two

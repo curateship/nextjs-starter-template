@@ -152,6 +152,7 @@ import {
 } from "@/server/people/workspaces"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
 import { loadFeedsSummary } from "@/server/content/feeds"
+import { createDefaultNotificationTypeVisibility } from "@/lib/notification-types"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
 function platformEntries(settings: { sections: { id: string; entries: unknown[] }[] }) {
@@ -3883,37 +3884,7 @@ describe("feeds section", () => {
       },
     ])
 
-    // One announcement showing, one scheduled for next week, one retired.
-    const announcement = (overrides: Partial<AnnouncementInput> = {}) => ({
-      title: "Heads up",
-      body: "Something is happening.",
-      level: "info" as const,
-      showBanner: true,
-      notify: false,
-      startsOn: "",
-      endsOn: "",
-      ...overrides,
-    })
-    await createAnnouncement(announcement({ title: "Showing" }), db)
-    await createAnnouncement(
-      announcement({
-        title: "Scheduled",
-        startsOn: new Date(Date.now() + 7 * DAY_MS).toISOString().slice(0, 10),
-      }),
-      db
-    )
-    const retired = await createAnnouncement(
-      announcement({ title: "Retired" }),
-      db
-    )
-    await retireAnnouncements([retired.id], db)
-
-    // One draft and two published updates. Publishing drops a notice in both
-    // people's trays, so the notification numbers come from these too.
-    await createChangelogEntry(
-      { title: "Half-written", body: "Soon.", published: false },
-      db
-    )
+    // Two published updates. Publishing drops a notice in both people's trays.
     await createChangelogEntry(
       { title: "Shipped one", body: "It is out.", published: true },
       db
@@ -3954,7 +3925,7 @@ describe("feeds section", () => {
       },
     ])
 
-    // One of the two has been replied to, and one has a vote behind it.
+    // One of the two has been replied to.
     await database.insert(customShellFeedbackComments).values({
       id: uuid(),
       feedbackId: answeredFeedbackId,
@@ -3963,42 +3934,8 @@ describe("feeds section", () => {
       createdAt,
       updatedAt: createdAt,
     })
-    await database.insert(customShellFeedbackVotes).values({
-      id: uuid(),
-      feedbackId: answeredFeedbackId,
-      userId: adminId,
-      createdAt,
-    })
-
     const summary = await loadFeedsSummary(db)
 
-    expect(summary.announcements).toMatchObject({
-      showingNow: 1,
-      scheduled: 1,
-      total: 3,
-    })
-    expect(summary.announcements.latest).toHaveLength(3)
-    expect(
-      summary.announcements.latest.map((item) => item.status).sort()
-    ).toEqual(["ended", "scheduled", "showing"])
-
-    expect(summary.changelog).toMatchObject({
-      total: 3,
-      published: 2,
-      drafts: 1,
-    })
-    // Drafts sort ahead of published entries, same as the Changelog page.
-    expect(summary.changelog.latest[0]).toMatchObject({
-      title: "Half-written",
-      publishedAt: null,
-    })
-
-    expect(summary.notifications).toMatchObject({
-      total: 4,
-      unread: 3,
-      sentLast7Days: 4,
-    })
-    expect(summary.notifications.oldestUnreadAt).not.toBeNull()
     // Publishing wrote a notice per person, but the activity feed is one line
     // per event: two published updates, not four notices.
     expect(summary.notifications.latest).toHaveLength(2)
@@ -4017,30 +3954,11 @@ describe("feeds section", () => {
     ).toBe(1)
 
     expect(summary.feedback).toMatchObject({
-      total: 2,
       last7Days: 1,
       // The eight-day-old one lands in the seven days before this week.
       previous7Days: 1,
       // One of the two has been replied to.
       noReply: 1,
-    })
-    // The voted-for one leads, however new the other is.
-    expect(summary.feedback.topVoted.map((item) => item.message)).toEqual([
-      "An old bug",
-      "More feeds please",
-    ])
-    expect(summary.feedback.topVoted[0]).toMatchObject({
-      type: "bug_report",
-      authorName: "Feeds Member",
-      votes: 1,
-    })
-
-    // What is waiting on somebody: the draft's shipping history and the
-    // announcement that has not started yet.
-    expect(summary.changelog.lastPublishedAt).not.toBeNull()
-    expect(summary.announcements.nextScheduled).toMatchObject({
-      title: "Scheduled",
-      status: "scheduled",
     })
   })
 })
@@ -5249,6 +5167,48 @@ describe("custom shell feedback notifications", () => {
     expect(secondPage.notifications.map((item) => item.id)).toEqual([
       olderOwnerNotificationId,
     ])
+  })
+
+  it("hides switched-off notification types from the list and unread count", async () => {
+    const createdAt = now()
+    const ownerId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: ownerId,
+      email: "notification-preferences@internal.dev",
+      name: "Notification preferences",
+      role: "member",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellNotifications).values([
+      {
+        id: uuid(),
+        recipientUserId: ownerId,
+        type: "announcement",
+        createdAt,
+      },
+      {
+        id: uuid(),
+        recipientUserId: ownerId,
+        type: "ai_limit_warning",
+        createdAt: new Date(createdAt.getTime() + 1000),
+      },
+    ])
+
+    const notificationTypes = createDefaultNotificationTypeVisibility()
+    notificationTypes.announcement = false
+    const page = await getNotificationPage({
+      currentUser: { id: ownerId },
+      database,
+      notificationTypes,
+    })
+
+    expect(page.notifications.map((item) => item.type)).toEqual([
+      "ai_limit_warning",
+    ])
+    expect(page.unread_count).toBe(1)
   })
 
   it("allows only admins to list all notifications", async () => {

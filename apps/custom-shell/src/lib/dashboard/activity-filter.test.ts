@@ -11,20 +11,30 @@ import {
 const NOW = new Date("2026-08-06T12:00:00.000Z")
 const daysAgo = (days: number) =>
   new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000)
+const hoursAgo = (hours: number) =>
+  new Date(NOW.getTime() - hours * 60 * 60 * 1000)
 
 function row(days: number, read = true): ActivityRow {
   return { read, createdAt: daysAgo(days) }
 }
 
 describe("activity tabs", () => {
-  it("puts Unread last while keeping 7 days selected by default", () => {
-    expect(ACTIVITY_VIEWS.at(-1)).toEqual({ value: "unread", label: "Unread" })
+  it("puts Today first while keeping 7 days selected by default", () => {
+    expect(ACTIVITY_VIEWS[0]).toEqual({ value: "today", label: "Today" })
     expect(DEFAULT_ACTIVITY_VIEW).toBe(7)
   })
 })
 
 describe("keepShownActivity", () => {
   const rows = [row(1, false), row(3), row(12), row(45)]
+
+  it("shows only notifications from today", () => {
+    const todayRows = [
+      { read: true, createdAt: hoursAgo(2) },
+      { read: true, createdAt: daysAgo(1) },
+    ]
+    expect(keepShownActivity(todayRows, "today", NOW)).toEqual([todayRows[0]])
+  })
 
   it("cuts to the last 7 days", () => {
     expect(keepShownActivity(rows, 7, NOW)).toEqual([rows[0], rows[1]])
@@ -56,6 +66,7 @@ describe("emptyActivityText", () => {
   it("says how far back it looked", () => {
     expect(emptyActivityText(7)).toContain("last 7 days")
     expect(emptyActivityText(30)).toContain("last 30 days")
+    expect(emptyActivityText("today")).toBe("Nothing has happened today.")
     expect(emptyActivityText("unread")).toBe(
       "All notifications have been read."
     )
