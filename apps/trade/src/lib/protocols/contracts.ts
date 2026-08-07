@@ -26,13 +26,15 @@ export type NetworkId = "mainnet" | "testnet"
  * What one protocol can and cannot do. Screens read these flags instead of
  * ever asking which protocol they are talking to.
  *
- * One flag today because only one adapter exists. Order types, margin modes
- * and protective orders get their flags when the screens that need them are
- * built — a capability nobody reads is a guess, and guesses drift.
+ * Flags are added when the screens that need them are built — a capability
+ * nobody reads is a guess, and guesses drift. Order types, margin modes and
+ * protective orders get theirs with the ordering work.
  */
 export type ProtocolCapabilities = {
   /** Can list its markets with live figures. */
   markets: boolean
+  /** Can read what an account at an address holds and is worth. */
+  accounts: boolean
 }
 
 /**
@@ -178,6 +180,25 @@ export type CandleBar = {
   low: number
   close: number
   volume: number
+}
+
+/**
+ * What one account read says a wallet holds, in the app's own words and in
+ * plain dollars. An exchange module produces exactly this; whatever richer
+ * shape its API answered with stops at the module. The derived rows the panel
+ * shows — settled, since-it-started — are arithmetic on top of these and live
+ * in `@/lib/trade/wallets`, not here: deriving is the app's job, reporting is
+ * the exchange's.
+ */
+export type WalletAccountFigures = {
+  /** What the whole account is worth right now, in dollars. */
+  equity: number
+  /** Cash not committed to anything — free to place orders with. */
+  free: number
+  /** Margin the open positions are holding, in dollars. */
+  inTrades: number
+  /** What the open positions are up or down right now, in dollars. */
+  openProfit: number
 }
 
 /**

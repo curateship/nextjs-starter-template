@@ -28,6 +28,30 @@ export async function saveLastMarketKey(
     })
 }
 
+/** The wallet the account panel last had active, or null before any choice. */
+export async function loadLastWalletId(userId: string): Promise<string | null> {
+  const row = await db
+    .select({ lastWalletId: tradePrefs.lastWalletId })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return row[0]?.lastWalletId ?? null
+}
+
+/** Remember it. */
+export async function saveLastWalletId(
+  userId: string,
+  lastWalletId: string
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, lastWalletId, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { lastWalletId, updatedAt: new Date() },
+    })
+}
+
 /**
  * How far the chart was zoomed and scrolled, or null on a first visit.
  *

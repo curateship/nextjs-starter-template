@@ -5,7 +5,9 @@ import type {
   NetworkId,
   ProtocolCapabilities,
   ProtocolId,
+  WalletAccountFigures,
 } from "@/lib/protocols/contracts"
+import { fetchHyperliquidAccount } from "@/server/protocols/hyperliquid/account"
 import { fetchHyperliquidCandles } from "@/server/protocols/hyperliquid/candles"
 import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
 
@@ -32,6 +34,10 @@ export type ProtocolEntry = {
       interval: CandleInterval
     ): Promise<CandleBar[]>
   }
+  account: {
+    /** What the account at this public address holds and is worth. */
+    fetch(network: NetworkId, address: string): Promise<WalletAccountFigures>
+  }
 }
 
 const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
@@ -39,10 +45,13 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     id: "hyperliquid",
     label: "Hyperliquid",
     defaultNetwork: "mainnet",
-    capabilities: { markets: true },
+    capabilities: { markets: true, accounts: true },
     markets: {
       fetch: fetchHyperliquidMarkets,
       candles: fetchHyperliquidCandles,
+    },
+    account: {
+      fetch: fetchHyperliquidAccount,
     },
   },
 }

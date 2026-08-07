@@ -1,14 +1,18 @@
 import {
+  doublePrecision,
   index,
   jsonb,
   pgTable,
   primaryKey,
+  text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DrawingShape } from "@/lib/trade/drawings"
+import type { WalletKind } from "@/lib/trade/wallets"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -54,10 +58,60 @@ export const tradePrefs = pgTable("trade_prefs", {
   // newest one — the one form of it that means the same thing on every
   // market. `chartViewSchema` is the only way in or out.
   chartView: jsonb("chart_view").$type<ChartView>(),
+  // The wallet the account panel had active. An id and nothing more: a
+  // remembered choice, resolved against the wallets that exist at read time,
+  // so a deleted wallet leaves a memory that simply matches nothing.
+  lastWalletId: varchar("last_wallet_id", { length: 36 }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 })
+
+/**
+ * The wallets a person trades from — practice ones with pretend cash, and
+ * live Hyperliquid accounts added by address.
+ *
+ * There is deliberately no balance column. A paper wallet's worth is derived
+ * from what it started with plus what its orders did (the engine that folds
+ * that returns in a later task); a live wallet's worth is whatever the
+ * exchange says when asked. A stored balance would be a second copy of one of
+ * those, and second copies drift.
+ *
+ * `agent_key_encrypted` is the one secret this app keeps: the trading key of
+ * a live wallet, stored only as `encryptSecret` ciphertext (`iv.tag.data`),
+ * decrypted only at the moment an order needs signing — which no code in this
+ * task does yet. It never leaves the server; list reads say `hasKey: true`.
+ *
+ * The key is the person and the wallet together, same as the drawings table:
+ * every write is scoped by it, so a request carrying somebody else's wallet
+ * id can only ever touch a row of its own.
+ */
+export const tradeWallets = pgTable(
+  "trade_wallets",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    id: varchar("id", { length: 36 }).notNull(),
+    label: varchar("label", { length: 40 }).notNull(),
+    kind: varchar("kind", { length: 8 }).$type<WalletKind>().notNull(),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    network: varchar("network", { length: 10 }).$type<NetworkId>().notNull(),
+    // Paper: the pretend cash it began with. Live: the account's value the
+    // moment it was added — the baseline "Since it started" measures from.
+    startingBalance: doublePrecision("starting_balance").notNull(),
+    // Live wallets only: the public account address, 0x + 40 hex.
+    address: varchar("address", { length: 42 }),
+    agentKeyEncrypted: text("agent_key_encrypted"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.id] })]
+)
 
 /**
  * The lines people draw on the chart, one row each, tied to the market they

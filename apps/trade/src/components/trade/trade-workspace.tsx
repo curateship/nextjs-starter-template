@@ -3,6 +3,11 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
 import { ActivityPanel } from "@/components/trade/activity-panel"
+import { useTradeAccount } from "@/components/trade/use-trade-account"
+import {
+  AddWalletDialog,
+  WalletSettingsDialog,
+} from "@/components/trade/wallet-dialogs"
 import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
 import {
   MarketHeader,
@@ -200,6 +205,25 @@ export function TradeWorkspace({
 
   const selection = resolveSelection(catalogs, selectedKey)
 
+  // ----- Wallets: one owner, shared by the desktop column and the sheet ----
+  const account = useTradeAccount()
+  const [addingWallet, setAddingWallet] = React.useState(false)
+  const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
+    null
+  )
+  // Resolved against the live list on every render, so a wallet deleted in
+  // another tab closes its own window instead of editing a ghost.
+  const editingWallet =
+    account.wallets.find((wallet) => wallet.id === editingWalletId) ?? null
+
+  const accountPanel = (
+    <AccountPanel
+      account={account}
+      onAddWallet={() => setAddingWallet(true)}
+      onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
+    />
+  )
+
   // The chart's timeframe, owned here so the header's picker and the chart's
   // fetch read the same choice.
   const [interval, setInterval] = useRememberedChoice<CandleInterval>(
@@ -361,7 +385,7 @@ export function TradeWorkspace({
           topSize="35%"
           collapsed={accountCollapsed}
           onDoubleClick={accountDoubleClick}
-          top={<AccountPanel />}
+          top={accountPanel}
           bottom={<OrderPanel />}
         />
       </ResizablePanel>
@@ -421,9 +445,7 @@ export function TradeWorkspace({
             // would be a third way to size the same thing on a screen with no
             // room to spare, so here they simply split it.
             <div className="flex min-h-0 flex-1 flex-col divide-y divide-foreground/10">
-              <div className="min-h-0 flex-1">
-                <AccountPanel />
-              </div>
+              <div className="min-h-0 flex-1">{accountPanel}</div>
               <div className="min-h-0 flex-1">
                 <OrderPanel />
               </div>
@@ -433,6 +455,24 @@ export function TradeWorkspace({
           )}
         </SheetContent>
       </Sheet>
+
+      {/* One instance of each wallet window, owned here beside the one
+          account state, so the sheet and the desktop column share them. */}
+      <AddWalletDialog
+        open={addingWallet}
+        onClose={() => setAddingWallet(false)}
+        onAdded={(wallet) => {
+          account.switchWallet(wallet.id)
+          void account.refresh()
+        }}
+      />
+      <WalletSettingsDialog
+        wallet={editingWallet}
+        active={editingWallet?.id === account.activeWallet?.id}
+        onClose={() => setEditingWalletId(null)}
+        onChanged={() => void account.refresh()}
+        onUse={account.switchWallet}
+      />
     </div>
   )
 }
