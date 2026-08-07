@@ -1,8 +1,10 @@
 import * as React from "react"
-import { Loader2Icon, WalletIcon } from "lucide-react"
+import { Loader2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DialogBody,
@@ -217,94 +219,98 @@ export function AddWalletDialog({
               void handleAdd()
             }}
           >
-            <DialogBody className="grid gap-4">
-              <KindChoice kind={kind} onChange={pickKind} />
-              <div className="grid gap-2">
-                <Label htmlFor="wallet-label">Name</Label>
-                <Input
-                  id="wallet-label"
-                  value={label}
-                  maxLength={WALLET_LABEL_MAX}
-                  autoFocus
-                  aria-invalid={label.trim().length === 0 || undefined}
-                  onChange={(event) => {
-                    setLabel(event.target.value)
-                    setLabelTouched(true)
-                  }}
-                />
-              </div>
-              {kind === "paper" ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="wallet-balance">Starting cash</Label>
-                  <Input
-                    id="wallet-balance"
-                    inputMode="decimal"
-                    value={startingBalance}
-                    aria-invalid={
-                      !(balanceNumber > 0 && balanceNumber <= MAX_STARTING_BALANCE) ||
-                      undefined
-                    }
-                    onChange={(event) => setStartingBalance(event.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    In dollars. It can be changed or reset later.
-                  </p>
-                </div>
-              ) : (
-                <>
+            <DialogBody>
+              <Card size="sm">
+                <CardContent className="grid gap-4">
+                  <KindChoice kind={kind} onChange={pickKind} />
                   <div className="grid gap-2">
-                    <Label htmlFor="wallet-network">Network</Label>
-                    <Select
-                      value={network}
-                      onValueChange={(value) =>
-                        setNetwork(value as "mainnet" | "testnet")
-                      }
-                    >
-                      <SelectTrigger id="wallet-network">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {NETWORKS.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="wallet-address">Account address</Label>
+                    <Label htmlFor="wallet-label">Name</Label>
                     <Input
-                      id="wallet-address"
-                      value={address}
-                      placeholder="0x…"
-                      spellCheck={false}
-                      aria-invalid={
-                        (address !== "" && !isWalletAddress(address.trim())) ||
-                        undefined
-                      }
-                      onChange={(event) => setAddress(event.target.value)}
+                      id="wallet-label"
+                      value={label}
+                      maxLength={WALLET_LABEL_MAX}
+                      autoFocus
+                      aria-invalid={label.trim().length === 0 || undefined}
+                      onChange={(event) => {
+                        setLabel(event.target.value)
+                        setLabelTouched(true)
+                      }}
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="wallet-key">Trading key</Label>
-                    <PasswordInput
-                      id="wallet-key"
-                      value={agentKey}
-                      aria-invalid={
-                        (agentKey !== "" && !isAgentKey(agentKey.trim())) ||
-                        undefined
-                      }
-                      onChange={(event) => setAgentKey(event.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Stored encrypted and only ever used to sign orders.
-                      Whether it really signs for this account is checked when
-                      you place your first order.
-                    </p>
-                  </div>
-                </>
-              )}
+                  {kind === "paper" ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="wallet-balance">Starting cash</Label>
+                      <Input
+                        id="wallet-balance"
+                        inputMode="decimal"
+                        value={startingBalance}
+                        aria-invalid={
+                          !(balanceNumber > 0 && balanceNumber <= MAX_STARTING_BALANCE) ||
+                          undefined
+                        }
+                        onChange={(event) => setStartingBalance(event.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        In dollars. It can be changed or reset later.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-2">
+                        <Label htmlFor="wallet-network">Network</Label>
+                        <Select
+                          value={network}
+                          onValueChange={(value) =>
+                            setNetwork(value as "mainnet" | "testnet")
+                          }
+                        >
+                          <SelectTrigger id="wallet-network">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {NETWORKS.map((option) => (
+                              <SelectItem key={option.id} value={option.id}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="wallet-address">Account address</Label>
+                        <Input
+                          id="wallet-address"
+                          value={address}
+                          placeholder="0x…"
+                          spellCheck={false}
+                          aria-invalid={
+                            (address !== "" && !isWalletAddress(address.trim())) ||
+                            undefined
+                          }
+                          onChange={(event) => setAddress(event.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="wallet-key">Trading key</Label>
+                        <PasswordInput
+                          id="wallet-key"
+                          value={agentKey}
+                          aria-invalid={
+                            (agentKey !== "" && !isAgentKey(agentKey.trim())) ||
+                            undefined
+                          }
+                          onChange={(event) => setAgentKey(event.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Stored encrypted and only ever used to sign orders.
+                          Whether it really signs for this account is checked when
+                          you place your first order.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             </DialogBody>
             <DialogFooter>
               <Button
@@ -374,6 +380,9 @@ function WalletSettingsWindow({
     String(wallet.startingBalance)
   )
   const [agentKey, setAgentKey] = React.useState("")
+  // Ticked here, applied on Save with everything else — the tick is part of
+  // the form, not a separate action that fires as you touch it.
+  const [makeActive, setMakeActive] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [confirmingDelete, setConfirmingDelete] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
@@ -381,7 +390,8 @@ function WalletSettingsWindow({
   const balanceNumber = Number(startingBalance)
   const balanceDirty =
     wallet.kind === "paper" && balanceNumber !== wallet.startingBalance
-  const dirty = label !== wallet.label || balanceDirty || agentKey !== ""
+  const dirty =
+    label !== wallet.label || balanceDirty || agentKey !== "" || makeActive
 
   const refusal =
     label.trim().length === 0
@@ -405,12 +415,15 @@ function WalletSettingsWindow({
     }
     setSaving(true)
     try {
-      await updateWallet({
-        id: wallet.id,
-        ...(label !== wallet.label ? { label: label.trim() } : {}),
-        ...(balanceDirty ? { startingBalance: balanceNumber } : {}),
-        ...(agentKey !== "" ? { agentKey: agentKey.trim() } : {}),
-      })
+      if (label !== wallet.label || balanceDirty || agentKey !== "") {
+        await updateWallet({
+          id: wallet.id,
+          ...(label !== wallet.label ? { label: label.trim() } : {}),
+          ...(balanceDirty ? { startingBalance: balanceNumber } : {}),
+          ...(agentKey !== "" ? { agentKey: agentKey.trim() } : {}),
+        })
+      }
+      if (makeActive) onUse(wallet.id)
       toast.success("Wallet saved.")
       onChanged()
       onClose()
@@ -442,7 +455,21 @@ function WalletSettingsWindow({
         {(requestClose) => (
           <DialogContent variant="admin" className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{wallet.label}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <span className="min-w-0 truncate">{wallet.label}</span>
+                {/* Being the wallet an order would go to is a state, not an
+                    action, so it is said here rather than sitting in the form
+                    among the things you can change. */}
+                {active ? (
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                    <span
+                      className="size-1.5 rounded-full bg-emerald-500"
+                      aria-hidden
+                    />
+                    This wallet is active
+                  </span>
+                ) : null}
+              </DialogTitle>
               <DialogDescription>
                 {wallet.kind === "paper"
                   ? "A practice wallet — pretend cash at real prices."
@@ -455,109 +482,115 @@ function WalletSettingsWindow({
                 void handleSave()
               }}
             >
-              <DialogBody className="grid gap-4">
-                {active ? (
-                  <p className="text-xs text-muted-foreground">
-                    This is the active wallet.
-                  </p>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="justify-start"
-                    onClick={() => {
-                      onUse(wallet.id)
-                      onClose()
-                    }}
-                  >
-                    <WalletIcon className="size-4" />
-                    Use this wallet
-                  </Button>
-                )}
-                <div className="grid gap-2">
-                  <Label htmlFor="wallet-edit-label">Name</Label>
-                  <Input
-                    id="wallet-edit-label"
-                    value={label}
-                    maxLength={WALLET_LABEL_MAX}
-                    aria-invalid={label.trim().length === 0 || undefined}
-                    onChange={(event) => setLabel(event.target.value)}
-                  />
-                </div>
-                {wallet.kind === "paper" ? (
-                  <div className="grid gap-2">
-                    <Label htmlFor="wallet-edit-balance">Starting cash</Label>
-                    <Input
-                      id="wallet-edit-balance"
-                      inputMode="decimal"
-                      value={startingBalance}
-                      aria-invalid={
-                        !(
-                          balanceNumber > 0 &&
-                          balanceNumber <= MAX_STARTING_BALANCE
-                        ) || undefined
-                      }
-                      onChange={(event) =>
-                        setStartingBalance(event.target.value)
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      What this wallet measures itself against.
-                    </p>
-                  </div>
-                ) : (
-                  <>
+              <DialogBody>
+                <Card size="sm">
+                  <CardContent className="grid gap-4">
+                    {active ? null : (
+                      <div className="flex items-start gap-2.5">
+                        <Checkbox
+                          id="wallet-edit-active"
+                          checked={makeActive}
+                          onCheckedChange={(checked) =>
+                            setMakeActive(checked === true)
+                          }
+                        />
+                        <div className="grid gap-1">
+                          <Label htmlFor="wallet-edit-active">
+                            Trade with this wallet
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Orders go to whichever wallet is active.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="grid gap-2">
-                      <Label>Account address</Label>
-                      <p
-                        className="text-sm text-muted-foreground"
-                        title={wallet.address ?? undefined}
-                      >
-                        {wallet.address ? shortenAddress(wallet.address) : "—"}
-                      </p>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="wallet-edit-key">Replace trading key</Label>
-                      <PasswordInput
-                        id="wallet-edit-key"
-                        value={agentKey}
-                        placeholder="Leave blank to keep the current key"
-                        aria-invalid={
-                          (agentKey !== "" && !isAgentKey(agentKey.trim())) ||
-                          undefined
-                        }
-                        onChange={(event) => setAgentKey(event.target.value)}
+                      <Label htmlFor="wallet-edit-label">Name</Label>
+                      <Input
+                        id="wallet-edit-label"
+                        value={label}
+                        maxLength={WALLET_LABEL_MAX}
+                        aria-invalid={label.trim().length === 0 || undefined}
+                        onChange={(event) => setLabel(event.target.value)}
                       />
                     </div>
-                  </>
-                )}
+                    {wallet.kind === "paper" ? (
+                      <div className="grid gap-2">
+                        <Label htmlFor="wallet-edit-balance">Starting cash</Label>
+                        <Input
+                          id="wallet-edit-balance"
+                          inputMode="decimal"
+                          value={startingBalance}
+                          aria-invalid={
+                            !(
+                              balanceNumber > 0 &&
+                              balanceNumber <= MAX_STARTING_BALANCE
+                            ) || undefined
+                          }
+                          onChange={(event) =>
+                            setStartingBalance(event.target.value)
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          What this wallet measures itself against.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid gap-2">
+                          <Label>Account address</Label>
+                          <p
+                            className="text-sm text-muted-foreground"
+                            title={wallet.address ?? undefined}
+                          >
+                            {wallet.address ? shortenAddress(wallet.address) : "—"}
+                          </p>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="wallet-edit-key">Replace trading key</Label>
+                          <PasswordInput
+                            id="wallet-edit-key"
+                            value={agentKey}
+                            placeholder="Leave blank to keep the current key"
+                            aria-invalid={
+                              (agentKey !== "" && !isAgentKey(agentKey.trim())) ||
+                              undefined
+                            }
+                            onChange={(event) => setAgentKey(event.target.value)}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
               </DialogBody>
-              <DialogFooter className="sm:justify-between">
+              <DialogFooter>
+                {/* Hard left, so the button that throws the wallet away can
+                    never be mistaken for the one that saves it. */}
                 <Button
                   type="button"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
+                  variant="destructive"
+                  className="mr-auto"
                   disabled={saving || deleting}
                   onClick={() => setConfirmingDelete(true)}
                 >
+                  <Trash2Icon className="size-4" />
                   Delete
                 </Button>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={saving || deleting}
-                    onClick={requestClose}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={saving || deleting}>
-                    {saving ? (
-                      <Loader2Icon className="size-4 animate-spin" />
-                    ) : null}
-                    Save
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving || deleting}
+                  onClick={requestClose}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving || deleting}>
+                  {saving ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : null}
+                  Save
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>

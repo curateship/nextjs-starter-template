@@ -117,7 +117,7 @@ function ActiveWalletView({
       </div>
 
       {ok ? (
-        <div className="flex flex-col gap-0.5 text-sm">
+        <div className="flex flex-col gap-0.5 text-xs">
           <FigureRow label="Free">
             <span className="tabular-nums">{formatUsd(summary.free)}</span>
           </FigureRow>
@@ -152,10 +152,13 @@ function ActiveWalletView({
 function WalletCard({
   wallet,
   summary,
+  active,
   onOpen,
 }: {
   wallet: TradeWallet
   summary: WalletAccountSummary | null
+  /** This is the wallet being traded with — the card says so. */
+  active: boolean
   onOpen: () => void
 }) {
   const ok = summary !== null && summary.state === "ok"
@@ -163,8 +166,13 @@ function WalletCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-xl border border-foreground/10 bg-muted/20 px-3.5 py-3 text-left transition-colors hover:bg-muted/40"
-      aria-label={`${wallet.label} — open wallet settings`}
+      className={cn(
+        "w-full rounded-xl border px-3.5 py-3 text-left transition-colors",
+        active
+          ? "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10"
+          : "border-foreground/10 bg-muted/20 hover:bg-muted/40"
+      )}
+      aria-label={`${wallet.label}${active ? " — the wallet in use" : ""} — open wallet settings`}
     >
       <div className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2">
@@ -172,25 +180,91 @@ function WalletCard({
           <KindBadge kind={wallet.kind} />
         </span>
         {ok ? (
-          <SignedUsd value={summary.openProfit} className="text-sm" />
+          <SignedUsd value={summary.openProfit} className="shrink-0 text-sm" />
         ) : (
-          <span className="text-sm text-destructive">Can't reach it</span>
+          <span className="shrink-0 text-sm text-destructive">
+            Can't reach it
+          </span>
         )}
       </div>
-      <div className="mt-1 text-base font-semibold tabular-nums">
-        {ok ? formatUsd(summary.equity) : "—"}
+      <div className="mt-1 flex items-baseline justify-between gap-3">
+        <span className="text-base font-semibold tabular-nums">
+          {ok ? formatUsd(summary.equity) : "—"}
+        </span>
+        {active ? (
+          <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+            Live
+          </span>
+        ) : null}
       </div>
     </button>
+  )
+}
+
+/**
+ * What the Active tab shows when wallets exist but none has been picked —
+ * after a first add elsewhere, or once the chosen wallet was deleted.
+ *
+ * It asks rather than choosing: an order goes to whichever wallet is active,
+ * and landing on whichever happened to be created first is exactly the kind
+ * of guess that trades the wrong money. Each row picks that wallet outright;
+ * editing one still lives behind its card on the All tab.
+ */
+function ChooseWalletView({
+  wallets,
+  summaryOf,
+  onUseWallet,
+}: {
+  wallets: TradeWallet[]
+  summaryOf: (walletId: string) => WalletAccountSummary | null
+  onUseWallet: (walletId: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2 px-4 py-3 sm:px-5">
+      <p className="text-sm font-medium">Which wallet are you trading with?</p>
+      <p className="text-xs text-muted-foreground">
+        Pick one and it stays picked. Orders go to this wallet, so nothing is
+        chosen for you.
+      </p>
+      <div className="mt-1 flex flex-col gap-1.5">
+        {wallets.map((wallet) => {
+          const summary = summaryOf(wallet.id)
+          const ok = summary !== null && summary.state === "ok"
+          return (
+            <button
+              key={wallet.id}
+              type="button"
+              onClick={() => onUseWallet(wallet.id)}
+              className="flex w-full items-center justify-between gap-3 rounded-lg border border-foreground/10 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+              aria-label={`Trade with ${wallet.label}`}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-medium">
+                  {wallet.label}
+                </span>
+                <KindBadge kind={wallet.kind} />
+              </span>
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                {ok ? formatUsd(summary.equity) : "Can't reach it"}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
 function AllWalletsView({
   wallets,
   summaryOf,
+  activeWalletId,
   onOpenWallet,
 }: {
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
+  activeWalletId: string | null
   onOpenWallet: (wallet: TradeWallet) => void
 }) {
   let total = 0
@@ -230,14 +304,25 @@ function AllWalletsView({
         </p>
       ) : null}
       <div className="flex flex-col gap-2">
-        {wallets.map((wallet) => (
-          <WalletCard
-            key={wallet.id}
-            wallet={wallet}
-            summary={summaryOf(wallet.id)}
-            onOpen={() => onOpenWallet(wallet)}
-          />
-        ))}
+        {/* The wallet in use sits at the top; the rest keep the order they
+            were added in. Sorted on a copy — `wallets` belongs to the poll. */}
+        {[...wallets]
+          .sort((first, second) =>
+            first.id === activeWalletId
+              ? -1
+              : second.id === activeWalletId
+                ? 1
+                : 0
+          )
+          .map((wallet) => (
+            <WalletCard
+              key={wallet.id}
+              wallet={wallet}
+              summary={summaryOf(wallet.id)}
+              active={wallet.id === activeWalletId}
+              onOpen={() => onOpenWallet(wallet)}
+            />
+          ))}
       </div>
     </div>
   )
@@ -302,6 +387,12 @@ export function AccountPanel({
               summary={summaryOf(activeWallet.id)}
               onRetry={() => void refresh()}
             />
+          ) : wallets.length > 0 ? (
+            <ChooseWalletView
+              wallets={wallets}
+              summaryOf={summaryOf}
+              onUseWallet={account.switchWallet}
+            />
           ) : (
             <NoWalletsYet />
           )}
@@ -321,6 +412,7 @@ export function AccountPanel({
             <AllWalletsView
               wallets={wallets}
               summaryOf={summaryOf}
+              activeWalletId={activeWallet?.id ?? null}
               onOpenWallet={onOpenWallet}
             />
           ) : (

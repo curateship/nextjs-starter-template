@@ -462,7 +462,10 @@ export function TradeWorkspace({
         open={addingWallet}
         onClose={() => setAddingWallet(false)}
         onAdded={(wallet) => {
-          account.switchWallet(wallet.id)
+          // Only when nothing was being traded with yet. Adding a second
+          // wallet must never move the one an order would go to — that is a
+          // switch, and switching is its own deliberate act.
+          if (!account.activeWallet) account.switchWallet(wallet.id)
           void account.refresh()
         }}
       />

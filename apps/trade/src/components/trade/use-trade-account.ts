@@ -27,6 +27,11 @@ export type TradeAccount = {
   failed: boolean
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
+  /**
+   * The wallet being traded with, or null until one is picked. Null is a real
+   * answer, never "use the first one": an order goes to whichever wallet this
+   * is, so the wallet has to be chosen on purpose rather than landed on.
+   */
   activeWallet: TradeWallet | null
   /** Re-reads everything; what every dialog calls after a save. */
   refresh: () => Promise<void>
@@ -96,10 +101,10 @@ export function useTradeAccount(): TradeAccount {
   )
 
   const list = wallets ?? []
+  // A remembered id that matches nothing — the wallet was deleted, here or in
+  // another tab — resolves to null, which puts the "pick one" prompt back up.
   const activeWallet =
-    list.find((wallet) => wallet.id === (chosenWalletId ?? lastWalletId)) ??
-    list[0] ??
-    null
+    list.find((wallet) => wallet.id === (chosenWalletId ?? lastWalletId)) ?? null
 
   return {
     loading: wallets === null && !failed,
