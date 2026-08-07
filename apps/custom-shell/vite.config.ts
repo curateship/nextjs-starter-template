@@ -32,7 +32,7 @@ export default defineConfig({
       },
     ],
   },
-  // Handed to the server bundle so `src/server/origin.ts` can allow this app's
+  // Handed to the server bundle so `src/server/auth/origin.ts` can allow this app's
   // own dev address without the port being written out a second time.
   define: {
     __DEV_APP_PORT__: JSON.stringify(DEV_APP_PORT),
