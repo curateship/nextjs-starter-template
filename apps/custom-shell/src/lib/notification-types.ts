@@ -93,7 +93,7 @@ export const automationApprovalNotificationText: Record<
       "Nothing after that step happens until you approve it. If nobody answers before the deadline, the run stops on its own.",
   },
   timed_out: {
-    message: "A run stopped — nobody approved it in time",
+    message: "A run stopped because nobody approved it in time",
     detail:
       "The deadline passed with no answer, so the run was rejected and nothing after that step ran.",
   },

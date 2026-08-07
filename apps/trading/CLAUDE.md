@@ -10,7 +10,7 @@ Guidance for agents working in Trading.
 - Before coding, read the relevant docs in `workspace/docs/`.
 - Before changing task-driven work, check `workspace/tasks/`.
 - **Before back-testing any strategy, read and follow `workspace/docs/back-guide.md`.**
-- **Before building or changing any UI/layout, read and follow `workspace/docs/ui-rules.md`, including its site-gap rules.**
+- **Before building or changing any UI/layout, read and follow `../../.agents/skills/Ui-standards/SKILL.md`.**
 - **Before adding any new page, dashboard, or nav item, read and follow `workspace/docs/app-guide.md`** 
 - **Before touching any indicator or strategy, read and follow `workspace/docs/Key-Features/indicator-strategy-parity.md`.**
 

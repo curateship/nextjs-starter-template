@@ -9,7 +9,7 @@ Guidance for agents working in Hub.
 - Hub tasks live in `workspace/tasks/`.
 - Before coding, read the relevant docs in `workspace/docs/`.
 - Before changing task-driven work, check `workspace/tasks/`.
-- Before building or changing UI, read and follow `workspace/docs/ui-rules.md`.
+- Before building or changing UI, read and follow `../../.agents/skills/Ui-standards/SKILL.md`.
 - For builder block work, read `workspace/docs/builder-blocks.md`.
 - For automation graph, node, scheduler, or executor work, read `workspace/docs/automations.md`.
 

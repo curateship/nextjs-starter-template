@@ -519,6 +519,7 @@ export async function serializeNotificationRows(
               id: customShellAutomationRuns.id,
               automationId: customShellAutomations.id,
               automationName: customShellAutomations.name,
+              approvalSummary: customShellAutomationRuns.approvalSummary,
             })
             .from(customShellAutomationRuns)
             .innerJoin(
@@ -583,6 +584,9 @@ export async function serializeNotificationRows(
     // shows during the moment between the two.
     automation_name: row.automationRunId
       ? (automations.get(row.automationRunId)?.automationName ?? "Deleted flow")
+      : null,
+    automation_approval_summary: row.automationRunId
+      ? (automations.get(row.automationRunId)?.approvalSummary ?? null)
       : null,
     automation_approval_state:
       (row.automationApprovalState as AutomationApprovalState | null) ?? null,

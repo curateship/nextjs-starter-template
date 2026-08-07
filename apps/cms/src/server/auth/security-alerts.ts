@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm"
 
 import { describeDevice } from "@/lib/format/device-label"
+import { notifyAppAuthEvent } from "@/server/app-options"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendAuthEmail } from "@/server/email/send"
@@ -133,6 +134,12 @@ export async function startSessionWithAlert(
   } catch {
     // Nothing to do about it here, and nothing worth stopping a sign-in for.
   }
+
+  // Every way in comes through here, which is exactly why the app is told
+  // here: one call covers the password form, the sign-in link, Google and
+  // passkeys, and a new way in cannot forget to say so. It keeps its failures
+  // to itself for the same reason the alert above does.
+  await notifyAppAuthEvent({ kind: "signin", userId: user.id })
 
   return token
 }

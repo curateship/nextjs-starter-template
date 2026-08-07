@@ -4,6 +4,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -160,6 +161,66 @@ export const videoMediaCollectionItems = pgTable(
   ]
 )
 
+/**
+ * A project is one timeline, stored as a single JSON document so a new clip
+ * field never means a migration. `aspect` is copied out of that document by the
+ * same code that writes it — it exists only so the projects list can be drawn
+ * without reading every timeline, and it is never accepted from the browser on
+ * its own.
+ *
+ * `version` is the compare-and-swap token: a save carries the version it
+ * loaded and lands only if the project is still on it, so a second tab is told
+ * it lost rather than silently overwriting the newer work.
+ */
+export const videoProjects = pgTable(
+  "video_projects",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    aspect: varchar("aspect", { length: 8 }).notNull(),
+    timeline: jsonb("timeline").notNull(),
+    version: integer("version").notNull().default(1),
+    thumbnailMediaId: varchar("thumbnail_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_projects_aspect_check",
+      sql`${table.aspect} in ('16:9', '9:16', '1:1', '4:3')`
+    ),
+    check("video_projects_version_check", sql`${table.version} >= 1`),
+    index("ix_video_projects_user_updated").on(table.userId, table.updatedAt),
+    index("ix_video_projects_thumbnail_media_id").on(table.thumbnailMediaId),
+  ]
+)
+
+/**
+ * The brand kit every project draws with: one row, kept that way by the check
+ * on `id`. The kit itself is a JSON document read through a normalizer, the
+ * same shape the shell uses for its own styling settings, so a later feature
+ * can add a field without a migration or a column that is null everywhere.
+ */
+export const videoSettings = pgTable(
+  "video_settings",
+  {
+    id: varchar("id", { length: 20 }).primaryKey(),
+    brandKit: jsonb("brand_kit").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("video_settings_single_row_check", sql`${table.id} = 'default'`),
+  ]
+)
+
 export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
+export type VideoProjectRow = typeof videoProjects.$inferSelect
