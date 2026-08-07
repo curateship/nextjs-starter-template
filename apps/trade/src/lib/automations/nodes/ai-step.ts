@@ -1,14 +1,14 @@
 import { SparklesIcon } from "lucide-react"
 import { z } from "zod"
 
-import { AI_PROVIDERS, DEFAULT_AI_MODEL } from "@/lib/ai-models"
+import { AI_PROVIDERS, DEFAULT_AI_MODEL } from "@/lib/ai/ai-models"
 
 import { defineNode } from "../node-descriptor"
 
 /**
  * An AI step: the flow hands the AI some instructions and the step produces
  * what it wrote or decided. Provider and model come from the fixed lists in
- * `src/lib/ai-models.ts`, and the key it runs with is whatever Settings → AI
+ * `src/lib/ai/ai-models.ts`, and the key it runs with is whatever Settings → AI
  * holds for that provider.
  *
  * Drawing and compiling only for now. When the run engine lands

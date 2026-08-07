@@ -27,9 +27,9 @@ import {
 } from "@/components/ui/dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { focusRing, focusRingInset } from "@/lib/focus-ring"
-import { useAsyncAction } from "@/lib/use-async-action"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -46,11 +46,11 @@ import {
   type MediaFileType,
   type MediaItem,
   type MediaListResponse,
-} from "@/lib/api/media"
-import { isCroppableImage } from "@/lib/crop-image"
-import { formatFileSize } from "@/lib/format-bytes"
-import { getMediaUploadError, mediaAccept } from "@/lib/media-upload"
-import { quoteOneLine } from "@/lib/quote-text"
+} from "@/lib/api/media/media"
+import { isCroppableImage } from "@/lib/media/crop-image"
+import { formatFileSize } from "@/lib/format/format-bytes"
+import { getMediaUploadError, mediaAccept } from "@/lib/media/media-upload"
+import { quoteOneLine } from "@/lib/format/quote-text"
 import { cn } from "@/lib/utils"
 
 type MediaFilter = "all" | MediaFileType

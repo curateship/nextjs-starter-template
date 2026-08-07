@@ -24,12 +24,12 @@ import {
   requestEmailChange,
   updateProfile,
   type EmailChangeState,
-} from "@/lib/api/auth"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { formatDateTime } from "@/lib/format-time"
-import type { AuthUser } from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { formatDateTime } from "@/lib/format/format-time"
+import type { AuthUser } from "@/lib/api/auth/auth"
 
 export function AccountProfilePage({
   user,

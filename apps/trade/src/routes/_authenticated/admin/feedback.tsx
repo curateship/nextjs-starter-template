@@ -2,14 +2,14 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { FeedbackDashboard } from "@/components/feedback/feedback-dashboard"
 import { useShellRuntime } from "@/components/shell/shell-layout"
-import { FEEDBACK_TYPES } from "@/lib/feedback-type"
+import { FEEDBACK_TYPES } from "@/lib/feedback/feedback-type"
 import {
   readDirection,
   readOneOf,
   readPage,
   readSearchText,
-} from "@/lib/list-search"
-import { readOpenSearch } from "@/lib/use-open-from-link"
+} from "@/lib/nav/list-search"
+import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { getFeedbackErrorMessage } from "@/lib/api/feedback"
 

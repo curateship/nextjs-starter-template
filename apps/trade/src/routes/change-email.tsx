@@ -8,9 +8,9 @@ import {
   confirmEmailChange,
   getAuthErrorMessage,
   loadCurrentUser,
-} from "@/lib/api/auth"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
-import { showErrorToast } from "@/lib/error-toast"
+} from "@/lib/api/auth/auth"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The landing for the link that confirms a new email address.

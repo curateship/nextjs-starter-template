@@ -12,9 +12,9 @@ import {
   loadCurrentUser,
   resendVerification,
   verifyEmail,
-} from "@/lib/api/auth"
-import { showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
+} from "@/lib/api/auth/auth"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
 export const Route = createFileRoute("/verify-email")({
   validateSearch: z.object({ token: z.string().optional() }),

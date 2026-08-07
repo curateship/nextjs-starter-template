@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { pageGutter } from "@/lib/shell-gutter"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
 function Card({

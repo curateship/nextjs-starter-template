@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { focusRingInset } from "@/lib/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import {
   collapseStorageKey,
   useRememberedCollapse,
@@ -28,6 +28,8 @@ type CollapsibleSettingsCardProps = {
   children: React.ReactNode
   className?: string
   contentClassName?: string
+  /** Passed straight to `Card`, so a collapsible card can be compact too. */
+  size?: "default" | "sm"
   /**
    * Open/closed held by the caller instead of the card, for a page with a button
    * outside the card that has to reveal what it just made — the sidebar tab's
@@ -54,6 +56,7 @@ export function CollapsibleSettingsCard({
   children,
   className,
   contentClassName,
+  size,
   collapse,
 }: CollapsibleSettingsCardProps) {
   const own = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
@@ -62,7 +65,7 @@ export function CollapsibleSettingsCard({
     : own
 
   return (
-    <Card className={className}>
+    <Card size={size} className={className}>
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger asChild>
           <button

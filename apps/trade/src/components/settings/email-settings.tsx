@@ -23,12 +23,12 @@ import {
   testEmailKey,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
-} from "@/lib/api/email-settings"
+} from "@/lib/api/email/email-settings"
 import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
-import { emailStatusLine } from "@/lib/email-delivery"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { emailStatusLine } from "@/lib/email/email-delivery"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 // An edit saves itself this long after the last keystroke; leaving the field
 // (or pressing Enter) saves straight away. Same rhythm as the AI keys tab.
@@ -41,7 +41,7 @@ const SAVED_SENTINEL = "••••••••••••"
 /**
  * Settings → Email. The Resend key every email in the app sends with, and the
  * name and address they come from. The key is saved encrypted through
- * server/email-settings.ts and the browser only ever sees a masked tail.
+ * server/email/settings.ts and the browser only ever sees a masked tail.
  * Saving is automatic and reports through the sticky header's Saving…/Saved
  * indicator, like every other auto-save in the app — no Save button.
  */

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { formatClockTime, formatDateTime } from "@/lib/format-time"
+import { formatClockTime, formatDateTime } from "@/lib/format/format-time"
 
 /**
  * Drip sending: letting a newsletter out a few hundred at a time instead of

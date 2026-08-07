@@ -6,10 +6,18 @@ import {
 import {
   createDefaultDashboardWidgets,
   type DashboardWidgetLayout,
-} from "@/lib/dashboard-widgets"
-import { scaffoldStyling } from "@/lib/scaffold-styling"
-import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
-import { DEFAULT_TOAST_SECONDS } from "@/lib/toast-seconds"
+} from "@/lib/dashboard/dashboard-widgets"
+import {
+  createDefaultPageOverrides,
+  type ShellPageOverrides,
+} from "@/lib/pages/page-visibility"
+import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
+import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
+import {
+  createDefaultNotificationTypeVisibility,
+  type NotificationTypeVisibility,
+} from "@/lib/notification-types"
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -372,7 +380,7 @@ export type ShellConfig = {
    * means no limit, which is what every install had before this setting.
    */
   topLeftNavLimit: number
-  // Draggable, per-workspace sidebar width in px. See lib/sidebar-width.ts.
+  // Draggable, per-workspace sidebar width in px. See lib/layout/sidebar-width.ts.
   sidebarWidth: number
   /** Route the home page (/) and /admin open for an admin; empty = Settings. */
   adminRoute: string
@@ -389,6 +397,13 @@ export type ShellConfig = {
    * show it are read before anybody has signed in or picked a workspace.
    */
   logo: string
+  /**
+   * The same brand image redrawn for a dark background, used only while the
+   * visitor is in dark mode. Optional: empty means the one logo above is shown
+   * on both backgrounds, which is exactly how the app behaved before this
+   * existed. A global for the same reason as `logo`.
+   */
+  logoDark: string
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
   /**
@@ -413,18 +428,26 @@ export type ShellConfig = {
    * environment variable so it can be switched off without a redeploy.
    */
   liveNotifications: boolean
+  /** Which kinds appear in members' notification lists and unread counts. */
+  notificationTypes: NotificationTypeVisibility
   /** App-wide lockout: members see the maintenance page, admins keep working. */
   maintenance: ShellMaintenance
   /** App-wide stop on every automation run. See ShellAutomationPause. */
   automationPause: ShellAutomationPause
   /** App-wide limits on how long a sign-in lasts. See ShellSessionPolicy. */
   sessionPolicy: ShellSessionPolicy
+  /**
+   * What has been changed about individual public pages, keyed by address. A
+   * page with no entry is untouched and behaves as the shell ships it — see
+   * `lib/pages/page-visibility.ts`.
+   */
+  pages: ShellPageOverrides
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
   /**
    * Which cards the Overview dashboard draws, and where. Saved per workspace
    * like the sidebar, so two admins can arrange their own. See
-   * `lib/dashboard-widgets.ts`.
+   * `lib/dashboard/dashboard-widgets.ts`.
    */
   dashboardWidgets: DashboardWidgetLayout
 }
@@ -502,7 +525,7 @@ export function resolveMaintenanceMessage(message: string) {
 //
 // Nothing is thrown away while it is on. A run that was part-way through stays
 // exactly where it stopped and carries on from there when you switch it back
-// off — see `server/automation-pause.ts` for the whole rule in one place.
+// off — see `server/automations/pause.ts` for the whole rule in one place.
 
 export type ShellAutomationPause = {
   enabled: boolean
@@ -551,7 +574,7 @@ export function normalizeAutomationPause(value: unknown): ShellAutomationPause {
 
 // ---------------------------------------------------------------------------
 // Session policy (Settings → Security). App-wide like maintenance mode, and
-// written only by its own confirmed save (server/session-policy.ts) — never by
+// written only by its own confirmed save (server/auth/session-policy.ts) — never by
 // the settings page's auto-save, so a stale page cannot quietly loosen it.
 
 export type ShellSessionPolicy = {
@@ -571,7 +594,7 @@ export const SESSION_IDLE_MINUTE_OPTIONS = [
 
 /**
  * The shortest idle limit allowed anywhere, not just in the dropdown. The
- * idle clock is only written once a minute (see server/security.ts), so a
+ * idle clock is only written once a minute (see server/auth/security.ts), so a
  * shorter limit would sign out people who are actively clicking around. A
  * hand-edited row or crafted save below it is raised to it.
  */
@@ -918,6 +941,7 @@ export function createDefaultShellConfig(): ShellConfig {
     memberHomeRoute: "",
     favicon: "",
     logo: "",
+    logoDark: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,
     // handed out only while the settings row has never held a member list.
@@ -928,9 +952,11 @@ export function createDefaultShellConfig(): ShellConfig {
     // from, and members would otherwise open the app to nothing at all.
     memberSections: createDefaultMemberSections(),
     liveNotifications: true,
+    notificationTypes: createDefaultNotificationTypeVisibility(),
     maintenance: createDefaultMaintenance(),
     automationPause: createDefaultAutomationPause(),
     sessionPolicy: createDefaultSessionPolicy(),
+    pages: createDefaultPageOverrides(),
     styling: createDefaultStyling(),
     dashboardWidgets: createDefaultDashboardWidgets(),
   }

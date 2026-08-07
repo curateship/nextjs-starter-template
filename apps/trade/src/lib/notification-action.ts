@@ -1,7 +1,9 @@
 import {
-  isAiLimitNotification,
   type NotificationItem,
 } from "@/lib/api/notification"
+import {
+  isAiLimitNotification,
+} from "@/lib/notification-types"
 
 /**
  * What clicking a notice should open. An announcement is the whole message

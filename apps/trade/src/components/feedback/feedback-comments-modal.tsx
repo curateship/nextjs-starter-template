@@ -28,10 +28,10 @@ import {
   type FeedbackCommentItem,
   type FeedbackItem,
 } from "@/lib/api/feedback"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
-import { plural } from "@/lib/plural"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
+import { quoteOneLine } from "@/lib/format/quote-text"
+import { plural } from "@/lib/format/plural"
 
 /**
  * The comments behind one feedback row, opened from its Comments count. The

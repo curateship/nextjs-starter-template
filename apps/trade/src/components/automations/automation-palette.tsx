@@ -13,7 +13,7 @@ import {
   type AutomationPaletteItem,
 } from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
-import { focusRingInset, focusRing } from "@/lib/focus-ring"
+import { focusRingInset, focusRing } from "@/lib/layout/focus-ring"
 
 import { AutomationNodeIcon } from "./automation-node-icon"
 

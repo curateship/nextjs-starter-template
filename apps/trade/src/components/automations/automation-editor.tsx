@@ -18,6 +18,7 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { Switch } from "@/components/ui/switch"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -29,6 +30,8 @@ import {
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import {
+  automationKindIsTrigger,
+  automationNodeName,
   automationPaletteKeyForNode,
   createAutomationNode,
 } from "@/lib/automations/node-registry"
@@ -36,24 +39,25 @@ import {
   getAutomationRunErrorMessage,
   runAutomationNow,
   type AutomationRunsPanelData,
-} from "@/lib/api/automation-runs"
+} from "@/lib/api/automations/automation-runs"
 import {
   getAutomationErrorMessage,
   saveAutomation,
   saveAutomationFavorites,
+  setAutomationLive,
   type AutomationDetail,
-} from "@/lib/api/automations"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+} from "@/lib/api/automations/automations"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
-} from "@/lib/panel-collapse"
+} from "@/lib/layout/panel-collapse"
 import {
   panelLayoutKey,
   useRememberedPanelLayout,
-} from "@/lib/panel-layout"
-import { useWideScreen } from "@/lib/wide-screen"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+} from "@/lib/layout/panel-layout"
+import { useWideScreen } from "@/lib/layout/wide-screen"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
@@ -103,6 +107,8 @@ export function AutomationEditor({
   })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [running, setRunning] = React.useState(false)
+  const [live, setLive] = React.useState(initial.enabled)
+  const [savingLive, setSavingLive] = React.useState(false)
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   // Known before the first render on both sides, so the editor opens in the
   // layout it is going to keep instead of painting the phone version — a
@@ -259,11 +265,47 @@ export function AutomationEditor({
   }, [reportSaveStatus])
 
   const compiled = React.useMemo(() => compileAutomationGraph(graph), [graph])
+  // Read off the draft, so the switch appears the moment a trigger is dropped
+  // on the canvas rather than once the flow happens to compile.
+  const triggerName = React.useMemo(() => {
+    const triggers = graph.nodes.filter((node) =>
+      automationKindIsTrigger(node.kind)
+    )
+    return triggers.length === 1 ? automationNodeName(triggers[0]) : null
+  }, [graph.nodes])
   const paused = config.automationPause.enabled
 
   const handlePauseChange = async (enabled: boolean) => {
     if (automationPauseBusy) return
     if (await onAutomationPauseChange(enabled)) setConfirmPauseOpen(false)
+  }
+
+  /**
+   * The flow's own switch, and the only thing that makes a trigger act.
+   *
+   * The pending edit is flushed first, exactly as Run does: switching on reads
+   * the compiled copy on the server, and a trigger typed a second ago is not in
+   * it yet. Without this, switching on straight after drawing the trigger would
+   * be refused for a flow that is plainly fine on screen.
+   */
+  const handleLiveChange = async (next: boolean) => {
+    if (savingLive) return
+    setSavingLive(true)
+    try {
+      if (next) await saveNow()
+      const saved = await setAutomationLive(initial.id, next)
+      dismissErrorToast()
+      setLive(saved.enabled)
+      toast.success(
+        next
+          ? `"${name}" is on. Its "${saved.trigger_name}" step starts it from now on — nothing from before is caught up.`
+          : `"${name}" is off. Nothing starts it on its own any more.`
+      )
+    } catch (error) {
+      showErrorToast(getAutomationErrorMessage(error))
+    } finally {
+      setSavingLive(false)
+    }
   }
 
   const handleRunNow = async () => {
@@ -458,6 +500,36 @@ export function AutomationEditor({
       title={name}
       action={
         <div className="flex items-center gap-2">
+          {triggerName ? (
+            <DisabledReason
+              disabled={!compiled.config && !live}
+              reason="Fix the steps marked in red before switching this flow on."
+            >
+              <label className="flex items-center gap-2 text-sm">
+                <Switch
+                  checked={live}
+                  disabled={savingLive || (!compiled.config && !live)}
+                  aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
+                  onCheckedChange={(next) => void handleLiveChange(next)}
+                />
+                {/* On, but edited since into something that cannot run. The
+                    switch alone would read as "this is happening". */}
+                <span
+                  className={
+                    live && !compiled.config
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {!live
+                    ? "Off"
+                    : compiled.config
+                      ? `On — ${triggerName}`
+                      : "On, but not running"}
+                </span>
+              </label>
+            </DisabledReason>
+          ) : null}
           <Button
             type="button"
             variant="outline"

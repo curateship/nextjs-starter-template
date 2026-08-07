@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { getOrCreateCurrentWorkspace, parseWorkspaceSettings } from "@/server/workspaces"
+import { getOrCreateCurrentWorkspace, parseWorkspaceSettings } from "@/server/people/workspaces"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -10,11 +10,12 @@ import {
   TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
-import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
-import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
-import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
+import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { NOTIFICATION_TYPES } from "@/lib/notification-types"
+import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
-import { isOwnedImageUrl } from "@/server/media"
+import { isOwnedImageUrl } from "@/server/media/library"
 import {
   customShellSettings,
   customShellWorkspaces,
@@ -25,7 +26,7 @@ import {
   pickShellGlobals,
 } from "@/server/shell-settings"
 import { adminPost, userPost } from "@/server/guards"
-import { now } from "@/server/security"
+import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
 
@@ -156,11 +157,17 @@ const shellConfigSchema = z.object({
   memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
   logo: z.string(),
+  logoDark: z.string(),
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
   liveNotifications: z.boolean(),
+  notificationTypes: z.object(
+    Object.fromEntries(
+      NOTIFICATION_TYPES.map((type) => [type, z.boolean()])
+    ) as Record<(typeof NOTIFICATION_TYPES)[number], z.ZodBoolean>
+  ),
   maintenance: z.object({
     enabled: z.boolean(),
     message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
@@ -232,22 +239,27 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // the app, so the switch keeps whatever the row already says; only its
       // message comes from this save. The session policy and the automations
       // kill switch are kept whole for the same reason — their one writer each
-      // is lib/api/session-policy.ts and lib/api/automation-pause.ts.
+      // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
 
-      // The logo is drawn on the signed-out pages, so what gets stored has to
+      // The logos are drawn on the signed-out pages, so what gets stored has to
       // be a picture somebody here really uploaded — not any address a browser
       // felt like sending. Only a changed logo is checked: the settings page
       // saves the whole config, so a second admin renaming the app must not be
       // refused because the picture was uploaded from another account.
-      if (
-        data.logo &&
-        data.logo !== existingGlobals.logo &&
-        !(await isOwnedImageUrl(context.user.id, data.logo, tx))
-      ) {
-        throw new Error(
-          "That logo is no longer in your media library. Pick another one."
-        )
+      for (const [next, saved] of [
+        [data.logo, existingGlobals.logo],
+        [data.logoDark, existingGlobals.logoDark],
+      ]) {
+        if (
+          next &&
+          next !== saved &&
+          !(await isOwnedImageUrl(context.user.id, next, tx))
+        ) {
+          throw new Error(
+            "That logo is no longer in your media library. Pick another one."
+          )
+        }
       }
 
       const globalSettings = {
@@ -258,6 +270,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         ...pickShellGlobals({
           ...data,
           automationPause: existingGlobals.automationPause,
+          // Not in this request's shape either, and kept for the same reason:
+          // the Pages screen is the one writer, so an admin whose settings page
+          // loaded before a page was hidden cannot put it back on the internet
+          // by renaming the app.
+          pages: existingGlobals.pages,
         }),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,

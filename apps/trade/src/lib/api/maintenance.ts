@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
-import { findSessionContext } from "@/server/security"
+import { findSessionContext } from "@/server/auth/security"
 import { adminPost } from "@/server/guards"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"

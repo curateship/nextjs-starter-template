@@ -18,7 +18,7 @@ import {
   DialogToolbar,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   Popover,
   PopoverContent,

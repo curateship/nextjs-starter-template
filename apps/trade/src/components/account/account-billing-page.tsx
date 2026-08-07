@@ -1,7 +1,7 @@
 import * as React from "react"
-import { ExternalLinkIcon } from "lucide-react"
+import { ExternalLinkIcon, PauseIcon, PlayIcon } from "lucide-react"
 
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
 import { EmptyRow } from "@/components/shared/feed-card"
@@ -27,19 +27,23 @@ import {
   TableRow,
   TableSurface,
 } from "@/components/ui/table"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   getBillingErrorMessage,
   openBillingPortal,
   openPlanChange,
+  setOwnPlanPaused,
   type BillingInvoice,
   type BillingOverview,
   type CardExpiryWarning,
   type PlanOption,
-} from "@/lib/api/billing"
-import { describeCode } from "@/lib/code-label"
-import { formatDate, formatMonthAndYear } from "@/lib/format-time"
-import { formatMoney } from "@/lib/money"
-import { planSummary } from "@/lib/plan-summary"
+} from "@/lib/api/billing/billing"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { pauseRefusalCode, pausedPlanLabel } from "@/lib/billing/pause-rules"
+import { describeCode } from "@/lib/format/code-label"
+import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
+import { formatMoney } from "@/lib/format/money"
+import { planSummary } from "@/lib/billing/plan-summary"
 
 /**
  * Stripe's own words for an invoice, said the way a person would. Anything not
@@ -62,20 +66,48 @@ export function AccountBillingPage({
   overview,
   invoices,
   cardWarning,
+  onChanged,
 }: {
   overview: BillingOverview
   invoices: BillingInvoice[]
   cardWarning: CardExpiryWarning | null
+  /** Re-reads the page after a pause or a resume changed what it says. */
+  onChanged: () => void
 }) {
   const [interval, setInterval] = React.useState<BillingInterval>(
     overview.interval ?? "monthly"
   )
   const [busyPlanSlug, setBusyPlanSlug] = React.useState<string | null>(null)
   const [openingPortal, setOpeningPortal] = React.useState(false)
-  // Someone already paying through Stripe changes plan or period in the portal,
-  // never through a second checkout — see `openPlanChange`. The same flag names
-  // the button, so what it says and where it goes stay in step.
-  const manageInStripe = overview.isPaid && overview.hasStripeCustomer
+  const [confirmingPause, setConfirmingPause] = React.useState(false)
+  const [runPause, pausing] = useAsyncAction(getBillingErrorMessage)
+  // Why pausing is not on offer, if it is not. The button is shown either way
+  // and answers the click with this, because a button that is simply missing
+  // leaves somebody looking at their own plan with no way to find out why.
+  const pauseRefusal = pauseRefusalCode(overview)
+  // Someone who already has a subscription changes plan or period in the
+  // portal, never through a second checkout — see `openPlanChange`; sending a
+  // paused subscriber through checkout would leave them paying for two at once.
+  // The same flag names the button, so what it says and where it goes stay in
+  // step.
+  const manageInStripe =
+    (overview.isPaid || overview.paused) && overview.hasStripeCustomer
+
+  const handlePause = React.useCallback(
+    async (paused: boolean) => {
+      const worked = await runPause(
+        () => setOwnPlanPaused(paused),
+        paused
+          ? "Your plan is paused. Nothing more will be billed until you start it again."
+          : "Your plan is running again. Billing starts from today."
+      )
+      if (worked) {
+        setConfirmingPause(false)
+        onChanged()
+      }
+    },
+    [onChanged, runPause]
+  )
 
   const handleSelect = React.useCallback(
     async (plan: PlanOption, selectedInterval: BillingInterval) => {
@@ -127,6 +159,13 @@ export function AccountBillingPage({
           <Badge variant={overview.isPaid ? "default" : "secondary"}>
             {overview.planName}
           </Badge>
+          {/* A word as well as a colour: on a screen that cannot show the
+              difference between the badges, "Paused" is the whole story. */}
+          {overview.paused ? (
+            <Badge variant="outline">
+              {pausedPlanLabel(overview.pausedPlanName)}
+            </Badge>
+          ) : null}
           {overview.cancelAtPeriodEnd ? (
             <Badge variant="outline">Cancels at period end</Badge>
           ) : null}
@@ -136,19 +175,57 @@ export function AccountBillingPage({
           {overview.source === "manual" ? (
             <Badge variant="outline">Granted by an admin</Badge>
           ) : null}
-          {overview.hasStripeCustomer && overview.billingEnabled ? (
-            <Button
-              variant="outline"
-              className="ml-auto"
-              onClick={handlePortal}
-              disabled={openingPortal}
-            >
-              <ExternalLinkIcon className="h-4 w-4" />
-              Manage in Stripe
-            </Button>
-          ) : null}
+          {/* Every button on this card in one right-hand group, so adding
+              pause did not push "Manage in Stripe" onto its own line. */}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {overview.paused ? (
+              <Button onClick={() => void handlePause(false)} disabled={pausing}>
+                <PlayIcon className="h-4 w-4" />
+                Start my plan again
+              </Button>
+            ) : null}
+            {!overview.paused && overview.isPaid ? (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  pauseRefusal
+                    ? showErrorToast(getBillingErrorMessage(pauseRefusal))
+                    : setConfirmingPause(true)
+                }
+                disabled={pausing}
+              >
+                <PauseIcon className="h-4 w-4" />
+                Pause my plan
+              </Button>
+            ) : null}
+            {overview.hasStripeCustomer && overview.billingEnabled ? (
+              <Button
+                variant="outline"
+                onClick={handlePortal}
+                disabled={openingPortal}
+              >
+                <ExternalLinkIcon className="h-4 w-4" />
+                Manage in Stripe
+              </Button>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmingPause}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingPause(false)
+        }}
+        title="Pause your plan?"
+        // Pausing is reversible, so it is not dressed up as a red one-way door
+        // — but it does change what you can do, so it still asks first.
+        destructive={false}
+        description={pauseWarning(overview.planName)}
+        confirmLabel="Pause my plan"
+        loading={pausing}
+        onConfirm={() => void handlePause(true)}
+      />
 
       <AccountAiUsageCard />
 
@@ -171,6 +248,17 @@ export function AccountBillingPage({
       <InvoicesCard invoices={invoices} />
     </CardGroup>
   )
+}
+
+/**
+ * What pausing actually costs somebody, before they agree to it.
+ *
+ * Three facts, and every one of them is the sort of thing people are angry
+ * about afterwards: their paid features stop, the time already paid for is not
+ * handed back, and starting again starts the money again.
+ */
+function pauseWarning(planName: string) {
+  return `Your billing stops now — you will not be charged again until you start ${planName} back up. While it is paused you are on the free plan, so anything ${planName} unlocks stops working. The time you have already paid for is not refunded.`
 }
 
 /**

@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { SystemEmailEditor } from "@/components/system-emails/system-email-editor"
-import { loadBroadcastBlockDefaults } from "@/lib/api/broadcasts"
+import { loadBroadcastBlockDefaults } from "@/lib/api/email/broadcasts"
 import {
   getSystemEmail,
   getSystemEmailLoadErrorMessage,
-} from "@/lib/api/system-emails"
+} from "@/lib/api/email/system-emails"
 import { isSystemEmailKind } from "@/lib/system-emails/kinds"
 
 export const Route = createFileRoute(

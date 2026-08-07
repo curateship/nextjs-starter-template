@@ -17,7 +17,7 @@ import {
   storedFilename,
   validateMediaContent,
   validateMediaFile,
-} from "@/server/media"
+} from "@/server/media/library"
 import {
   customShellAnnouncements,
   customShellAuthTokens,
@@ -39,7 +39,7 @@ import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
-import { loadMemberHome } from "@/server/member-home"
+import { loadMemberHome } from "@/server/people/member-home"
 import {
   createAnnouncement,
   deleteAnnouncements,
@@ -49,13 +49,13 @@ import {
   retireAnnouncements,
   updateAnnouncement,
   type AnnouncementInput,
-} from "@/server/announcements"
+} from "@/server/content/announcements"
 import {
   createChangelogEntry,
   deleteChangelogEntries,
   listPublishedChangelogEntries,
   updateChangelogEntry,
-} from "@/server/changelog"
+} from "@/server/content/changelog"
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
@@ -72,12 +72,12 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
-import { loadMembershipSummary } from "@/server/membership"
-import { startViewingAs, stopViewingAs } from "@/server/view-as"
-import { loadAccountDetail } from "@/server/account-detail"
-import { grantManualPlan } from "@/server/accounts"
+import { loadMembershipSummary } from "@/server/people/membership"
+import { startViewingAs, stopViewingAs } from "@/server/people/view-as"
+import { loadAccountDetail } from "@/server/people/account-detail"
+import { grantManualPlan } from "@/server/people/accounts"
 import { readMaintenance, setMaintenance } from "@/server/maintenance"
-import { setSessionPolicy } from "@/server/session-policy"
+import { setSessionPolicy } from "@/server/auth/session-policy"
 import {
   parseShellGlobals,
   pickShellGlobals,
@@ -89,7 +89,7 @@ import {
   getNotificationPage,
   listAdminNotifications,
   type AdminNotificationQuery,
-} from "@/server/notifications"
+} from "@/server/notifications/inbox"
 import {
   createAuthToken,
   createSessionExpiresAt,
@@ -105,9 +105,9 @@ import {
   signOutOtherDevices,
   uuid,
   verifyPassword,
-} from "@/server/security"
-import { markAccountsForDeletion } from "@/server/account-deletion"
-import { signInWithGoogle } from "@/server/google-auth"
+} from "@/server/auth/security"
+import { markAccountsForDeletion } from "@/server/people/account-deletion"
+import { signInWithGoogle } from "@/server/auth/google"
 import {
   cancelEmailChange,
   consumeEmailChange,
@@ -115,17 +115,19 @@ import {
   createEmailChangeToken,
   findPendingEmailChange,
   revokeEmailChange,
-} from "@/server/email-change"
+} from "@/server/people/email-change"
 import {
   consumeSignInLink,
   createSignInLinkToken,
-} from "@/server/sign-in-link"
-import { describeDevice } from "@/lib/device-label"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/sign-in-link"
+} from "@/server/auth/sign-in-link"
+import { describeDevice } from "@/lib/format/device-label"
+import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
+import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
 import {
   addNewsletterLink,
   addOverviewLink,
+  addPagesLink,
+  addSegmentsLink,
   addSystemEmailsLink,
   addTrafficLink,
   removeMediaChildLinks,
@@ -147,9 +149,10 @@ import {
   saveWorkspaceBroadcastBlockDefault,
   switchUserWorkspace,
   updateUserWorkspace,
-} from "@/server/workspaces"
-import { sanitizeBlocks } from "@/server/broadcasts"
-import { loadFeedsSummary } from "@/server/feeds"
+} from "@/server/people/workspaces"
+import { sanitizeBlocks } from "@/server/email/broadcasts"
+import { loadFeedsSummary } from "@/server/content/feeds"
+import { createDefaultNotificationTypeVisibility } from "@/lib/notification-types"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
 function platformEntries(settings: { sections: { id: string; entries: unknown[] }[] }) {
@@ -1142,6 +1145,7 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
+          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -1185,6 +1189,12 @@ describe("custom shell workspaces", () => {
         href: "/admin/traffic",
         visible: true,
       },
+      {
+        type: "item",
+        label: "Pages",
+        href: "/admin/pages",
+        visible: true,
+      },
     ])
 
     const secondWorkspace = await createUserWorkspace(
@@ -1218,6 +1228,7 @@ describe("custom shell workspaces", () => {
         children: [
           { label: "Newsletters", href: "/admin/newsletter" },
           { label: "Contacts", href: "/admin/contacts" },
+          { label: "Segments", href: "/admin/segments" },
           { label: "System emails", href: "/admin/system-emails" },
         ],
       },
@@ -1675,11 +1686,13 @@ describe("membership section", () => {
     // the AI usage link handed out beside Membership, Traffic after it,
     // Newsletter next — this saved sidebar has no Automations link and no
     // Platform Settings section, so it falls back to the end of the only
-    // section there is — and Membership folded into the Overview last.
+    // section there is — Membership folded into the Overview, and the Pages
+    // link handed out after Traffic last.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
       "item-newsletter",
     ])
     // Feeds held nothing but the audit link, which was taken out a step
@@ -1721,11 +1734,12 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // The AI usage, Traffic and Newsletter links stay: all were handed out by
-    // the same upgrade, and none is what was deleted.
+    // The AI usage, Traffic, Pages and Newsletter links stay: all were handed
+    // out by the same upgrade, and none is what was deleted.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
       "item-newsletter",
     ])
   })
@@ -1973,11 +1987,12 @@ describe("overview link", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
-      // navVersions 8 and 9 hand the AI usage and Traffic links to every
-      // older workspace. Membership is not on the list: navVersion 14 folds it
-      // into the Overview after those two have used it as their anchor.
+      // navVersions 8, 9 and 17 hand the AI usage, Traffic and Pages links to
+      // every older workspace. Membership is not on the list: navVersion 14
+      // folds it into the Overview after those have used it as their anchor.
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -2008,6 +2023,7 @@ describe("overview link", () => {
     expect(idsIn(reloaded.sections, 0)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
   })
 })
@@ -2184,6 +2200,7 @@ describe("traffic link", () => {
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
 
     // Delete it the way Settings → Sidebar would, then load again. Reading
@@ -2211,7 +2228,149 @@ describe("traffic link", () => {
         )
       ).settings
     )
-    expect(idsIn(reloaded.sections, 0)).toEqual(["item-admin-ai-usage"])
+    // Pages stays: the same upgrade handed it out, and it was not what was
+    // deleted.
+    expect(idsIn(reloaded.sections, 0)).toEqual([
+      "item-admin-ai-usage",
+      "item-admin-pages",
+    ])
+  })
+})
+
+describe("pages link", () => {
+  /** A sidebar as a workspace saved it before the Pages screen existed. */
+  function savedSections(): ShellSection[] {
+    return [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          {
+            type: "item",
+            id: "item-admin-traffic",
+            label: "Traffic",
+            href: "/admin/traffic",
+            icon: "chart-line",
+            visible: true,
+          },
+        ],
+      },
+      {
+        id: "section-platform-settings",
+        title: "Platform Settings",
+        entries: [
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
+            visible: true,
+          },
+        ],
+      },
+    ]
+  }
+
+  function idsIn(sections: ShellSection[], index: number) {
+    return sections[index].entries.map((entry) => entry.id)
+  }
+
+  it("puts Pages right after the Traffic link", () => {
+    const sections = addPagesLink(savedSections())
+
+    expect(idsIn(sections, 0)).toEqual([
+      "item-admin-traffic",
+      "item-admin-pages",
+    ])
+    expect(idsIn(sections, 1)).toEqual(["item-settings"])
+    expect(sections[0].entries[1]).toMatchObject({
+      href: "/admin/pages",
+      icon: "panelsTopLeft",
+      roles: ["admin"],
+      visible: true,
+    })
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addPagesLink(savedSections())
+    const twice = addPagesLink(once)
+
+    expect(idsIn(twice, 0)).toEqual([
+      "item-admin-traffic",
+      "item-admin-pages",
+    ])
+    // Nothing changed, so nothing to write back.
+    expect(twice).toBe(once)
+  })
+
+  it("leaves a link somebody rebuilt by hand alone", () => {
+    const sections = savedSections()
+    sections[1].entries.push({
+      type: "item",
+      id: "my-own-pages",
+      label: "Public pages",
+      href: "/admin/pages",
+      icon: "panelsTopLeft",
+      visible: true,
+    })
+
+    expect(addPagesLink(sections)).toBe(sections)
+  })
+
+  it("counts a hidden Pages link as already there", () => {
+    const sections = savedSections()
+    sections[0].entries.push({
+      type: "item",
+      id: "item-admin-pages",
+      label: "Pages",
+      href: "/admin/pages",
+      icon: "panelsTopLeft",
+      visible: false,
+    })
+
+    expect(addPagesLink(sections)).toBe(sections)
+  })
+
+  it("counts one nested under another link as already there", () => {
+    const sections = savedSections()
+    ;(sections[0].entries[0] as ShellItem).children = [
+      { id: "item-admin-pages", label: "Pages", href: "/admin/pages" },
+    ]
+
+    expect(addPagesLink(sections)).toBe(sections)
+  })
+
+  it("falls back to the end of Administration when Traffic is gone", () => {
+    const sections = savedSections()
+    sections[0].entries = [
+      {
+        type: "item",
+        id: "item-admin-membership",
+        label: "Membership",
+        href: "/admin/membership",
+        icon: "id-card",
+        visible: true,
+      },
+    ]
+
+    expect(idsIn(addPagesLink(sections), 0)).toEqual([
+      "item-admin-membership",
+      "item-admin-pages",
+    ])
+  })
+
+  it("falls back to the first section when Administration is gone", () => {
+    const sections = savedSections().slice(1)
+
+    expect(idsIn(addPagesLink(sections), 0)).toEqual([
+      "item-settings",
+      "item-admin-pages",
+    ])
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addPagesLink([])).toEqual([])
   })
 })
 
@@ -2246,6 +2405,7 @@ describe("newsletter link", () => {
       children: [
         { label: "Newsletters", href: "/admin/newsletter" },
         { label: "Contacts", href: "/admin/contacts" },
+        { label: "Segments", href: "/admin/segments" },
         { label: "System emails", href: "/admin/system-emails" },
       ],
     })
@@ -2390,6 +2550,102 @@ describe("system emails link", () => {
   })
 })
 
+describe("segments link", () => {
+  function sectionWith(entries: ShellSection["entries"]): ShellSection[] {
+    return [{ id: "section-platform-settings", title: "Platform", entries }]
+  }
+
+  /** A navVersion-15 sidebar: Newsletter with the three children it had then. */
+  const newsletter = {
+    type: "item" as const,
+    id: "item-newsletter",
+    label: "Newsletter",
+    href: "/admin/newsletter",
+    icon: "mail" as const,
+    visible: true,
+    children: [
+      { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
+      { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+      {
+        id: "item-newsletter-system-emails",
+        label: "System emails",
+        href: "/admin/system-emails",
+      },
+    ],
+  }
+
+  it("puts it directly after Contacts, where somebody would look for it", () => {
+    const [section] = addSegmentsLink(sectionWith([newsletter]))
+    const entry = section.entries[0]
+
+    expect(
+      isShellItem(entry) && entry.children?.map((child) => child.href)
+    ).toEqual([
+      "/admin/newsletter",
+      "/admin/contacts",
+      "/admin/segments",
+      "/admin/system-emails",
+    ])
+  })
+
+  /** Their link, their name, their place — only the way in is added. */
+  it("hangs it under a newsletter link somebody added by hand", () => {
+    const byHand = {
+      type: "item" as const,
+      id: "item-8576ee16",
+      label: "Broadcast",
+      href: "/admin/newsletter",
+      icon: "mails" as const,
+      visible: true,
+    }
+    const [section] = addSegmentsLink(sectionWith([byHand]))
+    const entry = section.entries[0]
+
+    expect(isShellItem(entry) && entry.label).toBe("Broadcast")
+    // A parent with no children has no row of chips, so its own page goes in
+    // beside the new link rather than disappearing from that row.
+    expect(
+      isShellItem(entry) && entry.children?.map((child) => child.href)
+    ).toEqual(["/admin/newsletter", "/admin/segments"])
+  })
+
+  it("hands it out once, however many times it runs", () => {
+    const once = addSegmentsLink(sectionWith([newsletter]))
+    expect(addSegmentsLink(once)).toBe(once)
+  })
+
+  it("leaves a sidebar that already reaches Segments alone", () => {
+    const sections = sectionWith([
+      {
+        ...newsletter,
+        children: [
+          ...newsletter.children,
+          { id: "child-mine", label: "Groups", href: "/admin/segments" },
+        ],
+      },
+    ])
+    expect(addSegmentsLink(sections)).toBe(sections)
+  })
+
+  it("leaves a sidebar with no newsletter link alone", () => {
+    const sections = sectionWith([
+      {
+        type: "item" as const,
+        id: "item-media",
+        label: "Media",
+        href: "/admin/media",
+        icon: "image" as const,
+        visible: true,
+      },
+    ])
+    expect(addSegmentsLink(sections)).toEqual(sections)
+  })
+
+  it("leaves an emptied sidebar empty", () => {
+    expect(addSegmentsLink([])).toEqual([])
+  })
+})
+
 describe("revenue folds into membership", () => {
   /** A navVersion-9 sidebar: Membership with all three of its children. */
   function savedSections(): ShellSection[] {
@@ -2521,6 +2777,7 @@ describe("revenue folds into membership", () => {
       "item-admin-users",
       "item-admin-plans",
       "item-admin-traffic",
+      "item-admin-pages",
       "item-newsletter",
     ])
 
@@ -3266,6 +3523,7 @@ describe("feeds section", () => {
       "item-admin-overview",
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
     // The first three were grouped under Feeds, then handed on to the Overview
     // when Feeds went. No Feedback link: this sidebar predates it. What's new
@@ -3311,6 +3569,7 @@ describe("feeds section", () => {
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-ai-usage",
       "item-admin-traffic",
+      "item-admin-pages",
     ])
   })
 
@@ -3625,37 +3884,7 @@ describe("feeds section", () => {
       },
     ])
 
-    // One announcement showing, one scheduled for next week, one retired.
-    const announcement = (overrides: Partial<AnnouncementInput> = {}) => ({
-      title: "Heads up",
-      body: "Something is happening.",
-      level: "info" as const,
-      showBanner: true,
-      notify: false,
-      startsOn: "",
-      endsOn: "",
-      ...overrides,
-    })
-    await createAnnouncement(announcement({ title: "Showing" }), db)
-    await createAnnouncement(
-      announcement({
-        title: "Scheduled",
-        startsOn: new Date(Date.now() + 7 * DAY_MS).toISOString().slice(0, 10),
-      }),
-      db
-    )
-    const retired = await createAnnouncement(
-      announcement({ title: "Retired" }),
-      db
-    )
-    await retireAnnouncements([retired.id], db)
-
-    // One draft and two published updates. Publishing drops a notice in both
-    // people's trays, so the notification numbers come from these too.
-    await createChangelogEntry(
-      { title: "Half-written", body: "Soon.", published: false },
-      db
-    )
+    // Two published updates. Publishing drops a notice in both people's trays.
     await createChangelogEntry(
       { title: "Shipped one", body: "It is out.", published: true },
       db
@@ -3696,7 +3925,7 @@ describe("feeds section", () => {
       },
     ])
 
-    // One of the two has been replied to, and one has a vote behind it.
+    // One of the two has been replied to.
     await database.insert(customShellFeedbackComments).values({
       id: uuid(),
       feedbackId: answeredFeedbackId,
@@ -3705,42 +3934,8 @@ describe("feeds section", () => {
       createdAt,
       updatedAt: createdAt,
     })
-    await database.insert(customShellFeedbackVotes).values({
-      id: uuid(),
-      feedbackId: answeredFeedbackId,
-      userId: adminId,
-      createdAt,
-    })
-
     const summary = await loadFeedsSummary(db)
 
-    expect(summary.announcements).toMatchObject({
-      showingNow: 1,
-      scheduled: 1,
-      total: 3,
-    })
-    expect(summary.announcements.latest).toHaveLength(3)
-    expect(
-      summary.announcements.latest.map((item) => item.status).sort()
-    ).toEqual(["ended", "scheduled", "showing"])
-
-    expect(summary.changelog).toMatchObject({
-      total: 3,
-      published: 2,
-      drafts: 1,
-    })
-    // Drafts sort ahead of published entries, same as the Changelog page.
-    expect(summary.changelog.latest[0]).toMatchObject({
-      title: "Half-written",
-      publishedAt: null,
-    })
-
-    expect(summary.notifications).toMatchObject({
-      total: 4,
-      unread: 3,
-      sentLast7Days: 4,
-    })
-    expect(summary.notifications.oldestUnreadAt).not.toBeNull()
     // Publishing wrote a notice per person, but the activity feed is one line
     // per event: two published updates, not four notices.
     expect(summary.notifications.latest).toHaveLength(2)
@@ -3759,30 +3954,11 @@ describe("feeds section", () => {
     ).toBe(1)
 
     expect(summary.feedback).toMatchObject({
-      total: 2,
       last7Days: 1,
       // The eight-day-old one lands in the seven days before this week.
       previous7Days: 1,
       // One of the two has been replied to.
       noReply: 1,
-    })
-    // The voted-for one leads, however new the other is.
-    expect(summary.feedback.topVoted.map((item) => item.message)).toEqual([
-      "An old bug",
-      "More feeds please",
-    ])
-    expect(summary.feedback.topVoted[0]).toMatchObject({
-      type: "bug_report",
-      authorName: "Feeds Member",
-      votes: 1,
-    })
-
-    // What is waiting on somebody: the draft's shipping history and the
-    // announcement that has not started yet.
-    expect(summary.changelog.lastPublishedAt).not.toBeNull()
-    expect(summary.announcements.nextScheduled).toMatchObject({
-      title: "Scheduled",
-      status: "scheduled",
     })
   })
 })
@@ -3988,6 +4164,26 @@ describe("member sidebar", () => {
     // than reaching an <img> on a signed-out page.
     expect(parseShellGlobals({ appName: "x" }).logo).toBe("")
     expect(parseShellGlobals({ logo: 42 }).logo).toBe("")
+  })
+
+  it("carries the dark-background logo through a save and back", () => {
+    // Same trap as the logo above, and it rides the same path: miss it in
+    // `pickShellGlobals` and every settings save quietly throws the dark logo
+    // away, so a dark logo silently goes back to vanishing on a dark page.
+    const saved = pickShellGlobals({
+      ...createDefaultShellConfig(),
+      logo: "https://media.example.test/owner/logo.png",
+      logoDark: "https://media.example.test/owner/logo-dark.png",
+    })
+
+    expect(parseShellGlobals(saved).logoDark).toBe(
+      "https://media.example.test/owner/logo-dark.png"
+    )
+    // A row written before this setting existed has no value, and junk stored
+    // in one is refused: both read as "no dark logo", which is what keeps the
+    // one logo showing on both backgrounds exactly as it did before.
+    expect(parseShellGlobals({ appName: "x" }).logoDark).toBe("")
+    expect(parseShellGlobals({ logoDark: 42 }).logoDark).toBe("")
   })
 
   it("carries the top-bar link limit through a save and back", () => {
@@ -4971,6 +5167,48 @@ describe("custom shell feedback notifications", () => {
     expect(secondPage.notifications.map((item) => item.id)).toEqual([
       olderOwnerNotificationId,
     ])
+  })
+
+  it("hides switched-off notification types from the list and unread count", async () => {
+    const createdAt = now()
+    const ownerId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: ownerId,
+      email: "notification-preferences@internal.dev",
+      name: "Notification preferences",
+      role: "member",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellNotifications).values([
+      {
+        id: uuid(),
+        recipientUserId: ownerId,
+        type: "announcement",
+        createdAt,
+      },
+      {
+        id: uuid(),
+        recipientUserId: ownerId,
+        type: "ai_limit_warning",
+        createdAt: new Date(createdAt.getTime() + 1000),
+      },
+    ])
+
+    const notificationTypes = createDefaultNotificationTypeVisibility()
+    notificationTypes.announcement = false
+    const page = await getNotificationPage({
+      currentUser: { id: ownerId },
+      database,
+      notificationTypes,
+    })
+
+    expect(page.notifications.map((item) => item.type)).toEqual([
+      "ai_limit_warning",
+    ])
+    expect(page.unread_count).toBe(1)
   })
 
   it("allows only admins to list all notifications", async () => {

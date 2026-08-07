@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/pglite"
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import { customShellUsers, type CustomShellUser } from "@/server/schema"
 import * as schema from "@/server/schema"
-import { now, uuid } from "@/server/security"
+import { now, uuid } from "@/server/auth/security"
 
 /**
  * The in-memory database a test file runs against.

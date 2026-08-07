@@ -40,9 +40,10 @@ import {
   sendTestEmail,
   updateBroadcast,
   type BroadcastDetail,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
+import type { SegmentChoice } from "@/lib/api/people/contact-segments"
 import type { BroadcastAudienceFilter } from "@/lib/broadcasts/blocks"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 import {
   estimateDripBatches,
   validateDripConfig,
@@ -84,6 +85,27 @@ function describeHowLong(drip: DripConfig, recipients: number) {
   return `About ${batches} batches, taking at least ${spread}${hours}.`
 }
 
+type AudienceKind = BroadcastAudienceFilter["kind"]
+
+/** What each audience is called in the dropdown. */
+const audienceKindLabels: Record<AudienceKind, string> = {
+  all: "Everyone on the list",
+  tags: "Only certain tags",
+  segment: "A saved segment",
+}
+
+function initialTagText(broadcast: BroadcastDetail) {
+  return broadcast.audienceFilter.kind === "tags"
+    ? broadcast.audienceFilter.tags.join(", ")
+    : ""
+}
+
+function initialSegmentId(broadcast: BroadcastDetail) {
+  return broadcast.audienceFilter.kind === "segment"
+    ? broadcast.audienceFilter.segmentId
+    : ""
+}
+
 function SummaryRow({
   label,
   children,
@@ -109,21 +131,21 @@ export function SendBroadcastDialog({
   open,
   onOpenChange,
   broadcast,
+  segments,
   onUpdated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   broadcast: BroadcastDetail
+  /** Every saved segment this email can be aimed at, newest list from the page. */
+  segments: SegmentChoice[]
   onUpdated: (broadcast: BroadcastDetail) => void
 }) {
-  const [audienceKind, setAudienceKind] = React.useState<"all" | "tags">(
+  const [audienceKind, setAudienceKind] = React.useState<AudienceKind>(
     broadcast.audienceFilter.kind
   )
-  const [tagText, setTagText] = React.useState(
-    broadcast.audienceFilter.kind === "tags"
-      ? broadcast.audienceFilter.tags.join(", ")
-      : ""
-  )
+  const [tagText, setTagText] = React.useState(initialTagText(broadcast))
+  const [segmentId, setSegmentId] = React.useState(initialSegmentId(broadcast))
   const [audienceCount, setAudienceCount] = React.useState<{
     key: string
     total: number
@@ -146,11 +168,8 @@ export function SendBroadcastDialog({
     if (open) {
       setError(null)
       setAudienceKind(broadcast.audienceFilter.kind)
-      setTagText(
-        broadcast.audienceFilter.kind === "tags"
-          ? broadcast.audienceFilter.tags.join(", ")
-          : ""
-      )
+      setTagText(initialTagText(broadcast))
+      setSegmentId(initialSegmentId(broadcast))
       setDrip(broadcast.dripConfig)
       setMode(broadcast.status === "scheduled" ? "schedule" : "now")
       if (broadcast.scheduled_at) {
@@ -170,21 +189,32 @@ export function SendBroadcastDialog({
     [tagText]
   )
 
-  const audienceFilter: BroadcastAudienceFilter = React.useMemo(
-    () =>
-      audienceKind === "tags" && tags.length > 0
-        ? { kind: "tags", tags }
-        : { kind: "all" },
-    [audienceKind, tags]
-  )
+  const chosenSegment = segments.find((one) => one.id === segmentId) ?? null
+
+  /**
+   * The audience as it stands, or `null` while it is only half chosen.
+   *
+   * Half chosen is deliberately **not** "everyone". "Only certain tags" with an
+   * empty box, or a segment that has been deleted, must not quietly become the
+   * whole list — that is the one mistake nobody can take back once it is sent.
+   */
+  const audienceFilter: BroadcastAudienceFilter | null = React.useMemo(() => {
+    if (audienceKind === "tags") {
+      return tags.length > 0 ? { kind: "tags", tags } : null
+    }
+    if (audienceKind === "segment") {
+      return chosenSegment ? { kind: "segment", segmentId } : null
+    }
+    return { kind: "all" }
+  }, [audienceKind, chosenSegment, segmentId, tags])
 
   // Recount whenever the chosen audience changes, so the number on screen is
   // always the number that would actually be mailed. The count is stored
   // against the audience it was counted for, so a stale number is simply not
   // shown rather than having to be cleared before each new count.
-  const filterKey = JSON.stringify(audienceFilter)
+  const filterKey = audienceFilter ? JSON.stringify(audienceFilter) : null
   React.useEffect(() => {
-    if (!open) return
+    if (!open || filterKey === null) return
     let active = true
     countAudience(JSON.parse(filterKey) as BroadcastAudienceFilter)
       .then((data) => {
@@ -199,7 +229,17 @@ export function SendBroadcastDialog({
   }, [open, filterKey])
 
   const countedTotal =
-    audienceCount?.key === filterKey ? audienceCount.total : null
+    filterKey !== null && audienceCount?.key === filterKey
+      ? audienceCount.total
+      : null
+
+  /** Why there is no number yet, when the audience is not finished. */
+  const audienceGap =
+    audienceKind === "tags"
+      ? "Add at least one tag and this will say how many people that is."
+      : segmentId
+        ? "That segment has been deleted. Pick another one."
+        : "Pick a segment and this will say how many people are in it."
 
   const from = broadcast.fromName
     ? `${broadcast.fromName} (workspace address)`
@@ -221,6 +261,13 @@ export function SendBroadcastDialog({
   }
 
   const handleConfirm = async () => {
+    // Said here rather than by greying out the button, so whoever pressed it
+    // is told what is missing instead of being left guessing.
+    if (audienceFilter === null) {
+      setError(audienceGap)
+      return
+    }
+
     const dripProblem = validateDripConfig(drip)
     if (dripProblem) {
       setError(dripProblem)
@@ -276,7 +323,10 @@ export function SendBroadcastDialog({
   }
 
   const dirty =
-    Boolean(tagText.trim()) || Boolean(testEmail.trim()) || mode === "schedule"
+    Boolean(tagText.trim()) ||
+    Boolean(segmentId) ||
+    Boolean(testEmail.trim()) ||
+    mode === "schedule"
 
   return (
     <FormDialog
@@ -327,15 +377,20 @@ export function SendBroadcastDialog({
                   <Select
                     value={audienceKind}
                     onValueChange={(value) =>
-                      setAudienceKind(value as "all" | "tags")
+                      setAudienceKind(value as AudienceKind)
                     }
                   >
                     <SelectTrigger id="send-audience">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent position="popper">
-                      <SelectItem value="all">Everyone on the list</SelectItem>
-                      <SelectItem value="tags">Only certain tags</SelectItem>
+                      {(
+                        Object.keys(audienceKindLabels) as AudienceKind[]
+                      ).map((kind) => (
+                        <SelectItem key={kind} value={kind}>
+                          {audienceKindLabels[kind]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -355,13 +410,69 @@ export function SendBroadcastDialog({
                     />
                   </div>
                 ) : null}
-                <p className="text-sm">
-                  {countedTotal === null
-                    ? "Counting…"
-                    : countedTotal === 0
-                      ? "Nobody matches that yet."
-                      : `${countedTotal.toLocaleString()} ${plural(countedTotal, "person", "people")} will get this.`}
-                </p>
+                {audienceKind === "segment" ? (
+                  segments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      You have not saved any segments yet. Build one on the
+                      Segments page, then come back here.
+                    </p>
+                  ) : (
+                    <div className="grid gap-1">
+                      <FieldLabel
+                        htmlFor="send-segment"
+                        hint="Only people still on the list get it, whatever the segment says."
+                      >
+                        Segment
+                      </FieldLabel>
+                      {/* The chosen one rather than the stored id, so a segment
+                          that has been deleted shows the placeholder instead of
+                          quietly handing the dropdown back its own control. */}
+                      <Select
+                        value={chosenSegment?.id ?? ""}
+                        onValueChange={setSegmentId}
+                      >
+                        <SelectTrigger id="send-segment">
+                          <SelectValue placeholder="Pick a segment" />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          {segments.map((one) => (
+                            <SelectItem key={one.id} value={one.id}>
+                              {one.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )
+                ) : null}
+                <div className="grid gap-1">
+                  {audienceFilter === null ? (
+                    <p
+                      className={
+                        audienceKind === "segment" && segmentId
+                          ? "text-sm text-destructive"
+                          : "text-sm text-muted-foreground"
+                      }
+                    >
+                      {audienceGap}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm">
+                        {countedTotal === null
+                          ? "Counting…"
+                          : countedTotal === 0
+                            ? "Nobody matches that yet."
+                            : `${countedTotal.toLocaleString()} ${plural(countedTotal, "person", "people")} will get this.`}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        That is who matches right now. It is worked out again for
+                        every batch, so anyone who opts out partway through stops
+                        getting it.
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

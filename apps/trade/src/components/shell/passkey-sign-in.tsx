@@ -5,11 +5,11 @@ import { KeyRoundIcon, Loader2Icon } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
-import { getAuthErrorMessage } from "@/lib/api/auth"
-import { beginPasskeySignIn, finishPasskeySignIn } from "@/lib/api/passkeys"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { safeRedirectPath } from "@/lib/redirect-path"
-import { useBrowserSupportsWebAuthn } from "@/lib/use-webauthn-support"
+import { getAuthErrorMessage } from "@/lib/api/auth/auth"
+import { beginPasskeySignIn, finishPasskeySignIn } from "@/lib/api/auth/passkeys"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { safeRedirectPath } from "@/lib/nav/redirect-path"
+import { useBrowserSupportsWebAuthn } from "@/lib/hooks/use-webauthn-support"
 
 /**
  * "Sign in with a passkey" on the sign-in page. Renders nothing until the

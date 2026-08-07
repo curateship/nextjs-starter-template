@@ -7,13 +7,13 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   FEEDBACK_TAGS,
   MAX_FEEDBACK_TAGS,
   feedbackTagLabels,
   type FeedbackTag,
-} from "@/lib/feedback-tags"
+} from "@/lib/feedback/feedback-tags"
 import { cn } from "@/lib/utils"
 
 /**

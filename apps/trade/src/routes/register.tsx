@@ -20,8 +20,8 @@ import {
   loadSignInOptions,
   PASSWORD_RULE_HINT,
   register,
-} from "@/lib/api/auth"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+} from "@/lib/api/auth/auth"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 export const Route = createFileRoute("/register")({
   loader: async () => {

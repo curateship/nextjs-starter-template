@@ -12,7 +12,7 @@ import {
   type WalletKind,
 } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
-import { encryptSecret } from "@/server/encryption"
+import { encryptSecret } from "@/server/auth/encryption"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradeWallets } from "@/server/trade/schema"
 

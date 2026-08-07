@@ -33,7 +33,7 @@ import {
   type ShellModalStyling,
   type ShellStyling,
 } from "@/lib/custom-shell"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 type StylingSettingsProps = {

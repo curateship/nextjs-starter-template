@@ -16,7 +16,7 @@ import {
   customShellRateLimits,
   customShellSystemEmailSends,
 } from "@/server/schema"
-import { now, purgeRefusedSessions } from "@/server/security"
+import { now, purgeRefusedSessions } from "@/server/auth/security"
 
 /**
  * Throws away the five kinds of row that otherwise only ever pile up: sessions

@@ -31,7 +31,7 @@ import {
   getWalletErrorMessage,
   updateWallet,
 } from "@/lib/api/wallets"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   isAgentKey,
   isWalletAddress,

@@ -24,7 +24,7 @@ import {
 import {
   getBroadcastErrorMessage,
   saveBroadcastBlockDefault,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import {
   createBroadcastBlock,
   type BroadcastBlock,
@@ -35,16 +35,16 @@ import {
   PREVIEW_WIDTHS,
   type PreviewWidth,
 } from "@/lib/broadcasts/preview-width"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { focusRing } from "@/lib/focus-ring"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { focusRing } from "@/lib/layout/focus-ring"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
-} from "@/lib/panel-collapse"
-import { panelLayoutKey, useRememberedPanelLayout } from "@/lib/panel-layout"
+} from "@/lib/layout/panel-collapse"
+import { panelLayoutKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { cn } from "@/lib/utils"
-import { useWideScreen } from "@/lib/wide-screen"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+import { useWideScreen } from "@/lib/layout/wide-screen"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 /**
  * Draws the email at phone width or at the 600px every inbox gives it. A view

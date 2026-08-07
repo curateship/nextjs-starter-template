@@ -1,5 +1,5 @@
 import { appServerOptions } from "@/app/server-options"
-import type { AutomationExecutor } from "@/server/automation-executors"
+import type { AutomationExecutor } from "@/server/automations/executors"
 
 /**
  * The same idea as `src/lib/app-options.ts`, for the answers that can only run
@@ -19,6 +19,33 @@ import type { AutomationExecutor } from "@/server/automation-executors"
  */
 export type AppServerOptions = {
   automations?: AutomationServerOptions
+  background?: BackgroundServerOptions
+}
+
+/**
+ * A background job the app rides on the shell's fifteen-second loop.
+ *
+ * `tick` is called on every pass and must claim its own work — two overlapping
+ * passes have to be harmless, exactly as they are for the shell's own jobs. A
+ * thrown tick is logged under `name` and never stops the loop or the other
+ * workers.
+ */
+export type AppBackgroundWorker = {
+  name: string
+  tick: () => Promise<void>
+}
+
+type BackgroundServerOptions = {
+  /**
+   * The app's own background workers, run by the shell's one ticker.
+   *
+   * The shell has no boot hook — its loop starts on the first request and
+   * fires every fifteen seconds — so an app that needs ongoing background
+   * work (building previews, watching a feed) lists it here instead of
+   * starting timers of its own. One loop means one place to look when
+   * something ticks.
+   */
+  workers?: readonly AppBackgroundWorker[]
 }
 
 type AutomationServerOptions = {
@@ -60,4 +87,17 @@ export function appAutomationExecutors(
   options: AppServerOptions = appServerOptions
 ): Record<string, AutomationExecutor> {
   return options.automations?.executors ?? {}
+}
+
+/**
+ * The app's own background workers, or none.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appBackgroundWorkers(
+  options: AppServerOptions = appServerOptions
+): readonly AppBackgroundWorker[] {
+  return options.background?.workers ?? []
 }

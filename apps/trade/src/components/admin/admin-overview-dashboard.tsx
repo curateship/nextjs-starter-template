@@ -1,20 +1,14 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  CreditCardIcon,
-  GlobeIcon,
   LayersIcon,
-  LayoutDashboardIcon,
   LineChartIcon,
-  MailWarningIcon,
-  MessageSquarePlusIcon,
+  LayoutDashboardIcon,
   UsersIcon,
   WorkflowIcon,
 } from "lucide-react"
 import {
   Area,
-  Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -22,19 +16,16 @@ import {
   YAxis,
 } from "recharts"
 
-import { ActivityCard } from "@/components/shared/activity-card"
-import { chartHeightClassName, EmptyChart, LegendDot } from "@/components/shared/chart-card"
+import { chartHeightClassName, EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
 import {
   DashboardPanels,
   type DashboardBlock,
-} from "@/components/shared/dashboard-panels"
-import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
-import {
-  NeedsYouCard,
-  type NeedsYouItem,
-} from "@/components/shared/needs-you-card"
-import { SampleValue } from "@/components/shared/sample-figure"
-import { StatStrip, ChangeBadge, type StatFigure } from "@/components/shared/stat-strip"
+} from "@/components/shared/dashboard/dashboard-panels"
+import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
+import { ActivityCard } from "@/components/shared/dashboard/activity-card"
+import { SampleValue } from "@/components/shared/dashboard/sample-figure"
+import { VisitorsCard } from "@/components/shared/dashboard/visitors-card"
+import { StatStrip, ChangeBadge, type StatFigure } from "@/components/shared/dashboard/stat-strip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -54,35 +45,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { UnderlineTab, UnderlineTabsList } from "@/components/ui/underline-tabs"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   AUTOMATION_RUNS_CAPTION,
   automationRuns,
   automationSuccessRate,
-  trafficByDay,
-  trafficSummary,
-} from "@/lib/admin-overview-sample"
+} from "@/lib/dashboard/admin-overview-sample"
 import type { AdminOverview, OverviewAutomation } from "@/lib/api/admin-overview"
 import {
   isPendingDeletion,
   restoreDeadline,
 } from "@/lib/account-deletion"
-import { shade } from "@/lib/chart-colours"
+import { shade } from "@/lib/dashboard/chart-colours"
 import {
   findDashboardWidget,
   isDashboardBoardEmpty,
   type DashboardWidgetId,
   type DashboardWidgetSlot,
-} from "@/lib/dashboard-widgets"
-import { emailIsOff, emailOffConsequence } from "@/lib/email-delivery"
-import { buildFeedsNeedsYou } from "@/lib/feeds-needs-you"
-import { focusRingInset } from "@/lib/focus-ring"
-import { formatDate } from "@/lib/format-time"
-import { formatSharePercent } from "@/lib/format-number"
-import { buildMembershipFigures } from "@/lib/membership-figures"
-import { percentChange } from "@/lib/percent-change"
-import { plural } from "@/lib/plural"
+} from "@/lib/dashboard/dashboard-widgets"
+import { focusRingInset } from "@/lib/layout/focus-ring"
+import { formatDate } from "@/lib/format/format-time"
+import { formatSharePercent } from "@/lib/format/format-number"
+import { buildMembershipFigures } from "@/lib/billing/membership-figures"
+import { percentChange } from "@/lib/format/percent-change"
+import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 
 /**
@@ -93,7 +81,7 @@ import { cn } from "@/lib/utils"
  * so a figure and its own page can never disagree. Two cards cannot be: the
  * app records no visitor traffic and has no automation run engine yet, so
  * those figures are stand-ins and say so on the card, in words. Every one of
- * them lives in `lib/admin-overview-sample.ts` — nothing else invents a
+ * them lives in `lib/dashboard/admin-overview-sample.ts` — nothing else invents a
  * number.
  */
 
@@ -181,24 +169,17 @@ function renderWidget(
           className={className}
         />
       )
-    case "needs-you":
-      return (
-        <NeedsYouCard
-          items={buildOverviewNeedsYou(overview)}
-          className={className}
-        />
-      )
-    case "activity":
+    case "inbox":
       return (
         <ActivityCard
-          items={overview.feeds.notifications.latest}
+          activity={overview.feeds.notifications.latest}
           className={className}
         />
       )
     case "people":
       return <PeopleCard overview={overview} className={className} />
     case "traffic":
-      return <TrafficCard className={className} />
+      return <VisitorsCard className={className} />
     case "automations":
       return (
         <AutomationsCard
@@ -248,7 +229,6 @@ function buildOverviewFigures({
     {
       key: "feedback",
       to: "/admin/feedback",
-      icon: MessageSquarePlusIcon,
       label: "Feedback this week",
       value: feeds.feedback.last7Days.toLocaleString(),
       before: `${feeds.feedback.previous7Days.toLocaleString()} the week before`,
@@ -260,76 +240,6 @@ function buildOverviewFigures({
       footer: `${feeds.feedback.noReply.toLocaleString()} with no reply`,
     },
   ]
-}
-
-// ---------------------------------------------------------------------------
-// Needs you: the four feeds rules, plus the three this page can see that the
-// four feeds cannot.
-
-function buildOverviewNeedsYou({
-  membership,
-  feeds,
-  automations,
-  emailDelivery,
-}: AdminOverview): NeedsYouItem[] {
-  const items = buildFeedsNeedsYou(feeds)
-  const broken = automations.filter((automation) => !automation.isValid)
-
-  // Ordered by how much it costs to leave alone: a suspended account and a
-  // broken automation are both somebody blocked right now, so they go above
-  // the feeds rows; a subscription ending has until the period runs out.
-  if (broken.length) {
-    items.unshift({
-      id: "automations",
-      icon: WorkflowIcon,
-      title: `${broken.length} ${plural(broken.length, "automation")} needs attention`,
-      detail: broken
-        .slice(0, 3)
-        .map((automation) => automation.name)
-        .join(", "),
-      action: "Open",
-      to: "/admin/automations",
-    })
-  }
-
-  if (membership.suspended > 0) {
-    items.unshift({
-      id: "suspended",
-      icon: UsersIcon,
-      title: `${membership.suspended.toLocaleString()} suspended ${plural(membership.suspended, "account")}`,
-      detail: "Nobody suspended can sign in until somebody lifts it",
-      action: "Review",
-      to: "/admin/users",
-    })
-  }
-
-  // Above everything else, because it is the only row here that stops people
-  // getting in at all — and the only one nothing else in the app would ever
-  // mention until somebody could not register.
-  if (emailIsOff(emailDelivery)) {
-    items.unshift({
-      id: "email-off",
-      icon: MailWarningIcon,
-      title: "Email is switched off",
-      detail: emailOffConsequence(emailDelivery),
-      action: "Set it up",
-      to: "/admin/settings/$tab",
-      params: { tab: "email" },
-    })
-  }
-
-  if (membership.revenue.cancelling > 0) {
-    items.push({
-      id: "cancelling",
-      icon: CreditCardIcon,
-      title: `${membership.revenue.cancelling.toLocaleString()} ${plural(membership.revenue.cancelling, "subscription")} ending`,
-      detail: "They keep it until their period runs out",
-      action: "Review people",
-      to: "/admin/users",
-    })
-  }
-
-  return items
 }
 
 // ---------------------------------------------------------------------------
@@ -369,35 +279,46 @@ function PeopleCard({
 
   return (
     <FeedCard className={className}>
-      <CardTop
-        icon={current.icon}
-        title={current.title}
-        // Dropped rather than truncating the heading once the tabs and this
-        // count no longer both fit — which is most widths in this column.
-        metaClassName="hidden 2xl:inline"
-        meta={
-          tab === "joining"
-            ? `${membership.newLastMonth.toLocaleString()} last month`
-            : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
-        }
-        action={
-          <Tabs
-            value={tab}
-            onValueChange={(value) => setTab(value as PeopleTab)}
-          >
-            <TabsList>
-              {PEOPLE_TABS.map((entry) => (
-                <TabsTrigger key={entry.value} value={entry.value}>
-                  {entry.tab}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        }
-      />
-      {tab === "joining" ? <JoiningChart overview={overview} /> : null}
-      {tab === "members" ? <NewestMembers overview={overview} /> : null}
-      {tab === "plans" ? <PlanMembership overview={overview} /> : null}
+      <Tabs
+        className="flex min-h-0 flex-1 gap-0"
+        value={tab}
+        onValueChange={(value) => setTab(value as PeopleTab)}
+      >
+        <CardHeaderRow
+          icon={current.icon}
+          title={current.title}
+          // Dropped rather than truncating the heading once the tabs and this
+          // count no longer both fit — which is most widths in this column.
+          metaClassName="hidden 2xl:flex"
+          meta={
+            tab === "joining"
+              ? `${membership.newLastMonth.toLocaleString()} last month`
+              : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
+          }
+        >
+          {/* `-mb-px` so the line under the chosen tab lands on the card's own
+              hairline rather than a pixel above it. */}
+          <UnderlineTabsList className="-mb-px">
+            {PEOPLE_TABS.map((entry) => (
+              <UnderlineTab
+                key={entry.value}
+                value={entry.value}
+                label={entry.tab}
+              />
+            ))}
+          </UnderlineTabsList>
+        </CardHeaderRow>
+
+        <TabsContent value="joining" className="flex min-h-0 flex-col">
+          <JoiningChart overview={overview} />
+        </TabsContent>
+        <TabsContent value="members" className="flex min-h-0 flex-col">
+          <NewestMembers overview={overview} />
+        </TabsContent>
+        <TabsContent value="plans" className="flex min-h-0 flex-col">
+          <PlanMembership overview={overview} />
+        </TabsContent>
+      </Tabs>
     </FeedCard>
   )
 }
@@ -558,67 +479,6 @@ function NewestMembers({ overview }: { overview: AdminOverview }) {
         View all accounts
       </Link>
     </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Right column: traffic. Nothing in the app records a visit, so every figure
-// on this card is a stand-in and the card says so.
-
-const trafficConfig: ChartConfig = {
-  sessions: { label: "Visits", color: "var(--primary)" },
-}
-
-function TrafficCard({ className }: { className?: string }) {
-  const summary = trafficSummary().value
-  const days = trafficByDay(new Date()).value
-
-  return (
-    <Card className={cn("flex min-w-0 flex-col gap-0 py-0", className)}>
-      <CardTop
-        icon={GlobeIcon}
-        title="Traffic"
-        sample
-        meta={`${summary.sessions.toLocaleString()} visits · ${summary.users.toLocaleString()} people`}
-      />
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 py-4 sm:px-5 sm:py-5">
-        <div className="h-[140px] w-full min-w-0 xl:h-auto xl:min-h-[90px] xl:flex-1">
-          <ChartContainer config={trafficConfig} className="h-full w-full">
-            <BarChart data={days} barSize={18}>
-              <XAxis
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10 }}
-                interval={3}
-              />
-              <YAxis hide />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar
-                dataKey="sessions"
-                radius={[4, 4, 0, 0]}
-                fill="var(--color-sessions)"
-              />
-            </BarChart>
-          </ChartContainer>
-        </div>
-        <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-          {summary.sources.map((source) => (
-            <div
-              key={source.label}
-              className="flex min-w-0 items-center justify-between gap-3 text-sm"
-            >
-              <span className="min-w-0 truncate text-muted-foreground">
-                {source.label}
-              </span>
-              <SampleValue className="shrink-0 font-medium tabular-nums">
-                {source.percent}%
-              </SampleValue>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 

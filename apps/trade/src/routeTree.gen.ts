@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -40,7 +41,9 @@ import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
+import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
@@ -63,6 +66,11 @@ import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -223,11 +231,22 @@ const AuthenticatedAdminNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPagesRoute = AuthenticatedAdminPagesRouteImport.update({
+  id: '/pages',
+  path: '/pages',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminSegmentsRoute =
+  AuthenticatedAdminSegmentsRouteImport.update({
+    id: '/segments',
+    path: '/segments',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/settings',
@@ -332,6 +351,7 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/change-email': typeof ChangeEmailRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -360,7 +380,9 @@ export interface FileRoutesByFullPath {
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
@@ -383,6 +405,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/change-email': typeof ChangeEmailRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -409,7 +432,9 @@ export interface FileRoutesByTo {
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
@@ -433,6 +458,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/change-email': typeof ChangeEmailRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -462,7 +488,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
+  '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
@@ -487,6 +515,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
     | '/change-email'
     | '/forgot-password'
     | '/login'
@@ -515,7 +544,9 @@ export interface FileRouteTypes {
     | '/admin/membership'
     | '/admin/newsletter'
     | '/admin/notifications'
+    | '/admin/pages'
     | '/admin/plans'
+    | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
     | '/admin/traffic'
@@ -538,6 +569,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
     | '/change-email'
     | '/forgot-password'
     | '/login'
@@ -564,7 +596,9 @@ export interface FileRouteTypes {
     | '/admin/membership'
     | '/admin/newsletter'
     | '/admin/notifications'
+    | '/admin/pages'
     | '/admin/plans'
+    | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
     | '/admin/traffic'
@@ -587,6 +621,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$'
     | '/_authenticated'
     | '/change-email'
     | '/forgot-password'
@@ -616,7 +651,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/membership'
     | '/_authenticated/admin/newsletter'
     | '/_authenticated/admin/notifications'
+    | '/_authenticated/admin/pages'
     | '/_authenticated/admin/plans'
+    | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/system-emails'
     | '/_authenticated/admin/traffic'
@@ -640,6 +677,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SplatRoute: typeof SplatRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   ChangeEmailRoute: typeof ChangeEmailRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -668,6 +706,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -880,11 +925,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/pages': {
+      id: '/_authenticated/admin/pages'
+      path: '/pages'
+      fullPath: '/admin/pages'
+      preLoaderRoute: typeof AuthenticatedAdminPagesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/plans': {
       id: '/_authenticated/admin/plans'
       path: '/plans'
       fullPath: '/admin/plans'
       preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/segments': {
+      id: '/_authenticated/admin/segments'
+      path: '/segments'
+      fullPath: '/admin/segments'
+      preLoaderRoute: typeof AuthenticatedAdminSegmentsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/settings': {
@@ -1054,7 +1113,9 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
+  AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
+  AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
@@ -1077,7 +1138,9 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
+  AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
+  AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
@@ -1134,6 +1197,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SplatRoute: SplatRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   ChangeEmailRoute: ChangeEmailRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
@@ -1157,12 +1221,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

@@ -13,10 +13,10 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { describeBulkResult } from "@/lib/bulk-result"
-import { plural } from "@/lib/plural"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { plural } from "@/lib/format/plural"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -43,25 +43,27 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import {
-  aiLimitNotificationText,
-  automationApprovalNotificationText,
   clearAdminNotifications,
   deleteAdminNotifications,
   getNotificationErrorMessage,
-  isAiLimitNotification,
   listAdminNotifications,
-  notificationTypeLabels,
   type NotificationItem,
-  type NotificationType,
 } from "@/lib/api/notification"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useSelection } from "@/lib/use-selection"
+import {
+  aiLimitNotificationText,
+  automationApprovalNotificationText,
+  isAiLimitNotification,
+  notificationTypeLabels,
+  type NotificationType,
+} from "@/lib/notification-types"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSelection } from "@/lib/hooks/use-selection"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
-} from "@/lib/list-search"
+} from "@/lib/nav/list-search"
 import { cn } from "@/lib/utils"
 
 const notificationsRoute = getRouteApi("/_authenticated/admin/notifications")
@@ -89,7 +91,7 @@ const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
  * The free text a row shows: the update's title for a changelog notice, the
  * broadcast's own title for an announcement, and the feedback it is about for
  * the rest. The database searches and sorts on the same three, in the same
- * order — see `subjectExpression` in `src/server/notifications.ts`.
+ * order — see `subjectExpression` in `src/server/notifications/inbox.ts`.
  */
 function notificationSubject(item: NotificationItem) {
   // An AI-allowance notice carries its own words — there is no thing it is
@@ -166,7 +168,7 @@ export function NotificationsPage({
   const [notifications, setNotifications] = React.useState(initialNotifications)
   const [total, setTotal] = React.useState(initialTotal)
   // Search, filters, sort and page live in the address, so opening a record
-  // and pressing Back returns this exact list — see `lib/list-search.ts`.
+  // and pressing Back returns this exact list — see `lib/nav/list-search.ts`.
   const listSearch = notificationsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const search = listSearch.q ?? ""

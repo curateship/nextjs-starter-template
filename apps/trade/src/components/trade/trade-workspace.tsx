@@ -33,7 +33,7 @@ import {
   getMarketFavoritesErrorMessage,
   saveMarketFavorites,
 } from "@/lib/api/markets"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   CANDLE_INTERVALS,
   parseMarketKey,
@@ -50,10 +50,10 @@ import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
-} from "@/lib/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/panel-layout"
+} from "@/lib/layout/panel-collapse"
+import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
-import { useWideScreen } from "@/lib/wide-screen"
+import { useWideScreen } from "@/lib/layout/wide-screen"
 
 /** Which side panel a narrow screen has slid open, if any. */
 type OpenSheet = "markets" | "account" | null

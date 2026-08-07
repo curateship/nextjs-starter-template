@@ -3,8 +3,8 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { getFeedbackErrorMessage } from "@/lib/api/feedback"
-import { getMediaErrorMessage } from "@/lib/api/media"
-import { getWorkspaceErrorMessage } from "@/lib/api/workspaces"
+import { getMediaErrorMessage } from "@/lib/api/media/media"
+import { getWorkspaceErrorMessage } from "@/lib/api/people/workspaces"
 
 /**
  * Every door in the app is locked unless somebody wrote down why it is not.
@@ -43,39 +43,43 @@ const GUARDED_DEEPER: Record<string, string> = {
  * a way *in* to the app or something a signed-out page has to draw.
  */
 const OPEN_TO_EVERYONE: Record<string, string> = {
-  "auth.ts:loadCurrentUserFn":
+  "auth/auth.ts:loadCurrentUserFn":
     "Answers with null when nobody is signed in; that is how the app knows to show the signed-out shell.",
-  "auth.ts:loadSignInOptionsFn":
+  "auth/auth.ts:loadSignInOptionsFn":
     "The sign-in page has to know which sign-in methods to offer before anybody has signed in.",
-  "auth.ts:registerFn": "Making an account is done by people who have none.",
-  "auth.ts:verifyEmailFn":
+  "auth/auth.ts:registerFn": "Making an account is done by people who have none.",
+  "auth/auth.ts:verifyEmailFn":
     "The link in a verification email is followed from a signed-out browser.",
-  "auth.ts:resendVerificationFn":
+  "auth/auth.ts:resendVerificationFn":
     "Asking for another verification email happens before the account is usable.",
-  "auth.ts:loginFn": "Signing in is the thing people do when not signed in.",
-  "auth.ts:logoutFn":
+  "auth/auth.ts:loginFn": "Signing in is the thing people do when not signed in.",
+  "auth/auth.ts:logoutFn":
     "Signing out has to work from whatever state the browser is in, including an expired session.",
-  "auth.ts:requestSignInLinkFn":
+  "auth/auth.ts:requestSignInLinkFn":
     "Asking for a magic link is done from the signed-out sign-in page.",
-  "auth.ts:consumeSignInLinkFn":
+  "auth/auth.ts:consumeSignInLinkFn":
     "Following a magic link is how the session gets created in the first place.",
-  "auth.ts:requestPasswordResetFn":
+  "auth/auth.ts:requestPasswordResetFn":
     "Forgotten-password is for people who cannot sign in.",
-  "auth.ts:resetPasswordFn":
+  "auth/auth.ts:resetPasswordFn":
     "The reset link is followed from a signed-out browser; the token is the guard.",
-  "auth.ts:confirmEmailChangeFn":
+  "auth/auth.ts:confirmEmailChangeFn":
     "The confirmation link is followed from whichever browser opened the email; the token is the guard.",
-  "auth.ts:revokeEmailChangeFn":
+  "auth/auth.ts:revokeEmailChangeFn":
     "The “this wasn’t me” link exists for somebody who may be losing the account, so it cannot require a session; the token is the guard.",
-  "billing.ts:loadPublicPricingFn":
+  "billing/billing.ts:loadPublicPricingFn":
     "The pricing page is public, so the plans on it have to be readable signed out.",
-  "passkeys.ts:beginPasskeySignInFn":
+  "auth/passkeys.ts:beginPasskeySignInFn":
     "Starting a passkey sign-in happens before there is a session.",
-  "passkeys.ts:finishPasskeySignInFn":
+  "auth/passkeys.ts:finishPasskeySignInFn":
     "Finishing a passkey sign-in is what creates the session; the signed challenge is the guard.",
   "maintenance.ts:readMaintenanceFn":
     "The maintenance notice has to render for people who are not signed in.",
-  "view-as.ts:stopFn":
+  "content/pages.ts:readPageAccessFn":
+    "Decides what a signed-out visitor is shown on a public page, so a session check here would hide every page it protects.",
+  "content/pages.ts:readWrittenPageFn":
+    "An admin-written page is a public page; requiring a session to read one would hide every page an admin ever writes.",
+  "people/view-as.ts:stopFn":
     "While the view is on the app treats the caller as the member, so an admin check here would be a door that locks from the inside. The session row is the guard.",
   "shell.ts:loadBrandingFn":
     "The app name and logo are on the sign-in page, so they are readable before there is a session.",
@@ -91,10 +95,26 @@ const INLINE_GUARD = /\brequire(Admin|User|OwnAccount|SessionOwner|Billing)\w*\(
 
 type ServerFn = { file: string; name: string; body: string }
 
+/**
+ * Every `.ts` under `src/lib/api`, however deep, named the way the exception
+ * lists above name it — `people/contacts.ts`, not just `contacts.ts`.
+ *
+ * Walking only the top of the folder would be the quiet kind of broken: sort
+ * the endpoints into subfolders and every moved one stops being checked, with
+ * nothing failing to say so.
+ */
+function apiFiles(dir = API_DIR, prefix = ""): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const name = prefix ? `${prefix}/${entry.name}` : entry.name
+    if (entry.isDirectory()) return apiFiles(join(dir, entry.name), name)
+    return entry.name.endsWith(".ts") ? [name] : []
+  })
+}
+
 function collectServerFns(): ServerFn[] {
   const found: ServerFn[] = []
 
-  for (const file of readdirSync(API_DIR).filter((f) => f.endsWith(".ts"))) {
+  for (const file of apiFiles()) {
     const source = readFileSync(join(API_DIR, file), "utf8")
     const matches = [...source.matchAll(/const (\w+) = createServerFn\(/g)]
 
@@ -124,6 +144,17 @@ describe("every server function is guarded", () => {
   it("finds the server functions to check", () => {
     // A parser that quietly matched nothing would make every test below pass.
     expect(serverFns.length).toBeGreaterThan(80)
+  })
+
+  it("reads every endpoint file, however deep it is filed", () => {
+    // The count is the whole point of this one. The endpoint files were sorted
+    // into subfolders, and a walker that only read the top of the folder would
+    // still pass every test above while checking a fraction of the doors.
+    //
+    // A floor rather than an exact count, so an app built on this shell can
+    // add endpoint files of its own without editing a shell test — a shallow
+    // walker still reads far fewer than the shell's own 34 and fails.
+    expect(apiFiles().length).toBeGreaterThanOrEqual(34)
   })
 
   it("locks every door that is not listed as an exception", () => {

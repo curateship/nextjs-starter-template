@@ -6,7 +6,7 @@ import {
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellSettings, DEFAULT_SETTINGS_KEY } from "@/server/schema"
-import { now } from "@/server/security"
+import { now } from "@/server/auth/security"
 import {
   parseShellGlobals,
   readShellGlobals,

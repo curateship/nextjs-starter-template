@@ -30,7 +30,7 @@ import {
   TableSurface,
 } from "@/components/ui/table"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { focusRing } from "@/lib/focus-ring"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
@@ -81,6 +81,13 @@ type DashboardTableBaseProps = {
   icon?: React.ReactNode
   count: number
   controls?: React.ReactNode
+  /**
+   * A strip under the toolbar for the filters currently on — one removable chip
+   * each, and a way to clear them. Inside the surface on purpose: the filters
+   * belong to this table, and a row of chips floating above the card reads as
+   * page furniture that happens to sit nearby.
+   */
+  filters?: React.ReactNode
   error?: DashboardTableError | null
   selectedCount?: number
   onClearSelection?: () => void
@@ -154,6 +161,7 @@ export function DashboardTable(props: DashboardTableProps) {
     icon,
     count,
     controls,
+    filters,
     error,
     selectedCount = 0,
     onClearSelection,
@@ -204,6 +212,12 @@ export function DashboardTable(props: DashboardTableProps) {
           <DashboardToolbarControls>{controls}</DashboardToolbarControls>
         ) : null}
       </DashboardToolbar>
+
+      {filters ? (
+        <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
+          {filters}
+        </div>
+      ) : null}
 
       {error ? (
         <ErrorBanner message={error.message} onRetry={error.onRetry} />

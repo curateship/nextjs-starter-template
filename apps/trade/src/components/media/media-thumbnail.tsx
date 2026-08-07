@@ -1,7 +1,7 @@
 import * as React from "react"
 import { FileQuestionIcon, PlayIcon } from "lucide-react"
 
-import { videoPosterSrc } from "@/lib/media-upload"
+import { videoPosterSrc } from "@/lib/media/media-upload"
 import { cn } from "@/lib/utils"
 
 /**

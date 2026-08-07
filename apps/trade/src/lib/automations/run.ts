@@ -1,10 +1,25 @@
 import type { AutomationCompiledConfig } from "./compile"
+import { automationKindIsTrigger } from "./node-registry"
 
 /**
  * The words a run and its steps are described by, and the plain-English names
  * the screens show for them. Shared by the engine, the API and the pages, so
  * the database, the badge and the sentence can never disagree.
  */
+
+/**
+ * What a trigger knew when it started a run: the amount that failed, the day a
+ * trial ends, the last four digits of a card. Saved with the run so the steps
+ * after the trigger can act on the moment rather than look it up again — by
+ * then the invoice may have been paid and the trial may have ended.
+ *
+ * Flat and JSON-only, the same claim `AutomationSettingValue` makes, because
+ * these travel to the browser inside the run history's answer.
+ */
+export type AutomationTriggerFacts = Record<
+  string,
+  string | number | boolean | null
+>
 
 export type AutomationRunStatus =
   | "active"
@@ -47,18 +62,37 @@ export const automationRunStepStatusLabels: Record<
 }
 
 /**
- * Where a run starts: the one step nothing else feeds into.
+ * Where a run starts.
  *
- * A flow drawn as two disconnected lines has two of those, and the engine walks
- * exactly one path — so rather than silently picking one and running half the
- * flow, this returns null and the caller refuses to start it.
+ * A trigger step says so outright: it is the one step that begins a flow, and
+ * nothing can connect into it, so when there is one it is the start. Flows
+ * without a trigger — everything drawn before triggers existed — fall back to
+ * the shape rule: the one step nothing else feeds into.
+ *
+ * Either way, "more than one candidate" answers null rather than picking. A
+ * flow drawn as two disconnected lines has two starts, and the engine walks
+ * exactly one path, so guessing would silently run half the flow.
  */
 export function automationEntryNodeId(
   config: AutomationCompiledConfig
 ): string | null {
+  const triggers = Object.entries(config.nodes)
+    .filter(([, node]) => automationKindIsTrigger(node.kind))
+    .map(([id]) => id)
+  if (triggers.length > 0) return triggers.length === 1 ? triggers[0] : null
+
   const fedInto = new Set(config.edges.map((edge) => edge.to))
   const roots = Object.keys(config.nodes).filter((id) => !fedInto.has(id))
   return roots.length === 1 ? roots[0] : null
+}
+
+/** The trigger a flow reacts to, or null when it only ever runs by hand. */
+export function automationTriggerKind(
+  config: AutomationCompiledConfig
+): string | null {
+  const entry = automationEntryNodeId(config)
+  const kind = entry ? config.nodes[entry]?.kind : undefined
+  return kind && automationKindIsTrigger(kind) ? kind : null
 }
 
 /** The step after this one, or null when the flow ends here. */

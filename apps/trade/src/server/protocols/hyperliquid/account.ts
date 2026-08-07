@@ -50,7 +50,9 @@ export async function fetchHyperliquidAccount(
   if (mode === "unifiedAccount" || mode === "portfolioMargin") {
     // Collateral is token 0 (USDC) on the spot side in these modes.
     // https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes
-    const collateral = spot.balances.find((balance) => balance.token === 0)
+    const collateral = spot.balances.find(
+      (balance) => "token" in balance && balance.token === 0
+    )
     equity = num(collateral?.total ?? "0")
     const available = spot.tokenToAvailableAfterMaintenance?.find(
       ([token]) => token === 0

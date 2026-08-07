@@ -1,18 +1,14 @@
-import { loadNewestAccounts, type AccountRow } from "@/server/accounts"
-import { listUserAutomations } from "@/server/automations"
+import { loadNewestAccounts, type AccountRow } from "@/server/people/accounts"
+import { listUserAutomations } from "@/server/automations/flows"
 import { db, type CustomShellDb } from "@/server/db"
-import {
-  getEmailDeliveryStatus,
-  type EmailDeliveryStatus,
-} from "@/server/email-settings"
-import { loadFeedsSummary, type FeedsSummary } from "@/server/feeds"
-import { loadMembershipSummary, type MembershipSummary } from "@/server/membership"
-import { getDefaultPlan } from "@/server/plans"
+import { loadFeedsSummary, type FeedsSummary } from "@/server/content/feeds"
+import { loadMembershipSummary, type MembershipSummary } from "@/server/people/membership"
+import { getDefaultPlan } from "@/server/billing/plans"
 
 /**
  * Everything the admin Overview draws. Nothing here is new data: it is the
- * Membership page's numbers and the four feeds' numbers read together, plus
- * the newest handful of accounts and the automations as they stand.
+ * Membership figures, recent activity, feedback figures, the newest handful
+ * of accounts, and the automations as they stand.
  *
  * This module exists for one reason — how many queries are in flight at once
  * can only be decided in one place. The pool falls over past five, and the two
@@ -39,8 +35,6 @@ export type AdminOverview = {
   feeds: FeedsSummary
   newestMembers: AccountRow[]
   automations: OverviewAutomation[]
-  /** Whether the app can send email — never the key, only where it came from. */
-  emailDelivery: EmailDeliveryStatus
 }
 
 export async function loadAdminOverview(
@@ -62,9 +56,7 @@ export async function loadAdminOverview(
         defaultPlan,
         database
       )
-      // One more small read on the same single slot, still strictly in turn.
-      const emailDelivery = await getEmailDeliveryStatus(database)
-      return { automations, newestMembers, emailDelivery }
+      return { automations, newestMembers }
     })(),
   ])
 
@@ -76,7 +68,6 @@ export async function loadAdminOverview(
     membership,
     feeds,
     newestMembers: extras.newestMembers,
-    emailDelivery: extras.emailDelivery,
     automations: extras.automations.map((row) => ({
       id: row.id,
       name: row.name,

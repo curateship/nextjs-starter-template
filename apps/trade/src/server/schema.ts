@@ -6,8 +6,9 @@ import type {
   AutomationApprovalDecision,
   AutomationRunStatus,
   AutomationRunStepStatus,
+  AutomationTriggerFacts,
 } from "@/lib/automations/run"
-import type { PlanFeatures } from "@/lib/plan-features"
+import type { PlanFeatures } from "@/lib/billing/plan-features"
 import {
   bigint,
   boolean,
@@ -177,7 +178,7 @@ export const customShellFeedback = pgTable(
     /** Where the item sits on the roadmap; every new item starts open. */
     status: varchar("status", { length: 20 }).notNull().default("open"),
     message: text("message").notNull(),
-    // What the item is about, from the fixed list in `lib/feedback-tags.ts`.
+    // What the item is about, from the fixed list in `lib/feedback/feedback-tags.ts`.
     tags: text("tags")
       .array()
       .notNull()
@@ -579,6 +580,13 @@ export const customShellSubscriptions = pgTable(
     source: varchar("source", { length: 10 }).notNull().default("stripe"),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    /**
+     * Set while the plan is on hold: Stripe is not billing it and the account
+     * is treated as being on the free plan. Null means running as usual. Kept
+     * apart from `status` because Stripe's own status stays "active" through a
+     * pause and overwrites that column on every webhook.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -619,7 +627,7 @@ export const customShellSubscriptionEvents = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    /** Our vocabulary, worded by `lib/subscription-events.ts`. */
+    /** Our vocabulary, worded by `lib/billing/subscription-events.ts`. */
     kind: varchar("kind", { length: 40 }).notNull(),
     /** The plan's name at the time, copied so a rename cannot rewrite history. */
     planName: varchar("plan_name", { length: 120 }),
@@ -654,6 +662,15 @@ export const customShellAutomations = pgTable(
      * engine (a later task) reads exclusively from it, never from `graph`.
      */
     compiledConfig: jsonb("compiled_config").$type<AutomationCompiledConfig>(),
+    /**
+     * Whether this flow's trigger is live. Off until somebody says otherwise,
+     * including for every flow that existed before triggers did.
+     *
+     * Only ever about the trigger. Pressing Run by hand works either way — that
+     * is a person asking for it, and this switch is about the flow acting on
+     * its own.
+     */
+    enabled: boolean("enabled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -661,6 +678,24 @@ export const customShellAutomations = pgTable(
     unique("automations_user_name_unique").on(table.userId, table.name),
     index("ix_automations_user_updated").on(table.userId, table.updatedAt),
   ]
+)
+
+/**
+ * When a periodic trigger look last happened, one row per kind of look.
+ *
+ * A trial ending and a card running out are dates passing, and nothing tells us
+ * about a date passing — they are found by looking. The card look asks Stripe
+ * about every paying member, so it must be a daily job on a fifteen-second
+ * ticker. See `server/automations/triggers.ts` for how a scan is claimed.
+ */
+export const customShellAutomationTriggerScans = pgTable(
+  "automation_trigger_scans",
+  {
+    kind: varchar("kind", { length: 64 }).primaryKey(),
+    lastScannedAt: timestamp("last_scanned_at", {
+      withTimezone: true,
+    }).notNull(),
+  }
 )
 
 /**
@@ -706,6 +741,31 @@ export const customShellAutomationRuns = pgTable(
       () => customShellUsers.id,
       { onDelete: "set null" }
     ),
+    /**
+     * Who the run is about — never the same person as `userId`, which is the
+     * admin who owns the flow. Null for a run somebody started by hand.
+     *
+     * The reference clears rather than cascades: an account being deleted must
+     * not take the record of what was done to them with it. `subjectLabel` is
+     * the copy that survives it, and it is a copy on purpose — a renamed
+     * person's old runs still read as they did on the day.
+     */
+    subjectUserId: varchar("subject_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    subjectLabel: varchar("subject_label", { length: 200 }),
+    /** The node kind that started it, so the history can name the moment. */
+    triggerKind: varchar("trigger_kind", { length: 64 }),
+    /**
+     * The one thing this run was started for — a failed invoice, one trial's
+     * end date, one card in one billing period. Unique per automation, which is
+     * what makes a webhook delivered twice or two servers scanning at once
+     * start one run rather than two. Null for a run started by hand.
+     */
+    triggerKey: varchar("trigger_key", { length: 200 }),
+    /** What happened, in the plain values the steps after the trigger read. */
+    triggerFacts: jsonb("trigger_facts").$type<AutomationTriggerFacts>(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -716,6 +776,10 @@ export const customShellAutomationRuns = pgTable(
       "automation_runs_status_check",
       sql`${table.status} in ('active', 'waiting_approval', 'completed', 'failed', 'rejected')`
     ),
+    uniqueIndex("ux_automation_runs_trigger_key")
+      .on(table.automationId, table.triggerKey)
+      .where(sql`${table.triggerKey} is not null`),
+    index("ix_automation_runs_subject").on(table.subjectUserId),
     check(
       "automation_runs_decision_check",
       sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
@@ -755,6 +819,40 @@ export const customShellAutomationRunSteps = pgTable(
   ]
 )
 
+/**
+ * Pages an admin wrote, as opposed to pages the code declares.
+ *
+ * The rest of the Pages batch is settings — a page exists because a
+ * `*.page.ts` sits beside a route. This holds the words themselves, which is
+ * why it is the one part of that batch with a table.
+ *
+ * `body` is the editor's document tree, never HTML: the public page draws it
+ * by turning named nodes into elements, so nothing here is ever handed to a
+ * browser as markup. See `lib/pages/written-page-body.ts`.
+ *
+ * Whether a written page is switched on lives where every other page's does —
+ * the app-wide settings row, keyed by address — so there is one switch rather
+ * than one per kind of page.
+ */
+export const customShellWrittenPages = pgTable(
+  "written_pages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    /** The address it answers on, always starting with "/". */
+    path: varchar("path", { length: 160 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: jsonb("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // Two written pages cannot claim one address even if both saves land at
+    // the same moment. A clash with a code page is refused in the server,
+    // which is the only place that knows both lists.
+    uniqueIndex("written_pages_path_key").on(table.path),
+  ]
+)
+
 export const customShellChangelogEntries = pgTable(
   "changelog_entries",
   {
@@ -774,7 +872,7 @@ export const customShellChangelogEntries = pgTable(
 /**
  * One API key per AI provider ("anthropic" | "openai"), app-wide. `apiKey` is
  * never the key as typed: it is the AES-256-GCM output of
- * `encryptSecret` (`src/server/encryption.ts`), stored as
+ * `encryptSecret` (`src/server/auth/encryption.ts`), stored as
  * base64(iv).base64(tag).base64(ciphertext), so a stolen database backup does
  * not contain a usable key.
  */
@@ -845,13 +943,13 @@ export const customShellPasskeyChallenges = pgTable(
 
 /**
  * One row per AI call — the meter on the only pipe in this app that spends
- * money per click. Written by `recordAiUsage` (src/server/ai-usage.ts) and
+ * money per click. Written by `recordAiUsage` (src/server/ai/usage.ts) and
  * never anywhere else; every call site goes through `runAiCall`, which
  * records failures too, so nothing runs unmeasured.
  *
  * `userId` is kept but not cascaded: deleting an account must not erase what
  * it spent, so the rows go anonymous instead. `costCents` is whole cents from
- * the price list in src/lib/ai-models.ts. `monthStart` is the first day of
+ * the price list in src/lib/ai/ai-models.ts. `monthStart` is the first day of
  * the UTC month the call belongs to, always via `aiUsageMonthStart` —
  * indexed both ways the dashboard task will read it.
  */
@@ -1096,6 +1194,81 @@ export const customShellContacts = pgTable(
       .on(table.workspaceId, table.userId)
       .where(sql`${table.userId} is not null`),
     index("ix_contacts_workspace_created").on(table.workspaceId, table.createdAt),
+  ]
+)
+
+/**
+ * A group of contacts named once, so everything that has to say who something
+ * is for can point at the name instead of describing the group again.
+ *
+ * `kind` is the whole design:
+ *
+ * - `rules` — the conditions live in `rules` and the people are never saved.
+ *   Worked out fresh every time anything asks, which is what makes somebody who
+ *   unsubscribed this morning drop out of it this afternoon with nobody having
+ *   to remember. See `src/server/people/contact-segments.ts`.
+ * - `static` — the people were hand-picked and live in
+ *   `customShellContactSegmentMembers`, for the one-off list no rule describes.
+ */
+export const customShellContactSegments = pgTable(
+  "contact_segments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description").notNull().default(""),
+    kind: varchar("kind", { length: 20 }).notNull().default("rules"),
+    /** A flat list of conditions, all of which have to be true. */
+    rules: jsonb("rules")
+      .notNull()
+      .default(sql`'{"conditions":[]}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "contact_segments_kind_check",
+      sql`${table.kind} in ('rules', 'static')`
+    ),
+    // Case-insensitively unique: "Paying members" and "paying members" are the
+    // same group to a reader, and a list holding both is one nobody can point
+    // at with confidence.
+    uniqueIndex("ux_contact_segments_workspace_name").on(
+      table.workspaceId,
+      sql`lower(${table.name})`
+    ),
+    index("ix_contact_segments_workspace").on(table.workspaceId),
+  ]
+)
+
+/**
+ * Who is in a hand-picked segment. Empty for a rules segment, always.
+ *
+ * Both sides cascade: deleting the segment takes its membership with it, and a
+ * deleted contact stops being in every segment at once rather than leaving rows
+ * pointing at nobody.
+ */
+export const customShellContactSegmentMembers = pgTable(
+  "contact_segment_members",
+  {
+    segmentId: varchar("segment_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContactSegments.id, { onDelete: "cascade" }),
+    contactId: varchar("contact_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContacts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "contact_segment_members_pk",
+      columns: [table.segmentId, table.contactId],
+    }),
+    // "Which segments is this person in" — the direction the key above cannot
+    // answer.
+    index("ix_contact_segment_members_contact").on(table.contactId),
   ]
 )
 
@@ -1364,6 +1537,8 @@ export type CustomShellAutomationRunStep =
 export type CustomShellAnnouncement =
   typeof customShellAnnouncements.$inferSelect
 export type CustomShellContact = typeof customShellContacts.$inferSelect
+export type CustomShellContactSegment =
+  typeof customShellContactSegments.$inferSelect
 export type CustomShellBroadcast = typeof customShellBroadcasts.$inferSelect
 export type CustomShellBroadcastTemplate =
   typeof customShellBroadcastTemplates.$inferSelect

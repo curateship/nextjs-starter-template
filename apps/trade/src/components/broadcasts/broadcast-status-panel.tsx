@@ -15,11 +15,11 @@ import {
   type BroadcastDeliveryItem,
   type BroadcastDetail,
   type BroadcastStatus,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 import { describeAudienceFilter } from "@/lib/broadcasts/blocks"
 import { describeNextBatch } from "@/lib/broadcasts/drip"
-import { formatDateTime } from "@/lib/format-time"
-import { showErrorToast } from "@/lib/error-toast"
+import { formatDateTime } from "@/lib/format/format-time"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 const DELIVERY_PAGE_SIZE = 25
@@ -42,9 +42,12 @@ const STATUS_LABELS: Record<BroadcastStatus, string> = {
  */
 export function BroadcastStatusPanel({
   broadcast,
+  segmentNames,
   onUpdated,
 }: {
   broadcast: BroadcastDetail
+  /** Every saved segment's name by id, so an audience can be named, not hinted at. */
+  segmentNames: Record<string, string>
   onUpdated: (detail: BroadcastDetail) => void
 }) {
   const [deliveries, setDeliveries] = React.useState<BroadcastDeliveryItem[]>([])
@@ -201,7 +204,7 @@ export function BroadcastStatusPanel({
           )}
 
           <p className="text-sm text-muted-foreground">
-            {describeAudienceFilter(broadcast.audienceFilter)}
+            {describeAudienceFilter(broadcast.audienceFilter, segmentNames)}
             {broadcast.scheduled_at
               ? ` · Goes out ${formatDateTime(broadcast.scheduled_at)}`
               : ""}

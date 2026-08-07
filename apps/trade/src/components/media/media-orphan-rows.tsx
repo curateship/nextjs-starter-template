@@ -16,10 +16,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { type MediaOrphan } from "@/lib/api/admin-media"
-import { problemLabel } from "@/lib/media-orphans"
-import { formatFileSize } from "@/lib/format-bytes"
-import { formatDate } from "@/lib/format-time"
+import { type MediaOrphan } from "@/lib/api/media/admin-media"
+import { problemLabel } from "@/lib/media/media-orphans"
+import { formatFileSize } from "@/lib/format/format-bytes"
+import { formatDate } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
 /**
