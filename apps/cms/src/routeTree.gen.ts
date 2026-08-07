@@ -33,9 +33,11 @@ import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
+import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_authenticated/admin/categories'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authenticated/admin/listings'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
@@ -184,6 +186,12 @@ const AuthenticatedAdminBillingRoute =
     path: '/billing',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminCategoriesRoute =
+  AuthenticatedAdminCategoriesRouteImport.update({
+    id: '/categories',
+    path: '/categories',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminContactsRoute =
   AuthenticatedAdminContactsRouteImport.update({
     id: '/contacts',
@@ -200,6 +208,12 @@ const AuthenticatedAdminFeedbackRoute =
   AuthenticatedAdminFeedbackRouteImport.update({
     id: '/feedback',
     path: '/feedback',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingsRoute =
+  AuthenticatedAdminListingsRouteImport.update({
+    id: '/listings',
+    path: '/listings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
@@ -366,9 +380,11 @@ export interface FileRoutesByFullPath {
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
+  '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -417,9 +433,11 @@ export interface FileRoutesByTo {
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
+  '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -472,9 +490,11 @@ export interface FileRoutesById {
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
+  '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/_authenticated/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -527,9 +547,11 @@ export interface FileRouteTypes {
     | '/admin/announcements'
     | '/admin/automations'
     | '/admin/billing'
+    | '/admin/categories'
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/feedback'
+    | '/admin/listings'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
@@ -578,9 +600,11 @@ export interface FileRouteTypes {
     | '/admin/announcements'
     | '/admin/automations'
     | '/admin/billing'
+    | '/admin/categories'
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/feedback'
+    | '/admin/listings'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
@@ -632,9 +656,11 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/billing'
+    | '/_authenticated/admin/categories'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/feedback'
+    | '/_authenticated/admin/listings'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
     | '/_authenticated/admin/newsletter'
@@ -857,6 +883,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBillingRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/categories': {
+      id: '/_authenticated/admin/categories'
+      path: '/categories'
+      fullPath: '/admin/categories'
+      preLoaderRoute: typeof AuthenticatedAdminCategoriesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/contacts': {
       id: '/_authenticated/admin/contacts'
       path: '/contacts'
@@ -876,6 +909,13 @@ declare module '@tanstack/react-router' {
       path: '/feedback'
       fullPath: '/admin/feedback'
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listings': {
+      id: '/_authenticated/admin/listings'
+      path: '/listings'
+      fullPath: '/admin/listings'
+      preLoaderRoute: typeof AuthenticatedAdminListingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/media': {
@@ -1087,9 +1127,11 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
+  AuthenticatedAdminCategoriesRoute: typeof AuthenticatedAdminCategoriesRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
+  AuthenticatedAdminListingsRoute: typeof AuthenticatedAdminListingsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
@@ -1112,9 +1154,11 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
+  AuthenticatedAdminCategoriesRoute: AuthenticatedAdminCategoriesRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
+  AuthenticatedAdminListingsRoute: AuthenticatedAdminListingsRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,

@@ -4,6 +4,7 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
+import { NotificationSettings } from "@/components/settings/notification-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
@@ -29,6 +30,7 @@ const settingsTabs = [
   { id: "widgets", label: "Widgets" },
   { id: "styling", label: "Styling" },
   { id: "security", label: "Security" },
+  { id: "notifications", label: "Notifications" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
   { id: "ai", label: "AI" },
@@ -207,6 +209,12 @@ export function SettingsPage({
             config={config}
             onSessionPolicyChange={onSessionPolicyChange}
             sessionPolicyBusy={sessionPolicyBusy}
+          />
+        ) : null}
+        {activeTab === "notifications" ? (
+          <NotificationSettings
+            config={config}
+            onConfigChange={onConfigChange}
           />
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}

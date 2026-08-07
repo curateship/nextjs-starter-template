@@ -43,6 +43,7 @@ import {
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { resolveAppName } from "@/lib/branding"
 import type { UserAnnouncement } from "@/lib/announcement"
 import type { AuthUser } from "@/lib/api/auth/auth"
@@ -640,6 +641,9 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     // Only an explicit `false` turns the live bell off, so a config saved
     // before this setting existed keeps it on.
     liveNotifications: settings.liveNotifications !== false,
+    notificationTypes: normalizeNotificationTypeVisibility(
+      settings.notificationTypes
+    ),
     maintenance: normalizeMaintenance(settings.maintenance),
     automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),

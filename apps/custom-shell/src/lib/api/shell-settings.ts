@@ -11,6 +11,7 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
@@ -162,6 +163,11 @@ const shellConfigSchema = z.object({
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
   liveNotifications: z.boolean(),
+  notificationTypes: z.object(
+    Object.fromEntries(
+      NOTIFICATION_TYPES.map((type) => [type, z.boolean()])
+    ) as Record<(typeof NOTIFICATION_TYPES)[number], z.ZodBoolean>
+  ),
   maintenance: z.object({
     enabled: z.boolean(),
     message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),

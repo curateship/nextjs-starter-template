@@ -35,10 +35,14 @@ import {
 } from "@/lib/api/notification"
 import {
   aiLimitNotificationText,
+  createDefaultNotificationTypeVisibility,
   notificationTypeLabels,
+  visibleNotificationTypes,
   type AutomationApprovalState,
   type NotificationType,
+  type NotificationTypeVisibility,
 } from "@/lib/notification-types"
+import { readShellGlobals } from "@/server/shell-settings"
 
 type NotificationListResponse = {
   notifications: NotificationItem[]
@@ -94,12 +98,14 @@ export async function listCurrentUserNotificationPage({
   limit?: number
 }) {
   const user = await requireNotificationUser()
+  const { notificationTypes } = await readShellGlobals(db)
 
   return getNotificationPage({
     currentUser: user,
     cursor,
     limit,
     database: db,
+    notificationTypes,
   })
 }
 
@@ -235,15 +241,21 @@ function joinNotificationSources<T extends PgSelect>(query: T) {
  */
 export async function countUnreadNotifications(
   userId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  notificationTypes: NotificationTypeVisibility =
+    createDefaultNotificationTypeVisibility()
 ): Promise<number> {
+  const shownTypes = visibleNotificationTypes(notificationTypes)
   const [row] = await database
     .select({ count: sql<number>`count(*)::int` })
     .from(customShellNotifications)
     .where(
       and(
         eq(customShellNotifications.recipientUserId, userId),
-        isNull(customShellNotifications.readAt)
+        isNull(customShellNotifications.readAt),
+        shownTypes.length
+          ? inArray(customShellNotifications.type, shownTypes)
+          : sql`false`
       )
     )
 
@@ -281,6 +293,8 @@ export async function markCurrentUserNotificationRead(notificationId: string) {
 export async function markAllCurrentUserNotificationsRead() {
   requireAppOrigin()
   const user = await requireNotificationUser()
+  const { notificationTypes } = await readShellGlobals(db)
+  const shownTypes = visibleNotificationTypes(notificationTypes)
   const readAt = now()
 
   const rows = await db
@@ -289,7 +303,10 @@ export async function markAllCurrentUserNotificationsRead() {
     .where(
       and(
         eq(customShellNotifications.recipientUserId, user.id),
-        isNull(customShellNotifications.readAt)
+        isNull(customShellNotifications.readAt),
+        shownTypes.length
+          ? inArray(customShellNotifications.type, shownTypes)
+          : sql`false`
       )
     )
     .returning({ id: customShellNotifications.id })
@@ -352,16 +369,24 @@ export async function getNotificationPage({
   cursor,
   limit = DEFAULT_PAGE_SIZE,
   database = db,
+  notificationTypes = createDefaultNotificationTypeVisibility(),
 }: {
   currentUser: Pick<CustomShellUser, "id">
   cursor?: string
   limit?: number
   database?: CustomShellDb
+  notificationTypes?: NotificationTypeVisibility
 }): Promise<NotificationListResponse> {
   const pageSize = Math.min(Math.max(1, limit), MAX_PAGE_SIZE)
   const conditions: SQL[] = [
     eq(customShellNotifications.recipientUserId, currentUser.id),
   ]
+  const shownTypes = visibleNotificationTypes(notificationTypes)
+  conditions.push(
+    shownTypes.length
+      ? inArray(customShellNotifications.type, shownTypes)
+      : sql`false`
+  )
 
   if (cursor) {
     const [createdAtValue, id] = cursor.split(CURSOR_SEPARATOR)
@@ -401,7 +426,11 @@ export async function getNotificationPage({
       rows.length > pageSize && lastRow
         ? `${lastRow.createdAt.toISOString()}${CURSOR_SEPARATOR}${lastRow.id}`
         : null,
-    unread_count: await countUnreadNotifications(currentUser.id, database),
+    unread_count: await countUnreadNotifications(
+      currentUser.id,
+      database,
+      notificationTypes
+    ),
   }
 }
 

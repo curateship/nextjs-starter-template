@@ -10,6 +10,8 @@ import {
 import { hash, verify } from "argon2"
 import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
 
+import appPackage from "../../../package.json"
+
 import { normalizeSessionPolicy } from "@/lib/custom-shell"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
@@ -23,7 +25,17 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 
-export const SESSION_COOKIE_NAME = "custom_shell_session"
+/**
+ * Derived from the app's name in package.json, the same way `app-port.ts`
+ * finds the dev port — so a copied app that renames its package gets its own
+ * cookie with no further edits. That matters on localhost, where cookies are
+ * scoped by host, not port: two apps sharing this name would sign each other
+ * out. For the shell itself this still resolves to "custom_shell_session".
+ */
+export const SESSION_COOKIE_NAME = `${appPackage.name
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "_")
+  .replace(/^_+|_+$/g, "")}_session`
 const TEN_YEARS_IN_HOURS = 24 * 365 * 10
 const SESSION_TTL_HOURS = Number.parseInt(
   process.env.CUSTOM_SHELL_SESSION_TTL_HOURS || String(TEN_YEARS_IN_HOURS),
