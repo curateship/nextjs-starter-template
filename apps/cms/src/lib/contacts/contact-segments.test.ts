@@ -1,0 +1,155 @@
+import { describe, expect, it } from "vitest"
+
+import {
+  defaultSegmentRules,
+  describeSegmentRules,
+  newSegmentCondition,
+  parseSegmentRules,
+  segmentConditionIsComplete,
+  segmentReferences,
+  type SegmentCondition,
+} from "@/lib/contacts/contact-segments"
+
+/**
+ * The shape a segment's rules take, and what happens to a saved one that no
+ * longer reads.
+ *
+ * The block that matters most is the last: every wrong answer this file could
+ * give is a *wider* group of people than the writer asked for, and wider is the
+ * one direction a mailing list must never move on its own.
+ */
+
+describe("reading saved rules", () => {
+  it("keeps a list of conditions it understands", () => {
+    const rules = parseSegmentRules({
+      conditions: [
+        { type: "tag", operator: "includes", tags: ["beta"] },
+        { type: "status", operator: "is", status: "subscribed" },
+      ],
+    })
+
+    expect(rules.conditions).toHaveLength(2)
+    expect(rules.conditions[0]).toEqual({
+      type: "tag",
+      operator: "includes",
+      tags: ["beta"],
+    })
+  })
+
+  it("keeps an empty list as an empty list", () => {
+    expect(parseSegmentRules({ conditions: [] })).toEqual({ conditions: [] })
+  })
+
+  it("drops one condition it cannot read and keeps the rest", () => {
+    const rules = parseSegmentRules({
+      conditions: [
+        { type: "tag", operator: "includes", tags: ["beta"] },
+        { type: "wormhole", operator: "is" },
+      ],
+    })
+
+    expect(rules.conditions).toHaveLength(1)
+    expect(rules.conditions[0]?.type).toBe("tag")
+  })
+
+  it("refuses a joined rule with a silly number of days", () => {
+    const rules = parseSegmentRules({
+      conditions: [{ type: "joined", operator: "within", days: 100000 }],
+    })
+
+    // Everything was thrown away, so this is the "matches nobody" shape below.
+    expect(rules.conditions).toHaveLength(2)
+    expect(rules.conditions.every((c) => c.type === "status")).toBe(true)
+  })
+})
+
+describe("a rule that no longer reads never widens the segment", () => {
+  /** On the list and opted out at once: true of nobody, by design. */
+  const matchesNobody = { conditions: expect.arrayContaining([
+    { type: "status", operator: "is", status: "subscribed" },
+    { type: "status", operator: "is", status: "unsubscribed" },
+  ]) }
+
+  it("turns a column that is not rules at all into nobody", () => {
+    expect(parseSegmentRules(null)).toEqual(matchesNobody)
+    expect(parseSegmentRules("everyone")).toEqual(matchesNobody)
+    expect(parseSegmentRules({})).toEqual(matchesNobody)
+    expect(parseSegmentRules({ conditions: "all" })).toEqual(matchesNobody)
+  })
+
+  it("turns rules whose every condition was dropped into nobody", () => {
+    expect(
+      parseSegmentRules({ conditions: [{ type: "wormhole" }, { type: "brick" }] })
+    ).toEqual(matchesNobody)
+  })
+
+  it("does not confuse that with a segment saved with no rules at all", () => {
+    // An empty list is a real answer — "every contact" — and stays one.
+    expect(parseSegmentRules({ conditions: [] }).conditions).toHaveLength(0)
+  })
+})
+
+describe("a half-finished rule is spotted before it is saved", () => {
+  it("calls an empty tag, source, plan or exclusion unfinished", () => {
+    expect(segmentConditionIsComplete(newSegmentCondition("tag"))).toBe(false)
+    expect(segmentConditionIsComplete(newSegmentCondition("source"))).toBe(false)
+    expect(segmentConditionIsComplete(newSegmentCondition("plan"))).toBe(false)
+    expect(segmentConditionIsComplete(newSegmentCondition("notIn"))).toBe(false)
+  })
+
+  it("calls the ones with nothing left to fill in finished", () => {
+    expect(segmentConditionIsComplete(newSegmentCondition("status"))).toBe(true)
+    expect(segmentConditionIsComplete(newSegmentCondition("joined"))).toBe(true)
+    expect(segmentConditionIsComplete(newSegmentCondition("account"))).toBe(true)
+  })
+})
+
+describe("what a segment says in words", () => {
+  it("starts a new segment on the rule people almost always mean", () => {
+    expect(describeSegmentRules(defaultSegmentRules())).toBe("on the list")
+  })
+
+  it("joins every rule with 'and', because all of them have to be true", () => {
+    const conditions: SegmentCondition[] = [
+      { type: "tag", operator: "includes", tags: ["beta"] },
+      { type: "account", operator: "has" },
+    ]
+
+    expect(describeSegmentRules({ conditions })).toBe(
+      "tagged beta, and has an account"
+    )
+  })
+
+  it("says a segment with no rules is every contact, not nobody", () => {
+    expect(describeSegmentRules({ conditions: [] })).toBe(
+      "Every contact, with no rules"
+    )
+  })
+
+  it("names the segments an exclusion points at", () => {
+    expect(
+      describeSegmentRules(
+        { conditions: [{ type: "notIn", segmentIds: ["a", "b"] }] },
+        { a: "Staff", b: "Refunded" }
+      )
+    ).toBe("not in Staff or Refunded")
+  })
+})
+
+describe("finding what a segment points at", () => {
+  it("lists every segment named by an exclusion, with no repeats", () => {
+    expect(
+      segmentReferences({
+        conditions: [
+          { type: "notIn", segmentIds: ["a", "b"] },
+          { type: "notIn", segmentIds: ["b", "c"] },
+          { type: "account", operator: "has" },
+        ],
+      })
+    ).toEqual(["a", "b", "c"])
+  })
+
+  it("finds nothing in a segment that points at nothing", () => {
+    expect(segmentReferences(defaultSegmentRules())).toEqual([])
+  })
+})
