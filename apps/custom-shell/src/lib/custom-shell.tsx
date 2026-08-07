@@ -15,6 +15,10 @@ import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import {
+  createDefaultNotificationTypeVisibility,
+  type NotificationTypeVisibility,
+} from "@/lib/notification-types"
+import {
   AppWindowIcon,
   BarChart3Icon,
   BellIcon,
@@ -424,6 +428,8 @@ export type ShellConfig = {
    * environment variable so it can be switched off without a redeploy.
    */
   liveNotifications: boolean
+  /** Which kinds appear in members' notification lists and unread counts. */
+  notificationTypes: NotificationTypeVisibility
   /** App-wide lockout: members see the maintenance page, admins keep working. */
   maintenance: ShellMaintenance
   /** App-wide stop on every automation run. See ShellAutomationPause. */
@@ -946,6 +952,7 @@ export function createDefaultShellConfig(): ShellConfig {
     // from, and members would otherwise open the app to nothing at all.
     memberSections: createDefaultMemberSections(),
     liveNotifications: true,
+    notificationTypes: createDefaultNotificationTypeVisibility(),
     maintenance: createDefaultMaintenance(),
     automationPause: createDefaultAutomationPause(),
     sessionPolicy: createDefaultSessionPolicy(),

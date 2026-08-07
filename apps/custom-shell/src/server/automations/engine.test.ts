@@ -13,6 +13,7 @@ import {
 } from "@/lib/automations/run"
 import { approvalDeadline } from "@/lib/automations/nodes/wait-for-approval"
 import { automationExecutors } from "@/server/automations/executors"
+import { deleteUserAutomations } from "@/server/automations/flows"
 import {
   countHeldAutomationRuns,
   readAutomationsPaused,
@@ -332,6 +333,22 @@ describe("approval checkpoints", () => {
     expect(notices[0].type).toBe("automation_approval")
     expect(notices[0].automationRunId).toBe(runId)
     expect(notices[0].automationApprovalState).toBe("pending")
+  })
+
+  it("deletes approval notices with their automation", async () => {
+    const { user, automation } = await parkedRun()
+
+    expect(await db.select().from(customShellNotifications)).toHaveLength(1)
+    expect(await deleteUserAutomations(user.id, [automation.id], db)).toBe(1)
+    expect(await db.select().from(customShellNotifications)).toHaveLength(0)
+  })
+
+  it("cannot delete another owner's automation notices", async () => {
+    const { automation } = await parkedRun()
+    const otherUser = await insertUser(db, { role: "admin" })
+
+    expect(await deleteUserAutomations(otherUser.id, [automation.id], db)).toBe(0)
+    expect(await db.select().from(customShellNotifications)).toHaveLength(1)
   })
 
   it("costs the engine nothing while it waits", async () => {

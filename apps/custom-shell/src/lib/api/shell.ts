@@ -55,12 +55,19 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     // which is the whole point.
     const { user, viewedBy } = session
 
+    const settingsPromise = readShellSettings(user)
     const [settings, workspaces, { entitlements }, unreadCount, announcements] =
       await Promise.all([
-        readShellSettings(user),
+        settingsPromise,
         readWorkspaceList(user.id),
         loadEntitlements(user.id),
-        countUnreadNotifications(user.id),
+        settingsPromise.then((value) =>
+          countUnreadNotifications(
+            user.id,
+            undefined,
+            value.notificationTypes
+          )
+        ),
         loadUserAnnouncements(user.id),
       ])
 
@@ -70,7 +77,11 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     // — otherwise the bell would sit there with no dot over a tray that has an
     // unread notice in it. Every other load pays nothing for this.
     const unreadNotifications = announcements.noticesCreated
-      ? await countUnreadNotifications(user.id)
+      ? await countUnreadNotifications(
+          user.id,
+          undefined,
+          settings.notificationTypes
+        )
       : unreadCount
 
     return {

@@ -17,7 +17,9 @@ import {
 } from "@/lib/automations/node-registry"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  customShellAutomationRuns,
   customShellAutomations,
+  customShellNotifications,
   type CustomShellAutomation,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
@@ -306,16 +308,36 @@ export async function deleteUserAutomations(
   automationIds: string[],
   database: CustomShellDb = db
 ): Promise<number> {
-  const rows = await database
-    .delete(customShellAutomations)
-    .where(
-      and(
-        inArray(customShellAutomations.id, automationIds),
-        eq(customShellAutomations.userId, userId)
+  return database.transaction(async (tx) => {
+    const owned = await tx
+      .select({ id: customShellAutomations.id })
+      .from(customShellAutomations)
+      .where(
+        and(
+          inArray(customShellAutomations.id, automationIds),
+          eq(customShellAutomations.userId, userId)
+        )
       )
-    )
-    .returning({ id: customShellAutomations.id })
-  return rows.length
+
+    const ownedIds = owned.map((row) => row.id)
+    if (!ownedIds.length) return 0
+
+    const runIds = tx
+      .select({ id: customShellAutomationRuns.id })
+      .from(customShellAutomationRuns)
+      .where(inArray(customShellAutomationRuns.automationId, ownedIds))
+
+    await tx
+      .delete(customShellNotifications)
+      .where(inArray(customShellNotifications.automationRunId, runIds))
+
+    const rows = await tx
+      .delete(customShellAutomations)
+      .where(inArray(customShellAutomations.id, ownedIds))
+      .returning({ id: customShellAutomations.id })
+
+    return rows.length
+  })
 }
 
 function copyName(sourceName: string, copyNumber: number): string {
