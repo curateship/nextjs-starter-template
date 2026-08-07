@@ -4,6 +4,7 @@ import { billingEnabled } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadEntitlements } from "@/server/billing/entitlements"
 import { getNotificationPage } from "@/server/notifications/inbox"
+import { readShellGlobals } from "@/server/shell-settings"
 import {
   customShellFeedback,
   customShellFeedbackComments,
@@ -73,13 +74,19 @@ export async function loadMemberHome(
 ): Promise<MemberHome> {
   // Three reads that do not depend on each other, on a database that is a
   // second or two away, so they go out together rather than one after another.
+  const notificationTypesPromise = readShellGlobals(database).then(
+    (settings) => settings.notificationTypes
+  )
   const [{ entitlements }, notifications, feedback] = await Promise.all([
     loadEntitlements(user.id, database),
-    getNotificationPage({
-      currentUser: user,
-      limit: NOTIFICATIONS_SHOWN,
-      database,
-    }),
+    notificationTypesPromise.then((notificationTypes) =>
+      getNotificationPage({
+        currentUser: user,
+        limit: NOTIFICATIONS_SHOWN,
+        database,
+        notificationTypes,
+      })
+    ),
     listOwnFeedback(user.id, database),
   ])
 

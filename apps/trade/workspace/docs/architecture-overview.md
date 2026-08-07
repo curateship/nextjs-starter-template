@@ -26,9 +26,11 @@ What Trade has added to the shell, and what each piece is for:
 | --- | --- |
 | `src/routes/_authenticated/trade.tsx` | The page. Loads the market list, carries the picked market in the address. |
 | `src/components/trade/` | The workspace and its panels. Draw only — no exchange code, no database. |
-| `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting. |
+| `src/components/trade/paint/` | The paint tools: the rail, the layer the lines are drawn on, and their state. |
+| `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths. |
 | `src/lib/protocols/contracts.ts` | The shapes screens and exchanges agree on. Browser-safe. |
 | `src/lib/api/markets.ts` | The guarded endpoints: the market list, and saved stars. |
+| `src/lib/api/drawings.ts` | The guarded endpoints for the lines drawn on a chart. |
 | `src/server/protocols/` | The exchange side: the registry, and one folder per exchange. |
 | `src/server/trade/` | Trade's own tables and the code that touches them. |
 | `drizzle/0100_…` | Trade's own migrations, numbered from 0100. |
@@ -59,6 +61,88 @@ route loader → loadMarkets() (guarded) → registry → hyperliquid/markets.ts
    → the panel draws rows, labels and all
 ```
 
+## The chart's surface
+
+The same idea one layer up: **the chart never learns what a line means.**
+
+`PriceChart` takes candles and offers exactly two things beyond drawing them:
+
+- a `ChartSurface` — where a time and a price land in the plot area, and back
+  again, plus the plot area's size;
+- an `overlay` slot, drawn over the candles and handed that surface.
+
+Everything else is a consumer. The paint tools are the first one: they own
+what a shape is, how it is picked up, where it is kept and what it looks like.
+An alert on a drawn line attaches the same way later, without `price-chart.tsx`
+hearing the word "alert" — which is what kept the old app's chart from being
+3,961 lines.
+
+Two things that make the surface work and are easy to break:
+
+- **The overlay must out-stack the chart.** The library's canvases carry
+  `z-index: 1` and `2`; an overlay left at `auto` is visible through them but
+  never touched, because every click lands on the canvas.
+- **Coordinates are recomputed on the chart's own repaint**, through a
+  do-nothing primitive attached to the price series. Panning, zooming,
+  resizing and the price scale rescaling itself all arrive there and nowhere
+  else; a timer or a resize observer would miss half of them.
+- **The whole history is framed once per series, never when data arrives.**
+  The live feed refetches candles after every gap it recovers from, so fitting
+  on new data throws a zoom away every few minutes. `PriceChart` takes a
+  `viewKey` — market and timeframe as one string — and frames once per value
+  of it.
+
+**The remembered view** is `src/lib/trade/chart-view.ts`: four numbers, none of
+them a price or a time, so they mean the same thing on any market.
+
+- Sideways: **candles across the screen**, and **candles between the right edge
+  and the newest one**. Measured from the newest candle, not the oldest — the
+  library's own visible range counts from the oldest, and every market has a
+  different number of candles, so carrying that across would land somewhere
+  arbitrary.
+- Up and down: **the share of the height above and below the candles**. Applied
+  as the price scale's `scaleMargins`, which the library keeps honouring as the
+  price moves, so the squash survives the next tick as well as the next market.
+  There is no public way to set an exact price window, and there should not be:
+  a $60,000 window on a $2,000 coin shows nothing.
+
+`PriceChart` asks for the view through a function rather than taking it as a
+value: it changes on every frame of a pan, and passing it in would re-render
+the panel a hundred times per gesture to tell it what it is already showing.
+
+### What it cost, and where it leans on the library
+
+About 550 lines all in — 163 of them tests and roughly 200 of them comments, so
+around **200 lines of working code**, in five small files and one database
+column. Small. But three of those places are working *around* the chart library
+rather than with it, and one is a timing guess. Anyone changing this should
+know which is which.
+
+- **There is no way to tell the library "show exactly this price window."** So
+  the squash goes on as `scaleMargins` instead. That turned out better than a
+  price window — a price window could not cross markets anyway — but it was
+  arrived at by having no choice, not by design.
+- **The library only reports sideways movement.** Dragging the price axis fires
+  no event at all, so `subscribeVisibleLogicalRangeChange` is useless here; the
+  view is read off the chart's repaint hook, which fires for everything. Watch
+  for this if the reading ever moves back to a "proper" event — the squash will
+  silently stop saving.
+- **The highest and lowest candle on screen is worked out here**, including the
+  half-finished live bar, to match a number the library already computes
+  internally. This is the weakest joint in the whole thing: if their scaling
+  maths ever changes, ours disagrees silently and the chart starts drifting.
+- **Telling "the app moved the chart" from "a person moved the chart" is a
+  200ms timer** (`framingRef`). While the app is framing a chart it ignores
+  movement reports. It works, and no human gesture starts and finishes inside
+  that window, but it is a guess about timing rather than a real signal.
+
+**The lesson from the first attempt, which did not work.** It failed on
+complexity nobody asked for: two clamps added defensively — "do not scroll past
+here", "do not zoom in further than this market has candles". Both quietly
+overrode what the user had set, and one of them fed its own clamped answer back
+into the saved value, so it compounded. Deleting them made the code shorter
+*and* correct. The guard rails were the bug.
+
 **Adding a second exchange** is: one new folder under `src/server/protocols/`
 that produces the same shapes, one new entry in the registry, and its id added
 to the union in `contracts.ts`. No screen changes. If a screen has to change,
@@ -72,9 +156,17 @@ something leaked and the fence test should have caught it.
   parse or is not listed resolves to "not available", never to a different
   market.
 - **Trade's tables are declared in `src/server/trade/schema.ts`**, not in the
-  shell's schema file. One table so far: `trade_market_favorites`, one row per
-  person, holding their starred market keys — server-side so stars follow the
-  account, not the browser.
+  shell's schema file. Three so far: `trade_market_favorites` (one row per
+  person, holding their starred market keys), `trade_prefs` (the market they
+  were last looking at, and how far the chart was zoomed and scrolled), and
+  `trade_chart_drawings` (one row per line drawn on a chart, tied to its market
+  key). All server-side, so all three follow the account rather than the
+  browser.
+- **A drawing's shape is one `jsonb` column, read through one validator.** A
+  level and a trendline hold different things, and a third kind later should
+  be a new shape to validate rather than a migration. A row that cannot be
+  read is left out of the answer, never drawn as something it is not, and
+  never destroyed.
 - **Trade's migrations are numbered from 0100.** The shell keeps adding its own
   under 00xx and the runner applies the folder in filename order, so the gap
   means a shell merge can never collide with an app migration or run after one
@@ -87,7 +179,9 @@ something leaked and the fence test should have caught it.
 - **Accounts, orders, positions.** Those panels are empty states. The account
   and order adapters get designed with the panels that need them — a contract
   written before its consumer is a guess.
-- **Alerts**, which is what the market list's Watch tab is waiting for.
+- **Alerts**, which is what the market list's Watch tab is waiting for. When
+  they arrive they attach to a drawn line through the chart's surface, not
+  through the chart.
 - **The Canvas and the Backtest stay outside this app's exchange boundary.**
   The Canvas will hand an automation to the Backtest or to a Bot tab through a
   door, not run either itself — decided in

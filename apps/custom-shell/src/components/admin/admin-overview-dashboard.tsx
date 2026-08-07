@@ -1,11 +1,9 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  CreditCardIcon,
   LayersIcon,
   LineChartIcon,
   LayoutDashboardIcon,
-  MailWarningIcon,
   UsersIcon,
   WorkflowIcon,
 } from "lucide-react"
@@ -25,7 +23,6 @@ import {
 } from "@/components/shared/dashboard/dashboard-panels"
 import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { ActivityCard } from "@/components/shared/dashboard/activity-card"
-import type { UrgentItem } from "@/lib/dashboard/urgent-items"
 import { SampleValue } from "@/components/shared/dashboard/sample-figure"
 import { VisitorsCard } from "@/components/shared/dashboard/visitors-card"
 import { StatStrip, ChangeBadge, type StatFigure } from "@/components/shared/dashboard/stat-strip"
@@ -68,8 +65,6 @@ import {
   type DashboardWidgetId,
   type DashboardWidgetSlot,
 } from "@/lib/dashboard/dashboard-widgets"
-import { emailIsOff, emailOffConsequence } from "@/lib/email/email-delivery"
-import { buildFeedsUrgent } from "@/lib/dashboard/feeds-urgent"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDate } from "@/lib/format/format-time"
 import { formatSharePercent } from "@/lib/format/format-number"
@@ -177,8 +172,6 @@ function renderWidget(
     case "inbox":
       return (
         <ActivityCard
-          urgent={buildOverviewUrgent(overview)}
-          dismissedUrgent={overview.dismissedUrgent}
           activity={overview.feeds.notifications.latest}
           className={className}
         />
@@ -247,101 +240,6 @@ function buildOverviewFigures({
       footer: `${feeds.feedback.noReply.toLocaleString()} with no reply`,
     },
   ]
-}
-
-// ---------------------------------------------------------------------------
-// Urgent: the four feeds rules, plus the three this page can see that the
-// four feeds cannot. Which of them an admin has waved off is settled where the
-// card is drawn — every rule here still runs, so a row whose wording changes
-// comes back on its own.
-
-function buildOverviewUrgent({
-  membership,
-  feeds,
-  automations,
-  emailDelivery,
-}: AdminOverview): UrgentItem[] {
-  const items = buildFeedsUrgent(feeds)
-  const broken = automations.filter((automation) => !automation.isValid)
-
-  // Ordered by how much it costs to leave alone: a suspended account and a
-  // broken automation are both somebody blocked right now, so they go above
-  // the feeds rows; a subscription ending has until the period runs out.
-  if (broken.length) {
-    items.unshift({
-      id: "automations",
-      icon: WorkflowIcon,
-      title: `${broken.length} ${plural(broken.length, "automation")} needs attention`,
-      detail: broken
-        .slice(0, 3)
-        .map((automation) => automation.name)
-        .join(", "),
-      action: "Open",
-      // One broken automation opens straight in its editor, which is where the
-      // fix is. Several, and the list is the only honest destination.
-      ...(broken.length === 1 && broken[0]
-        ? {
-            to: "/admin/automations/$automationId",
-            params: { automationId: broken[0].id },
-          }
-        : { to: "/admin/automations" }),
-      // When the longest-untouched broken one was last edited. Nothing records
-      // the moment an automation stopped compiling, but nobody can have broken
-      // it since they last changed it — so this is the earliest it can be.
-      since: broken.reduce<Date | null>((oldest, automation) => {
-        const edited = new Date(automation.updatedAt)
-        return !oldest || edited < oldest ? edited : oldest
-      }, null),
-    })
-  }
-
-  if (membership.suspended > 0) {
-    items.unshift({
-      id: "suspended",
-      icon: UsersIcon,
-      title: `${membership.suspended.toLocaleString()} suspended ${plural(membership.suspended, "account")}`,
-      detail: "Nobody suspended can sign in until somebody lifts it",
-      action: "Review",
-      // Lands on the suspended accounts, not on everybody.
-      to: "/admin/users",
-      search: { status: "suspended" },
-      // Nothing records when an account was suspended, so this row honestly
-      // has no date rather than a guess at one.
-      since: null,
-    })
-  }
-
-  // Above everything else, because it is the only row here that stops people
-  // getting in at all — and the only one nothing else in the app would ever
-  // mention until somebody could not register.
-  if (emailIsOff(emailDelivery)) {
-    items.unshift({
-      id: "email-off",
-      icon: MailWarningIcon,
-      title: "Email is switched off",
-      detail: emailOffConsequence(emailDelivery),
-      action: "Set it up",
-      to: "/admin/settings/$tab",
-      params: { tab: "email" },
-      // A setting, not an event: nothing records when it was switched off.
-      since: null,
-    })
-  }
-
-  if (membership.revenue.cancelling > 0) {
-    items.push({
-      id: "cancelling",
-      icon: CreditCardIcon,
-      title: `${membership.revenue.cancelling.toLocaleString()} ${plural(membership.revenue.cancelling, "subscription")} ending`,
-      detail: "They keep it until their period runs out",
-      action: "Review people",
-      to: "/admin/users",
-      // Stripe knows when each was cancelled; this app does not store it.
-      since: null,
-    })
-  }
-
-  return items
 }
 
 // ---------------------------------------------------------------------------

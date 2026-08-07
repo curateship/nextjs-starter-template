@@ -1,5 +1,11 @@
 import * as React from "react"
-import { CandlestickChartIcon, InfoIcon, ListIcon, WalletIcon } from "lucide-react"
+import {
+  CandlestickChartIcon,
+  InfoIcon,
+  ListIcon,
+  StarIcon,
+  WalletIcon,
+} from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
@@ -17,6 +23,7 @@ import {
   formatPrice,
 } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
+import { cn } from "@/lib/utils"
 
 /**
  * What the middle panel is showing.
@@ -37,19 +44,28 @@ export type MarketSelection =
   | { kind: "missing"; marketId: string }
 
 /**
- * One row: the market's name, its figures folded behind an info icon, and the
- * chart's own controls on the right. The figures used to be a second row and
- * the exchange a pair of chips; both are details you look up, not things to
- * spend header height on — the tooltip holds them, and the search box already
- * names the exchange.
+ * One row: the market's name, its figures folded behind an info icon, the star
+ * that puts it in Fav, and the chart's own controls on the right. The figures
+ * used to be a second row and the exchange a pair of chips; both are details
+ * you look up, not things to spend header height on — the tooltip holds them,
+ * and the search box already names the exchange.
+ *
+ * The star lives here rather than on every row of the list: you star the market
+ * you are looking at, and one always-visible star beats hundreds that only
+ * appear under the pointer.
  */
 export function MarketHeader({
   selection,
+  favorite,
+  onToggleFavorite,
   toolbar,
   onOpenMarkets,
   onOpenAccount,
 }: {
   selection: MarketSelection
+  /** Whether the picked market is starred. Ignored without one. */
+  favorite: boolean
+  onToggleFavorite: () => void
   /** The chart's controls — the interval picker — shown only with a market. */
   toolbar?: React.ReactNode
   /**
@@ -130,9 +146,59 @@ export function MarketHeader({
         />
       }
       title={selection.row.symbol}
-      meta={<MarketInfo selection={selection} />}
+      meta={
+        <span className="flex items-center gap-2">
+          <MarketInfo selection={selection} />
+          <FavoriteStar
+            symbol={selection.row.symbol}
+            favorite={favorite}
+            onToggle={onToggleFavorite}
+          />
+        </span>
+      }
       action={action}
     />
+  )
+}
+
+/**
+ * The star that puts this market in the list's Fav tab. Filled amber when it is
+ * in; a hollow outline when it is not, so the state reads without colour alone.
+ */
+function FavoriteStar({
+  symbol,
+  favorite,
+  onToggle,
+}: {
+  symbol: string
+  favorite: boolean
+  onToggle: () => void
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={favorite ? `Unstar ${symbol}` : `Star ${symbol}`}
+          aria-pressed={favorite}
+          onClick={onToggle}
+          className={cn(
+            "flex items-center transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+            favorite
+              ? "text-amber-500"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <StarIcon
+            className="size-3.5"
+            fill={favorite ? "currentColor" : "none"}
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {favorite ? "Remove from Fav" : "Keep in Fav"}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 

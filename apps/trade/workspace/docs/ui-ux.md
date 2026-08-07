@@ -33,10 +33,25 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Loading, no-history and failed-fetch
   states each say so inside the panel; the rest of the page stands.
+  **However you set the chart up is how every chart opens.** Remembered against
+  the account and carried onto the next market, the next timeframe, the next
+  visit and the other machine — four numbers, two for each direction: how many
+  candles are across the screen and how far behind the newest one the right
+  edge sits, plus how much of the height is left above and below the candles.
+  That last pair is the up-and-down squash you get by dragging the price axis,
+  and it is kept as a share of the height rather than a window of prices, which
+  is the only form that means anything on a market trading at a different
+  number. Fresh candles for the chart already on screen (the live feed
+  refetches after every gap it recovers from) land without moving the view at
+  all. A market with a shorter history keeps the zoom and shows the empty space,
+  rather than quietly zooming out; only a view with no candles in it at all is
+  slid back until it touches the data. **Double-clicking the dates along the
+  bottom** puts a chart back to its whole history, which is also how the
+  remembered view is reset.
   **The chart is feature-blind by rule:** candles in, candles drawn. Paint
-  tools, alerts, indicators and orders arrive later as their own modules
-  against a small surface the chart will offer — the chart never learns what
-  a line means. Decided in `workspace/tasks/Platform/plain-price-chart.md`.
+  tools, alerts, indicators and orders arrive as their own modules against a
+  small surface the chart offers — the chart never learns what a line means.
+  Decided in `workspace/tasks/Platform/plain-price-chart.md`.
 - **Right, top — Account.** Which account you are trading with.
 - **Right, bottom — Order.** The form. Below the account, because the account is
   what decides where an order goes and what it is allowed to be — reading down
@@ -49,6 +64,49 @@ shuts, so both rows go together — and both cards have to be taken away at once
 or a row with no width still paints its side borders and leaves a stray line
 down the workspace.
 
+## Drawing on the chart
+
+A small rail of tools sits at the chart's top-left corner, on the candles
+rather than in the header row: the header says which market and which
+timeframe, and the rail says what the pointer is holding.
+
+- **Two tools: a level and a trendline.** Press a tool, draw one thing, and
+  the tool puts itself down — staying armed would turn a stray click into
+  another line. Pressing the tool that is already held puts it down too, and
+  so does Escape.
+- **A level is one click**; a **trendline is a drag from one end to the
+  other**, or a tap at each end, which is the only way there is on a
+  touchscreen. Either way a dashed preview shows where the line will land
+  before it lands.
+- **A drawing is kept as a time and a price, never as pixels**, so it comes
+  back at any zoom and on any timeframe — a base marked on 4h is in the same
+  place on 1d.
+- **Drawings belong to the market**, saved against the account, so what is
+  marked on BTC never appears on ETH and a second machine sees the same
+  lines. Saving is optimistic: a line appears the instant it is drawn, and a
+  save that does not land takes it back with a toast.
+- **Clicking a line picks it out** — it thickens and takes a soft glow along
+  its length, and a trendline shows a handle at each end. Dragging the line
+  moves the whole thing; dragging a handle moves that end alone. Pressing
+  anywhere else on the chart, or Escape, lets it go.
+- **The glow is the focus mark too, and the browser's own ring is turned
+  off.** A focus ring draws a box round the whole element, and on a line
+  running corner to corner that is a grey rectangle over half the chart.
+- **The Tab key reaches every line**, and landing on one picks it out. Delete
+  or Backspace throws the focused one away.
+- **One line at a time goes from the line itself** — the small × over its
+  middle while it is picked out, or Delete on the keyboard — and it comes back
+  with **Undo** in the toast that follows. A marked base is work, and a slip of
+  the mouse must not quietly erase it.
+- **The bin in the rail clears the whole chart**, and asks first. It only
+  appears once there is something to clear, it names how many go, and it takes
+  this market's lines only — the others keep theirs. There is no Undo on that
+  one; the question is asked before it runs instead.
+- **The chart underneath still pans, zooms and shows its crosshair.** Only a
+  line itself takes the pointer, plus the whole chart while a tool is held.
+- Out of scope by the standing decision: alerts on lines, orders on lines,
+  indicators. Each attaches to the same surface in its own task.
+
 ## The market list
 
 The panel is shaped like the automation palette, its sibling on the other
@@ -57,10 +115,13 @@ under it, the list fills the middle, and the search is the bottom bar — its
 placeholder names the exchange ("Search Hyperliquid Mainnet"), so what the
 list covers is on screen without spending a row on it.
 
-- **Three tabs, with icons:** All (the whole catalog), Fav (starred), Watch
-  (markets with an alert, once alerts exist). A tab whose data source does not
-  exist yet says what it is waiting for instead of drawing an empty list that
-  reads like a bug.
+- **Three tabs, with icons: Fav first and the one it opens on** (starred), then
+  All (the whole catalog), then Watch (markets with an alert, once alerts
+  exist). Fav leads because the markets you actually trade are a short list,
+  and scrolling past hundreds of others to reach them every time is the wrong
+  default; All is one click away and is where stars are put on. A tab whose
+  data source does not exist yet says what it is waiting for instead of drawing
+  an empty list that reads like a bug, and an empty Fav points at All.
 - **A row is the symbol and the day's move, nothing else.** The percentage is
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain

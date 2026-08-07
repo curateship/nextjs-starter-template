@@ -2454,6 +2454,181 @@ importers:
         specifier: ^4.1.6
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
 
+  apps/video:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1048.0
+        version: 3.1090.0
+      '@dnd-kit/core':
+        specifier: ^6.3.1
+        version: 6.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@dnd-kit/sortable':
+        specifier: ^10.0.0
+        version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
+      '@dnd-kit/utilities':
+        specifier: ^3.2.2
+        version: 3.2.2(react@19.2.7)
+      '@simplewebauthn/browser':
+        specifier: ^13.3.0
+        version: 13.3.0
+      '@simplewebauthn/server':
+        specifier: ^13.3.2
+        version: 13.3.2
+      '@tailwindcss/vite':
+        specifier: ^4.2.1
+        version: 4.3.3(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+      '@tanstack/react-router':
+        specifier: ^1.170.2
+        version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-start':
+        specifier: ^1.168.3
+        version: 1.168.30(@vitejs/plugin-rsc@0.5.28(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)))(crossws@0.4.10(srvx@0.11.22))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.2.0)(supports-color@7.2.0)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+      '@tiptap/core':
+        specifier: ^3.28.0
+        version: 3.28.0(@tiptap/pm@3.28.0)
+      '@tiptap/extension-image':
+        specifier: ^3.28.0
+        version: 3.28.0(@tiptap/core@3.28.0(@tiptap/pm@3.28.0))
+      '@tiptap/extension-placeholder':
+        specifier: ^3.28.0
+        version: 3.28.0(@tiptap/extensions@3.28.0(@tiptap/core@3.28.0(@tiptap/pm@3.28.0))(@tiptap/pm@3.28.0))
+      '@tiptap/pm':
+        specifier: ^3.28.0
+        version: 3.28.0
+      '@tiptap/react':
+        specifier: ^3.28.0
+        version: 3.28.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.28.0(@tiptap/pm@3.28.0))(@tiptap/pm@3.28.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tiptap/starter-kit':
+        specifier: ^3.28.0
+        version: 3.28.0
+      argon2:
+        specifier: ^0.44.0
+        version: 0.44.0
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: ^4.4.0
+        version: 4.4.0
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@electric-sql/pglite@0.4.6)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0)
+      lucide-react:
+        specifier: ^1.14.0
+        version: 1.25.0(react@19.2.7)
+      nitro:
+        specifier: ^3.0.260429-beta
+        version: 3.0.260429-beta(@electric-sql/pglite@0.4.6)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.4.6)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0))(jiti@2.7.0)(lru-cache@11.5.2)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+      pg:
+        specifier: ^8.20.0
+        version: 8.22.0
+      radix-ui:
+        specifier: ^1.4.3
+        version: 1.6.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: ^19.2.4
+        version: 19.2.7
+      react-day-picker:
+        specifier: ^9.14.0
+        version: 9.14.0(react@19.2.7)
+      react-dom:
+        specifier: ^19.2.4
+        version: 19.2.7(react@19.2.7)
+      react-image-crop:
+        specifier: ^11.1.2
+        version: 11.1.2(react@19.2.7)
+      react-resizable-panels:
+        specifier: ^4.12.1
+        version: 4.12.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      recharts:
+        specifier: ^3.8.0
+        version: 3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@19.2.7)(react@19.2.7)(redux@5.0.1)
+      sanitize-html:
+        specifier: ^2.17.4
+        version: 2.17.6
+      shadcn:
+        specifier: ^4.1.1
+        version: 4.13.1(supports-color@7.2.0)(typescript@5.9.3)
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      stripe:
+        specifier: ^22.3.2
+        version: 22.3.2(@types/node@24.13.3)
+      tailwind-merge:
+        specifier: ^3.5.0
+        version: 3.6.0
+      tailwindcss:
+        specifier: ^4.2.1
+        version: 4.3.3
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.4.5
+        version: 0.4.6
+      '@eslint/js':
+        specifier: ^9.39.4
+        version: 9.39.5
+      '@types/node':
+        specifier: ^24.12.0
+        version: 24.13.3
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      '@types/sanitize-html':
+        specifier: ^2.16.1
+        version: 2.16.1
+      '@vitejs/plugin-react':
+        specifier: ^5.2.0
+        version: 5.2.0(supports-color@7.2.0)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
+      eslint-plugin-react-hooks:
+        specifier: ^7.0.1
+        version: 7.1.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      eslint-plugin-react-refresh:
+        specifier: ^0.5.2
+        version: 0.5.3(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))
+      globals:
+        specifier: ^16.5.0
+        version: 16.5.0
+      prettier:
+        specifier: ^3.8.1
+        version: 3.9.5
+      prettier-plugin-tailwindcss:
+        specifier: ^0.7.2
+        version: 0.7.4(prettier@3.9.5)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.57.1
+        version: 8.64.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
+      vite:
+        specifier: ^8.0.16
+        version: 8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)
+      vite-tsconfig-paths:
+        specifier: ^6.1.1
+        version: 6.1.1(supports-color@7.2.0)(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+
 packages:
 
   '@adraffy/ens-normalize@1.11.1':
