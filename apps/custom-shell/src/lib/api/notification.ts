@@ -46,6 +46,8 @@ export type NotificationItem = {
   automation_run_id: string | null
   automation_id: string | null
   automation_name: string | null
+  /** The checkpoint's own sentence saying what approval will do. */
+  automation_approval_summary: string | null
   automation_approval_state: AutomationApprovalState | null
   read_at: string | null
   created_at: string
