@@ -20,4 +20,19 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+export const appServerOptions: AppServerOptions = {
+  background: {
+    workers: [
+      {
+        // Builds playback proxies and timeline filmstrips for library videos.
+        // Imported on the tick, not up here, so loading this options file
+        // never drags the worker (and its ffmpeg plumbing) into boot.
+        name: "video-media",
+        tick: () =>
+          import("@/server/video/media-workers").then((workers) =>
+            workers.videoMediaTick()
+          ),
+      },
+    ],
+  },
+}

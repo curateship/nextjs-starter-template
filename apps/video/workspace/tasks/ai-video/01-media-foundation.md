@@ -1,6 +1,6 @@
 ---
 name: Video port — media foundation on the shell library
-status: todo
+status: done
 ---
 
 **What this is.** The ground floor of the ai-video port: video-aware extras layered onto the shell's existing media library — duration and audio metadata, collections, filmstrip frames for timeline clips, and smooth-playback copies — plus the background workers that build them. No editor screens yet.
@@ -36,3 +36,47 @@ status: todo
 [x] Add brief and what you changed below.
 
 ## Brief
+
+Done 7 Aug 2026.
+
+- **Shell fix 1 — the guard test's exact file count became a floor**
+  (`toBeGreaterThanOrEqual(34)`), byte-identical in `apps/custom-shell`,
+  `apps/video`, and workspace-16's copy, so every future merge auto-resolves.
+- **Shell fix 2 — apps can now ride the shell's background loop.** New
+  `background.workers` server option (`src/server/app-options.ts` +
+  `src/server/ticker.ts`, both changed in custom-shell first, proven unchanged
+  with the option unset, then merged here). A worker is `{name, tick}`; the
+  shell runs each tick every fifteen seconds, isolated like its own two jobs.
+- **Tables** (migration `0044_video_media_foundation.sql`, drizzle definitions
+  in app-owned `src/server/video/schema.ts`): `video_media_proxies`,
+  `video_media_filmstrips` (each row is its own queue entry, leased),
+  `video_media_collections` + `video_media_collection_items`. All point at
+  shell media ids and cascade with them.
+- **Worker** `src/server/video/media-workers.ts`, registered in
+  `src/app/server-options.ts`: discovers new library videos on each tick (no
+  shell upload hook needed), claims with `for update skip locked` under a
+  two-minute heartbeat lease, builds a 720p scrub-friendly proxy and a tiled
+  filmstrip sprite with ffmpeg/ffprobe, three attempts then an honest error.
+  Concurrency from `VIDEO_PROXY_CONCURRENCY` (1–4, default 1). Storage keys
+  start `video/` so the shell's orphan scanner never mistakes them for its own.
+- **Routes** `src/routes/api/v1/video/media/$mediaId/{proxy,filmstrip}.ts` —
+  session-checked and ownership-scoped like the shell's file route; proxy
+  streams with range support (seeking works), filmstrip answers 202 +
+  Retry-After while building and ships grid geometry in X-Filmstrip-* headers.
+- **Endpoints** `src/lib/api/video/media.ts` — collections create/rename/
+  delete/add/remove/set plus `listVideoMedia` (search, type, collection and
+  "Uncollected" filters, proxy/filmstrip state on every row). All `userGet`/
+  `userPost`; guard test green.
+- **Deliberate deviation:** no `video_media_meta` table. The old app never
+  stored duration or dimensions server-side either — duration is read in the
+  browser when a clip lands on a timeline, and the filmstrip row carries its
+  own measured duration. Building a meta table would have been invention, not
+  porting.
+- **Gotcha for the next task:** the shell's ticker flag survives dev-server
+  module reloads on purpose, so a change to what rides the loop needs the dev
+  server killed and restarted on the same port before it shows up.
+- Verified: 933 tests green in video (23 new), full shell suite + browser
+  green with the option unset, migration applied to dev DB and replayed by the
+  PGlite test DB, and a real end-to-end run — uploaded a 6-second clip, watched
+  discovery → proxy (135KB mp4, 206 on ranges) → filmstrip (3 frames, correct
+  grid), signed-out requests refused, zero console errors.

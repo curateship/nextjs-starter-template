@@ -61,6 +61,8 @@ import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/goo
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1VideoMediaMediaIdFilmstripRouteImport } from './routes/api/v1/video/media/$mediaId/filmstrip'
+import { Route as ApiV1VideoMediaMediaIdProxyRouteImport } from './routes/api/v1/video/media/$mediaId/proxy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -342,6 +344,18 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1VideoMediaMediaIdFilmstripRoute =
+  ApiV1VideoMediaMediaIdFilmstripRouteImport.update({
+    id: '/api/v1/video/media/$mediaId/filmstrip',
+    path: '/api/v1/video/media/$mediaId/filmstrip',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1VideoMediaMediaIdProxyRoute =
+  ApiV1VideoMediaMediaIdProxyRouteImport.update({
+    id: '/api/v1/video/media/$mediaId/proxy',
+    path: '/api/v1/video/media/$mediaId/proxy',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -395,6 +409,8 @@ export interface FileRoutesByFullPath {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  '/api/v1/video/media/$mediaId/proxy': typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -446,6 +462,8 @@ export interface FileRoutesByTo {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  '/api/v1/video/media/$mediaId/proxy': typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -501,6 +519,8 @@ export interface FileRoutesById {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  '/api/v1/video/media/$mediaId/proxy': typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -556,6 +576,8 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/media/$mediaId/filmstrip'
+    | '/api/v1/video/media/$mediaId/proxy'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -607,6 +629,8 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/media/$mediaId/filmstrip'
+    | '/api/v1/video/media/$mediaId/proxy'
   id:
     | '__root__'
     | '/'
@@ -661,6 +685,8 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/media/$mediaId/filmstrip'
+    | '/api/v1/video/media/$mediaId/proxy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -685,6 +711,8 @@ export interface RootRouteChildren {
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1VideoMediaMediaIdFilmstripRoute: typeof ApiV1VideoMediaMediaIdFilmstripRoute
+  ApiV1VideoMediaMediaIdProxyRoute: typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1053,6 +1081,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/video/media/$mediaId/filmstrip': {
+      id: '/api/v1/video/media/$mediaId/filmstrip'
+      path: '/api/v1/video/media/$mediaId/filmstrip'
+      fullPath: '/api/v1/video/media/$mediaId/filmstrip'
+      preLoaderRoute: typeof ApiV1VideoMediaMediaIdFilmstripRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/video/media/$mediaId/proxy': {
+      id: '/api/v1/video/media/$mediaId/proxy'
+      path: '/api/v1/video/media/$mediaId/proxy'
+      fullPath: '/api/v1/video/media/$mediaId/proxy'
+      preLoaderRoute: typeof ApiV1VideoMediaMediaIdProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1196,6 +1238,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1VideoMediaMediaIdFilmstripRoute: ApiV1VideoMediaMediaIdFilmstripRoute,
+  ApiV1VideoMediaMediaIdProxyRoute: ApiV1VideoMediaMediaIdProxyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
