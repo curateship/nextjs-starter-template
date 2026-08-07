@@ -2,6 +2,7 @@ import type { ComponentType } from "react"
 import type { z } from "zod"
 
 import type {
+  AutomationGraph,
   AutomationNode,
   AutomationSettingValue,
   AutomationSourcePort,
@@ -38,6 +39,8 @@ export type AutomationNodeSettings = Record<string, AutomationSettingValue>
  */
 export type AutomationNodeFieldsProps = {
   node: AutomationNode
+  /** The current draft, for panels that explain their surrounding flow. */
+  graph?: AutomationGraph
   onChange: (node: AutomationNode) => void
 }
 

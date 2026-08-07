@@ -457,6 +457,7 @@ export function AutomationEditor({
   const inspector = (
     <AutomationInspector
       selectedNode={selectedNode}
+      graph={graph}
       errors={compiled.errors}
       favorite={
         selectedPaletteKey

@@ -14,6 +14,7 @@ import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
+  AutomationGraph,
   AutomationNode,
   AutomationValidationError,
 } from "@/lib/automations/graph"
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils"
 export function AutomationInspector({
   className,
   selectedNode,
+  graph,
   errors,
   favorite,
   savingFavorite,
@@ -39,6 +41,7 @@ export function AutomationInspector({
 }: {
   className?: string
   selectedNode: AutomationNode | null
+  graph: AutomationGraph
   errors: AutomationValidationError[]
   favorite?: boolean
   savingFavorite?: boolean
@@ -127,7 +130,11 @@ export function AutomationInspector({
             ) : null}
 
             {selectedNode ? (
-              <NodeFields node={selectedNode} onChange={onNodeChange} />
+              <NodeFields
+                node={selectedNode}
+                graph={graph}
+                onChange={onNodeChange}
+              />
             ) : null}
 
             {selectedNode ? (
@@ -243,9 +250,11 @@ function useScrollFades() {
  */
 function NodeFields({
   node,
+  graph,
   onChange,
 }: {
   node: AutomationNode
+  graph: AutomationGraph
   onChange: (node: AutomationNode) => void
 }) {
   if (!isSupportedNode(node)) {
@@ -268,7 +277,7 @@ function NodeFields({
   // components made during a render cannot tell those two apart.
   return (
     <React.Suspense fallback={null}>
-      {React.createElement(fields, { node, onChange })}
+      {React.createElement(fields, { key: node.id, node, graph, onChange })}
     </React.Suspense>
   )
 }
