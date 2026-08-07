@@ -4,6 +4,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { serializeMedia, type MediaItem } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { collectionIdsByMedia } from "@/server/video/media-collections"
+import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
   videoMediaFilmstrips,
   videoMediaProxies,
@@ -102,10 +103,7 @@ export async function listVideoMedia({
     const proxy = proxies.get(row.id)
     return {
       ...base,
-      playback_url:
-        proxy?.status === "ready"
-          ? `/api/v1/video/media/${encodeURIComponent(row.id)}/proxy${cacheVersion(proxy.generatedAt)}`
-          : base.url,
+      playback_url: videoPlaybackUrl(base.url, proxy ?? null),
       proxy_status: proxy?.status ?? null,
       filmstrip_status: filmstrips.get(row.id)?.status ?? null,
       collection_ids: collections.get(row.id) ?? [],
@@ -127,26 +125,21 @@ async function videoStateByMedia(
   mediaIds: string[],
   database: CustomShellDb
 ) {
-  const byMedia = new Map<string, { status: string; generatedAt: Date | null }>()
+  const byMedia = new Map<string, { status: string; storagePath: string | null }>()
   if (!mediaIds.length) return byMedia
   const rows = await database
     .select({
       mediaId: table.mediaId,
       status: table.status,
-      generatedAt: table.generatedAt,
+      storagePath: table.storagePath,
     })
     .from(table)
     .where(inArray(table.mediaId, mediaIds))
   for (const row of rows) {
     byMedia.set(row.mediaId, {
       status: row.status,
-      generatedAt: row.generatedAt,
+      storagePath: row.storagePath,
     })
   }
   return byMedia
-}
-
-/** A regenerated proxy gets a fresh address, so a year-long cache never serves the old one. */
-function cacheVersion(generatedAt: Date | null) {
-  return generatedAt ? `?v=${encodeURIComponent(generatedAt.toISOString())}` : ""
 }

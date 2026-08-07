@@ -7,9 +7,11 @@ import type {
   ProtocolId,
   WalletAccountFigures,
 } from "@/lib/protocols/contracts"
+import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
 import { fetchHyperliquidAccount } from "@/server/protocols/hyperliquid/account"
 import { fetchHyperliquidCandles } from "@/server/protocols/hyperliquid/candles"
 import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
+import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -31,8 +33,26 @@ export type ProtocolEntry = {
     candles(
       network: NetworkId,
       marketId: string,
-      interval: CandleInterval
+      interval: CandleInterval,
+      /** Epoch ms to read from, instead of the recent slice a chart draws. */
+      since?: number
     ): Promise<CandleBar[]>
+    /**
+     * Today's price for these markets and nothing else — the cheap read the
+     * practice engine settles against, where `fetch` is the whole catalogue.
+     * A market the exchange would not price is left out of the answer rather
+     * than given a made-up one.
+     */
+    prices(
+      network: NetworkId,
+      marketIds: readonly string[]
+    ): Promise<Map<string, number>>
+    /**
+     * The nearest price this exchange would accept for an order. Every
+     * protocol has its own rule about how fine a price may be; asking here is
+     * how the engine stays blind to which one it is talking to.
+     */
+    roundPx(px: number, sizeDecimals: number | null): number
   }
   account: {
     /** What the account at this public address holds and is worth. */
@@ -49,6 +69,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     markets: {
       fetch: fetchHyperliquidMarkets,
       candles: fetchHyperliquidCandles,
+      prices: fetchHyperliquidPrices,
+      roundPx: roundOrderPx,
     },
     account: {
       fetch: fetchHyperliquidAccount,

@@ -1,11 +1,21 @@
 import * as React from "react"
 import { CandlestickChartIcon } from "lucide-react"
 
+import {
+  ChartOrderMenu,
+  type ChartMenuState,
+} from "@/components/trade/chart-order-menu"
+import {
+  ChartQuickOrder,
+  type QuickOrderState,
+} from "@/components/trade/chart-quick-order"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
-import { PriceChart } from "@/components/trade/price-chart"
+import { PriceChart, type ChartSurface } from "@/components/trade/price-chart"
+import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
+import type { PaperTrading } from "@/components/trade/use-paper-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
@@ -13,6 +23,7 @@ import {
   CANDLE_INTERVALS,
   type CandleBar,
   type CandleInterval,
+  type MarketRow,
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
@@ -64,6 +75,9 @@ export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  market,
+  paper,
+  free,
 }: {
   selectedKey: string | null
   interval: CandleInterval
@@ -72,6 +86,15 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /** The market on screen, for the rules an order has to obey. */
+  market: MarketRow | null
+  /**
+   * Practice trading. Always present; it is `paper.wallet` that is null when
+   * no practice wallet has been picked to trade with.
+   */
+  paper: PaperTrading
+  /** Cash free to put behind a trade, from the account's own figures. */
+  free: number
 }) {
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
   // an answer whose key does not match what is wanted right now IS the
@@ -110,6 +133,44 @@ export function ChartPanel({
   // whatever market and timeframe you open next.
   const chartView = useRememberedChartView(initialChartView)
 
+  // Right-clicking the chart: the menu that opens under the pointer, and the
+  // order window one of its rows opens at the same spot.
+  const [menu, setMenu] = React.useState<ChartMenuState | null>(null)
+  const [quick, setQuick] = React.useState<QuickOrderState | null>(null)
+  const plotRef = React.useRef<HTMLDivElement | null>(null)
+  const surfaceRef = React.useRef<ChartSurface | null>(null)
+  const readSurface = React.useCallback((next: ChartSurface) => {
+    surfaceRef.current = next
+  }, [])
+
+  // An order window belongs to the market it was opened on. Switching markets
+  // — from a row in the table below, say — would otherwise leave it holding a
+  // price from the market it just left, and placing that order against the new
+  // one. Adjusted during the render that brings the change in, the same way
+  // the paint tools drop a half-drawn line: React re-runs the render
+  // immediately without painting in between, so no frame shows the stale
+  // window.
+  const [lastMarket, setLastMarket] = React.useState(selectedKey)
+  if (selectedKey !== lastMarket) {
+    setLastMarket(selectedKey)
+    setMenu(null)
+    setQuick(null)
+  }
+
+  const openMenu = (event: React.MouseEvent) => {
+    // A tool in hand is drawing, not trading; the browser's own menu is the
+    // honest answer when there is nothing here to offer.
+    if (paint.tool || !paper.wallet || !market) return
+    const surface = surfaceRef.current
+    const box = plotRef.current?.getBoundingClientRect()
+    if (!surface || !box) return
+    const price = surface.priceAt(event.clientY - box.top)
+    if (price === null || price <= 0) return
+    event.preventDefault()
+    setQuick(null)
+    setMenu({ price, x: event.clientX, y: event.clientY })
+  }
+
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
     let stale = false
@@ -145,7 +206,11 @@ export function ChartPanel({
   const current = answer && answer.key === wanted ? answer : null
 
   return (
-    <div className="relative h-full min-h-0">
+    <div
+      ref={plotRef}
+      className="relative h-full min-h-0"
+      onContextMenu={openMenu}
+    >
       {!current ? (
         <p className="flex h-full items-center justify-center text-xs text-muted-foreground">
           Loading candles…
@@ -175,19 +240,48 @@ export function ChartPanel({
             readView={chartView.readView}
             onViewChange={chartView.onViewChange}
             liveBar={liveBar?.key === wanted ? liveBar.bar : null}
-            // The chart is handed a function and a surface, never a drawing.
-            // Everything below this line is the paint tools' business.
+            // The chart is handed a function and a surface, never a drawing or
+            // a position. Both layers below draw in the same coordinates and
+            // neither is anything the chart itself knows about.
             overlay={(surface) => (
-              <PaintLayer
-                surface={surface}
-                drawings={paint.drawings}
-                tool={paint.tool}
-                selectedId={paint.selectedId}
-                onSelect={paint.setSelectedId}
-                onCreate={paint.create}
-                onMove={paint.move}
-                onDelete={paint.remove}
-              />
+              <>
+                <PaintLayer
+                  surface={surface}
+                  drawings={paint.drawings}
+                  tool={paint.tool}
+                  selectedId={paint.selectedId}
+                  onSelect={paint.setSelectedId}
+                  onCreate={paint.create}
+                  onMove={paint.move}
+                  onDelete={paint.remove}
+                />
+                <TradeLinesLayer
+                  surface={surface}
+                  marketKey={selectedKey}
+                  // This layer paints over the paint tools, so it has to know
+                  // when one is in hand and keep its hands off the pointer —
+                  // otherwise starting a line near a stop drags the stop.
+                  tool={paint.tool}
+                  // Every wallet's, not just the active one's: a row in the
+                  // table below is a link to its own market, and it would be a
+                  // dead end if the chart then showed nothing.
+                  positions={paper.positions}
+                  orders={paper.orders}
+                  walletName={(walletId) =>
+                    paper.walletNames.get(walletId) ?? "Another wallet"
+                  }
+                  onMoveOrder={(walletId, orderId, price) =>
+                    void paper.move(walletId, orderId, price)
+                  }
+                  onCancelOrder={(walletId, orderId) =>
+                    void paper.cancel(walletId, orderId)
+                  }
+                  onSetBrackets={(walletId, marketKey, brackets) =>
+                    void paper.dragBrackets(walletId, marketKey, brackets)
+                  }
+                  onSurface={readSurface}
+                />
+              </>
             )}
           />
           <PaintToolbar
@@ -198,6 +292,30 @@ export function ChartPanel({
           />
         </>
       )}
+
+      {menu ? (
+        <ChartOrderMenu
+          menu={menu}
+          onClose={() => setMenu(null)}
+          onPick={(side) => {
+            setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
+            setMenu(null)
+          }}
+        />
+      ) : null}
+      {quick && market ? (
+        <ChartQuickOrder
+          quick={quick}
+          market={market}
+          wallet={paper.wallet?.label ?? ""}
+          free={free}
+          busy={paper.busy}
+          onClose={() => setQuick(null)}
+          onPlace={(input) =>
+            paper.place({ marketKey: market.key, ...input })
+          }
+        />
+      ) : null}
     </div>
   )
 }

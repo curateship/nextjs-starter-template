@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import {
   isAgentKey,
   isWalletAddress,
-  paperFigures,
   shortenAddress,
   summarizeWallet,
   venueLabel,
@@ -39,15 +38,6 @@ describe("the five account rows", () => {
         10
       )
     }
-  })
-
-  it("says a fresh practice wallet is exactly its starting cash, all free", () => {
-    expect(paperFigures({ startingBalance: 5_000 })).toEqual({
-      equity: 5_000,
-      free: 5_000,
-      inTrades: 0,
-      openProfit: 0,
-    })
   })
 })
 

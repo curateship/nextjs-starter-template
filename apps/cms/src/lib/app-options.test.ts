@@ -3,7 +3,11 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { z } from "zod"
 
-import { appAutomationNodes, landingPageOverride } from "@/lib/app-options"
+import {
+  appAutomationNodes,
+  catchAllOverride,
+  landingPageOverride,
+} from "@/lib/app-options"
 import { defineNode } from "@/lib/automations/node-descriptor"
 
 /**
@@ -52,6 +56,13 @@ describe("an option nobody set means what the shell always did", () => {
   it("adds no automation steps of its own", () => {
     expect(appAutomationNodes({})).toEqual([])
   })
+
+  it("leaves the catch-all to the written pages", () => {
+    // Null is what `$.tsx` checks for before it asks anything of the app, so
+    // this is the difference between "written pages as always" and an app
+    // getting first refusal on every address in the app.
+    expect(catchAllOverride({})).toBeNull()
+  })
 })
 
 describe("an app's answer wins", () => {
@@ -63,6 +74,14 @@ describe("an app's answer wins", () => {
   it("hands over the app's own automation steps", () => {
     const nodes = [testNode("sendSms")]
     expect(appAutomationNodes({ automations: { nodes } })).toBe(nodes)
+  })
+
+  it("hands over the catch-all", () => {
+    const catchAll = {
+      loader: async () => null,
+      Component: () => null,
+    }
+    expect(catchAllOverride({ pages: { catchAll } })).toBe(catchAll)
   })
 })
 

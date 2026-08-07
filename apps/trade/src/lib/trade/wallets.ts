@@ -12,8 +12,9 @@ import type {
 
 /**
  * The two kinds of wallet. A paper wallet is pretend money priced off the real
- * exchange; a live wallet is a real Hyperliquid account this app can read and
- * — once the ordering work lands — trade with.
+ * exchange, traded by the engine in `@/lib/trade/paper`; a live wallet is a
+ * real Hyperliquid account this app can read and — once the ordering work
+ * lands — trade with.
  */
 export type WalletKind = "paper" | "live"
 
@@ -65,22 +66,6 @@ export function summarizeWallet(
     ...figures,
     sinceStart,
     settled: sinceStart - figures.openProfit,
-  }
-}
-
-/**
- * A paper wallet with no trading engine behind it yet: worth exactly what it
- * started with, all of it free. The engine that moves these figures returns in
- * a later task; until then this is the truth, not a stand-in.
- */
-export function paperFigures(
-  wallet: Pick<TradeWallet, "startingBalance">
-): WalletAccountFigures {
-  return {
-    equity: wallet.startingBalance,
-    free: wallet.startingBalance,
-    inTrades: 0,
-    openProfit: 0,
   }
 }
 

@@ -46,6 +46,15 @@ import {
 export type ChartSurface = {
   width: number
   height: number
+  /**
+   * How wide the price axis to the right of the plot is.
+   *
+   * Everything else here measures the plot alone, and drawing stops at its
+   * edge. This one number is what lets a layer put a price on the axis beside
+   * the line it belongs to — the axis is still not somewhere the chart draws,
+   * it is only somewhere it can now say how far away.
+   */
+  axisWidth: number
   /** Epoch milliseconds to a horizontal position, off the ends included. */
   xOf(time: number): number
   /** A horizontal position back to epoch milliseconds. */
@@ -64,6 +73,7 @@ export type ChartSurface = {
 type Viewport = {
   width: number
   height: number
+  axisWidth: number
   /** Where bar 0 sits and how wide a bar is: the whole sideways mapping. */
   barZeroX: number
   barWidth: number
@@ -77,6 +87,7 @@ function sameViewport(a: Viewport | null, b: Viewport | null): boolean {
   return (
     a.width === b.width &&
     a.height === b.height &&
+    a.axisWidth === b.axisWidth &&
     a.barZeroX === b.barZeroX &&
     a.barWidth === b.barWidth &&
     a.topPrice === b.topPrice &&
@@ -118,7 +129,9 @@ function highLowBetween(
 
 function readViewport(
   chart: IChartApi,
-  series: ISeriesApi<"Candlestick">
+  series: ISeriesApi<"Candlestick">,
+  /** The whole chart including its axes, for working out how wide they are. */
+  totalWidth: number
 ): Viewport | null {
   const pane = chart.paneSize()
   if (pane.width <= 0 || pane.height <= 0) return null
@@ -141,6 +154,7 @@ function readViewport(
   return {
     width: pane.width,
     height: pane.height,
+    axisWidth: Math.max(0, totalWidth - pane.width),
     barZeroX,
     barWidth: barOneX - barZeroX,
     topPrice,
@@ -334,7 +348,10 @@ export function PriceChart({
   const refreshSurface = React.useCallback(() => {
     const chart = chartRef.current
     const series = priceSeriesRef.current
-    const next = chart && series ? readViewport(chart, series) : null
+    const next =
+      chart && series
+        ? readViewport(chart, series, containerRef.current?.clientWidth ?? 0)
+        : null
     if (sameViewport(viewportRef.current, next)) return
     viewportRef.current = next
     // The one honest moment to notice the view moved, and it covers both
@@ -348,6 +365,7 @@ export function PriceChart({
     setSurface({
       width: next.width,
       height: next.height,
+      axisWidth: next.axisWidth,
       // The bar list is read as the answer is asked for, not captured here:
       // a live bar appending itself changes what lies to the right of the
       // last candle without moving anything already on screen.
@@ -538,9 +556,11 @@ export function PriceChart({
     <div className="relative h-full min-h-0 w-full">
       <div ref={containerRef} className="absolute inset-0" />
       {overlay && surface ? (
-        // Sized to the plot area alone, so nothing can be drawn over the price
-        // or time axis. Clicks fall through to the chart unless whatever is
-        // drawn in here asks for them.
+        // As tall as the plot and as wide as the plot plus the price axis. The
+        // extra strip is there for one thing only — a price badge sitting on
+        // the axis beside the line it belongs to, the way every trading chart
+        // shows one. Everything the surface measures still stops at the plot,
+        // so nothing drifts over the time axis below.
         //
         // The z-index is load-bearing: the library stacks its own canvases at
         // 1 and 2, so without it this sits underneath them — visible, because
@@ -548,7 +568,10 @@ export function PriceChart({
         // on the canvas instead.
         <div
           className="pointer-events-none absolute top-0 left-0 z-10 overflow-hidden"
-          style={{ width: surface.width, height: surface.height }}
+          style={{
+            width: surface.width + surface.axisWidth,
+            height: surface.height,
+          }}
         >
           {overlay(surface)}
         </div>

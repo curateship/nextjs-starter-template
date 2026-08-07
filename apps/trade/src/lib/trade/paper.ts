@@ -1,0 +1,444 @@
+import type { CandleBar, WalletAccountFigures } from "@/lib/protocols/contracts"
+
+/**
+ * Practice trading, in the app's own words — browser-safe on purpose.
+ *
+ * Everything here is arithmetic: what a fill does to a position, what a
+ * position is worth, and where price would have to go for it to be closed out.
+ * The server file (`@/server/trade/paper.ts`) stores the rows and decides when
+ * to ask these questions; the screens ask the same ones to draw the answers.
+ * One home, so the table and the engine can never disagree about what a
+ * position is worth.
+ *
+ * The model is isolated margin, one position per market. A trade puts up
+ * `value ÷ leverage` as margin and can lose it; the rest of the account is
+ * never at risk from it. That is the simplest honest model of what the real
+ * exchange does, and it is the one the numbers on screen are built from.
+ */
+
+/**
+ * What the exchange charges. Taking a price that is already there costs more
+ * than leaving an order for somebody else to take — Hyperliquid's standard
+ * rates, the same pair the old app used.
+ */
+export const TAKER_FEE_RATE = 0.00045
+export const MAKER_FEE_RATE = 0.00015
+
+/** Below this many coins a position counts as flat — see `applyPaperFill`. */
+const POSITION_DUST = 1e-9
+
+export type PaperSide = "buy" | "sell"
+
+/**
+ * Why a fill happened, kept on every journal row. Not decoration: "the stop
+ * took me out" and "I closed it" are different stories about the same trade,
+ * and only the engine knows which one it was.
+ */
+export type PaperFillReason =
+  /** A limit order that was waiting, or one placed straight through the price. */
+  | "order"
+  /** Closed, flipped or reduced by hand. */
+  | "manual"
+  | "take_profit"
+  | "stop_loss"
+  | "liquidated"
+
+/** How each reason reads in the journal. */
+export const PAPER_FILL_REASON_LABELS: Record<PaperFillReason, string> = {
+  order: "Order",
+  manual: "Closed by hand",
+  take_profit: "Take profit",
+  stop_loss: "Stop loss",
+  liquidated: "Liquidated",
+}
+
+export type PaperPosition = {
+  id: string
+  walletId: string
+  marketKey: string
+  /**
+   * How much is held, signed: positive is long (bought, wins when price
+   * rises), negative is short. One number rather than a size and a side,
+   * because every sum below wants the sign anyway.
+   */
+  szi: number
+  entryPx: number
+  /** Fixed when the position opened; adding to it inherits this. */
+  leverage: number
+  /**
+   * The most leverage this market allowed when the position opened, kept as a
+   * copy because the liquidation estimate is built from it and the exchange's
+   * answer can change under a position that is already open.
+   */
+  maxLeverage: number
+  tpPx: number | null
+  slPx: number | null
+  /** Fees this position has paid so far, entry and any part-closes. */
+  feesPaid: number
+  /** Epoch ms. The settlement guard reads it — see `paper.ts` on the server. */
+  updatedAt: number
+}
+
+export type PaperOrder = {
+  id: string
+  walletId: string
+  marketKey: string
+  side: PaperSide
+  px: number
+  sz: number
+  leverage: number
+  maxLeverage: number
+  reduceOnly: boolean
+  /** Applied to the position this order opens, once it fills. */
+  tpPx: number | null
+  slPx: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type PaperJournalEntry = {
+  id: string
+  walletId: string
+  marketKey: string
+  side: PaperSide
+  px: number
+  sz: number
+  fee: number
+  /** What the closing part of this fill banked. Zero when it only opened. */
+  closedPnl: number
+  reason: PaperFillReason
+  fillTime: number
+}
+
+/** Everything the fill arithmetic reads and rewrites. */
+export type PositionCore = Pick<
+  PaperPosition,
+  "szi" | "entryPx" | "leverage" | "maxLeverage" | "tpPx" | "slPx" | "feesPaid"
+>
+
+type PaperFill = {
+  side: PaperSide
+  px: number
+  sz: number
+  feeRate: number
+  /** Only used by a fill that opens a position; an add inherits what is there. */
+  leverage: number
+  maxLeverage: number
+}
+
+export type PaperFillOutcome = {
+  /** What is held afterwards, or null when the fill closed it out. */
+  position: PositionCore | null
+  fee: number
+  closedPnl: number
+}
+
+/**
+ * One fill against one position — the whole of the practice engine's
+ * arithmetic, ported from the old app because it was already right.
+ *
+ * Four cases, and they are the four things a fill can do: open, add to,
+ * reduce, or turn around. Only the reducing part banks a profit or a loss;
+ * buying more never does, which is why an add moves the entry price instead
+ * of paying anything out.
+ */
+export function applyPaperFill(
+  position: PositionCore | null,
+  fill: PaperFill
+): PaperFillOutcome {
+  const fee = fill.px * fill.sz * fill.feeRate
+  const signed = fill.side === "buy" ? fill.sz : -fill.sz
+  const szi = position?.szi ?? 0
+  const entryPx = position?.entryPx ?? 0
+
+  let closedPnl = 0
+  if (szi !== 0 && Math.sign(signed) !== Math.sign(szi)) {
+    const closedSz = Math.min(Math.abs(signed), Math.abs(szi))
+    closedPnl = (fill.px - entryPx) * closedSz * Math.sign(szi)
+  }
+
+  // Snap a position that nets to within dust of flat to exactly flat. Filling
+  // a position in pieces and selling it back sums many fractions, so the close
+  // can land on ~1e-15 instead of 0; without this that dust reads as a phantom
+  // position that never quite closes.
+  const rawNextSzi = szi + signed
+  const nextSzi = Math.abs(rawNextSzi) < POSITION_DUST ? 0 : rawNextSzi
+
+  if (nextSzi === 0) {
+    return { position: null, fee, closedPnl }
+  }
+
+  // Opened from flat, or turned around through it. Either way this is a new
+  // position: its own entry price, its own leverage, and no brackets — the
+  // ones aimed at a long are nonsense the moment it becomes a short.
+  if (szi === 0 || Math.sign(nextSzi) !== Math.sign(szi)) {
+    return {
+      position: {
+        szi: nextSzi,
+        entryPx: fill.px,
+        leverage: fill.leverage,
+        maxLeverage: fill.maxLeverage,
+        tpPx: null,
+        slPx: null,
+        feesPaid: fee,
+      },
+      fee,
+      closedPnl,
+    }
+  }
+
+  const kept: PositionCore = {
+    szi: nextSzi,
+    entryPx,
+    leverage: position?.leverage ?? fill.leverage,
+    maxLeverage: position?.maxLeverage ?? fill.maxLeverage,
+    tpPx: position?.tpPx ?? null,
+    slPx: position?.slPx ?? null,
+    feesPaid: (position?.feesPaid ?? 0) + fee,
+  }
+
+  // Added to: the entry price becomes the average of what was paid for each
+  // piece, weighted by how much each piece was.
+  if (Math.abs(nextSzi) > Math.abs(szi)) {
+    kept.entryPx =
+      (entryPx * Math.abs(szi) + fill.px * fill.sz) / Math.abs(nextSzi)
+  }
+  return { position: kept, fee, closedPnl }
+}
+
+/**
+ * How much of a reduce-only order the position can actually take. Null when
+ * it would not reduce anything at all — an order to sell when nothing is held
+ * long is not a small order, it is the wrong order.
+ */
+export function capReduceOnly(
+  position: PositionCore | null,
+  side: PaperSide,
+  sz: number
+): number | null {
+  const szi = position?.szi ?? 0
+  const reduces = (szi > 0 && side === "sell") || (szi < 0 && side === "buy")
+  if (!reduces) return null
+  return Math.min(sz, Math.abs(szi))
+}
+
+// ----- What a position is worth -----------------------------------------
+
+/** The stake put up to hold it: what it was worth at entry, over leverage. */
+export function positionMargin(
+  position: Pick<PaperPosition, "szi" | "entryPx" | "leverage">
+): number {
+  if (!(position.leverage > 0)) return Math.abs(position.szi) * position.entryPx
+  return (Math.abs(position.szi) * position.entryPx) / position.leverage
+}
+
+/** What it is worth at this price — the whole holding, not the stake. */
+export function positionValue(
+  position: Pick<PaperPosition, "szi">,
+  mark: number
+): number {
+  return Math.abs(position.szi) * mark
+}
+
+/** Up or down right now, in dollars. The sign of `szi` does the work. */
+export function positionProfit(
+  position: Pick<PaperPosition, "szi" | "entryPx">,
+  mark: number
+): number {
+  return (mark - position.entryPx) * position.szi
+}
+
+/**
+ * What closing at some other price would bank — how the Projected P/L column
+ * reads a take-profit and a stop. Fees are not taken off here; the table shows
+ * them in their own column so each figure means exactly one thing.
+ */
+export function projectedProfit(
+  position: Pick<PaperPosition, "szi" | "entryPx">,
+  exitPx: number
+): number {
+  return (exitPx - position.entryPx) * position.szi
+}
+
+/**
+ * Where the position gets closed out against its owner's wishes.
+ *
+ * The exchange keeps a maintenance margin of half the stake it would demand
+ * at the market's own maximum leverage; when the loss eats everything above
+ * that, the position goes. This is the estimate the old app showed, and it is
+ * exact for the isolated model this engine actually runs.
+ *
+ * Null only when the figures cannot answer: no entry price, no leverage, or a
+ * stake already thinner than the maintenance the exchange keeps — which for a
+ * position opened within the market's own limit cannot happen.
+ */
+export function liquidationPx(
+  position: Pick<PaperPosition, "szi" | "entryPx" | "leverage" | "maxLeverage">
+): number | null {
+  const { entryPx, leverage, maxLeverage } = position
+  if (!(entryPx > 0) || !(leverage > 0) || !(maxLeverage > 0)) return null
+  const buffer = 1 / leverage - 1 / (2 * maxLeverage)
+  if (buffer <= 0) return null
+  const px = position.szi > 0 ? entryPx * (1 - buffer) : entryPx * (1 + buffer)
+  return px > 0 ? px : null
+}
+
+/**
+ * How far price has to move to reach that, as a fraction of where it is now —
+ * the "19% away" in the table. Null when there is no liquidation price.
+ */
+export function liquidationAway(
+  position: Pick<PaperPosition, "szi" | "entryPx" | "leverage" | "maxLeverage">,
+  mark: number
+): number | null {
+  const liq = liquidationPx(position)
+  if (liq === null || !(mark > 0)) return null
+  return Math.abs(mark - liq) / mark
+}
+
+/**
+ * The account's five figures, folded from what it started with, what it has
+ * banked, and what it is holding.
+ *
+ * Cash is never stored anywhere: it is the starting balance plus every
+ * journal row's profit less its fee. A stored copy would be a second answer to
+ * a question that already has one, and second answers drift.
+ */
+export function paperAccountFigures(input: {
+  startingBalance: number
+  /** The sum of every journal row: profit banked, less fees paid. */
+  realized: number
+  positions: readonly PaperPosition[]
+  marks: ReadonlyMap<string, number>
+}): WalletAccountFigures {
+  const cash = input.startingBalance + input.realized
+  let inTrades = 0
+  let openProfit = 0
+  for (const position of input.positions) {
+    inTrades += positionMargin(position)
+    const mark = input.marks.get(position.marketKey)
+    if (mark !== undefined) openProfit += positionProfit(position, mark)
+  }
+  return { equity: cash + openProfit, free: cash - inTrades, inTrades, openProfit }
+}
+
+/**
+ * An order whose price is already through the market: a buy at or above what
+ * it costs, a sell at or below. It is not going to wait for anything, so it is
+ * filled at once — at the market's price, never at the worse price that was
+ * asked for.
+ */
+export function isMarketable(
+  side: PaperSide,
+  px: number,
+  mark: number
+): boolean {
+  return side === "buy" ? px >= mark : px <= mark
+}
+
+// ----- Replaying the price that happened while nobody watched ------------
+
+/** A straight run of price, from one level to another. */
+type PriceLeg = { from: number; to: number }
+
+/**
+ * The path price took inside one candle, as three straight runs.
+ *
+ * A candle says where price opened, closed, and the furthest it got each way —
+ * never the order it did them in. The standard reading is the one that fits
+ * the candle's own direction: a candle that closed up dipped first and then
+ * ran, a candle that closed down ran first and then fell. It is a guess, but
+ * it is the same guess every backtest makes, and it is the conservative one
+ * for a position that was already open.
+ */
+export function candleLegs(bar: CandleBar): PriceLeg[] {
+  return bar.close >= bar.open
+    ? [
+        { from: bar.open, to: bar.low },
+        { from: bar.low, to: bar.high },
+        { from: bar.high, to: bar.close },
+      ]
+    : [
+        { from: bar.open, to: bar.high },
+        { from: bar.high, to: bar.low },
+        { from: bar.low, to: bar.close },
+      ]
+}
+
+/** Price passed through this level somewhere along the run. */
+export function legCrosses(leg: PriceLeg, level: number): boolean {
+  return level >= Math.min(leg.from, leg.to) && level <= Math.max(leg.from, leg.to)
+}
+
+/**
+ * What happens next as price travels a run — nearest thing first.
+ *
+ * `at` is how far along the run price has already been taken; everything
+ * between there and the end is still to come. The caller applies what comes
+ * back, works the levels out again from the position it now has, and asks
+ * again from the price where that happened.
+ */
+type PaperEvent =
+  | { kind: "order"; orderId: string; px: number }
+  | { kind: "take_profit"; px: number }
+  | { kind: "stop_loss"; px: number }
+  | { kind: "liquidated"; px: number }
+
+export function nextEventOnLeg(input: {
+  leg: PriceLeg
+  /** Where along the run price has already been taken. */
+  at: number
+  position: PositionCore | null
+  orders: readonly Pick<PaperOrder, "id" | "px">[]
+  /** The stop already owns this candle — see `bracketsTie`. */
+  ignoreTakeProfit: boolean
+}): PaperEvent | null {
+  const remaining: PriceLeg = { from: input.at, to: input.leg.to }
+  const candidates: PaperEvent[] = []
+
+  for (const order of input.orders) {
+    if (legCrosses(remaining, order.px)) {
+      candidates.push({ kind: "order", orderId: order.id, px: order.px })
+    }
+  }
+
+  const position = input.position
+  if (position) {
+    if (
+      !input.ignoreTakeProfit &&
+      position.tpPx !== null &&
+      legCrosses(remaining, position.tpPx)
+    ) {
+      candidates.push({ kind: "take_profit", px: position.tpPx })
+    }
+    if (position.slPx !== null && legCrosses(remaining, position.slPx)) {
+      candidates.push({ kind: "stop_loss", px: position.slPx })
+    }
+    const liq = liquidationPx(position)
+    if (liq !== null && legCrosses(remaining, liq)) {
+      candidates.push({ kind: "liquidated", px: liq })
+    }
+  }
+
+  if (candidates.length === 0) return null
+  return candidates.reduce((nearest, event) =>
+    Math.abs(event.px - input.at) < Math.abs(nearest.px - input.at)
+      ? event
+      : nearest
+  )
+}
+
+/**
+ * One candle reached both the take-profit and the stop, so which came first is
+ * unknowable — and the answer is the stop.
+ *
+ * This is the one place the engine deliberately picks the worse story. A
+ * candle wide enough to cover both is the only case where the guess in
+ * `candleLegs` could hand out a profit that never happened, and a practice
+ * account that flatters itself is worse than useless.
+ */
+export function bracketsTie(bar: CandleBar, position: PositionCore | null): boolean {
+  if (!position || position.tpPx === null || position.slPx === null) return false
+  const covers = (level: number) => level >= bar.low && level <= bar.high
+  return covers(position.tpPx) && covers(position.slPx)
+}

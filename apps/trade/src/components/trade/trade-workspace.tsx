@@ -3,6 +3,7 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
 import { ActivityPanel } from "@/components/trade/activity-panel"
+import { usePaperTrading } from "@/components/trade/use-paper-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
 import {
   AddWalletDialog,
@@ -14,7 +15,6 @@ import {
   type MarketSelection,
 } from "@/components/trade/market-header"
 import { MarketListPanel } from "@/components/trade/market-list-panel"
-import { OrderPanel } from "@/components/trade/order-panel"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -83,56 +83,6 @@ function resolveSelection(
     }
   }
   return { kind: "missing", marketId: ref.marketId }
-}
-
-/**
- * A side panel, split into two rows with a divider between them.
- *
- * The rows drag against each other; the panel as a whole is what shuts, which
- * is why both rows are handed the same collapsed flag and the same double-click.
- * A row with no width still paints its left and right borders, so both cards
- * have to be taken away together or the shut panel leaves a stray line behind.
- */
-function SideColumn({
-  id,
-  layoutKey,
-  topSize,
-  collapsed,
-  onDoubleClick,
-  top,
-  bottom,
-}: {
-  id: string
-  layoutKey: string
-  topSize: string
-  collapsed: boolean
-  onDoubleClick: (event: React.MouseEvent) => void
-  top: React.ReactNode
-  bottom: React.ReactNode
-}) {
-  const layout = useRememberedPanelLayout(layoutKey)
-
-  return (
-    <ResizablePanelGroup
-      key={layout.layoutKey}
-      orientation="vertical"
-      className="min-h-0 flex-1"
-      defaultLayout={layout.defaultLayout}
-      onLayoutChanged={layout.onLayoutChanged}
-    >
-      <ResizablePanel id={`${id}-top`} defaultSize={topSize} minSize="15%">
-        <WorkspacePanel collapsed={collapsed} onDoubleClick={onDoubleClick}>
-          {top}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={collapsed} />
-      <ResizablePanel id={`${id}-bottom`} minSize="15%">
-        <WorkspacePanel collapsed={collapsed} onDoubleClick={onDoubleClick}>
-          {bottom}
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  )
 }
 
 /**
@@ -223,6 +173,25 @@ export function TradeWorkspace({
       onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
     />
   )
+
+  // ----- Practice trading: one owner for the chart's lines and the panel ----
+  // Only a practice wallet trades this way; a live wallet's own ordering is a
+  // later task, and the hook answers with nothing rather than pretending.
+  const paper = usePaperTrading(account.activeWallet)
+  const activeSummary = account.activeWallet
+    ? account.summaryOf(account.activeWallet.id)
+    : null
+  const free = activeSummary?.state === "ok" ? activeSummary.free : 0
+
+  // A trade changes what the account is worth, so the two polls are nudged
+  // into step: the moment the trading side goes quiet, the wallet figures are
+  // read again. In an effect rather than during the render, because it is a
+  // request — a render can run twice or be thrown away, and a request must not.
+  const paperBusy = paper.busy
+  const refreshAccount = account.refresh
+  React.useEffect(() => {
+    if (!paperBusy) void refreshAccount()
+  }, [paperBusy, refreshAccount])
 
   // The chart's timeframe, owned here so the header's picker and the chart's
   // fetch read the same choice.
@@ -317,6 +286,9 @@ export function TradeWorkspace({
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            market={selection.kind === "market" ? selection.row : null}
+            paper={paper}
+            free={free}
           />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
@@ -379,15 +351,12 @@ export function TradeWorkspace({
         maxSize="36%"
         onResize={(size) => setAccountCollapsed(size.asPercentage < 0.5)}
       >
-        <SideColumn
-          id="account"
-          layoutKey={tradePanelLayoutKey.accountColumn}
-          topSize="35%"
+        <WorkspacePanel
           collapsed={accountCollapsed}
           onDoubleClick={accountDoubleClick}
-          top={accountPanel}
-          bottom={<OrderPanel />}
-        />
+        >
+          {accountPanel}
+        </WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
@@ -422,7 +391,11 @@ export function TradeWorkspace({
           collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
         >
           <WorkspacePanel onDoubleClick={activityDoubleClick}>
-            <ActivityPanel />
+            <ActivityPanel
+              paper={paper}
+              catalogs={catalogs}
+              onSelectMarket={onSelectMarket}
+            />
           </WorkspacePanel>
         </ResizablePanel>
       </ResizablePanelGroup>
@@ -441,15 +414,7 @@ export function TradeWorkspace({
             </SheetTitle>
           </SheetHeader>
           {openSheet === "account" ? (
-            // Both rows, stacked, sharing the height. A divider between them
-            // would be a third way to size the same thing on a screen with no
-            // room to spare, so here they simply split it.
-            <div className="flex min-h-0 flex-1 flex-col divide-y divide-foreground/10">
-              <div className="min-h-0 flex-1">{accountPanel}</div>
-              <div className="min-h-0 flex-1">
-                <OrderPanel />
-              </div>
-            </div>
+            <div className="min-h-0 flex-1">{accountPanel}</div>
           ) : (
             <div className="min-h-0 flex-1">{marketList}</div>
           )}
