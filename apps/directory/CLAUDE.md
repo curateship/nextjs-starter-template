@@ -9,7 +9,7 @@ Guidance for agents working in Directory.
 - Directory tasks live in `workspace/tasks/`, sorted into category folders — see `workspace/tasks/README.md` for the map.
 - Before coding, read the relevant docs in `workspace/docs/`.
 - Before changing task-driven work, check `workspace/tasks/`.
-- Before building or changing UI or layout, read and follow `workspace/docs/ui-rules.md`, including its site-gap rules.
+- Before building or changing UI or layout, read and follow `../../.agents/skills/Ui-standards/SKILL.md`.
 - **Before touching admin feedback — toasts, errors, saves, loading — read and follow `workspace/docs/admin-action-feedback.md`.** Deletions and other destructive actions follow `workspace/docs/destructive-confirm-dialogs.md`.
 
 ## App Context

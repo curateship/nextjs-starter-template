@@ -107,7 +107,7 @@ Each app has its own `AGENTS.md`. Those files route agents to:
 - app docs in `workspace/docs/`
 - app tasks in `workspace/tasks/`
 
-Every app carries the same `workspace/docs/ui-rules.md` and routes UI work to it from its `AGENTS.md`. App-specific UI guides may add stricter conventions, but the shared copies should remain identical.
+The single UI standard lives in `.agents/skills/Ui-standards/SKILL.md`, and every app routes UI work there from its `AGENTS.md`. App-specific UX guides may describe the product without restating or weakening the shared conventions.
 
 ## Deployment
 

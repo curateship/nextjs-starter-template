@@ -14,6 +14,7 @@ import {
   purgeExpiredDeletions,
   restoreOwnAccount,
 } from "@/server/people/account-deletion"
+import { notifyAppAuthEvent } from "@/server/app-options"
 import { appUrlFor } from "@/server/app-url"
 import { cancelSubscriptionsForDeletion } from "@/server/billing/stripe"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
@@ -302,7 +303,7 @@ const registerFn = createServerFn({ method: "POST" })
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
-    const token = await db.transaction(async (tx) => {
+    const { userId, token } = await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(customShellUsers)
         .values({
@@ -317,8 +318,16 @@ const registerFn = createServerFn({ method: "POST" })
         })
         .returning({ id: customShellUsers.id })
 
-      return createAuthToken(user.id, "verify_email", tx)
+      return {
+        userId: user.id,
+        token: await createAuthToken(user.id, "verify_email", tx),
+      }
     })
+
+    // Told here rather than at the first sign-in because this is the only
+    // moment the request that made the account is still in hand, and no
+    // session exists yet to carry it — verification comes first.
+    await notifyAppAuthEvent({ kind: "register", userId })
 
     await sendVerificationEmail(data.email, token)
     return { ok: true }

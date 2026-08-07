@@ -19,7 +19,10 @@ const page = landingPageOverride() ?? pricingLandingPage
 
 export const Route = createFileRoute("/")({
   loader: () => page.loader?.() ?? null,
-  head: () => page.head?.() ?? {},
+  // `head` is handed what the loader returned, so a page whose title depends on
+  // what it just fetched does not have to fetch it a second time. A head that
+  // takes no argument — every one written before this did — is unaffected.
+  head: ({ loaderData }) => page.head?.({ loaderData }) ?? {},
   component: LandingRoute,
 })
 

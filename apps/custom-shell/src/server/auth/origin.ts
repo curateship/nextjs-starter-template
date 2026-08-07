@@ -1,5 +1,7 @@
 import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server"
 
+import { appTrustsOrigin } from "@/server/app-options"
+
 /** The caller's address for rate-limit keys; "unknown" when the proxy hid it. */
 export function requestIp() {
   return getRequestIP({ xForwardedFor: true }) || "unknown"
@@ -11,9 +13,20 @@ export function requireAppOrigin() {
     throw new Error("Invalid origin")
   }
 
-  if (!getAllowedOrigins().has(origin.replace(/\/$/, ""))) {
-    throw new Error("Invalid origin")
+  const asked = origin.replace(/\/$/, "")
+  if (getAllowedOrigins().has(asked)) {
+    return
   }
+
+  // The app gets the last word, and by default says no — so this is the same
+  // check it always was until an app opts in. It exists for an app that serves
+  // more addresses than an environment variable can name; see
+  // `security.isTrustedOrigin` in `src/server/app-options.ts`.
+  if (appTrustsOrigin(asked)) {
+    return
+  }
+
+  throw new Error("Invalid origin")
 }
 
 /**

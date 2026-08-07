@@ -378,6 +378,7 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
               <Area
                 type="linear"
                 dataKey="previous"
+                isAnimationActive={false}
                 stroke="var(--color-previous)"
                 strokeWidth={1.5}
                 strokeOpacity={0.5}
@@ -387,6 +388,7 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
               <Line
                 type="linear"
                 dataKey="current"
+                isAnimationActive={false}
                 stroke="var(--color-current)"
                 strokeWidth={1.5}
                 strokeLinecap="round"
