@@ -39,6 +39,7 @@ import {
 } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { now, uuid } from "@/server/auth/security"
+import { getNotificationPage } from "@/server/notifications/inbox"
 
 let client: PGlite
 let db: CustomShellDb
@@ -333,6 +334,11 @@ describe("approval checkpoints", () => {
     expect(notices[0].type).toBe("automation_approval")
     expect(notices[0].automationRunId).toBe(runId)
     expect(notices[0].automationApprovalState).toBe("pending")
+
+    const page = await getNotificationPage({ currentUser: user, database: db })
+    expect(page.notifications[0]?.automation_approval_summary).toBe(
+      "Sends the changelog email to 42 paying members."
+    )
   })
 
   it("deletes approval notices with their automation", async () => {

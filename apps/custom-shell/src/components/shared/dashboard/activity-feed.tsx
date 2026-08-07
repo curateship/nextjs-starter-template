@@ -145,18 +145,19 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
       link: { to: "/admin/ai" },
     }
   }
-  // A run stopped to ask somebody a question. Like an announcement, the notice
-  // is the message — the words come from the one place that writes them, so the
-  // tray, the notifications table and this feed all say the same thing.
+  // The flow's name makes a clear title. Its checkpoint sentence says what the
+  // approval is for, which is the useful context a generic approval notice lacks.
   if (item.type === "automation_approval") {
     return {
       ...event,
-      who: item.automation_name ?? "An automation",
-      text:
+      who:
+        item.automation_name?.replace(/\s*—\s*/g, " ") ?? "An automation",
+      text: "",
+      detail:
+        item.automation_approval_summary?.trim() ||
         automationApprovalNotificationText[
           item.automation_approval_state ?? "pending"
         ].message,
-      detail: null,
       icon: UserCheckIcon,
       // Straight to the run that is waiting, the way the notifications table
       // opens one. Without both ids there is no run to open, so no link.
@@ -277,7 +278,8 @@ function ActivityEventRow({
           className="w-full truncate text-sm"
           title={`${event.who} ${event.text}`}
         >
-          <span className="font-medium">{event.who}</span> {event.text}
+          <span className="font-medium">{event.who}</span>
+          {event.text ? ` ${event.text}` : null}
         </p>
         {event.detail ? (
           <p
