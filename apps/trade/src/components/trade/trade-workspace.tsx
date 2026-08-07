@@ -259,7 +259,6 @@ export function TradeWorkspace({
       favorites={favorites}
       selectedKey={selectedKey}
       onSelect={onSelectMarket}
-      onToggleFavorite={(key) => void toggleFavorite(key)}
       onRetry={onRetryMarkets}
     />
   )
@@ -270,6 +269,12 @@ export function TradeWorkspace({
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
       <MarketHeader
         selection={selection}
+        // One star, on the market you are looking at, rather than one per row
+        // hiding until hover.
+        favorite={selectedKey !== null && favorites.has(selectedKey)}
+        onToggleFavorite={() => {
+          if (selectedKey) void toggleFavorite(selectedKey)
+        }}
         // The chart's timeframe lives in the header row; it only makes sense
         // once there is a market to chart.
         toolbar={

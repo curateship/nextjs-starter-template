@@ -57,32 +57,3 @@ export async function saveChartView(
       set: { chartView, updatedAt: new Date() },
     })
 }
-
-/** The wallet the account panel was last showing, or null on a first visit. */
-export async function loadLastWalletId(
-  userId: string
-): Promise<string | null> {
-  const row = await db
-    .select({ lastWalletId: tradePrefs.lastWalletId })
-    .from(tradePrefs)
-    .where(eq(tradePrefs.userId, userId))
-    .limit(1)
-  return row[0]?.lastWalletId ?? null
-}
-
-/**
- * Remember it. Null clears the memory, which is what deleting the wallet that
- * was showing does — a memory pointing at nothing is worse than none.
- */
-export async function saveLastWalletId(
-  userId: string,
-  lastWalletId: string | null
-): Promise<void> {
-  await db
-    .insert(tradePrefs)
-    .values({ userId, lastWalletId, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: tradePrefs.userId,
-      set: { lastWalletId, updatedAt: new Date() },
-    })
-}
