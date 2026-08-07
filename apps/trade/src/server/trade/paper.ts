@@ -1,0 +1,1262 @@
+import { randomUUID } from "node:crypto"
+
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
+
+import {
+  parseMarketKey,
+  type CandleBar,
+  type CandleInterval,
+  type NetworkId,
+  type ProtocolId,
+  type WalletAccountFigures,
+} from "@/lib/protocols/contracts"
+import {
+  applyPaperFill,
+  bracketsTie,
+  candleLegs,
+  capReduceOnly,
+  isMarketable,
+  liquidationPx,
+  MAKER_FEE_RATE,
+  nextEventOnLeg,
+  paperAccountFigures,
+  positionMargin,
+  TAKER_FEE_RATE,
+  type PaperFillReason,
+  type PaperJournalEntry,
+  type PaperOrder,
+  type PaperPosition,
+  type PaperSide,
+} from "@/lib/trade/paper"
+import type { TradeWallet } from "@/lib/trade/wallets"
+import { db, type CustomShellDb } from "@/server/db"
+import { getProtocol } from "@/server/protocols/registry"
+import { marketRules } from "@/server/trade/market-rules"
+import {
+  tradePaperJournal,
+  tradePaperOrders,
+  tradePaperPositions,
+  tradePaperState,
+  tradeWallets,
+} from "@/server/trade/schema"
+
+/**
+ * The practice trading engine: what a paper wallet does when price moves.
+ *
+ * Nothing runs in the background. Reading an account settles it first — the
+ * price that happened since the last look is replayed, in order, and anything
+ * it should have triggered is triggered before a single figure is reported.
+ * That is what lets a wallet nobody watched for a day still tell the truth the
+ * moment somebody opens it, and it is why there is no worker to keep alive.
+ *
+ * Settling is in two halves, and they cover different gaps:
+ *
+ * - **The candles**, for time that has properly passed. Each bar is walked as
+ *   a path — see `candleLegs` — and everything the path runs into happens in
+ *   the order it was reached. Only fetched when a bar could have completed.
+ * - **The price right now**, every single time. Any level already on the wrong
+ *   side of it has plainly been passed, so it fires. This needs no history at
+ *   all, which is what makes a four-second poll cheap and still exact.
+ *
+ * Both halves are safe to run twice. A bar only applies to a position or order
+ * that already existed when the bar opened, and a level checked against today's
+ * price either fires now or was never reached — so a settle that runs again
+ * changes nothing, which matters because two browser tabs will do exactly that.
+ *
+ * Failures are thrown as bare codes ("PAPER_MARGIN"); the API layer owns the
+ * sentences, the same split the rest of this app uses.
+ */
+
+/** Practice wallets stay a hand-made thing: enough orders to work, not a fleet. */
+const MAX_OPEN_ORDERS = 50
+
+/** Below this the engine will not open anything — a dust order is a mistake. */
+const MIN_ORDER_VALUE_USD = 0.01
+
+/**
+ * How stale the watermark has to be before candles are worth fetching. Below
+ * one minute not even the finest bar has closed, so the price-right-now half
+ * has already covered every moment of it.
+ */
+const CATCH_UP_AFTER_MS = 60_000
+
+/** How many bars the exchange hands over in one read. */
+const CANDLE_LIMIT = 500
+
+const CATCH_UP_STEPS: { interval: CandleInterval; ms: number }[] = [
+  { interval: "1m", ms: 60_000 },
+  { interval: "5m", ms: 300_000 },
+  { interval: "15m", ms: 900_000 },
+  { interval: "1h", ms: 3_600_000 },
+  { interval: "4h", ms: 14_400_000 },
+  { interval: "1d", ms: 86_400_000 },
+]
+
+/** The finest timeframe that can cover this much time in one read. */
+function catchUpStep(gapMs: number): { interval: CandleInterval; ms: number } {
+  return (
+    CATCH_UP_STEPS.find((step) => gapMs <= step.ms * CANDLE_LIMIT) ??
+    CATCH_UP_STEPS[CATCH_UP_STEPS.length - 1]
+  )
+}
+
+// ----- Rows in, shapes out ----------------------------------------------
+
+type PositionRow = typeof tradePaperPositions.$inferSelect
+type OrderRow = typeof tradePaperOrders.$inferSelect
+type JournalRow = typeof tradePaperJournal.$inferSelect
+
+function toPosition(row: PositionRow): PaperPosition {
+  return {
+    id: row.id,
+    walletId: row.walletId,
+    marketKey: row.marketKey,
+    szi: row.szi,
+    entryPx: row.entryPx,
+    leverage: row.leverage,
+    maxLeverage: row.maxLeverage,
+    tpPx: row.tpPx,
+    slPx: row.slPx,
+    feesPaid: row.feesPaid,
+    updatedAt: row.updatedAt.getTime(),
+  }
+}
+
+function toOrder(row: OrderRow): PaperOrder {
+  return {
+    id: row.id,
+    walletId: row.walletId,
+    marketKey: row.marketKey,
+    side: row.side,
+    px: row.px,
+    sz: row.sz,
+    leverage: row.leverage,
+    maxLeverage: row.maxLeverage,
+    reduceOnly: row.reduceOnly,
+    tpPx: row.tpPx,
+    slPx: row.slPx,
+    createdAt: row.createdAt.getTime(),
+    updatedAt: row.updatedAt.getTime(),
+  }
+}
+
+function toJournalEntry(row: JournalRow): PaperJournalEntry {
+  return {
+    id: row.id,
+    walletId: row.walletId,
+    marketKey: row.marketKey,
+    side: row.side,
+    px: row.px,
+    sz: row.sz,
+    fee: row.fee,
+    closedPnl: row.closedPnl,
+    reason: row.reason,
+    fillTime: row.fillTime.getTime(),
+  }
+}
+
+// ----- The wallet as the engine holds it --------------------------------
+
+/**
+ * One wallet mid-settlement: what it holds, what it has asked for, and what
+ * has changed so far. Everything happens here in memory and is written once at
+ * the end, so a half-applied candle can never reach the database.
+ */
+type WalletBook = {
+  wallet: TradeWallet
+  /** Starting balance plus everything banked — the cash the account has. */
+  cash: number
+  positions: Map<string, PaperPosition>
+  orders: PaperOrder[]
+  /** Fills to record, in the order they happened. */
+  fills: PaperJournalEntry[]
+  /** Markets whose position row must be rewritten or removed. */
+  touchedMarkets: Set<string>
+  /** Orders that filled or were cancelled by the engine. */
+  goneOrderIds: Set<string>
+}
+
+/** Everything written down; nothing left to save. */
+function markSaved(book: WalletBook): void {
+  book.fills = []
+  book.touchedMarkets.clear()
+  book.goneOrderIds.clear()
+}
+
+/** Cash not held as margin by anything open. */
+function freeCash(book: WalletBook): number {
+  let held = 0
+  for (const position of book.positions.values()) {
+    held += positionMargin(position)
+  }
+  return book.cash - held
+}
+
+/**
+ * Puts one fill through the arithmetic and writes the result back into the
+ * book — the single door every fill goes through, whether it came from a
+ * candle, from the price right now, or from somebody pressing Close.
+ */
+function fill(
+  book: WalletBook,
+  input: {
+    marketKey: string
+    side: PaperSide
+    px: number
+    sz: number
+    feeRate: number
+    leverage: number
+    maxLeverage: number
+    reason: PaperFillReason
+    at: number
+    /** Brackets to hand the position this fill opens, if it opens one. */
+    brackets?: { tpPx: number | null; slPx: number | null }
+  }
+): void {
+  const held = book.positions.get(input.marketKey) ?? null
+  const outcome = applyPaperFill(held, {
+    side: input.side,
+    px: input.px,
+    sz: input.sz,
+    feeRate: input.feeRate,
+    leverage: input.leverage,
+    maxLeverage: input.maxLeverage,
+  })
+
+  if (!outcome.position) {
+    book.positions.delete(input.marketKey)
+  } else {
+    const opened =
+      !held || Math.sign(outcome.position.szi) !== Math.sign(held.szi)
+    book.positions.set(input.marketKey, {
+      // One row per market, so a turn-around reuses the slot it turned in.
+      id: held?.id ?? randomUUID(),
+      walletId: book.wallet.id,
+      marketKey: input.marketKey,
+      ...outcome.position,
+      // A fill that opened a position takes the brackets the order carried;
+      // one that added to a position leaves the ones already set alone.
+      tpPx: opened ? (input.brackets?.tpPx ?? null) : outcome.position.tpPx,
+      slPx: opened ? (input.brackets?.slPx ?? null) : outcome.position.slPx,
+      updatedAt: input.at,
+    })
+  }
+
+  book.cash += outcome.closedPnl - outcome.fee
+  book.fills.push({
+    id: randomUUID(),
+    walletId: book.wallet.id,
+    marketKey: input.marketKey,
+    side: input.side,
+    px: input.px,
+    sz: input.sz,
+    fee: outcome.fee,
+    closedPnl: outcome.closedPnl,
+    reason: input.reason,
+    fillTime: input.at,
+  })
+  book.touchedMarkets.add(input.marketKey)
+}
+
+function dropOrder(book: WalletBook, orderId: string): void {
+  book.orders = book.orders.filter((order) => order.id !== orderId)
+  book.goneOrderIds.add(orderId)
+}
+
+/**
+ * A waiting order reaching its price.
+ *
+ * Two things can still stop it. A reduce-only order with nothing left to
+ * reduce is cancelled rather than turned into a new position the other way,
+ * and an opening order the account can no longer afford is cancelled rather
+ * than filled — waiting orders hold no margin aside, so by the time one fills
+ * the cash may be somewhere else.
+ */
+function fillOrder(
+  book: WalletBook,
+  order: PaperOrder,
+  input: { px: number; feeRate: number; at: number }
+): void {
+  const held = book.positions.get(order.marketKey) ?? null
+  let sz = order.sz
+
+  if (order.reduceOnly) {
+    const capped = capReduceOnly(held, order.side, order.sz)
+    if (capped === null || capped <= 0) {
+      dropOrder(book, order.id)
+      return
+    }
+    sz = capped
+  } else if ((input.px * sz) / order.leverage > freeCash(book) + 1e-9) {
+    dropOrder(book, order.id)
+    return
+  }
+
+  fill(book, {
+    marketKey: order.marketKey,
+    side: order.side,
+    px: input.px,
+    sz,
+    feeRate: input.feeRate,
+    leverage: order.leverage,
+    maxLeverage: order.maxLeverage,
+    reason: "order",
+    at: input.at,
+    brackets: { tpPx: order.tpPx, slPx: order.slPx },
+  })
+  dropOrder(book, order.id)
+}
+
+/** Closing the whole of a position at one price. */
+function closeAt(
+  book: WalletBook,
+  position: PaperPosition,
+  input: { px: number; feeRate: number; reason: PaperFillReason; at: number }
+): void {
+  fill(book, {
+    marketKey: position.marketKey,
+    side: position.szi > 0 ? "sell" : "buy",
+    px: input.px,
+    sz: Math.abs(position.szi),
+    feeRate: input.feeRate,
+    leverage: position.leverage,
+    maxLeverage: position.maxLeverage,
+    reason: input.reason,
+    at: input.at,
+  })
+}
+
+// ----- Replaying one market ---------------------------------------------
+
+/** The worse of two prices for whoever holds this position. */
+function worseOf(szi: number, a: number, b: number): number {
+  return szi > 0 ? Math.min(a, b) : Math.max(a, b)
+}
+
+/**
+ * The levels today's price has plainly already gone past, nearest to the entry
+ * first — the order price would have met them coming away from the trade.
+ *
+ * A stop set inside the liquidation price is reached first and takes the
+ * trade; a stop set beyond it never gets the chance, because the position was
+ * already gone. Reading them in this order is what tells those two apart.
+ */
+function passedLevels(
+  position: PaperPosition,
+  mark: number
+): { reason: PaperFillReason; px: number }[] {
+  const long = position.szi > 0
+  const through = (level: number) => (long ? mark <= level : mark >= level)
+  const levels: { reason: PaperFillReason; px: number }[] = []
+
+  const liq = liquidationPx(position)
+  if (liq !== null && through(liq)) levels.push({ reason: "liquidated", px: liq })
+  if (position.slPx !== null && through(position.slPx)) {
+    levels.push({ reason: "stop_loss", px: position.slPx })
+  }
+  if (position.tpPx !== null && (long ? mark >= position.tpPx : mark <= position.tpPx)) {
+    levels.push({ reason: "take_profit", px: position.tpPx })
+  }
+
+  return levels.sort((a, b) =>
+    Math.abs(a.px - position.entryPx) - Math.abs(b.px - position.entryPx)
+  )
+}
+
+/**
+ * Walks the candles of one market, then checks the price right now. Everything
+ * that should have happened to this wallet in this market happens here.
+ */
+function settleMarket(
+  book: WalletBook,
+  marketKey: string,
+  input: { bars: CandleBar[]; barMs: number; mark: number | null; now: number }
+): void {
+  for (const bar of input.bars) {
+    const barOpen = bar.openTime
+    // Anything created after the bar opened is left out of it: part of that
+    // bar happened before the order existed, and filling on price that
+    // predates an order would be an invention. It gets the next bar, and the
+    // price right now, which is where it would have been caught anyway.
+    const settled = (updatedAt: number) => updatedAt <= barOpen
+    // A fill inside a bar is stamped at the bar's close: it happened somewhere
+    // in there, and the close is the only moment it had definitely happened by.
+    const at = barOpen + input.barMs
+
+    for (const leg of candleLegs(bar)) {
+      let reached = leg.from
+      // Every pass either fills an order or closes the position, and both are
+      // finite. The cap is a backstop, not a rule.
+      for (let step = 0; step < MAX_OPEN_ORDERS + 2; step += 1) {
+        const held = book.positions.get(marketKey) ?? null
+        const eligibleHeld = held && settled(held.updatedAt) ? held : null
+        const eligibleOrders = book.orders.filter(
+          (order) => order.marketKey === marketKey && settled(order.updatedAt)
+        )
+        const event = nextEventOnLeg({
+          leg,
+          at: reached,
+          position: eligibleHeld,
+          orders: eligibleOrders,
+          ignoreTakeProfit: bracketsTie(bar, eligibleHeld),
+        })
+        if (!event) break
+
+        if (event.kind === "order") {
+          const order = eligibleOrders.find((one) => one.id === event.orderId)
+          if (order) {
+            fillOrder(book, order, { px: event.px, feeRate: MAKER_FEE_RATE, at })
+          }
+        } else if (eligibleHeld) {
+          closeAt(book, eligibleHeld, {
+            px: event.px,
+            // A target is a limit sitting at your price; a stop and a
+            // liquidation are market orders that take what is there.
+            feeRate:
+              event.kind === "take_profit" ? MAKER_FEE_RATE : TAKER_FEE_RATE,
+            reason: event.kind,
+            at,
+          })
+        }
+        reached = event.px
+      }
+    }
+  }
+
+  const mark = input.mark
+  if (mark === null || !(mark > 0)) return
+
+  for (let step = 0; step < MAX_OPEN_ORDERS + 2; step += 1) {
+    const waiting = book.orders.find(
+      (order) =>
+        order.marketKey === marketKey && isMarketable(order.side, order.px, mark)
+    )
+    if (waiting) {
+      // Filled at the price it asked for rather than today's better one: it
+      // was sitting there as price went past, so that is where it was taken.
+      fillOrder(book, waiting, {
+        px: waiting.px,
+        feeRate: MAKER_FEE_RATE,
+        at: input.now,
+      })
+      continue
+    }
+
+    const held = book.positions.get(marketKey) ?? null
+    if (!held) break
+    const level = passedLevels(held, mark)[0]
+    if (!level) break
+
+    closeAt(book, held, {
+      // A target is a limit at your price, and running past it does not pay
+      // more. A stop and a liquidation are market orders, so a price that has
+      // gapped past fills where the market actually is — the cost of the gap.
+      px:
+        level.reason === "take_profit"
+          ? level.px
+          : worseOf(held.szi, level.px, mark),
+      feeRate:
+        level.reason === "take_profit" ? MAKER_FEE_RATE : TAKER_FEE_RATE,
+      reason: level.reason,
+      at: input.now,
+    })
+  }
+}
+
+// ----- Loading, settling, saving ----------------------------------------
+
+/**
+ * Everything this wallet has banked: profit less fees, over every fill it has
+ * ever had. Added up in the database rather than read out row by row, because
+ * this runs on every poll and a year of practice is a lot of rows.
+ */
+async function realizedTotal(
+  database: CustomShellDb,
+  userId: string,
+  walletId: string
+): Promise<number> {
+  const rows = await database
+    .select({
+      total: sql<string>`coalesce(sum(${tradePaperJournal.closedPnl} - ${tradePaperJournal.fee}), 0)`,
+    })
+    .from(tradePaperJournal)
+    .where(
+      and(
+        eq(tradePaperJournal.userId, userId),
+        eq(tradePaperJournal.walletId, walletId)
+      )
+    )
+  return Number(rows[0]?.total ?? 0)
+}
+
+async function readBook(
+  database: CustomShellDb,
+  userId: string,
+  wallet: TradeWallet
+): Promise<WalletBook> {
+  const [positions, orders, banked] = await Promise.all([
+    database
+      .select()
+      .from(tradePaperPositions)
+      .where(
+        and(
+          eq(tradePaperPositions.userId, userId),
+          eq(tradePaperPositions.walletId, wallet.id)
+        )
+      ),
+    database
+      .select()
+      .from(tradePaperOrders)
+      .where(
+        and(
+          eq(tradePaperOrders.userId, userId),
+          eq(tradePaperOrders.walletId, wallet.id)
+        )
+      ),
+    realizedTotal(database, userId, wallet.id),
+  ])
+
+  return {
+    wallet,
+    cash: wallet.startingBalance + banked,
+    positions: new Map(positions.map((row) => [row.marketKey, toPosition(row)])),
+    orders: orders.map(toOrder),
+    fills: [],
+    touchedMarkets: new Set(),
+    goneOrderIds: new Set(),
+  }
+}
+
+/**
+ * Writes back only what moved. `settledTo` is left null on a poll that changed
+ * nothing and had no catching up to do — the watermark is only there to say
+ * how far back the candles must be read from, and rewriting it every four
+ * seconds would be a write per poll for no gain.
+ */
+async function saveBook(
+  database: CustomShellDb,
+  userId: string,
+  book: WalletBook,
+  settledTo: Date | null
+): Promise<void> {
+  if (book.goneOrderIds.size > 0) {
+    await database
+      .delete(tradePaperOrders)
+      .where(
+        and(
+          eq(tradePaperOrders.userId, userId),
+          inArray(tradePaperOrders.id, [...book.goneOrderIds])
+        )
+      )
+  }
+
+  for (const marketKey of book.touchedMarkets) {
+    const position = book.positions.get(marketKey)
+    if (!position) {
+      await database
+        .delete(tradePaperPositions)
+        .where(
+          and(
+            eq(tradePaperPositions.userId, userId),
+            eq(tradePaperPositions.walletId, book.wallet.id),
+            eq(tradePaperPositions.marketKey, marketKey)
+          )
+        )
+      continue
+    }
+    const values = {
+      szi: position.szi,
+      entryPx: position.entryPx,
+      leverage: position.leverage,
+      maxLeverage: position.maxLeverage,
+      tpPx: position.tpPx,
+      slPx: position.slPx,
+      feesPaid: position.feesPaid,
+      updatedAt: new Date(position.updatedAt),
+    }
+    await database
+      .insert(tradePaperPositions)
+      .values({
+        userId,
+        id: position.id,
+        walletId: book.wallet.id,
+        marketKey,
+        ...values,
+      })
+      .onConflictDoUpdate({
+        target: [
+          tradePaperPositions.userId,
+          tradePaperPositions.walletId,
+          tradePaperPositions.marketKey,
+        ],
+        set: values,
+      })
+  }
+
+  if (book.fills.length > 0) {
+    await database.insert(tradePaperJournal).values(
+      book.fills.map((entry) => ({
+        userId,
+        id: entry.id,
+        walletId: book.wallet.id,
+        marketKey: entry.marketKey,
+        side: entry.side,
+        px: entry.px,
+        sz: entry.sz,
+        fee: entry.fee,
+        closedPnl: entry.closedPnl,
+        reason: entry.reason,
+        fillTime: new Date(entry.fillTime),
+      }))
+    )
+  }
+
+  if (settledTo) {
+    await database
+      .insert(tradePaperState)
+      .values({ userId, walletId: book.wallet.id, settledTo })
+      .onConflictDoUpdate({
+        target: [tradePaperState.userId, tradePaperState.walletId],
+        set: { settledTo },
+      })
+  }
+  markSaved(book)
+}
+
+/**
+ * The markets these wallets have anything riding on. Two small reads rather
+ * than loading every position and order, because this runs before the exchange
+ * is asked anything and only needs the names.
+ */
+async function exposedMarketKeys(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<string[]> {
+  if (walletIds.length === 0) return []
+  const [positions, orders] = await Promise.all([
+    db
+      .selectDistinct({ marketKey: tradePaperPositions.marketKey })
+      .from(tradePaperPositions)
+      .where(
+        and(
+          eq(tradePaperPositions.userId, userId),
+          inArray(tradePaperPositions.walletId, [...walletIds])
+        )
+      ),
+    db
+      .selectDistinct({ marketKey: tradePaperOrders.marketKey })
+      .from(tradePaperOrders)
+      .where(
+        and(
+          eq(tradePaperOrders.userId, userId),
+          inArray(tradePaperOrders.walletId, [...walletIds])
+        )
+      ),
+  ])
+  return [
+    ...new Set([...positions, ...orders].map((row) => row.marketKey)),
+  ]
+}
+
+/**
+ * Today's price for a mixed list of markets, whichever exchange each belongs
+ * to. The key carries its own protocol and network, so the venues to ask fall
+ * out of the keys themselves and each is asked exactly once.
+ */
+async function marksForKeys(
+  marketKeys: readonly string[]
+): Promise<Map<string, number>> {
+  const venues = new Map<
+    string,
+    { protocol: ProtocolId; network: NetworkId; keys: string[] }
+  >()
+  for (const key of marketKeys) {
+    const ref = parseMarketKey(key)
+    if (!ref) continue
+    const venueKey = `${ref.protocol}:${ref.network}`
+    const venue = venues.get(venueKey) ?? {
+      protocol: ref.protocol,
+      network: ref.network,
+      keys: [],
+    }
+    venue.keys.push(key)
+    venues.set(venueKey, venue)
+  }
+
+  const marks = new Map<string, number>()
+  await Promise.all(
+    [...venues.values()].map(async (venue) => {
+      const answered = await marksFor(venue.protocol, venue.network, venue.keys)
+      for (const [key, price] of answered) marks.set(key, price)
+    })
+  )
+  return marks
+}
+
+async function marksFor(
+  protocol: ProtocolId,
+  network: NetworkId,
+  marketKeys: readonly string[]
+): Promise<Map<string, number>> {
+  const ids = new Map<string, string>()
+  for (const key of marketKeys) {
+    const ref = parseMarketKey(key)
+    if (ref) ids.set(ref.marketId, key)
+  }
+  if (ids.size === 0) return new Map()
+
+  const prices = await getProtocol(protocol)
+    .markets.prices(network, [...ids.keys()])
+    .catch(() => new Map<string, number>())
+
+  const marks = new Map<string, number>()
+  for (const [marketId, price] of prices) {
+    const key = ids.get(marketId)
+    if (key) marks.set(key, price)
+  }
+  return marks
+}
+
+async function loadBars(
+  wallet: TradeWallet,
+  marketKey: string,
+  interval: CandleInterval,
+  since: number
+): Promise<CandleBar[]> {
+  const ref = parseMarketKey(marketKey)
+  if (!ref) return []
+  return await getProtocol(wallet.protocol)
+    .markets.candles(wallet.network, ref.marketId, interval, since)
+    .then((candles) => candles.filter((bar) => bar.openTime >= since))
+    .catch(() => [])
+}
+
+/**
+ * Brings one wallet up to date and hands back its book, already saved.
+ *
+ * The exchange is asked before the transaction opens, never inside it: holding
+ * a row locked across a network call would leave every other tab waiting on
+ * Hyperliquid. The rows are then read again inside, so nothing is decided from
+ * a copy that went stale while the prices were on their way.
+ */
+async function settleWallet(
+  userId: string,
+  wallet: TradeWallet,
+  shared?: { marks: ReadonlyMap<string, number> }
+): Promise<WalletBook> {
+  const markets = await exposedMarketKeys(userId, [wallet.id])
+  const now = Date.now()
+
+  const stateRows = await db
+    .select()
+    .from(tradePaperState)
+    .where(
+      and(
+        eq(tradePaperState.userId, userId),
+        eq(tradePaperState.walletId, wallet.id)
+      )
+    )
+    .limit(1)
+  const settledTo = stateRows[0]?.settledTo.getTime() ?? now
+  const gap = now - settledTo
+  const catchingUp = markets.length > 0 && gap >= CATCH_UP_AFTER_MS
+
+  const marks =
+    markets.length === 0
+      ? new Map<string, number>()
+      : (shared ?? {
+          marks: await marksFor(wallet.protocol, wallet.network, markets),
+        }).marks
+
+  // Candles only when a bar could actually have closed since the last look.
+  // Below that the price-right-now half has covered every moment already, and
+  // asking would be one call per market per poll for nothing.
+  const step = catchUpStep(gap)
+  const bars = new Map<string, CandleBar[]>()
+  if (catchingUp) {
+    await Promise.all(
+      markets.map(async (key) => {
+        bars.set(key, await loadBars(wallet, key, step.interval, settledTo))
+      })
+    )
+  }
+
+  return await db.transaction(async (tx) => {
+    // Two tabs polling at once would otherwise both replay the same candle and
+    // fill the same order twice. Whoever arrives second waits here, re-reads,
+    // and finds the work already done.
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .for("update")
+
+    const book = await readBook(tx, userId, wallet)
+    for (const key of new Set([
+      ...book.positions.keys(),
+      ...book.orders.map((order) => order.marketKey),
+    ])) {
+      settleMarket(book, key, {
+        bars: bars.get(key) ?? [],
+        barMs: step.ms,
+        mark: marks.get(key) ?? null,
+        now,
+      })
+    }
+    const moved = book.fills.length > 0 || book.goneOrderIds.size > 0
+    await saveBook(tx, userId, book, catchingUp || moved ? new Date(now) : null)
+    return book
+  })
+}
+
+// ----- What the screens ask for -----------------------------------------
+
+export type PaperAccount = {
+  positions: PaperPosition[]
+  orders: PaperOrder[]
+  journal: PaperJournalEntry[]
+}
+
+/** How much history the Journal tab carries: plenty to review, not a dump. */
+const JOURNAL_PAGE = 200
+
+/**
+ * Everything the trading screens draw, across every practice wallet at once —
+ * settled first, so the answer is current rather than merely stored.
+ *
+ * Deliberately not scoped to whichever wallet is active. Which wallet an order
+ * goes to is a choice you make when you place it; what you are holding
+ * afterwards is something you need to see all of, whichever wallet it is in.
+ * Every row carries its own wallet, and every action takes that wallet with it.
+ *
+ * The exchange is asked once for every market all the wallets are in together,
+ * rather than once per wallet.
+ */
+export async function loadPaperPortfolio(
+  userId: string,
+  wallets: readonly TradeWallet[]
+): Promise<PaperAccount> {
+  const paper = wallets.filter((wallet) => wallet.kind === "paper")
+  if (paper.length === 0) return { positions: [], orders: [], journal: [] }
+
+  const keys = await exposedMarketKeys(
+    userId,
+    paper.map((wallet) => wallet.id)
+  )
+  const marks = await marksForKeys(keys)
+
+  const positions: PaperPosition[] = []
+  const orders: PaperOrder[] = []
+  for (const wallet of paper) {
+    const book = await settleWallet(userId, wallet, { marks })
+    positions.push(...book.positions.values())
+    orders.push(...book.orders)
+  }
+
+  const journal = await db
+    .select()
+    .from(tradePaperJournal)
+    .where(
+      and(
+        eq(tradePaperJournal.userId, userId),
+        inArray(
+          tradePaperJournal.walletId,
+          paper.map((wallet) => wallet.id)
+        )
+      )
+    )
+    .orderBy(desc(tradePaperJournal.fillTime))
+    .limit(JOURNAL_PAGE)
+
+  return {
+    positions: positions.sort((a, b) => a.marketKey.localeCompare(b.marketKey)),
+    orders: orders.sort((a, b) => a.createdAt - b.createdAt),
+    journal: journal.map(toJournalEntry),
+  }
+}
+
+/**
+ * The five account rows for every paper wallet at once — what the account
+ * panel polls.
+ *
+ * Every wallet is settled, and the exchange is asked once for all of their
+ * markets together rather than once per wallet.
+ */
+export async function paperWalletFigures(
+  userId: string,
+  wallets: readonly TradeWallet[]
+): Promise<Map<string, WalletAccountFigures>> {
+  const figures = new Map<string, WalletAccountFigures>()
+  if (wallets.length === 0) return figures
+
+  const keys = await exposedMarketKeys(
+    userId,
+    wallets.map((wallet) => wallet.id)
+  )
+  const marks = await marksForKeys(keys)
+
+  for (const wallet of wallets) {
+    const book = await settleWallet(userId, wallet, { marks })
+    figures.set(
+      wallet.id,
+      paperAccountFigures({
+        startingBalance: wallet.startingBalance,
+        realized: book.cash - wallet.startingBalance,
+        positions: [...book.positions.values()],
+        marks,
+      })
+    )
+  }
+  return figures
+}
+
+// ----- Doing something ---------------------------------------------------
+
+/** The one price every action prices itself against. */
+async function markOf(wallet: TradeWallet, marketKey: string): Promise<number> {
+  const marks = await marksFor(wallet.protocol, wallet.network, [marketKey])
+  const mark = marks.get(marketKey)
+  if (mark === undefined || !(mark > 0)) throw new Error("PAPER_NO_PRICE")
+  return mark
+}
+
+/** Sizes go only as fine as the market allows, and never round up into more risk. */
+function roundSize(sz: number, sizeDecimals: number | null): number {
+  if (!Number.isFinite(sz) || sz <= 0) return 0
+  const factor = 10 ** Math.max(0, sizeDecimals ?? 0)
+  return Math.floor(sz * factor) / factor
+}
+
+export async function placePaperOrder(
+  userId: string,
+  wallet: TradeWallet,
+  input: {
+    marketKey: string
+    side: PaperSide
+    px: number
+    sz: number
+    leverage: number
+    reduceOnly: boolean
+    tpPx: number | null
+    slPx: number | null
+  }
+): Promise<void> {
+  const ref = parseMarketKey(input.marketKey)
+  if (!ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network) {
+    throw new Error("PAPER_MARKET")
+  }
+  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  if (!rules) throw new Error("PAPER_MARKET")
+
+  const maxLeverage = rules.maxLeverage ?? 1
+  if (input.leverage < 1 || input.leverage > maxLeverage) {
+    throw new Error("PAPER_LEVERAGE")
+  }
+
+  const protocol = getProtocol(wallet.protocol)
+  const px = protocol.markets.roundPx(input.px, rules.sizeDecimals)
+  const sz = roundSize(input.sz, rules.sizeDecimals)
+  if (!(px > 0)) throw new Error("PAPER_PRICE")
+  if (!(sz > 0) || px * sz < MIN_ORDER_VALUE_USD) throw new Error("PAPER_SIZE")
+
+  const mark = await markOf(wallet, input.marketKey)
+  const book = await settleWallet(userId, wallet)
+
+  if (book.orders.length >= MAX_OPEN_ORDERS) throw new Error("PAPER_ORDER_LIMIT")
+
+  const taken = isMarketable(input.side, px, mark)
+  // A price already through the market is not going to wait for anything, so
+  // it is taken now — at the market's price, never at the worse one asked for.
+  // Which means the price this order opens at is not always the price it asked
+  // for. Everything below is judged against the price it will really get: a
+  // sell placed under the market fills above the price asked for, so checking
+  // the margin against that price would let a trade through that the account
+  // cannot actually afford.
+  const entryPx = taken ? mark : px
+  const long = input.side === "buy"
+
+  const held = book.positions.get(input.marketKey) ?? null
+  const reducible = input.reduceOnly
+    ? capReduceOnly(held, input.side, sz)
+    : null
+  if (input.reduceOnly && (reducible === null || reducible <= 0)) {
+    throw new Error("PAPER_REDUCE_ONLY")
+  }
+  if (!input.reduceOnly && (entryPx * sz) / input.leverage > freeCash(book)) {
+    throw new Error("PAPER_MARGIN")
+  }
+  // Brackets belong to a position this order opens; one that only reduces
+  // never opens anything, so they could not apply and are dropped at the door.
+  const tpPx = input.reduceOnly
+    ? null
+    : input.tpPx === null
+      ? null
+      : protocol.markets.roundPx(input.tpPx, rules.sizeDecimals)
+  const slPx = input.reduceOnly
+    ? null
+    : input.slPx === null
+      ? null
+      : protocol.markets.roundPx(input.slPx, rules.sizeDecimals)
+
+  if (tpPx !== null && (long ? tpPx <= entryPx : tpPx >= entryPx)) {
+    throw new Error("PAPER_TAKE_PROFIT_SIDE")
+  }
+  if (slPx !== null && (long ? slPx >= entryPx : slPx <= entryPx)) {
+    throw new Error("PAPER_STOP_SIDE")
+  }
+
+  const now = Date.now()
+  if (taken) {
+    fill(book, {
+      marketKey: input.marketKey,
+      side: input.side,
+      px: mark,
+      sz: reducible ?? sz,
+      feeRate: TAKER_FEE_RATE,
+      leverage: input.leverage,
+      maxLeverage,
+      reason: "order",
+      at: now,
+      brackets: { tpPx, slPx },
+    })
+    await db.transaction((tx) => saveBook(tx, userId, book, new Date(now)))
+    return
+  }
+
+  await db.insert(tradePaperOrders).values({
+    userId,
+    id: randomUUID(),
+    walletId: wallet.id,
+    marketKey: input.marketKey,
+    side: input.side,
+    px,
+    sz,
+    leverage: input.leverage,
+    maxLeverage,
+    reduceOnly: input.reduceOnly,
+    tpPx,
+    slPx,
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  })
+}
+
+/**
+ * Dragging a waiting order to a new price. Dragged through the market it stops
+ * waiting and is taken there and then, which is exactly what the exchange
+ * would do with it.
+ */
+export async function movePaperOrder(
+  userId: string,
+  wallet: TradeWallet,
+  input: { orderId: string; px: number }
+): Promise<void> {
+  const book = await settleWallet(userId, wallet)
+  const order = book.orders.find((one) => one.id === input.orderId)
+  if (!order) throw new Error("PAPER_ORDER_NOT_FOUND")
+
+  const ref = parseMarketKey(order.marketKey)
+  if (!ref) throw new Error("PAPER_MARKET")
+  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  const px = getProtocol(wallet.protocol).markets.roundPx(
+    input.px,
+    rules?.sizeDecimals ?? null
+  )
+  if (!(px > 0)) throw new Error("PAPER_PRICE")
+
+  const mark = await markOf(wallet, order.marketKey)
+  const now = Date.now()
+
+  if (isMarketable(order.side, px, mark)) {
+    fillOrder(book, order, { px: mark, feeRate: TAKER_FEE_RATE, at: now })
+    await db.transaction((tx) => saveBook(tx, userId, book, new Date(now)))
+    return
+  }
+
+  await db
+    .update(tradePaperOrders)
+    .set({ px, updatedAt: new Date(now) })
+    .where(
+      and(
+        eq(tradePaperOrders.userId, userId),
+        eq(tradePaperOrders.walletId, wallet.id),
+        eq(tradePaperOrders.id, input.orderId)
+      )
+    )
+}
+
+export async function cancelPaperOrder(
+  userId: string,
+  walletId: string,
+  orderId: string
+): Promise<void> {
+  const removed = await db
+    .delete(tradePaperOrders)
+    .where(
+      and(
+        eq(tradePaperOrders.userId, userId),
+        eq(tradePaperOrders.walletId, walletId),
+        eq(tradePaperOrders.id, orderId)
+      )
+    )
+    .returning({ id: tradePaperOrders.id })
+  if (removed.length === 0) throw new Error("PAPER_ORDER_NOT_FOUND")
+}
+
+/**
+ * Setting or clearing a position's target and stop.
+ *
+ * Both are checked against the direction of the trade: a stop above a long is
+ * not a stop, it is a target written down wrong, and taking it would close the
+ * trade the instant it was set.
+ */
+export async function setPaperBrackets(
+  userId: string,
+  wallet: TradeWallet,
+  input: { marketKey: string; tpPx: number | null; slPx: number | null }
+): Promise<void> {
+  const book = await settleWallet(userId, wallet)
+  const held = book.positions.get(input.marketKey)
+  if (!held) throw new Error("PAPER_POSITION_NOT_FOUND")
+
+  const ref = parseMarketKey(input.marketKey)
+  const rules = ref
+    ? await marketRules(wallet.protocol, wallet.network, ref.marketId)
+    : null
+  const round = (px: number | null) =>
+    px === null
+      ? null
+      : getProtocol(wallet.protocol).markets.roundPx(
+          px,
+          rules?.sizeDecimals ?? null
+        )
+
+  const tpPx = round(input.tpPx)
+  const slPx = round(input.slPx)
+  const long = held.szi > 0
+
+  if (
+    tpPx !== null &&
+    (!(tpPx > 0) || (long ? tpPx <= held.entryPx : tpPx >= held.entryPx))
+  ) {
+    throw new Error("PAPER_TAKE_PROFIT_SIDE")
+  }
+  if (
+    slPx !== null &&
+    (!(slPx > 0) || (long ? slPx >= held.entryPx : slPx <= held.entryPx))
+  ) {
+    throw new Error("PAPER_STOP_SIDE")
+  }
+
+  await db
+    .update(tradePaperPositions)
+    .set({ tpPx, slPx, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tradePaperPositions.userId, userId),
+        eq(tradePaperPositions.walletId, wallet.id),
+        eq(tradePaperPositions.marketKey, input.marketKey)
+      )
+    )
+}
+
+export async function closePaperPosition(
+  userId: string,
+  wallet: TradeWallet,
+  marketKey: string
+): Promise<void> {
+  const mark = await markOf(wallet, marketKey)
+  const book = await settleWallet(userId, wallet)
+  const held = book.positions.get(marketKey)
+  if (!held) throw new Error("PAPER_POSITION_NOT_FOUND")
+
+  const now = Date.now()
+  closeAt(book, held, {
+    px: mark,
+    feeRate: TAKER_FEE_RATE,
+    reason: "manual",
+    at: now,
+  })
+  await db.transaction((tx) => saveBook(tx, userId, book, new Date(now)))
+}
+
+/**
+ * Turning a position around: out of this one and into the same size the other
+ * way, in one go. One fill of twice the size does exactly that — the
+ * arithmetic banks the old trade and opens the new one at the same price.
+ */
+export async function flipPaperPosition(
+  userId: string,
+  wallet: TradeWallet,
+  marketKey: string
+): Promise<void> {
+  const mark = await markOf(wallet, marketKey)
+  const book = await settleWallet(userId, wallet)
+  const held = book.positions.get(marketKey)
+  if (!held) throw new Error("PAPER_POSITION_NOT_FOUND")
+
+  const size = Math.abs(held.szi)
+  // The new half needs its own margin, and the old half's is only given back
+  // as it closes — so the test is against what the turn actually costs.
+  if ((mark * size) / held.leverage > freeCash(book) + positionMargin(held)) {
+    throw new Error("PAPER_MARGIN")
+  }
+
+  const now = Date.now()
+  fill(book, {
+    marketKey,
+    side: held.szi > 0 ? "sell" : "buy",
+    px: mark,
+    sz: size * 2,
+    feeRate: TAKER_FEE_RATE,
+    leverage: held.leverage,
+    maxLeverage: held.maxLeverage,
+    reason: "manual",
+    at: now,
+  })
+  await db.transaction((tx) => saveBook(tx, userId, book, new Date(now)))
+}
+
+/**
+ * Everything closed at once, at whatever each market costs right now — across
+ * every practice wallet, because that is what the table it sits above shows.
+ */
+export async function closeAllPaperPositions(
+  userId: string,
+  wallets: readonly TradeWallet[]
+): Promise<{ closed: number }> {
+  const paper = wallets.filter((wallet) => wallet.kind === "paper")
+  const keys = await exposedMarketKeys(
+    userId,
+    paper.map((wallet) => wallet.id)
+  )
+  const marks = await marksForKeys(keys)
+  const now = Date.now()
+  let closed = 0
+
+  for (const wallet of paper) {
+    const book = await settleWallet(userId, wallet, { marks })
+    const held = [...book.positions.values()]
+    if (held.length === 0) continue
+
+    let touched = 0
+    for (const position of held) {
+      const mark = marks.get(position.marketKey)
+      // A market the exchange would not price is left alone rather than closed
+      // at a made-up number; the count says how many actually went.
+      if (mark === undefined || !(mark > 0)) continue
+      closeAt(book, position, {
+        px: mark,
+        feeRate: TAKER_FEE_RATE,
+        reason: "manual",
+        at: now,
+      })
+      touched += 1
+    }
+    if (touched > 0) {
+      await db.transaction((tx) => saveBook(tx, userId, book, new Date(now)))
+      closed += touched
+    }
+  }
+  return { closed }
+}
