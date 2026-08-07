@@ -98,7 +98,7 @@ App-specific docs live in each app's `workspace/docs/` folder.
 
 App-specific tasks live in each app's `workspace/tasks/` folder.
 
-Every app must include `workspace/docs/ui-rules.md` and route UI work to it from its app-level `AGENTS.md`. Keep the shared UI rules identical across apps; app-specific UI documents may add stricter rules without weakening the shared conventions.
+The single UI standard lives in `.agents/skills/Ui-standards/SKILL.md`. Every app routes UI work to that skill from its app-level `AGENTS.md`; do not create app-local copies that can drift. An app-specific UX document may describe its product without restating or weakening the shared conventions.
 
 ## Working Rules
 
