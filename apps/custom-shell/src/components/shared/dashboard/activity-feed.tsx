@@ -5,14 +5,11 @@ import {
   MegaphoneIcon,
   PencilLineIcon,
   UserCheckIcon,
-  XIcon,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import { EmptyRow } from "@/components/shared/feed-card"
-import { titleLink } from "@/lib/nav/title-link"
-import { focusRing } from "@/lib/layout/focus-ring"
+import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   type NotificationItem,
@@ -26,10 +23,8 @@ import {
 import {
   emptyActivityText,
   keepShownActivity,
-  type ActivityFilter,
-  type ActivityRange,
+  type ActivityView,
 } from "@/lib/dashboard/activity-filter"
-import type { UrgentItem } from "@/lib/dashboard/urgent-items"
 import {
   dayRangeText,
   daysBetween,
@@ -39,13 +34,10 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Everything the app has to say on one feed: the things waiting on somebody at
- * the top under "Urgent", then every notice it has sent, newest first, grouped
- * into days.
+ * Every notification the app has sent, newest first, grouped into days.
  *
- * It is a feed rather than a card: the card, its heading and its two controls
- * belong to `ActivityCard`, which owns them because the same two controls also
- * decide what this draws.
+ * It is a feed rather than a card: the card, its heading and its tabs belong
+ * to `ActivityCard`, which owns the view that decides what this draws.
  */
 
 // ---------------------------------------------------------------------------
@@ -59,14 +51,14 @@ type ActivityEvent = {
   text: string
   /** A muted second line, when there is something to quote. */
   detail: string | null
-  /** What kind of notice it is, which is what the dropdown filters on. */
+  /** What kind of notice it is. */
   type: NotificationType
   /** That kind in words, in a chip while it is unopened. */
   kind: string
   /**
    * Where the thing it happened to lives, so the line can open it. The same
-   * shape an urgent row uses, because an approval opens a run inside its
-   * flow's editor and needs a path piece and a search value, not just an id.
+   * flexible shape is needed because an approval opens a run inside its flow's
+   * editor and needs a path piece and a search value, not just an id.
    */
   link: {
     to: string
@@ -150,6 +142,7 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
           ? "passed 80% of their monthly AI allowance"
           : "used up their monthly AI allowance",
       icon: GaugeIcon,
+      link: { to: "/admin/ai" },
     }
   }
   // A run stopped to ask somebody a question. Like an announcement, the notice
@@ -257,100 +250,82 @@ function countUnread(events: ActivityEvent[]) {
   return events.filter((event) => !event.read).length
 }
 
-// ---------------------------------------------------------------------------
-// The urgent rows.
-
 /**
- * One thing waiting on somebody: what it is, where the fix is, and a way to
- * wave it off.
- *
- * The X only appears on hover, so a row that is nothing but a nuisance can be
- * put away without a second control sitting on every line forever. It appears
- * on keyboard focus too — hover is not a thing a keyboard can do, and this is
- * the row's only action besides opening it.
+ * One notification. A real destination makes the entire row a link so its
+ * main sentence, preview, label and time all lead to the same place. Rows
+ * without enough information to open something remain plain content.
  */
-function UrgentRow({
-  item,
-  first,
-  onDismiss,
+function ActivityEventRow({
+  event,
+  groupIndex,
 }: {
-  item: UrgentItem
-  /** The one to do first, which is the only one that carries the colour. */
-  first: boolean
-  onDismiss: (item: UrgentItem) => void
+  event: ActivityEvent
+  groupIndex: number
 }) {
-  return (
-    <div className="group flex items-center gap-3 px-4 py-3 sm:px-5">
+  const content = (
+    <>
       <span
         className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground",
-          first &&
-            "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300"
+          "mt-3.5 size-2 shrink-0 rounded-full",
+          event.read ? "bg-transparent" : "bg-red-500 dark:bg-red-400"
         )}
         aria-hidden
-      >
-        <item.icon className="size-4" />
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col items-start">
-        <Link
-          to={item.to}
-          params={item.params}
-          search={item.search}
-          hash={item.hash}
-          className={cn(titleLink, "max-w-full text-sm font-medium")}
-          title={item.title}
-        >
-          {item.title}
-        </Link>
+      />
+      <ActivityAvatar event={event} />
+      <div className="flex min-w-0 flex-1 flex-col items-start pt-1">
         <p
-          className="w-full truncate text-xs text-muted-foreground"
-          title={item.detail}
+          className="w-full truncate text-sm"
+          title={`${event.who} ${event.text}`}
         >
-          {item.detail}
+          <span className="font-medium">{event.who}</span> {event.text}
         </p>
-      </div>
-      {/* Where a notice puts its time, so the two kinds of row line up. A row
-          the app records no date for says that outright rather than leaving a
-          gap that reads as "just now". */}
-      <span
-        className="shrink-0 text-xs text-muted-foreground tabular-nums"
-        title={
-          item.since
-            ? `Since ${formatDate(item.since)}`
-            : "Nothing in the app records when this started"
-        }
-      >
-        {item.since ? formatDate(item.since) : "No date"}
-      </span>
-      <div className="flex shrink-0 items-center gap-1">
-        <Button asChild variant={first ? "default" : "outline"}>
-          <Link
-            to={item.to}
-            params={item.params}
-            search={item.search}
-            hash={item.hash}
+        {event.detail ? (
+          <p
+            className="w-full truncate text-sm text-muted-foreground"
+            title={event.detail}
           >
-            {item.action}
-          </Link>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          // Hidden until the row is hovered, so a control nobody needs most of
-          // the time is not sitting on every line. Shown on keyboard focus,
-          // which is the only way in without a pointer — and shown outright on
-          // a narrow screen, where there is no hover at all and an invisible
-          // button that still takes taps would be worse than a visible one.
-          className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-sm:opacity-100"
-          onClick={() => onDismiss(item)}
-          title="Put this away"
-          aria-label={`Put away: ${item.title}`}
-        >
-          <XIcon className="size-4" />
-        </Button>
+            {event.detail}
+          </p>
+        ) : null}
       </div>
-    </div>
+      <div className="flex shrink-0 items-center gap-3 pt-1">
+        <span
+          className={cn(
+            "text-xs",
+            event.read
+              ? "text-muted-foreground"
+              : "rounded-md bg-muted px-2 py-0.5 text-foreground/80"
+          )}
+        >
+          {event.kind}
+        </span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {groupIndex < 2
+            ? formatClockTime(event.createdAt)
+            : formatDate(event.createdAt)}
+        </span>
+      </div>
+    </>
+  )
+
+  const className = cn(
+    "flex items-start gap-3 px-4 py-3 sm:px-5",
+    event.link &&
+      "cursor-pointer transition-colors hover:bg-muted/50",
+    event.link && focusRingInset
+  )
+
+  return event.link ? (
+    <Link
+      to={event.link.to}
+      params={event.link.params}
+      search={event.link.search}
+      className={className}
+    >
+      {content}
+    </Link>
+  ) : (
+    <div className={className}>{content}</div>
   )
 }
 
@@ -361,28 +336,17 @@ function UrgentRow({
  * The feed with no card or header around it, plus the strip along the bottom
  * holding the link to the full table.
  *
- * Both controls are handed in rather than owned here, because the card's
- * heading reads from them too.
+ * The view is handed in rather than owned here because the card's heading owns
+ * its tabs.
  */
 export function ActivityFeed({
-  urgent,
   items,
-  filter,
-  range,
-  onDismissUrgent,
+  view,
   footerTo = "/admin/notifications",
   footerLabel = "View all notifications",
 }: {
-  /**
-   * The things waiting on somebody, already settled by the card: dismissed
-   * ones dropped, the day tabs applied, and empty outright where the dropdown
-   * asked for one kind of notice. This draws what it is handed.
-   */
-  urgent: UrgentItem[]
   items: NotificationItem[]
-  filter: ActivityFilter
-  range: ActivityRange
-  onDismissUrgent: (item: UrgentItem) => void
+  view: ActivityView
   footerTo?: string | null
   footerLabel?: string
 }) {
@@ -391,7 +355,7 @@ export function ActivityFeed({
   // One `now` for the whole render, so a row cannot land in one bucket and be
   // counted in another.
   const today = new Date()
-  const shown = keepShownActivity(events, filter, range, today)
+  const shown = keepShownActivity(events, view, today)
 
   // The heading a group carries, the days it covers, and how much of it is
   // still unopened — grouped in the order the events already came in.
@@ -409,28 +373,12 @@ export function ActivityFeed({
         className="min-h-0 flex-1"
         // `[&>div]:block!` because Radix wraps what it is given in a
         // `display: table` box, which sizes to its widest line rather than to
-        // the card. One long urgent detail then stretches every row and pushes
-        // the buttons out past the card's edge, where they are clipped.
+        // the card. One long detail then stretches every row and pushes the
+        // buttons out past the card's edge, where they are clipped.
         viewportClassName="[&>div]:block!"
       >
-        {urgent.length || groups.length ? (
+        {groups.length ? (
           <div className="flex flex-col divide-y">
-            {urgent.length ? (
-              <div className="flex flex-col divide-y">
-                <GroupHeading
-                  title="Urgent"
-                  detail={`${urgent.length} waiting on you`}
-                />
-                {urgent.map((item, index) => (
-                  <UrgentRow
-                    key={item.id}
-                    item={item}
-                    first={index === 0}
-                    onDismiss={onDismissUrgent}
-                  />
-                ))}
-              </div>
-            ) : null}
             {groups.map((group, groupIndex) => (
               <div
                 key={`${group.index}-${groupIndex}`}
@@ -445,74 +393,17 @@ export function ActivityFeed({
                   unread={countUnread(group.events)}
                 />
                 {group.events.map((event) => (
-                  <div
+                  <ActivityEventRow
                     key={event.id}
-                    className="flex items-start gap-3 px-4 py-3 sm:px-5"
-                  >
-                    <span
-                      className={cn(
-                        "mt-3.5 size-2 shrink-0 rounded-full",
-                        event.read
-                          ? "bg-transparent"
-                          : "bg-red-500 dark:bg-red-400"
-                      )}
-                      aria-hidden
-                    />
-                    <ActivityAvatar event={event} />
-                    <div className="flex min-w-0 flex-1 flex-col items-start pt-1">
-                      <p
-                        className="w-full truncate text-sm"
-                        title={`${event.who} ${event.text}`}
-                      >
-                        <span className="font-medium">{event.who}</span>{" "}
-                        {event.text}
-                      </p>
-                      {event.detail && event.link ? (
-                        <Link
-                          to={event.link.to}
-                          params={event.link.params}
-                          search={event.link.search}
-                          className={cn(
-                            titleLink,
-                            "max-w-full text-sm text-muted-foreground"
-                          )}
-                          title={event.detail}
-                        >
-                          {event.detail}
-                        </Link>
-                      ) : event.detail ? (
-                        <p
-                          className="w-full truncate text-sm text-muted-foreground"
-                          title={event.detail}
-                        >
-                          {event.detail}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3 pt-1">
-                      <span
-                        className={cn(
-                          "text-xs",
-                          event.read
-                            ? "text-muted-foreground"
-                            : "rounded-md bg-muted px-2 py-0.5 text-foreground/80"
-                        )}
-                      >
-                        {event.kind}
-                      </span>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {group.index < 2
-                          ? formatClockTime(event.createdAt)
-                          : formatDate(event.createdAt)}
-                      </span>
-                    </div>
-                  </div>
+                    event={event}
+                    groupIndex={group.index}
+                  />
                 ))}
               </div>
             ))}
           </div>
         ) : (
-          <EmptyRow>{emptyActivityText(filter, range)}</EmptyRow>
+          <EmptyRow>{emptyActivityText(view)}</EmptyRow>
         )}
       </ScrollArea>
 
