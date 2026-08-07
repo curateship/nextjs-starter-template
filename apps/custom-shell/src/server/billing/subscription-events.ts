@@ -2,8 +2,10 @@ import { desc, eq } from "drizzle-orm"
 
 import {
   SUBSCRIPTION_EVENT_LIMIT,
+  subscriptionEventSource,
   type SubscriptionEvent,
   type SubscriptionEventKind,
+  type SubscriptionEventSource,
 } from "@/lib/billing/subscription-events"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -32,6 +34,8 @@ export type SubscriptionSnapshot = {
   source: string
   cancelAtPeriodEnd: boolean
   currentPeriodEnd: Date | null
+  /** When the plan was put on hold, and null when it is running. */
+  pausedAt: Date | null
 }
 
 /** Statuses that mean the plan is over rather than merely unwell. */
@@ -96,6 +100,17 @@ export function deriveSubscriptionEvent(
     return { kind: "subscribed", planName: plan, detail: null }
   }
 
+  // Put on hold or taken off hold, whether that happened here or in the Stripe
+  // dashboard. Compared as yes-or-no rather than by date: a webhook that
+  // arrives while a plan is already paused must not read as a second pause.
+  if (Boolean(after.pausedAt) !== Boolean(before.pausedAt)) {
+    return {
+      kind: after.pausedAt ? "paused" : "resumed",
+      planName: plan ?? before.planName,
+      detail: null,
+    }
+  }
+
   if (after.planId && before.planId && after.planId !== before.planId) {
     return { kind: "plan_changed", planName: plan, detail: before.planName }
   }
@@ -133,7 +148,12 @@ export function deriveSubscriptionEvent(
 export function snapshotOf(
   subscription: Pick<
     CustomShellSubscription,
-    "planId" | "status" | "source" | "cancelAtPeriodEnd" | "currentPeriodEnd"
+    | "planId"
+    | "status"
+    | "source"
+    | "cancelAtPeriodEnd"
+    | "currentPeriodEnd"
+    | "pausedAt"
   >,
   planName: string | null
 ): SubscriptionSnapshot {
@@ -144,6 +164,7 @@ export function snapshotOf(
     source: subscription.source,
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
     currentPeriodEnd: subscription.currentPeriodEnd,
+    pausedAt: subscription.pausedAt,
   }
 }
 
@@ -166,7 +187,7 @@ export async function recordSubscriptionEvent(
     kind: SubscriptionEventKind
     planName?: string | null
     detail?: string | null
-    source: "stripe" | "admin"
+    source: SubscriptionEventSource
     stripeEventId?: string | null
   },
   at: Date = now()
@@ -203,7 +224,7 @@ export async function listSubscriptionEvents(
     kind: row.kind,
     planName: row.planName,
     detail: row.detail,
-    source: row.source === "admin" ? "admin" : "stripe",
+    source: subscriptionEventSource(row.source),
     createdAt: row.createdAt.toISOString(),
   }))
 }

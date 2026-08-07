@@ -26,6 +26,7 @@ import {
   applyStripeEvent,
   cancelSubscriptionByAdmin,
   findExpiringCard,
+  setSubscriptionPaused,
   trialDaysFor,
 } from "@/server/billing/stripe"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
@@ -38,6 +39,7 @@ import {
   loadEntitlements,
   resolveEntitlements,
   subscriptionIsActive,
+  subscriptionIsLive,
 } from "@/server/billing/entitlements"
 import {
   archivePlan,
@@ -557,6 +559,7 @@ describe("entitlements", () => {
       source: "stripe",
       currentPeriodEnd: new Date("2026-09-01"),
       cancelAtPeriodEnd: false,
+      pausedAt: null,
       trialEndsAt: null,
       createdAt: new Date("2026-07-01"),
       updatedAt: new Date("2026-07-01"),
@@ -601,6 +604,33 @@ describe("entitlements", () => {
     expect(entitlements.isPaid).toBe(true)
     expect(entitlements.cancelAtPeriodEnd).toBe(true)
     expect(hasFeature(entitlements, "priority")).toBe(true)
+  })
+
+  it("gives a paused plan nothing, while still calling it a live subscription", () => {
+    const paused = subscription({ pausedAt: new Date("2026-07-20") })
+
+    // The two questions the app asks, and the whole point of pausing is that
+    // they now answer differently.
+    expect(subscriptionIsActive(paused, inPeriod)).toBe(false)
+    expect(subscriptionIsLive(paused, inPeriod)).toBe(true)
+
+    const entitlements = resolveEntitlements(paused, paidPlan, freePlan, inPeriod)
+    expect(entitlements.isPaid).toBe(false)
+    expect(entitlements.planSlug).toBe("free")
+    expect(hasFeature(entitlements, "priority")).toBe(false)
+    // Free everywhere it counts, but the screens can still name what is waiting.
+    expect(entitlements.paused).toBe(true)
+    expect(entitlements.pausedPlanName).toBe("Pro")
+    expect(entitlements.source).toBe("stripe")
+  })
+
+  it("stops calling it paused once the period it was paused in has run out", () => {
+    const paused = subscription({ pausedAt: new Date("2026-07-20") })
+    const lapsed = new Date("2026-10-01")
+
+    const entitlements = resolveEntitlements(paused, paidPlan, freePlan, lapsed)
+    expect(entitlements.paused).toBe(false)
+    expect(entitlements.pausedPlanName).toBeNull()
   })
 
   it("treats a granted plan with no end date as open ended", () => {
@@ -952,6 +982,165 @@ describe("admin cancels subscriptions", () => {
   })
 })
 
+describe("pausing a membership", () => {
+  /** What Stripe answers after a pause or a resume call. */
+  function pauseAnswer(paused: boolean, overrides: Record<string, unknown> = {}) {
+    return {
+      id: "sub_cancel",
+      status: "active",
+      cancel_at_period_end: false,
+      pause_collection: paused ? { behavior: "void", resumes_at: null } : null,
+      items: { data: [{ current_period_end: periodEndSeconds }] },
+      ...overrides,
+    } as never
+  }
+
+  const neverCallsStripe = {
+    pause: () => {
+      throw new Error("stripe was called")
+    },
+    resume: () => {
+      throw new Error("stripe was called")
+    },
+  }
+
+  /** Stripe answering as it really would, for the direction being asked for. */
+  const answersHonestly = {
+    pause: async () => pauseAnswer(true),
+    resume: async () => pauseAnswer(false),
+  }
+
+  async function pausedRow(userId: string) {
+    const [row] = await database
+      .select()
+      .from(customShellSubscriptions)
+      .where(eq(customShellSubscriptions.userId, userId))
+    return row
+  }
+
+  it("stops the billing and drops them to the free plan", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+
+    const result = await setSubscriptionPaused(
+      user.id,
+      true,
+      "member",
+      database,
+      answersHonestly
+    )
+    expect(result).toEqual({ paused: true, planName: "Pro" })
+    expect((await pausedRow(user.id)).pausedAt).not.toBeNull()
+
+    const { entitlements } = await loadEntitlements(user.id, database)
+    expect(entitlements.isPaid).toBe(false)
+    expect(entitlements.planSlug).toBe("free")
+    expect(entitlements.paused).toBe(true)
+    expect(entitlements.pausedPlanName).toBe("Pro")
+
+    const [event] = await listSubscriptionEvents(user.id, database)
+    expect(event.kind).toBe("paused")
+    expect(event.source).toBe("member")
+    expect(describeSubscriptionEvent(event)).toBe(
+      "Paused Pro. Billing stopped and access dropped to the free plan."
+    )
+  })
+
+  it("gives the plan back when it is started again", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+    await setSubscriptionPaused(user.id, true, "member", database, answersHonestly)
+
+    await setSubscriptionPaused(user.id, false, "admin", database, answersHonestly)
+
+    expect((await pausedRow(user.id)).pausedAt).toBeNull()
+    const { entitlements } = await loadEntitlements(user.id, database)
+    expect(entitlements.isPaid).toBe(true)
+    expect(entitlements.paused).toBe(false)
+
+    const [latest] = await listSubscriptionEvents(user.id, database)
+    expect(latest.kind).toBe("resumed")
+    // An admin doing it on somebody's behalf reads differently from the member
+    // doing it themselves, which is the whole reason the source is recorded.
+    expect(describeSubscriptionEvent(latest)).toBe(
+      "An admin restarted Pro. Billing runs again."
+    )
+  })
+
+  it("refuses to pause twice, or to start something that never stopped", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+
+    await expect(
+      setSubscriptionPaused(user.id, false, "member", database, neverCallsStripe)
+    ).rejects.toThrow("NOT_PAUSED")
+
+    await setSubscriptionPaused(user.id, true, "member", database, answersHonestly)
+    await expect(
+      setSubscriptionPaused(user.id, true, "member", database, neverCallsStripe)
+    ).rejects.toThrow("ALREADY_PAUSED")
+  })
+
+  it("refuses a granted plan, a trial, and a plan already on its way out", async () => {
+    const granted = await createUser()
+    const plan = await getPlanBySlug("pro", database)
+    await grantManualPlan(granted.id, plan!.id, null, database)
+    await expect(
+      setSubscriptionPaused(granted.id, true, "admin", database, neverCallsStripe)
+    ).rejects.toThrow("CANNOT_PAUSE_GRANT")
+
+    const trialing = await createUser()
+    await seedStripeSubscription(trialing.id, {
+      status: "trialing",
+      stripeSubscriptionId: "sub_trialing",
+    })
+    await expect(
+      setSubscriptionPaused(trialing.id, true, "member", database, neverCallsStripe)
+    ).rejects.toThrow("CANNOT_PAUSE_TRIAL")
+
+    const ending = await createUser()
+    await seedStripeSubscription(ending.id, {
+      cancelAtPeriodEnd: true,
+      stripeSubscriptionId: "sub_ending",
+    })
+    await expect(
+      setSubscriptionPaused(ending.id, true, "member", database, neverCallsStripe)
+    ).rejects.toThrow("ALREADY_ENDING")
+  })
+
+  it("says so when there is no plan to pause at all", async () => {
+    const user = await createUser()
+
+    await expect(
+      setSubscriptionPaused(user.id, true, "member", database, neverCallsStripe)
+    ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
+
+    // One that already ran out is nothing to pause either.
+    await seedStripeSubscription(user.id, { status: "canceled" })
+    await expect(
+      setSubscriptionPaused(user.id, true, "member", database, neverCallsStripe)
+    ).rejects.toThrow("SUBSCRIPTION_NOT_FOUND")
+  })
+
+  it("can still be cancelled while it is paused", async () => {
+    const user = await createUser()
+    await seedStripeSubscription(user.id)
+    await setSubscriptionPaused(user.id, true, "member", database, answersHonestly)
+
+    // Paused buys nothing, so an admin asking to cancel it must not be told
+    // there is nothing there — Stripe still holds the subscription.
+    const result = await cancelSubscriptionByAdmin(user.id, "immediate", database, {
+      cancelNow: async () =>
+        stripeAnswer({ status: "canceled", cancel_at_period_end: false }),
+      stopRenewal: () => {
+        throw new Error("stripe was called")
+      },
+    })
+
+    expect(result.mode).toBe("immediate")
+  })
+})
+
 describe("billing history", () => {
   /** A Stripe subscription event, shaped like the real payloads. */
   function event(
@@ -1044,6 +1233,60 @@ describe("billing history", () => {
       "trial_converted",
       "trial_started",
     ])
+  })
+
+  it("follows a pause made in Stripe, and records it exactly once", async () => {
+    const user = await createUser()
+    await applyStripeEvent(
+      event(user.id, { type: "customer.subscription.created" }),
+      database
+    )
+
+    // Somebody pausing it from the Stripe dashboard rather than from the app.
+    await applyStripeEvent(
+      event(user.id, {
+        id: "evt_2",
+        pause_collection: { behavior: "void", resumes_at: null },
+      }),
+      database
+    )
+
+    const { entitlements } = await loadEntitlements(user.id, database)
+    expect(entitlements.isPaid).toBe(false)
+    expect(entitlements.paused).toBe(true)
+
+    const [row] = await database
+      .select()
+      .from(customShellSubscriptions)
+      .where(eq(customShellSubscriptions.userId, user.id))
+    const pausedOn = row.pausedAt
+
+    // Another delivery saying the same thing: no second history line, and the
+    // date it was paused on does not creep forward to today.
+    await applyStripeEvent(
+      event(user.id, {
+        id: "evt_3",
+        pause_collection: { behavior: "void", resumes_at: null },
+      }),
+      database
+    )
+
+    const history = await historyOf(user.id)
+    expect(history.map((line) => line.kind)).toEqual(["paused", "subscribed"])
+    expect(history[0].source).toBe("stripe")
+
+    const [after] = await database
+      .select()
+      .from(customShellSubscriptions)
+      .where(eq(customShellSubscriptions.userId, user.id))
+    expect(after.pausedAt?.toISOString()).toBe(pausedOn?.toISOString())
+
+    // And taking it off hold in Stripe brings the plan back here too.
+    await applyStripeEvent(event(user.id, { id: "evt_4" }), database)
+    expect((await loadEntitlements(user.id, database)).entitlements.isPaid).toBe(
+      true
+    )
+    expect((await historyOf(user.id))[0].kind).toBe("resumed")
   })
 
   it("names both plans when someone switches", async () => {
@@ -1208,6 +1451,7 @@ describe("card expiring before renewal", () => {
       stripeSubscriptionId: "sub_card",
       currentPeriodEnd: RENEWS_ON,
       cancelAtPeriodEnd: false,
+      pausedAt: null,
       ...overrides,
     }
   }

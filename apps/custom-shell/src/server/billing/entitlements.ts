@@ -24,6 +24,10 @@ export type Entitlements = {
   cancelAtPeriodEnd: boolean
   trialEndsAt: Date | null
   source: "stripe" | "manual" | null
+  /** True while the plan is on hold: nothing is billed and nothing is unlocked. */
+  paused: boolean
+  /** The plan waiting behind a pause, so a screen can name what comes back. */
+  pausedPlanName: string | null
   features: PlanFeatures
 }
 
@@ -38,20 +42,28 @@ const NO_PLAN: Entitlements = {
   cancelAtPeriodEnd: false,
   trialEndsAt: null,
   source: null,
+  paused: false,
+  pausedPlanName: null,
   features: {},
 }
 
+/** The two things every rule below asks about a stored subscription. */
+type SubscriptionStanding = Pick<
+  CustomShellSubscription,
+  "status" | "currentPeriodEnd" | "pausedAt"
+>
+
 /**
- * A subscription only counts while its status is live *and* the paid period has
- * not lapsed, so a webhook we never received cannot leave someone on Pro
- * forever. Manual (admin-granted) plans use the same rule, with no end date
- * meaning no expiry.
+ * A subscription Stripe still has on its books: its status is live *and* the
+ * paid period has not lapsed, so a webhook we never received cannot leave
+ * someone on Pro forever. Manual (admin-granted) plans use the same rule, with
+ * no end date meaning no expiry.
+ *
+ * A paused plan is still one of these — it is on hold, not over — which is what
+ * lets it be cancelled, resumed, or cleaned up when the account is deleted.
  */
-export function subscriptionIsActive(
-  subscription: Pick<
-    CustomShellSubscription,
-    "status" | "currentPeriodEnd"
-  > | null,
+export function subscriptionIsLive(
+  subscription: Pick<SubscriptionStanding, "status" | "currentPeriodEnd"> | null,
   timestamp = new Date()
 ) {
   if (!subscription || !ACTIVE_STATUSES.has(subscription.status)) {
@@ -60,6 +72,23 @@ export function subscriptionIsActive(
 
   return (
     !subscription.currentPeriodEnd || subscription.currentPeriodEnd > timestamp
+  )
+}
+
+/**
+ * A subscription that actually buys something right now: live, and not paused.
+ *
+ * This is the question every gate asks — entitlements, the plan badge, the
+ * revenue figures, who counts as a member. Pausing is the one way to be a
+ * subscriber and be entitled to nothing, and this is the single line that
+ * makes that true everywhere at once.
+ */
+export function subscriptionIsActive(
+  subscription: SubscriptionStanding | null,
+  timestamp = new Date()
+) {
+  return (
+    subscriptionIsLive(subscription, timestamp) && !subscription?.pausedAt
   )
 }
 
@@ -77,7 +106,11 @@ export function activeSubscriptionCondition(timestamp: Date): SQL {
     isNull(customShellSubscriptions.currentPeriodEnd),
     gt(customShellSubscriptions.currentPeriodEnd, timestamp)
   )
-  return and(live, notLapsed) as SQL
+  return and(
+    live,
+    notLapsed,
+    isNull(customShellSubscriptions.pausedAt)
+  ) as SQL
 }
 
 export function resolveEntitlements(
@@ -101,21 +134,45 @@ export function resolveEntitlements(
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       trialEndsAt: subscription.trialEndsAt,
       source: subscription.source === "manual" ? "manual" : "stripe",
+      paused: false,
+      pausedPlanName: null,
       features: paidPlan.features ?? {},
     }
   }
 
-  if (!defaultPlan) {
-    return NO_PLAN
+  // Everything from here down is the free plan, because a plan on hold unlocks
+  // exactly as much as no plan at all.
+  const free: Entitlements = defaultPlan
+    ? {
+        ...NO_PLAN,
+        planId: defaultPlan.id,
+        planSlug: defaultPlan.slug,
+        planName: defaultPlan.name,
+        features: defaultPlan.features ?? {},
+      }
+    : NO_PLAN
+
+  // A plan on hold is still not the same as no plan: Stripe has it, it comes
+  // back the moment somebody presses resume, and a screen that cannot say so
+  // can only tell people they are on the free plan for no reason they can see.
+  // So the free identity above stands, and the subscription's own facts ride
+  // beside it. A pause that outlived its own period is over rather than on
+  // hold, which is why the live rule is asked as well as the column.
+  if (subscription?.pausedAt && subscriptionIsLive(subscription, timestamp)) {
+    return {
+      ...free,
+      status: subscription.status,
+      interval: subscription.interval === "yearly" ? "yearly" : "monthly",
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      trialEndsAt: subscription.trialEndsAt,
+      source: subscription.source === "manual" ? "manual" : "stripe",
+      paused: true,
+      pausedPlanName: paidPlan?.name ?? null,
+    }
   }
 
-  return {
-    ...NO_PLAN,
-    planId: defaultPlan.id,
-    planSlug: defaultPlan.slug,
-    planName: defaultPlan.name,
-    features: defaultPlan.features ?? {},
-  }
+  return free
 }
 
 export async function findSubscription(

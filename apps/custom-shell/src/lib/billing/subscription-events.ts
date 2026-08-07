@@ -24,11 +24,33 @@ export const SUBSCRIPTION_EVENT_KINDS = [
   "cancel_scheduled",
   "cancel_stopped",
   "canceled",
+  "paused",
+  "resumed",
   "plan_granted",
   "grant_removed",
 ] as const
 
 export type SubscriptionEventKind = (typeof SUBSCRIPTION_EVENT_KINDS)[number]
+
+/**
+ * Who caused it: a Stripe webhook, an admin in the back office, or the member
+ * themselves. The third exists because pausing is the first thing a member can
+ * do to their own plan from inside the app, and "an admin paused this" would be
+ * a lie on their own timeline.
+ */
+export const SUBSCRIPTION_EVENT_SOURCES = ["stripe", "admin", "member"] as const
+
+export type SubscriptionEventSource =
+  (typeof SUBSCRIPTION_EVENT_SOURCES)[number]
+
+/**
+ * A stored source word, read back as one of the three. Anything else — a row
+ * written by a version that knew a word this one does not — reads as Stripe,
+ * which is the one that claims nothing about who did it.
+ */
+export function subscriptionEventSource(value: string): SubscriptionEventSource {
+  return SUBSCRIPTION_EVENT_SOURCES.find((source) => source === value) ?? "stripe"
+}
 
 export type SubscriptionEvent = {
   id: string
@@ -37,7 +59,7 @@ export type SubscriptionEvent = {
   planName: string | null
   /** Meaning depends on the kind — see `describeSubscriptionEvent`. */
   detail: string | null
-  source: "stripe" | "admin"
+  source: SubscriptionEventSource
   createdAt: string
 }
 
@@ -62,7 +84,7 @@ export function describeSubscriptionEvent(event: {
   kind: string
   planName: string | null
   detail: string | null
-  source: "stripe" | "admin"
+  source: SubscriptionEventSource
 }) {
   const plan = event.planName ?? "their plan"
   const byAdmin = event.source === "admin"
@@ -90,6 +112,10 @@ export function describeSubscriptionEvent(event: {
       return `The cancellation was called off — ${plan} renews again.`
     case "canceled":
       return byAdmin ? `An admin ended ${plan}.` : `${plan} ended.`
+    case "paused":
+      return `${byAdmin ? "An admin paused" : "Paused"} ${plan}. Billing stopped and access dropped to the free plan.`
+    case "resumed":
+      return `${byAdmin ? "An admin restarted" : "Restarted"} ${plan}. Billing runs again.`
     case "plan_granted":
       return event.detail
         ? `An admin granted ${plan} until ${formatDate(event.detail)}.`

@@ -1,12 +1,16 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { createErrorMessage } from "../error-message"
+
 import {
   billingEnabled,
   createCheckoutSession,
   createPortalSession,
   findExpiringCard,
   listCustomerInvoices,
+  requireBilling,
+  setSubscriptionPaused,
   type BillingInvoice,
   type CardExpiryWarning,
 } from "@/server/billing/stripe"
@@ -43,6 +47,10 @@ export type BillingOverview = {
   cancelAtPeriodEnd: boolean
   trialEndsAt: string | null
   source: "stripe" | "manual" | null
+  /** True while billing is on hold and the account is back on the free plan. */
+  paused: boolean
+  /** The plan waiting behind that pause, so the page can name it. */
+  pausedPlanName: string | null
   hasStripeCustomer: boolean
   /**
    * True once this account has had its one free trial. The plan cards read it
@@ -54,7 +62,7 @@ export type BillingOverview = {
   plans: PlanOption[]
 }
 
-const billingErrorMessages: Record<string, string> = {
+const billingErrorMessages = {
   BILLING_DISABLED: "Payments are turned off right now.",
   BILLING_NOT_CONFIGURED: "Payments are not configured yet.",
   PLAN_NOT_FOUND: "That plan is no longer available.",
@@ -62,21 +70,28 @@ const billingErrorMessages: Record<string, string> = {
   PLAN_PRICE_MISSING: "That billing period is not available for this plan.",
   CHECKOUT_FAILED: "Stripe could not start the checkout. Please try again.",
   SUBSCRIPTION_NOT_FOUND: "There is no subscription to manage yet.",
+  ALREADY_PAUSED: "Your plan is already paused.",
+  NOT_PAUSED: "Your plan is not paused.",
+  CANNOT_PAUSE_GRANT:
+    "This plan was granted by an admin and is not billed, so there is nothing to pause.",
+  CANNOT_PAUSE_TRIAL:
+    "You are on a free trial, so nothing is being billed yet. There is nothing to pause.",
+  ALREADY_ENDING:
+    "Your plan is already set to end when the period you paid for runs out.",
   AUTH_REQUIRED: "Please sign in again.",
   RATE_LIMITED:
     "Too many checkout attempts. Please wait a few minutes and try again.",
 }
 
-export function getBillingErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : ""
-  const matched = Object.keys(billingErrorMessages).find((code) =>
-    message.includes(code)
-  )
-
-  return matched
-    ? billingErrorMessages[matched]
-    : "We could not complete that request. Please try again."
-}
+/**
+ * Built with the shared helper rather than by hand, so it takes a bare code as
+ * readily as a thrown error — which is what lets a screen work out a refusal
+ * itself and still say it in exactly the words the server would have used.
+ */
+export const getBillingErrorMessage = createErrorMessage(
+  billingErrorMessages,
+  "We could not complete that request. Please try again."
+)
 
 /**
  * The overview, plus the subscription row it was built from — the billing page
@@ -102,6 +117,8 @@ async function buildBillingOverview(
     cancelAtPeriodEnd: entitlements.cancelAtPeriodEnd,
     trialEndsAt: entitlements.trialEndsAt?.toISOString() ?? null,
     source: entitlements.source,
+    paused: entitlements.paused,
+    pausedPlanName: entitlements.pausedPlanName,
     hasStripeCustomer: Boolean(subscription?.stripeCustomerId),
     trialUsed: Boolean(user.firstTrialAt),
     features: entitlements.features,
@@ -173,6 +190,22 @@ const openBillingPortalFn = createServerFn({ method: "POST" })
   })
 
 /**
+ * Putting your own plan on hold, and taking it off hold again.
+ *
+ * One door for both directions, and the caller says which — so there is no way
+ * to reach one of them without the other's rules having been checked. The
+ * account is always the signed-in one; nothing about whose plan it is comes
+ * from the browser.
+ */
+const setOwnPauseFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ paused: z.boolean() }))
+  .handler(async ({ data, context }) => {
+    requireBilling()
+    return setSubscriptionPaused(context.user.id, data.paused, "member")
+  })
+
+/**
  * Billing page data in one request: the overview, any Stripe invoices, and a
  * warning when the saved card runs out before the next renewal.
  */
@@ -216,6 +249,10 @@ export function loadPublicPricing() {
 
 export function openBillingPortal() {
   return openBillingPortalFn()
+}
+
+export function setOwnPlanPaused(paused: boolean) {
+  return setOwnPauseFn({ data: { paused } })
 }
 
 /**

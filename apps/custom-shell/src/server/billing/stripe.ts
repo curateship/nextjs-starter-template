@@ -13,7 +13,11 @@ import {
   type AutomationTriggerEvent,
 } from "@/server/automations/triggers"
 import { db, type CustomShellDb } from "@/server/db"
-import { findSubscription, subscriptionIsActive } from "@/server/billing/entitlements"
+import {
+  findSubscription,
+  subscriptionIsActive,
+  subscriptionIsLive,
+} from "@/server/billing/entitlements"
 import {
   findPlanByStripePrice,
   getPlan,
@@ -233,6 +237,7 @@ type SubscriptionForCard = Pick<
   | "stripeSubscriptionId"
   | "currentPeriodEnd"
   | "cancelAtPeriodEnd"
+  | "pausedAt"
 >
 
 /**
@@ -243,10 +248,11 @@ type SubscriptionForCard = Pick<
  * compares the card's own last day against the renewal date.
  *
  * Silent in every case where a warning would be wrong: a plan already set to
- * end has no renewal to fail, a plan an admin granted is not charged to a card
- * at all, and a card that outlives the renewal is somebody else's problem next
- * cycle. Stripe refusing to answer is silent too — a warning that could not be
- * worked out is not worth taking the billing page down for.
+ * end has no renewal to fail, a paused plan is not being charged at all, a plan
+ * an admin granted is not charged to a card either, and a card that outlives
+ * the renewal is somebody else's problem next cycle. Stripe refusing to answer
+ * is silent too — a warning that could not be worked out is not worth taking
+ * the billing page down for.
  */
 export async function findExpiringCard(
   subscription: SubscriptionForCard,
@@ -360,7 +366,9 @@ export async function cancelSubscriptionByAdmin(
   api: CancelApi = stripeCancelApi
 ) {
   const subscription = await findSubscription(userId, database)
-  if (!subscription || !subscriptionIsActive(subscription)) {
+  // Live, not merely entitled: a paused plan buys nothing but Stripe still has
+  // it, so it is exactly the thing an admin needs to be able to cancel.
+  if (!subscription || !subscriptionIsLive(subscription)) {
     throw new Error("SUBSCRIPTION_NOT_FOUND")
   }
 
@@ -455,7 +463,9 @@ export async function cancelSubscriptionsForDeletion(
     .where(inArray(customShellSubscriptions.userId, userIds))
 
   for (const subscription of subscriptions) {
-    if (!subscriptionIsActive(subscription)) {
+    // Paused counts here too: Stripe still holds the subscription, and leaving
+    // one behind on a deleted account is exactly what this exists to prevent.
+    if (!subscriptionIsLive(subscription)) {
       continue
     }
 
@@ -472,6 +482,112 @@ export async function cancelSubscriptionsForDeletion(
       throw new Error("SUBSCRIPTION_CANCEL_FAILED", { cause: error })
     }
   }
+}
+
+/** Who asked for a pause or a resume, for the line it leaves in the history. */
+export type PauseActor = "member" | "admin"
+
+/** The two Stripe calls a pause can make, injectable so tests need no Stripe. */
+export type PauseApi = {
+  pause: (subscriptionId: string) => Promise<Stripe.Subscription>
+  resume: (subscriptionId: string) => Promise<Stripe.Subscription>
+}
+
+const stripePauseApi: PauseApi = {
+  // "void" is what makes this a pause rather than a debt: invoices raised while
+  // it is paused are cancelled outright, so nobody comes back to a stack of
+  // bills for months they did not use.
+  pause: async (subscriptionId) =>
+    (await stripe()).subscriptions.update(subscriptionId, {
+      pause_collection: { behavior: "void" },
+    }),
+  resume: async (subscriptionId) =>
+    (await stripe()).subscriptions.update(subscriptionId, {
+      pause_collection: null,
+    }),
+}
+
+/**
+ * Puts a paid plan on hold, or takes it off hold again.
+ *
+ * Pausing stops Stripe billing and drops the account to the free plan; nothing
+ * already paid for is refunded. Resuming starts billing again from that moment.
+ * The same function does both directions so the rules about what can be paused
+ * are written once and cannot drift apart.
+ *
+ * Four things are refused, each with its own reason so the screen can say
+ * which: a plan an admin granted is not billed by anyone, a trial is not being
+ * charged yet, a plan already set to end has no future billing to stop, and
+ * pausing twice (or resuming something that is running) is asking for something
+ * that has already happened.
+ */
+export async function setSubscriptionPaused(
+  userId: string,
+  paused: boolean,
+  actor: PauseActor,
+  database: CustomShellDb = db,
+  api: PauseApi = stripePauseApi
+) {
+  const subscription = await findSubscription(userId, database)
+  if (!subscription || !subscriptionIsLive(subscription)) {
+    throw new Error("SUBSCRIPTION_NOT_FOUND")
+  }
+  if (Boolean(subscription.pausedAt) === paused) {
+    throw new Error(paused ? "ALREADY_PAUSED" : "NOT_PAUSED")
+  }
+  if (subscription.source === "manual") {
+    throw new Error("CANNOT_PAUSE_GRANT")
+  }
+  if (paused && subscription.status === "trialing") {
+    throw new Error("CANNOT_PAUSE_TRIAL")
+  }
+  if (paused && subscription.cancelAtPeriodEnd) {
+    throw new Error("ALREADY_ENDING")
+  }
+  if (!subscription.stripeSubscriptionId) {
+    throw new Error("SUBSCRIPTION_NOT_FOUND")
+  }
+
+  const planName = subscription.planId
+    ? ((await getPlan(subscription.planId, database))?.name ?? null)
+    : null
+
+  const result = paused
+    ? await api.pause(subscription.stripeSubscriptionId)
+    : await api.resume(subscription.stripeSubscriptionId)
+
+  // Everything written below follows Stripe's answer rather than what was
+  // asked for. They are the same in every normal case; making them the same
+  // variable is what stops the row and the history from ever disagreeing.
+  const nowPaused = Boolean(result.pause_collection)
+
+  // Mirrored locally straight away, exactly as a cancel is, so the page that
+  // comes back is already right — and so the webhook that repeats this later
+  // finds nothing changed and writes no second history line.
+  const timestamp = now()
+  await database
+    .update(customShellSubscriptions)
+    .set({
+      status: result.status,
+      cancelAtPeriodEnd: result.cancel_at_period_end,
+      currentPeriodEnd: periodEnd(result),
+      pausedAt: nowPaused ? timestamp : null,
+      updatedAt: timestamp,
+    })
+    .where(eq(customShellSubscriptions.id, subscription.id))
+
+  await recordSubscriptionEvent(
+    database,
+    {
+      userId,
+      kind: nowPaused ? "paused" : "resumed",
+      planName,
+      source: actor,
+    },
+    timestamp
+  )
+
+  return { paused: nowPaused, planName }
 }
 
 type SubscriptionLoader = (subscriptionId: string) => Promise<Stripe.Subscription>
@@ -705,6 +821,13 @@ async function buildSubscriptionValues(
     source: "stripe" as const,
     currentPeriodEnd: periodEnd(subscription),
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    // Stripe is the one source of truth for whether billing is on hold, so a
+    // pause made in its dashboard reaches us the same way one made here does.
+    // The date we already had is kept while it stays paused — otherwise every
+    // repeat delivery would move "paused since" to today.
+    pausedAt: subscription.pause_collection
+      ? (before?.pausedAt ?? timestamp)
+      : null,
     trialEndsAt: subscription.trial_end
       ? new Date(subscription.trial_end * 1_000)
       : null,

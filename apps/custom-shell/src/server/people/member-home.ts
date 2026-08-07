@@ -42,6 +42,10 @@ export type MemberHomePlan = {
   currentPeriodEnd: string | null
   trialEndsAt: string | null
   cancelAtPeriodEnd: boolean
+  /** True while their plan is on hold, which is why the rest reads as free. */
+  paused: boolean
+  /** The plan waiting behind that pause, so the card can name it. */
+  pausedPlanName: string | null
   /** False turns the plan card's button off — there is nothing to change. */
   billingEnabled: boolean
 }
@@ -88,6 +92,8 @@ export async function loadMemberHome(
       currentPeriodEnd: entitlements.currentPeriodEnd?.toISOString() ?? null,
       trialEndsAt: entitlements.trialEndsAt?.toISOString() ?? null,
       cancelAtPeriodEnd: entitlements.cancelAtPeriodEnd,
+      paused: entitlements.paused,
+      pausedPlanName: entitlements.pausedPlanName,
       billingEnabled: billingEnabled(),
     },
     notifications: notifications.notifications,

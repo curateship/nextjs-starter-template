@@ -16,6 +16,7 @@ import {
 } from "@/server/people/accounts"
 import {
   cancelSubscriptionByAdmin,
+  setSubscriptionPaused,
   type CancelSubscriptionMode,
 } from "@/server/billing/stripe"
 import { listPlans } from "@/server/billing/plans"
@@ -64,8 +65,15 @@ export const getAdminUserErrorMessage = createErrorMessage(
       "Stripe would not cancel a paid plan on one of those accounts, so nothing was deleted. Please try again in a moment.",
     ALREADY_ENDING:
       "This plan is already set to end when the paid period runs out.",
+    ALREADY_PAUSED: "This plan is already paused.",
+    NOT_PAUSED: "This plan is not paused.",
+    CANNOT_PAUSE_GRANT:
+      "A granted plan is not billed by anyone, so there is nothing to pause. Remove the grant instead.",
+    CANNOT_PAUSE_TRIAL:
+      "This account is on a free trial, so nothing is being billed yet.",
+    // Not "cancelled" — pausing and starting again come back through here too.
     BILLING_NOT_CONFIGURED:
-      "Stripe is not set up here, so this subscription cannot be cancelled from this screen.",
+      "Stripe is not set up here, so this subscription cannot be changed from this screen.",
     ACCOUNT_PENDING_DELETION:
       "That account is scheduled for deletion. Restore it first.",
     RESTORE_WINDOW_PASSED:
@@ -191,6 +199,19 @@ const cancelSubscriptionFn = createServerFn({ method: "POST" })
     return cancelSubscriptionByAdmin(data.userId, data.mode)
   })
 
+/** Putting somebody else's plan on hold, or taking it off hold, as an admin. */
+const setAccountPauseFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      userId: z.string().min(1).max(36),
+      paused: z.boolean(),
+    })
+  )
+  .handler(async ({ data }) => {
+    return setSubscriptionPaused(data.userId, data.paused, "admin")
+  })
+
 const deleteAccountFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ userId: z.string().min(1).max(36) }))
@@ -262,6 +283,10 @@ export function cancelAccountSubscription(
   mode: CancelSubscriptionMode
 ) {
   return cancelSubscriptionFn({ data: { userId, mode } })
+}
+
+export function setAccountPlanPaused(userId: string, paused: boolean) {
+  return setAccountPauseFn({ data: { userId, paused } })
 }
 
 export function deleteAccountAsAdmin(userId: string) {

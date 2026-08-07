@@ -11,6 +11,8 @@ type PlanState = {
   trialEndsAt: string | null
   cancelAtPeriodEnd: boolean
   currentPeriodEnd: string | null
+  paused: boolean
+  pausedPlanName: string | null
 }
 
 /**
@@ -22,6 +24,14 @@ type PlanState = {
  * person two different things.
  */
 export function planSummary(plan: PlanState) {
+  // Before the free-plan line, because a paused plan reads as the free plan
+  // everywhere else and "upgrade any time" is the wrong thing to tell somebody
+  // who already has a plan sitting there waiting for them.
+  if (plan.paused) {
+    return plan.pausedPlanName
+      ? `${plan.pausedPlanName} is paused. Nothing is being billed, and you are on the free plan until you start it again.`
+      : "Your plan is paused. Nothing is being billed until you start it again."
+  }
   if (!plan.isPaid) {
     return "You are on the free plan. Upgrade any time."
   }

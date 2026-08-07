@@ -310,6 +310,9 @@ function BillingTab() {
       overview={data.overview}
       invoices={data.invoices}
       cardWarning={data.cardWarning}
+      // Pausing changes the plan, the badges and the buttons all at once, so
+      // the tab re-reads itself rather than trying to patch what it is showing.
+      onChanged={() => setReloads((count) => count + 1)}
     />
   )
 }

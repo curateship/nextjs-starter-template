@@ -29,6 +29,7 @@ import {
 } from "@/components/admin/admin-account-dialog"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
+import { pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import {
   Select,
@@ -125,12 +126,27 @@ function describePaidPlans(paid: number) {
   return ` ${paid} of them are on paid plans; those are cancelled straight away and do not come back if the accounts are restored.`
 }
 
+/**
+ * The one word in the Plan column.
+ *
+ * A paused account is on the free plan, so without this it is impossible to
+ * tell from the table apart from somebody who never paid for anything — and
+ * they are the opposite kind of person to go looking at.
+ */
+function planCellLabel(account: AccountRow) {
+  return account.paused
+    ? pausedPlanLabel(account.pausedPlanName)
+    : account.planName
+}
+
 function describeAccountDeletion(account: AccountRow) {
   const base = isPendingDeletion(account)
     ? `${account.name} (${account.email}) and everything they own is removed now, without waiting out the rest of the restore window. This cannot be undone.`
     : `${account.name} (${account.email}) is signed out everywhere and cannot sign in. You can restore them for ${ACCOUNT_RESTORE_DAYS} days, after which they and everything they own are gone for good.`
 
-  return account.planIsPaid
+  // A paused plan counts: Stripe still holds it, so deleting the account
+  // cancels it too, and the confirmation has to say so.
+  return account.planIsPaid || account.paused
     ? `${base} Their paid plan is cancelled straight away, and restoring the account does not bring it back.`
     : base
 }
@@ -332,7 +348,8 @@ export function AdminUsersDashboard({
   const selectedPaidCount = React.useMemo(
     () =>
       accounts.filter(
-        (account) => selectedIds.has(account.id) && account.planIsPaid
+        (account) =>
+          selectedIds.has(account.id) && (account.planIsPaid || account.paused)
       ).length,
     [accounts, selectedIds]
   )
@@ -569,10 +586,13 @@ export function AdminUsersDashboard({
               <AccountStatusBadge account={account} />
             </TableCell>
             {/* Just the plan's name: whether it was granted or is already
-                ending lives in the account window, not as extra badges. */}
+                ending lives in the account window, not as extra badges. A
+                paused plan says so in the same one badge rather than adding a
+                second — two badges wrap onto a second line in this narrow
+                column and make one row taller than every other. */}
             <TableCell column="meta">
               <Badge variant={account.planIsPaid ? "default" : "secondary"}>
-                {account.planName}
+                {planCellLabel(account)}
               </Badge>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">

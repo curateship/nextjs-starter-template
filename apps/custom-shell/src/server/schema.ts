@@ -580,6 +580,13 @@ export const customShellSubscriptions = pgTable(
     source: varchar("source", { length: 10 }).notNull().default("stripe"),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    /**
+     * Set while the plan is on hold: Stripe is not billing it and the account
+     * is treated as being on the free plan. Null means running as usual. Kept
+     * apart from `status` because Stripe's own status stays "active" through a
+     * pause and overwrites that column on every webhook.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

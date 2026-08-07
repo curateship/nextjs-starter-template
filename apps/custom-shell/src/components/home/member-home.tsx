@@ -31,6 +31,7 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDate } from "@/lib/format/format-time"
 import { notificationAction } from "@/lib/notification-action"
 import { planSummary } from "@/lib/billing/plan-summary"
+import { pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { plural } from "@/lib/format/plural"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -106,6 +107,11 @@ function PlanCard({ plan }: { plan: MemberHomePlan }) {
           <Badge variant={plan.isPaid ? "default" : "secondary"}>
             {plan.planName}
           </Badge>
+          {plan.paused ? (
+            <Badge variant="outline">
+              {pausedPlanLabel(plan.pausedPlanName)}
+            </Badge>
+          ) : null}
           {plan.cancelAtPeriodEnd ? (
             <Badge variant="outline">Cancels at period end</Badge>
           ) : null}
@@ -129,7 +135,10 @@ function PlanCard({ plan }: { plan: MemberHomePlan }) {
               })
             }
           >
-            {plan.isPaid ? "Manage your plan" : "See the plans"}
+            {/* A paused plan is still a plan to manage — the button that takes
+                it off hold is on the Billing tab, not a list of things to
+                buy. */}
+            {plan.isPaid || plan.paused ? "Manage your plan" : "See the plans"}
           </Button>
         ) : (
           <p className="text-sm text-muted-foreground">

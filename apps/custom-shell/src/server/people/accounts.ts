@@ -27,7 +27,10 @@ import {
 } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendAuthEmail } from "@/server/email/send"
-import { subscriptionIsActive } from "@/server/billing/entitlements"
+import {
+  subscriptionIsActive,
+  subscriptionIsLive,
+} from "@/server/billing/entitlements"
 import { getDefaultPlan, getPlan } from "@/server/billing/plans"
 import {
   customShellAiAllowanceOverrides,
@@ -85,6 +88,10 @@ export type AccountRow = {
   subscriptionSource: string | null
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
+  /** True while their plan is on hold, which is why `planName` says free. */
+  paused: boolean
+  /** The plan waiting behind that pause, so the row can name it. */
+  pausedPlanName: string | null
   lockedOut: boolean
   /** Their own monthly AI ceiling in cents, null when they follow their plan. */
   aiOverrideCents: number | null
@@ -213,6 +220,11 @@ function toAccountRow(
 ): AccountRow {
   const paid =
     Boolean(row.plan) && subscriptionIsActive(row.subscription, timestamp)
+  // Not "paid but on hold" — a paused plan is not paid, which is exactly why
+  // the row needs a second word for it or it reads as a plain free account.
+  const paused = Boolean(
+    row.subscription?.pausedAt && subscriptionIsLive(row.subscription, timestamp)
+  )
 
   return {
     id: row.user.id,
@@ -235,6 +247,8 @@ function toAccountRow(
     cancelAtPeriodEnd: paid
       ? Boolean(row.subscription?.cancelAtPeriodEnd)
       : false,
+    paused,
+    pausedPlanName: paused ? (row.plan?.name ?? null) : null,
     lockedOut,
     aiOverrideCents: row.aiOverride?.monthlyCents ?? null,
     createdAt: row.user.createdAt.toISOString(),

@@ -40,6 +40,10 @@ type AccountSubscription = {
   cancelAtPeriodEnd: boolean
   trialEndsAt: string | null
   source: "stripe" | "manual" | null
+  /** True while billing is on hold. Everything above then reads as free. */
+  paused: boolean
+  /** The plan waiting behind the pause, so the window can name it. */
+  pausedPlanName: string | null
 }
 
 /** This person's monthly AI ceiling: their own number, their plan's, or none. */
@@ -126,6 +130,8 @@ export async function loadAccountDetail(
       cancelAtPeriodEnd: entitlements.cancelAtPeriodEnd,
       trialEndsAt: entitlements.trialEndsAt?.toISOString() ?? null,
       source: entitlements.source,
+      paused: entitlements.paused,
+      pausedPlanName: entitlements.pausedPlanName,
     },
     aiAllowance: {
       overrideCents: aiOverride?.monthlyCents ?? null,
