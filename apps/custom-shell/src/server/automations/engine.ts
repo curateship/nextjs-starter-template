@@ -24,6 +24,7 @@ import {
   type CustomShellAutomationRun,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
+import { currentWorkspace } from "@/server/people/workspaces"
 
 /**
  * The run engine: an in-process ticker that walks flows one step at a time.
@@ -569,12 +570,16 @@ export async function startAutomationRun(
   if (!entryNodeId) throw new Error("NO_SINGLE_START")
 
   const timestamp = now()
+  // Fixed now, not looked up each time the run wakes: switching workspace must
+  // not change who a run already under way is talking to.
+  const workspaceId = (await currentWorkspace(userId, database))?.id ?? null
   const [run] = await database
     .insert(customShellAutomationRuns)
     .values({
       id: uuid(),
       automationId: automation.id,
       userId,
+      workspaceId,
       status: "active",
       currentNodeId: entryNodeId,
       configSnapshot: inspected.compiledConfig,

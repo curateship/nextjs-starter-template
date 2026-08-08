@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core"
 
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import type { CardFolds } from "@/lib/trade/card-folds"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderPlan, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
@@ -78,6 +79,11 @@ export const tradePrefs = pgTable("trade_prefs", {
   // the only way in or out, so an indicator this build no longer has is
   // dropped rather than half-drawn.
   indicators: jsonb("indicators").$type<IndicatorSettings>(),
+  // Which settings cards on the trading windows were left folded away. Layout
+  // and nothing else — deliberately not inside `smart_dca` above, which is the
+  // shape the placement endpoint validates, and has no business carrying an
+  // answer about what somebody could be bothered to look at.
+  cardFolds: jsonb("card_folds").$type<CardFolds>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

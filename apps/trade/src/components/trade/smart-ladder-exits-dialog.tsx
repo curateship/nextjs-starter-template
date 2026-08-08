@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
+import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,6 +29,8 @@ import {
   DCA_TP_MODE_HINTS,
   DCA_TP_MODE_LABELS,
   DCA_TP_MODES,
+  DEFAULT_BASE_STOP_RECLAIM_DAYS,
+  DEFAULT_BASE_STOP_UNDER_PCT,
   DEFAULT_DCA_STOP_LOSS_PCT,
   DEFAULT_DCA_TAKE_PROFIT_PCT,
   type DcaParams,
@@ -139,16 +142,36 @@ function ExitsForm({
         DEFAULT_DCA_STOP_LOSS_PCT
     )
   )
+  const [baseOn, setBaseOn] = React.useState(plan.stopLoss?.base != null)
+  const [baseUnderPct, setBaseUnderPct] = React.useState(
+    String(plan.stopLoss?.base?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT)
+  )
+  const [baseReclaimDays, setBaseReclaimDays] = React.useState(
+    String(plan.stopLoss?.base?.reclaimDays ?? DEFAULT_BASE_STOP_RECLAIM_DAYS)
+  )
 
   const parsedTp = Number(tpPct)
   const badTp =
     tpOn && tpMode === "average" && !(Number.isFinite(parsedTp) && parsedTp > 0)
   const parsedSl = Number(slPct)
   const badSl =
-    slOn && !(Number.isFinite(parsedSl) && parsedSl > 0 && parsedSl < 100)
+    slOn && !(Number.isFinite(parsedSl) && parsedSl > 0 && parsedSl <= 100)
+  const parsedUnder = Number(baseUnderPct)
+  const parsedDays = Number(baseReclaimDays)
+  const badBase =
+    slOn &&
+    baseOn &&
+    !(
+      Number.isFinite(parsedUnder) &&
+      parsedUnder >= 0 &&
+      parsedUnder <= 50 &&
+      Number.isFinite(parsedDays) &&
+      parsedDays >= 0 &&
+      parsedDays <= 90
+    )
 
   const save = async () => {
-    if (badTp || badSl) return
+    if (badTp || badSl || badBase) return
     const saved = await onSave(ladder, {
       takeProfit: tpOn
         ? {
@@ -156,7 +179,14 @@ function ExitsForm({
             pct: tpMode === "average" ? parsedTp : DEFAULT_DCA_TAKE_PROFIT_PCT,
           }
         : null,
-      stopLoss: slOn ? { pct: parsedSl } : null,
+      stopLoss: slOn
+        ? {
+            pct: parsedSl,
+            base: baseOn
+              ? { underPct: parsedUnder, reclaimDays: parsedDays }
+              : null,
+          }
+        : null,
     })
     if (saved) onClose()
   }
@@ -257,14 +287,25 @@ function ExitsForm({
               </FieldLabel>
             </div>
             {slOn ? (
-              <div className="grid gap-2">
-                <Label htmlFor="ladder-sl-pct">Stop %</Label>
-                <Input
-                  id="ladder-sl-pct"
-                  inputMode="decimal"
-                  value={slPct}
-                  aria-invalid={badSl}
-                  onChange={(event) => setSlPct(event.target.value)}
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="ladder-sl-pct">Stop %</Label>
+                  <Input
+                    id="ladder-sl-pct"
+                    inputMode="decimal"
+                    value={slPct}
+                    aria-invalid={badSl}
+                    onChange={(event) => setSlPct(event.target.value)}
+                  />
+                </div>
+                <BaseStopFields
+                  on={baseOn}
+                  underPct={baseUnderPct}
+                  reclaimDays={baseReclaimDays}
+                  disabled={busy}
+                  onOn={setBaseOn}
+                  onUnderPct={setBaseUnderPct}
+                  onReclaimDays={setBaseReclaimDays}
                 />
               </div>
             ) : null}

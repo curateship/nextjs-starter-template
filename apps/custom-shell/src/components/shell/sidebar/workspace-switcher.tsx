@@ -45,11 +45,14 @@ export function WorkspaceSwitcher({
   workspaceName,
   workspaceSubheader,
   favicon,
+  baseDomain = "",
 }: {
   workspaces: WorkspaceItem[]
   workspaceName: string
   workspaceSubheader: string
   favicon: string
+  /** The domain workspaces hang off, for the address field's preview. */
+  baseDomain?: string
 }) {
   const router = useRouter()
   const { isMobile } = useSidebar()
@@ -195,6 +198,7 @@ export function WorkspaceSwitcher({
       </SidebarMenu>
 
       <WorkspaceFormDialog
+        baseDomain={baseDomain}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />

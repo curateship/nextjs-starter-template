@@ -171,6 +171,38 @@ answer to "why does that level have a dash but no arrow": **Only mark levels
 going the right way** (a base has to be above the base before it) and **Fewest
 candles between arrows**.
 
+### A stop that rests under the base
+
+A DCA ladder can put its stop on the confirmed base instead of a fixed distance
+below the entry. It is on the Stop loss part of both the window that places a
+ladder and the one that edits a live ladder's exits, in its own grey card, and
+it is a port of the QFL automation from the old app rather than anything new.
+
+- **Bases are read off the 4h**, whatever chart the ladder was placed from. Not
+  a setting: the rule was measured on the 4h, and a base found on the 5m is a
+  different thing wearing the same name.
+- **The base's own two numbers are frozen when the ladder is placed**, so
+  nudging the indicator on the chart changes the chart and leaves every live
+  stop exactly where it is.
+- **There is always a stop.** Until a base has confirmed below what the ladder
+  is holding, the plain percent stands. Setting that percent to 100 means price
+  would have to reach zero, which is how you say "nothing until the base
+  arrives" — and it writes no stop at all rather than one resting at zero.
+- **A level above what is held is refused.** That is a place to take profit, not
+  a place to give up, and a stop there would close winners as losses.
+- **Being stopped is one rung failing, not the ladder failing.** Everything
+  sells, every waiting rung comes off the book, and the next rung down is placed
+  on its own with a fresh stop under whatever base is there by then. From the
+  first stop onwards only one rung rests at a time.
+- **The last rung stopping out ends it for good** — nothing is armed and nothing
+  is remembered. A ladder whose bets double needs that full stop, or a long
+  enough losing run outgrows the pot.
+- **Buy back after a reclaim** puts the same rung back for the same money if
+  price closes back above where the stop cut and keeps closing above it for the
+  chosen number of days. A close back under starts the wait again; a wick under
+  does not. It is capped in dollars rather than coins, so a level reclaimed
+  months later costs what the rung was always allowed to spend.
+
 ## The market list
 
 The panel is shaped like the automation palette, its sibling on the other

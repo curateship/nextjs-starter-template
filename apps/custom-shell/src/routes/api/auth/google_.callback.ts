@@ -64,7 +64,7 @@ export const Route = createFileRoute("/api/auth/google_/callback")({
           const { user, sessionToken } = await signInWithGoogle(identity, origin)
 
           await clearRateLimit(rateLimitKey)
-          await startWorkspaceFor(user.id)
+          await startWorkspaceFor(user)
           setSessionCookie(sessionToken)
 
           return browserRedirect(handshake.redirect ?? "/home")

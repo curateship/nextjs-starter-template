@@ -197,6 +197,33 @@ function levelsOf(
   return { level, dash, confirmed }
 }
 
+/**
+ * The base in force at the newest candle handed in — the last one to confirm,
+ * whatever has happened to price since.
+ *
+ * The drawing side of this indicator answers in shapes, which is no use to
+ * something that wants one number. A stop resting under the base reads this,
+ * and reads it through the same pass the chart draws from, so the price it
+ * rests at is the price of the dash you can see.
+ *
+ * Null until a base has confirmed. There is nothing to fall back on: a level
+ * invented from too little history is worse than no level at all.
+ */
+export function baseInForce(
+  candles: IndicatorCandle[],
+  params: IndicatorParams
+): number | null {
+  const settings = baseSettings(params)
+  const { level } = levelsOf(
+    candles,
+    settings.searchBars,
+    settings.holdBars,
+    "up"
+  )
+  const last = level.at(-1)
+  return last !== undefined && !Number.isNaN(last) ? last : null
+}
+
 /** Each run of candles carrying the same dash value, as one mark to draw. */
 function dashesOf(
   dash: number[],
