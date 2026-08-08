@@ -10,6 +10,7 @@ import {
   ChartQuickOrder,
   type QuickOrderState,
 } from "@/components/trade/chart-quick-order"
+import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
@@ -395,6 +396,17 @@ export function ChartPanel({
                   }
                   onCancelLadder={setCancelFor}
                   onEditExits={setExitsFor}
+                />
+                {/* Last, so while Shift is held its sheet is over everything
+                    else and a drag across a stop line measures rather than
+                    moving the stop. Keyed on the market and timeframe: a
+                    reading belongs to the candles it was taken on, so opening
+                    another one puts the ruler away rather than carrying a box
+                    onto a chart it means nothing on. */}
+                <MeasureLayer
+                  key={current.key}
+                  surface={surface}
+                  tool={paint.tool}
                 />
               </>
             )}
