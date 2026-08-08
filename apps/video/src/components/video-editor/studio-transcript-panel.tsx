@@ -7,9 +7,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import {
   getAiToolErrorMessage,
+  loadAiToolsAvailability,
   loadClipTranscript,
+  type AiToolsAvailability,
   type ClipTranscript,
 } from "@/lib/api/video/ai-tools"
+import { AiChoiceField } from "@/components/video-editor/ai-choice-field"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
 import { snapRangesToSilence } from "@/lib/video/jump-cuts"
@@ -32,13 +35,28 @@ import { cn } from "@/lib/utils"
  * them with every cut, and a stored transcript would quietly stop matching.
  */
 export function TranscriptPanel() {
-  const { projectId, dispatch } = useEditorRuntime()
+  const { projectId, dispatch, saveNow } = useEditorRuntime()
   const selectedClipId = useEditorSelector((state) => state.selectedClipId)
   const tracks = useEditorSelector((state) => state.tracks)
   const [transcript, setTranscript] = React.useState<ClipTranscript | null>(
     null
   )
   const [loading, setLoading] = React.useState(false)
+  const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
+    null
+  )
+
+  React.useEffect(() => {
+    let active = true
+    loadAiToolsAvailability()
+      .then((loaded) => {
+        if (active) setAvailable(loaded)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [])
   const [anchor, setAnchor] = React.useState<number | null>(null)
   const [head, setHead] = React.useState<number | null>(null)
   // Words already taken out of the film. They stay in the list, greyed and
@@ -62,6 +80,9 @@ export function TranscriptPanel() {
     if (!selectedClipId) return
     setLoading(true)
     try {
+      // The server reads the saved timeline, so anything still waiting to be
+      // sent goes first.
+      await saveNow()
       const answer = await loadClipTranscript(projectId, selectedClipId)
       dismissErrorToast()
       setTranscript(answer)
@@ -143,6 +164,7 @@ export function TranscriptPanel() {
                 Writing down what a clip says costs a little of your AI budget,
                 and lets you cut the video by crossing words out.
               </p>
+              <AiChoiceField kind="transcriber" available={available} />
               <div>
                 <Button
                   type="button"

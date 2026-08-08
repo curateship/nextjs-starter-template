@@ -41,13 +41,32 @@ export const VIDEO_TYPES = new Set([
   "video/x-msvideo",
   "video/x-matroska",
 ])
-export const ALLOWED_TYPES = new Set([...IMAGE_TYPES, ...VIDEO_TYPES])
+/**
+ * Sound. Kept apart from video because it is sized and described differently,
+ * and because a great many apps never touch it.
+ */
+export const AUDIO_TYPES = new Set([
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/aac",
+])
+export const ALLOWED_TYPES = new Set([
+  ...IMAGE_TYPES,
+  ...VIDEO_TYPES,
+  ...AUDIO_TYPES,
+])
 
 const IMAGE_MAX_BYTES = 10 * 1024 * 1024
 const VIDEO_MAX_BYTES = 100 * 1024 * 1024
+const AUDIO_MAX_BYTES = 50 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
-export type MediaFileType = "image" | "video"
+export type MediaFileType = "image" | "video" | "audio"
 export type MediaSortBy =
   | "created_at"
   | "original_name"
@@ -77,19 +96,27 @@ export type MediaListResponse = {
 }
 
 export function getMediaFileType(mimeType: string): MediaFileType {
-  return IMAGE_TYPES.has(mimeType) ? "image" : "video"
+  if (IMAGE_TYPES.has(mimeType)) return "image"
+  if (AUDIO_TYPES.has(mimeType)) return "audio"
+  return "video"
 }
 
 export function validateMediaFile(mimeType: string, size: number) {
   if (!ALLOWED_TYPES.has(mimeType)) {
     throw new Error(
-      "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
+      "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG), videos (MP4, WebM, MOV, AVI, MKV) and sound (MP3, WAV, M4A, OGG) are allowed."
     )
   }
 
   const fileType = getMediaFileType(mimeType)
-  const maxSize = fileType === "image" ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES
-  const maxSizeLabel = fileType === "image" ? "10MB" : "100MB"
+  const maxSize =
+    fileType === "image"
+      ? IMAGE_MAX_BYTES
+      : fileType === "audio"
+        ? AUDIO_MAX_BYTES
+        : VIDEO_MAX_BYTES
+  const maxSizeLabel =
+    fileType === "image" ? "10MB" : fileType === "audio" ? "50MB" : "100MB"
   if (size > maxSize) {
     throw new Error(`File size too large. Maximum size is ${maxSizeLabel}.`)
   }

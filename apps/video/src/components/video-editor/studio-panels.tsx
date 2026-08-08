@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  AudioLines,
   FilmIcon,
   LayoutGrid,
   Loader2,
@@ -93,17 +94,21 @@ function Label({
 
 // --------------------------------------------------------------- Media ------
 
-// Only the kinds the library actually holds. Sound arrives with the voiceover
-// work, which is also what makes the shell's library accept audio files.
-const MEDIA_FILTERS: { id: "all" | "video" | "image"; label: string }[] = [
+const MEDIA_FILTERS: {
+  id: "all" | "video" | "image" | "audio"
+  label: string
+}[] = [
   { id: "all", label: "All" },
   { id: "video", label: "Video" },
   { id: "image", label: "Image" },
+  { id: "audio", label: "Sound" },
 ]
 
 function MediaPanel() {
   const { dispatch, clock, store } = useEditorRuntime()
-  const [filter, setFilter] = React.useState<"all" | "video" | "image">("all")
+  const [filter, setFilter] = React.useState<
+    "all" | "video" | "image" | "audio"
+  >("all")
   // "all" = every file, "uncollected" = the ones in no collection, anything
   // else is a collection's id.
   const [collectionFilter, setCollectionFilter] = React.useState("all")
@@ -486,6 +491,18 @@ function MediaPanel() {
                       draggable={false}
                       style={{ display: "block", width: "100%" }}
                     />
+                  ) : item.file_type === "audio" ? (
+                    // Sound has no picture. Drawn as a video it is a black
+                    // rectangle that looks like footage that failed to load.
+                    <div
+                      className="grid aspect-video place-items-center gap-1 text-muted-foreground"
+                      style={{ padding: 8 }}
+                    >
+                      <AudioLines className="size-5" />
+                      <span className="truncate text-[10px] leading-tight">
+                        {item.original_name}
+                      </span>
+                    </div>
                   ) : (
                     <video
                       src={item.playback_url}
@@ -510,7 +527,11 @@ function MediaPanel() {
                       fontSize: 11,
                     }}
                   >
-                    {item.file_type === "image" ? "▣" : "▶"}
+                    {item.file_type === "image"
+                      ? "▣"
+                      : item.file_type === "audio"
+                        ? "♪"
+                        : "▶"}
                   </div>
                 </button>
               ))}

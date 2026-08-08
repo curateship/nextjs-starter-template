@@ -19,7 +19,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   findJumpCuts,
   getAiToolErrorMessage,
+  type AiToolsAvailability,
 } from "@/lib/api/video/ai-tools"
+import { AiChoiceField } from "@/components/video-editor/ai-choice-field"
 import { formatClock } from "@/lib/video/timeline-utils"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
@@ -54,13 +56,15 @@ export function JumpCutsDialog({
   open,
   onOpenChange,
   canUseWords,
+  available,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Filler words need a transcript, which needs a key. */
   canUseWords: boolean
+  available: AiToolsAvailability | null
 }) {
-  const { projectId, dispatch } = useEditorRuntime()
+  const { projectId, dispatch, saveNow } = useEditorRuntime()
   // The clip you picked, or the longest one with sound in it. Asking somebody
   // to select a clip before they can press a button is a step for nothing when
   // there is only ever one obvious answer.
@@ -101,6 +105,9 @@ export function JumpCutsDialog({
     if (!clipId) return
     setLooking(true)
     try {
+      // The server reads the saved timeline, so anything still waiting to be
+      // sent goes first.
+      await saveNow()
       const answer = await findJumpCuts({
         projectId,
         clipId,
@@ -237,6 +244,7 @@ export function JumpCutsDialog({
                     This one has to listen to what was said, so it comes off
                     your AI budget.
                   </p>
+                  <AiChoiceField kind="transcriber" available={available} />
                 </div>
               )}
             </CardContent>

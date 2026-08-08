@@ -51,7 +51,7 @@ const listVideoMediaSchema = z
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
     search: z.string().trim().max(120).default(""),
-    fileType: z.enum(["image", "video"]).optional(),
+    fileType: z.enum(["image", "video", "audio"]).optional(),
     // Absent = no filter; null = "Uncollected"; an id = that collection.
     collectionId: z.string().min(1).max(36).nullish(),
   })
@@ -162,7 +162,7 @@ export function listVideoMedia({
   page?: number
   pageSize?: number
   search?: string
-  fileType?: "image" | "video"
+  fileType?: "image" | "video" | "audio"
   collectionId?: string | null
 } = {}) {
   return listVideoMediaFn({

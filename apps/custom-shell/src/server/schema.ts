@@ -422,7 +422,7 @@ export const customShellMedia = pgTable(
   (table) => [
     check(
       "media_file_type_check",
-      sql`${table.fileType} in ('image', 'video')`
+      sql`${table.fileType} in ('image', 'video', 'audio')`
     ),
     index("ix_media_user_id").on(table.userId),
     index("ix_media_file_type").on(table.fileType),

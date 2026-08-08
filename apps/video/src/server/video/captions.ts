@@ -18,6 +18,9 @@ import {
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import type { EditorClip } from "@/components/video-editor/editor-store"
+import { pickTranscriber } from "@/lib/video/ai-choices"
+import { wordsToCaptions } from "@/lib/video/voice"
+import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
 import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
@@ -28,6 +31,11 @@ import {
   withGeminiFile,
 } from "@/server/video/gemini"
 import { videoProjects } from "@/server/video/schema"
+import { getAiDefaults } from "@/server/video/settings"
+import {
+  requireOpenAiKey,
+  transcribeWithWhisper,
+} from "@/server/video/whisper"
 import { downloadToFile } from "@/server/video/storage-files"
 
 /**
@@ -160,8 +168,54 @@ export async function writeProjectCaptions(
   if (!media) throw new Error(CAPTIONS_NOT_POSSIBLE_MESSAGE)
 
   const audio = await extractAudio(media.storagePath)
-  const apiKey = await requireGeminiKey()
   const soundMs = Math.round(chosen.clip.durationMs)
+
+  const source = {
+    clipId: chosen.clip.id,
+    trackId: chosen.trackId,
+    kind: chosen.clip.kind as "video" | "audio",
+    mediaId: chosen.clip.mediaId,
+    startMs: chosen.clip.startMs,
+    durationMs: chosen.clip.durationMs,
+    trimStartMs: chosen.clip.trimStartMs,
+  }
+
+  // Whichever AI has been chosen writes it down. Whisper hands back words with
+  // measured times, which are chunked into lines here; Gemini is asked for the
+  // lines directly, because that is what it is good at.
+  const transcriber = pickTranscriber(await getAiDefaults(), {
+    words: !!(await getAiKey("gemini")),
+    openai: !!(await getAiKey("openai")),
+  })
+  if (transcriber?.id === "openai") {
+    const apiKey = await requireOpenAiKey()
+    const lines = await runAiCall(
+      {
+        userId,
+        provider: "openai",
+        model: transcriber.model,
+        feature: "caption_generation",
+        metadata: { projectId },
+      },
+      async () => {
+        const answer = await transcribeWithWhisper({
+          apiKey,
+          audio,
+          label: CAPTIONS_LABEL,
+        })
+        return {
+          result: wordsToCaptions(answer.words),
+          // Charged by the minute of sound, not by tokens.
+          usage: { inputTokens: 0, outputTokens: 0, units: soundMs / 60_000 },
+        }
+      }
+    )
+    const captions = mapCaptionsToTimeline(lines, source)
+    if (!captions.length) throw new Error(CAPTIONS_NONE_HEARD_MESSAGE)
+    return { captions, source }
+  }
+
+  const apiKey = await requireGeminiKey()
 
   const answer = await runAiCall(
     {
@@ -196,24 +250,8 @@ export async function writeProjectCaptions(
     }
   )
 
-  const captions = mapCaptionsToTimeline(answer, {
-    startMs: chosen.clip.startMs,
-    durationMs: chosen.clip.durationMs,
-    trimStartMs: chosen.clip.trimStartMs,
-  })
+  const captions = mapCaptionsToTimeline(answer, source)
   if (!captions.length) throw new Error(CAPTIONS_NONE_HEARD_MESSAGE)
-
-  return {
-    captions,
-    source: {
-      clipId: chosen.clip.id,
-      trackId: chosen.trackId,
-      kind: chosen.clip.kind as "video" | "audio",
-      mediaId: chosen.clip.mediaId,
-      startMs: chosen.clip.startMs,
-      durationMs: chosen.clip.durationMs,
-      trimStartMs: chosen.clip.trimStartMs,
-    },
-  }
+  return { captions, source }
 }
 

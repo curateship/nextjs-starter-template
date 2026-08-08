@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import {
+  AI_DAY_USED_UP_MESSAGE,
   AI_TOO_BUSY_MESSAGE,
   GEMINI_KEY_MISSING_MESSAGE,
 } from "@/lib/video/ai-providers"
@@ -146,6 +147,10 @@ async function askOnce<T>({
     const trouble = await safeBody(response)
     console.error(`Gemini ${label} failed`, trouble)
     const busy = response.status === 429
+    // A day's allowance does not come back in a minute, so it is not something
+    // to wait out — it is something to be told about.
+    const dayUsedUp = busy && /free_tier|per day|PerDay/i.test(trouble.body)
+    if (dayUsedUp) throw new Error(AI_DAY_USED_UP_MESSAGE)
     const delayMs = busy
       ? (askedToWaitMs(trouble.body) ?? BUSY_RETRY_DELAYS_MS[attempt])
       : RETRY_DELAYS_MS[attempt]

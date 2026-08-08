@@ -26,6 +26,8 @@ import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
 import { MIN_CLIP_MS } from "@/lib/video/timeline-utils"
 import type { EditorClip } from "@/components/video-editor/editor-store"
+import { pickTranscriber } from "@/lib/video/ai-choices"
+import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
 import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
@@ -36,6 +38,11 @@ import {
   withGeminiFile,
 } from "@/server/video/gemini"
 import { videoProjects } from "@/server/video/schema"
+import { getAiDefaults } from "@/server/video/settings"
+import {
+  requireOpenAiKey,
+  transcribeWithWhisper,
+} from "@/server/video/whisper"
 import { downloadToFile } from "@/server/video/storage-files"
 
 /**
@@ -234,6 +241,43 @@ async function run({
 }
 
 /**
+ * The words spoken at the very start of a clip.
+ *
+ * Only the opening is listened to: an opening line is a few seconds, and
+ * sending a whole take to be written down to read its first sentence would be
+ * slow and dear for no reason.
+ */
+export async function transcribeOpening({
+  userId,
+  projectId,
+  clipId,
+  windowMs,
+}: {
+  userId: string
+  projectId: string
+  clipId: string
+  windowMs: number
+}): Promise<FillerWord[]> {
+  const { clip, media } = await findClipAndMedia({ userId, projectId, clipId })
+  const opening = {
+    ...clip,
+    durationMs: Math.min(clip.durationMs, windowMs),
+  }
+  const dir = await mkdtemp(path.join(tmpdir(), "video-hook-"))
+  try {
+    const wav = await extractClipAudio(dir, media.storagePath, opening)
+    return await transcribeWords(
+      userId,
+      projectId,
+      await readFile(wav),
+      Math.round(opening.durationMs)
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+/**
  * Every word of one clip, with when it was said — what the transcript panel
  * lists and what crossing words out is measured against.
  */
@@ -297,13 +341,51 @@ export async function transcribeClip({
   }
 }
 
-/** What was said and when, as one charge on the person's own budget. */
+/**
+ * What was said and when, as one charge on the person's own budget.
+ *
+ * Whichever AI has been chosen for the job does it — Whisper measures the
+ * times, Gemini estimates them — and the answer is the same shape either way.
+ */
 async function transcribeWords(
   userId: string,
   projectId: string,
   audio: Uint8Array,
   durationMs: number
 ): Promise<FillerWord[]> {
+  const chosen = pickTranscriber(await getAiDefaults(), {
+    words: !!(await getAiKey("gemini")),
+    openai: !!(await getAiKey("openai")),
+  })
+  if (chosen?.id === "openai") {
+    const apiKey = await requireOpenAiKey()
+    return runAiCall(
+      {
+        userId,
+        provider: "openai",
+        model: chosen.model,
+        feature: "jump_cut_analysis",
+        metadata: { projectId },
+      },
+      async () => {
+        const answer = await transcribeWithWhisper({
+          apiKey,
+          audio,
+          label: WORDS_LABEL,
+        })
+        return {
+          result: answer.words.map((word) => ({
+            text: word.text,
+            startMs: Math.max(0, word.startMs),
+            endMs: Math.min(durationMs, word.endMs),
+          })),
+          // Whisper is charged by the minute of sound, not by tokens.
+          usage: { inputTokens: 0, outputTokens: 0, units: durationMs / 60_000 },
+        }
+      }
+    )
+  }
+
   const apiKey = await requireGeminiKey()
   return runAiCall(
     {
