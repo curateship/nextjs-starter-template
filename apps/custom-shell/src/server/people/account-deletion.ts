@@ -132,6 +132,22 @@ export async function restoreOwnAccount(
  * write paths that care: registering (an address only frees up once the account
  * holding it is gone) and signing in. Between them a live app sweeps constantly,
  * and an app nobody is using has nothing to sweep.
+ *
+ * **What goes with a person, and what stays.** The row is deleted and the
+ * database takes the things that are genuinely theirs with it: sessions, tokens,
+ * passkeys, known devices, connected logins, their media, their feedback.
+ *
+ * **Workspaces stay.** They used to go — the foreign key cascaded — which meant
+ * deleting one account also deleted its workspaces and, through them, every
+ * contact, segment, broadcast, template, delivery and email setting inside. That
+ * was invisible from here: nothing in this file said it, and nothing had to fail
+ * for it to happen. A workspace is a thing the deployment has, not a thing a
+ * person has, so the key sets the owner to empty instead and the workspace is
+ * left standing with nobody's name on it. See `0045_custom_shell_shared_workspaces.sql`.
+ *
+ * A workspace nobody owns is still listed — `listUserWorkspaces` shows it beside
+ * your own so it can be looked at or removed — and is never picked as the
+ * workspace anybody is currently in.
  */
 export async function purgeExpiredDeletions(database: CustomShellDb = db) {
   const purged = await database
