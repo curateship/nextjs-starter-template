@@ -691,6 +691,39 @@ export const customShellAutomations = pgTable(
 )
 
 /**
+ * One admin's saved version of a built-in automation template.
+ *
+ * No row means "use the built-in". Resetting a template deletes its row, so
+ * the code constant remains the single reset point and never has to be copied
+ * into every database just to say nothing changed.
+ */
+export const customShellAutomationTemplateOverrides = pgTable(
+  "automation_template_overrides",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    templateKey: varchar("template_key", { length: 64 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    description: varchar("description", { length: 300 }).notNull(),
+    graph: jsonb("graph").$type<AutomationGraph>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("automation_template_overrides_user_key_unique").on(
+      table.userId,
+      table.templateKey
+    ),
+    index("ix_automation_template_overrides_user_updated").on(
+      table.userId,
+      table.updatedAt
+    ),
+  ]
+)
+
+/**
  * When a periodic trigger look last happened, one row per kind of look.
  *
  * A trial ending and a card running out are dates passing, and nothing tells us

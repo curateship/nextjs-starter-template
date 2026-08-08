@@ -16,6 +16,7 @@ import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderPlan, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
+import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
 import type { WalletKind } from "@/lib/trade/wallets"
 import { customShellUsers } from "@/server/schema"
@@ -70,6 +71,13 @@ export const tradePrefs = pgTable("trade_prefs", {
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
   smartDca: jsonb("smart_dca").$type<DcaParams>(),
+  // Which indicators are switched on, what each is set to, and how each one's
+  // part of the menu was left folded — against the account rather than the
+  // market, the same choice as the zoom above and for the same reason: however
+  // you set the chart up is how every chart opens. `readIndicatorSettings` is
+  // the only way in or out, so an indicator this build no longer has is
+  // dropped rather than half-drawn.
+  indicators: jsonb("indicators").$type<IndicatorSettings>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
