@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   CandlestickChartIcon,
-  InfoIcon,
   ListIcon,
   StarIcon,
   WalletIcon,
@@ -44,7 +43,7 @@ export type MarketSelection =
   | { kind: "missing"; marketId: string }
 
 /**
- * One row: the market's name, its figures folded behind an info icon, the star
+ * One row: the market's name with its figures folded behind it, the star
  * that puts it in Fav, and the chart's own controls on the right. The figures
  * used to be a second row and the exchange a pair of chips; both are details
  * you look up, not things to spend header height on — the tooltip holds them,
@@ -145,16 +144,16 @@ export function MarketHeader({
           iconUrl={selection.row.iconUrl}
         />
       }
-      title={selection.row.symbol}
+      // The ticker itself carries the figures. It used to be an "i" beside it,
+      // which was a second thing to aim at for something the name was already
+      // the obvious place to ask about.
+      title={<MarketInfo selection={selection} />}
       meta={
-        <span className="flex items-center gap-2">
-          <MarketInfo selection={selection} />
-          <FavoriteStar
-            symbol={selection.row.symbol}
-            favorite={favorite}
-            onToggle={onToggleFavorite}
-          />
-        </span>
+        <FavoriteStar
+          symbol={selection.row.symbol}
+          favorite={favorite}
+          onToggle={onToggleFavorite}
+        />
       }
       action={action}
     />
@@ -210,7 +209,7 @@ function bareSymbol(symbol: string): string {
 }
 
 /**
- * The market's figures, behind an info icon — click or hover. The exchange
+ * The market's figures, behind the ticker itself — click or hover. The exchange
  * and network live in here too now that their chips are gone, so the answer
  * to "which BTC is this?" is one hover away, not gone.
  */
@@ -279,11 +278,13 @@ function MarketInfo({
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={`About ${row.symbol}`}
           onClick={() => setOpen((shown) => !shown)}
-          className="flex items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          // Inherits the heading's own type — this is the title, not a control
+          // sitting in it. The underline on hover is what says there is
+          // something behind it.
+          className="max-w-full truncate rounded-sm text-left hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
-          <InfoIcon className="size-3.5" />
+          {row.symbol}
         </button>
       </TooltipTrigger>
       <TooltipContent className="flex-col items-stretch gap-1 py-2">

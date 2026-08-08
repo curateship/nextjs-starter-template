@@ -1198,6 +1198,58 @@ export const customShellContacts = pgTable(
 )
 
 /**
+ * One person one Send Email step tried to reach.
+ *
+ * A row is reserved before the provider call, and the unique address rule is
+ * the retry safety: if a worker dies after Resend accepts a message, the next
+ * attempt finds this row and does not send the same message again. The copied
+ * address and subject keep the useful part of the paper trail when a contact
+ * or account is later deleted.
+ */
+export const customShellAutomationDeliveries = pgTable(
+  "automation_deliveries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    runId: varchar("run_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomationRuns.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 64 }).notNull(),
+    contactId: varchar("contact_id", { length: 36 }).references(
+      () => customShellContacts.id,
+      { onDelete: "set null" }
+    ),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    subject: text("subject").notNull(),
+    /** Resend's id, retained for the later open/click tracking task. */
+    providerMessageId: varchar("provider_message_id", { length: 255 }),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_deliveries_status_check",
+      sql`${table.status} in ('sent', 'failed')`
+    ),
+    index("ix_automation_deliveries_run").on(table.runId, table.createdAt),
+    index("ix_automation_deliveries_contact").on(table.contactId),
+    index("ix_automation_deliveries_user").on(table.userId),
+    uniqueIndex("ux_automation_deliveries_run_node_contact")
+      .on(table.runId, table.nodeId, table.contactId)
+      .where(sql`${table.contactId} is not null`),
+    uniqueIndex("ux_automation_deliveries_run_node_email").on(
+      table.runId,
+      table.nodeId,
+      sql`lower(${table.toEmail})`
+    ),
+  ]
+)
+
+/**
  * A group of contacts named once, so everything that has to say who something
  * is for can point at the name instead of describing the group again.
  *
@@ -1534,6 +1586,8 @@ export type CustomShellAutomationRun =
   typeof customShellAutomationRuns.$inferSelect
 export type CustomShellAutomationRunStep =
   typeof customShellAutomationRunSteps.$inferSelect
+export type CustomShellAutomationDelivery =
+  typeof customShellAutomationDeliveries.$inferSelect
 export type CustomShellAnnouncement =
   typeof customShellAnnouncements.$inferSelect
 export type CustomShellContact = typeof customShellContacts.$inferSelect
