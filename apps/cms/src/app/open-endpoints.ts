@@ -28,7 +28,10 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "sites/sites.ts:resolveSiteFn":
+    "Tells a public page which site the visitor's domain belongs to, so it has to answer before anybody signs in. It takes no arguments — the host is read from the request on the server — and returns only what a page needs to draw itself, never a switched-off site.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The

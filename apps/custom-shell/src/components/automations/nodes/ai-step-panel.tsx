@@ -17,9 +17,9 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   AI_MODEL_OPTIONS,
   AI_PROVIDER_NAMES,
-  AI_PROVIDERS,
+  AI_TEXT_PROVIDERS,
   DEFAULT_AI_MODEL,
-  isAiProvider,
+  isAiTextProvider,
 } from "@/lib/ai/ai-models"
 import { loadAiKeyStatuses, type AiKeyStatus } from "@/lib/api/ai"
 import type {
@@ -31,7 +31,7 @@ export default function AiStepFields({
   node,
   onChange,
 }: AutomationNodeFieldsProps) {
-  const provider = isAiProvider(node.settings.provider)
+  const provider = isAiTextProvider(node.settings.provider)
     ? node.settings.provider
     : "anthropic"
   const model =
@@ -79,7 +79,7 @@ export default function AiStepFields({
         <Select
           value={provider}
           onValueChange={(value) => {
-            if (!isAiProvider(value)) return
+            if (!isAiTextProvider(value)) return
             // A model belongs to its provider, so switching provider moves
             // the step onto that provider's default model.
             setSettings({ provider: value, model: DEFAULT_AI_MODEL[value] })
@@ -92,7 +92,7 @@ export default function AiStepFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {AI_PROVIDERS.map((id) => (
+            {AI_TEXT_PROVIDERS.map((id) => (
               <SelectItem key={id} value={id}>
                 {AI_PROVIDER_NAMES[id]}
               </SelectItem>

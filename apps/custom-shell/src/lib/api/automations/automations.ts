@@ -1,19 +1,40 @@
 import { createServerFn } from "@tanstack/react-start"
 import { adminGet, adminPost } from "@/server/guards"
-import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomations, inspectAutomation, automationTriggerName, setAutomationEnabled } from "@/server/automations/flows"
-import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/people/workspaces"
+import {
+  listUserAutomations,
+  getUserAutomation,
+  createUserAutomation,
+  saveUserAutomation,
+  duplicateUserAutomation,
+  deleteUserAutomations,
+  inspectAutomation,
+  automationTriggerName,
+  setAutomationEnabled,
+} from "@/server/automations/flows"
+import {
+  getOrCreateCurrentWorkspace,
+  parseWorkspaceSettings,
+  saveWorkspaceAutomationFavorites,
+} from "@/server/people/workspaces"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
 
-import type {
-  AutomationCompiledConfig,
-} from "@/lib/automations/compile"
+import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import {
   automationGraphSchema,
   type AutomationGraph,
   type AutomationValidationError,
 } from "@/lib/automations/graph"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
+import {
+  AUTOMATION_TEMPLATE_KEYS,
+  type AutomationTemplateKey,
+} from "@/lib/automations/templates"
+import type { AutomationTemplateListItem } from "@/lib/api/automations/automation-templates"
+import {
+  getUserAutomationTemplate,
+  listUserAutomationTemplates,
+} from "@/server/automations/templates"
 import { plural } from "@/lib/format/plural"
 
 export type AutomationListItem = {
@@ -43,6 +64,7 @@ export type AutomationDetail = {
 
 export type AutomationsPage = {
   automations: AutomationListItem[]
+  templates: AutomationTemplateListItem[]
 }
 
 /**
@@ -78,7 +100,10 @@ const automationIdSchema = z.object({
 const idListSchema = z.object({
   automationIds: z.array(z.string().min(1).max(36)).min(1).max(200),
 })
-const createSchema = z.object({ name: nameSchema })
+const createSchema = z.object({
+  name: nameSchema,
+  templateKey: z.enum(AUTOMATION_TEMPLATE_KEYS).nullable(),
+})
 const saveSchema = automationIdSchema.extend({
   name: nameSchema,
   graph: automationGraphSchema,
@@ -113,7 +138,10 @@ export const getAutomationLoadErrorMessage = createErrorMessage(
 const loadAutomationsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<AutomationsPage> => {
-    const rows = await listUserAutomations(context.user.id)
+    const [rows, templates] = await Promise.all([
+      listUserAutomations(context.user.id),
+      listUserAutomationTemplates(context.user.id),
+    ])
     return {
       automations: rows.map((row) => ({
         id: row.id,
@@ -124,6 +152,15 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
         enabled: row.enabled,
         trigger_name: row.triggerName,
         updated_at: row.updatedAt.toISOString(),
+      })),
+      templates: templates.map((template) => ({
+        key: template.key,
+        name: template.name,
+        description: template.description,
+        steps: template.steps,
+        isCustomized: template.isCustomized,
+        isValid: template.isValid,
+        updated_at: template.updatedAt?.toISOString() ?? null,
       })),
     }
   })
@@ -141,8 +178,12 @@ const createAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(createSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const graph = data.templateKey
+      ? (await getUserAutomationTemplate(context.user.id, data.templateKey))
+          .graph
+      : undefined
     return serializeDetail(
-      await createUserAutomation(context.user.id, data.name)
+      await createUserAutomation(context.user.id, data.name, undefined, graph)
     )
   })
 
@@ -229,8 +270,11 @@ export function getAutomation(automationId: string) {
   return getAutomationFn({ data: { automationId } })
 }
 
-export function createAutomation(name: string) {
-  return createAutomationFn({ data: { name } })
+export function createAutomation(
+  name: string,
+  templateKey: AutomationTemplateKey | null = null
+) {
+  return createAutomationFn({ data: { name, templateKey } })
 }
 
 export function saveAutomation(input: {

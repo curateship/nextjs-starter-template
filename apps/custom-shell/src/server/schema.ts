@@ -153,9 +153,19 @@ export const customShellWorkspaces = pgTable(
   "workspaces",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * Who made this workspace, and empty once they are gone.
+     *
+     * Deliberately not the thing that owns it. A workspace holds contacts,
+     * segments, broadcasts and email settings, and while this cascaded, deleting
+     * one account took all of that with it — silently, from the schema, with
+     * nothing in `account-deletion.ts` saying so. It sets to null instead, so a
+     * workspace outlives the person who made it.
+     */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
     name: varchar("name", { length: 255 }).notNull(),
     settings: jsonb("settings").notNull(),
     isDefault: boolean("is_default").notNull().default(false),
@@ -677,6 +687,39 @@ export const customShellAutomations = pgTable(
   (table) => [
     unique("automations_user_name_unique").on(table.userId, table.name),
     index("ix_automations_user_updated").on(table.userId, table.updatedAt),
+  ]
+)
+
+/**
+ * One admin's saved version of a built-in automation template.
+ *
+ * No row means "use the built-in". Resetting a template deletes its row, so
+ * the code constant remains the single reset point and never has to be copied
+ * into every database just to say nothing changed.
+ */
+export const customShellAutomationTemplateOverrides = pgTable(
+  "automation_template_overrides",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    templateKey: varchar("template_key", { length: 64 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    description: varchar("description", { length: 300 }).notNull(),
+    graph: jsonb("graph").$type<AutomationGraph>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("automation_template_overrides_user_key_unique").on(
+      table.userId,
+      table.templateKey
+    ),
+    index("ix_automation_template_overrides_user_updated").on(
+      table.userId,
+      table.updatedAt
+    ),
   ]
 )
 

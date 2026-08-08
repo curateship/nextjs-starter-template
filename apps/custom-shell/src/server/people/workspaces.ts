@@ -276,15 +276,29 @@ const FEEDS_CHILD_HREFS: readonly string[] = [
   AUDIT_HREF,
 ]
 
-/** The automation canvas. */
+const AUTOMATIONS_LINK_ID = "item-automations"
+const AUTOMATIONS_HREF = "/admin/automations"
+const AUTOMATION_TEMPLATES_LINK_ID = "item-automation-templates"
+const AUTOMATION_TEMPLATES_HREF = "/admin/automations/templates"
+
+function automationTemplatesChildLink(): ShellChildItem {
+  return {
+    id: AUTOMATION_TEMPLATES_LINK_ID,
+    label: "Templates",
+    href: AUTOMATION_TEMPLATES_HREF,
+  }
+}
+
+/** The automation canvas and the templates used to start new flows. */
 const AUTOMATIONS_LINK: ShellItem = {
   type: "item",
-  id: "item-automations",
+  id: AUTOMATIONS_LINK_ID,
   label: "Automations",
-  href: "/admin/automations",
+  href: AUTOMATIONS_HREF,
   icon: "workflow",
   visible: true,
   roles: ["admin"],
+  children: [automationTemplatesChildLink()],
 }
 
 const NEWSLETTER_LINK_ID = "item-newsletter"
@@ -357,7 +371,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 17
+export const NAVIGATION_VERSION = 18
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -439,6 +453,20 @@ export async function readWorkspaceList(
   }
 }
 
+/**
+ * This person's workspaces.
+ *
+ * A workspace now survives the account that made it, which leaves rows nobody
+ * owns — and they are deliberately **not** listed here yet. Everything that
+ * reads this list is reachable by any signed-in member (`loadWorkspacesFn` is
+ * `userGet`, the delete pair is `userPost`, and `/workspaces` has no admin
+ * check), so including them would let a member see and delete a workspace that
+ * is nobody's — taking its contacts, segments and broadcasts with it.
+ *
+ * Reaching an ownerless workspace belongs with the task that makes any admin
+ * able to see any workspace, because that is where the admin check gets made.
+ * Until then an orphan is kept and unreachable, which is the safe way round.
+ */
 export async function listUserWorkspaces(
   userId: string,
   database: CustomShellDb = db
@@ -739,6 +767,9 @@ async function applyNavigationUpgrade(
   // first.
   if (settings.navVersion < 17) {
     sections = addPagesLink(sections)
+  }
+  if (settings.navVersion < 18) {
+    sections = addAutomationTemplatesLink(sections)
   }
 
   const [updated] = await database
@@ -1403,6 +1434,43 @@ export function addSegmentsLink(sections: ShellSection[]): ShellSection[] {
         segmentsChildLink()
       )
       return { ...entry, children }
+    }),
+  }))
+}
+
+/** Adds Templates beneath an existing Automations sidebar item. */
+export function addAutomationTemplatesLink(
+  sections: ShellSection[]
+): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isAutomations = (link: { id: string; href?: string }) =>
+    link.id === AUTOMATIONS_LINK_ID || link.href === AUTOMATIONS_HREF
+  const isTemplates = (link: { id: string; href?: string }) =>
+    link.id === AUTOMATION_TEMPLATES_LINK_ID ||
+    link.href === AUTOMATION_TEMPLATES_HREF
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isTemplates(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isTemplates))
+    )
+  )
+  if (alreadyThere) return sections
+  const hasAutomations = sections.some((section) =>
+    section.entries.some((entry) => isShellItem(entry) && isAutomations(entry))
+  )
+  if (!hasAutomations) return sections
+
+  return sections.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) => {
+      if (!isShellItem(entry) || !isAutomations(entry)) return entry
+      const children = entry.children?.length ? [...entry.children] : []
+      return {
+        ...entry,
+        children: [...children, automationTemplatesChildLink()],
+      }
     }),
   }))
 }

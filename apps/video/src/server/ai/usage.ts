@@ -3,6 +3,8 @@ import { and, desc, eq, gte, inArray, sql } from "drizzle-orm"
 import {
   aiAllowanceCentsFromFeatures,
   aiCostCents,
+  aiUnitCostCents,
+  isUnitPricedModel,
   type AiProvider,
   type AiUsageRange,
 } from "@/lib/ai/ai-models"
@@ -48,8 +50,32 @@ export type AiUsageEntry = {
   feature: string
   inputTokens: number
   outputTokens: number
+  /**
+   * How much of whatever this model is charged by was used — characters read
+   * aloud, pictures made, seconds of video. Left out for the usual case, where
+   * the price comes from the tokens above.
+   */
+  units?: number
   status: AiUsageStatus
   metadata?: Record<string, unknown>
+}
+
+/**
+ * What one call cost, in whole cents. A model charged by what it makes is
+ * priced by its units; everything else by its tokens. A blocked call never
+ * reached the provider, so it cost nothing whichever kind it is.
+ */
+export function aiUsageCostCents(
+  entry: Pick<
+    AiUsageEntry,
+    "model" | "inputTokens" | "outputTokens" | "units" | "status"
+  >
+): number {
+  if (entry.status === "blocked") return 0
+  if (isUnitPricedModel(entry.model)) {
+    return aiUnitCostCents(entry.model, entry.units ?? 0)
+  }
+  return aiCostCents(entry.model, entry.inputTokens, entry.outputTokens)
 }
 
 /** Writes one usage row. Never throws — the call being measured comes first. */
@@ -64,10 +90,16 @@ export async function recordAiUsage(entry: AiUsageEntry): Promise<void> {
       feature: entry.feature,
       inputTokens: entry.inputTokens,
       outputTokens: entry.outputTokens,
-      costCents: aiCostCents(entry.model, entry.inputTokens, entry.outputTokens),
+      costCents: aiUsageCostCents(entry),
       status: entry.status,
       monthStart: aiUsageMonthStart(at),
-      metadata: entry.metadata ?? {},
+      // The units are kept beside the row rather than in a column of their
+      // own: they are the working-out behind the cost, not something anything
+      // adds up.
+      metadata:
+        entry.units === undefined
+          ? (entry.metadata ?? {})
+          : { ...entry.metadata, units: entry.units },
       createdAt: at,
     })
   } catch (error) {
@@ -80,6 +112,8 @@ export async function recordAiUsage(entry: AiUsageEntry): Promise<void> {
 export type AiCallUsage = {
   inputTokens: number
   outputTokens: number
+  /** For a model charged by what it makes rather than by the token. */
+  units?: number
 }
 
 /**
@@ -123,6 +157,7 @@ export async function runAiCall<T>(
       ...context,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
+      units: usage.units,
       status: "success",
     })
     // Now that this call's cost is on the books, see whether it pushed the
