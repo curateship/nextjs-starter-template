@@ -1,11 +1,46 @@
 # Admin action feedback
 
+This document is descriptive, not aspirational: every rule below matches shipped behavior after the Jul 2026 custom-shell parity sweep, and a screen that diverges from it is a bug.
+
 Admin mutations return `AdminActionResult`: `{ ok: true, data }` on success or `{ ok: false, message }` on failure.
 
 - State expected failures plainly: name the conflict, invalid field, or missing prerequisite and what to do next.
 - Log unexpected server errors with action context; show admins: “Something went wrong [action] — the error has been logged.”
-- Use `runAction` for mutations. It gives successes a short toast and failures a persistent toast; forms also retain the message inline.
+- Use `runAction` for mutations. It gives successes a short toast and failures the shared error toast; forms also retain the message inline.
+- **One home for every failure** (`src/lib/error-toast.ts`): a failed click reports through `showErrorToast` — one persistent red toast at the top center, where a repeat failure replaces the previous message instead of stacking, starting a new attempt (`dismissErrorToast`, called automatically by `runAction`) clears it, and navigating away clears it. Never call `toast.error` directly, and never pop a dialog just to show an error.
+- A delete that fails while its confirm dialog is open keeps the message inline in `ConfirmDestructive` (its `error` prop) so the answer sits next to the question. That confirm dialog is the **only** modal allowed to show a failure in its own body.
+- **A failed save inside a create or settings modal reports through the error toast**, which draws above the modal; the modal stays open with the entered values intact. `useCreateContent`'s `setError` (`content-modal-shared.tsx`) is wired straight to `showErrorToast`, so every modal built on it inherits this — passing `null` clears the toast, which is what starting a new attempt does. There is no `ModalErrorBanner`; never re-add a red box inside a modal body.
+- A failed **load** belongs to the surface that failed, not a toast: pass `error={{ message, onRetry }}` to `AdminTableShell` and the shared `ErrorBanner` (`src/components/ui/error-banner.tsx`) renders between the toolbar and the column headers, with the empty state beneath it. Non-table surfaces render `ErrorBanner` directly. Never draw a load error as red text inside the table body.
+- Field validation reports on blur or submit with `aria-invalid` on the input — never per keystroke, and never a disabled button with no message.
+- **A submit button is never greyed out because a field is empty** — only while the save is actually in flight (`disabled={saving}`), which means "busy", not "you're wrong". A button greyed for a validation reason is a dead end: it says no without saying why. Let the click happen and answer it with the error toast plus `aria-invalid`. This matches custom-shell, where every dialog button is disabled on the in-flight flag alone.
+- **A modal never reports through a parent callback that feeds page state.** An `onError` prop wired to a page's `setError` paints the *load* banner on the surface behind the modal. Modals call `showErrorToast` themselves.
+- **Never use the browser's built-in `required` in a modal.** The browser refuses the submit and shows its own bubble, which never appears when the field sits on a tab panel that has been switched away — so the button just looks dead. There is no `required` left in the admin: validate in the handler, report through the error toast, set `aria-invalid` on the field, and switch back to the tab that holds it so the message points at something visible.
+- **The `<form>` must be inside `DashboardModalContent`, never wrapped around it.** The modal portals to `<body>`, so a form wrapped outside it does not contain its own fields once rendered and Enter does nothing — the footer's `form="…"` button still submits, which is why this looks like it works. Put the form inside the modal and give the footer button `form` + `type="submit"`.
+- **A save in flight shuts every way out.** Pass `busy={saving}` to `DashboardModalContent` (or `DialogContent` for a raw admin dialog): the X, the backdrop and Escape are all refused until the save lands, so a half-written record cannot be abandoned and the failure toast always has a modal to appear in front of. The primary button shows a `Loader2Icon animate-spin` beside its unchanged label — never swap the label for "Saving…".
+- **The shared `Button` defaults to `type="button"`.** Only a Save button opts into `type="submit"`. Without that default, every "Add row" or "Choose image" button inside a modal form would submit it.
 - Never expose stack traces, SQL, raw provider responses, or secrets.
+
+## Auto-save
+
+- **The admin has no page-level Save button.** Settings, the builders, the template editors and the email editors all write on their own: an edit is stored ~800ms after the last change, through the shared `useAutoSave` hook (`src/components/admin/layout/builder/use-auto-save.ts`). Saves run on a queue, so quick successive edits land in the order they were made and a slow request can never overwrite a newer one; a pending edit is flushed if the screen unmounts. Never add a Save button back to a page header.
+- **The header says what happened**, through `saveStatus` on `DashboardSubheader` / `StickybarTopRightActions`: *Saving…* while it writes, *Saved* for a few seconds after, nothing when idle. Auto-save never toasts a success — a toast on every keystroke pause would be unusable.
+- **A save that cannot run says why** — the fourth status, `blocked`. Give `useAutoSave` a `blockedReason(draft)` and return a sentence starting "Not saved — " (`Not saved — add a site name`). It stays in the header until the reason is fixed, which is the only warning the user gets when the edit that broke it was on another tab. A refused save is not an error toast.
+- **A failed save reports through the shared error toast** and leaves the edit on screen — the hook does this for you when `save` returns `{ saved: false, reason }`.
+- **Fields whose half-typed value would do real damage wait for the box to be left, not the debounce.** Today that is the site URL and custom domain (`onAddressFieldCommit`) and every integration key or password (`onSecretCommit`) — a partial subdomain is a live web address, a partial domain fails its DNS check, and a partial key breaks a live integration. Use `saveNow()` on blur for these; everything else follows the debounce.
+- **Never disable a field while a save is in flight.** `disabled={saving}` fights the typing that started the save.
+- **Dialogs keep their Save / Done buttons.** A dialog is a deliberate "make these changes, then confirm" step; its button calls `saveNow()` so the edit is written before the dialog closes rather than left sitting in the debounce.
+- **Creating something new is the one exception**: a screen that would *create* a record on the first keystroke keeps its button (the new custom-block screen's "Create Block"). Auto-save takes over once the record exists.
+- **Loading values in is not an edit.** Anything that fills fields from the server (a site switch, a reload) must record what it loaded as already-saved, or the screen writes it straight back.
+
+## Success
+
+- **Every create, edit and delete confirms with exactly one `showActionSuccess`.** A dialog that just closes is indistinguishable from a silent failure. Auto-save is the exception — it confirms in the header, not with a toast.
+- Wording is a terse past-tense sentence naming the thing, capitalised, with a full stop: `Site created.` / `Contact updated.` / `Listings deleted.` Never prefix with "Successfully", and never carry an exclamation mark.
+- Singular vs plural follows the count, and the count is captured **before** `clearSelection()` runs: `showActionSuccess(ids.length === 1 ? "Product deleted." : "Products deleted.")`.
+- **One signal per action.** Toast at the layer that owns the server call, and nowhere else — if a modal toasts, its parent's `onSuccess` callback must not. Do not leave an inline "Saved!" label or green chip behind as a second confirmation.
+- Shared controllers cover their whole family: `useContentListMutations` toasts create / update / duplicate / delete for posts, products, pages, events, listings and account pages using `itemLabel` / `itemLabelPlural`, so those screens must not toast again themselves.
+- Bulk action buttons read `Verb (n)` — the shared `AdminBulkDeleteButton` reads `Delete (n)`; hand-rolled variants name their own verb (`Archive (n)`, `Remove (n)`).
+- **How long a toast stays up is a setting, not a number in code.** Platform Settings → General has "Toast message duration (seconds)" (1–60, default 5, saved as `toast_seconds` in `admin_settings`). The root layout publishes it through `setToastSeconds` (`src/lib/toast-duration.ts`) and the Toaster subscribes with `useToastDurationMs`, so one number covers the admin and the public site. Never pass a `duration` to `toast.success` — `showActionSuccess` deliberately passes none. Failures are exempt: `showErrorToast` pins them with `duration: Infinity`.
 - Error messages must never reveal another user's data (site names, emails, domains they own).
 
 `runAction` accepts only `AdminActionResult`; callers must convert older result shapes at their action boundary.

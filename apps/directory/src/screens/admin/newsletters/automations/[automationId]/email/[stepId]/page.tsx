@@ -21,8 +21,6 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
   return (
     <NewsletterEditorShell
       loading={builder.loading}
-      loadingActionCount={3}
-      loadingShowHeader
       error={builder.error}
       showError={Boolean(builder.error && !builder.step)}
       errorBackLabel="Back to Automation"
@@ -40,7 +38,6 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
       onSubjectChange={builder.setSubject}
       saveStatus={builder.saveStatus}
       isSaving={builder.isSaving}
-      onSave={builder.handleSave}
       settingsDisabled={!builder.step}
       renderSettingsModal={(show, setShow) => (
         <AutomationEmailSettingsModal

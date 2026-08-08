@@ -109,7 +109,7 @@ function NotificationRow({
     >
       <div className="pt-5">
         {!item.read_at ? (
-          <span className="block size-2 rounded-full bg-red-500" />
+          <span className="block size-2 rounded-full bg-destructive" />
         ) : null}
       </div>
       <div className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -117,9 +117,7 @@ function NotificationRow({
       </div>
       <div className="min-w-0">
         <p className="text-sm font-medium leading-snug">{item.title}</p>
-        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-          {item.message}
-        </p>
+        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground" title={item.message}>{item.message}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {item.site_name} - {dateFormatter.format(new Date(item.created_at))}
         </p>
@@ -162,11 +160,11 @@ export function NotificationCenter() {
     setError(null)
 
     try {
-      const data = await listHubNotificationPage({
+      const data = await listHubNotificationPage({ data: {
         siteId: currentSite.id,
         cursor,
         limit: NOTIFICATION_PAGE_SIZE,
-      })
+      } })
       setNotifications((current) =>
         cursor ? [...current, ...data.notifications] : data.notifications
       )
@@ -216,7 +214,7 @@ export function NotificationCenter() {
     try {
       if (!currentSite?.id) return
 
-      const result = await markAllHubNotificationsRead(currentSite.id)
+      const result = await markAllHubNotificationsRead({ data: { siteId: currentSite.id } })
       const readIds = new Set(result.notificationIds)
       setNotifications((current) =>
         current.map((item) =>
@@ -234,7 +232,7 @@ export function NotificationCenter() {
 
     if (!item.read_at) {
       try {
-        const result = await markHubNotificationRead(item.id, item.site_id)
+        const result = await markHubNotificationRead({ data: { notificationId: item.id, siteId: item.site_id } })
         setNotifications((current) =>
           current.map((currentItem) =>
             currentItem.id === result.notificationId
@@ -277,7 +275,7 @@ export function NotificationCenter() {
         >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 ? (
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-semibold leading-none text-white">
               {unreadBadgeLabel}
             </span>
           ) : null}

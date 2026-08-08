@@ -8,7 +8,7 @@ import {
   sortMarketRows,
   useMarketSort,
 } from "@/components/backtest/backtest-markets-table"
-import { truncateWords } from "@/components/backtest/backtest-format"
+import { truncateWords } from "@/lib/format"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { StrategyTester } from "@/components/backtest/strategy-tester"
 import { BotEventsList } from "@/components/bots/bot-events-list"
@@ -22,7 +22,10 @@ import { buildBotRungLines } from "@/components/bots/bot-rung-lines"
 import { buildBotMarketRows } from "@/components/bots/bot-market-rows"
 import { buildBotResult } from "@/components/bots/bot-result"
 import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
+import { BotPositionsTable } from "@/components/bots/bot-positions-table"
 import { useBotLive } from "@/components/bots/use-bot-live"
+import { useMarketRows } from "@/lib/hl/hooks"
+import { BotSettingsBanner } from "@/components/bots/bot-settings-banner"
 import { WorkerOfflineBanner } from "@/components/bots/worker-offline-banner"
 import { ViewSwitcher } from "@/components/automations/automation-view-switcher"
 import { IconButton } from "@/components/icon-button"
@@ -147,6 +150,13 @@ export function BotWorkspace({
   }, [bot.markets, selectedMarket, setSelectedMarket])
 
   const live = useBotLive(data, selectedMarket)
+  // Live marks for EVERY market, for the cross-market Positions tab.
+  const allMarketRows = useMarketRows(live.network)
+  const priceOf = React.useCallback(
+    (market: string) =>
+      Number(allMarketRows.find((row) => row.coin === market)?.markPx ?? 0),
+    [allMarketRows]
+  )
   const [focusedTradeN, setFocusedTradeN] = React.useState<number | null>(null)
   const marketSort = useMarketSort("net")
 
@@ -387,6 +397,14 @@ export function BotWorkspace({
       {!data.workerOnline ? (
         <WorkerOfflineBanner className="border-b px-4 py-1.5 text-xs" />
       ) : null}
+      <BotSettingsBanner
+        settingsBehind={bot.settings_behind}
+        botId={bot.id}
+        desiredState={bot.desired_state}
+        commandBusy={botCommandBusy}
+        onPause={() => runBotCommand("pause")}
+        onChanged={refresh}
+      />
 
       <ClientOnly fallback={null}>
         <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
@@ -514,6 +532,19 @@ export function BotWorkspace({
                   onSelectTrade={(trade) => setFocusedTradeN(trade?.n ?? null)}
                   toggles={panelToggles}
                   extraTabs={[
+                    {
+                      value: "positions",
+                      label: "Positions",
+                      content: (
+                        <BotPositionsTable
+                          states={data.states}
+                          trades={data.trades}
+                          priceOf={priceOf}
+                          selectedMarket={selectedMarket}
+                          onSelectMarket={setSelectedMarket}
+                        />
+                      ),
+                    },
                     {
                       value: "events",
                       label: "Events",

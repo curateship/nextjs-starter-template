@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
@@ -13,10 +14,8 @@ import {
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
-import { PostBlockListPanel } from "@/components/admin/post-builder/layout/PostBlockListPanel"
 import { updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
 import type { Post } from "@/lib/actions/posts/post-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PostPreview } from "@/components/admin/post-builder/layout/PostPreview"
 import { PostBlockEditorModal } from "@/components/admin/post-builder/layout/PostBlockEditorModal"
@@ -39,7 +38,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     siteId,
   })
   const [selectedPost, setSelectedPost] = useState(postFromUrl)
-  const [blockListOpen, setBlockListOpen] = useState(false)
   const {
     blocks,
     currentPostData,
@@ -74,7 +72,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftPostTitle, setDraftPostTitle] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
   const currentPost = {
     slug: selectedPost,
     name: currentPostData?.title || selectedPost,
@@ -95,7 +92,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     if (!selectedBlock) {
       setDraftContent({})
       setDraftPostTitle("")
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -105,7 +102,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         : {}
     )
     setDraftPostTitle(currentPostData?.title || "")
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, currentPostData?.title])
 
   // Handle post updates
@@ -148,14 +145,14 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const handleCloseBlockEditor = () => {
     if (isSavingBlock) return
     builderState.setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   const handleSaveBlockEditor = async () => {
     if (!selectedBlock || !currentPostId) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const updatedBlock = normalizePostBuilderBlock({
@@ -176,7 +173,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
       ) {
         const { data, error } = await updatePostAction({ data: { postId: currentPostId, updates: { title: draftPostTitle.trim() } } })
         if (error || !data) {
-          setBlockSaveError(error || "Failed to save post title")
+          showErrorToast(error || "Failed to save post title")
           return
         }
         handlePostUpdated(data)
@@ -184,23 +181,18 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
 
       const { success, error } = await updatePostBlocksAction({ data: { postId: currentPostId, blocks: postBlocksToValueJson(Object.values(nextBlocks)) } })
       if (!success) {
-        setBlockSaveError(error || "Failed to save block")
+        showErrorToast(error || "Failed to save block")
         return
       }
 
       setLocalBlocks(nextBlocks)
       builderState.setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
   }
-
-  const viewPageHref = site && currentPostData
-    ? `${getSiteUrl(site)}/posts/${currentPostData.slug}`
-    : null
-  const publishedViewPageHref = currentPostData?.is_published ? viewPageHref : null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -209,12 +201,9 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentPostData?.is_published)}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentPostData}
             renderSettingsModal={(show, setShow) => (
               <PostSettingsModal
@@ -284,22 +273,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
         />
-
-        {blockListOpen && (
-          <PostBlockListPanel
-            blocks={currentPost.blocks}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={(block) => {
-              if (block.type === "core") builderState.setSelectedBlock(block)
-            }}
-            viewPageHref={publishedViewPageHref}
-            deleting={null}
-            blocksLoading={loading}
-            editableStructure={false}
-          />
-        )}
       </div>
     </div>
   )

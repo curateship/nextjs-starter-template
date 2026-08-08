@@ -17,23 +17,11 @@ export const getEventRegistrationStateAction = createServerFn({ method: "POST" }
   .handler(async ({ data }) => getEventRegistrationStateActionImpl(data))
 
 export const submitEventRegistrationAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  eventSlug: string
-  name: string
-  email: string
-  honeypot?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof submitEventRegistrationActionImpl>[0] }) => data)
   .handler(async ({ data }) => submitEventRegistrationActionImpl(data.input))
 
 export const createEventTicketCheckoutAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  eventSlug: string
-  name: string
-  email: string
-  honeypot?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createEventTicketCheckoutActionImpl>[0] }) => data)
   .handler(async ({ data }) => createEventTicketCheckoutActionImpl(data.input))
 
 export const confirmEventTicketCheckoutAction = createServerFn({ method: "POST" })

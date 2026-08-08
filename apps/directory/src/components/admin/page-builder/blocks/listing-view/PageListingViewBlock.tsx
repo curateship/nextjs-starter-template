@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { getCategoriesWithCountsAction, type Category } from "@/lib/actions/categories/category-actions"
@@ -123,7 +123,7 @@ function ListingMapSettingsPanel({ siteId }: { siteId: string }) {
   const [lastRun, setLastRun] = useState<{ geocoded: number; failed: number } | null>(null)
 
   const loadStats = useCallback(async () => {
-    const result = await getDirectoryCoordinateStatsAction(siteId)
+    const result = await getDirectoryCoordinateStatsAction({ data: { siteId } })
     if (result.data) {
       setStats(result.data)
       setError(null)
@@ -140,7 +140,7 @@ function ListingMapSettingsPanel({ siteId }: { siteId: string }) {
     setGeocoding(true)
     setLastRun(null)
     try {
-      const result = await backfillDirectoryCoordinatesAction(siteId)
+      const result = await backfillDirectoryCoordinatesAction({ data: { siteId } })
       if (result.error || !result.data) {
         setError(result.error || 'Failed to geocode listings')
         return

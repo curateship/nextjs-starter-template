@@ -1,10 +1,11 @@
 
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { authUsers, hubNotifications } from '@/lib/db/schema'
+import { authUsers, hubNotificationPreferences, hubNotifications } from '@/lib/db/schema'
+import { pickNotificationRecipients, type HubNotificationType } from './notification-kinds'
 
-export type HubNotificationType = 'product_order' | 'directory_claim' | 'directory_owner_edit' | 'directory_featured' | 'newsletter_paused' | 'directory_featured_expired' | 'event_submission' | 'directory_submission' | 'event_registration' | 'automation_approval'
+export type { HubNotificationType }
 
 type CreateHubNotificationInput = {
   type: HubNotificationType
@@ -29,11 +30,27 @@ export async function createHubNotificationForSuperAdmins(input: CreateHubNotifi
   }
 
   try {
-    const recipients = await db
+    const superAdmins = await db
       .select({ id: authUsers.id })
       .from(authUsers)
       .where(eq(authUsers.role, 'super_admin'))
 
+    // Anyone who switched this kind off for this site is skipped. A person
+    // with no saved preference always receives it.
+    const mutedRows = await db
+      .select({
+        userId: hubNotificationPreferences.userId,
+        type: hubNotificationPreferences.type,
+        enabled: hubNotificationPreferences.enabled,
+      })
+      .from(hubNotificationPreferences)
+      .where(and(
+        eq(hubNotificationPreferences.siteId, input.siteId),
+        eq(hubNotificationPreferences.type, input.type),
+        eq(hubNotificationPreferences.enabled, false)
+      ))
+
+    const recipients = pickNotificationRecipients(superAdmins, mutedRows, input.type)
     if (!recipients.length) return
 
     await db

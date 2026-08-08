@@ -1,9 +1,10 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 interface NewsletterDividerBlockProps {
@@ -30,20 +31,14 @@ export function NewsletterDividerBlock({ content, onContentChange, onBack }: New
                 <CardContent>
                   <div>
                     <Label htmlFor="divider-color">Color</Label>
-                    <div className="mt-1 flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={content.color || "#e5e7eb"}
-                        onChange={(e) => onContentChange("color", e.target.value)}
-                        className="h-10 w-10 cursor-pointer rounded border"
-                      />
-                      <Input
-                        id="divider-color"
-                        value={content.color || "#e5e7eb"}
-                        onChange={(e) => onContentChange("color", e.target.value)}
-                        className="flex-1"
-                      />
-                    </div>
+                    <HexColorInput
+                      id="divider-color"
+                      className="mt-1"
+                      inputClassName="flex-1"
+                      value={content.color || "#e5e7eb"}
+                      onColorChange={(color) => onContentChange("color", color)}
+                      swatchAriaLabel="Pick a divider color"
+                    />
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-2">

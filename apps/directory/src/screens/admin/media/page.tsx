@@ -10,7 +10,8 @@ import Grid from "lucide-react/dist/esm/icons/grid-3x3.js"
 import List from "lucide-react/dist/esm/icons/list.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
-import Edit from "lucide-react/dist/esm/icons/square-pen.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
 import VideoIcon from "lucide-react/dist/esm/icons/video.js"
 import Upload from "lucide-react/dist/esm/icons/upload.js"
 import {
@@ -21,13 +22,17 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  formatRelativeDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import {
   getPaginatedMediaAction,
@@ -39,6 +44,8 @@ import Image from "@/components/app-image"
 import { resolveMediaPlaybackUrl } from "@/lib/utils/media-url"
 import { resizeImageForUpload } from "@/lib/utils/image-resize"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -71,6 +78,16 @@ export default function ImagesPage() {
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
   const mediaSort = useAdminSort<MediaSortColumn>()
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSiteId}|${filterType}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(mediaSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
   const [isDeleting, setIsDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<MediaData | null>(null)
@@ -110,25 +127,13 @@ export default function ImagesPage() {
     loadImages()
   }, [siteLoading, loadImages])
 
-  useEffect(() => {
-    setCurrentPage(1)
-    clearMediaSelection()
-  }, [currentSiteId, clearMediaSelection])
-
-  // Reset to first page when filter changes
   const handleFilterChange = (newFilter: "all" | "image" | "video" | "svg") => {
     setFilterType(newFilter)
-    setCurrentPage(1)
-    clearMediaSelection()
   }
 
   // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
-  }
-
-  const handlePageSizeChange = () => {
-    clearMediaSelection()
   }
 
   const handleDeleteImage = async (image: MediaData) => {
@@ -141,7 +146,7 @@ export default function ImagesPage() {
         showActionError(`Failed to delete image: ${error}`)
         return false
       } else {
-        showActionSuccess("Image deleted successfully")
+        showActionSuccess("Image deleted.")
         loadImages()
         return true
       }
@@ -169,7 +174,7 @@ export default function ImagesPage() {
       if (error) {
         showActionError(`Failed to update image: ${error}`)
       } else {
-        showActionSuccess("Image updated successfully")
+        showActionSuccess("Image updated.")
         // Update the item in current page data
         if (paginatedData) {
           setPaginatedData({
@@ -231,7 +236,7 @@ export default function ImagesPage() {
         throw new Error(result.error || "Upload failed")
       }
 
-      showActionSuccess("Image uploaded successfully!")
+      showActionSuccess("Image uploaded.")
       loadImages()
     } catch (error) {
       showActionError(error instanceof Error ? error.message : "Upload failed")
@@ -270,7 +275,7 @@ export default function ImagesPage() {
       }
 
       if (successCount > 0) {
-        showActionSuccess(`Successfully deleted ${successCount} ${successCount === 1 ? "item" : "items"}`)
+        showActionSuccess(successCount === 1 ? "Item deleted." : "Items deleted.")
       }
       if (failCount > 0) {
         showActionError(`Failed to delete ${failCount} ${failCount === 1 ? "item" : "items"}`)
@@ -334,7 +339,7 @@ export default function ImagesPage() {
 
           <AdminTableShell
             title="Media"
-            icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<ImageIcon className="text-muted-foreground" />}
             count={paginatedData?.total ?? 0}
             loading={isLoading}
             selectedCount={mediaSelection.selectedCount}
@@ -401,7 +406,6 @@ export default function ImagesPage() {
                 <AdminListFooter
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
-                  onPageSizeChange={handlePageSizeChange}
                   pageSize={pageSize}
                   total={paginatedData?.total ?? 0}
                 />
@@ -413,10 +417,16 @@ export default function ImagesPage() {
               isLoading && sortedImages.length === 0 ? null : sortedImages.length === 0 ? (
                 <div className="p-8 text-center">
                   <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                  <p className="mb-4 text-muted-foreground">No media found. Upload your first file to get started.</p>
-                  <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
-                    Upload Your First Media File
-                  </Button>
+                  {normalizedSearchQuery || filterType !== "all" ? (
+                    <p className="text-muted-foreground">No media found matching your search.</p>
+                  ) : (
+                    <>
+                      <p className="mb-4 text-muted-foreground">No media found. Upload your first file to get started.</p>
+                      <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
+                        Upload Your First Media File
+                      </Button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="px-5 pb-5">
@@ -476,24 +486,16 @@ export default function ImagesPage() {
                                 aria-label={`Select ${media.original_name}`}
                               />
                             </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
+                            <AdminRowAction
+                              icon={Settings}
+                              label="File settings"
                               onClick={() => handleEditImage(media)}
-                              className="h-8 w-8 cursor-pointer p-0"
-                              aria-label="Edit media"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete file"
                               onClick={() => setDeleteTarget(media)}
-                              className="h-8 w-8 cursor-pointer p-0 text-foreground hover:text-foreground"
-                              aria-label="Delete media"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            />
                           </div>
                         </div>
                       )
@@ -513,42 +515,10 @@ export default function ImagesPage() {
                           aria-label="Select all media"
                         />
                       </TableHead>
-                      <TableHead column="main">
-                        <AdminSortButton
-                          active={mediaSort.sortColumn === "name"}
-                          direction={mediaSort.sortDirection}
-                          onClick={() => mediaSort.toggleSort("name")}
-                        >
-                          File
-                        </AdminSortButton>
-                      </TableHead>
-                      <TableHead column="meta">
-                        <AdminSortButton
-                          active={mediaSort.sortColumn === "type"}
-                          direction={mediaSort.sortDirection}
-                          onClick={() => mediaSort.toggleSort("type")}
-                        >
-                          Type
-                        </AdminSortButton>
-                      </TableHead>
-                      <TableHead column="meta">
-                        <AdminSortButton
-                          active={mediaSort.sortColumn === "size"}
-                          direction={mediaSort.sortDirection}
-                          onClick={() => mediaSort.toggleSort("size")}
-                        >
-                          Size
-                        </AdminSortButton>
-                      </TableHead>
-                      <TableHead column="meta">
-                        <AdminSortButton
-                          active={mediaSort.sortColumn === "added"}
-                          direction={mediaSort.sortDirection}
-                          onClick={() => mediaSort.toggleSort("added")}
-                        >
-                          Added
-                        </AdminSortButton>
-                      </TableHead>
+                      <AdminSortableHead column="main" sort={mediaSort} sortKey="name">File</AdminSortableHead>
+                      <AdminSortableHead column="meta" sort={mediaSort} sortKey="type">Type</AdminSortableHead>
+                      <AdminSortableHead column="meta" sort={mediaSort} sortKey="size">Size</AdminSortableHead>
+                      <AdminSortableHead column="meta" sort={mediaSort} sortKey="added">Added</AdminSortableHead>
                       <TableHead column="meta">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -559,12 +529,18 @@ export default function ImagesPage() {
                       <TableRow>
                         <TableCell colSpan={6} className="h-32 text-center">
                           <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                          <p className="mb-4 text-muted-foreground">
-                            No media found. Upload your first file to get started.
-                          </p>
-                          <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
-                            Upload Your First Media File
-                          </Button>
+                          {normalizedSearchQuery || filterType !== "all" ? (
+                            <p className="text-muted-foreground">No media found matching your search.</p>
+                          ) : (
+                            <>
+                              <p className="mb-4 text-muted-foreground">
+                                No media found. Upload your first file to get started.
+                              </p>
+                              <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
+                                Upload Your First Media File
+                              </Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -605,49 +581,37 @@ export default function ImagesPage() {
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <h4 className="truncate text-sm font-medium sm:text-base">{media.original_name}</h4>
+                                  <h4 className="truncate text-sm font-medium sm:text-base" title={media.original_name}>{media.original_name}</h4>
                                   {media.alt_text && (
-                                    <p className="truncate text-xs text-muted-foreground sm:text-sm">{media.alt_text}</p>
+                                    <p className="truncate text-xs text-muted-foreground sm:text-sm" title={media.alt_text}>{media.alt_text}</p>
                                   )}
                                 </div>
                               </div>
                             </TableCell>
                             <TableCell column="mutedMeta" className="capitalize">{media.file_type}</TableCell>
                             <TableCell column="mutedMeta">{formatFileSize(media.file_size)}</TableCell>
-                            <TableCell column="mutedMeta">{formatDate(media.created_at)}</TableCell>
+                            <TableCell column="mutedMeta"><RelativeDate date={media.created_at} /></TableCell>
                             <TableCell column="meta">
-                              <div className="flex items-center space-x-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                              <AdminRowActions>
+                                <AdminRowAction
+                                  icon={Settings}
+                                  className="md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                  label="File settings"
                                   onClick={() => handleEditImage(media)}
-                                  title="Edit Details"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  <span className="sr-only">Edit</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => window.open(media.public_url, "_blank")}
-                                  title="View Original"
-                                >
-                                  <ImageIcon className="h-4 w-4" />
-                                  <span className="sr-only">View Original</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-foreground hover:text-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                />
+                                <AdminRowAction
+                                  icon={Eye}
+                                  external
+                                  href={media.public_url}
+                                  label="Preview original"
+                                />
+                                <AdminRowAction
+                                  icon={Trash2}
+                                  className="md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                  label="Delete file"
                                   onClick={() => setDeleteTarget(media)}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              </div>
+                                />
+                              </AdminRowActions>
                             </TableCell>
                           </TableRow>
                         )

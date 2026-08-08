@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
+import { AdminLoading } from "@/components/admin/layout/loading"
 import { defaultFont, getFontByValue, getFontFamily } from "@/lib/utils/font-config"
 import { cn } from "@/lib/utils/tailwind"
 import { SiteThemeProvider } from "@/components/frontend/layout/site-theme-provider"
@@ -44,38 +45,6 @@ interface BuilderPreviewShellProps<TBlock extends SelectablePreviewBlock> {
 }
 
 const DEFAULT_EMPTY_TITLE = "No blocks added yet"
-
-function DefaultPreviewSkeleton() {
-  return (
-    <div className="mx-auto max-w-[1152px] space-y-12 px-8 py-12">
-      <div className="grid gap-10 lg:grid-cols-2">
-        <div className="space-y-4">
-          <div className="h-12 w-full rounded bg-muted motion-safe:animate-pulse" />
-          <div className="h-12 w-4/5 rounded bg-muted motion-safe:animate-pulse" />
-          <div className="space-y-2 pt-2">
-            <div className="h-4 w-full rounded bg-muted/60 motion-safe:animate-pulse" />
-            <div className="h-4 w-11/12 rounded bg-muted/60 motion-safe:animate-pulse" />
-            <div className="h-4 w-3/4 rounded bg-muted/60 motion-safe:animate-pulse" />
-          </div>
-        </div>
-        <div className="aspect-video rounded-xl bg-muted/40 motion-safe:animate-pulse" />
-      </div>
-
-      <div className="grid gap-5 md:grid-cols-3">
-        {[1, 2, 3].map(item => (
-          <div key={item} className="space-y-3">
-            <div className="h-40 rounded-lg bg-muted/40 motion-safe:animate-pulse" />
-            <div className="h-5 w-3/4 rounded bg-muted motion-safe:animate-pulse" />
-            <div className="space-y-2">
-              <div className="h-3.5 rounded bg-muted/40 motion-safe:animate-pulse" />
-              <div className="h-3.5 w-5/6 rounded bg-muted/40 motion-safe:animate-pulse" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
   allBlocks,
@@ -216,7 +185,7 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
 
           <ScrollArea className="min-h-0 flex-1">
             {isLoading ? (
-              loadingFallback || <DefaultPreviewSkeleton />
+              loadingFallback || <AdminLoading className="h-full" />
             ) : isEmpty ? (
               <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
                 <div className="text-center">

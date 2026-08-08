@@ -35,7 +35,7 @@ import {
 import { isManualRunParams } from "@/lib/backtest/manual-types"
 import type { HistoryCandle } from "@/server/backtest/history"
 
-import { windowDaysOf } from "./backtest-format"
+import { windowDaysOf } from "@/lib/format"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { BacktestHeader } from "./backtest-header"
 import { BacktestRunChart } from "./backtest-run-chart"
@@ -357,7 +357,7 @@ export function BacktestDashboard({
             {summaryOpen ? (
             <ResizablePanel id="summary" defaultSize="20%" minSize="13%">
               <WorkspacePanel>
-                <BacktestSummary result={result} />
+                <BacktestSummary result={result} run={run} groupRuns={groupRuns} />
               </WorkspacePanel>
             </ResizablePanel>
             ) : null}

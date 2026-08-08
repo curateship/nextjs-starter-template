@@ -19,7 +19,7 @@ import {
   getDirectoryTemplateDefaultCategoryParentId,
   mergeDirectoryTemplateBlocks,
 } from "@/lib/actions/directories/directory-template-inheritance"
-import { getDirectoryRelatedListingsAction } from "@/lib/actions/directories/directory-related-listing-actions"
+import { getDirectoryRelatedListingsActionImpl } from "@/lib/actions/directories/directory-related-listing-actions.server"
 import { getDirectoryFeaturedUntil } from "@/lib/actions/directories/directory-featured-activation"
 import { isDirectoryFeaturedNow } from "@/lib/actions/directories/directory-featured-helpers"
 
@@ -48,7 +48,7 @@ async function prefetchRelatedListingData(
     if (!parentCategoryId) continue
 
     try {
-      const result = await getDirectoryRelatedListingsAction({
+      const result = await getDirectoryRelatedListingsActionImpl({
         siteId,
         directoryId,
         parentCategoryId,

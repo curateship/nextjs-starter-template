@@ -8,6 +8,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -44,15 +45,15 @@ export default function EmailHealthPage() {
   }, [loadReport])
 
   const dnsStatusIcon = (status: string) => {
-    if (status === "pass") return <CheckCircle className="h-4 w-4 text-green-600" />
-    if (status === "fail") return <XCircle className="h-4 w-4 text-red-600" />
+    if (status === "pass") return <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+    if (status === "fail") return <XCircle className="h-4 w-4 text-destructive" />
     return <AlertTriangle className="h-4 w-4 text-yellow-600" />
   }
 
   const dnsStatusBadge = (status: string) => {
-    if (status === "pass") return <Badge className="bg-green-100 text-green-800">Pass</Badge>
+    if (status === "pass") return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Pass</Badge>
     if (status === "fail") return <Badge variant="destructive">Fail</Badge>
-    return <Badge className="bg-yellow-100 text-yellow-800">Missing</Badge>
+    return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Missing</Badge>
   }
 
   return (
@@ -80,18 +81,11 @@ export default function EmailHealthPage() {
             <div>
               {[1, 2, 3, 4].map((i) => (
                 <Card key={i}>
-                  <div className="h-6 bg-muted rounded animate-pulse w-40 mb-4" />
-                  <div className="h-20 bg-muted/60 rounded animate-pulse" />
                 </Card>
               ))}
             </div>
           ) : error ? (
-            <div className="p-8 text-center">
-              <p className="text-red-600 mb-4">{error}</p>
-              <Button onClick={loadReport} variant="outline">
-                Try Again
-              </Button>
-            </div>
+            <ErrorBanner message={error} onRetry={loadReport} />
           ) : report ? (
             <div className="pb-8">
               {selectedSender && (
@@ -151,14 +145,14 @@ export default function EmailHealthPage() {
                     <p className="text-xs text-muted-foreground">Click Rate</p>
                   </div>
                   <div className="text-center p-3 border rounded-lg">
-                    <p className={`text-2xl font-bold ${report.emailMetrics.bounceRate > 2 ? "text-red-600" : ""}`}>
+                    <p className={`text-2xl font-bold ${report.emailMetrics.bounceRate > 2 ? "text-destructive" : ""}`}>
                       {report.emailMetrics.bounceRate}%
                     </p>
                     <p className="text-xs text-muted-foreground">Bounce Rate</p>
                   </div>
                   <div className="text-center p-3 border rounded-lg">
                     <p
-                      className={`text-2xl font-bold ${report.emailMetrics.complaintRate > 0.1 ? "text-red-600" : ""}`}
+                      className={`text-2xl font-bold ${report.emailMetrics.complaintRate > 0.1 ? "text-destructive" : ""}`}
                     >
                       {report.emailMetrics.complaintRate}%
                     </p>
@@ -168,9 +162,9 @@ export default function EmailHealthPage() {
 
                 {/* Alerts */}
                 {(report.emailMetrics.bounceRate > 2 || report.emailMetrics.complaintRate > 0.1) && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
-                    <div className="text-sm text-red-800">
+                  <div className="mt-4 p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
+                    <div className="text-sm text-destructive">
                       {report.emailMetrics.bounceRate > 2 && (
                         <p>Bounce rate exceeds 2% — clean your list to protect deliverability.</p>
                       )}
@@ -187,7 +181,7 @@ export default function EmailHealthPage() {
                 <h3 className="font-semibold mb-4">Contact Health</h3>
                 <div className="grid grid-cols-5 gap-4">
                   <div className="text-center p-3 border rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">{report.contactHealth.active.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{report.contactHealth.active.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground">Active</p>
                   </div>
                   <div className="text-center p-3 border rounded-lg">
@@ -201,11 +195,11 @@ export default function EmailHealthPage() {
                     <p className="text-xs text-muted-foreground">Unsubscribed</p>
                   </div>
                   <div className="text-center p-3 border rounded-lg">
-                    <p className="text-2xl font-bold text-red-600">{report.contactHealth.bounced.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-destructive">{report.contactHealth.bounced.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground">Bounced</p>
                   </div>
                   <div className="text-center p-3 border rounded-lg">
-                    <p className="text-2xl font-bold text-red-600">
+                    <p className="text-2xl font-bold text-destructive">
                       {report.contactHealth.complained.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Complained</p>

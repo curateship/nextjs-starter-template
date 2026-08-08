@@ -7,15 +7,7 @@ import type { CrmContact, ContactFilterGroup } from "./contact-actions.server"
 export type * from "./contact-actions.server"
 
 export const createOrUpsertContact = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  email: string
-  firstName?: string
-  lastName?: string
-  source?: string
-  sourceProductId?: string
-  tags?: string[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createOrUpsertContactImpl>[0] }) => data)
   .handler(async ({ data }) => createOrUpsertContactImpl(data.input))
 
 export const bulkImportContacts = createServerFn({ method: "POST" })

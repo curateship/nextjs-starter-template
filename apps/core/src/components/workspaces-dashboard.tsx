@@ -153,7 +153,7 @@ export function WorkspacesDashboard({
 
       <DashboardTable
         title="Projects"
-        icon={renderShellIcon("briefcaseBusiness", "size-4 text-muted-foreground sm:size-[18px]")}
+        icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
         count={sortedWorkspaces.length}
         controls={
           <Button

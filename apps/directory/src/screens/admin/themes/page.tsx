@@ -1,17 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "@/lib/navigation-client";
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 import { AdminLayout } from "@/components/admin/layout/admin-layout";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
+import { useResetPageOnListChange } from "@/lib/use-reset-page";
 import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog";
 import {
+  AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
+  AdminTableShell,
   ConfirmDestructive,
-  AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
-  formatRelativeDate,
+  RelativeDate,
+  useAdminSort,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -27,12 +36,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -53,15 +56,18 @@ import {
   deleteTemplateAction,
   getTemplateSitesAction,
 } from "@/lib/actions/themes/user-theme-actions";
-import Edit from "lucide-react/dist/esm/icons/square-pen.js"
-import MoreHorizontal from "lucide-react/dist/esm/icons/ellipsis.js"
 import Paintbrush from "lucide-react/dist/esm/icons/paintbrush.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
+
+type ThemeSortColumn = "theme" | "created";
 
 export default function ThemesPage() {
   const router = useRouter();
+  const { pageSize } = useSiteSwitcher();
   const [templates, setTemplates] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +84,7 @@ export default function ThemesPage() {
   const [creating, setCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createNameInvalid, setCreateNameInvalid] = useState(false);
   const [renameDialog, setRenameDialog] = useState<{
     open: boolean;
     templateId: string;
@@ -99,6 +106,8 @@ export default function ThemesPage() {
     templateName: "",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const themeSort = useAdminSort<ThemeSortColumn>("created", "desc");
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -123,20 +132,27 @@ export default function ThemesPage() {
 
   const handleCreateTheme = async () => {
     const trimmed = createName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setCreateNameInvalid(true);
+      showErrorToast("Theme name is required");
+      return;
+    }
+
+    setCreateNameInvalid(false);
 
     try {
       setCreating(true);
-      const { data, error: createError } = await createSiteAction({
+      const { data, error: createError } = await createSiteAction({ data: { siteData: {
         name: trimmed,
         is_template: true,
-      });
+      } } });
       if (createError) {
         setError(`Failed to create theme: ${createError}`);
         return;
       }
       if (data) {
         setCreateDialogOpen(false);
+        showActionSuccess("Theme created.");
         router.push(`/admin/pages/${data.id}`);
       }
     } catch {
@@ -153,8 +169,7 @@ export default function ThemesPage() {
     try {
       setRenaming(true);
       const { error: renameError } = await updateSiteAction(
-        renameDialog.templateId,
-        { name: trimmed },
+        { data: { siteId: renameDialog.templateId, updates: { name: trimmed } } },
       );
       if (renameError) {
         setError(`Failed to rename theme: ${renameError}`);
@@ -166,6 +181,7 @@ export default function ThemesPage() {
         ),
       );
       setRenameDialog((prev) => ({ ...prev, open: false }));
+      showActionSuccess("Theme renamed.");
     } catch {
       setError("Failed to rename theme");
     } finally {
@@ -181,10 +197,12 @@ export default function ThemesPage() {
         setError(`Failed to delete theme: ${deleteError}`);
         return;
       }
-      if (success)
+      if (success) {
         setTemplates((prev) =>
           prev.filter((t) => t.id !== deleteDialog.templateId),
         );
+        showActionSuccess("Theme deleted.");
+      }
       setDeleteDialog((prev) => ({ ...prev, open: false }));
     } catch {
       setError("Failed to delete theme");
@@ -205,6 +223,29 @@ export default function ThemesPage() {
       })
     : templates;
 
+  const sortedTemplates = useMemo(() => {
+    return [...filteredTemplates].sort((a, b) => {
+      if (!themeSort.sortColumn) return 0;
+
+      const dir = themeSort.sortDirection === "asc" ? 1 : -1;
+      if (themeSort.sortColumn === "theme") return a.name.localeCompare(b.name) * dir;
+
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+    });
+  }, [filteredTemplates, themeSort.sortColumn, themeSort.sortDirection]);
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${normalizedSearchQuery}|${themeSort.sortColumn}|${themeSort.sortDirection}`
+  );
+
+  const pagedTemplates = useMemo(
+    () => sortedTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedTemplates]
+  );
+
   return (
     <>
       <StickyHeader />
@@ -213,14 +254,14 @@ export default function ThemesPage() {
           <DashboardSubheader items={[{ label: "Themes" }]} />
 
           {error && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
           <AdminTableShell
             title="Themes"
-            icon={<Paintbrush className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Paintbrush className="text-muted-foreground" />}
             count={filteredTemplates.length}
             loading={loading}
             controls={
@@ -241,15 +282,15 @@ export default function ThemesPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="themes" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredTemplates.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Theme</TableHead>
-                    <TableHead column="meta">Created</TableHead>
+                    <AdminSortableHead column="main" sort={themeSort} sortKey="theme">Theme</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={themeSort} sortKey="created">Created</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -262,7 +303,7 @@ export default function ThemesPage() {
                         <Paintbrush className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
                         <p className="mb-1 text-muted-foreground">
                           {normalizedSearchQuery
-                            ? "No themes match your search"
+                            ? "No themes found matching your search."
                             : "No themes yet"}
                         </p>
                         <p className="text-sm text-muted-foreground">
@@ -273,7 +314,7 @@ export default function ThemesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTemplates.map((template) => (
+                    pagedTemplates.map((template) => (
                       <TableRow key={template.id} className="group">
                         <TableCell column="main">
                           <Link
@@ -291,89 +332,54 @@ export default function ThemesPage() {
                               </span>
                             </div>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                {template.name}
-                              </h4>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                {template.settings?.description ||
-                                  "Reusable template"}
-                              </p>
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={template.name}>{template.name}</h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={template.settings?.description ||
+                                  "Reusable template"}>{template.settings?.description ||
+                                  "Reusable template"}</p>
                             </div>
                           </Link>
                         </TableCell>
                         <TableCell column="mutedMeta">
-                          {formatRelativeDate(template.created_at)}
+                          <RelativeDate date={template.created_at} />
                         </TableCell>
                         <TableCell column="meta">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link
-                                  href={`/admin/pages/${template.id}`}
-                                  className="flex items-center"
-                                >
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Edit
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  setApplyDialog({
-                                    open: true,
-                                    templateId: template.id,
-                                    templateName: template.name,
-                                  })
-                                }
-                              >
-                                <Paintbrush className="mr-2 h-4 w-4" />
-                                Apply to Site
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  setRenameName(template.name);
-                                  setTimeout(
-                                    () =>
-                                      setRenameDialog({
-                                        open: true,
-                                        templateId: template.id,
-                                        currentName: template.name,
-                                      }),
-                                    0,
-                                  );
-                                }}
-                              >
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  setTimeout(
-                                    () =>
-                                      setDeleteDialog({
-                                        open: true,
-                                        templateId: template.id,
-                                        templateName: template.name,
-                                      }),
-                                    0,
-                                  )
-                                }
-                                className="text-foreground focus:text-foreground"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Theme
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Paintbrush}
+                              label="Apply to site"
+                              onClick={() => setApplyDialog({
+                                open: true,
+                                templateId: template.id,
+                                templateName: template.name,
+                              })}
+                            />
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Rename theme"
+                              onClick={() => {
+                                setRenameName(template.name)
+                                setRenameDialog({
+                                  open: true,
+                                  templateId: template.id,
+                                  currentName: template.name,
+                                })
+                              }}
+                            />
+                            <AdminRowAction
+                              icon={Pencil}
+                              label="Edit theme"
+                              href={`/admin/pages/${template.id}`}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete theme"
+                              onClick={() => setDeleteDialog({
+                                open: true,
+                                templateId: template.id,
+                                templateName: template.name,
+                              })}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -399,7 +405,12 @@ export default function ThemesPage() {
                 <Input
                   id="create-theme-name"
                   value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
+                  aria-invalid={createNameInvalid}
+                  onChange={(e) => {
+                    setCreateName(e.target.value);
+                    if (createNameInvalid && e.target.value.trim())
+                      setCreateNameInvalid(false);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && createName.trim())
                       handleCreateTheme();
@@ -417,9 +428,10 @@ export default function ThemesPage() {
                 </Button>
                 <Button
                   onClick={handleCreateTheme}
-                  disabled={creating || !createName.trim()}
+                  disabled={creating}
                 >
-                  {creating ? "Creating..." : "Create"}
+                  {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Create
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -473,7 +485,8 @@ export default function ThemesPage() {
                     renameName.trim() === renameDialog.currentName
                   }
                 >
-                  {renaming ? "Saving..." : "Save"}
+                  {renaming ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </DialogFooter>
             </DialogContent>

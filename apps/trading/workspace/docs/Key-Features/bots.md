@@ -4,12 +4,17 @@
 
 A bot is not a separate thing with its own settings. It is a **live run of an
 automation**: the only choices it owns are the markets it runs on, the wallet,
-and paper/live mode. Its strategy config is the automation's server-compiled
-canvas, and it stays linked — saving the canvas pushes the fresh compiled
-config to the automation's non-stopped bots and enqueues `update_params`
-(`syncAutomationBots` in `src/server/bots.ts`, called from
-`saveUserAutomation`; a save that doesn't change the compiled config is a
-no-op). Stopped runs keep their snapshot — they are history.
+and paper/live mode. Its strategy config is a **snapshot** of the automation's
+server-compiled canvas, taken at deploy — and saving the canvas **never
+touches a deployed run** (30 Jul 2026; auto-save previously restarted all
+runners on every editor fiddle, 8,208 reboots in one day, and rate-limited
+the exchange). Instead the run page shows an amber "settings changed" strip
+when the automation has drifted ahead of the run, and the admin hands the
+change over explicitly: **pause → Apply new settings → resume**
+(`applyAutomationSettings` in `src/server/bots.ts`, strip:
+`bot-settings-banner.tsx`; drift flag: `settingsBehind` on `getBotDetail`).
+Apply refuses running bots outright, and the per-market state rows survive
+the hand-off. Stopped runs keep their snapshot — they are history.
 
 **Where you run it:** the automation editor's third tab — but only for
 **deploying**. The Canvas · Backtest · **Bot** switcher's Bot mode is the
@@ -39,11 +44,12 @@ of naming modal.
 **SL/TP editing:** the setup preview chart draws the canvas's TP/SL levels
 around the current mark price; dragging a line rewrites the matching canvas
 node (same math as backtest tune-drags) and marks the graph dirty. For a
-running bot, the canvas is still the config — editing nodes and saving
-pushes the fresh compiled config to the bot (`syncAutomationBots`); the
-drag-on-the-live-chart affordance for an open position went away with the
-in-editor live view. There is no bot settings dialog and no separate order
-form — the canvas is the config.
+running bot, the canvas is still where settings are edited — but a save only
+updates the automation; the run picks it up when the admin applies it from
+the run page (see the run model above). The drag-on-the-live-chart
+affordance for an open position went away with the in-editor live view.
+There is no bot settings dialog and no separate order form — the canvas is
+the config.
 
 **Standalone surfaces:** `/bots` is the fleet control room
 (`bot-runs-dashboard.tsx`): the worker offline and guardian-tripped banners

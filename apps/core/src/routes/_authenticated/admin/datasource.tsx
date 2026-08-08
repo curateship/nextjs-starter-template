@@ -63,7 +63,7 @@ function ProvidersRoute() {
     <div className="w-full pb-8">
       <DashboardTable
         title="Data Sources"
-        icon={<DatabaseZapIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<DatabaseZapIcon className="text-muted-foreground" />}
         count={sortedProviders.length}
         header={
           <TableHeader>

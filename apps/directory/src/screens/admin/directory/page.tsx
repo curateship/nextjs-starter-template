@@ -5,7 +5,7 @@ import dynamic from "@/lib/dynamic"
 import FolderOpen from "lucide-react/dist/esm/icons/folder-open.js"
 
 import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
-import { AdminErrorDialog } from "@/components/admin/layout/list"
+import { showErrorToast } from "@/lib/error-toast"
 import {
   deleteDirectoriesAction,
   deleteDirectoryAction,
@@ -63,7 +63,6 @@ function DirectorySettingsBridge({
   open: boolean
 }) {
   const [directory, setDirectory] = useState<Directory | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -78,7 +77,7 @@ function DirectorySettingsBridge({
       if (cancelled) return
 
       if (loadError || !data) {
-        setError(loadError || "Failed to load directory settings")
+        showErrorToast(loadError || "Failed to load directory settings")
         setDirectory(null)
         return
       }
@@ -103,13 +102,6 @@ function DirectorySettingsBridge({
         onSuccess={(updatedDirectory) => {
           setDirectory(updatedDirectory)
           onSuccess(toDirectorySummary(updatedDirectory))
-        }}
-      />
-      <AdminErrorDialog
-        open={error !== null}
-        message={error ?? ""}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) setError(null)
         }}
       />
     </>

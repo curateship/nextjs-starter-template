@@ -20,21 +20,27 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
 import Mail from "lucide-react/dist/esm/icons/mail.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   getAutomationsBySite,
   createAutomation,
@@ -42,6 +48,8 @@ import {
   deleteAutomations
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AUTOMATION_TRIGGER_SHORT_LABELS,
@@ -70,19 +78,30 @@ export default function EmailAutomationsPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState("")
+  const [createNameInvalid, setCreateNameInvalid] = useState(false)
   const [creating, setCreating] = useState(false)
   const [settingsAutomation, setSettingsAutomation] = useState<EmailAutomation | null>(null)
   const [settingsName, setSettingsName] = useState("")
+  const [settingsNameInvalid, setSettingsNameInvalid] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
   const automationSelection = useAdminBulkSelection()
   const automationSort = useAdminSort<AutomationSortColumn>()
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${filterStatus}|${searchQuery}|${automationSort.sortColumn}|${automationSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(automationSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   const loadAutomations = useCallback(async () => {
     if (!currentSite?.id) {
@@ -100,8 +119,7 @@ export default function EmailAutomationsPage() {
       pageSize
     } } })
     if (error) {
-      setErrorMessage(error)
-      setErrorDialogOpen(true)
+      showErrorToast(error)
     }
     setAutomations(data ?? [])
     setTotal(t)
@@ -127,11 +145,13 @@ export default function EmailAutomationsPage() {
     if (success) {
       setPendingDeleteId(null)
       loadAutomations()
+      showActionSuccess("Automation deleted.")
     }
   }
 
   const confirmMassDelete = async () => {
     setMassDeleting(true)
+    const deletedCount = automationSelection.selectedCount
     const { success, error } = await deleteAutomations({ data: { ids: Array.from(automationSelection.selectedIds) } })
     if (error) {
       setErrorMessage(error)
@@ -140,13 +160,22 @@ export default function EmailAutomationsPage() {
       automationSelection.clearSelection()
       setMassDeleteConfirmOpen(false)
       loadAutomations()
+      showActionSuccess(deletedCount === 1 ? "Automation deleted." : "Automations deleted.")
     }
     setMassDeleting(false)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!currentSite?.id || !createName.trim()) return
+    if (!currentSite?.id) return
+    if (!createName.trim()) {
+      setCreateNameInvalid(true)
+      showErrorToast("Automation name is required")
+      return
+    }
+
+    setCreateNameInvalid(false)
+    dismissErrorToast()
     setCreating(true)
     const { data, error } = await createAutomation({ data: { input: {
       siteId: currentSite.id,
@@ -154,12 +183,12 @@ export default function EmailAutomationsPage() {
       triggerType: "none"
     } } })
     if (error) {
-      setErrorMessage(error)
-      setErrorDialogOpen(true)
+      showErrorToast(error)
     }
     if (data) {
       setCreateOpen(false)
       setCreateName("")
+      showActionSuccess("Automation created.")
       router.push(`/admin/newsletters/automations/${data.id}`)
     }
     setCreating(false)
@@ -172,19 +201,26 @@ export default function EmailAutomationsPage() {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!settingsAutomation || !settingsName.trim()) return
+    if (!settingsAutomation) return
+    if (!settingsName.trim()) {
+      setSettingsNameInvalid(true)
+      showErrorToast("Automation name is required")
+      return
+    }
 
+    setSettingsNameInvalid(false)
+    dismissErrorToast()
     setSavingSettings(true)
     const { data, error } = await updateAutomation({ data: { automationId: settingsAutomation.id, updates: {
       name: settingsName.trim()
     } } })
     if (error) {
-      setErrorMessage(error)
-      setErrorDialogOpen(true)
+      showErrorToast(error)
     }
     if (data) {
       setAutomations((current) => current.map((automation) => automation.id === data.id ? data : automation))
       setSettingsAutomation(null)
+      showActionSuccess("Automation updated.")
     }
     setSavingSettings(false)
   }
@@ -224,13 +260,11 @@ export default function EmailAutomationsPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value)
-    automationSelection.clearSelection()
-    setCurrentPage(1)
   }
 
   const getStatusBadge = (status: string) => {
-    if (status === "active") return <Badge className="bg-green-100 text-green-800">Active</Badge>
-    if (status === "paused") return <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>
+    if (status === "active") return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
+    if (status === "paused") return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Paused</Badge>
     return <Badge variant="secondary">Draft</Badge>
   }
 
@@ -252,7 +286,7 @@ export default function EmailAutomationsPage() {
 
           <AdminTableShell
             title="Automations"
-            icon={<Zap className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Zap className="text-muted-foreground" />}
             count={filtered.length}
             loading={loading}
             selectedCount={automationSelection.selectedCount}
@@ -311,51 +345,11 @@ export default function EmailAutomationsPage() {
                         aria-label="Select all automations"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "name"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("name")}
-                      >
-                        Automation
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "trigger"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("trigger")}
-                      >
-                        Trigger
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "status"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "steps"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("steps")}
-                      >
-                        Steps
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={automationSort.sortColumn === "enrolled"}
-                        direction={automationSort.sortDirection}
-                        onClick={() => automationSort.toggleSort("enrolled")}
-                      >
-                        Enrolled
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={automationSort} sortKey="name">Automation</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="trigger">Trigger</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="steps">Steps</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={automationSort} sortKey="enrolled">Enrolled</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -366,10 +360,16 @@ export default function EmailAutomationsPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Zap className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">No email automations yet</p>
-                        <Button onClick={() => setCreateOpen(true)} variant="outline">
-                          Create Your First Automation
-                        </Button>
+                        {searchQuery.trim() || filterStatus !== "all" ? (
+                          <p className="text-muted-foreground">No automations found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">No email automations yet</p>
+                            <Button onClick={() => setCreateOpen(true)} variant="outline">
+                              Create Your First Automation
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -395,9 +395,9 @@ export default function EmailAutomationsPage() {
                               href={`/admin/newsletters/automations/${automation.id}`}
                               className="min-w-0 transition-opacity hover:opacity-80"
                             >
-                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{automation.name}</h4>
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={automation.name}>{automation.name}</h4>
                               {automation.description && (
-                                <p className="truncate text-xs text-muted-foreground">{automation.description}</p>
+                                <p className="truncate text-xs text-muted-foreground" title={automation.description}>{automation.description}</p>
                               )}
                             </Link>
                           </div>
@@ -411,26 +411,18 @@ export default function EmailAutomationsPage() {
                         <TableCell column="mutedMeta">{automation.steps_count ?? 0}</TableCell>
                         <TableCell column="mutedMeta">{automation.enrollments_count ?? 0}</TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Automation settings"
                               onClick={() => openSettings(automation)}
-                              title="Settings"
-                            >
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete automation"
                               onClick={() => handleDelete(automation.id)}
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -443,21 +435,14 @@ export default function EmailAutomationsPage() {
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <form id="create-automation-form" onSubmit={handleCreate} className="contents">
-              <DashboardModalContent
+                          <DashboardModalContent
+                busy={creating}
                 title="Create Email Automation"
                 description="Create the automation shell, then configure triggers and steps in the builder."
-                footer={
-                  <>
-                    <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button form="create-automation-form" type="submit" disabled={creating || !createName.trim()}>
-                      {creating ? "Creating..." : "Create Automation"}
-                    </Button>
-                  </>
-                }
+                footer={<DashboardModalFormFooter busy={creating} form="create-automation-form" onCancel={() => setCreateOpen(false)} submitLabel="Create Automation" />}
               >
+                <form
+                  noValidate id="create-automation-form" onSubmit={handleCreate} className="contents">
                 <CardGroup className="grid">
                   <Card>
                     <CardHeader>
@@ -468,9 +453,12 @@ export default function EmailAutomationsPage() {
                         <FieldLabel>Name *</FieldLabel>
                         <Input
                           value={createName}
-                          onChange={(e) => setCreateName(e.target.value)}
+                          aria-invalid={createNameInvalid}
+                          onChange={(e) => {
+                            setCreateName(e.target.value)
+                            if (createNameInvalid && e.target.value.trim()) setCreateNameInvalid(false)
+                          }}
                           placeholder="e.g. Fitness Lead Magnet Sequence"
-                          required
                         />
                       </Field>
                       <p className="text-sm text-muted-foreground">
@@ -479,13 +467,14 @@ export default function EmailAutomationsPage() {
                     </CardContent>
                   </Card>
                 </CardGroup>
+                </form>
               </DashboardModalContent>
-            </form>
+
           </Dialog>
 
           <Dialog open={settingsAutomation !== null} onOpenChange={(open) => !open && setSettingsAutomation(null)}>
-            <form id="automation-settings-form" onSubmit={handleSaveSettings} className="contents">
-              <DashboardModalContent
+                          <DashboardModalContent
+                busy={savingSettings}
                 title="Automation Settings"
                 description="Update the automation title."
                 footer={
@@ -496,13 +485,16 @@ export default function EmailAutomationsPage() {
                     <Button
                       form="automation-settings-form"
                       type="submit"
-                      disabled={savingSettings || !settingsName.trim()}
+                      disabled={savingSettings}
                     >
-                      {savingSettings ? "Saving..." : "Save Settings"}
+                      {savingSettings ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Save Settings
                     </Button>
                   </>
                 }
               >
+                <form
+                  noValidate id="automation-settings-form" onSubmit={handleSaveSettings} className="contents">
                 <CardGroup className="grid">
                   <Card>
                     <CardHeader>
@@ -513,16 +505,20 @@ export default function EmailAutomationsPage() {
                         <FieldLabel>Title *</FieldLabel>
                         <Input
                           value={settingsName}
-                          onChange={(e) => setSettingsName(e.target.value)}
+                          aria-invalid={settingsNameInvalid}
+                          onChange={(e) => {
+                            setSettingsName(e.target.value)
+                            if (settingsNameInvalid && e.target.value.trim()) setSettingsNameInvalid(false)
+                          }}
                           placeholder="e.g. Fitness Lead Magnet Sequence"
-                          required
                         />
                       </Field>
                     </CardContent>
                   </Card>
                 </CardGroup>
+                </form>
               </DashboardModalContent>
-            </form>
+
           </Dialog>
 
           <ConfirmDestructive
@@ -551,7 +547,6 @@ export default function EmailAutomationsPage() {
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
-          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
     </>

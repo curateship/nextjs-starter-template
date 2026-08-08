@@ -1,25 +1,32 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, eq } from "drizzle-orm"
+import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people/workspaces"
+import { eq } from "drizzle-orm"
 import { z } from "zod"
 
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  MAX_MAINTENANCE_MESSAGE_LENGTH,
   SHELL_ROLES,
+  TOP_LEFT_NAV_LIMIT_OPTIONS,
   type ShellConfig,
 } from "@/lib/custom-shell"
-import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
+import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { NOTIFICATION_TYPES } from "@/lib/notification-types"
+import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
-import { requireAppOrigin } from "@/server/origin"
+import { isOwnedImageUrl } from "@/server/media/library"
 import {
   customShellSettings,
   customShellWorkspaces,
+  DEFAULT_SETTINGS_KEY,
 } from "@/server/schema"
 import {
-  DEFAULT_SETTINGS_KEY,
+  parseShellGlobals,
   pickShellGlobals,
-  readShellSettings,
 } from "@/server/shell-settings"
-import { now, requireAdmin, requireUser } from "@/server/security"
+import { adminPost, userPost } from "@/server/guards"
+import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
 
@@ -51,6 +58,33 @@ const shellEntrySchema = z.discriminatedUnion("type", [
   }),
 ])
 
+/** Both sidebars are the same shape — the admin's own, and the members'. */
+const shellSectionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string(),
+  entries: z.array(shellEntrySchema),
+})
+
+/**
+ * Both header rows are the same shape — the admin's own, and the members'. The
+ * client normalizes what it reads (normalizeTopRightNavigation), so a save only
+ * ever carries the two-way union, never the old `{ id, visible }` rows.
+ */
+const shellTopRightItemSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("builtIn"),
+    id: z.enum(["feedback", "theme", "notifications"]),
+    visible: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("link"),
+    id: z.string().min(1),
+    label: z.string(),
+    href: z.string(),
+    icon: shellIconSchema,
+  }),
+])
+
 const shellBackgroundSchema = z.object({
   mode: z.enum(["default", "muted", "custom"]),
   strength: z.number().int().min(0).max(100),
@@ -78,6 +112,25 @@ const shellStylingSchema = z.object({
   modal: shellModalStylingSchema,
 })
 
+/**
+ * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
+ * the handler is what decides which ids survive, and it drops anything no
+ * widget answers to along with any widget placed twice.
+ *
+ * Deliberately not an enum of today's widget ids. A tab left open from before a
+ * widget was retired would then fail this whole request — taking every other
+ * settings edit on the page down with it — where dropping the dead id quietly
+ * is both safer and what the row ends up holding either way. The lengths are
+ * capped because this is the only door into that row.
+ */
+const widgetSlotSchema = z.array(z.string().max(64)).max(50)
+
+const dashboardWidgetsSchema = z.object({
+  top: widgetSlotSchema,
+  left: widgetSlotSchema,
+  right: widgetSlotSchema,
+})
+
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
@@ -87,55 +140,63 @@ const shellConfigSchema = z.object({
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
   ),
+  toastSeconds: z
+    .number()
+    .int()
+    .min(MIN_TOAST_SECONDS)
+    .max(MAX_TOAST_SECONDS),
+  topLeftNavLimit: z.number().int().refine((value) =>
+    TOP_LEFT_NAV_LIMIT_OPTIONS.includes(
+      value as (typeof TOP_LEFT_NAV_LIMIT_OPTIONS)[number]
+    )
+  ),
   // Per-workspace sidebar width. Always populated with a valid value by the
   // loader (workspace settings default it), so a plain required field is fine.
   sidebarWidth: z.number().int().min(MIN_SIDEBAR_WIDTH).max(MAX_SIDEBAR_WIDTH),
   adminRoute: z.string().catch(""),
+  memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
-  topRightNavigation: z.array(
-    z.object({
-      id: z.enum(["feedback", "theme", "notifications"]),
-      visible: z.boolean(),
-    })
+  logo: z.string(),
+  logoDark: z.string(),
+  topRightNavigation: z.array(shellTopRightItemSchema),
+  memberTopRightNavigation: z.array(shellTopRightItemSchema),
+  sections: z.array(shellSectionSchema),
+  memberSections: z.array(shellSectionSchema),
+  liveNotifications: z.boolean(),
+  notificationTypes: z.object(
+    Object.fromEntries(
+      NOTIFICATION_TYPES.map((type) => [type, z.boolean()])
+    ) as Record<(typeof NOTIFICATION_TYPES)[number], z.ZodBoolean>
   ),
-  sections: z.array(
-    z.object({
-      id: z.string().min(1),
-      title: z.string(),
-      entries: z.array(shellEntrySchema),
-    })
-  ),
+  maintenance: z.object({
+    enabled: z.boolean(),
+    message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
+  }),
+  // Carried in the config for display only; the save below never writes it.
+  sessionPolicy: z.object({
+    maxAgeDays: z.number().int().min(0),
+    idleMinutes: z.number().int().min(0),
+  }),
   styling: shellStylingSchema,
+  dashboardWidgets: dashboardWidgetsSchema,
 })
 
 export function getShellSettingsErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Shell settings request failed."
 }
 
-const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const user = await requireUser()
-    return { settings: await readShellSettings(user.id) }
-  }
-)
-
 const saveShellSettingsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
   .inputValidator(shellConfigSchema)
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireAdmin()
-
+  .handler(async ({ data, context }) => {
     const updatedAt = now()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
       throw new Error("Workspace name is required")
     }
 
-    const globalSettings = pickShellGlobals(data)
     await db.transaction(async (tx) => {
       await tx
         .update(customShellWorkspaces)
@@ -148,21 +209,76 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
+            dashboardWidgets: normalizeDashboardWidgets(data.dashboardWidgets),
           },
           updatedAt,
         })
-        .where(
-          and(
-            eq(customShellWorkspaces.id, workspace.id),
-            eq(customShellWorkspaces.userId, user.id)
-          )
-        )
+        // Admin-only endpoint, and an admin may edit any workspace — including
+        // one another admin made, which is the whole point of them being shared.
+        .where(eq(customShellWorkspaces.id, workspace.id))
 
       const [existing] = await tx
-        .select({ key: customShellSettings.key })
+        .select({
+          key: customShellSettings.key,
+          settings: customShellSettings.settings,
+        })
         .from(customShellSettings)
         .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
         .limit(1)
+        // Locked because the maintenance switch writes this same row (see
+        // server/maintenance.ts); without it the two saves could each write
+        // back what they read and one would lose its changes.
+        .for("update")
+
+      // The maintenance switch is only ever flipped by its own confirmed
+      // action (lib/api/maintenance.ts). An admin whose settings page loaded
+      // before somebody turned it on must not switch it back off by renaming
+      // the app, so the switch keeps whatever the row already says; only its
+      // message comes from this save. The session policy and the automations
+      // kill switch are kept whole for the same reason — their one writer each
+      // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
+      const existingGlobals = parseShellGlobals(existing?.settings)
+
+      // The logos are drawn on the signed-out pages, so what gets stored has to
+      // be a picture somebody here really uploaded — not any address a browser
+      // felt like sending. Only a changed logo is checked: the settings page
+      // saves the whole config, so a second admin renaming the app must not be
+      // refused because the picture was uploaded from another account.
+      for (const [next, saved] of [
+        [data.logo, existingGlobals.logo],
+        [data.logoDark, existingGlobals.logoDark],
+      ]) {
+        if (
+          next &&
+          next !== saved &&
+          !(await isOwnedImageUrl(context.user.id, next, tx))
+        ) {
+          throw new Error(
+            "That logo is no longer in your media library. Pick another one."
+          )
+        }
+      }
+
+      const globalSettings = {
+        // The kill switch is not in this request's shape at all, on purpose:
+        // the settings page never sends it, so there is no version of this
+        // save — not even from a tab left open across a deploy — that can
+        // start every automation running again.
+        ...pickShellGlobals({
+          ...data,
+          automationPause: existingGlobals.automationPause,
+          // Not in this request's shape either, and kept for the same reason:
+          // the Pages screen is the one writer, so an admin whose settings page
+          // loaded before a page was hidden cannot put it back on the internet
+          // by renaming the app.
+          pages: existingGlobals.pages,
+        }),
+        maintenance: {
+          enabled: existingGlobals.maintenance.enabled,
+          message: data.maintenance.message,
+        },
+        sessionPolicy: existingGlobals.sessionPolicy,
+      }
 
       if (existing) {
         await tx
@@ -182,10 +298,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     return { settings: data }
   })
 
-export function loadShellSettings() {
-  return loadShellSettingsFn()
-}
-
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
 }
@@ -194,6 +306,7 @@ export function saveShellSettings(settings: ShellConfig) {
 // shell save this is not admin-gated — any signed-in user can persist their own
 // workspace's sidebar width by dragging the rail.
 const saveSidebarWidthFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
   .inputValidator(
     z.object({
       sidebarWidth: z
@@ -203,12 +316,8 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
         .max(MAX_SIDEBAR_WIDTH),
     })
   )
-  .handler(async ({ data }) => {
-    requireAppOrigin()
-    const user = await requireUser()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
-      await import("@/server/workspaces")
-    const workspace = await getOrCreateCurrentWorkspace(user.id)
+  .handler(async ({ data, context }) => {
+    const workspace = await requireCurrentWorkspace(context.user.id)
     const settings = parseWorkspaceSettings(workspace.settings)
 
     const [updated] = await db
@@ -217,12 +326,8 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
         settings: { ...settings, sidebarWidth: data.sidebarWidth },
         updatedAt: now(),
       })
-      .where(
-        and(
-          eq(customShellWorkspaces.id, workspace.id),
-          eq(customShellWorkspaces.userId, user.id)
-        )
-      )
+      // Admin-only endpoint, and an admin may edit any workspace.
+      .where(eq(customShellWorkspaces.id, workspace.id))
       .returning({ id: customShellWorkspaces.id })
 
     if (!updated) {

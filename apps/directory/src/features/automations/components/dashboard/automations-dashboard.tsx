@@ -17,9 +17,11 @@ import {
   AdminBulkDeleteButton,
   ConfirmDestructive,
   AdminListFooter,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  formatRelativeDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -29,6 +31,8 @@ import {
   TableRightActionsSearch,
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
@@ -105,6 +109,16 @@ export function AutomationsDashboard() {
   const loadRequestRef = useRef(0)
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>()
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${search}|${status}|${sort.sortColumn}|${sort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${page}|${pageSize}`)
+
 
   const load = useCallback(async () => {
     if (siteLoading) return
@@ -117,14 +131,14 @@ export function AutomationsDashboard() {
       return
     }
     setLoading(true)
-    const result = await getAutomationsBySite(currentSite.id, {
+    const result = await getAutomationsBySite({ data: { siteId: currentSite.id, options: {
       page,
       pageSize,
       search,
       status,
       sortColumn: sort.sortColumn,
       sortDirection: sort.sortDirection,
-    })
+    } } })
     if (requestId !== loadRequestRef.current) return
     if (result.error) showActionError(result.error)
     setItems(result.data)
@@ -140,7 +154,7 @@ export function AutomationsDashboard() {
   async function handleCreate() {
     if (!currentSite?.id || !createName.trim()) return
     setCreating(true)
-    const result = await createAutomation({ siteId: currentSite.id, name: createName })
+    const result = await createAutomation({ data: { siteId: currentSite.id, name: createName } })
     setCreating(false)
     if (result.error || !result.data) return showActionError(result.error || "Failed to create automation")
     setCreateOpen(false)
@@ -151,18 +165,18 @@ export function AutomationsDashboard() {
   async function handleDelete() {
     if (!deleteIds.length) return
     setDeleting(true)
-    const result = await deleteAutomations(deleteIds)
+    const result = await deleteAutomations({ data: { automationIds: deleteIds } })
     setDeleting(false)
     if (result.error || !result.success) return showActionError(result.error || "Failed to delete automation")
     setDeleteIds([])
     selection.clearSelection()
-    showActionSuccess(deleteIds.length === 1 ? "Automation deleted" : "Automations deleted")
+    showActionSuccess(deleteIds.length === 1 ? "Automation deleted." : "Automations deleted.")
     await load()
   }
 
   async function handleStatus(item: AutomationListItem) {
     setWorkingId(item.id)
-    const result = await setAutomationStatus(item.id, item.status === "active" ? "paused" : "active")
+    const result = await setAutomationStatus({ data: { automationId: item.id, status: item.status === "active" ? "paused" : "active" } })
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
     await load()
@@ -170,23 +184,23 @@ export function AutomationsDashboard() {
 
   async function handleRun(item: AutomationListItem) {
     setWorkingId(item.id)
-    const result = await runAutomationNow(item.id)
+    const result = await runAutomationNow({ data: { automationId: item.id } })
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
     showActionSuccess(
       result.data?.status === "waiting"
-        ? "Paused — this run needs your approval"
-        : "Automation run finished",
+        ? "Paused — this run needs your approval."
+        : "Automation run finished.",
     )
     await load()
   }
 
   async function handleDuplicate(item: AutomationListItem) {
     setWorkingId(item.id)
-    const result = await duplicateAutomation(item.id)
+    const result = await duplicateAutomation({ data: { automationId: item.id } })
     setWorkingId(null)
     if (result.error) return showActionError(result.error)
-    showActionSuccess("Automation duplicated")
+    showActionSuccess("Automation duplicated.")
     await load()
   }
 
@@ -261,7 +275,7 @@ export function AutomationsDashboard() {
               {loading && items.length === 0 ? (
                 <AdminListPending />
               ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">No automations found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">{search.trim() || status !== "all" ? "No automations found matching your search." : "No automations found."}</TableCell></TableRow>
               ) : items.map((item) => {
                 const working = workingId === item.id
                 return (
@@ -269,19 +283,20 @@ export function AutomationsDashboard() {
                     <TableCell column="select"><Checkbox checked={selection.selectedIds.has(item.id)} onCheckedChange={() => selection.toggleOne(item.id)} aria-label={`Select ${item.name}`} /></TableCell>
                     <TableCell column="main">
                       <Link href={`/admin/automations/${item.id}`} className="font-medium hover:underline">{item.name}</Link>
-                      <div className="text-xs text-muted-foreground">{item.nodeCount} nodes · Updated {formatRelativeDate(item.updatedAt)}</div>
+                      <div className="text-xs text-muted-foreground">{item.nodeCount} nodes · Updated <RelativeDate date={item.updatedAt} /></div>
                     </TableCell>
                     <TableCell column="content" className="text-sm text-muted-foreground">{formatSchedule(item.schedule)}<div className="text-xs">{item.schedule?.timezone}</div></TableCell>
                     <TableCell column="meta"><StatusBadge status={item.status} /></TableCell>
                     <TableCell column="mutedMeta">{item.lastRunAt ? formatDateTime(item.lastRunAt) : "Never"}</TableCell>
                     <TableCell column="mutedMeta">{formatDateTime(item.nextRunAt, item.status === "active" ? "Not scheduled" : "—")}</TableCell>
                     <TableCell column="meta">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleRun(item)} disabled={working} aria-label={`Run ${item.name}`} title="Run now">{working ? <Loader2 className="animate-spin" /> : <Play />}</Button>
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleStatus(item)} disabled={working} aria-label={`${item.status === "active" ? "Pause" : "Activate"} ${item.name}`} title={item.status === "active" ? "Pause" : "Activate"}>{item.status === "active" ? <Pause /> : <Workflow />}</Button>
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => void handleDuplicate(item)} disabled={working} aria-label={`Duplicate ${item.name}`} title="Duplicate"><Copy /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => setDeleteIds([item.id])} disabled={working} aria-label={`Delete ${item.name}`} title="Delete"><Trash2 /></Button>
-                      </div>
+                      <AdminRowActions>
+                        <AdminRowAction icon={working ? Loader2 : Play} className={working ? "[&_svg]:animate-spin" : undefined} label="Run now" disabled={working} onClick={() => void handleRun(item)} />
+                        <AdminRowAction icon={item.status === "active" ? Pause : Workflow} label={item.status === "active" ? "Pause" : "Activate"} disabled={working} onClick={() => void handleStatus(item)} />
+                        <AdminRowAction icon={Copy} label="Duplicate" disabled={working} onClick={() => void handleDuplicate(item)} />
+                        {/* Red until task 24 settles one look for a row delete. */}
+                        <AdminRowAction icon={Trash2} className="text-destructive hover:text-destructive" label="Delete" disabled={working} onClick={() => setDeleteIds([item.id])} />
+                      </AdminRowActions>
                     </TableCell>
                   </TableRow>
                 )

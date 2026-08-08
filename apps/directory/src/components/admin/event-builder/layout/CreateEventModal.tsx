@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Skeleton } from "@/components/ui/skeleton"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   Select,
   SelectContent,
@@ -19,7 +19,6 @@ import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardT
 import {
   FeaturedImageCard,
   MetaDescriptionField,
-  ModalErrorBanner,
   TitleSlugFields,
   postJson,
   useCreateContent,
@@ -50,6 +49,9 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [templates, setTemplates] = useState<EventTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [templateMissing, setTemplateMissing] = useState(false)
+  // Cleared as soon as a template is chosen, so the ring never outlives the fault.
+  const templateInvalid = templateMissing && !selectedTemplateId
   const [eventDate, setEventDate] = useState("")
   const [eventTime, setEventTime] = useState("")
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule | null>(null)
@@ -84,7 +86,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
     }
   }, [currentSite?.id])
 
-  const { loading, loadingAction, error, setError, submit } = useCreateContent<Event>({
+  const { loading, loadingAction, setError, submit, titleInvalid } = useCreateContent<Event>({
     entityLabel: "event",
     title,
     titleRequiredMessage: "Title is required",
@@ -125,9 +127,12 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       return
     }
     if (!selectedTemplateId) {
+      setTemplateMissing(true)
       setError("Template is required")
       return
     }
+
+      setTemplateMissing(false)
     const action = publishNow ? "publish" : continueToBuilder ? "continue" : "draft"
     await submit(action, publishNow, (created) => onSuccess(created, continueToBuilder))
   }
@@ -138,8 +143,8 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   }
 
   return (
-    <form id="create-event-form" onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
+          <DashboardModalContent
+        busy={loading}
         title="Create New Event Item"
         description="Add a new item to your events. You can customize the content after creation."
         footer={
@@ -149,19 +154,23 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-event-form" type="submit" variant="outline" disabled={loading}>
-                {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+                {loadingAction === 'draft' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
-                {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+                {loadingAction === 'continue' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Continue
               </Button>
               <Button type="button" onClick={() => handleSave(false, true)} disabled={loading}>
-                {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
+                {loadingAction === 'publish' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Publish
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        <ModalErrorBanner error={error} />
+        <form
+          noValidate id="create-event-form" onSubmit={handleSubmit} className="contents">
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -173,12 +182,11 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
                   <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap">
-                    <Skeleton className="h-4 w-24 rounded-sm" />
                     <ChevronDown className="size-4 opacity-50" />
                   </div>
                 ) : (
                   <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                    <SelectTrigger id="template">
+                    <SelectTrigger id="template" aria-invalid={templateInvalid || undefined}>
                       <SelectValue placeholder="Select template" />
                     </SelectTrigger>
                     <SelectContent className="z-60">
@@ -207,6 +215,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
                     Event URL: /events/{slug}
                   </FieldDescription>
                 ) : null}
+                titleInvalid={titleInvalid}
               />
             </CardContent>
           </Card>
@@ -270,7 +279,8 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
-    </form>
+
   )
 }

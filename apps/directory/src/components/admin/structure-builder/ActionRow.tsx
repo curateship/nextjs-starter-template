@@ -1,8 +1,7 @@
 "use client"
 
 import type { CSSProperties, ReactNode } from "react"
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
@@ -65,7 +64,7 @@ export function ActionRow({
           variant="ghost"
           size="icon"
           onClick={onDelete}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          className={cn(ACTION_BUTTON_CLASS, "hover:bg-destructive/10 hover:text-destructive")}
           aria-label={`Delete ${ariaName}`}
         >
           <Trash2 className="h-4 w-4" />
@@ -79,13 +78,7 @@ export function SortableActionRow({
   sortableId,
   ...rowProps
 }: ActionRowProps & { sortableId: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(sortableId)
   return (
     <ActionRow
       {...rowProps}

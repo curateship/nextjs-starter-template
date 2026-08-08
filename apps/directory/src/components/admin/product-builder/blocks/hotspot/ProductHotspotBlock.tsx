@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
@@ -393,7 +393,7 @@ export function ProductHotspotBlock({
       {/* Hotspot editor is portaled to the modal shell to avoid scroll-area clipping. */}
       {editingHotspot && imageRef.current?.closest("[data-slot='dialog-content']") && createPortal(
         <div
-          className="absolute z-60 w-80 max-w-[calc(100%-2rem)] rounded-lg border border-gray-200 bg-white p-3 shadow-2xl"
+          className="absolute z-60 w-80 max-w-[calc(100%-2rem)] rounded-lg border border-border bg-popover text-popover-foreground p-3 shadow-2xl"
           style={{
             left: `${tooltipPosition.left}px`,
             top: `${tooltipPosition.top}px`,

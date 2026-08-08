@@ -114,9 +114,12 @@ import {
 import type { PaperWalletItem } from "@/lib/api/paper"
 import type { WalletItem } from "@/lib/api/wallets"
 import {
-  formatCompactUsd,
-  formatPriceDisplay,
-} from "@/components/trading/format"
+  compactUsd,
+  formatPrice as displayPrice,
+  pct,
+  signedPct,
+  signedUsd,
+} from "@/lib/format"
 import {
   useMarketRows,
   useAccountSnapshot,
@@ -522,7 +525,7 @@ export function TradingWorkspace({
         title:
           pnl === null
             ? `${description.label} ${order.sz}`
-            : `${description.label} ${pnl >= 0 ? "+" : "-"}$${Math.abs(pnl).toFixed(2)}`,
+            : `${description.label} ${signedUsd(pnl)}`,
         draggable: true,
       })
     }
@@ -1635,34 +1638,34 @@ function MarketInfoBar({
         <span
           className={cn("font-mono text-lg font-semibold tabular-nums", tone)}
         >
-          {price > 0 ? formatPriceDisplay(String(price)) : "—"}
+          {price > 0 ? displayPrice(String(price)) : "—"}
         </span>
         <span className={cn("font-mono text-[11px] tabular-nums", tone)}>
           {change === null
             ? "—"
-            : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
+            : signedPct(change)}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <MarketStat
           label="Mark"
-          value={liveData ? formatPriceDisplay(marketRow.markPx) : "—"}
+          value={liveData ? displayPrice(marketRow.markPx) : "—"}
         />
         <MarketStat
           label="Index"
-          value={liveData ? formatPriceDisplay(marketRow.oraclePx) : "—"}
+          value={liveData ? displayPrice(marketRow.oraclePx) : "—"}
         />
         <MarketStat
           label="Funding"
-          value={liveData ? `${funding.toFixed(4)}%` : "—"}
+          value={liveData ? pct(funding, 4) : "—"}
         />
         <MarketStat
           label="24h Vol"
-          value={liveData ? formatCompactUsd(Number(marketRow.dayNtlVlm)) : "—"}
+          value={liveData ? compactUsd(Number(marketRow.dayNtlVlm)) : "—"}
         />
         <MarketStat
           label="OI"
-          value={liveData ? formatCompactUsd(openInterestUsd) : "—"}
+          value={liveData ? compactUsd(openInterestUsd) : "—"}
         />
       </div>
     </div>

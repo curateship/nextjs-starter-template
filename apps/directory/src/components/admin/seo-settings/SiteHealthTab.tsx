@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import CheckCircle from "lucide-react/dist/esm/icons/circle-check-big.js"
 import Clock from "lucide-react/dist/esm/icons/clock.js"
 import XCircle from "lucide-react/dist/esm/icons/circle-x.js"
+import { RelativeDate } from '@/components/admin/layout/list'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { getCronJobs, toggleCronJob, type CronJob } from '@/lib/actions/cron/cron-actions'
 
 interface SiteHealthTabProps {
@@ -22,17 +22,6 @@ function formatSchedule(schedule: string) {
   }
   if (schedule.startsWith('0 ')) return 'Every hour'
   return schedule
-}
-
-function timeAgo(dateStr: string | null) {
-  if (!dateStr) return 'Never'
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
 }
 
 function formatDuration(ms: number | null | undefined) {
@@ -72,16 +61,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
   }
 
   if (loading) {
-    return (
-      <CardGroup className="grid">
-        <Card>
-          <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
-          <CardContent>
-            {[1, 2, 3].map((item) => <Skeleton key={item} className="h-12 w-full" />)}
-          </CardContent>
-        </Card>
-      </CardGroup>
-    )
+    return null
   }
 
   const enabledJobs = jobs.filter((job) => job.enabled).length
@@ -103,7 +83,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
             <div className="space-y-3">
               <div className="mb-4 flex items-center gap-3">
                 <Badge variant="secondary">{jobs.length} total</Badge>
-                <Badge className="bg-green-100 text-green-800">{enabledJobs} active</Badge>
+                <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">{enabledJobs} active</Badge>
                 {failedJobs > 0 && <Badge variant="destructive">{failedJobs} last failed</Badge>}
               </div>
 
@@ -119,12 +99,12 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                       {job.lastRun?.status === 'success' ? (
-                        <span className="inline-flex items-center gap-1 font-medium text-green-700">
+                        <span className="inline-flex items-center gap-1 font-medium text-green-700 dark:text-green-300">
                           <CheckCircle className="h-4 w-4" />
                           Last run succeeded
                         </span>
                       ) : job.lastRun?.status ? (
-                        <span className="inline-flex items-center gap-1 font-medium text-red-700">
+                        <span className="inline-flex items-center gap-1 font-medium text-destructive">
                           <XCircle className="h-4 w-4" />
                           Last run failed
                         </span>
@@ -134,7 +114,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
                           No runs yet
                         </span>
                       )}
-                      <span>{timeAgo(job.lastRun?.startedAt ?? job.lastRunAt)}</span>
+                      <span><RelativeDate date={job.lastRun?.startedAt ?? job.lastRunAt} fallback="Never" /></span>
                       {job.lastRun?.httpStatus && <span>HTTP {job.lastRun.httpStatus}</span>}
                       {formatDuration(job.lastRun?.durationMs) && <span>{formatDuration(job.lastRun?.durationMs)}</span>}
                     </div>

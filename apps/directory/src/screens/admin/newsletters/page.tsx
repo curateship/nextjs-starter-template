@@ -15,16 +15,21 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  formatRelativeDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import dynamic from "@/lib/dynamic"
+import { showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const CreateNewsletterModal = dynamic(
   () =>
@@ -49,12 +54,15 @@ import {
 } from "@/lib/actions/newsletters/newsletter-actions"
 import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/actions/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
+import Activity from "lucide-react/dist/esm/icons/activity.js"
 import Mail from "lucide-react/dist/esm/icons/mail.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Pause from "lucide-react/dist/esm/icons/pause.js"
 import Play from "lucide-react/dist/esm/icons/play.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useRouter } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
@@ -165,7 +173,6 @@ export default function NewslettersPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const newsletterSelection = useAdminBulkSelection()
   const newsletterSort = useAdminSort<NewsletterSortColumn>()
@@ -173,12 +180,17 @@ export default function NewslettersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === "sending")
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${filterStatus}|${searchQuery}|${newsletterSort.sortColumn}|${newsletterSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(newsletterSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
 
-  const showError = useCallback((message: string) => {
-    setErrorMessage(message)
-    setErrorDialogOpen(true)
-  }, [])
+  const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === "sending")
 
   const loadNewsletters = useCallback(
     async (showSkeleton = true) => {
@@ -199,8 +211,7 @@ export default function NewslettersPage() {
           pageSize
         } } })
         if (error) {
-          setErrorMessage(error)
-          setErrorDialogOpen(true)
+          showErrorToast(error)
           setLoading(false)
           return
         }
@@ -244,6 +255,7 @@ export default function NewslettersPage() {
     if (success) {
       setPendingDeleteId(null)
       loadNewsletters()
+      showActionSuccess("Newsletter deleted.")
     }
   }
 
@@ -254,6 +266,7 @@ export default function NewslettersPage() {
 
   const confirmMassDelete = async () => {
     setMassDeleting(true)
+    const deletedCount = newsletterSelection.selectedCount
     try {
       const { success, error } = await deleteNewsletters({ data: { ids: Array.from(newsletterSelection.selectedIds) } })
       if (error) {
@@ -264,6 +277,7 @@ export default function NewslettersPage() {
         newsletterSelection.clearSelection()
         setMassDeleteConfirmOpen(false)
         loadNewsletters()
+        showActionSuccess(deletedCount === 1 ? "Newsletter deleted." : "Newsletters deleted.")
       }
     } catch {
       setErrorMessage("Failed to delete newsletters")
@@ -276,25 +290,25 @@ export default function NewslettersPage() {
     switch (newsletter.status) {
       case "sent":
         return (
-          <Badge variant="default" className="bg-green-100 text-green-800">
+          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">
             Sent
           </Badge>
         )
       case "sending":
         return (
-          <Badge variant="default" className="bg-blue-100 text-blue-800">
+          <Badge variant="default" className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
             {getDripStatusLabel(newsletter)}
           </Badge>
         )
       case "paused":
         return (
-          <Badge variant="default" className="bg-orange-100 text-orange-800">
+          <Badge variant="default" className="bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300">
             Paused
           </Badge>
         )
       case "scheduled":
         return (
-          <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+          <Badge variant="default" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">
             Scheduled
           </Badge>
         )
@@ -343,8 +357,6 @@ export default function NewslettersPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value as "all" | "draft" | "sent")
-    newsletterSelection.clearSelection()
-    setCurrentPage(1)
   }
 
   const openStatusEvents = (newsletterId: string) => {
@@ -362,7 +374,7 @@ export default function NewslettersPage() {
 
           <AdminTableShell
             title="Newsletters"
-            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Mail className="text-muted-foreground" />}
             count={filteredNewsletters.length}
             loading={loading}
             selectedCount={newsletterSelection.selectedCount}
@@ -420,43 +432,11 @@ export default function NewslettersPage() {
                         aria-label="Select all newsletters"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "name"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("name")}
-                      >
-                        Newsletter
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "opens"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("opens")}
-                      >
-                        Opens
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "clicks"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("clicks")}
-                      >
-                        Clicks
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={newsletterSort} sortKey="name">Newsletter</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={newsletterSort} sortKey="opens">Opens</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={newsletterSort} sortKey="clicks">Clicks</AdminSortableHead>
                     <TableHead column="meta">Unsubscribes</TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={newsletterSort.sortColumn === "modified"}
-                        direction={newsletterSort.sortDirection}
-                        onClick={() => newsletterSort.toggleSort("modified")}
-                      >
-                        Modified
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="meta" sort={newsletterSort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -467,14 +447,16 @@ export default function NewslettersPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Mail className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">
-                          {newsletters.length === 0
-                            ? "No newsletters found"
-                            : `No ${filterStatus === "all" ? "" : filterStatus} newsletters found`}
-                        </p>
-                        <Button onClick={() => setShowCreateDialog(true)} variant="outline">
-                          Create Your First Newsletter
-                        </Button>
+                        {searchQuery.trim() || filterStatus !== "all" ? (
+                          <p className="text-muted-foreground">No newsletters found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">No newsletters found</p>
+                            <Button onClick={() => setShowCreateDialog(true)} variant="outline">
+                              Create Your First Newsletter
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -501,9 +483,7 @@ export default function NewslettersPage() {
                                 href={`/admin/newsletters/${newsletter.id}`}
                                 className="transition-opacity hover:opacity-80"
                               >
-                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                  {newsletter.subject}
-                                </h4>
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={newsletter.subject}>{newsletter.subject}</h4>
                               </Link>
                               <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
                                 {(newsletter.status === "sending" || newsletter.status === "paused") &&
@@ -511,16 +491,20 @@ export default function NewslettersPage() {
                                     <>
                                       <button
                                         type="button"
-                                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}
+                                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:bg-orange-900/40" : "border-green-200 bg-green-50 text-green-700 dark:text-green-300 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-900/40"}`}
                                         title={newsletter.status === "sending" ? "Pause" : "Resume"}
                                         onClick={async (e) => {
                                           e.stopPropagation()
-                                          if (newsletter.status === "sending") {
-                                            await pauseNewsletter({ data: { newsletterId: newsletter.id } })
-                                          } else {
-                                            await resumeNewsletter({ data: { newsletterId: newsletter.id } })
+                                          const pausing = newsletter.status === "sending"
+                                          const { error: pauseError } = pausing
+                                            ? await pauseNewsletter({ data: { newsletterId: newsletter.id } })
+                                            : await resumeNewsletter({ data: { newsletterId: newsletter.id } })
+                                          if (pauseError) {
+                                            showErrorToast(pauseError)
+                                            return
                                           }
                                           await loadNewsletters(false)
+                                          showActionSuccess(pausing ? "Newsletter paused." : "Newsletter resumed.")
                                         }}
                                       >
                                         {newsletter.status === "sending" ? (
@@ -596,38 +580,25 @@ export default function NewslettersPage() {
                                 ? `${((newsletter.total_unsubscribed / newsletter.total_sent) * 100).toFixed(1)}%`
                                 : `${Math.round((newsletter.total_unsubscribed / newsletter.total_sent) * 100)}%`}
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatRelativeDate(newsletter.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={newsletter.updated_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 px-2"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Activity}
+                              label="Delivery events"
                               onClick={() => openStatusEvents(newsletter.id)}
-                            >
-                              Events
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                            />
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Newsletter settings"
                               onClick={() => setSettingsNewsletterId(newsletter.id)}
-                              title="Newsletter Settings"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Newsletter Settings</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete newsletter"
                               onClick={() => handleDelete(newsletter.id)}
-                              title="Delete Newsletter"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Newsletter</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -663,7 +634,7 @@ export default function NewslettersPage() {
           <NewsletterStatusEventsModal
             open={statusNewsletterId !== null}
             newsletterId={statusNewsletterId}
-            onError={showError}
+            onError={showErrorToast}
             onOpenChange={(open) => {
               if (!open) setStatusNewsletterId(null)
             }}
@@ -690,8 +661,6 @@ export default function NewslettersPage() {
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
-
-          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
     </>

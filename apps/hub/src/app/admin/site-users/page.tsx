@@ -109,9 +109,9 @@ function formatRelativeTime(dateString: string | null) {
 function getRoleBadge(role: string) {
   switch (role) {
     case "owner":
-      return <Badge className="bg-blue-100 text-blue-800">Owner</Badge>
+      return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">Owner</Badge>
     case "admin":
-      return <Badge className="bg-amber-100 text-amber-800">Admin</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Admin</Badge>
     default:
       return <Badge variant="secondary">Member</Badge>
   }
@@ -120,7 +120,7 @@ function getRoleBadge(role: string) {
 function getStatusBadge(status: string) {
   switch (status) {
     case "active":
-      return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
     case "suspended":
       return <Badge variant="destructive">Suspended</Badge>
     default:
@@ -522,7 +522,7 @@ export default function SiteUsersPage() {
 
           <AdminTableShell
             title="Site Users"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={total}
             selectedCount={userSelection.selectedCount}
             onClearSelection={userSelection.clearSelection}

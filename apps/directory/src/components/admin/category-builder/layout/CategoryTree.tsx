@@ -3,9 +3,8 @@
 import { useState } from "react"
 import type { Category } from "@/lib/actions/categories/category-actions"
 import { deleteCategoryAction } from "@/lib/actions/categories/category-actions"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import Edit from "lucide-react/dist/esm/icons/square-pen.js"
+import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Eye from "lucide-react/dist/esm/icons/eye.js"
 import EyeOff from "lucide-react/dist/esm/icons/eye-off.js"
@@ -14,10 +13,11 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import Link from "@/components/app-link"
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
+import { AdminRowAction, AdminRowActions, RelativeDate } from "@/components/admin/layout/list"
 import { CategorySettingsModal } from "./CategorySettingsModal"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { showActionError } from "@/lib/utils/admin-action-feedback"
+import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 interface CategoryTreeProps {
   categories: Category[]
@@ -67,6 +67,7 @@ export function CategoryTree({
       onCategoryDeleted(categoryToDelete.id)
       setDeleteDialogOpen(false)
       setCategoryToDelete(null)
+      showActionSuccess("Category deleted.")
     } else {
       const message = error || 'Failed to delete category'
       setDeleteError(message)
@@ -82,18 +83,6 @@ export function CategoryTree({
 
   const handleSettingsSuccess = (updatedCategory: Category) => {
     onCategoryUpdated(updatedCategory)
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
   }
 
   const getCategoryHref = (category: Category) => {
@@ -144,16 +133,14 @@ export function CategoryTree({
               )}
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{category.title}</h4>
+                  <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={category.title}>{category.title}</h4>
                   {childCount > 0 ? (
                     <Badge variant="secondary" className="hidden sm:inline-flex">
                       {childCount} {childCount === 1 ? "child" : "children"}
                     </Badge>
                   ) : null}
                 </div>
-                <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                  {category.meta_description || 'No meta description'}
-                </p>
+                <p className="truncate text-xs text-muted-foreground sm:text-sm" title={category.meta_description || 'No meta description'}>{category.meta_description || 'No meta description'}</p>
               </div>
             </Link>
           </TableCell>
@@ -163,7 +150,7 @@ export function CategoryTree({
                 {parentPath.map((parent, index) => (
                   <span key={parent.id} className="inline-flex min-w-0 items-center gap-1">
                     {index > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
-                    <span className="truncate">{parent.title}</span>
+                    <span className="truncate" title={parent.title}>{parent.title}</span>
                   </span>
                 ))}
               </div>
@@ -173,7 +160,7 @@ export function CategoryTree({
           </TableCell>
           <TableCell column="meta">
             {category.is_published ? (
-              <span className="inline-flex items-center gap-1 rounded bg-green-50 px-2 py-1 text-xs text-green-600">
+              <span className="inline-flex items-center gap-1 rounded bg-green-50 dark:bg-green-950/50 px-2 py-1 text-xs text-green-600 dark:text-green-400">
                 <Eye className="h-3 w-3" />
                 Published
               </span>
@@ -185,39 +172,25 @@ export function CategoryTree({
             )}
           </TableCell>
           <TableCell column="mutedMeta">{assignmentCounts[category.id] || 0}</TableCell>
-          <TableCell column="mutedMeta">{formatDate(category.updated_at)}</TableCell>
+          <TableCell column="mutedMeta"><RelativeDate date={category.updated_at} /></TableCell>
           <TableCell column="meta">
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
+            <AdminRowActions>
+              <AdminRowAction
+                icon={Settings}
+                label="Category settings"
                 onClick={() => handleSettingsClick(category)}
-              >
-                <Settings className="w-4 h-4" />
-                <span className="sr-only">Settings</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                asChild
-              >
-                <Link href={`/admin/categories/builder/${siteId}?category=${category.slug}`}>
-                  <Edit className="w-4 h-4" />
-                  <span className="sr-only">Edit</span>
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+              />
+              <AdminRowAction
+                icon={Pencil}
+                label="Edit category"
+                href={`/admin/categories/builder/${siteId}?category=${category.slug}`}
+              />
+              <AdminRowAction
+                icon={Trash2}
+                label="Delete category"
                 onClick={() => handleDeleteClick(category)}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete</span>
-              </Button>
-            </div>
+              />
+            </AdminRowActions>
           </TableCell>
           </TableRow>
         )

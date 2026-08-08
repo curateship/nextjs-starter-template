@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
-import { generateEmailHtml } from '@/lib/actions/newsletters/render'
+import { generateEmailHtml, sortNewsletterBlocks } from '@/lib/actions/newsletters/render'
 import { db } from '@/lib/db'
 import { emailSystemTemplates, products, sites } from '@/lib/db/schema'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
@@ -16,6 +16,8 @@ export type SystemEmailTemplateKey =
   | 'featured_listing_renewal_reminder'
   | 'event_registration_confirmation'
   | 'event_reminder'
+  | 'event_follow_up'
+  | 'abandoned_checkout_recovery'
 
 export interface SystemEmailTemplateRecord {
   id: string | null
@@ -67,6 +69,8 @@ const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'featured_listing_renewal_reminder',
   'event_registration_confirmation',
   'event_reminder',
+  'event_follow_up',
+  'abandoned_checkout_recovery',
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
@@ -190,8 +194,8 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       description: 'Sent immediately after someone RSVPs to an event or buys a ticket.',
       scopeLabel: 'Current Site',
       subject: "You're registered for {{event_name}}",
-      bodyHtml: '<p>Hi {{attendee_name}}, you are registered for <strong>{{event_name}}</strong>.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
-      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
+      bodyHtml: '<p>Hi {{attendee_name}}, you are registered for <strong>{{event_name}}</strong>.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p>Show this code at the door:</p><p><a href="{{ticket_url}}"><img src="{{ticket_qr_url}}" alt="Your ticket QR code" width="180" height="180" style="width:180px;height:180px;" /></a></p><p><a href="{{ticket_url}}">Open your ticket</a> &middot; <a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{ticket_url}}', '{{ticket_qr_url}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
     }
   }
 
@@ -201,8 +205,33 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       description: 'Sent to everyone registered for an event shortly before it starts.',
       scopeLabel: 'Current Site',
       subject: '{{event_name}} is coming up',
-      bodyHtml: '<p>Hi {{attendee_name}}, a quick reminder that <strong>{{event_name}}</strong> is coming up.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
-      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
+      bodyHtml: '<p>Hi {{attendee_name}}, a quick reminder that <strong>{{event_name}}</strong> is coming up.</p><p><strong>When:</strong> {{event_when}}<br /><strong>Where:</strong> {{event_location}}</p><p><a href="{{ticket_url}}">Open your ticket</a> &middot; <a href="{{event_url}}">View the event page</a> &middot; <a href="{{event_calendar_url}}">Add it to your calendar</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{ticket_url}}', '{{ticket_qr_url}}', '{{event_url}}', '{{event_calendar_url}}', '{{site_name}}', '{{site_url}}'],
+    }
+  }
+
+  if (templateKey === 'event_follow_up') {
+    return {
+      name: 'Event Follow-up',
+      description: 'Sent to everyone registered for an event the morning after it ends.',
+      scopeLabel: 'Current Site',
+      subject: 'Thanks for coming to {{event_name}}',
+      // No link to an events listing here on purpose: a site's events page is
+      // whatever page its owner built, so this points at the site itself and the
+      // owner can add their own link when they edit the template.
+      bodyHtml: '<p>Hi {{attendee_name}}, thanks for coming to <strong>{{event_name}}</strong>.</p><p>We hope you enjoyed it. Come and see what is on next at {{site_name}}.</p><p><a href="{{site_url}}">Visit {{site_name}}</a> &middot; <a href="{{event_url}}">Revisit the event page</a></p>',
+      tokens: ['{{attendee_name}}', '{{event_name}}', '{{event_when}}', '{{event_location}}', '{{event_url}}', '{{site_name}}', '{{site_url}}'],
+    }
+  }
+
+  if (templateKey === 'abandoned_checkout_recovery') {
+    return {
+      name: 'Abandoned Checkout Recovery',
+      description: 'Sent once when someone starts a paid checkout and does not finish it.',
+      scopeLabel: 'Current Site',
+      subject: 'You left {{product_name}} behind',
+      bodyHtml: '<p>You started checking out <strong>{{product_name}}</strong> on {{site_name}} but didn’t finish.</p><p>If you still want it, you can pick up right where you left off:</p><p><a href="{{checkout_url}}">Finish your purchase</a></p><p>If you’ve changed your mind, just ignore this email — we won’t send another one.</p><p><a href="{{unsubscribe_url}}">Unsubscribe</a> from emails like this.</p>',
+      tokens: ['{{product_name}}', '{{checkout_url}}', '{{unsubscribe_url}}', '{{site_name}}', '{{site_url}}', '{{product_url}}'],
     }
   }
 
@@ -307,6 +336,8 @@ export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
     getSystemEmailTemplate('featured_listing_renewal_reminder', siteId),
     getSystemEmailTemplate('event_registration_confirmation', siteId),
     getSystemEmailTemplate('event_reminder', siteId),
+    getSystemEmailTemplate('event_follow_up', siteId),
+    getSystemEmailTemplate('abandoned_checkout_recovery', siteId),
   ])
 
   return templates.map((template) => {
@@ -350,12 +381,6 @@ function interpolateValue(value: unknown, tokens: Record<string, string>): unkno
   return value
 }
 
-function getSortedNewsletterBlocks(contentBlocks: Record<string, any>) {
-  return Object.values(contentBlocks || {})
-    .filter((block: any) => block?.id && block?.type)
-    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
-}
-
 function normalizeTransactionalBlocks(contentBlocks: Record<string, any>) {
   const interpolated = interpolateValue(contentBlocks, {}) as Record<string, any>
   return Object.fromEntries(
@@ -380,7 +405,7 @@ export function renderSystemEmailContent(
 ) {
   const interpolatedBlocks = interpolateValue(template.content_blocks, tokens) as Record<string, any>
   const transactionalBlocks = normalizeTransactionalBlocks(interpolatedBlocks)
-  return generateEmailHtml(getSortedNewsletterBlocks(transactionalBlocks), 600)
+  return generateEmailHtml(sortNewsletterBlocks(transactionalBlocks))
 }
 
 export function renderSystemEmailSubject(subject: string, tokens: Record<string, string>) {
@@ -441,6 +466,14 @@ export async function buildSystemEmailTokens(params: {
     event_location: params.eventLocation || '',
     event_url: '',
     event_calendar_url: '',
+    // Per-attendee, so only the event mailer fills these in (see
+    // event-registration-email.ts); everything else renders them empty.
+    ticket_url: '',
+    ticket_qr_url: '',
+    // Per-recipient, so only the checkout-recovery cron fills these in (see
+    // api/cron/checkout-recovery); everything else renders them empty.
+    checkout_url: '',
+    unsubscribe_url: '',
   }
 
   if (params.siteId) {

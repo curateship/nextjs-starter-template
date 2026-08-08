@@ -16,6 +16,7 @@ import {
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getAdminSidebarSiteIdFromPathname,
+  isAdminSidebarEntryNamed,
   resolveAdminSidebarSettings,
 } from "@/lib/utils/admin-sidebar"
 import {
@@ -56,18 +57,18 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <SidebarContent>
         {config.sections.flatMap((section) => {
           const projects = section.entries
-            .filter((entry) => entry.visible)
+            .filter((entry) => entry.visible && isAdminSidebarEntryNamed(entry))
             .map((entry) => ({
               id: entry.id,
-              name: entry.label || "Untitled link",
+              name: entry.label,
               url: entry.href,
               icon: getSidebarIcon(entry.icon),
               activePaths: entry.activePaths,
               items: entry.children
-                ?.filter((child) => child.visible !== false)
+                ?.filter((child) => child.visible !== false && isAdminSidebarEntryNamed(child))
                 .map((child) => ({
                   id: child.id,
-                  title: child.label || "Untitled child",
+                  title: child.label,
                   url: child.href,
                   icon: child.icon ? getSidebarIcon(child.icon) : undefined,
                   activePaths: child.activePaths,

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { useCategoryData } from "@/components/admin/category-builder/config/useCategoryData"
@@ -14,12 +15,10 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
 import { BlockPropertiesPanel } from "@/components/admin/category-builder/layout/BlockPropertiesPanel"
-import { CategoryBlockListPanel } from "@/components/admin/category-builder/layout/CategoryBlockListPanel"
 import { CategoryBlockEditorModal } from "@/components/admin/category-builder/layout/CategoryBlockEditorModal"
 import { CATEGORY_CORE_BLOCK_TYPE, categoryBlocksToValueJson } from "@/lib/actions/categories/category-template-inheritance"
 import { getCategoriesForSiteAction, updateCategoryAction, updateCategoryBlockValuesAction } from "@/lib/actions/categories/category-actions"
 import type { Category } from "@/lib/actions/categories/category-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 export default function CategoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -31,7 +30,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const urlCategory = searchParams.get('category') || ''
 
   const [selectedCategory, setSelectedCategory] = useState(urlCategory)
-  const [blockListOpen, setBlockListOpen] = useState(false)
 
   useBuilderRouteSiteSync({
     builderPath: "/admin/categories/builder",
@@ -85,7 +83,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const [draftCategoryTitle, setDraftCategoryTitle] = useState("")
   const [draftCategoryFeaturedImage, setDraftCategoryFeaturedImage] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   // Current category data
   const currentCategoryData = categories.find(c => c.slug === selectedCategory)
@@ -100,7 +97,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     if (!selectedBlock) {
       setDraftContent({})
       setDraftCategoryTitle("")
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -111,7 +108,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     )
     setDraftCategoryTitle(currentCategoryData?.title || selectedCategory)
     setDraftCategoryFeaturedImage(currentCategoryData?.featured_image || "")
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, currentCategoryData?.featured_image, currentCategoryData?.title, selectedCategory])
 
   // Handle category information updates
@@ -153,7 +150,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const handleCloseBlockEditor = () => {
     if (isSavingBlock) return
     builderState.setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   // Save the selected block's value edits (template-owned keys are pruned server-side)
@@ -161,7 +158,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     if (!selectedBlock || !currentCategoryData?.id) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const currentBlocks = localBlocks[selectedCategory] || []
@@ -189,7 +186,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         if (Object.keys(categoryUpdates).length > 0) {
           const { data, error } = await updateCategoryAction({ data: { categoryId: currentCategoryData.id, data: categoryUpdates } })
           if (error || !data) {
-            setBlockSaveError(error || "Failed to save category details")
+            showErrorToast(error || "Failed to save category details")
             return
           }
           setCategories(prev => prev.map(c => c.id === data.id ? data : c))
@@ -199,7 +196,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
       const contentBlocks = categoryBlocksToValueJson(nextBlocks)
       const result = await updateCategoryBlockValuesAction({ data: { categoryId: currentCategoryData.id, contentBlocks: contentBlocks } })
       if (!result.success) {
-        setBlockSaveError(result.error || "Failed to save block")
+        showErrorToast(result.error || "Failed to save block")
         return
       }
 
@@ -209,7 +206,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
       }))
       builderState.setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -233,10 +230,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     ? draftCategoryFeaturedImage.trim() || null
     : currentCategoryData?.featured_image
 
-  const viewPageHref = site && currentCategoryData
-    ? `${getSiteUrl(site)}/categories/${currentCategoryData.slug}`
-    : null
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
@@ -244,12 +237,9 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentCategoryData?.is_published)}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentCategoryData}
             renderSettingsModal={(show, setShow) => (
               <CategorySettingsModal
@@ -297,23 +287,12 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
           mode="listing"
           categoryTitle={draftCategoryTitle}
           categoryFeaturedImage={draftCategoryFeaturedImage}
           onCategoryTitleChange={setDraftCategoryTitle}
           onCategoryFeaturedImageChange={setDraftCategoryFeaturedImage}
         />
-
-        {blockListOpen && (
-          <CategoryBlockListPanel
-            blocks={currentCategory.blocks}
-            selectedBlock={selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            viewPageHref={viewPageHref}
-            blocksLoading={blocksLoading}
-          />
-        )}
       </div>
     </div>
   )

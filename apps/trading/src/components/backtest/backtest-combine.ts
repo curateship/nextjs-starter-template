@@ -62,3 +62,20 @@ export function combineMarketStats(
     winRate: trades > 0 ? wins / trades : null,
   }
 }
+
+/**
+ * The combined equity at the drawdown trough — how much was in the pot when it
+ * was at its worst. Walks the blended curve to the trough's bar time.
+ */
+export function potAtDrawdown(
+  points: readonly { t: number; eq: number }[],
+  at: number | null
+): number | null {
+  if (at == null || points.length === 0) return null
+  let eq = points[0].eq
+  for (const point of points) {
+    if (point.t <= at) eq = point.eq
+    else break
+  }
+  return eq
+}

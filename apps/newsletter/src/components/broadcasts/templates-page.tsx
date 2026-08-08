@@ -110,7 +110,7 @@ export function BroadcastTemplatesPage() {
       <DashboardTable
         title="Templates"
         icon={
-          <LayoutTemplateIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <LayoutTemplateIcon className="text-muted-foreground" />
         }
         count={templates.length}
         header={

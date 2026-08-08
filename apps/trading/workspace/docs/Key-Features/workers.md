@@ -102,3 +102,46 @@ Backtest requests only validate and enqueue work. The Backtest worker uses a
 locked database claim so replicas cannot run the same row. Interrupted rows are
 requeued on the next leader start and become a clear error after three failed
 attempts.
+
+## A failed basket leader no longer strands its markets (July 29, 2026)
+
+A shared-wallet basket (DCA, and legacy QFL rows) runs every market on one
+account, so only ONE row is claimable — the group leader, the row whose `id`
+equals its `group_id`. The leader then pulls its siblings in and replays them
+together.
+
+That left a hole. If the leader row reached `error`, nothing could ever claim its
+siblings, because they are not `id = group_id`. It happened for real: a 401-market
+basket was led by HYPE, which Binance does not list, so its history load failed
+within a second. The worker then restarted, the restart recovery put the other
+markets back to `pending`, and **399 rows sat unclaimable forever** while the
+worker reported "Waiting for queued backtests".
+
+A sibling may now take over, under two conditions that both matter:
+
+- **The leader must have FAILED**, not merely stopped being pending. While it is
+  `running` it legitimately owns the basket, and letting a sibling in would replay
+  the same basket a second time on a second wallet.
+- **No sibling may be `running` or `done`.** `running` is the duplicate guard the
+  old leader-only rule gave for free. `done` is the important one:
+  `runPortfolioGroup` marks markets finished **one at a time in a loop**, so a
+  worker killed mid-loop leaves some `done` and the rest back at `pending`.
+  Promoting there would replay only the leftovers on a fresh FULL wallet while the
+  finished markets were computed sharing it — every leftover's numbers would be
+  inflated and saved as if real.
+
+**So a partially finished basket still strands, on purpose.** A visibly stuck run
+is recoverable; silently wrong shared-wallet numbers are not. Re-run the group.
+
+Residual risk: two drainers opening the claim transaction at the same instant
+cannot see each other's uncommitted work, so the guard is not airtight against
+true simultaneity. It holds for the sequential drain this queue does, and the
+worker takes a leadership lock so only one drainer runs.
+
+Three tests in `backtest-worker.test.ts`: a failed leader hands over and the
+promoted market then holds the group alone; a running leader hands over to nobody;
+and a basket with any finished market hands over to nobody.
+
+**Editing worker files restarts the worker and kills any backtest mid-flight.**
+That is how the 401-market run above died. Do not save worker code while a run is
+going.

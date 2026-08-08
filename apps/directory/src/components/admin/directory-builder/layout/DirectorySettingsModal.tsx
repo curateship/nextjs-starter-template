@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
@@ -47,13 +48,15 @@ export function DirectorySettingsModal({
   const [metaDescription, setMetaDescription] = useState("")
   const [featuredImage, setFeaturedImage] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [templateMissing, setTemplateMissing] = useState(false)
+  // Cleared as soon as a template is chosen, so the ring never outlives the fault.
+  const templateInvalid = templateMissing && !selectedTemplateId
   const [templates, setTemplates] = useState<DirectoryTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [loadingCategories, setLoadingCategories] = useState(false)
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Directory>({
+  const { loading: saving, loadingAction: savingAction, setError, submit, titleInvalid } = useCreateContent<Directory>({
     entityLabel: "listing",
     title,
     titleRequiredMessage: "Listing title is required",
@@ -91,7 +94,6 @@ export function DirectorySettingsModal({
 
     setSelectedCategoryIds([])
     setPrimaryCategoryId(null)
-    setLoadingCategories(true)
     setTemplatesLoading(true)
 
     getDirectoryTemplatesBySite({ data: { siteId: directory.site_id } }).then(({ data }) => {
@@ -111,10 +113,6 @@ export function DirectorySettingsModal({
         setSelectedCategoryIds(data ? data.map((c) => c.id) : [])
         setPrimaryCategoryId(data?.find((c) => c.is_primary)?.id || data?.[0]?.id || null)
       }
-    }).finally(() => {
-      if (!cancelled) {
-        setLoadingCategories(false)
-      }
     })
 
     return () => {
@@ -126,9 +124,12 @@ export function DirectorySettingsModal({
   const handleSave = async (publish: boolean) => {
     if (!directory) return
     if (!selectedTemplateId) {
+      setTemplateMissing(true)
       setError('Template is required')
       return
     }
+
+      setTemplateMissing(false)
     await submit(publish ? "publish" : "draft", publish, (updated) => {
       onSuccess?.(updated)
       onOpenChange(false)
@@ -145,11 +146,12 @@ export function DirectorySettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DashboardModalContent
+        busy={saving}
         title={(
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate">{directory.title}</span>
+            <span className="truncate" title={directory.title}>{directory.title}</span>
             <div className="flex shrink-0 items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${directory?.status === 'published' ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${directory?.status === 'published' ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">
                 {directory?.status === 'published' ? 'Published' : 'Draft'}
               </span>
@@ -165,22 +167,19 @@ export function DirectorySettingsModal({
                 Cancel
               </Button>
               <Button type="submit" form="directory-settings-form" variant="outline" disabled={saving}>
-                {savingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+                {savingAction === 'draft' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={saving}>
-                {savingAction === 'publish' ? 'Saving...' : directory?.status === 'published' ? 'Save' : 'Publish'}
+                {savingAction === 'publish' ? <Loader2 className="size-4 animate-spin" /> : null}
+                {directory?.status === 'published' ? 'Save' : 'Publish'}
               </Button>
             </DashboardModalFooterActions>
           </>
         )}
       >
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-          </div>
-        )}
-
-        <form id="directory-settings-form" onSubmit={handleSubmit} className="contents">
+        <form
+          noValidate id="directory-settings-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -191,7 +190,7 @@ export function DirectorySettingsModal({
                 <Field>
                   <FieldLabel htmlFor="modal-template">Template</FieldLabel>
                   <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} disabled={templatesLoading || saving}>
-                    <SelectTrigger id="modal-template">
+                    <SelectTrigger id="modal-template" aria-invalid={templateInvalid || undefined}>
                       <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select template"} />
                     </SelectTrigger>
                     <SelectContent className="z-60">
@@ -218,6 +217,7 @@ export function DirectorySettingsModal({
                   slugManuallyEdited={slugManuallyEdited}
                   onTitleChange={handleTitleChange}
                   onSlugChange={handleSlugChange}
+                  titleInvalid={titleInvalid}
                 />
 
                 <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
@@ -238,7 +238,6 @@ export function DirectorySettingsModal({
                       onSelectionChange={setSelectedCategoryIds}
                       primaryCategoryId={primaryCategoryId}
                       onPrimaryCategoryChange={setPrimaryCategoryId}
-                      loadingSelectedCategories={loadingCategories}
                       variant="combobox"
                     />
                   </Field>

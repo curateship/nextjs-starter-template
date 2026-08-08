@@ -18,11 +18,7 @@ export const getCategoryTemplateById = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getCategoryTemplateByIdImpl(data.templateId))
 
 export const createCategoryTemplate = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  name: string
-  contentBlocks?: Record<string, any>
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createCategoryTemplateImpl>[0] }) => data)
   .handler(async ({ data }) => createCategoryTemplateImpl(data.input))
 
 export const updateCategoryTemplate = createServerFn({ method: "POST" })

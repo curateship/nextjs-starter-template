@@ -4,11 +4,9 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { ModalErrorBanner } from "@/components/admin/layout/dashboard/content-modal-shared"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import {
   Select,
   SelectContent,
@@ -28,6 +26,8 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import { DripSettingsFields, useDripSettings } from "./DripSettingsFields"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -38,8 +38,15 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const { currentSite } = useSiteSwitcher()
   const [subject, setSubject] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [subjectInvalid, setSubjectInvalid] = useState(false)
   const [createActiveTab, setCreateActiveTab] = useState('general')
+
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
 
   // Template picker state
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
@@ -118,9 +125,15 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
   const handleCreate = async (status: 'draft' | 'scheduled') => {
     if (!subject.trim()) {
+      // The subject lives on the General tab, so a submit from Drip Options has
+      // to bring the user back to the field the message is about.
+      setCreateActiveTab('general')
+      setSubjectInvalid(true)
       setError('Subject line is required')
       return
     }
+
+    setSubjectInvalid(false)
 
     if (!currentSite?.id) {
       setError('No site selected')
@@ -157,6 +170,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     }
 
     if (data) {
+      showActionSuccess(status === 'scheduled' ? "Newsletter scheduled." : "Newsletter created.")
       onSuccess(data)
     }
     setLoading(false)
@@ -169,8 +183,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
   return (
     <Tabs value={createActiveTab} onValueChange={setCreateActiveTab}>
-      <form id="create-newsletter-form" onSubmit={handleSubmit} className="contents">
-        <DashboardModalContent
+              <DashboardModalContent
+          busy={loading}
           title="Create New Newsletter"
           titleAccessory={
             <TabsList className="h-9 shrink-0">
@@ -178,18 +192,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
             </TabsList>
           }
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button form="create-newsletter-form" type="submit" disabled={loading}>
-                {loading ? 'Creating...' : 'Continue'}
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={loading} form="create-newsletter-form" onCancel={onCancel} submitLabel="Continue" />}
         >
-          <ModalErrorBanner error={error} />
+          <form
+            noValidate id="create-newsletter-form" onSubmit={handleSubmit} className="contents">
 
           <TabsContent value="general" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
@@ -202,7 +208,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                     <FieldLabel htmlFor="newsletter-template">Start from template</FieldLabel>
                     {templatesLoading ? (
                       <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                        <Skeleton className="h-4 w-24 rounded-sm" />
                         <ChevronDown className="size-4 opacity-50" />
                       </div>
                     ) : (
@@ -232,9 +237,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                     <Input
                       id="newsletter-subject"
                       value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={(e) => {
+                        setSubject(e.target.value)
+                        if (subjectInvalid && e.target.value.trim()) setSubjectInvalid(false)
+                      }}
                       placeholder="Email subject line"
-                      required
+                      aria-invalid={subjectInvalid}
                     />
                   </Field>
                 </CardContent>
@@ -293,8 +301,9 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               <DripSettingsFields form={drip} idPrefix="create-newsletter" variant="cards" />
             </CardGroup>
           </TabsContent>
+          </form>
         </DashboardModalContent>
-      </form>
+
     </Tabs>
   )
 }

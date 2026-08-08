@@ -14,7 +14,7 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog } from "@/components/ui/dialog"
-import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Combobox,
@@ -73,6 +73,8 @@ import PencilLine from "lucide-react/dist/esm/icons/pencil-line.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Zap from "lucide-react/dist/esm/icons/zap.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
+import { showErrorToast } from "@/lib/error-toast"
 
 interface PageProps {
   params: Promise<{ automationId: string }>
@@ -119,7 +121,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [editingTriggerIndex, setEditingTriggerIndex] = useState<number | null>(null)
   const [draftTriggerType, setDraftTriggerType] = useState<AutomationTriggerType>("none")
   const [draftSegmentIds, setDraftSegmentIds] = useState<string[]>([])
+  // A trigger or checkpoint saved with nothing chosen marks the picker it is
+  // about, and the mark clears itself the moment something is chosen.
+  const [pickerMissing, setPickerMissing] = useState<"segment" | "product" | "checkpoint" | null>(null)
+  const segmentPickerInvalid = pickerMissing === "segment" && !draftSegmentIds.length
   const [draftProductId, setDraftProductId] = useState("")
+  const productPickerInvalid = pickerMissing === "product" && !draftProductId
   const [savingTrigger, setSavingTrigger] = useState(false)
   const [addAfterIndex, setAddAfterIndex] = useState<number | null>(null)
   const [editingDelay, setEditingDelay] = useState<AutomationStep | null>(null)
@@ -130,6 +137,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayDate, setDelayDate] = useState("")
   const [editingEndRules, setEditingEndRules] = useState<AutomationStep | null>(null)
   const [checkpointAction, setCheckpointAction] = useState<CheckpointAction | "">("")
+  const checkpointPickerInvalid = pickerMissing === "checkpoint" && !checkpointAction
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
@@ -438,7 +446,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const saveEndRulesNode = async () => {
-    if (!editingEndRules || !checkpointAction) return
+    if (!editingEndRules) return
+    if (!checkpointAction) {
+      setPickerMissing("checkpoint")
+      showErrorToast("Choose an action for this checkpoint.")
+      return
+    }
+
+    setPickerMissing(null)
 
     setSavingNode(true)
     const node_config = {
@@ -530,14 +545,20 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const saveTrigger = async () => {
+    // These report through the toast that draws above the modal, not the page
+    // error strip behind it, which the open modal would hide.
     if (draftTriggerType === "segment_added" && !draftSegmentIds.length) {
-      setError("Choose at least one segment before saving this trigger.")
+      setPickerMissing("segment")
+      showErrorToast("Choose at least one segment before saving this trigger.")
       return
     }
     if (draftTriggerType === "paid_purchase" && !draftProductId) {
-      setError("Choose a product before saving this trigger.")
+      setPickerMissing("product")
+      showErrorToast("Choose a product before saving this trigger.")
       return
     }
+
+    setPickerMissing(null)
 
     setSavingTrigger(true)
 
@@ -685,9 +706,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const delayChipClass =
-    "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50"
+    "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950/50 dark:text-yellow-300 dark:hover:bg-yellow-900/40"
   const emailChipClass =
-    "h-6 shrink-0 rounded-full border-blue-200 bg-blue-50 px-2 text-xs font-normal text-blue-700 hover:bg-blue-50"
+    "h-6 shrink-0 rounded-full border-blue-200 bg-blue-50 px-2 text-xs font-normal text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:bg-blue-900/40"
 
   const getEmailStatusLabel = (node: AutomationStep) => {
     if (!node.subject?.trim()) return "Needs subject"
@@ -760,7 +781,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
       return {
         label: `${segmentLabel} - ${segmentTotal.toLocaleString()} contacts`,
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
+        className: "border-border bg-muted text-muted-foreground hover:bg-muted"
       }
     }
 
@@ -770,7 +791,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
       return {
         label: productName || "Choose lead magnet",
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
+        className: "border-border bg-muted text-muted-foreground hover:bg-muted"
       }
     }
 
@@ -780,7 +801,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
       return {
         label: productName || "Choose product",
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
+        className: "border-border bg-muted text-muted-foreground hover:bg-muted"
       }
     }
 
@@ -840,8 +861,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             <StickybarTopRightActions
               rightActions={
                 <>
-                  <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
-                  <div className="h-8 w-20 animate-pulse rounded bg-muted" />
                 </>
               }
             />
@@ -861,20 +880,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <CardContent>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 flex-1 items-center gap-3">
-                            <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
                             <div className="min-w-0 flex-1">
-                              <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                              <div className="mt-2 h-3 w-48 animate-pulse rounded bg-muted/70" />
-                              <div className="mt-3 h-6 w-24 animate-pulse rounded-md bg-muted/70" />
                             </div>
                           </div>
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
                         </div>
                       </CardContent>
                     </Card>
                     {index === 1 && (
                       <div className="my-6 flex justify-center">
-                        <div className="h-9 w-28 animate-pulse rounded-md bg-muted" style={centerAxisStyle} />
                       </div>
                     )}
                   </div>
@@ -882,7 +895,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
                 <div className="my-6 flex justify-center">
                   <div
-                    className="h-6 w-6 animate-pulse rounded-full bg-muted"
+                    className="h-6 w-6 rounded-full bg-muted"
                     style={centerAxisStyle}
                   />
                 </div>
@@ -893,27 +906,19 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <CardContent>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 flex-1 items-center gap-3">
-                            <div className="h-[52px] w-[52px] animate-pulse rounded-lg bg-muted" />
                             <div className="min-w-0 flex-1">
-                              <div className="h-4 w-44 animate-pulse rounded bg-muted" />
                               <div className="mt-2 flex flex-wrap gap-1.5">
-                                <div className="h-6 w-16 animate-pulse rounded bg-muted/70" />
-                                <div className="h-6 w-14 animate-pulse rounded bg-muted/70" />
-                                <div className="h-6 w-20 animate-pulse rounded bg-muted/70" />
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
-                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
-                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
-                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
                           </div>
                         </div>
                       </CardContent>
                     </Card>
                     <div className="my-6 flex justify-center">
                       <div
-                        className="h-6 w-6 animate-pulse rounded-full bg-muted"
+                        className="h-6 w-6 rounded-full bg-muted"
                         style={centerAxisStyle}
                       />
                     </div>
@@ -933,7 +938,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         <DashboardStickyHeader />
         <AdminLayout>
           <div className="w-full p-8 text-center">
-            <p className="mb-4 text-red-600">{error}</p>
+            <p className="mb-4 text-destructive">{error}</p>
             <Button onClick={() => router.push("/admin/newsletters/automations")} variant="outline">
               Back
             </Button>
@@ -953,7 +958,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               <>
                 <Badge
                   variant={automation.status === "active" ? "default" : "secondary"}
-                  className={automation.status === "active" ? "bg-green-100 text-green-800" : ""}
+                  className={automation.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" : ""}
                 >
                   {automation.status === "active" ? "Active" : automation.status === "paused" ? "Paused" : "Draft"}
                 </Badge>
@@ -977,8 +982,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       <AdminLayout>
         <div className="mx-auto w-full max-w-2xl px-6 py-8">
           {error && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
@@ -1007,7 +1012,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         }
                       }}
                       className={cn(
-                        "w-full cursor-pointer p-4 text-left transition-colors hover:bg-[#fcfcfc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                        "w-full cursor-pointer p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                         isSelected && !isPlaceholder ? "ring-1 ring-blue-500/15" : "",
                         isSelected && isPlaceholder ? "ring-1 ring-border" : ""
                       )}
@@ -1073,7 +1078,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <div key={node.id} className="w-full">
                   {node.node_type === "delay" ? (
                     <Card
-                      className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
+                      className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50 hover:bg-muted"
                       style={node.id === currentDelayStepId ? {
                         borderColor: "#22c55e",
                         borderLeftColor: "#22c55e",
@@ -1125,15 +1130,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     </Card>
                   ) : node.node_type === "end_rules" ? (
                     <Card
-                      className="w-full cursor-pointer border-l-4 border-l-green-500 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
+                      className="w-full cursor-pointer border-l-4 border-l-green-500 p-4 transition-colors hover:border-primary/50 hover:bg-muted"
                       onClick={() => openEndRulesEditor(node)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-green-50">
-                                <CheckCircle2 className="h-5 w-5 text-green-700" />
+                              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-green-50 dark:bg-green-950/50">
+                                <CheckCircle2 className="h-5 w-5 text-green-700 dark:text-green-300" />
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top">Checkpoint</TooltipContent>
@@ -1143,7 +1148,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               <Badge
                                 variant="outline"
-                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
+                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300 dark:hover:bg-green-900/40"
                               >
                                 {getCheckpointActionLabel(getCheckpointAction(node.node_config))}
                               </Badge>
@@ -1165,7 +1170,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     </Card>
                   ) : (
                     <Card
-                      className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
+                      className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50 hover:bg-muted"
                       onClick={() => setEditingEmailSettings(node)}
                     >
                       <div className="flex items-center justify-between">
@@ -1279,7 +1284,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           automationId={automationId}
           stepOrder={statusEventsStep?.step_order ?? null}
           showRateCards
-          onError={setError}
+          onError={showErrorToast}
           onOpenChange={(open) => {
             if (!open) setStatusEventsStep(null)
           }}
@@ -1319,6 +1324,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         >
           <DashboardModalContent
+            busy={savingTrigger}
             title="Trigger"
             description="Choose what event enrolls a contact into this automation."
             footer={
@@ -1336,23 +1342,26 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   Cancel
                 </Button>
                 {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
-                  <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
+                  <Button type="button" variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
                     Remove
                   </Button>
                 )}
-                <Button
-                  onClick={saveTrigger}
-                  disabled={
-                    savingTrigger ||
-                    (draftTriggerType === "segment_added" && (!draftSegmentIds.length || segments.length === 0)) ||
-                    (draftTriggerType === "paid_purchase" && (!draftProductId || productTriggerOptions.length === 0))
-                  }
-                >
-                  {savingTrigger ? "Saving..." : "Save"}
+                <Button form="automation-trigger-form" type="submit" disabled={savingTrigger}>
+                  {savingTrigger ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </DashboardModalFooterActions>
             }
           >
+            <form
+              noValidate
+              id="automation-trigger-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveTrigger()
+              }}
+            >
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -1407,6 +1416,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                                     )
                                   })}
                                   <ComboboxChipsInput
+                                    aria-invalid={segmentPickerInvalid || undefined}
                                     placeholder={
                                       values.length
                                         ? ""
@@ -1452,7 +1462,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <Field>
                         <FieldLabel>{productTriggerLabel}</FieldLabel>
                         <Select value={draftProductId} onValueChange={setDraftProductId}>
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full" aria-invalid={productPickerInvalid || undefined}>
                             <SelectValue
                               placeholder={
                                 loadingProducts ? "Loading products..." : `Choose a ${productTriggerLabel.toLowerCase()}`
@@ -1478,6 +1488,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
         </Dialog>
 
@@ -1488,19 +1499,20 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         >
           <DashboardModalContent
+            busy={savingNode}
             title="Checkpoint"
             description="Choose what happens when a contact reaches this point."
-            footer={
-              <>
-                <Button variant="outline" onClick={() => setEditingEndRules(null)}>
-                  Cancel
-                </Button>
-                <Button onClick={saveEndRulesNode} disabled={savingNode || !checkpointAction}>
-                  {savingNode ? "Saving..." : "Save"}
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={savingNode} form="automation-checkpoint-form" onCancel={() => setEditingEndRules(null)} submitLabel="Save" />}
           >
+            <form
+              noValidate
+              id="automation-checkpoint-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveEndRulesNode()
+              }}
+            >
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -1510,7 +1522,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   <Field>
                     <FieldLabel>Action</FieldLabel>
                     <Select value={checkpointAction} onValueChange={(value) => setCheckpointAction(value as CheckpointAction)}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full" aria-invalid={checkpointPickerInvalid || undefined}>
                         <SelectValue placeholder="Select action" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1522,6 +1534,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
         </Dialog>
 
@@ -1532,19 +1545,20 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         >
           <DashboardModalContent
+            busy={savingNode}
             title="Time Delay"
             description="Set how long the automation should wait before the next step runs."
-            footer={
-              <>
-                <Button variant="outline" onClick={() => setEditingDelay(null)}>
-                  Cancel
-                </Button>
-                <Button onClick={saveDelayNode} disabled={savingNode}>
-                  {savingNode ? "Saving..." : "Save"}
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={savingNode} form="automation-delay-form" onCancel={() => setEditingDelay(null)} submitLabel="Save" />}
           >
+            <form
+              noValidate
+              id="automation-delay-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveDelayNode()
+              }}
+            >
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -1621,6 +1635,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
         </Dialog>
       </AdminLayout>

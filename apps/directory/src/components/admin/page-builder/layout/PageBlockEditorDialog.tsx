@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { PageHeroBlock } from "../blocks/hero/PageHeroBlock"
 import { PageRichTextEditorBlock } from "../blocks/rich-text-editor/PageRichTextEditorBlock"
 import { PageFaqBlock } from "../blocks/faq/PageFaqBlock"
@@ -46,20 +46,21 @@ export function PageBlockEditorDialog({
     <Dialog open={!!selectedBlock} onOpenChange={onOpenChange}>
       <ModalTabsProvider>
         <DashboardModalContent
+          busy={isSaving}
           title={`Edit ${selectedBlock.title || getBlockName(selectedBlock.type)}`}
           titleAccessory={<ModalTabs />}
           className="max-w-[960px]"
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-                Cancel
-              </Button>
-              <Button type="button" onClick={onSave} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save"}
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={isSaving} cancelDisabled={isSaving} form="page-block-editor-form" onCancel={() => onOpenChange(false)} submitLabel="Save" />}
         >
+            <form
+              noValidate
+              id="page-block-editor-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                onSave()
+              }}
+            >
           {selectedBlock.type === "hero" && (
                   <PageHeroBlock
                     content={draftContent}
@@ -224,6 +225,7 @@ export function PageBlockEditorDialog({
                     onVisibilityChange={(value) => onContentChange("visibility", value)}
                   />
                 )}
+            </form>
           </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>

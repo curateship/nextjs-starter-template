@@ -12,12 +12,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EquityCurve } from "@/components/scanner/equity-curve"
-import { formatNotional, shortAddress } from "@/components/scanner/format"
+import { compactUsd, formatPrice, shortAddress } from "@/lib/format"
 import { PositionEventRow } from "@/components/scanner/positions-dashboard"
 import { SignedUsd } from "@/components/scanner/signed-usd"
 import { WalletChip } from "@/components/scanner/wallet-chip"
 import { WalletDialog } from "@/components/scanner/wallet-dialog"
-import { formatPriceDisplay } from "@/components/trading/format"
 import {
   loadWalletDetail,
   type ScannerWalletDetail,
@@ -52,7 +51,7 @@ export function WalletDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-              <WavesIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+              <WavesIcon className="text-muted-foreground" />
             </span>
             <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium sm:text-base">
               <Link
@@ -182,12 +181,12 @@ export function WalletDetailPage({
               </TableCell>
               <TableCell column="meta">
                 <span className="font-mono text-xs tabular-nums">
-                  {formatPriceDisplay(item.px)}
+                  {formatPrice(item.px)}
                 </span>
               </TableCell>
               <TableCell column="meta">
                 <span className="font-mono text-xs font-medium tabular-nums">
-                  {formatNotional(item.notional)}
+                  {compactUsd(item.notional)}
                 </span>
               </TableCell>
               <TableCell column="meta">
@@ -326,12 +325,12 @@ function WalletStatsSection({ stats }: { stats: ScannerWalletStatsItem }) {
                 </TableCell>
                 <TableCell column="meta">
                   <span className="font-mono text-xs tabular-nums">
-                    {position.entryPx ? formatPriceDisplay(position.entryPx) : "—"}
+                    {position.entryPx ? formatPrice(position.entryPx) : "—"}
                   </span>
                 </TableCell>
                 <TableCell column="meta">
                   <span className="font-mono text-xs tabular-nums">
-                    {formatNotional(position.positionValue)}
+                    {compactUsd(position.positionValue)}
                   </span>
                 </TableCell>
                 <TableCell column="meta">
@@ -342,7 +341,7 @@ function WalletStatsSection({ stats }: { stats: ScannerWalletStatsItem }) {
                       upnl < 0 && "text-red-500"
                     )}
                   >
-                    {formatNotional(upnl)}
+                    {compactUsd(upnl)}
                   </span>
                 </TableCell>
                 <TableCell column="meta">
@@ -360,7 +359,7 @@ function WalletStatsSection({ stats }: { stats: ScannerWalletStatsItem }) {
 }
 
 function money(value: string | null): string {
-  return value === null ? "—" : formatNotional(value)
+  return value === null ? "—" : compactUsd(value)
 }
 
 function formatHold(minutes: number): string {

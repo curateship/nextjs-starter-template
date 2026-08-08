@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -8,7 +9,6 @@ import { Field, FieldDescription } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
   MetaDescriptionField,
-  ModalErrorBanner,
   TitleSlugFields,
   postJson,
   useCreateContent,
@@ -34,7 +34,7 @@ export function CreateAccountPageModal({
   const [isDefault, setIsDefault] = useState(false)
   const isProfileTemplate = isPublicProfileTemplateSlug(slug)
 
-  const { loading, loadingAction, error, submit } = useCreateContent<AccountPage>({
+  const { loading, loadingAction, submit, titleInvalid } = useCreateContent<AccountPage>({
     entityLabel: "account page",
     title,
     titleRequiredMessage: "Page title is required",
@@ -54,8 +54,8 @@ export function CreateAccountPageModal({
   }
 
   return (
-    <form id="create-account-page-form" onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
+          <DashboardModalContent
+        busy={loading}
         title="Create New Account Page"
         description="Add a new account page to your site. You can customize the content after creation."
         footer={
@@ -65,16 +65,19 @@ export function CreateAccountPageModal({
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-account-page-form" type="submit" variant="outline" disabled={loading}>
-                {loadingAction === "draft" ? "Saving..." : "Save as Draft"}
+                {loadingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button type="button" onClick={() => submit("publish", true, onSuccess)} disabled={loading}>
-                {loadingAction === "publish" ? "Publishing..." : "Publish"}
+                {loadingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Publish
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        <ModalErrorBanner error={error} />
+        <form
+          noValidate id="create-account-page-form" onSubmit={handleSubmit} className="contents">
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -101,6 +104,7 @@ export function CreateAccountPageModal({
                     Page URL: {getAccountPageDisplayPath(slug)}
                   </FieldDescription>
                 ) : null}
+                titleInvalid={titleInvalid}
               />
               <Field>
                 <label className="flex items-start gap-2 cursor-pointer">
@@ -132,7 +136,8 @@ export function CreateAccountPageModal({
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
-    </form>
+
   )
 }

@@ -55,7 +55,7 @@ const dashboardToolbarButtonGroupClassName =
 const dashboardToolbarButtonGroupItemClassName =
   "h-full border-0 first:rounded-r-none last:rounded-l-none"
 const dashboardToolbarButtonActiveClassName =
-  "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+  "border-primary bg-primary bg-clip-border text-primary-foreground hover:bg-primary hover:text-primary-foreground"
 const dashboardToolbarButtonActiveFilterClassName = "border-primary"
 const dashboardToolbarMutedButtonClassName =
   "text-muted-foreground hover:text-foreground"
@@ -111,9 +111,7 @@ function DashboardToolbarSearch({
 function DashboardToolbarSelectTrigger({
   className,
   ...props
-}: React.ComponentProps<typeof SelectTrigger> & {
-  labels?: readonly string[]
-}) {
+}: React.ComponentProps<typeof SelectTrigger>) {
   return (
     <SelectTrigger
       className={cn("h-8 w-fit text-sm", className)}

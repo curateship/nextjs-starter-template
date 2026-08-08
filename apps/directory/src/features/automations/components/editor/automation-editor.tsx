@@ -25,7 +25,11 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { createAutomationNode } from "@/features/automations/domain/catalog";
 import { validateAutomationGraph } from "@/features/automations/domain/graph";
-import { isAutomationNodeKind } from "@/features/automations/domain/node-registry";
+import type { ResolvedResources } from "@/features/automations/domain/node-descriptor";
+import {
+  getNodeDescriptor,
+  isAutomationNodeKind,
+} from "@/features/automations/domain/node-registry";
 import type {
   AutomationEditorData,
   AutomationGraph,
@@ -127,7 +131,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    void getAutomationEditorData(automationId).then((result) => {
+    void getAutomationEditorData({ data: { automationId } }).then((result) => {
       if (cancelled) return;
       if (result.error || !result.data) {
         setLoadError(result.error || "Automation not found");
@@ -360,7 +364,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
   async function handleSave(showToast = true) {
     if (!graph || !data) return { saved: false, valid: false };
     setSaving(true);
-    const result = await saveAutomation({ automationId, name, graph });
+    const result = await saveAutomation({ data: { automationId, name, graph } });
     setSaving(false);
     if (result.error || !result.data) {
       showActionError(result.error || "Failed to save automation");
@@ -376,8 +380,8 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     if (showToast)
       showActionSuccess(
         result.validationErrors.length
-          ? "Draft saved with validation issues"
-          : "Automation saved",
+          ? "Draft saved with validation issues."
+          : "Automation saved.",
       );
     return { saved: true, valid: result.validationErrors.length === 0 };
   }
@@ -397,7 +401,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
       );
       return;
     }
-    const result = await runAutomationNow(automationId);
+    const result = await runAutomationNow({ data: { automationId } });
     setRunning(false);
     if (result.error || !result.data)
       return showActionError(result.error || "Automation run failed");
@@ -419,10 +423,10 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     );
     showActionSuccess(
       result.data.status === "waiting"
-        ? "Paused — this run needs your approval"
+        ? "Paused — this run needs your approval."
         : result.data.status === "partial"
-          ? "Automation finished with partial results"
-          : "Automation run finished",
+          ? "Automation finished with partial results."
+          : "Automation run finished.",
     );
   }
 
@@ -431,7 +435,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     decision: "approve" | "reject",
   ) {
     setDeciding({ approvalId, decision });
-    const result = await decideAutomationApproval(approvalId, decision);
+    const result = await decideAutomationApproval({ data: { approvalId, decision } });
     setDeciding(null);
     if (result.error || !result.data)
       return showActionError(result.error || "Failed to record the approval");
@@ -447,8 +451,8 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     );
     showActionSuccess(
       decision === "approve"
-        ? "Approved — the rest of the run starts within a minute"
-        : "Rejected — nothing after that step will run",
+        ? "Approved — the rest of the run starts within a minute."
+        : "Rejected — nothing after that step will run.",
     );
   }
 
@@ -471,7 +475,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
     }
     const nextStatus =
       data.automation.status === "active" ? "paused" : "active";
-    const result = await setAutomationStatus(automationId, nextStatus);
+    const result = await setAutomationStatus({ data: { automationId, status: nextStatus } });
     setChangingStatus(false);
     if (result.error || !result.data) {
       setServerErrors(result.validationErrors);
@@ -483,7 +487,7 @@ export function AutomationEditor({ automationId }: { automationId: string }) {
         : current,
     );
     showActionSuccess(
-      nextStatus === "active" ? "Automation activated" : "Automation paused",
+      nextStatus === "active" ? "Automation activated." : "Automation paused.",
     );
   }
 
@@ -778,16 +782,20 @@ function clientResourceErrors(
 ) {
   const errors: AutomationValidationError[] = [];
   const providers = new Set(data.providers.map((item) => item.provider));
-  const templates = new Set(data.templates.map((item) => item.id));
-  const listingTemplates = new Set(data.listingTemplates.map((item) => item.id));
-  const eventTemplates = new Set(data.eventTemplates.map((item) => item.id));
-  const categories = new Set(data.categories.map((item) => item.id));
+  // Each node's own resource rules, run against what this editor loaded. Reusing the
+  // descriptors keeps the canvas and the server's save-time check from drifting apart.
+  const resolved: ResolvedResources = {
+    postTemplates: new Set(data.templates.map((item) => item.id)),
+    listingTemplates: new Set(data.listingTemplates.map((item) => item.id)),
+    eventTemplates: new Set(data.eventTemplates.map((item) => item.id)),
+    newsletterTemplates: new Set(data.newsletterTemplates.map((item) => item.id)),
+    categories: new Set(data.categories.map((item) => item.id)),
+  };
   for (const node of graph.nodes) {
+    const descriptor = getNodeDescriptor(node.kind);
     if (
-      (node.kind === "agent" ||
-        node.kind === "router" ||
-        node.kind === "listing" ||
-        node.kind === "event") &&
+      descriptor.providerRequirement === "required" &&
+      "provider" in node.config &&
       !providers.has(node.config.provider)
     )
       errors.push({
@@ -795,65 +803,9 @@ function clientResourceErrors(
         message: `${node.name} uses an AI provider that is not configured.`,
         nodeId: node.id,
       });
-    if (
-      node.kind === "listing" &&
-      node.config.templateId &&
-      !listingTemplates.has(node.config.templateId)
-    )
-      errors.push({
-        code: "listing-template-missing",
-        message: "The selected Listing template is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "listing" &&
-      node.config.categoryId &&
-      !categories.has(node.config.categoryId)
-    )
-      errors.push({
-        code: "listing-category-missing",
-        message: "The selected Listing category is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "event" &&
-      node.config.templateId &&
-      !eventTemplates.has(node.config.templateId)
-    )
-      errors.push({
-        code: "event-template-missing",
-        message: "The selected Event template is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "event" &&
-      node.config.categoryId &&
-      !categories.has(node.config.categoryId)
-    )
-      errors.push({
-        code: "event-category-missing",
-        message: "The selected Event category is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "post" &&
-      node.config.templateId &&
-      !templates.has(node.config.templateId)
-    )
-      errors.push({
-        code: "post-template-missing",
-        message: "The selected Post template is unavailable.",
-        nodeId: node.id,
-      });
-    if (
-      node.kind === "post" &&
-      node.config.categoryIds.some((id) => !categories.has(id))
-    )
-      errors.push({
-        code: "post-category-missing",
-        message: "One or more selected Post categories are unavailable.",
-        nodeId: node.id,
-      });
+    descriptor.validateResources?.(node, resolved, (code, message) =>
+      errors.push({ code, message, nodeId: node.id }),
+    );
   }
   return errors;
 }

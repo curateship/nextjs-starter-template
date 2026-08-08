@@ -24,10 +24,7 @@ import {
   StarIcon,
 } from "lucide-react"
 
-import {
-  formatCompactUsd,
-  formatPriceDisplay,
-} from "@/components/trading/format"
+import { compactUsd, formatPrice, pct, signedPct } from "@/lib/format"
 import { filterMarketsByCoins } from "@/components/trading/market-watchlist-order"
 import { MarketListLoadingSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
@@ -411,7 +408,7 @@ export function MarketWatchlist({
                     </span>
                     <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
                       {row.dex ? `${row.dex} · ` : ""}
-                      {liveData ? formatCompactUsd(Number(row.dayNtlVlm)) : "—"}
+                      {liveData ? compactUsd(Number(row.dayNtlVlm)) : "—"}
                     </span>
                   </span>
                   <span
@@ -426,8 +423,7 @@ export function MarketWatchlist({
                   >
                     {liveData ? (
                       <>
-                        {change >= 0 ? "+" : ""}
-                        {change.toFixed(2)}%
+                        {signedPct(change)}
                       </>
                     ) : (
                       "—"
@@ -883,7 +879,7 @@ export function MarketPicker({
                       </div>
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">
-                      {liveData ? formatPriceDisplay(row.markPx) : "—"}
+                      {liveData ? formatPrice(row.markPx) : "—"}
                     </TableCell>
                     <TableCell
                       className={cn(
@@ -897,8 +893,7 @@ export function MarketPicker({
                     >
                       {liveData ? (
                         <>
-                          {change >= 0 ? "+" : ""}
-                          {change.toFixed(2)}%
+                          {signedPct(change)}
                         </>
                       ) : (
                         "—"
@@ -907,15 +902,15 @@ export function MarketPicker({
                     {metrics ? (
                       <>
                         <TableCell className="font-mono tabular-nums">
-                          {liveData ? `${funding.toFixed(4)}%` : "—"}
+                          {liveData ? pct(funding, 4) : "—"}
                         </TableCell>
                         <TableCell className="font-mono tabular-nums">
                           {liveData
-                            ? formatCompactUsd(Number(row.dayNtlVlm))
+                            ? compactUsd(Number(row.dayNtlVlm))
                             : "—"}
                         </TableCell>
                         <TableCell className="font-mono tabular-nums">
-                          {liveData ? formatCompactUsd(openInterest) : "—"}
+                          {liveData ? compactUsd(openInterest) : "—"}
                         </TableCell>
                       </>
                     ) : null}

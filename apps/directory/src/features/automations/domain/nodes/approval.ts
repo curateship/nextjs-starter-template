@@ -33,5 +33,5 @@ export const approvalNode = defineNode({
       push('approval-expiry', 'Choose how long this approval waits before it expires.')
     }
   },
-  allowedTargets: (port) => (port === 'approved' ? ['image', 'post'] : []),
+  allowedTargets: (port) => (port === 'approved' ? ['image', 'post', 'newsletter'] : []),
 })

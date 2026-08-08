@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import {
@@ -14,11 +13,10 @@ import {
   FieldDescription,
   FieldLabel,
 } from "@/components/ui/field"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { FeaturedImageField } from "@/components/admin/layout/dashboard/content-modal-shared"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
-import ImageIcon from "lucide-react/dist/esm/icons/image.js"
-import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getProductTemplatesBySite } from "@/lib/actions/products/product-template-actions"
@@ -33,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface CreateProductData {
   title: string
@@ -58,8 +57,16 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [showImagePicker, setShowImagePicker] = useState(false)
+  const [titleMissing, setTitleMissing] = useState(false)
+  // Marked until the box has something in it, so it is still flagged once the
+  // toast has been dismissed and clears itself as soon as the user types.
+  const titleInvalid = titleMissing && !formData.title?.trim()
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
@@ -136,19 +143,10 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     }
   }, [currentSite?.id])
 
-  // Handle featured image changes
-  const handleImageChange = async (newImageUrl: string) => {
-    setFeaturedImage(newImageUrl)
-  }
-
-  // Handle removing the featured image
-  const handleRemoveImage = async () => {
-    setFeaturedImage('')
-  }
-
   // Handle saving as draft, optionally signaling redirect to builder
   const handleSave = async (continueToBuilder = false, publishNow = false) => {
     if (!formData.title.trim()) {
+      setTitleMissing(true)
       setError('Product title is required')
       return
     }
@@ -159,6 +157,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     }
 
     try {
+      setTitleMissing(false)
       setLoading(true)
       setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
       setError(null)
@@ -229,8 +228,8 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   }
 
   return (
-    <form id="create-product-form" onSubmit={handleSubmit} className="contents">
       <DashboardModalContent
+        busy={loading}
         title="Create New Product"
         description="Add a new product to your catalog. You can customize the content after creation."
         footer={
@@ -245,34 +244,31 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                 variant="outline"
                 disabled={loading}
               >
-                {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+                {loadingAction === 'draft' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(true)}
                 disabled={loading}
               >
-                {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+                {loadingAction === 'continue' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Continue
               </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(false, true)}
                 disabled={loading}
               >
-                {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
+                {loadingAction === 'publish' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Publish
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-              {error}
-            </div>
-          </div>
-        )}
-
+        <form
+          noValidate id="create-product-form" onSubmit={handleSubmit} className="contents">
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -283,7 +279,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
                   <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                    <Skeleton className="h-4 w-24 rounded-sm" />
                     <ChevronDown className="size-4 opacity-50" />
                   </div>
                 ) : (
@@ -310,7 +305,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                   value={formData.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   placeholder="Enter product title"
-                  required
+                  aria-invalid={titleInvalid || undefined}
                 />
               </Field>
 
@@ -351,43 +346,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
             </CardHeader>
               <CardContent>
-                <Field className="w-48">
-                  {featuredImage ? (
-                  <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
-                    <img
-                      src={featuredImage}
-                      alt="Featured image preview"
-                      className="h-full w-full object-contain"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div
-                      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-center text-white">
-                        <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                        <p className="text-sm font-medium">Click to change image</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                      <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                    </div>
-                  </div>
-                  )}
-                </Field>
+                <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
               </CardContent>
           </Card>
 
@@ -453,16 +412,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
-      <MediaPicker
-        open={showImagePicker}
-        onOpenChange={setShowImagePicker}
-        onSelectMedia={(imageUrl) => {
-          handleImageChange(imageUrl)
-          setShowImagePicker(false)
-        }}
-        currentMediaUrl={featuredImage || ''}
-      />
-    </form>
   )
 }

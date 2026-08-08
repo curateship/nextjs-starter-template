@@ -4,7 +4,7 @@ import { and, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { auth } from '@/lib/actions/auth/server'
 import { db } from '@/lib/db'
 import { authUsers, siteMemberships, sites } from '@/lib/db/schema'
-import { requireAdmin } from '@/lib/db/helpers'
+import { requireAdmin, verifySiteOwnership } from '@/lib/db/helpers'
 import { lastSignInAtDateSql, lastSignInAtSql } from '@/lib/actions/users/last-sign-in-sql'
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import { UUID_REGEX } from '@/lib/utils/validation'
@@ -40,14 +40,6 @@ const VALID_RELATIVE_DAYS = SITE_USER_RELATIVE_DAY_OPTIONS.map((option) => optio
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const ASSIGNABLE_ROLE_VALUES = ['admin', 'member'] as const
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 function rowToSiteUser(row: any): SiteUserListItem {
   return {

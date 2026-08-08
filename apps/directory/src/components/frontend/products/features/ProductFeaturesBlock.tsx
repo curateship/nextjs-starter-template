@@ -68,9 +68,7 @@ const ProductFeaturesBlock = ({
         {displayFeatures.map((feature) => (
           <div key={feature.id} className="space-y-4">
             <Card
-              className="aspect-video overflow-hidden px-6 flex flex-col mx-0"
-              variant="soft"
-            >
+              className="aspect-video overflow-hidden px-6 flex flex-col mx-0 bg-foreground/5 ring-0">
               {feature.image ? (
                 <>
                   <div className="w-full h-auto translate-y-6 rounded-t-md overflow-hidden">

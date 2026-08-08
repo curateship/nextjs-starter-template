@@ -5,6 +5,7 @@ export const SITE_DELETION_IMPACT_TARGETS = [
   "ai-automation",
   "category",
   "form",
+  "form-delete",
   "listing",
   "newsletter-automation",
   "product",

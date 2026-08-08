@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AdminSidebarSettingsCard } from "@/components/admin/layout/settings/AdminSidebarSettingsCard"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
-import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSiteByIdAction, updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import {
@@ -32,13 +34,37 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
   )
   const adminSidebarRef = useRef(adminSidebar)
   const [loading, setLoading] = useState(!contextSite)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
+  const siteRef = useRef<Site | null>(site)
+  siteRef.current = site
+
+  const { saveStatus, isSaving, scheduleSave, saveNow } = useAutoSave<AdminSidebarSettings>({
+    save: async (nextSidebar) => {
+      const currentSite = siteRef.current
+      if (!currentSite) return { saved: false, reason: "Site not loaded" }
+
+      const { data, error: updateError } = await updateSiteAction({ data: { siteId, updates: {
+        settings: {
+          ...currentSite.settings,
+          admin_sidebar: serializeAdminSidebarSettings(nextSidebar)
+        }
+      } } })
+
+      if (updateError) return { saved: false, reason: updateError }
+      if (!data) return { saved: false, reason: "Failed to save settings" }
+
+      // The switcher already holds this edit — handleAdminSidebarChange puts it
+      // there as you type — so only the rest of the site's settings are
+      // refreshed here. Writing the round trip back would undo anything typed
+      // while it was in flight.
+      setSite(data)
+      return { saved: true }
+    }
+  })
 
   useEffect(() => {
-    onStatusChange?.({ loading, saving, saveStatus })
-  }, [loading, onStatusChange, saveStatus, saving])
+    onStatusChange?.({ loading, saving: isSaving, saveStatus })
+  }, [isSaving, loading, onStatusChange, saveStatus])
 
   useEffect(() => {
     if (contextSite) {
@@ -60,7 +86,7 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
         setLoading(true)
         setError(null)
 
-        const result = await getSiteByIdAction(siteId)
+        const result = await getSiteByIdAction({ data: { siteId } })
 
         if (cancelled) return
 
@@ -123,50 +149,9 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
     [contextSite, currentSite, setCurrentSite]
   )
 
-  const handleSave = useCallback(async () => {
-    if (!site || saving) return false
-
-    try {
-      setSaving(true)
-      setError(null)
-      setSaveStatus("saving")
-
-      const nextSettings = {
-        ...site.settings,
-        admin_sidebar: serializeAdminSidebarSettings(adminSidebarRef.current)
-      }
-      const { data, error: updateError } = await updateSiteAction(siteId, {
-        settings: nextSettings
-      })
-
-      if (updateError) {
-        setError(updateError)
-        setSaveStatus("error", updateError)
-        return false
-      }
-
-      if (data) {
-        setSite(data)
-        const nextAdminSidebar = resolveAdminSidebarSettings(data.settings?.admin_sidebar, {
-          siteId
-        })
-        adminSidebarRef.current = nextAdminSidebar
-        setAdminSidebar(nextAdminSidebar)
-        setCurrentSite({ ...(contextSite ?? currentSite ?? data), ...data })
-        setSaveStatus("saved", "Settings saved")
-        return true
-      }
-
-      return false
-    } catch (saveError) {
-      console.error("Error saving site admin settings:", saveError)
-      setError("Failed to save settings")
-      setSaveStatus("error", "Failed to save settings")
-      return false
-    } finally {
-      setSaving(false)
-    }
-  }, [contextSite, currentSite, saving, setCurrentSite, setSaveStatus, site, siteId])
+  // The link editor's "Done" writes straight away rather than leaving the last
+  // edit sitting in the debounce after the dialog has closed.
+  const handleSave = useCallback(async () => saveNow(adminSidebarRef.current), [saveNow])
 
   const handleAdminSidebarChange = useCallback(
     (nextSidebar: AdminSidebarSettings) => {
@@ -175,8 +160,9 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
 
       const nextAdminSidebar = serializeAdminSidebarSettings(nextSidebar)
       updateCachedSiteSettings({ admin_sidebar: nextAdminSidebar })
+      scheduleSave(nextSidebar)
     },
-    [updateCachedSiteSettings]
+    [scheduleSave, updateCachedSiteSettings]
   )
 
   if (loading) {
@@ -185,8 +171,6 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
         <CardContent>
           {[1, 2, 3].map((item) => (
             <div key={item} className="space-y-2">
-              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-              <div className="h-10 animate-pulse rounded bg-muted/60" />
             </div>
           ))}
         </CardContent>
@@ -205,27 +189,14 @@ export function SiteAdminSettingsTab({ siteId, onStatusChange }: SiteAdminSettin
   }
 
   return (
-    <form
-      id="site-admin-settings-form"
-      className="contents"
-      onSubmit={(event) => {
-        event.preventDefault()
-        handleSave()
-      }}
-    >
-      <CardGroup className="grid">
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-        <AdminSidebarSettingsCard
-          config={adminSidebar}
-          siteId={siteId}
-          onConfigChange={handleAdminSidebarChange}
-          onSave={handleSave}
-        />
-      </CardGroup>
-    </form>
+    <CardGroup className="grid">
+      {error ? <ErrorBanner message={error} /> : null}
+      <AdminSidebarSettingsCard
+        config={adminSidebar}
+        siteId={siteId}
+        onConfigChange={handleAdminSidebarChange}
+        onSave={handleSave}
+      />
+    </CardGroup>
   )
 }

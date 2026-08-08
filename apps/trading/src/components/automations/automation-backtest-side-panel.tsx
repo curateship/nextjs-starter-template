@@ -54,20 +54,21 @@ export function AutomationBacktestSidePanel({
   config,
   runnable,
   disabledReason,
-  canSaveAndRerun,
-  onSaveAndRerun,
+  onBeforeRun,
 }: {
   backtest: AutomationBacktestState
   interval: AutomationInterval
   /** The compiled Automation: sets the market cap's warm-up cost, and says
    * whether a DCA ladder runs the whole basket off one shared wallet. */
   config: AutomationConfig | null
-  /** Compiled + saved — gates Run/New run live (edits mid-mode disable them). */
+  /** Compiles cleanly — gates Run/New run live. */
   runnable: boolean
   disabledReason?: string
-  /** Unsaved tune-drag edits + a clean compile: offer one-click re-run. */
-  canSaveAndRerun?: boolean
-  onSaveAndRerun?: () => void
+  /**
+   * A run reads the SAVED automation, so this flushes the editor's pending
+   * auto-save first and reports whether the saved copy is runnable.
+   */
+  onBeforeRun?: () => Promise<boolean>
 }) {
   const markets = useBinanceMarketRows()
   const { favorites, toggleFavorite } = useMarketFavorites()
@@ -215,7 +216,14 @@ export function AutomationBacktestSidePanel({
   const money = (value: number) =>
     value >= 1e9 ? `$${value / 1e9}b` : `$${value / 1e6}m`
 
-  const submit = () => {
+  // `starting` only goes true once the run request is out, so it does not cover
+  // the flush that happens first. Without this a second click during that
+  // window queues a whole second backtest group.
+  const [preparing, setPreparing] = React.useState(false)
+  const busy = starting || preparing
+
+  const submit = async () => {
+    if (preparing) return
     const windowDays = Number(days)
     if (
       !Number.isInteger(windowDays) ||
@@ -240,6 +248,18 @@ export function AutomationBacktestSidePanel({
         }. Remove ${selectedMarkets.length - marketCap} or shorten the window.`
       )
       return
+    }
+    // The worker reads the automation from the database, so any edit still
+    // sitting in the auto-save debounce has to land before the run starts.
+    if (onBeforeRun) {
+      setPreparing(true)
+      let saved = false
+      try {
+        saved = await onBeforeRun()
+      } finally {
+        setPreparing(false)
+      }
+      if (!saved) return
     }
     void backtest.start(windowDays)
   }
@@ -267,10 +287,10 @@ export function AutomationBacktestSidePanel({
                 type="button"
                 size="sm"
                 className="h-7 gap-1.5 text-xs"
-                disabled={!runnable || starting}
-                onClick={submit}
+                disabled={!runnable || busy}
+                onClick={() => void submit()}
               >
-                {starting ? (
+                {busy ? (
                   <Loader2Icon className="size-3.5 animate-spin" />
                 ) : null}
                 Backtest
@@ -291,37 +311,24 @@ export function AutomationBacktestSidePanel({
         ) : null}
         {phase === "results" ? (
           <div className="ml-auto flex items-center gap-1.5">
-            {canSaveAndRerun && onSaveAndRerun ? (
+            {/* One Re-run button: it flushes any pending edit itself, so there
+                is no separate "Save & re-run". */}
+            <DisabledReasonTooltip
+              reason={runnable ? undefined : disabledReason}
+            >
               <Button
                 type="button"
                 size="sm"
                 className="h-7 gap-1.5 text-xs"
-                disabled={starting}
-                onClick={onSaveAndRerun}
+                disabled={!runnable || busy}
+                onClick={() => void submit()}
               >
-                {starting ? (
+                {busy ? (
                   <Loader2Icon className="size-3.5 animate-spin" />
                 ) : null}
-                Save &amp; re-run
+                Re-run
               </Button>
-            ) : (
-              <DisabledReasonTooltip
-                reason={runnable ? undefined : disabledReason}
-              >
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  disabled={!runnable || starting}
-                  onClick={submit}
-                >
-                  {starting ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : null}
-                  Re-run
-                </Button>
-              </DisabledReasonTooltip>
-            )}
+            </DisabledReasonTooltip>
             <Button
               type="button"
               variant="outline"

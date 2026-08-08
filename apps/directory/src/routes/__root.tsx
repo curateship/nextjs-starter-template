@@ -5,11 +5,9 @@ import {
   Scripts,
   createRootRoute,
 } from "@tanstack/react-router"
-// Side-effect import: puts every server action in the SSR graph so the RSC
-// build registers them all. See src/lib/server-action-registry.ts.
-import "@/lib/server-action-registry"
 
 import "@/styles.css"
+import "@/lib/server-action-registry"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import NotFound from "@/screens/not-found"
 

@@ -1,5 +1,6 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { signedPct } from "@/lib/format"
+import { Link, useNavigate } from "@tanstack/react-router"
 import { BellRingIcon, Trash2Icon } from "lucide-react"
 
 import { DashboardTable, pagedFooter } from "@/components/dashboard-table"
@@ -166,7 +167,7 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
       <DashboardTable
         title="Alert Log"
         icon={
-          <BellRingIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BellRingIcon className="text-muted-foreground" />
         }
         count={data.total}
         loading={loading}
@@ -245,7 +246,30 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
           />
         }
         isEmpty={data.items.length === 0}
-        emptyText="No alert events match these filters."
+        emptyText={
+          // "Nothing matches" and "nothing has fired yet" are different
+          // states: only narrowing (search, market, type, or read) earns the
+          // filter wording, a genuinely empty log explains the next step.
+          filters.search ||
+          filters.coin ||
+          filters.kind ||
+          filters.read !== "all" ? (
+            "No alert events match these filters."
+          ) : (
+            <span>
+              Your fired alerts will appear here. Create one by right-clicking
+              a price on the{" "}
+              <Link
+                to="/trade"
+                search={{ market: "BTC" }}
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                Trade chart
+              </Link>
+              .
+            </span>
+          )
+        }
         emptyColSpan={6}
         footer={pagedFooter(data, patchFilters)}
       >
@@ -357,7 +381,7 @@ function observedLabel(event: AlertEventItem) {
     return String(event.observed)
   }
   if (event.kind === "price_move") {
-    return `${event.observed > 0 ? "+" : ""}${event.observed.toFixed(2)}%`
+    return signedPct(event.observed)
   }
   return `${event.observed.toFixed(1)}×`
 }

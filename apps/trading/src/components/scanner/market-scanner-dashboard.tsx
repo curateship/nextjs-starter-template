@@ -1,3 +1,4 @@
+import { signedPct } from "@/lib/format"
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
@@ -150,7 +151,7 @@ export function MarketScannerDashboard({ initial }: { initial: RulesPage }) {
 
       <DashboardTable
         title="Market scanner"
-        icon={<ActivityIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<ActivityIcon className="text-muted-foreground" />}
         count={rules.length}
         status={!data.runtimeEnabled
           ? { tone: "neutral", text: "Scanner off" }
@@ -316,7 +317,7 @@ export function MarketScannerAlertsDashboard({ initial }: { initial: AlertsPage 
       ) : null}
       <DashboardTable
         title="Market alerts"
-        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<BellIcon className="text-muted-foreground" />}
         count={alerts.length}
         controls={alerts.length > 0 ? (
           <>
@@ -607,7 +608,7 @@ function ruleStatus(rule: MarketScannerRuleItem, runtimeEnabled: boolean, paused
 }
 
 function formatObserved(alert: MarketScannerAlertItem) {
-  return alert.kind === "volume_spike" ? `${alert.observed.toFixed(1)}×` : `${alert.observed > 0 ? "+" : ""}${alert.observed.toFixed(2)}%`
+  return alert.kind === "volume_spike" ? `${alert.observed.toFixed(1)}×` : signedPct(alert.observed)
 }
 
 function mergeAlerts(

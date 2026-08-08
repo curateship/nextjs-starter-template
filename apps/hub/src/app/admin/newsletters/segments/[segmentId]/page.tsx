@@ -306,9 +306,9 @@ export default function SegmentDashboardPage() {
   function getStatusBadge(status: string) {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
       case "cold":
-        return <Badge className="bg-yellow-100 text-yellow-800">Cold</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Cold</Badge>
       case "unsubscribed":
         return <Badge variant="secondary">Unsubscribed</Badge>
       case "bounced":

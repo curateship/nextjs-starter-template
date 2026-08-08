@@ -7,7 +7,7 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import {
   Select,
   SelectContent,
@@ -20,6 +20,8 @@ import {
   updateContact,
   type CrmContact,
 } from "@/lib/actions/newsletters/contact-actions"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 
 type ContactFormModalProps = {
   addOpen: boolean
@@ -43,6 +45,7 @@ export function ContactFormModal({
   siteId,
 }: ContactFormModalProps) {
   const [addForm, setAddForm] = useState({ email: "", first_name: "", last_name: "", tags: "" })
+  const [emailInvalid, setEmailInvalid] = useState(false)
   const [adding, setAdding] = useState(false)
   const [editForm, setEditForm] = useState({ first_name: "", last_name: "", tags: "", status: "active" })
   const [saving, setSaving] = useState(false)
@@ -59,7 +62,14 @@ export function ContactFormModal({
 
   const handleAddContact = async (event: FormEvent) => {
     event.preventDefault()
-    if (!siteId || !addForm.email) return
+    if (!siteId) return
+    if (!addForm.email.trim()) {
+      setEmailInvalid(true)
+      showErrorToast("Email address is required")
+      return
+    }
+
+    setEmailInvalid(false)
     setAdding(true)
 
     try {
@@ -83,6 +93,7 @@ export function ContactFormModal({
       }
       onAddOpenChange(false)
       setAddForm({ email: "", first_name: "", last_name: "", tags: "" })
+      showActionSuccess("Contact created.")
     } catch {
       onError("Failed to add contact")
     } finally {
@@ -115,6 +126,7 @@ export function ContactFormModal({
         onUpdated(data)
       }
       onEditClose()
+      showActionSuccess("Contact updated.")
     } catch {
       onError("Failed to update contact")
     } finally {
@@ -125,21 +137,14 @@ export function ContactFormModal({
   return (
     <>
       <Dialog open={addOpen} onOpenChange={onAddOpenChange}>
-        <form id="add-contact-form" onSubmit={handleAddContact} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={adding}
             title="Add Contact"
             description="Add a single contact to this site and optionally tag them."
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => onAddOpenChange(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" form="add-contact-form" disabled={adding || !addForm.email}>
-                  {adding ? "Adding..." : "Add Contact"}
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={adding} form="add-contact-form" onCancel={() => onAddOpenChange(false)} submitLabel="Add Contact" />}
           >
+            <form
+              noValidate id="add-contact-form" onSubmit={handleAddContact} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -151,10 +156,13 @@ export function ContactFormModal({
                     <Input
                       id="add-email"
                       type="email"
-                      required
+                      aria-invalid={emailInvalid}
                       placeholder="email@example.com"
                       value={addForm.email}
-                      onChange={(event) => setAddForm((prev) => ({ ...prev, email: event.target.value }))}
+                      onChange={(event) => {
+                        setAddForm((prev) => ({ ...prev, email: event.target.value }))
+                        if (emailInvalid && event.target.value.trim()) setEmailInvalid(false)
+                      }}
                     />
                   </Field>
                   <div className="grid grid-cols-2 gap-4">
@@ -190,30 +198,24 @@ export function ContactFormModal({
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
 
       <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) onEditClose() }}>
-        <form id="edit-contact-form" onSubmit={handleEditContact} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={saving}
             title="Edit Contact"
             description={
               editContact ? (
                 <>Update this contact&apos;s details, tags, and subscription status. <span className="text-muted-foreground">{editContact.email}</span></>
               ) : "Update this contact's details, tags, and subscription status."
             }
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={onEditClose}>
-                  Cancel
-                </Button>
-                <Button type="submit" form="edit-contact-form" disabled={saving}>
-                  {saving ? "Saving..." : "Save"}
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={saving} form="edit-contact-form" onCancel={onEditClose} submitLabel="Save" />}
           >
+            <form
+              noValidate id="edit-contact-form" onSubmit={handleEditContact} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -269,8 +271,9 @@ export function ContactFormModal({
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
     </>
   )

@@ -204,12 +204,26 @@ export async function getBotDetail(
     .from(tradingBotState)
     .where(eq(tradingBotState.botId, botId))
 
-  const trades = await database
+  const tradeRows = await database
     .select()
     .from(tradingBotTrades)
     .where(eq(tradingBotTrades.botId, botId))
     .orderBy(desc(tradingBotTrades.fillTime))
     .limit(200)
+
+  // The limit price each fill's order was resting at, for the slippage column
+  // (fill px vs intended px). Keyed by cloid — the one id both rows share.
+  const orderPxRows = await database
+    .select({ cloid: tradingBotOrders.cloid, px: tradingBotOrders.px })
+    .from(tradingBotOrders)
+    .where(eq(tradingBotOrders.botId, botId))
+  const orderPxByCloid = new Map(
+    orderPxRows.map((row) => [row.cloid, row.px])
+  )
+  const trades = tradeRows.map((trade) => ({
+    ...trade,
+    orderPx: trade.cloid ? (orderPxByCloid.get(trade.cloid) ?? null) : null,
+  }))
 
   const openOrders = await database
     .select()
@@ -248,11 +262,26 @@ export async function getBotDetail(
     .where(eq(tradingBotTrades.botId, botId))
 
   let sourceName: string | null = null
+  let settingsBehind = false
   if (bot.automationId) {
     const { getUserAutomation } = await import("@/server/automations")
-    sourceName =
-      (await getUserAutomation(userId, bot.automationId, database))?.name ??
-      null
+    const automation = await getUserAutomation(
+      userId,
+      bot.automationId,
+      database
+    )
+    sourceName = automation?.name ?? null
+    // Saving the canvas never touches a deployed run, so the run drifts
+    // behind its automation. Surfaced on the bot page as the "settings
+    // changed" notice; the admin applies by hand (pause → apply → resume).
+    const compiled = automationConfigSchema.safeParse(
+      automation?.compiledConfig
+    )
+    settingsBehind =
+      compiled.success &&
+      bot.desiredState !== "stopped" &&
+      isRunnableBotType(bot.strategyType) &&
+      stableStringify(bot.params) !== stableStringify(compiled.data)
   }
 
   return {
@@ -264,6 +293,7 @@ export async function getBotDetail(
     events,
     aggregates,
     sourceName,
+    settingsBehind,
   }
 }
 
@@ -491,38 +521,52 @@ function stableStringify(value: unknown): string {
 }
 
 /**
- * The canvas is the CURRENT run's config: pushes the automation's freshly
- * compiled config to its unnamed ("Previous run …") bot and restarts its
- * runners (update_params keeps positions). Named runs are filed records and
- * stopped runs are frozen — neither ever changes after the fact. Called from
- * saveUserAutomation on every successful save.
+ * Hand-applies the automation's current compiled config to one of its bots.
+ * Saving the canvas never touches a deployed run — the run keeps trading on
+ * the settings it started with, and the bot page shows a "settings changed"
+ * notice instead. The admin's flow is pause → apply (this) → resume: the
+ * update_params command tears the paused runners down, and resume respawns
+ * them from the fresh params with their saved per-market state intact.
  */
-export async function syncAutomationBots(
+export async function applyAutomationSettings(
   userId: string,
-  automationId: string,
-  config: AutomationConfig,
+  botId: string,
   database: CustomShellDb = db
 ) {
-  const bots = await database
-    .select()
-    .from(tradingBots)
-    .where(
-      and(
-        eq(tradingBots.userId, userId),
-        eq(tradingBots.automationId, automationId),
-        sql`${tradingBots.name} like ${`${PREVIOUS_RUN_NAME_PREFIX} ·%`}`
-      )
+  const bot = await getUserBot(userId, botId, database)
+  if (!bot) throw new Error("Bot not found")
+  if (!isRunnableBotType(bot.strategyType)) {
+    throw new Error(
+      "This bot uses a retired strategy and is archived. Its settings can't be changed."
     )
-  const next = stableStringify(config)
-  for (const bot of bots) {
-    if (bot.desiredState === "stopped") continue
-    if (stableStringify(bot.params) === next) continue
-    await database
-      .update(tradingBots)
-      .set({ params: config, updatedAt: now() })
-      .where(eq(tradingBots.id, bot.id))
-    await enqueueCommand(database, bot.id, "update_params", userId)
   }
+  if (!bot.automationId) {
+    throw new Error("This bot has no source automation to pull settings from.")
+  }
+  if (bot.desiredState === "stopped") {
+    throw new Error("This run is stopped and filed — deploy a new bot instead.")
+  }
+  if (bot.desiredState !== "paused") {
+    throw new Error("Pause the bot first, then apply the new settings.")
+  }
+
+  const { getUserAutomation } = await import("@/server/automations")
+  const automation = await getUserAutomation(userId, bot.automationId, database)
+  if (!automation) throw new Error("Automation not found")
+  const compiled = automationConfigSchema.safeParse(automation.compiledConfig)
+  if (!compiled.success) {
+    throw new Error(
+      "The automation doesn't compile to a runnable strategy right now — fix it in the editor first."
+    )
+  }
+  validateBotMarketCount(compiled.data, bot.markets.length)
+
+  if (stableStringify(bot.params) === stableStringify(compiled.data)) return
+  await database
+    .update(tradingBots)
+    .set({ params: compiled.data, updatedAt: now() })
+    .where(eq(tradingBots.id, bot.id))
+  await enqueueCommand(database, bot.id, "update_params", userId)
 }
 
 /**

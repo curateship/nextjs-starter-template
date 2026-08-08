@@ -6,6 +6,7 @@ import Ban from "lucide-react/dist/esm/icons/ban.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import FilePenLine from "lucide-react/dist/esm/icons/file-pen-line.js"
 import MailCheck from "lucide-react/dist/esm/icons/mail-check.js"
 import ShieldCheck from "lucide-react/dist/esm/icons/shield-check.js"
@@ -24,12 +25,21 @@ import {
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   TableRightActions,
+  TableRightActionsSearch,
   TableRightActionsSelectTrigger
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import {
+  AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminSortableHead,
+  AdminTableShell,
+  RelativeDate,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -38,6 +48,8 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const CLAIM_FILTERS = [
   { value: "pending_email", label: "Pending Email", icon: MailCheck },
@@ -53,14 +65,17 @@ const OWNER_EDIT_FILTERS = [
   { value: "rejected", label: "Rejected", icon: XCircle },
 ]
 
+type ClaimSortColumn = "listing" | "claimant" | "email" | "status"
+type OwnerEditSortColumn = "listing" | "owner" | "status"
+
 function statusBadge(status: DirectoryClaimStatus) {
   switch (status) {
     case "pending_email":
       return <Badge variant="secondary">Pending Email</Badge>
     case "pending_review":
-      return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Pending Review</Badge>
     case "approved":
-      return <Badge className="bg-green-100 text-green-800">Approved</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Approved</Badge>
     case "rejected":
       return <Badge variant="destructive">Rejected</Badge>
     default:
@@ -71,9 +86,9 @@ function statusBadge(status: DirectoryClaimStatus) {
 function ownerEditStatusBadge(status: DirectoryOwnerEditRequestStatus) {
   switch (status) {
     case "pending":
-      return <Badge className="bg-amber-100 text-amber-800">Pending Review</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Pending Review</Badge>
     case "approved":
-      return <Badge className="bg-green-100 text-green-800">Approved</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Approved</Badge>
     default:
       return <Badge variant="destructive">Rejected</Badge>
   }
@@ -91,22 +106,12 @@ function describeOwnerEdit(request: DirectoryOwnerEditRequestListItem) {
 
 function ViewListingButton({ slug }: { slug: string }) {
   return (
-    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-      <a
-        href={`/directory/${slug}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="View Listing"
-      >
-        <ExternalLink className="h-4 w-4" />
-        <span className="sr-only">View Listing</span>
-      </a>
-    </Button>
+    <AdminRowAction icon={Eye} external href={`/directory/${slug}`} label="Preview listing" />
   )
 }
 
 export default function DirectoryClaimsPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [activeView, setActiveView] = useState<"claims" | "owner_edits">("claims")
   const [activeStatus, setActiveStatus] = useState<DirectoryClaimStatus>("pending_review")
   const [ownerEditStatus, setOwnerEditStatus] = useState<DirectoryOwnerEditRequestStatus>("pending")
@@ -132,6 +137,12 @@ export default function DirectoryClaimsPage() {
   const [ownerEditReviewNote, setOwnerEditReviewNote] = useState("")
   const [savingStatus, setSavingStatus] = useState<DirectoryClaimStatus | null>(null)
   const [savingOwnerEditStatus, setSavingOwnerEditStatus] = useState<DirectoryOwnerEditRequestStatus | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  // Queue screens open oldest-first: within one status filter every row shares
+  // the status, so the created-at tiebreak puts the longest-waiting one on top.
+  const claimSort = useAdminSort<ClaimSortColumn>("status", "asc")
+  const ownerEditSort = useAdminSort<OwnerEditSortColumn>("status", "asc")
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -181,7 +192,15 @@ export default function DirectoryClaimsPage() {
     setOwnerEditReviewNote(selectedOwnerEdit?.review_note || "")
   }, [selectedOwnerEdit])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+
   const emptyText = useMemo(() => {
+    if (normalizedSearchQuery) {
+      return activeView === "owner_edits"
+        ? "No owner edits found matching your search."
+        : "No claims found matching your search."
+    }
+
     if (activeView === "owner_edits") {
       const tab = OWNER_EDIT_FILTERS.find((item) => item.value === ownerEditStatus)
       return `No ${tab?.label.toLowerCase() || "owner edit"} requests.`
@@ -189,7 +208,7 @@ export default function DirectoryClaimsPage() {
 
     const tab = CLAIM_FILTERS.find((item) => item.value === activeStatus)
     return `No ${tab?.label.toLowerCase() || "claim"} requests.`
-  }, [activeStatus, activeView, ownerEditStatus])
+  }, [activeStatus, activeView, normalizedSearchQuery, ownerEditStatus])
 
   const handleReview = async (status: "approved" | "rejected" | "revoked") => {
     if (!selectedClaim) return
@@ -209,6 +228,7 @@ export default function DirectoryClaimsPage() {
 
     setSelectedClaim(null)
     await loadRows()
+    showActionSuccess(status === "approved" ? "Claim approved." : status === "rejected" ? "Claim rejected." : "Claim revoked.")
   }
 
   const handleOwnerEditReview = async (status: "approved" | "rejected") => {
@@ -229,9 +249,82 @@ export default function DirectoryClaimsPage() {
 
     setSelectedOwnerEdit(null)
     await loadRows()
+    showActionSuccess(status === "approved" ? "Edit request approved." : "Edit request rejected.")
   }
 
-  const activeRowsCount = activeView === "claims" ? claims.length : ownerEdits.length
+  const filteredClaims = useMemo(() => {
+    if (!normalizedSearchQuery) return claims
+    return claims.filter((claim) => [
+      claim.directory_title,
+      claim.directory_slug,
+      claim.claimant_name,
+      claim.claimant_display_name,
+      claim.claimant_account_email,
+      claim.business_email
+    ].join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [claims, normalizedSearchQuery])
+
+  const filteredOwnerEdits = useMemo(() => {
+    if (!normalizedSearchQuery) return ownerEdits
+    return ownerEdits.filter((request) => [
+      request.directory_title,
+      request.directory_slug,
+      request.claimant_display_name,
+      request.claimant_account_email
+    ].join(" ").toLowerCase().includes(normalizedSearchQuery))
+  }, [normalizedSearchQuery, ownerEdits])
+
+  const sortedClaims = useMemo(() => {
+    return [...filteredClaims].sort((a, b) => {
+      if (!claimSort.sortColumn) return 0
+
+      const dir = claimSort.sortDirection === "asc" ? 1 : -1
+      if (claimSort.sortColumn === "listing") return a.directory_title.localeCompare(b.directory_title) * dir
+      if (claimSort.sortColumn === "claimant")
+        return (a.claimant_name || a.claimant_display_name || "").localeCompare(b.claimant_name || b.claimant_display_name || "") * dir
+      if (claimSort.sortColumn === "email") return (a.business_email || "").localeCompare(b.business_email || "") * dir
+
+      return (
+        (a.status.localeCompare(b.status) ||
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+      )
+    })
+  }, [claimSort.sortColumn, claimSort.sortDirection, filteredClaims])
+
+  const sortedOwnerEdits = useMemo(() => {
+    return [...filteredOwnerEdits].sort((a, b) => {
+      if (!ownerEditSort.sortColumn) return 0
+
+      const dir = ownerEditSort.sortDirection === "asc" ? 1 : -1
+      if (ownerEditSort.sortColumn === "listing") return a.directory_title.localeCompare(b.directory_title) * dir
+      if (ownerEditSort.sortColumn === "owner")
+        return (a.claimant_display_name || "").localeCompare(b.claimant_display_name || "") * dir
+
+      return (
+        (a.status.localeCompare(b.status) ||
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+      )
+    })
+  }, [filteredOwnerEdits, ownerEditSort.sortColumn, ownerEditSort.sortDirection])
+
+  const activeRowsCount = activeView === "claims" ? filteredClaims.length : filteredOwnerEdits.length
+
+  // One page counter serves both views because switching view is itself a list
+  // change, which sends you back to page 1.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${activeView}|${activeStatus}|${ownerEditStatus}|${normalizedSearchQuery}|${claimSort.sortColumn}|${claimSort.sortDirection}|${ownerEditSort.sortColumn}|${ownerEditSort.sortDirection}`
+  )
+
+  const pageStart = (currentPage - 1) * pageSize
+  const pagedClaims = useMemo(
+    () => sortedClaims.slice(pageStart, pageStart + pageSize),
+    [pageSize, pageStart, sortedClaims]
+  )
+  const pagedOwnerEdits = useMemo(
+    () => sortedOwnerEdits.slice(pageStart, pageStart + pageSize),
+    [pageSize, pageStart, sortedOwnerEdits]
+  )
 
   return (
     <>
@@ -241,15 +334,21 @@ export default function DirectoryClaimsPage() {
           <DashboardSubheader items={[{ label: "Directory", href: "/admin/directory" }, { label: "Claims" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadRows } : null}
             title={activeView === "claims" ? "Claims" : "Owner Edits"}
             icon={activeView === "claims"
-              ? <ShieldCheck className="size-4 text-muted-foreground sm:size-[18px]" />
-              : <FilePenLine className="size-4 text-muted-foreground sm:size-[18px]" />
+              ? <ShieldCheck className="text-muted-foreground" />
+              : <FilePenLine className="text-muted-foreground" />
             }
             count={activeRowsCount}
             loading={loading}
             controls={
               <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={activeView === "claims" ? "Search claims" : "Search owner edits"}
+                />
                 <Button
                   type="button"
                   variant={activeView === "claims" ? "default" : "outline"}
@@ -295,25 +394,25 @@ export default function DirectoryClaimsPage() {
                 )}
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={activeRowsCount} label={activeView === "claims" ? "claims" : "owner edits"} /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={activeRowsCount} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
                   {activeView === "claims" ? (
                     <TableRow>
-                      <TableHead column="main">Listing</TableHead>
-                      <TableHead column="content">Claimant</TableHead>
-                      <TableHead column="content">Business Email</TableHead>
-                      <TableHead column="meta">Status</TableHead>
+                      <AdminSortableHead column="main" sort={claimSort} sortKey="listing">Listing</AdminSortableHead>
+                      <AdminSortableHead column="content" sort={claimSort} sortKey="claimant">Claimant</AdminSortableHead>
+                      <AdminSortableHead column="content" sort={claimSort} sortKey="email">Business Email</AdminSortableHead>
+                      <AdminSortableHead column="meta" sort={claimSort} sortKey="status">Status</AdminSortableHead>
                       <TableHead column="meta">Actions</TableHead>
                     </TableRow>
                   ) : (
                     <TableRow>
-                      <TableHead column="main">Listing</TableHead>
-                      <TableHead column="content">Owner</TableHead>
+                      <AdminSortableHead column="main" sort={ownerEditSort} sortKey="listing">Listing</AdminSortableHead>
+                      <AdminSortableHead column="content" sort={ownerEditSort} sortKey="owner">Owner</AdminSortableHead>
                       <TableHead column="content">Submitted Changes</TableHead>
-                      <TableHead column="meta">Status</TableHead>
+                      <AdminSortableHead column="meta" sort={ownerEditSort} sortKey="status">Status</AdminSortableHead>
                       <TableHead column="meta">Actions</TableHead>
                     </TableRow>
                   )}
@@ -321,15 +420,6 @@ export default function DirectoryClaimsPage() {
                 <TableBody>
                   {loading && activeRowsCount === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : activeRowsCount === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
@@ -341,25 +431,25 @@ export default function DirectoryClaimsPage() {
                       </TableCell>
                     </TableRow>
                   ) : activeView === "owner_edits" ? (
-                    ownerEdits.map((request) => (
+                    pagedOwnerEdits.map((request) => (
                       <TableRow key={request.id} className="group">
                         <TableCell column="main">
                           <Link href={`/directory/${request.directory_slug}`} className="block hover:opacity-80">
-                            <h4 className="truncate font-medium hover:underline">{request.directory_title}</h4>
-                            <p className="truncate text-sm text-muted-foreground">/directory/{request.directory_slug}</p>
+                            <h4 className="truncate font-medium hover:underline" title={request.directory_title}>{request.directory_title}</h4>
+                            <p className="truncate text-sm text-muted-foreground" title={`/directory/${request.directory_slug}`}>/directory/{request.directory_slug}</p>
                           </Link>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{request.claimant_display_name || "Unknown"}</div>
-                          <div className="truncate text-sm text-muted-foreground">{request.claimant_account_email}</div>
+                          <div className="truncate text-sm" title={request.claimant_display_name || "Unknown"}>{request.claimant_display_name || "Unknown"}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={request.claimant_account_email}>{request.claimant_account_email}</div>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="line-clamp-2 text-sm text-muted-foreground">{describeOwnerEdit(request)}</div>
+                          <div className="line-clamp-2 text-sm text-muted-foreground" title={describeOwnerEdit(request)}>{describeOwnerEdit(request)}</div>
                         </TableCell>
                         <TableCell column="meta">
                           <div className="space-y-2">
                             {ownerEditStatusBadge(request.status)}
-                            <div className="text-sm text-muted-foreground">{formatDate(request.created_at)}</div>
+                            <div className="text-sm text-muted-foreground"><RelativeDate date={request.created_at} /></div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">
@@ -373,23 +463,23 @@ export default function DirectoryClaimsPage() {
                       </TableRow>
                     ))
                   ) : (
-                    claims.map((claim) => (
+                    pagedClaims.map((claim) => (
                       <TableRow key={claim.id} className="group">
                         <TableCell column="main">
                           <Link href={`/directory/${claim.directory_slug}`} className="block hover:opacity-80">
-                            <h4 className="truncate font-medium hover:underline">{claim.directory_title}</h4>
-                            <p className="truncate text-sm text-muted-foreground">/directory/{claim.directory_slug}</p>
+                            <h4 className="truncate font-medium hover:underline" title={claim.directory_title}>{claim.directory_title}</h4>
+                            <p className="truncate text-sm text-muted-foreground" title={`/directory/${claim.directory_slug}`}>/directory/{claim.directory_slug}</p>
                           </Link>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{claim.claimant_name || claim.claimant_display_name || "Unknown"}</div>
-                          <div className="truncate text-sm text-muted-foreground">{claim.claimant_account_email}</div>
+                          <div className="truncate text-sm" title={claim.claimant_name || claim.claimant_display_name || "Unknown"}>{claim.claimant_name || claim.claimant_display_name || "Unknown"}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={claim.claimant_account_email}>{claim.claimant_account_email}</div>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{claim.business_email}</div>
+                          <div className="truncate text-sm" title={claim.business_email}>{claim.business_email}</div>
                           <div className="mt-1">
                             {claim.domain_matches ? (
-                              <Badge className="bg-green-100 text-green-800">Domain Match</Badge>
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Domain Match</Badge>
                             ) : (
                               <Badge variant="secondary">Domain Mismatch</Badge>
                             )}
@@ -398,7 +488,7 @@ export default function DirectoryClaimsPage() {
                         <TableCell column="meta">
                           <div className="space-y-2">
                             {statusBadge(claim.status)}
-                            <div className="text-sm text-muted-foreground">{formatDate(claim.created_at)}</div>
+                            <div className="text-sm text-muted-foreground"><RelativeDate date={claim.created_at} /></div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">

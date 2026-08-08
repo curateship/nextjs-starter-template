@@ -409,7 +409,7 @@ export function ViralArchiveDashboard({
       {viewMode === "gallery" || viewMode === "trend" ? (
         <DashboardTable
           title={title}
-          icon={<FlameIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<FlameIcon className="text-muted-foreground" />}
           count={filteredVideos.length}
           controls={controls}
           content={
@@ -444,7 +444,7 @@ export function ViralArchiveDashboard({
       ) : (
         <DashboardTable
           title={title}
-          icon={<FlameIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<FlameIcon className="text-muted-foreground" />}
           count={filteredVideos.length}
           controls={controls}
           header={

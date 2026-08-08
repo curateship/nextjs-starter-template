@@ -55,7 +55,7 @@ function getDripRowChips(newsletter: { total_sent: number; total_recipients: num
     {
       key: "bounced",
       label: `${totalBounced} bounced`,
-      className: "border-red-200 bg-red-50 text-red-700",
+      className: "border-destructive/30 bg-destructive/10 text-destructive",
     },
   ]
 }
@@ -75,7 +75,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         <div className={`flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-4 py-2.5 text-sm ${newsletter.status === "paused" ? "border-orange-200 bg-orange-50" : "border-blue-200 bg-blue-50"}`}>
           <button
             type="button"
-            className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}
+            className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:bg-orange-900/40" : "border-green-200 bg-green-50 text-green-700 dark:text-green-300 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-900/40"}`}
             onClick={async () => {
               if (newsletter.status === "sending") {
                 await pauseNewsletter({ data: { newsletterId: newsletter.id } })
@@ -107,9 +107,6 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
     <>
       <NewsletterEditorShell
         loading={builder.loading}
-        loadingActionCount={4}
-        loadingContentRows={5}
-        loadingShowHeader
         error={builder.error}
         showError={Boolean(builder.error && !newsletter)}
         errorBackLabel="Back to Newsletters"
@@ -128,11 +125,10 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         emailWidth={newsletter?.metadata?.maxWidth || 600}
         saveStatus={builder.saveStatus}
         isSaving={builder.isSaving}
-        onSave={builder.handleSave}
         topNotice={dripNotice}
         onPublish={newsletter && newsletter.status !== "sent" && newsletter.status !== "sending" && newsletter.status !== "paused"
           ? async () => {
-              await builder.handleSave()
+              await builder.saveNow()
               setPublishModalOpen(true)
             }
           : undefined}

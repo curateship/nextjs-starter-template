@@ -7,10 +7,11 @@ import { toCdnUrl } from "@/lib/utils/cdn";
 import { SiteAuthProvider } from "@/components/frontend/layout/site-auth-provider";
 import { headers } from "@/lib/request-headers";
 import { isHubPlatformHost } from "@/lib/utils/platform-host";
-import { getPublicCampaignsForSite } from "@/lib/actions/campaigns/campaign-actions";
+import { getPublicCampaignsForSite } from "@/lib/actions/campaigns/campaign-actions.server";
 import { CampaignGate } from "@/components/frontend/campaigns/CampaignGate";
-import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions";
+import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions.server";
 import { getSiteCardStyleVars } from "@/lib/utils/admin-styling";
+import { clampToastSeconds } from "@/lib/toast-seconds";
 
 export async function generateMetadata(): Promise<Metadata> {
   const defaultMetadata: Metadata = { icons: { icon: "/globe.svg" } }
@@ -92,16 +93,13 @@ export default async function RootLayout({
   // been saved; otherwise styles.css applies the default hairline.
   const adminSettings = await getCachedAdminSettings()
   const siteCardStyleVars = getSiteCardStyleVars(adminSettings?.settings?.styling)
-  const rootStyle = fonts || siteCardStyleVars
-    ? {
-        ...(fonts ? {
-          ['--font-primary' as string]: fonts.fontPrimary,
-          ['--font-secondary' as string]: fonts.fontSecondary,
-          ['--font-sans' as string]: fonts.fontSecondary
-        } : {}),
-        ...siteCardStyleVars
-      }
-    : undefined
+  // One saved number drives every non-error toast, on admin and public pages
+  // alike. Unset falls back to the default inside the store.
+  const toastSeconds = clampToastSeconds(adminSettings?.settings?.toast_seconds)
+  // The font variables are emitted on :root inside the font stylesheet below, not
+  // here — this wrapper sits inside <body>, and <body> is the element that carries
+  // the `font-sans` class, so from here it could never read them.
+  const rootStyle = siteCardStyleVars
 
   return (
     <div
@@ -138,7 +136,7 @@ export default async function RootLayout({
           {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
           {campaigns.length > 0 && <CampaignGate campaigns={campaigns} />}
           {children}
-          <DeferredScripts />
+          <DeferredScripts toastSeconds={toastSeconds} />
         </SiteAuthProvider>
     </div>
   );

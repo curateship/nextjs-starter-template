@@ -15,15 +15,20 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  formatShortDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
@@ -47,6 +52,7 @@ import { getContactsWithStats, deleteContacts } from "@/lib/actions/newsletters/
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   emptyContactFilterGroup,
@@ -72,7 +78,6 @@ export default function ContactsPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
@@ -85,7 +90,6 @@ export default function ContactsPage() {
   const [segments, setSegments] = useState<Segment[]>([])
   const [selectedSegmentId, setSelectedSegmentId] = useState<string>("")
   const [addingToSegment, setAddingToSegment] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const [importModalOpen, setImportModalOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -94,6 +98,12 @@ export default function ContactsPage() {
   // Filter state
   const [filters, setFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    contactSelection,
+    `${currentSite?.id}|${deferredSearchQuery}|${JSON.stringify(filters)}|${contactSort.sortColumn}|${contactSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
 
   useEffect(() => {
     if (currentSite?.id) {
@@ -197,6 +207,7 @@ export default function ContactsPage() {
       if (success) {
         setPendingDeleteId(null)
         loadContacts()
+        showActionSuccess("Contact deleted.")
       }
     } catch {
       setErrorMessage("Failed to delete contact")
@@ -207,6 +218,7 @@ export default function ContactsPage() {
     setMassDeleting(true)
     try {
       const ids = Array.from(contactSelection.selectedIds)
+      const deletedCount = ids.length
       const { success, error } = await deleteContacts({ data: { contactIds: ids } })
       if (error) {
         setErrorMessage(error)
@@ -216,6 +228,7 @@ export default function ContactsPage() {
         contactSelection.clearSelection()
         setMassDeleteConfirmOpen(false)
         loadContacts()
+        showActionSuccess(deletedCount === 1 ? "Contact deleted." : "Contacts deleted.")
       }
     } catch {
       setErrorMessage("Failed to delete contacts")
@@ -225,32 +238,30 @@ export default function ContactsPage() {
   }
 
   const handleAddToSegment = async () => {
-    if (!selectedSegmentId || !contactSelection.selectedCount) return
+    if (!contactSelection.selectedCount) return
+    if (!selectedSegmentId) {
+      showErrorToast("Choose a segment to add these contacts to")
+      return
+    }
+
+    dismissErrorToast()
     setAddingToSegment(true)
     try {
       const segName = segments.find((s) => s.id === selectedSegmentId)?.name || "segment"
       const { added, error } = await addContactsToSegment({ data: { contactIds: Array.from(contactSelection.selectedIds), segmentId: selectedSegmentId } })
       if (error) {
-        setErrorMessage(error)
-        setErrorDialogOpen(true)
+        showErrorToast(error)
       } else {
-        setSuccessMessage(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}`)
-        setTimeout(() => setSuccessMessage(null), 5000)
+        showActionSuccess(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}.`)
         contactSelection.clearSelection()
         setSelectedSegmentId("")
         loadContacts()
       }
     } catch {
-      setErrorMessage("Failed to add contacts to segment")
-      setErrorDialogOpen(true)
+      showErrorToast("Failed to add contacts to segment")
     } finally {
       setAddingToSegment(false)
     }
-  }
-
-  const showError = (message: string) => {
-    setErrorMessage(message)
-    setErrorDialogOpen(true)
   }
 
   const handleContactCreated = (contact: CrmContact) => {
@@ -269,9 +280,9 @@ export default function ContactsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
       case "cold":
-        return <Badge className="bg-yellow-100 text-yellow-800">Cold</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Cold</Badge>
       case "unsubscribed":
         return <Badge variant="secondary">Unsubscribed</Badge>
       case "bounced":
@@ -301,13 +312,13 @@ export default function ContactsPage() {
         return <Badge variant="outline">Lead Magnet</Badge>
       case "paid_purchase":
         return (
-          <Badge variant="outline" className="border-green-200 text-green-700">
+          <Badge variant="outline" className="border-green-200 dark:border-green-900 text-green-700 dark:text-green-300">
             Purchase
           </Badge>
         )
       case "Notion Marketplace":
         return (
-          <Badge variant="outline" className="border-neutral-300 bg-neutral-50 text-neutral-900">
+          <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
             Notion Marketplace
           </Badge>
         )
@@ -330,26 +341,12 @@ export default function ContactsPage() {
     }
   }
 
-  /* Format a date as relative time (e.g. "3d ago", "2h ago") */
-  const formatRelativeTime = (dateString: string | null) => {
-    if (!dateString) return "—"
-    const diff = Date.now() - new Date(dateString).getTime()
-    const minutes = Math.floor(diff / 60000)
-    if (minutes < 1) return "Just now"
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    if (days < 30) return `${days}d ago`
-    const months = Math.floor(days / 30)
-    return `${months}mo ago`
-  }
-
   const activeFilterCount = filters.rules.length
   const hasSearchQuery = deferredSearchQuery.trim().length > 0
+  // Ticks are cleared by useClearSelectionOnListChange; changing what is shown
+  // only has to send you back to the first page.
   function resetSelectionForFilteredView() {
     setCurrentPage(1)
-    contactSelection.clearSelection()
   }
 
   function openFilterModal() {
@@ -385,8 +382,9 @@ export default function ContactsPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadContacts() } : null}
             title="Contacts"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={total}
             loading={loading}
             selectedCount={contactSelection.selectedCount}
@@ -416,26 +414,20 @@ export default function ContactsPage() {
                     </Select>
                     <TableRightActionsButton
                       variant={selectedSegmentId ? "default" : "outline"}
-                      className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
+                      className={selectedSegmentId ? "bg-green-600 dark:bg-green-500 hover:bg-green-700" : ""}
                       onClick={handleAddToSegment}
-                      disabled={!selectedSegmentId || addingToSegment}
+                      disabled={addingToSegment}
                     >
                       <ArrowLeft className="h-4 w-4" />
                       <span className="hidden sm:inline">{addingToSegment ? "Adding..." : "Add to Segment"}</span>
                     </TableRightActionsButton>
                   </>
                 ) : null}
-                {successMessage ? (
-                  <span className="rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-800">
-                    {successMessage}
-                  </span>
-                ) : null}
                 <TableRightActionsSearch
                   value={searchQuery}
                   onChange={(event) => {
                     setSearchQuery(event.target.value)
                     setCurrentPage(1)
-                    contactSelection.clearSelection()
                   }}
                   placeholder="Search contacts"
                 />
@@ -464,10 +456,7 @@ export default function ContactsPage() {
                   currentPage={currentPage}
                   pageSize={pageSize}
                   total={total}
-                  onPageChange={(page) => {
-                    setCurrentPage(page)
-                    contactSelection.clearSelection()
-                  }}
+                  onPageChange={setCurrentPage}
                 />
               ) : null
             }
@@ -512,75 +501,18 @@ export default function ContactsPage() {
                         aria-label="Select all contacts"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "contact"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("contact")}
-                      >
-                        Contact
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "source"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("source")}
-                      >
-                        Source
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "status"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "tags"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("tags")}
-                      >
-                        Tags
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "added"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("added")}
-                      >
-                        Added
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={contactSort.sortColumn === "engaged"}
-                        direction={contactSort.sortDirection}
-                        onClick={() => contactSort.toggleSort("engaged")}
-                      >
-                        Last Engaged
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={contactSort} sortKey="contact">Contact</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={contactSort} sortKey="source">Source</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={contactSort} sortKey="tags">Tags</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="added">Added</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="engaged">Last Engaged</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading && sortedContacts.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadContacts()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : contacts.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-32 text-center">
@@ -619,13 +551,20 @@ export default function ContactsPage() {
                             href={`/admin/newsletters/contacts/${contact.id}`}
                             className="block min-w-0 transition-opacity hover:opacity-80"
                           >
-                            <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                            <h4
+                              className="truncate text-sm font-medium hover:underline sm:text-base"
+                              title={
+                                contact.metadata?.first_name || contact.metadata?.last_name
+                                  ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
+                                  : contact.email
+                              }
+                            >
                               {contact.metadata?.first_name || contact.metadata?.last_name
                                 ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
                                 : contact.email}
                             </h4>
                             {(contact.metadata?.first_name || contact.metadata?.last_name) && (
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{contact.email}</p>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={contact.email}>{contact.email}</p>
                             )}
                           </Link>
                         </TableCell>
@@ -649,31 +588,21 @@ export default function ContactsPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(contact.created_at)}</TableCell>
-                        <TableCell column="mutedMeta">{formatRelativeTime(contact.last_engaged_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={contact.created_at} /></TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={contact.last_engaged_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Contact settings"
                               onClick={() => openEditModal(contact)}
-                              title="Edit Contact"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit Contact</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete contact"
                               onClick={() => handleDelete(contact.id)}
-                              title="Delete Contact"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Contact</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -699,7 +628,7 @@ export default function ContactsPage() {
           <ContactImportModal
             open={importModalOpen}
             fileInputRef={fileInputRef}
-            onError={showError}
+            onError={showErrorToast}
             onImported={loadContacts}
             onOpenChange={setImportModalOpen}
             siteId={currentSite?.id}
@@ -711,7 +640,7 @@ export default function ContactsPage() {
             onAddOpenChange={setAddModalOpen}
             onCreated={handleContactCreated}
             onEditClose={() => setEditContact(null)}
-            onError={showError}
+            onError={showErrorToast}
             onUpdated={handleContactUpdated}
             siteId={currentSite?.id}
           />
@@ -737,8 +666,6 @@ export default function ContactsPage() {
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
           />
-
-          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
     </>

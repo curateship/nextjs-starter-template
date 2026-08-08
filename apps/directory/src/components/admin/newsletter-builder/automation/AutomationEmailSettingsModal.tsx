@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
@@ -10,6 +11,7 @@ import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRi
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { updateStep, type AutomationStep } from "@/lib/actions/newsletters/automation-actions"
 import { DripSettingsFields, useDripSettings } from "../layout/DripSettingsFields"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface AutomationEmailSettingsModalProps {
   open: boolean
@@ -28,9 +30,17 @@ export function AutomationEmailSettingsModal({
 }: AutomationEmailSettingsModalProps) {
   const [activeTab, setActiveTab] = useState("content")
   const [subject, setSubject] = useState("")
+  const [subjectMissing, setSubjectMissing] = useState(false)
+  // Clears itself the moment there is a subject, so the ring never outlives the fault.
+  const subjectInvalid = subjectMissing && !subject.trim()
   const [body, setBody] = useState("")
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const drip = useDripSettings(false, false)
   const loadDripConfig = drip.loadFromConfig
 
@@ -51,9 +61,12 @@ export function AutomationEmailSettingsModal({
   const handleSave = async () => {
     if (!step) return
     if (!subject.trim()) {
+      setSubjectMissing(true)
       setError("Subject line is required")
       return
     }
+
+    setSubjectMissing(false)
 
     const dripError = drip.validate()
     if (dripError) {
@@ -111,6 +124,7 @@ export function AutomationEmailSettingsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <DashboardModalContent
+          busy={saving}
           title="Email Settings"
           titleAccessory={
             <TabsList className="h-9 shrink-0">
@@ -120,26 +134,32 @@ export function AutomationEmailSettingsModal({
           }
           footer={
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Close
               </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
+              <Button form="automation-email-settings-form" type="submit" disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save
               </Button>
             </>
           }
         >
-          {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 mb-4">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
+          <form
+            noValidate
+            id="automation-email-settings-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleSave()
+            }}
+          >
           <TabsContent value="content" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
               <Card>
                 <CardContent>
                   <Input
                     id="automation-email-settings-subject"
+                    aria-invalid={subjectInvalid || undefined}
                     aria-label="Subject line"
                     value={subject}
                     onChange={event => setSubject(event.target.value)}
@@ -169,6 +189,7 @@ export function AutomationEmailSettingsModal({
               <DripSettingsFields form={drip} idPrefix="automation-settings" variant="cards" />
             </CardGroup>
           </TabsContent>
+          </form>
         </DashboardModalContent>
       </Tabs>
     </Dialog>

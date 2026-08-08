@@ -10,5 +10,8 @@
   "trading": 3007,
   "directory": 3011,
   "newsletter": 3012,
-  "analytic": 3013
+  "analytic": 3013,
+  "trade": 3014,
+  "cms": 3015,
+  "video": 3016
 }

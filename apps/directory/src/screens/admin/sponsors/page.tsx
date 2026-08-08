@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { SponsorFormModal } from "@/components/admin/sponsors/SponsorFormModal"
@@ -14,13 +16,17 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
+  AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
-  formatShortDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -47,18 +53,19 @@ import {
 } from "@/lib/actions/sponsors/sponsor-portal-actions"
 import { SponsorReportLinkCell } from "@/components/admin/sponsors/SponsorReportLinkCell"
 import { cn } from "@/lib/utils/tailwind"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import Handshake from "lucide-react/dist/esm/icons/handshake.js"
-import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
 type SponsorFilter = "all" | "active" | "inactive"
 type SortColumn = "title" | "status" | "url" | "modified"
 
 export default function SponsorsPage() {
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, pageSize } = useSiteSwitcher()
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -71,8 +78,18 @@ export default function SponsorsPage() {
   const [deleting, setDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const sponsorSelection = useAdminBulkSelection()
   const sponsorSort = useAdminSort<SortColumn>("modified", "desc")
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${searchQuery}|${filter}|${sponsorSort.sortColumn}|${sponsorSort.sortDirection}`
+  // Searching or filtering from a later page would otherwise land you past the
+  // end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Delete (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(sponsorSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   useEffect(() => {
     let cancelled = false
@@ -88,7 +105,7 @@ export default function SponsorsPage() {
       setLoading(true)
       setError(null)
       const [{ data, error: loadError }, linksResult] = await Promise.all([
-        getSiteSponsorsAction(currentSite.id),
+        getSiteSponsorsAction({ data: { siteId: currentSite.id } }),
         getSponsorReportLinksAction({ data: { siteId: currentSite.id } })
       ])
 
@@ -140,7 +157,13 @@ export default function SponsorsPage() {
     })
   }, [filteredSponsors, sponsorSort.sortColumn, sponsorSort.sortDirection])
 
-  const visibleSponsorIds = sortedSponsors.map((sponsor) => sponsor.id)
+  const pagedSponsors = useMemo(
+    () => sortedSponsors.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedSponsors]
+  )
+
+  // Select-all ticks the page in front of you, never the whole filtered list.
+  const visibleSponsorIds = pagedSponsors.map((sponsor) => sponsor.id)
 
   const counts = {
     all: sponsors.length,
@@ -160,7 +183,7 @@ export default function SponsorsPage() {
     if (!deleteSponsor) return
 
     setDeleting(true)
-    const result = await deleteSponsorAction(deleteSponsor.id)
+    const result = await deleteSponsorAction({ data: { sponsorId: deleteSponsor.id } })
     setDeleting(false)
 
     if (result.error) {
@@ -171,6 +194,7 @@ export default function SponsorsPage() {
     setSponsors((current) => current.filter((sponsor) => sponsor.id !== deleteSponsor.id))
     sponsorSelection.remove(deleteSponsor.id)
     setDeleteSponsor(null)
+    showActionSuccess("Sponsor deleted.")
   }
 
   const handleConfirmMassDelete = async () => {
@@ -179,7 +203,7 @@ export default function SponsorsPage() {
     const idsToDelete = new Set(ids)
 
     setMassDeleting(true)
-    const result = await deleteSponsorsAction(ids)
+    const result = await deleteSponsorsAction({ data: { sponsorIds: ids } })
     setMassDeleting(false)
 
     if (result.error) {
@@ -190,6 +214,7 @@ export default function SponsorsPage() {
     setSponsors((current) => current.filter((sponsor) => !idsToDelete.has(sponsor.id)))
     sponsorSelection.clearSelection()
     setMassDeleteConfirmOpen(false)
+    showActionSuccess(ids.length === 1 ? "Sponsor deleted." : "Sponsors deleted.")
   }
 
   const openCreate = () => {
@@ -212,7 +237,7 @@ export default function SponsorsPage() {
 
         <AdminTableShell
           title="Sponsors"
-          icon={<Handshake className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<Handshake className="text-muted-foreground" />}
           count={filteredSponsors.length}
           loading={loading}
           selectedCount={sponsorSelection.selectedCount}
@@ -235,7 +260,6 @@ export default function SponsorsPage() {
                 value={filter}
                 onValueChange={(value) => {
                   setFilter(value as SponsorFilter)
-                  sponsorSelection.clearSelection()
                 }}
               >
                 <TableRightActionsSelectTrigger aria-label="Sponsor status filter">
@@ -253,7 +277,7 @@ export default function SponsorsPage() {
             </TableRightActionsButton>
             </TableRightActions>
           }
-          footer={!loading ? <AdminTableSummaryFooter count={filteredSponsors.length} label="sponsors" /> : null}
+          footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredSponsors.length} onPageChange={setCurrentPage} /> : null}
         >
 
           <ScrollArea className="w-full">
@@ -267,43 +291,11 @@ export default function SponsorsPage() {
                       aria-label="Select all sponsors"
                     />
                   </TableHead>
-                  <TableHead column="main">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "title"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("title")}
-                    >
-                      Sponsor
-                    </AdminSortButton>
-                  </TableHead>
-                  <TableHead column="meta">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "status"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("status")}
-                    >
-                      Status
-                    </AdminSortButton>
-                  </TableHead>
-                  <TableHead column="content">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "url"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("url")}
-                    >
-                      URL
-                    </AdminSortButton>
-                  </TableHead>
+                  <AdminSortableHead column="main" sort={sponsorSort} sortKey="title">Sponsor</AdminSortableHead>
+                  <AdminSortableHead column="meta" sort={sponsorSort} sortKey="status">Status</AdminSortableHead>
+                  <AdminSortableHead column="content" sort={sponsorSort} sortKey="url">URL</AdminSortableHead>
                   <TableHead column="meta">Report Link</TableHead>
-                  <TableHead column="meta">
-                    <AdminSortButton
-                      active={sponsorSort.sortColumn === "modified"}
-                      direction={sponsorSort.sortDirection}
-                      onClick={() => sponsorSort.toggleSort("modified")}
-                    >
-                      Modified
-                    </AdminSortButton>
-                  </TableHead>
+                  <AdminSortableHead column="meta" sort={sponsorSort} sortKey="modified">Modified</AdminSortableHead>
                   <TableHead column="meta">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -313,7 +305,7 @@ export default function SponsorsPage() {
                 ) : error ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center">
-                      <p className="text-sm text-red-600">{error}</p>
+                      <p className="text-sm text-destructive">{error}</p>
                     </TableCell>
                   </TableRow>
                 ) : filteredSponsors.length === 0 ? (
@@ -321,7 +313,7 @@ export default function SponsorsPage() {
                     <TableCell colSpan={7} className="h-32 text-center">
                       <Handshake className="mx-auto h-10 w-10 text-muted-foreground" />
                       <p className="mt-4 text-sm text-muted-foreground">
-                        {sponsors.length === 0 ? "No sponsors yet." : "No sponsors match your filters."}
+                        {searchQuery.trim() || filter !== "all" ? "No sponsors found matching your search." : "No sponsors yet."}
                       </p>
                       <Button onClick={openCreate} variant="outline" className="mt-4" disabled={!currentSite?.id}>
                         Create Sponsor
@@ -329,7 +321,7 @@ export default function SponsorsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedSponsors.map((sponsor) => {
+                  pagedSponsors.map((sponsor) => {
                     const imageSrc = sanitizeUrl(sponsor.image_url, "")
                     const sponsorHref = sanitizeUrl(sponsor.url, "#")
 
@@ -356,11 +348,9 @@ export default function SponsorsPage() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium sm:text-base">{sponsor.title}</h4>
+                              <h4 className="truncate text-sm font-medium sm:text-base" title={sponsor.title}>{sponsor.title}</h4>
                               {sponsor.description && (
-                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                  {sponsor.description}
-                                </p>
+                                <p className="truncate text-xs text-muted-foreground sm:text-sm" title={sponsor.description}>{sponsor.description}</p>
                               )}
                             </div>
                           </div>
@@ -368,7 +358,7 @@ export default function SponsorsPage() {
                         <TableCell column="meta">
                           <Badge
                             className={cn(
-                              sponsor.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"
+                              sponsor.is_active ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" : "bg-muted text-muted-foreground"
                             )}
                           >
                             {sponsor.is_active ? "Active" : "Inactive"}
@@ -381,7 +371,7 @@ export default function SponsorsPage() {
                             rel="noopener noreferrer"
                             className="inline-flex max-w-64 items-center gap-1 truncate text-sm text-muted-foreground hover:text-foreground"
                           >
-                            <span className="truncate">{sponsor.url}</span>
+                            <span className="truncate" title={sponsor.url}>{sponsor.url}</span>
                             <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                           </a>
                         </TableCell>
@@ -399,30 +389,20 @@ export default function SponsorsPage() {
                             }}
                           />
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(sponsor.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={sponsor.updated_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Sponsor settings"
                               onClick={() => openEdit(sponsor)}
-                              title="Edit sponsor"
-                            >
-                              <Pencil className="h-4 w-4" />
-                              <span className="sr-only">Edit sponsor</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete sponsor"
                               onClick={() => setDeleteSponsor(sponsor)}
-                              title="Delete sponsor"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete sponsor</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     )

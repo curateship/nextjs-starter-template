@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
 import { createSponsorAction, updateSponsorAction, type Sponsor } from "@/lib/actions/sponsors/sponsor-actions"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface SponsorFormModalProps {
   open: boolean
@@ -30,7 +32,17 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
   const [url, setUrl] = useState("")
   const [isActive, setIsActive] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [fieldMissing, setFieldMissing] = useState<"title" | "url" | null>(null)
+  // The ring lasts until the box has something in it, so the field stays marked
+  // once the toast has been dismissed and clears itself as soon as it is typed in.
+  const titleInvalid = fieldMissing === "title" && !title.trim()
+  const urlInvalid = fieldMissing === "url" && !url.trim()
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [imagePickerOpen, setImagePickerOpen] = useState(false)
 
   const handleImageChange = (mediaUrl: string) => {
@@ -50,6 +62,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
     setImageUrl(sponsor?.image_url || "")
     setUrl(sponsor?.url || "")
     setIsActive(sponsor?.is_active ?? true)
+    setFieldMissing(null)
     setError(null)
   }, [open, sponsor])
 
@@ -57,15 +70,18 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
     event.preventDefault()
 
     if (!title.trim()) {
+      setFieldMissing("title")
       setError("Sponsor title is required")
       return
     }
 
     if (!url.trim()) {
+      setFieldMissing("url")
       setError("Sponsor URL is required")
       return
     }
 
+    setFieldMissing(null)
     setSaving(true)
     setError(null)
 
@@ -78,8 +94,8 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
     }
 
     const result = sponsor
-      ? await updateSponsorAction(sponsor.id, payload)
-      : await createSponsorAction({ ...payload, site_id: siteId })
+      ? await updateSponsorAction({ data: { sponsorId: sponsor.id, input: payload } })
+      : await createSponsorAction({ data: { input: { ...payload, site_id: siteId } } })
 
     setSaving(false)
 
@@ -90,6 +106,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
 
     onSaved(result.data)
     onOpenChange(false)
+    showActionSuccess(sponsor ? "Sponsor updated." : "Sponsor created.")
   }
 
   const safeImageUrl = sanitizeUrl(imageUrl, "")
@@ -97,28 +114,14 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <form id="sponsor-form" onSubmit={handleSave} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={saving}
             title={sponsor ? "Edit Sponsor" : "Create Sponsor"}
             description="Add the sponsor details used by post embeds."
-            footer={
-              <>
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                  Cancel
-                </Button>
-                <Button form="sponsor-form" type="submit" disabled={saving}>
-                  {saving ? "Saving..." : "Save Sponsor"}
-                </Button>
-              </>
-            }
+            footer={<DashboardModalFormFooter busy={saving} cancelDisabled={saving} form="sponsor-form" onCancel={() => onOpenChange(false)} submitLabel="Save Sponsor" />}
           >
-            {error && (
-              <div className="px-6 pb-2">
-                <div className="rounded-md border border-red-200 bg-red-100 p-3 text-sm text-red-800">
-                  {error}
-                </div>
-              </div>
-            )}
+            <form
+              noValidate id="sponsor-form" onSubmit={handleSave} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -133,6 +136,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                         value={title}
                         onChange={(event) => setTitle(event.target.value)}
                         placeholder="Acme"
+                        aria-invalid={titleInvalid || undefined}
                       />
                     </Field>
                     <Field>
@@ -142,6 +146,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                         value={url}
                         onChange={(event) => setUrl(event.target.value)}
                         placeholder="https://example.com"
+                        aria-invalid={urlInvalid || undefined}
                       />
                     </Field>
                   </div>
@@ -175,7 +180,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                         <button
                           type="button"
                           onClick={handleRemoveImage}
-                          className="absolute right-2 top-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                          className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                         >
                           <X className="h-4 w-4" />
                           <span className="sr-only">Remove image</span>
@@ -221,8 +226,9 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
 
       <MediaPicker

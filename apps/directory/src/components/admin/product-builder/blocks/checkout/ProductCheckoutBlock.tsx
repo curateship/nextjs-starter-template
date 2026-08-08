@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
@@ -41,10 +41,11 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { BlockEditorEmptyState } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { sanitizeAdminInput } from '@/lib/utils/sanitize'
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface PricingTier {
   id: string
@@ -215,22 +216,8 @@ function SortablePricingTierItem({
   showStripeFields: boolean
 }) {
   const [orderBumpsModalOpen, setOrderBumpsModalOpen] = useState(false)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: tier.id })
-
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(tier.id)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
 
   // Auto-resize textarea on initial load and when features change
   useEffect(() => {

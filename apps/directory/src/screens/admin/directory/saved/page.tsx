@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import Bookmark from "lucide-react/dist/esm/icons/bookmark.js"
 import FolderOpen from "lucide-react/dist/esm/icons/folder-open.js"
-import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -16,18 +16,27 @@ import {
   TableRightActionsSelectTrigger
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
-  ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  formatShortDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
+  formatExactDateTime,
+  formatRelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   getDirectorySaveFoldersDashboardAction,
   removeDirectorySaveCollectionsDashboardAction,
@@ -79,6 +88,16 @@ export default function DirectorySavedPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const selection = useAdminBulkSelection()
   const folderSort = useAdminSort<FolderSortColumn>("activity", "desc")
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${query}|${typeFilter}|${folderSort.sortColumn}|${folderSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   const loadFolders = useCallback(async () => {
     if (!currentSite?.id) {
@@ -101,7 +120,7 @@ export default function DirectorySavedPage() {
     if (result.error) {
       setFolders([])
       setTotal(0)
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -142,6 +161,7 @@ export default function DirectorySavedPage() {
   const saveRename = async () => {
     if (!currentSite?.id || !folderToRename) return
 
+    dismissErrorToast()
     setSavingRename(true)
     const result = await renameDirectorySaveCollectionDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -151,17 +171,19 @@ export default function DirectorySavedPage() {
     setSavingRename(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
     setFolderToRename(null)
     await loadFolders()
+    showActionSuccess("Folder renamed.")
   }
 
   const saveDefaults = async () => {
     if (!currentSite?.id) return
 
+    dismissErrorToast()
     setSavingDefaults(true)
     const result = await updateDirectorySaveDefaultCollectionsAction({ data: { input: {
       siteId: currentSite.id,
@@ -171,7 +193,7 @@ export default function DirectorySavedPage() {
     setSavingDefaults(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -184,11 +206,13 @@ export default function DirectorySavedPage() {
     })
     setDefaultsOpen(false)
     await loadFolders()
+    showActionSuccess("Default folders updated.")
   }
 
   const confirmRemove = async () => {
     if (!currentSite?.id || removeIds.length === 0) return
 
+    const removedCount = removeIds.length
     setRemoving(true)
     const result = await removeDirectorySaveCollectionsDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -204,6 +228,7 @@ export default function DirectorySavedPage() {
     selection.clearSelection()
     setRemoveIds([])
     await loadFolders()
+    showActionSuccess(removedCount === 1 ? "Folder removed." : "Folders removed.")
   }
 
   return (
@@ -215,7 +240,7 @@ export default function DirectorySavedPage() {
 
           <AdminTableShell
             title="Saved Folders"
-            icon={<Bookmark className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Bookmark className="text-muted-foreground" />}
             count={total}
             loading={loading}
             selectedCount={selection.selectedCount}
@@ -238,7 +263,6 @@ export default function DirectorySavedPage() {
                   onChange={(event) => {
                     setQuery(event.target.value)
                     setCurrentPage(1)
-                    selection.clearSelection()
                   }}
                   placeholder="Search saved folders"
                 />
@@ -247,7 +271,6 @@ export default function DirectorySavedPage() {
                   onValueChange={(value) => {
                     setTypeFilter(value as DirectorySaveFolderTypeFilter)
                     setCurrentPage(1)
-                    selection.clearSelection()
                   }}
                 >
                   <TableRightActionsSelectTrigger aria-label="Folder type filter">
@@ -285,51 +308,11 @@ export default function DirectorySavedPage() {
                         aria-label="Select saved folders"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "name"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("name")}
-                      >
-                        Folder
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "owner"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("owner")}
-                      >
-                        Owner
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "type"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("type")}
-                      >
-                        Type
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "saved"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("saved")}
-                      >
-                        Saved
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={folderSort.sortColumn === "activity"}
-                        direction={folderSort.sortDirection}
-                        onClick={() => folderSort.toggleSort("activity")}
-                      >
-                        Activity
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={folderSort} sortKey="name">Folder</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={folderSort} sortKey="owner">Owner</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={folderSort} sortKey="type">Type</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={folderSort} sortKey="saved">Saved</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={folderSort} sortKey="activity">Activity</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -340,7 +323,7 @@ export default function DirectorySavedPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Bookmark className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="text-muted-foreground">No saved folders found.</p>
+                        <p className="text-muted-foreground">{query.trim() || typeFilter !== "all" ? "No saved folders found matching your search." : "No saved folders found."}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -359,46 +342,36 @@ export default function DirectorySavedPage() {
                               <FolderOpen className="h-5 w-5 text-primary" />
                             </span>
                             <span className="min-w-0">
-                              <span className="block truncate font-medium hover:underline">{folder.name}</span>
-                              <span className="block truncate text-sm text-muted-foreground">
-                                Created {formatDate(folder.created_at)}
+                              <span className="block truncate font-medium hover:underline" title={folder.name}>{folder.name}</span>
+                              <span className="block truncate text-sm text-muted-foreground" title={`Created ${formatExactDateTime(folder.created_at)}`}>
+                                Created {formatRelativeDate(folder.created_at)}
                               </span>
                             </span>
                           </Link>
                         </TableCell>
                         <TableCell column="content">
-                          <div className="truncate text-sm">{folder.owner_name}</div>
-                          <div className="truncate text-sm text-muted-foreground">{folder.owner_email}</div>
+                          <div className="truncate text-sm" title={folder.owner_name}>{folder.owner_name}</div>
+                          <div className="truncate text-sm text-muted-foreground" title={folder.owner_email}>{folder.owner_email}</div>
                         </TableCell>
                         <TableCell column="meta">
                           {folder.default_key ? <Badge variant="secondary">Default</Badge> : <Badge>Custom</Badge>}
                         </TableCell>
                         <TableCell column="mutedMeta">{folder.item_count}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(folderActivity(folder))}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={folderActivity(folder)} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => openRename(folder)}
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label={folder.default_key ? "Use Default Folders to rename this label" : "Folder settings"}
                               disabled={Boolean(folder.default_key)}
-                              title={folder.default_key ? "Use Default Folders to rename this label" : "Rename folder"}
-                            >
-                              <Pencil className="h-4 w-4" />
-                              <span className="sr-only">Rename</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                              onClick={() => openRename(folder)}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={folder.default_key ? "Clear folder" : "Delete folder"}
                               onClick={() => setRemoveIds([folder.id])}
-                              title={folder.default_key ? "Clear folder" : "Delete folder"}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">{folder.default_key ? "Clear" : "Delete"}</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -440,7 +413,8 @@ export default function DirectorySavedPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDefaultsOpen(false)} disabled={savingDefaults}>Cancel</Button>
             <Button onClick={saveDefaults} disabled={savingDefaults}>
-              {savingDefaults ? "Saving..." : "Save"}
+              {savingDefaults ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -464,7 +438,8 @@ export default function DirectorySavedPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setFolderToRename(null)} disabled={savingRename}>Cancel</Button>
             <Button onClick={saveRename} disabled={savingRename}>
-              {savingRename ? "Saving..." : "Save"}
+              {savingRename ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -483,12 +458,6 @@ export default function DirectorySavedPage() {
         confirmLabel={removing ? "Removing..." : "Remove"}
         onCancel={() => { setRemoveIds([]); setErrorMessage("") }}
         onConfirm={confirmRemove}
-      />
-
-      <AdminErrorDialog
-        open={Boolean(errorMessage)}
-        message={errorMessage}
-        onOpenChange={(open) => !open && setErrorMessage("")}
       />
     </>
   )

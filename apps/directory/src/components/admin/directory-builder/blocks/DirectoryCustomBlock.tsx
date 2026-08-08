@@ -19,8 +19,7 @@ import {
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Input } from "@/components/ui/input"
@@ -31,6 +30,7 @@ import { Switch } from "@/components/ui/switch"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import type {
   DirectoryCustomBlockField,
   DirectoryCustomBlockRepeaterField,
@@ -433,20 +433,7 @@ function SortableRepeaterRow({
   onDelete: () => void
   onChange: (row: Record<string, any>) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: rowId })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(rowId)
 
   return (
     <div

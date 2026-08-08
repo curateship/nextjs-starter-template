@@ -136,7 +136,7 @@ function FeedbackRow({ item }: { item: NotificationItem }) {
       <Avatar size="lg">
         <AvatarFallback
           className={
-            isVote ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
+            isVote ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" : "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
           }
         >
           {getInitial(item.actor_name)}
@@ -170,26 +170,26 @@ function FeedbackRow({ item }: { item: NotificationItem }) {
 // Group scanner alerts by their source page so the icon/colour reads at a glance.
 function alertVisual(type: string) {
   if (type === "worker_down" || type === "guardian_tripped") {
-    return { Icon: ShieldAlertIcon, className: "bg-red-100 text-red-800" }
+    return { Icon: ShieldAlertIcon, className: "bg-destructive/10 text-destructive" }
   }
   if (type === "worker_recovered") {
     return {
       Icon: ShieldAlertIcon,
-      className: "bg-emerald-100 text-emerald-800",
+      className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
     }
   }
   switch (alertRoute(type)) {
     case "/scanner/positions":
       return {
         Icon: ArrowRightLeftIcon,
-        className: "bg-blue-100 text-blue-800",
+        className: "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
       }
     case "/scanner/crowded":
-      return { Icon: UsersIcon, className: "bg-amber-100 text-amber-800" }
+      return { Icon: UsersIcon, className: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" }
     case "/scanner/book":
-      return { Icon: BookOpenIcon, className: "bg-violet-100 text-violet-800" }
+      return { Icon: BookOpenIcon, className: "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300" }
     default:
-      return { Icon: RadarIcon, className: "bg-emerald-100 text-emerald-800" }
+      return { Icon: RadarIcon, className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" }
   }
 }
 
@@ -232,25 +232,25 @@ function tradingVisual(item: TradingNotificationItem) {
     case "position_opened":
       return {
         Icon: ChartNoAxesCombinedIcon,
-        className: "bg-blue-100 text-blue-800",
+        className: "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
         title: `${item.coin} ${item.side} opened`,
       }
     case "take_profit":
       return {
         Icon: TargetIcon,
-        className: "bg-emerald-100 text-emerald-800",
+        className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
         title: `${item.coin} take profit filled`,
       }
     case "stop_loss":
       return {
         Icon: ShieldAlertIcon,
-        className: "bg-red-100 text-red-800",
+        className: "bg-destructive/10 text-destructive",
         title: `${item.coin} stop loss filled`,
       }
     case "liquidation_risk":
       return {
         Icon: TriangleAlertIcon,
-        className: "bg-amber-100 text-amber-800",
+        className: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
         title: `${item.coin} ${item.side} close to liquidation`,
       }
   }
@@ -296,7 +296,7 @@ function MarketAlertRow({ item }: { item: MarketScannerAlertItem }) {
   return (
     <>
       <Avatar size="lg">
-        <AvatarFallback className="bg-emerald-100 text-emerald-800">
+        <AvatarFallback className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
           <ActivityIcon className="h-4 w-4" />
         </AvatarFallback>
       </Avatar>
@@ -327,7 +327,7 @@ function PriceAlertRow({ item }: { item: AlertEventItem }) {
   return (
     <>
       <Avatar size="lg">
-        <AvatarFallback className="bg-emerald-100 text-emerald-800">
+        <AvatarFallback className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
           <ActivityIcon className="h-4 w-4" />
         </AvatarFallback>
       </Avatar>

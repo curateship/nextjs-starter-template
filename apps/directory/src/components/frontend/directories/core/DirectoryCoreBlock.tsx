@@ -12,7 +12,8 @@ import { DirectoryClaimButton } from "@/components/frontend/directories/claim/Di
 import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
 import { FeaturedBadge } from "@/components/frontend/directories/FeaturedBadge"
 import { Rating } from "@/components/shadcnblocks/rating"
-import { Card, CardSection } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
+import { CardSection } from "@/components/shared/card-sections"
 import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
 import { resolveMediaUrl } from "@/lib/utils/media-url"
 import { getSocialMeta } from "@/lib/utils/social-icons"
@@ -74,7 +75,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
       className={ACTION_ROW_CLASS}
     >
       {renderQuickLinkIcon(iconName, "h-5 w-5 shrink-0")}
-      <span className="min-w-0 wrap-break-word text-base leading-snug">{label}</span>
+      <span className="min-w-0 truncate text-base leading-snug" title={label}>{label}</span>
     </a>
   )
 }

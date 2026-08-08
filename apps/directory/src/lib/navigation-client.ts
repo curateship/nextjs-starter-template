@@ -1,9 +1,5 @@
 import { useMemo } from "react"
-import {
-  useLocation,
-  useRouter as useTanStackRouter,
-  useRouterState,
-} from "@tanstack/react-router"
+import { useLocation, useRouter as useTanStackRouter } from "@tanstack/react-router"
 
 export function usePathname() {
   return useLocation().pathname
@@ -12,13 +8,6 @@ export function usePathname() {
 export function useSearchParams() {
   const search = useLocation().searchStr
   return useMemo(() => new URLSearchParams(search), [search])
-}
-
-export function useParams<T extends Record<string, string>>() {
-  const params = useRouterState({
-    select: (state) => state.matches[state.matches.length - 1]?.params,
-  })
-  return params as T
 }
 
 export function useRouter() {

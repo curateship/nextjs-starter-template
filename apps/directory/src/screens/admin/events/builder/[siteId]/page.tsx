@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { useEventData } from "@/components/admin/event-builder/config/useEventData"
@@ -13,11 +14,9 @@ import {
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
-import { EventBlockListPanel } from "@/components/admin/event-builder/layout/EventBlockListPanel"
 import { EVENT_CONTENT_BLOCK_TYPE, eventBlocksToValueJson } from "@/lib/actions/events/event-template-inheritance"
 import { getSiteEventsAction, updateEventAction, updateEventBlocksAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { EventPreview } from "@/components/admin/event-builder/layout/EventPreview"
 import { EventBlockEditorModal } from "@/components/admin/event-builder/layout/EventBlockEditorModal"
@@ -35,7 +34,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     siteId,
   })
   const [selectedEvent, setSelectedEvent] = useState(eventFromUrl)
-  const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Load events (raw rows — settings modal needs row-level _settings/title)
   useEffect(() => {
@@ -78,7 +76,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftEventTitle, setDraftEventTitle] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   // Current event data
   const currentEventData = events.find(d => d.slug === selectedEvent)
@@ -93,7 +90,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     if (!selectedBlock) {
       setDraftContent({})
       setDraftEventTitle("")
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -103,7 +100,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         : {}
     )
     setDraftEventTitle(currentEventData?.title || selectedEvent)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, currentEventData?.title, selectedEvent])
 
   // Handle event updates (also remaps local blocks + URL when the slug changes)
@@ -165,7 +162,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const handleCloseBlockEditor = () => {
     if (isSavingBlock) return
     builderState.setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   // Save the selected block's value edits (template-owned keys are pruned server-side)
@@ -173,7 +170,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     if (!selectedBlock || !currentEventData?.id) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const currentBlocks = localBlocks[selectedEvent] || []
@@ -189,7 +186,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         if (nextTitle !== currentEventData.title) {
           const { data, error } = await updateEventAction({ data: { eventId: currentEventData.id, data: { title: nextTitle } } })
           if (error || !data) {
-            setBlockSaveError(error || "Failed to save event details")
+            showErrorToast(error || "Failed to save event details")
             return
           }
           handleEventUpdated(data)
@@ -199,7 +196,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       const contentBlocks = eventBlocksToValueJson(nextBlocks)
       const result = await updateEventBlocksAction({ data: { eventId: currentEventData.id, contentBlocks: contentBlocks } })
       if (!result.success) {
-        setBlockSaveError(result.error || "Failed to save block")
+        showErrorToast(result.error || "Failed to save block")
         return
       }
 
@@ -209,7 +206,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       }))
       builderState.setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -230,10 +227,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     ? draftEventTitle.trim() || currentEventData?.title
     : currentEventData?.title
 
-  const viewPageHref = site && currentEventData
-    ? `${getSiteUrl(site)}/events/${currentEventData.slug}`
-    : null
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
@@ -241,12 +234,9 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={Boolean(currentEventData?.is_published)}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentEventData}
             renderSettingsModal={(show, setShow) => (
               <EventSettingsModal
@@ -298,18 +288,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
         />
-
-        {blockListOpen && (
-          <EventBlockListPanel
-            blocks={currentEvent.blocks}
-            selectedBlock={selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            viewPageHref={viewPageHref}
-            blocksLoading={blocksLoading}
-          />
-        )}
       </div>
     </div>
   )

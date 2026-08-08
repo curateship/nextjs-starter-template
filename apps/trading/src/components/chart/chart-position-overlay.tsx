@@ -4,6 +4,7 @@ import {
   CHART_DOWN_COLOR,
   CHART_UP_COLOR,
 } from "@/components/chart/chart-markers"
+import { signedPct } from "@/lib/format"
 import {
   chartPositionStats,
   type ChartPosition,
@@ -21,9 +22,6 @@ export type ChartPositionPixels = ChartPositionBox & {
   side: ChartPosition["side"]
 }
 
-function pct(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
-}
 
 /** A price chip pinned to one of the drawing's three lines. */
 function PriceChip({
@@ -129,7 +127,7 @@ export function ChartPositionOverlay({
                   color={CHART_UP_COLOR}
                   place={targetAbove ? "above" : "below"}
                 >
-                  {pct(stats.targetPct)}
+                  {signedPct(stats.targetPct)}
                 </PriceChip>
                 <PriceChip
                   x={centerX}
@@ -137,7 +135,7 @@ export function ChartPositionOverlay({
                   color={CHART_DOWN_COLOR}
                   place={targetAbove ? "below" : "above"}
                 >
-                  {pct(stats.stopPct)}
+                  {signedPct(stats.stopPct)}
                 </PriceChip>
                 <div
                   className="absolute -translate-x-1/2 -translate-y-1/2 rounded bg-card/95 px-1 py-px text-center text-[10px] leading-tight whitespace-nowrap ring-1 ring-foreground/10"

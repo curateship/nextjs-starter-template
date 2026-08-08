@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { formatNotional } from "@/components/scanner/format"
+import { compactUsd } from "@/lib/format"
 import { SortHeaderRow } from "@/components/scanner/sort-head"
 import { usePolledData } from "@/components/scanner/use-polled-data"
 import { WalletChip } from "@/components/scanner/wallet-chip"
@@ -66,7 +66,7 @@ export function PositionsDashboard({
       <DashboardTable
         title="Position Changes"
         icon={
-          <ArrowRightLeftIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <ArrowRightLeftIcon className="text-muted-foreground" />
         }
         count={data.total}
         controls={
@@ -179,7 +179,7 @@ function SideNotional({
       >
         {size > 0 ? "long" : "short"}
       </span>{" "}
-      {notional === null ? "" : formatNotional(notional)}
+      {notional === null ? "" : compactUsd(notional)}
     </span>
   )
 }

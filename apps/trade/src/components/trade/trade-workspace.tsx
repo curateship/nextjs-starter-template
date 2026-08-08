@@ -1,0 +1,502 @@
+import * as React from "react"
+import type { PanelImperativeHandle } from "react-resizable-panels"
+
+import { AccountPanel } from "@/components/trade/account-panel"
+import { ActivityPanel } from "@/components/trade/activity-panel"
+import { usePaperTrading } from "@/components/trade/use-paper-trading"
+import { useTradeAccount } from "@/components/trade/use-trade-account"
+import {
+  AddWalletDialog,
+  WalletSettingsDialog,
+} from "@/components/trade/wallet-dialogs"
+import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
+import { IndicatorsMenu } from "@/components/trade/indicators-menu"
+import {
+  MarketHeader,
+  type MarketSelection,
+} from "@/components/trade/market-header"
+import { CardFolds } from "@/components/trade/card-folds"
+import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
+import { useChartIndicators } from "@/components/trade/use-indicators"
+import { MarketListPanel } from "@/components/trade/market-list-panel"
+import {
+  BOTTOM_COLLAPSED_HEIGHT,
+  PanelReopenTab,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  WorkspacePanel,
+} from "@/components/ui/resizable"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
+  getMarketFavoritesErrorMessage,
+  saveMarketFavorites,
+} from "@/lib/api/markets"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import {
+  CANDLE_INTERVALS,
+  parseMarketKey,
+  type CandleInterval,
+  type MarketCatalog,
+} from "@/lib/protocols/contracts"
+import type { ChartView } from "@/lib/trade/chart-view"
+import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
+import {
+  CHART_INTERVAL_STORAGE_KEY,
+  DEFAULT_CHART_INTERVAL,
+} from "@/lib/trade/chart-interval"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import { startLiveMarketData } from "@/lib/trade/live-market"
+import {
+  useBlankSpaceDoubleClick,
+  usePanelToggle,
+} from "@/lib/layout/panel-collapse"
+import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import { useWideScreen } from "@/lib/layout/wide-screen"
+
+/**
+ * No focus ring on a panel divider.
+ *
+ * The shell's divider draws one when it has keyboard focus, which is a line
+ * the full height of the app appearing the moment any key goes down. Merged
+ * last, so it beats the shell's own class without editing a shell file.
+ */
+const NO_RING = "focus-visible:ring-0"
+
+/** Which side panel a narrow screen has slid open, if any. */
+type OpenSheet = "markets" | "account" | null
+
+/**
+ * What the picked key means against what the exchanges actually list: a real
+ * row with its catalog's labels, nothing picked, or a well-formed key nothing
+ * lists — delisted, or saved by a build that knew markets this one does not.
+ * That last one is said out loud; it never falls back to another market.
+ */
+function resolveSelection(
+  catalogs: MarketCatalog[],
+  selectedKey: string | null
+): MarketSelection {
+  if (!selectedKey) return { kind: "none" }
+  const ref = parseMarketKey(selectedKey)
+  if (!ref) return { kind: "none" }
+  for (const catalog of catalogs) {
+    const row = catalog.rows.find((candidate) => candidate.key === selectedKey)
+    if (row) {
+      return {
+        kind: "market",
+        row,
+        protocolLabel: catalog.protocolLabel,
+        networkLabel: catalog.networkLabel,
+      }
+    }
+  }
+  return { kind: "missing", marketId: ref.marketId }
+}
+
+/**
+ * The Trade workspace: markets on the left, the market you picked in the
+ * middle, the account on the right, and what you are holding along the bottom.
+ *
+ * Built on the same panel parts as the Automation Canvas rather than a second
+ * panel system of its own, so resizing, collapsing, the reopen tabs and the
+ * remembered layout all behave identically on both pages and only have to be
+ * got right once.
+ *
+ * The market list is live exchange data now. The account side is still the
+ * empty state it will show a new user — connecting anything comes after the
+ * protocol layer grows accounts.
+ */
+export function TradeWorkspace({
+  catalogs,
+  marketsError,
+  initialFavoriteKeys,
+  initialChartView,
+  initialIndicators,
+  initialCardFolds,
+  selectedKey,
+  onSelectMarket,
+  onRetryMarkets,
+}: {
+  catalogs: MarketCatalog[]
+  /** The exchange call failed at load; the list shows this instead of rows. */
+  marketsError: string | null
+  initialFavoriteKeys: string[]
+  /** The zoom and scroll this account left the chart at. */
+  initialChartView: ChartView | null
+  /** Which indicators this account has on, and what each is set to. */
+  initialIndicators: IndicatorSettings
+  /** How the trading windows' settings cards were left folded. */
+  initialCardFolds: CardFoldsValue
+  /** The picked market's key, carried in the address bar. */
+  selectedKey: string | null
+  onSelectMarket: (key: string) => void
+  onRetryMarkets: () => void
+}) {
+  // Known before the first render on both sides, so the page opens in the
+  // layout it is going to keep instead of painting the phone version and
+  // rebuilding itself a beat later.
+  const desktop = useWideScreen()
+  const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
+  const [accountCollapsed, setAccountCollapsed] = React.useState(false)
+  const [openSheet, setOpenSheet] = React.useState<OpenSheet>(null)
+
+  // ----- Favourites: optimistic, saved whole, reverted on failure ----------
+  const [favoriteKeys, setFavoriteKeys] = React.useState(initialFavoriteKeys)
+  const [savingFavorites, setSavingFavorites] = React.useState(false)
+  const favorites = React.useMemo(() => new Set(favoriteKeys), [favoriteKeys])
+
+  const toggleFavorite = React.useCallback(
+    async (key: string) => {
+      if (savingFavorites) return
+      const previous = favoriteKeys
+      const next = previous.includes(key)
+        ? previous.filter((candidate) => candidate !== key)
+        : [...previous, key]
+      setFavoriteKeys(next)
+      setSavingFavorites(true)
+      try {
+        const saved = await saveMarketFavorites(next)
+        setFavoriteKeys(saved.marketKeys)
+      } catch (error) {
+        setFavoriteKeys(previous)
+        showErrorToast(getMarketFavoritesErrorMessage(error))
+      } finally {
+        setSavingFavorites(false)
+      }
+    },
+    [favoriteKeys, savingFavorites]
+  )
+
+  const selection = resolveSelection(catalogs, selectedKey)
+
+  // ----- Wallets: one owner, shared by the desktop column and the sheet ----
+  const account = useTradeAccount()
+  const [addingWallet, setAddingWallet] = React.useState(false)
+  const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
+    null
+  )
+  // Resolved against the live list on every render, so a wallet deleted in
+  // another tab closes its own window instead of editing a ghost.
+  const editingWallet =
+    account.wallets.find((wallet) => wallet.id === editingWalletId) ?? null
+
+  const accountPanel = (
+    <AccountPanel
+      account={account}
+      onAddWallet={() => setAddingWallet(true)}
+      onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
+    />
+  )
+
+  // ----- Practice trading: one owner for the chart's lines and the panel ----
+  // Only a practice wallet trades this way; a live wallet's own ordering is a
+  // later task, and the hook answers with nothing rather than pretending.
+  const paper = usePaperTrading(account.activeWallet)
+  const activeSummary = account.activeWallet
+    ? account.summaryOf(account.activeWallet.id)
+    : null
+  const free = activeSummary?.state === "ok" ? activeSummary.free : 0
+  const equity = activeSummary?.state === "ok" ? activeSummary.equity : 0
+
+  // A trade changes what the account is worth, so the two polls are nudged
+  // into step: the moment the trading side goes quiet, the wallet figures are
+  // read again. In an effect rather than during the render, because it is a
+  // request — a render can run twice or be thrown away, and a request must not.
+  const paperBusy = paper.busy
+  const refreshAccount = account.refresh
+  React.useEffect(() => {
+    if (!paperBusy) void refreshAccount()
+  }, [paperBusy, refreshAccount])
+
+  // A divider dragged with the mouse keeps keyboard focus, and its arrow keys
+  // would then resize a panel with nothing on screen saying so. Handing focus
+  // back when the drag lets go is what stops that. Tabbing to one is untouched
+  // — that fires no pointerup.
+  React.useEffect(() => {
+    const onPointerUp = () => {
+      const active = document.activeElement
+      if (
+        active instanceof HTMLElement &&
+        active.getAttribute("role") === "separator"
+      ) {
+        active.blur()
+      }
+    }
+    window.addEventListener("pointerup", onPointerUp)
+    return () => window.removeEventListener("pointerup", onPointerUp)
+  }, [])
+
+  // The chart's timeframe, owned here so the header's picker and the chart's
+  // fetch read the same choice.
+  const [interval, setInterval] = useRememberedChoice<CandleInterval>(
+    CHART_INTERVAL_STORAGE_KEY,
+    DEFAULT_CHART_INTERVAL,
+    CANDLE_INTERVALS
+  )
+
+  // The indicators, owned here for the same reason: the header's menu switches
+  // them on and the chart below draws them, so both have to be reading one
+  // answer. They belong to the account rather than to the market, exactly like
+  // the zoom — an indicator is how you read a chart, not a fact about a coin.
+  const indicators = useChartIndicators(initialIndicators)
+
+  // The live feed: one watch per catalog, torn down with the page. When the
+  // feed recovers from a gap it refetches the loader's snapshot, so figures
+  // that moved during the outage do not linger.
+  React.useEffect(
+    () => startLiveMarketData(catalogs, onRetryMarkets),
+    [catalogs, onRetryMarkets]
+  )
+
+  const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const accountPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+
+  const horizontalLayout = useRememberedPanelLayout(
+    tradePanelLayoutKey.workspaceHorizontal
+  )
+  const verticalLayout = useRememberedPanelLayout(
+    tradePanelLayoutKey.workspaceVertical
+  )
+
+  const toggleMarkets = usePanelToggle(marketsPanelRef)
+  const toggleAccount = usePanelToggle(accountPanelRef)
+  const toggleActivity = usePanelToggle(activityPanelRef)
+
+  // Double-clicking the empty part of a panel shuts it, and double-clicking
+  // what is left of it opens it again.
+  const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
+  const accountDoubleClick = useBlankSpaceDoubleClick(toggleAccount)
+  const activityDoubleClick = useBlankSpaceDoubleClick(toggleActivity)
+
+  // A slid-open panel belongs to the narrow layout, so crossing the width
+  // boundary shuts it. Widening otherwise leaves the sheet sitting over the
+  // whole workspace with the button that opened it gone from the header — and
+  // the panel it stands in for visible behind it. Narrowing again must not
+  // bring it back by itself either, which is why either direction closes it.
+  //
+  // Adjusted during render rather than in an effect: React re-runs the render
+  // immediately without painting in between, so the sheet is already gone in
+  // the frame the new layout appears in.
+  const [lastDesktop, setLastDesktop] = React.useState(desktop)
+  if (desktop !== lastDesktop) {
+    setLastDesktop(desktop)
+    setOpenSheet(null)
+  }
+
+  const marketList = (
+    <MarketListPanel
+      catalogs={catalogs}
+      marketsError={marketsError}
+      favorites={favorites}
+      selectedKey={selectedKey}
+      onSelect={onSelectMarket}
+      onRetry={onRetryMarkets}
+    />
+  )
+
+  const middle = (
+    // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
+    // a width to fill it shrinks to its content.
+    <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+      <MarketHeader
+        selection={selection}
+        // One star, on the market you are looking at, rather than one per row
+        // hiding until hover.
+        favorite={selectedKey !== null && favorites.has(selectedKey)}
+        onToggleFavorite={() => {
+          if (selectedKey) void toggleFavorite(selectedKey)
+        }}
+        // The chart's own controls live in the header row; they only make
+        // sense once there is a market to chart. Indicators sit to the right
+        // of the timeframe: which candles first, then what to draw on them.
+        toolbar={
+          selection.kind === "market" ? (
+            <>
+              <IntervalPicker value={interval} onChange={setInterval} />
+              <IndicatorsMenu indicators={indicators} />
+            </>
+          ) : undefined
+        }
+        // On a wide screen both panels are already on screen, so the buttons
+        // would only be a second way to do what the dividers already do.
+        onOpenMarkets={desktop ? undefined : () => setOpenSheet("markets")}
+        onOpenAccount={desktop ? undefined : () => setOpenSheet("account")}
+      />
+      <div className="relative flex min-h-0 flex-1">
+        <div className="min-h-0 flex-1">
+          <ChartPanel
+            selectedKey={selectedKey}
+            interval={interval}
+            initialChartView={initialChartView}
+            indicators={indicators.settings}
+            market={selection.kind === "market" ? selection.row : null}
+            paper={paper}
+            free={free}
+            equity={equity}
+          />
+        </div>
+        {/* Shown where the panel disappeared, so getting it back is findable
+            without remembering that the divider is still draggable. */}
+        {desktop && marketsCollapsed ? (
+          <PanelReopenTab
+            side="left"
+            label="Show markets"
+            onClick={toggleMarkets}
+          />
+        ) : null}
+        {desktop && accountCollapsed ? (
+          <PanelReopenTab
+            side="right"
+            label="Show account"
+            onClick={toggleAccount}
+          />
+        ) : null}
+      </div>
+    </WorkspacePanel>
+  )
+
+  const upper = desktop ? (
+    <ResizablePanelGroup
+      key={horizontalLayout.layoutKey}
+      orientation="horizontal"
+      className="min-h-0 flex-1"
+      defaultLayout={horizontalLayout.defaultLayout}
+      onLayoutChanged={horizontalLayout.onLayoutChanged}
+    >
+      <ResizablePanel
+        id="markets"
+        panelRef={marketsPanelRef}
+        collapsible
+        collapsedSize="0%"
+        defaultSize="16%"
+        minSize="12%"
+        maxSize="30%"
+        onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
+      >
+        <WorkspacePanel
+          collapsed={marketsCollapsed}
+          onDoubleClick={marketsDoubleClick}
+        >
+          {marketList}
+        </WorkspacePanel>
+      </ResizablePanel>
+      <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
+      <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
+        {middle}
+      </ResizablePanel>
+      <ResizableHandle gap collapsed={accountCollapsed} className={NO_RING} />
+      <ResizablePanel
+        id="account"
+        panelRef={accountPanelRef}
+        collapsible
+        collapsedSize="0%"
+        defaultSize="22%"
+        minSize="16%"
+        maxSize="36%"
+        onResize={(size) => setAccountCollapsed(size.asPercentage < 0.5)}
+      >
+        <WorkspacePanel
+          collapsed={accountCollapsed}
+          onDoubleClick={accountDoubleClick}
+        >
+          {accountPanel}
+        </WorkspacePanel>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  ) : (
+    middle
+  )
+
+  return (
+    // One memory of which settings cards are folded, for every window under
+    // here — the ladder window and a live ladder's exits both draw the same
+    // cards, and folding one in one place should mean it is folded in both.
+    <CardFolds initial={initialCardFolds}>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ResizablePanelGroup
+        key={verticalLayout.layoutKey}
+        orientation="vertical"
+        className="min-h-0 flex-1"
+        defaultLayout={verticalLayout.defaultLayout}
+        onLayoutChanged={verticalLayout.onLayoutChanged}
+      >
+        <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">
+          <div className="flex h-full min-h-0">{upper}</div>
+        </ResizablePanel>
+        {/* Keeps its gap even while the panel below is collapsed — that
+            collapsed tab row is still a panel on screen, and this handle is
+            what makes it draggable back open. */}
+        <ResizableHandle gap className={NO_RING} />
+        <ResizablePanel
+          id="activity"
+          panelRef={activityPanelRef}
+          defaultSize="28%"
+          minSize="12%"
+          maxSize="60%"
+          // Down to its own header rather than to nothing, so its tabs and
+          // their counts never disappear.
+          collapsible
+          collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+        >
+          <WorkspacePanel onDoubleClick={activityDoubleClick}>
+            <ActivityPanel
+              paper={paper}
+              catalogs={catalogs}
+              onSelectMarket={onSelectMarket}
+            />
+          </WorkspacePanel>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+
+      {/* Narrow screens keep the market itself as the page and reach the side
+          panels through the two buttons in its header, rather than squeezing
+          three columns into a width none of them fits in. */}
+      <Sheet
+        open={openSheet !== null}
+        onOpenChange={(open) => setOpenSheet(open ? openSheet : null)}
+      >
+        <SheetContent side={openSheet === "account" ? "right" : "left"}>
+          <SheetHeader className="sr-only">
+            <SheetTitle>
+              {openSheet === "account" ? "Account" : "Markets"}
+            </SheetTitle>
+          </SheetHeader>
+          {openSheet === "account" ? (
+            <div className="min-h-0 flex-1">{accountPanel}</div>
+          ) : (
+            <div className="min-h-0 flex-1">{marketList}</div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* One instance of each wallet window, owned here beside the one
+          account state, so the sheet and the desktop column share them. */}
+      <AddWalletDialog
+        open={addingWallet}
+        onClose={() => setAddingWallet(false)}
+        onAdded={(wallet) => {
+          // Only when nothing was being traded with yet. Adding a second
+          // wallet must never move the one an order would go to — that is a
+          // switch, and switching is its own deliberate act.
+          if (!account.activeWallet) account.switchWallet(wallet.id)
+          void account.refresh()
+        }}
+      />
+      <WalletSettingsDialog
+        wallet={editingWallet}
+        active={editingWallet?.id === account.activeWallet?.id}
+        onClose={() => setEditingWalletId(null)}
+        onChanged={() => void account.refresh()}
+        onUse={account.switchWallet}
+      />
+    </div>
+    </CardFolds>
+  )
+}

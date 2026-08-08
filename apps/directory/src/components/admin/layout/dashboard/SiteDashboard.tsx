@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
@@ -13,6 +14,7 @@ import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actio
 import { CacheSettingsCard } from "@/components/admin/layout/settings/CacheSettingsCard"
 import { SearchIndexSettingsCard } from "@/components/admin/layout/settings/SearchIndexSettingsCard"
 import { ListingWidgetsSettingsCard } from "@/components/admin/layout/settings/ListingWidgetsSettingsCard"
+import { CheckoutRecoverySettingsCard } from "@/components/admin/layout/settings/CheckoutRecoverySettingsCard"
 import { TrackingSettingsCard } from "@/components/admin/layout/settings/TrackingSettingsCard"
 import { Switch } from "@/components/ui/switch"
 
@@ -25,12 +27,24 @@ interface SiteDashboardProps {
   trackingScripts?: string
   customAnalyticsEnabled?: boolean
   listingWidgetsEnabled?: boolean
+  checkoutRecoveryEnabled?: boolean
   /** Only set in edit mode, where the maintenance cards need a site to act on. */
   siteId?: string
   isEditMode?: boolean
   maintenanceEnabled?: boolean
   loading?: boolean
   customDomainError?: string | null
+  /** Mark the name box after a submit found it empty */
+  siteNameInvalid?: boolean
+  /** Mark the URL box after a submit found it empty */
+  subdomainInvalid?: boolean
+  /**
+   * Fired when one of the address fields loses focus. Those two are the only
+   * fields here that must not be written mid-keystroke — a half-typed subdomain
+   * is a live URL and a half-typed domain fails its DNS check — so auto-save
+   * waits for this instead of following every character.
+   */
+  onAddressFieldCommit?: () => void
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onSiteTagChange?: (value: string) => void
@@ -39,7 +53,14 @@ interface SiteDashboardProps {
   onTrackingScriptsChange?: (value: string) => void
   onCustomAnalyticsEnabledChange?: (value: boolean) => void
   onListingWidgetsEnabledChange?: (value: boolean) => void
+  onCheckoutRecoveryEnabledChange?: (value: boolean) => void
   onMaintenanceChange?: (value: boolean) => void
+  /**
+   * Lets the cache and search-index cards mirror their failures into the
+   * settings header's save-status badge, so a failed action never lives only
+   * in a card-local message.
+   */
+  onSaveStatus?: (state: "error" | "idle", message?: string) => void
 }
 
 export function SiteDashboard({
@@ -51,11 +72,15 @@ export function SiteDashboard({
   trackingScripts = "",
   customAnalyticsEnabled = false,
   listingWidgetsEnabled = true,
+  checkoutRecoveryEnabled = true,
   siteId = "",
   isEditMode = false,
   maintenanceEnabled = false,
   loading = false,
   customDomainError = null,
+  siteNameInvalid = false,
+  subdomainInvalid = false,
+  onAddressFieldCommit,
   onSiteNameChange,
   onStatusChange,
   onSiteTagChange,
@@ -64,7 +89,9 @@ export function SiteDashboard({
   onTrackingScriptsChange,
   onCustomAnalyticsEnabledChange,
   onListingWidgetsEnabledChange,
-  onMaintenanceChange
+  onCheckoutRecoveryEnabledChange,
+  onMaintenanceChange,
+  onSaveStatus
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [copiedDnsField, setCopiedDnsField] = useState<"name" | "value" | null>(null)
@@ -132,7 +159,7 @@ export function SiteDashboard({
 
     try {
       setSubdomainStatus({ checking: true, available: null })
-      const { available, suggestion } = await checkSubdomainAvailabilityAction(subdomainToCheck)
+      const { available, suggestion } = await checkSubdomainAvailabilityAction({ data: { subdomain: subdomainToCheck } })
       setSubdomainStatus({
         checking: false,
         available,
@@ -159,8 +186,6 @@ export function SiteDashboard({
             <CardContent>
               {[...Array(3)].map((_, j) => (
                 <div key={j} className="space-y-2">
-                  <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                  <div className="h-10 bg-muted/60 rounded animate-pulse"></div>
                 </div>
               ))}
             </CardContent>
@@ -178,38 +203,42 @@ export function SiteDashboard({
         </CardHeader>
         <CardContent>
           {/* Site Name */}
-          <div className="space-y-2">
-            <Label htmlFor="siteName">Site Name *</Label>
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="siteName" hint="This will be the name of your site.">
+              Site Name *
+            </FieldLabel>
             <div className="relative">
               <Input
                 id="siteName"
                 value={siteName}
                 onChange={(e) => handleSiteNameChange(e.target.value)}
                 placeholder="Enter site name (e.g., mysite)"
-                required
+                aria-invalid={siteNameInvalid || undefined}
                 className={
                   subdomainStatus.available === false
-                    ? "pr-10 border-red-300 focus:border-red-500"
+                    ? "pr-10 border-destructive/30 focus:border-destructive"
                     : subdomainStatus.available === true
-                      ? "pr-10 border-green-300 focus:border-green-500"
+                      ? "pr-10 border-green-500/40 focus:border-green-500"
                       : ""
                 }
               />
               {!subdomainStatus.checking && subdomainStatus.available === true && (
-                <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500 dark:text-green-400" />
               )}
               {!subdomainStatus.checking && subdomainStatus.available === false && (
-                <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-destructive" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground" role={subdomainStatus.checking ? "status" : undefined}>
-              {subdomainStatus.checking ? "Checking availability..." : "This will be the name of your site"}
-            </p>
+            {subdomainStatus.checking && (
+              <p className="text-xs text-muted-foreground" role="status">
+                Checking availability...
+              </p>
+            )}
           </div>
 
           {/* Maintenance Mode */}
           {onMaintenanceChange && (
-            <div className="space-y-2">
+            <div className="grid gap-2">
               <Label htmlFor="maintenance">Maintenance Mode</Label>
               <div className="flex items-center justify-between border rounded-md p-3">
                 <div>
@@ -225,36 +254,38 @@ export function SiteDashboard({
 
           {/* Site Subdomain */}
           {onSubdomainChange && (
-            <div className="space-y-2">
-              <Label htmlFor="subdomain">Site URL</Label>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="subdomain"
+                hint="Auto-generated from the site name. You can edit this to customize the URL."
+              >
+                Site URL
+              </FieldLabel>
               <div className="relative">
                 <Input
                   id="subdomain"
                   value={subdomain}
                   onChange={(e) => handleSubdomainChange(e.target.value)}
+                  onBlur={onAddressFieldCommit}
                   placeholder="site-url"
+                  aria-invalid={subdomainInvalid || undefined}
                   className={
                     subdomainStatus.available === false
-                      ? "pr-10 border-red-300 focus:border-red-500"
+                      ? "pr-10 border-destructive/30 focus:border-destructive"
                       : subdomainStatus.available === true
-                        ? "pr-10 border-green-300 focus:border-green-500"
+                        ? "pr-10 border-green-500/40 focus:border-green-500"
                         : ""
                   }
                 />
                 {!subdomainStatus.checking && subdomainStatus.available === true && (
-                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500 dark:text-green-400" />
                 )}
                 {!subdomainStatus.checking && subdomainStatus.available === false && (
-                  <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                  <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-destructive" />
                 )}
               </div>
               <div className="text-xs text-muted-foreground space-y-1">
                 {subdomainStatus.checking && <p role="status">Checking availability...</p>}
-                <p>
-                  {subdomainManuallyEdited
-                    ? "Custom subdomain."
-                    : "Auto-generated from site name. You can edit this to customize the URL."}
-                </p>
                 <p>
                   Your site will be available at: <strong>{subdomain || "your-site"}.domain.com</strong>
                 </p>
@@ -263,35 +294,37 @@ export function SiteDashboard({
                     Subdomain not available. Suggested: <strong>{subdomainStatus.suggestion}.domain.com</strong>
                   </p>
                 )}
-                {subdomainStatus.available === true && <p className="text-green-600">Subdomain is available!</p>}
+                {subdomainStatus.available === true && <p className="text-green-600 dark:text-green-400">Subdomain is available!</p>}
               </div>
             </div>
           )}
 
           {/* Custom Domain */}
           {onCustomDomainChange && (
-            <div className="space-y-2">
-              <label htmlFor="customDomain" className="text-sm font-medium text-gray-700">
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="customDomain"
+                hint="Enter the main domain. Hub also wires the www version when available."
+              >
                 Custom Domain
-              </label>
+              </FieldLabel>
               <Input
                 id="customDomain"
                 value={customDomain}
                 onChange={(e) => onCustomDomainChange(e.target.value)}
+                onBlur={onAddressFieldCommit}
                 placeholder="example.com"
               />
-              <div className="text-xs text-muted-foreground">
-                <p>Enter the main domain. Hub also wires the www version when available.</p>
-                {customDomain && (
-                  <p className="text-blue-600 mt-1">
-                    Site will be accessible at: <strong>{customDomain}</strong>
-                  </p>
-                )}
-              </div>
+              {customDomain && (
+                <p className="text-xs text-blue-600">
+                  Site will be accessible at: <strong>{customDomain}</strong>
+                </p>
+              )}
               {dnsRecordName && dnsRecordValue && (
                 <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
                   <p className="text-sm font-medium text-amber-900">
-                    Add this TXT record at your DNS provider, then save again.
+                    Add this TXT record at your DNS provider, then click into the Custom Domain
+                    box and back out to try again.
                   </p>
                   <div className="space-y-2">
                     <Label htmlFor="customDomainTxtName" className="text-xs text-amber-900">
@@ -335,8 +368,10 @@ export function SiteDashboard({
           )}
 
           {onSiteTagChange && (
-            <div className="space-y-2">
-              <Label htmlFor="siteTag">Site Tag</Label>
+            <div className="grid gap-2">
+              <FieldLabel htmlFor="siteTag" hint="Used to filter sites in the dashboard.">
+                Site Tag
+              </FieldLabel>
               <Input
                 id="siteTag"
                 value={siteTag}
@@ -344,12 +379,11 @@ export function SiteDashboard({
                 placeholder="directory, store, client"
                 maxLength={50}
               />
-              <p className="text-xs text-muted-foreground">Used to filter sites in the dashboard.</p>
             </div>
           )}
 
           {/* Status */}
-          <div className="space-y-2">
+          <div className="grid gap-2">
             <Label htmlFor="status">Site Status</Label>
             <Select value={status} onValueChange={onStatusChange}>
               <SelectTrigger>
@@ -382,9 +416,16 @@ export function SiteDashboard({
         />
       )}
 
+      {onCheckoutRecoveryEnabledChange && (
+        <CheckoutRecoverySettingsCard
+          checkoutRecoveryEnabled={checkoutRecoveryEnabled}
+          onCheckoutRecoveryEnabledChange={onCheckoutRecoveryEnabledChange}
+        />
+      )}
+
       {/* Maintenance cards - Only show in edit mode */}
-      {isEditMode && siteId && <SearchIndexSettingsCard siteId={siteId} />}
-      {isEditMode && <CacheSettingsCard />}
+      {isEditMode && siteId && <SearchIndexSettingsCard siteId={siteId} onSaveStatus={onSaveStatus} />}
+      {isEditMode && <CacheSettingsCard onSaveStatus={onSaveStatus} />}
     </CardGroup>
   )
 }

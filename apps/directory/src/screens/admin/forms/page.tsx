@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
-import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
 import Archive from "lucide-react/dist/esm/icons/archive.js"
 import ClipboardList from "lucide-react/dist/esm/icons/clipboard-list.js"
-import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Send from "lucide-react/dist/esm/icons/send.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   DndContext,
   KeyboardSensor,
@@ -27,22 +27,26 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  formatRelativeDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   TableRightActions,
@@ -70,12 +74,14 @@ import {
 import {
   archiveGuidedForms,
   createGuidedForm,
+  deleteGuidedForms,
   getGuidedFormsBySite,
   publishGuidedForm,
   updateGuidedForm,
   type GuidedForm,
 } from "@/lib/actions/guided-forms/guided-form-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 type FormsSortColumn = "name" | "status" | "submissions" | "modified"
 type FormStatusFilter = "all" | "draft" | "published" | "archived"
@@ -140,13 +146,8 @@ function SortableFieldEditor({
   stepIndex: number
   updateField: (stepIndex: number, fieldIndex: number, updates: Partial<DraftField>) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id })
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(field.id)
   const usesOptions = field.type === "single_choice" || field.type === "multi_choice"
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-3 transition-colors hover:border-muted-foreground">
@@ -163,7 +164,7 @@ function SortableFieldEditor({
               <GripVertical className="h-4 w-4" />
               <span className="sr-only">Drag to reorder question</span>
             </button>
-            <span className="truncate text-sm font-medium">Question {fieldIndex + 1}</span>
+            <span className="truncate text-sm font-medium" title={`Question${fieldIndex + 1}`}>Question {fieldIndex + 1}</span>
           </div>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeField(stepIndex, fieldIndex)} title="Remove question">
             <Trash2 className="h-3.5 w-3.5" />
@@ -253,12 +254,7 @@ function SortableStepEditor({
   updateField: (stepIndex: number, fieldIndex: number, updates: Partial<DraftField>) => void
   updateStep: (stepIndex: number, updates: Partial<DraftStep>) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.6 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(step.id, 0.6)
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-3 transition-colors hover:border-muted-foreground">
@@ -275,7 +271,7 @@ function SortableStepEditor({
               <GripVertical className="h-4 w-4" />
               <span className="sr-only">Drag to reorder step</span>
             </button>
-            <span className="truncate text-sm font-medium">Step {stepIndex + 1}</span>
+            <span className="truncate text-sm font-medium" title={`Step${stepIndex + 1}`}>Step {stepIndex + 1}</span>
             <span className="text-xs text-muted-foreground">{step.fields.length} question{step.fields.length === 1 ? "" : "s"}</span>
           </div>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeStep(stepIndex)} title="Remove step">
@@ -328,7 +324,7 @@ function SortableStepEditor({
 
 function getStatusBadge(form: GuidedForm) {
   if (form.status === "published") {
-    return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+    return <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Published</Badge>
   }
   if (form.status === "archived") {
     return <Badge variant="outline">Archived</Badge>
@@ -338,15 +334,6 @@ function getStatusBadge(form: GuidedForm) {
 
 function getFormSearchText(form: GuidedForm) {
   return `${form.name} ${form.slug} ${form.headline}`.toLowerCase()
-}
-
-function ErrorBanner({ message }: { message: string }) {
-  if (!message) return null
-  return (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {message}
-    </div>
-  )
 }
 
 function CreateFormModal({
@@ -360,29 +347,34 @@ function CreateFormModal({
 }) {
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
+  const [nameMissing, setNameMissing] = useState(false)
+  // Stays marked after the toast is dismissed; clears itself once typed in.
+  const nameInvalid = nameMissing && !name.trim()
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!name.trim()) {
-      setError("Form name is required")
+      setNameMissing(true)
+      showErrorToast("Form name is required")
       return
     }
 
+    setNameMissing(false)
     setSaving(true)
-    setError("")
-    const result = await createGuidedForm({ siteId, name })
+    dismissErrorToast()
+    const result = await createGuidedForm({ data: { siteId, name } })
     setSaving(false)
     if (result.error || !result.data) {
-      setError(result.error || "Failed to create form")
+      showErrorToast(result.error || "Failed to create form")
       return
     }
+    showActionSuccess("Form created.")
     onSuccess(result.data)
   }
 
   return (
-    <form id="create-guided-form" onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
+          <DashboardModalContent
+        busy={saving}
         title="Create Form"
         description="Create a post-signup question flow. You can configure questions, outcomes, and publishing after creation."
         footer={
@@ -392,13 +384,15 @@ function CreateFormModal({
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-guided-form" type="submit" disabled={saving}>
-                {saving ? "Creating..." : "Create"}
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                Create
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        <ErrorBanner message={error} />
+        <form
+          noValidate id="create-guided-form" onSubmit={handleSubmit} className="contents">
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -412,13 +406,15 @@ function CreateFormModal({
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="Signup follow-up"
+                  aria-invalid={nameInvalid || undefined}
                 />
               </div>
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
-    </form>
+
   )
 }
 
@@ -459,7 +455,6 @@ function FormSettingsModalContent({
   const clearModalTabs = tabs?.clearTabs
   const [saving, setSaving] = useState(false)
   const [savingAction, setSavingAction] = useState<"save" | "publish" | null>(null)
-  const [error, setError] = useState("")
   const [draft, setDraft] = useState({
     name: form.name,
     slug: form.slug,
@@ -496,11 +491,11 @@ function FormSettingsModalContent({
       steps: form.draft_steps,
       outcomesJson: prettyJson(form.draft_outcomes),
     })
-    setError("")
+    dismissErrorToast()
   }, [form])
 
   async function saveDraft() {
-    const result = await updateGuidedForm(form.id, {
+    const result = await updateGuidedForm({ data: { formId: form.id, updates: {
       name: draft.name,
       slug: draft.slug,
       headline: draft.headline,
@@ -510,7 +505,7 @@ function FormSettingsModalContent({
       admin_notification_email: draft.adminNotificationEmail,
       draft_steps: draft.steps,
       draft_outcomes: parseJsonArray(draft.outcomesJson),
-    })
+    } } })
 
     if (result.error || !result.data) {
       throw new Error(result.error || "Failed to save form")
@@ -521,13 +516,14 @@ function FormSettingsModalContent({
   async function handleSave() {
     setSaving(true)
     setSavingAction("save")
-    setError("")
+    dismissErrorToast()
     try {
       const updated = await saveDraft()
       onSuccess(updated)
       onOpenChange(false)
+      showActionSuccess("Form updated.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save form")
+      showErrorToast(err instanceof Error ? err.message : "Failed to save form")
     }
     setSaving(false)
     setSavingAction(null)
@@ -536,15 +532,16 @@ function FormSettingsModalContent({
   async function handlePublish() {
     setSaving(true)
     setSavingAction("publish")
-    setError("")
+    dismissErrorToast()
     try {
       const updated = await saveDraft()
-      const result = await publishGuidedForm(form.id)
+      const result = await publishGuidedForm({ data: { formId: form.id } })
       if (result.error) throw new Error(result.error)
       onSuccess({ ...updated, status: "published" })
       onOpenChange(false)
+      showActionSuccess("Form published.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to publish form")
+      showErrorToast(err instanceof Error ? err.message : "Failed to publish form")
     }
     setSaving(false)
     setSavingAction(null)
@@ -623,9 +620,10 @@ function FormSettingsModalContent({
 
   return (
     <DashboardModalContent
+      busy={saving}
       title={
         <span className="flex min-w-0 items-center gap-3">
-          <span className="truncate">Configure &quot;{form.name}&quot;</span>
+          <span className="truncate" title={`Configure &quot;${form.name}&quot;`}>Configure &quot;{form.name}&quot;</span>
           {getStatusBadge(form)}
         </span>
       }
@@ -637,11 +635,13 @@ function FormSettingsModalContent({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="button" variant="outline" onClick={handleSave} disabled={saving}>
-              {savingAction === "save" ? "Saving..." : "Save"}
+            <Button form="form-settings-form" type="submit" variant="outline" disabled={saving}>
+              {savingAction === "save" ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
             <Button type="button" onClick={handlePublish} disabled={saving || form.status === "archived"}>
-              {savingAction === "publish" ? "Publishing..." : "Publish"}
+              {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+              Publish
             </Button>
           </DashboardModalFooterActions>
         </>
@@ -649,8 +649,15 @@ function FormSettingsModalContent({
       footerClassName="sm:justify-between"
       className="max-w-[1040px]"
     >
-      <ErrorBanner message={error} />
-
+      <form
+        noValidate
+        id="form-settings-form"
+        className="contents"
+        onSubmit={(event) => {
+          event.preventDefault()
+          handleSave()
+        }}
+      >
       {activeTab === "settings" ? (
         <CardGroup className="grid">
           <Card>
@@ -741,7 +748,7 @@ function FormSettingsModalContent({
           </Card>
         </CardGroup>
       ) : null}
-
+      </form>
     </DashboardModalContent>
   )
 }
@@ -751,7 +758,6 @@ export default function AdminGuidedFormsPage() {
   const [forms, setForms] = useState<GuidedForm[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [settingsForm, setSettingsForm] = useState<GuidedForm | null>(null)
   const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null)
@@ -759,6 +765,9 @@ export default function AdminGuidedFormsPage() {
   const [archiveError, setArchiveError] = useState<string | null>(null)
   const [bulkArchiving, setBulkArchiving] = useState(false)
   const [bulkArchiveConfirmOpen, setBulkArchiveConfirmOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [publishingId, setPublishingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<FormStatusFilter>("all")
@@ -766,6 +775,16 @@ export default function AdminGuidedFormsPage() {
   const [pageSize, setPageSize] = useState(contextPageSize)
   const formSelection = useAdminBulkSelection()
   const formSort = useAdminSort<FormsSortColumn>("modified", "desc")
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${searchQuery}|${filterStatus}|${formSort.sortColumn}|${formSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(formSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   const loadForms = useCallback(async () => {
     if (!currentSite?.id) {
@@ -775,11 +794,10 @@ export default function AdminGuidedFormsPage() {
     }
 
     setLoading(true)
-    const result = await getGuidedFormsBySite(currentSite.id, { pageSize: 100 })
+    const result = await getGuidedFormsBySite({ data: { siteId: currentSite.id, options: { pageSize: 100 } } })
     setLoading(false)
     if (result.error) {
       setError(result.error)
-      setErrorDialogOpen(true)
       return
     }
     setForms(result.data ?? [])
@@ -827,31 +845,28 @@ export default function AdminGuidedFormsPage() {
   const visibleFormIds = visibleForms.map((form) => form.id)
   const publicSiteUrl = currentSite ? getSiteUrl(currentSite) : ""
 
-  function showError(message: string) {
-    setError(message)
-    setErrorDialogOpen(true)
-  }
-
   function handleFormUpdated(updated: GuidedForm) {
     setForms((current) => current.map((form) => form.id === updated.id ? { ...form, ...updated } : form))
   }
 
   async function handlePublish(form: GuidedForm) {
+    dismissErrorToast()
     setPublishingId(form.id)
-    const result = await publishGuidedForm(form.id)
+    const result = await publishGuidedForm({ data: { formId: form.id } })
     setPublishingId(null)
     if (result.error) {
-      showError(result.error)
+      showErrorToast(result.error)
       return
     }
     setForms((current) => current.map((item) => item.id === form.id ? { ...item, status: "published" } : item))
+    showActionSuccess("Form published.")
   }
 
   async function confirmArchive() {
     if (!pendingArchiveId) return
     const formId = pendingArchiveId
     setArchiving(true)
-    const result = await archiveGuidedForms([formId])
+    const result = await archiveGuidedForms({ data: { ids: [formId] } })
     setArchiving(false)
     if (result.error) {
       setArchiveError(result.error)
@@ -860,6 +875,23 @@ export default function AdminGuidedFormsPage() {
     setForms((current) => current.map((form) => form.id === formId ? { ...form, status: "archived" } : form))
     formSelection.remove(formId)
     setPendingArchiveId(null)
+    showActionSuccess("Form archived.")
+  }
+
+  async function confirmDelete() {
+    if (!pendingDeleteId) return
+    const formId = pendingDeleteId
+    setDeleting(true)
+    const result = await deleteGuidedForms({ data: { ids: [formId] } })
+    setDeleting(false)
+    if (result.error) {
+      setDeleteError(result.error)
+      return
+    }
+    setForms((current) => current.filter((form) => form.id !== formId))
+    formSelection.remove(formId)
+    setPendingDeleteId(null)
+    showActionSuccess("Form deleted.")
   }
 
   async function handleBulkArchive() {
@@ -867,7 +899,7 @@ export default function AdminGuidedFormsPage() {
     if (!ids.length) return
 
     setBulkArchiving(true)
-    const result = await archiveGuidedForms(ids)
+    const result = await archiveGuidedForms({ data: { ids } })
     setBulkArchiving(false)
     if (result.error) {
       setArchiveError(result.error)
@@ -876,6 +908,7 @@ export default function AdminGuidedFormsPage() {
     setForms((current) => current.map((form) => ids.includes(form.id) ? { ...form, status: "archived" } : form))
     formSelection.clearSelection()
     setBulkArchiveConfirmOpen(false)
+    showActionSuccess(ids.length === 1 ? "Form archived." : "Forms archived.")
   }
 
   function renderSortHeader(column: FormsSortColumn, label: string) {
@@ -897,8 +930,9 @@ export default function AdminGuidedFormsPage() {
         <DashboardSubheader items={[{ label: "Forms" }]} />
 
         <AdminTableShell
+          error={error ? { message: error, onRetry: loadForms } : null}
           title="Forms"
-          icon={<ClipboardList className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<ClipboardList className="text-muted-foreground" />}
           count={total}
           loading={loading}
           selectedCount={formSelection.selectedCount}
@@ -921,18 +955,12 @@ export default function AdminGuidedFormsPage() {
             <TableRightActions>
               <TableRightActionsSearch
                 value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                  setCurrentPage(1)
-                }}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search forms"
               />
               <Select
                 value={filterStatus}
-                onValueChange={(value) => {
-                  setFilterStatus(value as FormStatusFilter)
-                  setCurrentPage(1)
-                }}
+                onValueChange={(value) => setFilterStatus(value as FormStatusFilter)}
               >
                 <TableRightActionsSelectTrigger aria-label="Form status filter">
                   <SelectValue />
@@ -981,23 +1009,21 @@ export default function AdminGuidedFormsPage() {
               <TableBody>
                 {loading && visibleForms.length === 0 ? (
                   <AdminListPending />
-                ) : error ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center">
-                      <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
-                      <h3 className="mt-4 text-lg font-semibold">Error Loading Forms</h3>
-                      <p className="text-muted-foreground">{error}</p>
-                    </TableCell>
-                  </TableRow>
                 ) : visibleForms.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center">
                       <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-semibold">No forms found</h3>
-                      <p className="mt-2 text-muted-foreground">Create a guided form to capture submissions.</p>
-                      <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline" disabled={!currentSite?.id}>
-                        Create Form
-                      </Button>
+                      {searchQuery.trim() || filterStatus !== "all" ? (
+                        <h3 className="mt-4 text-lg font-semibold">No forms found matching your search.</h3>
+                      ) : (
+                        <>
+                          <h3 className="mt-4 text-lg font-semibold">No forms found</h3>
+                          <p className="mt-2 text-muted-foreground">Create a guided form to capture submissions.</p>
+                          <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline" disabled={!currentSite?.id}>
+                            Create Form
+                          </Button>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : visibleForms.map((form) => (
@@ -1022,51 +1048,48 @@ export default function AdminGuidedFormsPage() {
                           <ClipboardList className="h-5 w-5 text-muted-foreground" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium hover:underline sm:text-base">{form.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground sm:text-sm">/forms/{form.slug}</span>
+                          <span className="block truncate text-sm font-medium hover:underline sm:text-base" title={form.name}>{form.name}</span>
+                          <span className="block truncate text-xs text-muted-foreground sm:text-sm" title={`/forms/${form.slug}`}>/forms/{form.slug}</span>
                         </span>
                       </Link>
                     </TableCell>
                     <TableCell column="meta">{getStatusBadge(form)}</TableCell>
                     <TableCell column="meta">{form.submission_count.toLocaleString()}</TableCell>
-                    <TableCell column="mutedMeta">{formatRelativeDate(form.updated_at)}</TableCell>
+                    <TableCell column="mutedMeta"><RelativeDate date={form.updated_at} /></TableCell>
                     <TableCell column="meta">
-                      <div className="flex items-center">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSettingsForm(form)} title="Form settings">
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Form settings</span>
-                        </Button>
+                      <AdminRowActions>
+                        <AdminRowAction
+                          icon={Settings}
+                          label="Form settings"
+                          onClick={() => setSettingsForm(form)}
+                        />
                         {form.status === "published" ? (
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                            <Link href={`${publicSiteUrl}/forms/${form.slug}`} target="_blank" title="Open form">
-                              <ExternalLink className="h-4 w-4" />
-                              <span className="sr-only">Open form</span>
-                            </Link>
-                          </Button>
+                          <AdminRowAction
+                            icon={Eye}
+                            external
+                            href={`${publicSiteUrl}/forms/${form.slug}`}
+                            label="Preview"
+                          />
                         ) : null}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handlePublish(form)}
+                        <AdminRowAction
+                          icon={Send}
+                          label={form.status === "archived" ? "Archived forms cannot be published" : "Publish"}
                           disabled={publishingId === form.id || form.status === "archived"}
-                          title="Publish"
-                        >
-                          <Send className="h-4 w-4" />
-                          <span className="sr-only">Publish</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => { setArchiveError(null); setPendingArchiveId(form.id) }}
+                          onClick={() => handlePublish(form)}
+                        />
+                        <AdminRowAction
+                          icon={Archive}
+                          label={form.status === "archived" ? "Already archived" : "Archive"}
                           disabled={form.status === "archived"}
-                          title="Archive"
-                        >
-                          <Archive className="h-4 w-4" />
-                          <span className="sr-only">Archive</span>
-                        </Button>
-                      </div>
+                          onClick={() => { setArchiveError(null); setPendingArchiveId(form.id) }}
+                        />
+                        <AdminRowAction
+                          icon={Trash2}
+                          label="Delete"
+                          disabled={deleting && pendingDeleteId === form.id}
+                          onClick={() => { setDeleteError(null); setPendingDeleteId(form.id) }}
+                        />
+                      </AdminRowActions>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1128,13 +1151,18 @@ export default function AdminGuidedFormsPage() {
           onConfirm={handleBulkArchive}
         />
 
-        <AdminErrorDialog
-          open={errorDialogOpen}
-          message={error}
-          onOpenChange={(open) => {
-            setErrorDialogOpen(open)
-            if (!open) setError("")
-          }}
+        <ConfirmDestructive
+          action="delete-form"
+          open={pendingDeleteId !== null}
+          title={`Delete ${forms.find((form) => form.id === pendingDeleteId)?.name || "form"}?`}
+          disabled={deleting}
+          error={deleteError}
+          confirmLabel={deleting ? "Deleting..." : "Delete"}
+          impactRequest={currentSite?.id && pendingDeleteId
+            ? { ids: [pendingDeleteId], siteId: currentSite.id, target: "form-delete" }
+            : undefined}
+          onCancel={() => { setPendingDeleteId(null); setDeleteError(null) }}
+          onConfirm={confirmDelete}
         />
       </AdminLayout>
     </>

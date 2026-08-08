@@ -36,14 +36,8 @@ import {
   dstr,
   eqGeom,
   mergeWallets,
-  money,
-  moneyCents,
-  moneyK,
   monthlyGeom,
   MUTED,
-  num,
-  pct,
-  pfStr,
   RANGES,
   rangeStart,
   sparkGeom,
@@ -61,6 +55,14 @@ import {
   type SparkGeom,
   type Today,
 } from "@/components/pnl/pnl-dashboard-model"
+import {
+  num,
+  pct,
+  profitFactor,
+  signedCompactUsd,
+  signedPct,
+  signedUsd,
+} from "@/lib/format"
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 // 7 equal day columns + a fixed week-summary column.
@@ -329,22 +331,22 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
         <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
           <KpiTile
             label={`Net P&L · ${rangeLabel}`}
-            value={money(metrics.total)}
+            value={signedUsd(metrics.total, 0)}
             tone={metrics.total}
-            sub={`${metrics.tradingDays} days · ${num(metrics.trades)} trades`}
+            sub={`${metrics.tradingDays} days · ${num(metrics.trades, 0)} trades`}
           />
           <KpiTile
             label="Return"
-            value={pct(metrics.roi)}
+            value={signedPct(metrics.roi, 1)}
             tone={metrics.roi}
-            sub={metrics.acct > 0 ? `on $${num(metrics.acct)}` : "equity unknown"}
+            sub={metrics.acct > 0 ? `on $${num(metrics.acct, 0)}` : "equity unknown"}
           />
           <KpiTile
             label="Win rate"
-            value={`${metrics.winRate}%`}
+            value={pct(metrics.winRate, 0)}
             sub={`${metrics.greenDays}/${metrics.tradingDays} green days`}
           />
-          <KpiTile label="Profit factor" value={pfStr(metrics.pf)} sub="gross W / gross L" />
+          <KpiTile label="Profit factor" value={profitFactor(metrics.pf)} sub="gross W / gross L" />
           <KpiTile
             label="Max drawdown"
             value={ddStr(metrics.maxDD)}
@@ -369,7 +371,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
                 className="font-mono text-sm font-semibold tabular-nums"
                 style={{ color: tone(metrics.total) }}
               >
-                {money(metrics.total)}
+                {signedUsd(metrics.total, 0)}
               </div>
               <div className="mt-0.5 text-[10.5px] text-muted-foreground">
                 peak {eq.mxStr}
@@ -468,15 +470,15 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
                   </div>
                 </TableCell>
                 <NumCell
-                  value={moneyCents(r.m.total)}
+                  value={signedUsd(r.m.total)}
                   color={tone(r.m.total)}
                   strong
                 />
-                <NumCell value={pct(r.m.roi)} color={tone(r.m.roi)} />
-                <NumCell value={`${r.m.winRate}%`} />
-                <NumCell value={pfStr(r.m.pf)} />
+                <NumCell value={signedPct(r.m.roi, 1)} color={tone(r.m.roi)} />
+                <NumCell value={pct(r.m.winRate, 0)} />
+                <NumCell value={profitFactor(r.m.pf)} />
                 <NumCell value={ddStr(r.m.maxDD)} />
-                <NumCell value={num(r.m.trades)} />
+                <NumCell value={num(r.m.trades, 0)} />
                 <TableCell className="text-right">
                   <MiniSpark spark={r.spark} up={r.m.total >= 0} />
                 </TableCell>
@@ -569,19 +571,19 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
                     </div>
                   </TableCell>
                   <NumCell
-                    value={moneyCents(costs.gross)}
+                    value={signedUsd(costs.gross)}
                     color={tone(costs.gross)}
                   />
                   {/* Fees are a cost, so they read as the money they took. */}
                   <NumCell
-                    value={moneyCents(-costs.fees)}
+                    value={signedUsd(-costs.fees)}
                     color={tone(-costs.fees)}
                   />
                   {costs.fundingUnknown ? (
                     <NumCell value="unavailable" />
                   ) : (
                     <NumCell
-                      value={moneyCents(costs.funding)}
+                      value={signedUsd(costs.funding)}
                       color={tone(costs.funding)}
                     />
                   )}
@@ -589,7 +591,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
                     <NumCell value="—" />
                   ) : (
                     <NumCell
-                      value={moneyCents(costs.net)}
+                      value={signedUsd(costs.net)}
                       color={tone(costs.net)}
                       strong
                     />
@@ -680,19 +682,19 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
         <div className="flex flex-col gap-[var(--shell-gutter,0.75rem)]">
           <StatTile
             label="Best day"
-            value={metrics.best.t ? money(metrics.best.pnl) : "—"}
+            value={metrics.best.t ? signedUsd(metrics.best.pnl, 0) : "—"}
             tone={metrics.best.t ? 1 : 0}
             sub={metrics.best.t ? dstr(metrics.best.t) : "—"}
           />
           <StatTile
             label="Worst day"
-            value={metrics.worst.t ? money(metrics.worst.pnl) : "—"}
+            value={metrics.worst.t ? signedUsd(metrics.worst.pnl, 0) : "—"}
             tone={metrics.worst.t ? -1 : 0}
             sub={metrics.worst.t ? dstr(metrics.worst.t) : "—"}
           />
           <StatTile
             label="Avg / trading day"
-            value={metrics.tradingDays ? money(metrics.avgDay) : "—"}
+            value={metrics.tradingDays ? signedUsd(metrics.avgDay, 0) : "—"}
             tone={metrics.avgDay}
             sub={`across ${rangeLabel}`}
           />
@@ -957,9 +959,9 @@ function EquityChart({
             </div>
             <div>
               Equity{" "}
-              <span className="font-semibold">{money(dot.cum)}</span>
+              <span className="font-semibold">{signedUsd(dot.cum, 0)}</span>
             </div>
-            <div style={{ color: tone(dot.pnl) }}>Day {money(dot.pnl)}</div>
+            <div style={{ color: tone(dot.pnl) }}>Day {signedUsd(dot.pnl, 0)}</div>
           </ChartTip>
         )}
       </div>
@@ -1030,7 +1032,7 @@ function DailyBars({
           <div className="mb-0.5 text-[10px] text-muted-foreground">
             {dstr(b.t)}
           </div>
-          <div style={{ color: tone(b.pnl) }}>{money(b.pnl)}</div>
+          <div style={{ color: tone(b.pnl) }}>{signedUsd(b.pnl, 0)}</div>
         </ChartTip>
       )}
     </div>
@@ -1170,7 +1172,7 @@ function CalDays({ cal }: { cal: CalView2 }) {
                 className="font-mono text-[10px] font-semibold tabular-nums"
                 style={{ color: wk.netDays ? tone(wk.net) : MUTED }}
               >
-                {wk.netDays ? moneyK(wk.net) : "—"}
+                {wk.netDays ? signedCompactUsd(wk.net) : "—"}
               </span>
             </div>
           </div>
@@ -1211,7 +1213,7 @@ function DayCell({ cell }: { cell: CalView2["weeks"][number]["cells"][number] })
           className="font-mono text-[10px] font-semibold tabular-nums"
           style={{ color: cell.tone }}
         >
-          {moneyK(cell.pnl)}
+          {signedCompactUsd(cell.pnl)}
         </span>
       )}
     </div>
@@ -1255,7 +1257,7 @@ function CalMonths({
             className="w-16 text-right font-mono text-[12px] font-semibold tabular-nums"
             style={{ color: m.tone }}
           >
-            {m.has ? moneyK(m.total) : "—"}
+            {m.has ? signedCompactUsd(m.total) : "—"}
           </span>
         </button>
       ))}
@@ -1285,7 +1287,7 @@ function CalYear({
               className="font-mono text-[11.5px] font-semibold tabular-nums"
               style={{ color: m.tone }}
             >
-              {m.has ? moneyK(m.total) : "—"}
+              {m.has ? signedCompactUsd(m.total) : "—"}
             </span>
           </div>
           <div className="mt-2 grid grid-cols-7 gap-[2px]">

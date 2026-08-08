@@ -26,5 +26,5 @@ export const agentNode = defineNode({
     if (!node.config.model.trim()) push('agent-model', 'Choose an AI Agent model.')
     if (!node.config.instructions.trim()) push('agent-prompt', 'Add instructions for this AI Agent.')
   },
-  allowedTargets: (port) => (port === 'article' ? ['image', 'approval', 'post'] : []),
+  allowedTargets: (port) => (port === 'article' ? ['image', 'approval', 'post', 'newsletter'] : []),
 })

@@ -226,8 +226,8 @@ export default function EmailAutomationsPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    if (status === "active") return <Badge className="bg-green-100 text-green-800">Active</Badge>
-    if (status === "paused") return <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>
+    if (status === "active") return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
+    if (status === "paused") return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Paused</Badge>
     return <Badge variant="secondary">Draft</Badge>
   }
 
@@ -249,7 +249,7 @@ export default function EmailAutomationsPage() {
 
           <AdminTableShell
             title="Automations"
-            icon={<Zap className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Zap className="text-muted-foreground" />}
             count={filtered.length}
             selectedCount={automationSelection.selectedCount}
             onClearSelection={automationSelection.clearSelection}

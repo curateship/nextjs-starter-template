@@ -8,8 +8,8 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Dialog } from "@/components/ui/dialog"
-import { Skeleton } from "@/components/ui/skeleton"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import {
   Select,
   SelectContent,
@@ -22,7 +22,6 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
   FeaturedImageCard,
   MetaDescriptionField,
-  ModalErrorBanner,
   useCreateContent,
   useTitleSlug,
   TitleSlugFields,
@@ -77,7 +76,7 @@ export function CreateCategoryModal({
     }
   }, [siteId])
 
-  const { loading, loadingAction, error, submit } = useCreateContent<Category>({
+  const { loading, loadingAction, submit, titleInvalid } = useCreateContent<Category>({
     entityLabel: "category",
     title,
     titleRequiredMessage: "Category title is required",
@@ -140,8 +139,8 @@ export function CreateCategoryModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <form id="create-category-form" onSubmit={handleSubmit} className="contents">
-        <DashboardModalContent
+              <DashboardModalContent
+          busy={loading}
           title="Create Category"
           description="Add a new category to organize your content."
           footer={
@@ -151,19 +150,23 @@ export function CreateCategoryModal({
               </Button>
               <DashboardModalFooterActions>
                 <Button form="create-category-form" type="submit" variant="outline" disabled={loading}>
-                  {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+                  {loadingAction === 'draft' ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save as Draft
                 </Button>
                 <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
-                  {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+                  {loadingAction === 'continue' ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Continue
                 </Button>
                 <Button type="button" onClick={() => handleSave(false, true)} disabled={loading}>
-                  {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
+                  {loadingAction === 'publish' ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Publish
                 </Button>
               </DashboardModalFooterActions>
             </>
           }
         >
-          <ModalErrorBanner error={error} />
+          <form
+            noValidate id="create-category-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -174,7 +177,6 @@ export function CreateCategoryModal({
                   <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                   {templatesLoading ? (
                     <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap">
-                      <Skeleton className="h-4 w-24 rounded-sm" />
                       <ChevronDown className="size-4 opacity-50" />
                     </div>
                   ) : (
@@ -203,6 +205,7 @@ export function CreateCategoryModal({
                   slugManuallyEdited={slugManuallyEdited}
                   onTitleChange={handleTitleChange}
                   onSlugChange={handleSlugChange}
+                  titleInvalid={titleInvalid}
                 />
                 <Field>
                   <FieldLabel htmlFor="parent">Parent Category (Optional)</FieldLabel>
@@ -250,8 +253,9 @@ export function CreateCategoryModal({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
-      </form>
+
     </Dialog>
   )
 }

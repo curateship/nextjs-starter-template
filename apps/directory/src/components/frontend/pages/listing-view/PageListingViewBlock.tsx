@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
-import Image from "@/components/app-image"
+import { ListingImage } from "@/components/shared/listing-image"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { ViewAllButton } from "@/components/ui/view-all-button"
+import { ViewAllButton } from "@/components/frontend/blocks/view-all-button"
 import {
   getListingViewsData,
   type ListingViewsData,
@@ -300,7 +300,7 @@ export function ListingViewsBlock({
       const limit = isMapMode ? DIRECTORY_MAP_LISTING_LIMIT : isPaginated ? itemsPerPage : itemsToShow
       const offset = isMapMode || !isPaginated ? 0 : (currentPage - 1) * itemsPerPage
 
-      const result = await getListingViewsData({
+      const result = await getListingViewsData({ data: {
         site_id: siteId,
         contentType,
         categoryIds: categoryIdsKey ? categoryIdsKey.split("|") : [],
@@ -312,7 +312,7 @@ export function ListingViewsBlock({
         offset,
         includeCategories: contentType === "directory" && categoryChipParentIdsKey.length > 0,
         near: nearFilter ?? undefined
-      })
+      } })
 
       if (result.success && result.data) {
         setData(result.data)
@@ -342,7 +342,7 @@ export function ListingViewsBlock({
   useEffect(() => {
     if (!isMapMode || preloadedMapApiKey !== undefined) return
     let active = true
-    getDirectoryMapConfigAction(siteId)
+    getDirectoryMapConfigAction({ data: { siteId } })
       .then((config) => {
         if (active) setMapConfig(config)
       })
@@ -446,20 +446,14 @@ export function ListingViewsBlock({
                 className="absolute inset-0 outline-none"
                 aria-label={`Read ${itemLabel}`}
               >
-                {item.featured_image ? (
-                  <Image
-                    src={item.featured_image}
-                    alt={imageAlt}
-                    fill
-                    className={`${imageFitClassName} object-center transition-opacity duration-200 group-hover/card:opacity-75`}
-                    sizes={blogImageSizes}
-                    priority={isLCP}
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-muted text-foreground">
-                    No Image
-                  </div>
-                )}
+                <ListingImage
+                  src={item.featured_image}
+                  alt={imageAlt}
+                  fill
+                  className={`${imageFitClassName} object-center transition-opacity duration-200 group-hover/card:opacity-75`}
+                  sizes={blogImageSizes}
+                  priority={isLCP}
+                />
               </Link>
               {saveButton}
             </div>
@@ -543,37 +537,24 @@ export function ListingViewsBlock({
       <div className={displayMode === "list" ? "flex gap-6" : "flex flex-col gap-2"}>
         {showImageElement && (
           <div className={displayMode === "list" ? "w-48 shrink-0" : ""}>
-            {item.featured_image ? (
-              <div className={`group relative rounded-md ${defaultImageAspectClassName} overflow-hidden ${imageFrameClassName}`} style={imageFrameStyle}>
-                <Link href={href} tabIndex={-1} className="absolute inset-0 outline-none">
-                  <Image
-                    src={item.featured_image}
-                    alt={imageAlt}
-                    fill
-                    className={imageFitClassName}
-                    sizes={displayMode === "list" ? "192px" : gridImageSizes}
-                    priority={isLCP}
-                    loading={isLCP ? "eager" : index < columns ? "eager" : "lazy"}
-                    // Only the LCP image is high priority. Marking the whole
-                    // first row "high" makes them compete with each other and
-                    // with CSS/JS, which is the opposite of prioritising.
-                    fetchPriority={isLCP ? "high" : "auto"}
-                    onError={(e) => {
-                      // Hide broken image via opacity (avoids forced reflow from style.display)
-                      ;(e.target as HTMLElement).style.opacity = "0"
-                    }}
-                  />
-                </Link>
-                {saveButton}
-              </div>
-            ) : (
-              <div className={`group relative bg-muted rounded-md ${defaultImageAspectClassName} flex items-center justify-center overflow-hidden text-foreground`} style={imageFrameStyle}>
-                <Link href={href} tabIndex={-1} className="absolute inset-0 flex items-center justify-center outline-none">
-                  No Image
-                </Link>
-                {saveButton}
-              </div>
-            )}
+            <div className={`group relative rounded-md ${defaultImageAspectClassName} overflow-hidden ${imageFrameClassName}`} style={imageFrameStyle}>
+              <Link href={href} tabIndex={-1} className="absolute inset-0 outline-none">
+                <ListingImage
+                  src={item.featured_image}
+                  alt={imageAlt}
+                  fill
+                  className={imageFitClassName}
+                  sizes={displayMode === "list" ? "192px" : gridImageSizes}
+                  priority={isLCP}
+                  loading={isLCP ? "eager" : index < columns ? "eager" : "lazy"}
+                  // Only the LCP image is high priority. Marking the whole
+                  // first row "high" makes them compete with each other and
+                  // with CSS/JS, which is the opposite of prioritising.
+                  fetchPriority={isLCP ? "high" : "auto"}
+                />
+              </Link>
+              {saveButton}
+            </div>
           </div>
         )}
         <Link href={href} className="flex flex-col gap-2 hover:opacity-75 transition-opacity">

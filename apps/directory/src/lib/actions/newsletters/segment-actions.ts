@@ -19,13 +19,7 @@ export const getAvailableSegmentTags = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getAvailableSegmentTagsImpl(data.siteId))
 
 export const createSegment = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  name: string
-  description?: string
-  segmentType?: SegmentType
-  dynamicRule?: SegmentDynamicRule | null
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createSegmentImpl>[0] }) => data)
   .handler(async ({ data }) => createSegmentImpl(data.input))
 
 export const updateSegment = createServerFn({ method: "POST" })

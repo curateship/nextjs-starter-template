@@ -32,11 +32,11 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface PostBlockListPanelProps {
   blocks: PostBlock[]
@@ -48,7 +48,6 @@ interface PostBlockListPanelProps {
   onAddBlock?: () => void
   deleting: string | null
   blocksLoading?: boolean
-  editableStructure?: boolean
 }
 
 function getColumnTransferLaneId(column: PostLayoutColumn) {
@@ -104,20 +103,7 @@ function SortablePostBlockItem({
   deleting: string | null
   onDelete: (block: PostBlock) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: block.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(block.id)
 
   const Icon = getBlockIcon(block.type)
   const name = getBlockName(block.type)
@@ -159,7 +145,7 @@ function SortablePostBlockItem({
           title="Delete block"
         >
           {deleting === block.id ? (
-            <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
+            <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-destructive"></div>
           ) : (
             <Trash2 className="w-3.5 h-3.5" />
           )}
@@ -285,7 +271,6 @@ export function PostBlockListPanel({
   onAddBlock,
   deleting,
   blocksLoading = false,
-  editableStructure = true,
 }: PostBlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<PostBlock | null>(null)
@@ -303,7 +288,7 @@ export function PostBlockListPanel({
     ? orderedBlocks.find((block) => block.id === activeBlockId) ?? null
     : null
   const activeColumn = activeBlock ? getPostLayoutColumn(activeBlock) : null
-  const canEditStructure = editableStructure && Boolean(onDeleteBlock && onReorderBlocks)
+  const canEditStructure = Boolean(onDeleteBlock && onReorderBlocks)
 
   const collisionDetection: CollisionDetection = (args) => {
     const currentActiveId = String(args.active.id)
@@ -437,7 +422,6 @@ export function PostBlockListPanel({
       <div className="w-[250px] sticky top-0 self-start max-h-screen overflow-y-auto px-2.5 pb-2.5 pt-5">
         {blocksLoading ? (
           <div className="mb-4 px-5">
-            <div className="h-7 bg-muted rounded motion-safe:animate-pulse w-1/2"></div>
           </div>
         ) : (
           <div className="flex items-center justify-between mb-4 px-5">
@@ -459,13 +443,9 @@ export function PostBlockListPanel({
               <div key={i} className="p-3 rounded-lg opacity-60">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 bg-muted rounded motion-safe:animate-pulse"></div>
                     <div className="flex items-center space-x-2">
-                      <div className="w-3.5 h-3.5 bg-muted rounded-sm motion-safe:animate-pulse"></div>
-                      <div className="h-4 w-24 bg-muted rounded motion-safe:animate-pulse"></div>
                     </div>
                   </div>
-                  <div className="w-5 h-5 bg-muted rounded motion-safe:animate-pulse"></div>
                 </div>
               </div>
             ))}
@@ -518,9 +498,7 @@ export function PostBlockListPanel({
 
         {canEditStructure && onAddBlock && (
           <div className="px-5 mt-3">
-            {blocksLoading ? (
-              <div className="h-9 w-28 bg-muted rounded motion-safe:animate-pulse"></div>
-            ) : (
+            {blocksLoading ? null : (
               <Button variant="outline" size="sm" onClick={onAddBlock}>
                 <Plus className="w-4 h-4 mr-1" />
                 Add Block

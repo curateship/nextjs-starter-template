@@ -6,16 +6,25 @@ import ChevronDownIcon from "lucide-react/dist/esm/icons/chevron-down.js"
 import Check from "lucide-react/dist/esm/icons/check.js"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { FieldLabel as FieldHintLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { cn } from "@/lib/utils/tailwind"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
+import {
+  REMINDER_LEAD_HOUR_CHOICES,
+  formatReminderLeadTime,
+  isReminderSwitchOn,
+  normalizeReminderLeadHours,
+} from "@/lib/actions/events/event-registration-core"
 import { EVENT_CONTENT_STYLES } from "./event-content-styles"
 
 const DEFAULT_EVENT_TIME = "12:00"
@@ -110,6 +119,12 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
   const handleRegistrationModeChange = useCallback((value: string) => {
     onContentChange('registrationMode', value)
   }, [onContentChange])
+
+  // Both reminder emails are on unless this event says otherwise, so an event
+  // that has never been near these boxes behaves like every existing one.
+  const remindersEnabled = isReminderSwitchOn(content.remindersEnabled)
+  const followUpEnabled = isReminderSwitchOn(content.followUpEnabled)
+  const reminderLeadHours = normalizeReminderLeadHours(content.reminderLeadHours)
 
   const handleDateSelect = useCallback((date: Date | undefined) => {
     if (!date) {
@@ -207,89 +222,91 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
         </CardContent>
       </Card>
 
-      <FieldGroup className="flex-row flex-nowrap items-start gap-3">
-        <Field className="w-52 shrink-0">
-          <FieldLabel htmlFor="event-date">Date</FieldLabel>
-          <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                id="event-date"
-                className="w-52 justify-between font-normal"
-              >
-                <span className="truncate">
-                  {selectedDate ? format(selectedDate, "PPP") : "Select date"}
-                </span>
-                <ChevronDownIcon className="size-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto overflow-hidden p-3" align="start">
-              <Calendar
-                mode="single"
-                className="p-0"
-                selected={selectedDate}
-                captionLayout="dropdown"
-                defaultMonth={selectedDate}
-                onSelect={(date) => {
-                  handleDateSelect(date)
-                  setIsDatePickerOpen(false)
-                }}
+      <Card>
+        <CardContent className="grid gap-4">
+          <FieldGroup className="flex-row flex-nowrap items-start gap-3">
+            <Field className="w-52 shrink-0">
+              <FieldLabel htmlFor="event-date">Date</FieldLabel>
+              <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    id="event-date"
+                    className="w-52 justify-between font-normal"
+                  >
+                    <span className="truncate" title={selectedDate ? format(selectedDate, "PPP") : "Select date"}>{selectedDate ? format(selectedDate, "PPP") : "Select date"}</span>
+                    <ChevronDownIcon className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto overflow-hidden p-3" align="start">
+                  <Calendar
+                    mode="single"
+                    className="p-0"
+                    selected={selectedDate}
+                    captionLayout="dropdown"
+                    defaultMonth={selectedDate}
+                    onSelect={(date) => {
+                      handleDateSelect(date)
+                      setIsDatePickerOpen(false)
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </Field>
+            <Field className="w-32 shrink-0">
+              <FieldLabel htmlFor="event-time">Time</FieldLabel>
+              <Input
+                className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                id="event-time"
+                onChange={handleTimeChange}
+                type="time"
+                value={selectedTime}
               />
-            </PopoverContent>
-          </Popover>
-        </Field>
-        <Field className="w-32 shrink-0">
-          <FieldLabel htmlFor="event-time">Time</FieldLabel>
-          <Input
-            className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-            id="event-time"
-            onChange={handleTimeChange}
-            type="time"
-            value={selectedTime}
-          />
-        </Field>
+            </Field>
 
-        <Field className="min-w-0 flex-1">
-          <FieldLabel htmlFor="event-external-cta-url">RSVP URL</FieldLabel>
-          <Input
-            id="event-external-cta-url"
-            inputMode="url"
-            onChange={(event) => onContentChange('externalCtaUrl', event.target.value)}
-            placeholder="https://tickets.example.com"
-            type="url"
-            value={typeof content.externalCtaUrl === "string" ? content.externalCtaUrl : ""}
-          />
-        </Field>
-      </FieldGroup>
+            <Field className="min-w-0 flex-1">
+              <FieldLabel htmlFor="event-external-cta-url">RSVP URL</FieldLabel>
+              <Input
+                id="event-external-cta-url"
+                inputMode="url"
+                onChange={(event) => onContentChange('externalCtaUrl', event.target.value)}
+                placeholder="https://tickets.example.com"
+                type="url"
+                value={typeof content.externalCtaUrl === "string" ? content.externalCtaUrl : ""}
+              />
+            </Field>
+          </FieldGroup>
 
-      <FieldGroup className="grid gap-3 md:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor="event-venue-name">Venue</FieldLabel>
-          <Input
-            id="event-venue-name"
-            onChange={(event) => onContentChange('venueName', event.target.value)}
-            placeholder="Venue name"
-            value={typeof content.venueName === "string" ? content.venueName : ""}
-          />
-        </Field>
+          <FieldGroup className="grid gap-3 md:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="event-venue-name">Venue</FieldLabel>
+              <Input
+                id="event-venue-name"
+                onChange={(event) => onContentChange('venueName', event.target.value)}
+                placeholder="Venue name"
+                value={typeof content.venueName === "string" ? content.venueName : ""}
+              />
+            </Field>
 
-        <Field>
-          <FieldLabel htmlFor="event-venue-address">Address</FieldLabel>
-          <Input
-            id="event-venue-address"
-            onChange={(event) => onContentChange('venueAddress', event.target.value)}
-            placeholder="Street address, city"
-            value={typeof content.venueAddress === "string" ? content.venueAddress : ""}
-          />
-        </Field>
-      </FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="event-venue-address">Address</FieldLabel>
+              <Input
+                id="event-venue-address"
+                onChange={(event) => onContentChange('venueAddress', event.target.value)}
+                placeholder="Street address, city"
+                value={typeof content.venueAddress === "string" ? content.venueAddress : ""}
+              />
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
           <DashboardModalCardTitle>Registration</DashboardModalCardTitle>
           <CardDescription>
             Let people sign up on this page. Turning this on replaces the RSVP URL button above with a
-            signup form, and everyone who signs up gets a confirmation email plus a reminder the day before.
+            signup form, and everyone who signs up gets a confirmation email straight away.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -362,6 +379,63 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, m
           )}
         </CardContent>
       </Card>
+
+      {registrationMode !== 'none' && (
+        <Card>
+          <CardHeader>
+            <DashboardModalCardTitle>Reminder Emails</DashboardModalCardTitle>
+            <CardDescription>
+              Two automatic emails to everyone who signed up: a nudge before the event so they turn up,
+              and a thank-you afterwards. Edit the wording under Platform Management &rarr; Emails.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="event-reminders-enabled"
+                checked={remindersEnabled}
+                onCheckedChange={(checked) => onContentChange('remindersEnabled', checked === true)}
+              />
+              <Label htmlFor="event-reminders-enabled">Remind people before the event</Label>
+            </div>
+
+            {remindersEnabled && (
+              <Field className="sm:w-56">
+                <FieldHintLabel
+                  htmlFor="event-reminder-lead"
+                  hint="Counted back from the event's start time. Anyone who signs up after that moment has passed still gets the reminder on the next hourly run."
+                >
+                  Send it
+                </FieldHintLabel>
+                <Select
+                  value={String(reminderLeadHours)}
+                  onValueChange={(value) => onContentChange('reminderLeadHours', Number(value))}
+                >
+                  <SelectTrigger id="event-reminder-lead" className="w-full sm:w-fit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-60">
+                    {REMINDER_LEAD_HOUR_CHOICES.map((hours) => (
+                      <SelectItem key={hours} value={String(hours)}>
+                        {formatReminderLeadTime(hours)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="event-follow-up-enabled"
+                checked={followUpEnabled}
+                onCheckedChange={(checked) => onContentChange('followUpEnabled', checked === true)}
+              />
+              <Label htmlFor="event-follow-up-enabled">Send a thank-you the morning after</Label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </CardGroup>
   )
 

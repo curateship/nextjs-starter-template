@@ -1,11 +1,11 @@
 import * as React from "react"
 
 import {
-  pct,
+  signedPct,
   signedUsd,
   toneClass,
   usd,
-} from "@/components/backtest/backtest-format"
+} from "@/lib/format"
 import {
   STICKY_TABLE_HEADER,
   Table,
@@ -191,7 +191,7 @@ export function TradeTable({
                 row.returnPct != null ? toneClass(row.returnPct) : "text-muted-foreground"
               )}
             >
-              {row.returnPct != null ? pct(row.returnPct) : "—"}
+              {row.returnPct != null ? signedPct(row.returnPct) : "—"}
             </TableCell>
             <TableCell
               className={cn(

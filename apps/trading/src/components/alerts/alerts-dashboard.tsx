@@ -159,7 +159,7 @@ export function AlertsDashboard({ initial }: { initial: AlertsPage }) {
       <DashboardTable
         title="Alerts"
         icon={
-          <BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BellIcon className="text-muted-foreground" />
         }
         count={rows.length}
         status={

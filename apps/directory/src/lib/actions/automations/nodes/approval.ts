@@ -60,7 +60,7 @@ export async function pauseForApproval(input: {
 /**
  * The stored payload is re-read from the database hours after it was written, so
  * it is parsed rather than trusted. Only an article can reach a gate today: the
- * node's allowed targets (AI Image, Post) both consume one.
+ * node's allowed targets (AI Image, Post, Newsletter) all consume one.
  */
 export function parseApprovalPayload(value: unknown): RuntimeOutput {
   if (!isRecord(value) || value.type !== 'article' || !isRecord(value.article)) {

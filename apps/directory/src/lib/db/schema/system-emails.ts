@@ -14,6 +14,10 @@ export const systemEmailTemplateKeyEnum = pgEnum('system_email_template_key_enum
   'magic_link',
   'event_registration_confirmation',
   'event_reminder',
+  'abandoned_checkout_recovery',
+  // Kept in the order the database has them: each was appended by an
+  // ALTER TYPE ... ADD VALUE, which never inserts in the middle.
+  'event_follow_up',
 ])
 
 export const emailSystemTemplates = pgTable('email_system_templates', {

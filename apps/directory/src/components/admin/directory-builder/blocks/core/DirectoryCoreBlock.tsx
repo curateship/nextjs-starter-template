@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { BlockEditorEmptyState } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/admin/layout/builder/block-tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
@@ -368,7 +368,7 @@ export function DirectoryCoreBlock({
                     <button
                       type="button"
                       onClick={() => onDirectoryFeaturedImageChange?.("")}
-                      className="absolute right-2 top-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                      className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                     >
                       <X className="h-4 w-4" />
                     </button>

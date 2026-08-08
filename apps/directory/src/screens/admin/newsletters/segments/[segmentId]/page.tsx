@@ -2,11 +2,15 @@
 
 import { use, useState, useEffect, useCallback, type FormEvent } from "react"
 import { useRouter } from "@/lib/navigation-client"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { showErrorToast } from "@/lib/error-toast"
 import Link from "@/components/app-link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { RelativeDate } from "@/components/admin/layout/list"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CardSection } from "@/components/shared/card-sections"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,6 +27,7 @@ import Plus from "lucide-react/dist/esm/icons/plus.js"
 import X from "lucide-react/dist/esm/icons/x.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
   getSegmentById,
@@ -93,6 +98,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
   const [loadingMore, setLoadingMore] = useState(false)
 
   // Edit form state
+  const [nameInvalid, setNameInvalid] = useState(false)
   const [editForm, setEditForm] = useState({
     name: "",
     description: "",
@@ -221,6 +227,13 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!segment) return
+    if (!editForm.name.trim()) {
+      setNameInvalid(true)
+      showErrorToast("Segment name is required")
+      return
+    }
+
+    setNameInvalid(false)
     const dynamicRule = buildDynamicRuleFromForm(dynamicConditions)
     if (editForm.segmentType === "dynamic" && !dynamicRule) {
       setError("Dynamic segments need at least one valid condition")
@@ -244,6 +257,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
       })
       setDynamicConditions(mapDynamicRuleToForm(data.dynamic_rule))
       setSettingsOpen(false)
+      showActionSuccess("Segment updated.")
     }
     if (error) setError(error)
     setSaving(false)
@@ -255,6 +269,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     setDeleting(true)
     const { success, error } = await deleteSegments({ data: { ids: [segment.id] } })
     if (success) {
+      showActionSuccess("Segment deleted.")
       router.push("/admin/newsletters/segments")
     } else {
       setDeleteError(error || "Failed to delete segment")
@@ -271,6 +286,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     }
     setContactToRemove(null)
     await refreshContactsAndStats()
+    showActionSuccess("Contact removed from segment.")
   }
 
   /** Add a contact to the segment from search results */
@@ -287,17 +303,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     setSearchQuery("")
     setAddingContact(null)
     await refreshContactsAndStats()
+    showActionSuccess("Contact added to segment.")
   }
 
-  // Helper: format date
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return "—"
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    })
-  }
 
   // Helper: get contact display name from metadata
   function getContactName(metadata: any): string {
@@ -310,9 +318,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
   function getStatusBadge(status: string) {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
       case "cold":
-        return <Badge className="bg-yellow-100 text-yellow-800">Cold</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Cold</Badge>
       case "unsubscribed":
         return <Badge variant="secondary">Unsubscribed</Badge>
       case "bounced":
@@ -324,7 +332,6 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
     }
   }
 
-  const invalidDynamicConditions = editForm.segmentType === "dynamic" && !buildDynamicRuleFromForm(dynamicConditions)
   const segmentExclusionOptions = segmentOptions.filter((option) => option.id !== segment?.id)
 
   return (
@@ -338,9 +345,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Segments", href: "/admin/newsletters/segments" },
               {
-                label: loading ? (
-                  <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" />
-                ) : (
+                label: loading ? null : (
                   segment?.name || "Segment"
                 )
               }
@@ -361,21 +366,18 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                   disabled={deleting || loading}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  {deleting ? "Deleting..." : "Delete"}
+                  {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Delete
                 </Button>
               </div>
             }
           />
 
-          {/* Loading skeleton */}
           {loading && (
             <CardGroup className="grid">
               <Card>
                 <CardContent className="flex items-center">
-                  <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                   <div className="space-y-2">
-                    <div className="h-5 w-48 bg-muted rounded animate-pulse" />
-                    <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
                   </div>
                 </CardContent>
               </Card>
@@ -383,10 +385,8 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                 {[1, 2, 3].map((i) => (
                   <Card key={i}>
                     <CardHeader>
-                      <div className="h-4 w-20 bg-muted rounded animate-pulse" />
                     </CardHeader>
                     <CardContent>
-                      <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                     </CardContent>
                   </Card>
                 ))}
@@ -398,7 +398,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
           {error && !loading && (
             <Card className="text-center">
               <CardContent>
-                <p className="text-red-600 mb-4">{error}</p>
+                <p className="text-destructive mb-4">{error}</p>
                 <Link href="/admin/newsletters/segments">
                   <Button variant="outline">Back to Segments</Button>
                 </Link>
@@ -418,12 +418,15 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h1 className="text-lg font-semibold truncate">{segment.name}</h1>
+                      <h1 className="text-lg font-semibold truncate" title={segment.name}>{segment.name}</h1>
                       <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
                         {segment.segment_type}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p
+                      className="truncate text-sm text-muted-foreground"
+                      title={`${stats?.totalContacts ?? 0} contacts${segment.description ? ` · ${segment.description}` : ""}`}
+                    >
                       {stats?.totalContacts ?? 0} contacts
                       {segment.description ? ` · ${segment.description}` : ""}
                     </p>
@@ -433,7 +436,7 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                       </p>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">Created {formatDate(segment.created_at)}</span>
+                  <span className="text-xs text-muted-foreground">Created <RelativeDate date={segment.created_at} /></span>
                 </CardContent>
               </Card>
 
@@ -480,12 +483,12 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                     ) : (
                       newsletters.map((nl) => (
                         <CardSection key={nl.id}>
-                          <p className="text-sm font-medium truncate">{nl.subject || nl.name}</p>
+                          <p className="text-sm font-medium truncate" title={nl.subject || nl.name}>{nl.subject || nl.name}</p>
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                             <Badge variant="outline" className="text-xs">
                               {nl.status}
                             </Badge>
-                            {nl.sentAt && <span>{formatDate(nl.sentAt)}</span>}
+                            {nl.sentAt && <span><RelativeDate date={nl.sentAt} /></span>}
                             <span>·</span>
                             <span>{nl.totalSent} sent</span>
                             <span>·</span>
@@ -542,11 +545,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                                   {searchResults.map((result) => (
                                     <div key={result.id} className="py-2 flex items-center gap-2">
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm truncate">{result.email}</p>
+                                        <p className="text-sm truncate" title={result.email}>{result.email}</p>
                                         {getContactName(result.metadata) && (
-                                          <p className="text-xs text-muted-foreground truncate">
-                                            {getContactName(result.metadata)}
-                                          </p>
+                                          <p className="text-xs text-muted-foreground truncate" title={getContactName(result.metadata)}>{getContactName(result.metadata)}</p>
                                         )}
                                       </div>
                                       <Button
@@ -557,7 +558,8 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                                         disabled={addingContact === result.id}
                                       >
                                         <Plus className="h-3.5 w-3.5 mr-1" />
-                                        {addingContact === result.id ? "..." : "Add"}
+                                        {addingContact === result.id ? <Loader2 className="size-4 animate-spin" /> : null}
+                                        Add
                                       </Button>
                                     </div>
                                   ))}
@@ -582,11 +584,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                         contacts.map((contact) => (
                           <CardSection key={contact.id} className="flex items-center gap-3">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{contact.email}</p>
+                              <p className="text-sm font-medium truncate" title={contact.email}>{contact.email}</p>
                               {getContactName(contact.metadata) && (
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {getContactName(contact.metadata)}
-                                </p>
+                                <p className="text-xs text-muted-foreground truncate" title={getContactName(contact.metadata)}>{getContactName(contact.metadata)}</p>
                               )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
@@ -655,8 +655,8 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <form id="segment-settings-form" onSubmit={handleSave} className="contents">
-          <DashboardModalContent
+                  <DashboardModalContent
+            busy={saving}
             title="Segment Settings"
             description="Update the segment name, description, and membership rules."
             footer={
@@ -664,12 +664,15 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                 <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button form="segment-settings-form" type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicConditions}>
-                  {saving ? "Saving..." : "Save Changes"}
+                <Button form="segment-settings-form" type="submit" disabled={saving}>
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save Changes
                 </Button>
               </>
             }
           >
+            <form
+              noValidate id="segment-settings-form" onSubmit={handleSave} className="contents">
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
@@ -681,7 +684,11 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                     <Input
                       id="segment-name"
                       value={editForm.name}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                      aria-invalid={nameInvalid}
+                      onChange={(e) => {
+                        setEditForm((prev) => ({ ...prev, name: e.target.value }))
+                        if (nameInvalid && e.target.value.trim()) setNameInvalid(false)
+                      }}
                       placeholder="Segment name"
                     />
                   </Field>
@@ -764,8 +771,9 @@ export default function SegmentDashboardPage({ params }: { params: Promise<{ seg
                 </CardContent>
               </Card>
             </CardGroup>
+            </form>
           </DashboardModalContent>
-        </form>
+
       </Dialog>
       <ConfirmDestructive
         action="delete-segment"

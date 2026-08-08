@@ -11,10 +11,16 @@ import { DashboardModalCardTitle, DashboardModalContent } from "@/components/adm
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   AdminListFooter,
-  AdminTableShell, AdminListPending,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
   formatRelativeDate,
+  RelativeDate,
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { TableRightActions, TableRightActionsSearch } from "@/components/admin/layout/content/table-right-actions"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
@@ -33,6 +39,8 @@ import {
   type GuidedForm,
   type GuidedFormSubmission,
 } from "@/lib/actions/guided-forms/guided-form-actions"
+
+type SubmissionSortColumn = "email" | "outcome" | "submitted"
 
 function formatAnswerValue(value: unknown) {
   if (Array.isArray(value)) return value.join(", ")
@@ -60,14 +68,16 @@ function getAnswerRows(form: GuidedForm | null, submission: GuidedFormSubmission
 
 export default function GuidedFormSubmissionsPage({ params }: { params: Promise<{ formId: string }> }) {
   const { formId } = use(params)
+  const { pageSize } = useSiteSwitcher()
   const [form, setForm] = useState<GuidedForm | null>(null)
   const [submissions, setSubmissions] = useState<GuidedFormSubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [selectedSubmission, setSelectedSubmission] = useState<GuidedFormSubmission | null>(null)
+  // A queue screen: opens oldest-first, the order you work submissions.
+  const submissionSort = useAdminSort<SubmissionSortColumn>("submitted", "asc")
 
   useEffect(() => {
     let cancelled = false
@@ -75,8 +85,8 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
     setError("")
 
     Promise.all([
-      getGuidedFormById(formId),
-      getGuidedFormSubmissions(formId, { pageSize: 100 }),
+      getGuidedFormById({ data: { formId } }),
+      getGuidedFormSubmissions({ data: { formId, options: { pageSize: 100 } } }),
     ]).then(([formResult, submissionResult]) => {
       if (cancelled) return
       setLoading(false)
@@ -115,10 +125,31 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
     ))
   }, [searchQuery, submissions])
 
+  const sortedSubmissions = useMemo(() => {
+    return [...filteredSubmissions].sort((a, b) => {
+      if (!submissionSort.sortColumn) return 0
+
+      const dir = submissionSort.sortDirection === "asc" ? 1 : -1
+      if (submissionSort.sortColumn === "email")
+        return (a.contact_email || "").localeCompare(b.contact_email || "") * dir
+      if (submissionSort.sortColumn === "outcome")
+        return (a.matched_outcome_id || "").localeCompare(b.matched_outcome_id || "") * dir
+
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    })
+  }, [filteredSubmissions, submissionSort.sortColumn, submissionSort.sortDirection])
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${searchQuery.trim().toLowerCase()}|${submissionSort.sortColumn}|${submissionSort.sortDirection}`
+  )
+
   const total = filteredSubmissions.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
-  const visibleSubmissions = filteredSubmissions.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize)
+  const visibleSubmissions = sortedSubmissions.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize)
   const selectedAnswerRows = getAnswerRows(form, selectedSubmission)
 
   const title = (
@@ -127,7 +158,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
         Forms
       </Link>
       <ChevronRight className="size-3 text-muted-foreground" />
-      <span className="truncate">{form?.name || "Submissions"}</span>
+      <span className="truncate" title={form?.name || "Submissions"}>{form?.name || "Submissions"}</span>
     </span>
   )
 
@@ -139,7 +170,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
 
         <AdminTableShell
           title={title}
-          icon={<ClipboardList className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<ClipboardList className="text-muted-foreground" />}
           count={total}
           loading={loading}
           status={error ? { tone: "error", text: error } : null}
@@ -147,10 +178,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
             <TableRightActions>
               <TableRightActionsSearch
                 value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value)
-                  setCurrentPage(1)
-                }}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search submissions"
               />
             </TableRightActions>
@@ -161,7 +189,6 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
               pageSize={pageSize}
               total={total}
               onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
             />
           ) : null}
         >
@@ -169,10 +196,10 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead column="main">Email</TableHead>
-                  <TableHead column="meta">Outcome</TableHead>
+                  <AdminSortableHead column="main" sort={submissionSort} sortKey="email">Email</AdminSortableHead>
+                  <AdminSortableHead column="meta" sort={submissionSort} sortKey="outcome">Outcome</AdminSortableHead>
                   <TableHead column="content">Response</TableHead>
-                  <TableHead column="meta">Submitted</TableHead>
+                  <AdminSortableHead column="meta" sort={submissionSort} sortKey="submitted">Submitted</AdminSortableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -190,8 +217,14 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
                   <TableRow>
                     <TableCell colSpan={4} className="h-32 text-center">
                       <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground" />
-                      <h3 className="mt-4 text-lg font-semibold">No submissions found</h3>
-                      <p className="mt-2 text-muted-foreground">Submissions for this form will appear here.</p>
+                      {searchQuery.trim() ? (
+                        <h3 className="mt-4 text-lg font-semibold">No submissions found matching your search.</h3>
+                      ) : (
+                        <>
+                          <h3 className="mt-4 text-lg font-semibold">No submissions found</h3>
+                          <p className="mt-2 text-muted-foreground">Submissions for this form will appear here.</p>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : visibleSubmissions.map((submission) => {
@@ -219,7 +252,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
                         ) : null}
                       </button>
                     </TableCell>
-                    <TableCell column="mutedMeta">{formatRelativeDate(submission.created_at)}</TableCell>
+                    <TableCell column="mutedMeta"><RelativeDate date={submission.created_at} /></TableCell>
                   </TableRow>
                 )})}
               </TableBody>
@@ -272,7 +305,7 @@ export default function GuidedFormSubmissionsPage({ params }: { params: Promise<
                       </div>
                       <div>
                         <div className="text-muted-foreground">Submitted</div>
-                        <div className="font-medium">{formatRelativeDate(selectedSubmission.created_at)}</div>
+                        <div className="font-medium"><RelativeDate date={selectedSubmission.created_at} /></div>
                       </div>
                     </div>
                   </CardContent>

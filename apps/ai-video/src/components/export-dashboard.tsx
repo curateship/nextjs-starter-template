@@ -341,7 +341,7 @@ export function ExportDashboard() {
       <DashboardTable
         title="Export"
         icon={
-          <DownloadIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <DownloadIcon className="text-muted-foreground" />
         }
         count={filteredExports.length}
         controls={controls}

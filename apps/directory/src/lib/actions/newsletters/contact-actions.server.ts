@@ -1,7 +1,7 @@
 import { eq, and, or, sql, desc, inArray, gte, lte, ilike, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, newsletterDeliveries, newsletters, newsletterSegments, newsletterSegmentContacts, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { verifyUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import {
   CONTACT_RELATIVE_DAY_OPTIONS,
@@ -41,14 +41,6 @@ const VALID_STATUS_VALUES = CONTACT_STATUS_OPTIONS.map((option) => option.value)
 const VALID_RELATIVE_DAYS = CONTACT_RELATIVE_DAY_OPTIONS.map((option) => option.value)
 const HIDDEN_SOURCE_TAGS = new Set(['notion marketplace'])
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 async function getAuthorizedContactSiteId(contactId: string) {
   if (!UUID_REGEX.test(contactId)) return { siteId: null, error: 'Invalid contact ID' }
@@ -405,14 +397,8 @@ export async function createOrUpsertContactImpl(input: {
   tags?: string[]
 }): Promise<{ data: CrmContact | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(input.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(input.siteId)
+    if (access.error) return { data: null, error: access.error }
 
     const email = input.email?.toLowerCase()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -460,14 +446,8 @@ export async function bulkImportContactsImpl(input: {
   contacts: { email: string; first_name?: string; last_name?: string; tags?: string[]; created_at?: string; last_engaged_at?: string }[]
 }): Promise<{ imported: number; skipped: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(input.siteId)) return { imported: 0, skipped: 0, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { imported: 0, skipped: 0, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(input.siteId, user.id)) {
-      return { imported: 0, skipped: 0, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(input.siteId)
+    if (access.error) return { imported: 0, skipped: 0, error: access.error }
 
     if (!input.contacts.length) return { imported: 0, skipped: 0, error: 'No contacts provided' }
 
@@ -654,14 +634,8 @@ export async function getContactsWithStatsImpl(
   error: string | null
 }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, stats: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, stats: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, total: 0, stats: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, total: 0, stats: null, error: access.error }
 
     await repairBouncedContacts(siteId)
 

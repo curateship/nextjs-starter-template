@@ -63,7 +63,7 @@ const EMPTY_PLAN_DRAFT: PlanDraft = {
 function entitlementStatusBadge(status: DirectoryFeaturedEntitlementStatus) {
   switch (status) {
     case "active":
-      return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
     case "expired":
       return <Badge variant="secondary">Expired</Badge>
     default:
@@ -233,8 +233,8 @@ export default function DirectoryMonetizationPage() {
           <AdminTableShell
             title={activeView === "plans" ? "Featured Plans" : "Featured Listings"}
             icon={activeView === "plans"
-              ? <BadgeDollarSign className="size-4 text-muted-foreground sm:size-[18px]" />
-              : <Star className="size-4 text-muted-foreground sm:size-[18px]" />
+              ? <BadgeDollarSign className="text-muted-foreground" />
+              : <Star className="text-muted-foreground" />
             }
             count={activeRowsCount}
             controls={
@@ -343,7 +343,7 @@ export default function DirectoryMonetizationPage() {
                         </TableCell>
                         <TableCell column="meta">
                           {plan.is_active
-                            ? <Badge className="bg-green-100 text-green-800">Active</Badge>
+                            ? <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
                             : <Badge variant="secondary">Archived</Badge>
                           }
                         </TableCell>

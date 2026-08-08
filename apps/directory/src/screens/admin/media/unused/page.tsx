@@ -23,20 +23,26 @@ import {
 } from "@/components/ui/table"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
+  AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
-  formatRelativeDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { cn } from "@/lib/utils/tailwind"
 import { deleteMediaItemsAction, scanUnusedMediaAction } from "@/lib/actions/media/media-actions"
 import type { MediaData } from "@/lib/actions/media/media-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import ImageOff from "lucide-react/dist/esm/icons/image-off.js"
-import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import VideoIcon from "lucide-react/dist/esm/icons/video.js"
@@ -45,7 +51,7 @@ import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-fee
 type SortColumn = "name" | "type" | "size" | "added"
 
 export default function UnusedMediaPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const currentSiteId = currentSite?.id
   const [mediaItems, setMediaItems] = useState<MediaData[] | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -55,15 +61,24 @@ export default function UnusedMediaPage() {
   const [mediaToDelete, setMediaToDelete] = useState<MediaData | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [scannedAt, setScannedAt] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
   const mediaSort = useAdminSort<SortColumn>()
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSiteId}|${searchQuery}|${mediaSort.sortColumn}|${mediaSort.sortDirection}`
+  // Searching or re-sorting from a later page would otherwise land you past the
+  // end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Delete (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(mediaSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   useEffect(() => {
     setMediaItems(null)
-    clearMediaSelection()
     setScannedAt(null)
-  }, [currentSiteId, clearMediaSelection])
+  }, [currentSiteId])
 
   async function handleScan() {
     if (!currentSiteId) return
@@ -79,7 +94,7 @@ export default function UnusedMediaPage() {
 
       setMediaItems(data?.data ?? [])
       setScannedAt(data?.scanned_at ?? new Date().toISOString())
-      showActionSuccess(`Found ${data?.total ?? 0} unused media ${(data?.total ?? 0) === 1 ? "item" : "items"}`)
+      showActionSuccess(`Scan finished — ${data?.total ?? 0} unused ${(data?.total ?? 0) === 1 ? "item" : "items"} found.`)
     } catch {
       showActionError("Scan failed")
     } finally {
@@ -102,7 +117,7 @@ export default function UnusedMediaPage() {
 
       setMediaItems((prev) => prev?.filter((item) => !ids.includes(item.id)) ?? null)
       ids.forEach((id) => mediaSelection.remove(id))
-      showActionSuccess(`Deleted ${deletedCount} ${deletedCount === 1 ? "item" : "items"}`)
+      showActionSuccess(deletedCount === 1 ? "Item deleted." : "Items deleted.")
       setDeleteConfirmOpen(false)
       setMediaToDelete(null)
     } catch {
@@ -136,7 +151,13 @@ export default function UnusedMediaPage() {
     })
   }, [filteredMedia, mediaSort.sortColumn, mediaSort.sortDirection])
 
-  const sortedMediaIds = sortedMedia.map((media) => media.id)
+  const pagedMedia = useMemo(
+    () => sortedMedia.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedMedia]
+  )
+
+  // Select-all ticks the page in front of you, never the whole scan result.
+  const pagedMediaIds = pagedMedia.map((media) => media.id)
 
   function formatFileSize(bytes: number) {
     if (bytes === 0) return "0 Bytes"
@@ -157,7 +178,7 @@ export default function UnusedMediaPage() {
 
           <AdminTableShell
             title="Unused Media"
-            icon={<ImageOff className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<ImageOff className="text-muted-foreground" />}
             count={filteredMedia.length}
             loading={isScanning}
             selectedCount={mediaSelection.selectedCount}
@@ -182,7 +203,7 @@ export default function UnusedMediaPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={mediaItems ? <AdminTableSummaryFooter count={filteredMedia.length} label="unused media" /> : null}
+            footer={mediaItems ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredMedia.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
@@ -191,47 +212,15 @@ export default function UnusedMediaPage() {
                   <TableRow>
                     <TableHead column="select">
                       <Checkbox
-                        checked={mediaSelection.isPageSelected(sortedMediaIds)}
-                        onCheckedChange={() => mediaSelection.togglePage(sortedMediaIds)}
+                        checked={mediaSelection.isPageSelected(pagedMediaIds)}
+                        onCheckedChange={() => mediaSelection.togglePage(pagedMediaIds)}
                         aria-label="Select all unused media"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "name"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("name")}
-                      >
-                        File
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "type"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("type")}
-                      >
-                        Type
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "size"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("size")}
-                      >
-                        Size
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={mediaSort.sortColumn === "added"}
-                        direction={mediaSort.sortDirection}
-                        onClick={() => mediaSort.toggleSort("added")}
-                      >
-                        Added
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={mediaSort} sortKey="name">File</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={mediaSort} sortKey="type">Type</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={mediaSort} sortKey="size">Size</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={mediaSort} sortKey="added">Added</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -256,7 +245,7 @@ export default function UnusedMediaPage() {
                       <TableCell colSpan={6} className="h-32 text-center">
                         <ImageOff className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          {mediaItems.length === 0 ? "No unused media found." : "No unused media matches your search."}
+                          {normalizedSearchQuery ? "No unused media found matching your search." : "No unused media found."}
                         </p>
                         {scannedAt ? (
                           <p className="mt-2 text-xs text-muted-foreground">
@@ -266,7 +255,7 @@ export default function UnusedMediaPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedMedia.map((media) => {
+                    pagedMedia.map((media) => {
                       const isSelected = mediaSelection.selectedIds.has(media.id)
                       return (
                         <TableRow key={media.id} data-state={isSelected ? "selected" : undefined} className="group">
@@ -293,43 +282,34 @@ export default function UnusedMediaPage() {
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <h4 className="truncate text-sm font-medium sm:text-base">{media.original_name}</h4>
+                                <h4 className="truncate text-sm font-medium sm:text-base" title={media.original_name}>{media.original_name}</h4>
                                 {media.alt_text ? (
-                                  <p className="truncate text-xs text-muted-foreground sm:text-sm">{media.alt_text}</p>
+                                  <p className="truncate text-xs text-muted-foreground sm:text-sm" title={media.alt_text}>{media.alt_text}</p>
                                 ) : null}
                               </div>
                             </div>
                           </TableCell>
                           <TableCell column="mutedMeta" className="capitalize">{media.file_type}</TableCell>
                           <TableCell column="mutedMeta">{formatFileSize(media.file_size)}</TableCell>
-                          <TableCell column="mutedMeta">{formatDate(media.created_at)}</TableCell>
+                          <TableCell column="mutedMeta"><RelativeDate date={media.created_at} /></TableCell>
                           <TableCell column="meta">
-                            <div className="flex items-center space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => window.open(media.public_url, "_blank")}
-                                title="View Original"
-                              >
-                                <ImageIcon className="h-4 w-4" />
-                                <span className="sr-only">View Original</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            <AdminRowActions>
+                              <AdminRowAction
+                                icon={Eye}
+                                external
+                                href={media.public_url}
+                                label="Preview original"
+                              />
+                              <AdminRowAction
+                                icon={Trash2}
+                                label="Delete file"
+                                disabled={isDeleting}
                                 onClick={() => {
                                   setDeleteError(null)
                                   setMediaToDelete(media)
                                 }}
-                                disabled={isDeleting}
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Delete</span>
-                              </Button>
-                            </div>
+                              />
+                            </AdminRowActions>
                           </TableCell>
                         </TableRow>
                       )

@@ -8,7 +8,6 @@ import Link2 from "lucide-react/dist/esm/icons/link-2.js"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { getInternalLinkAnalysis, getSiteForAudit } from "@/lib/actions/seo/site-audit/site-audit-actions"
 
 interface InternalLinksTabProps {
@@ -63,22 +62,16 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <Skeleton className="h-4 w-24" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-8 w-16" />
               </CardContent>
             </Card>
           ))}
         </CardGroup>
         <Card>
           <CardHeader>
-            <Skeleton className="h-5 w-32" />
           </CardHeader>
           <CardContent className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
           </CardContent>
         </Card>
       </CardGroup>
@@ -117,7 +110,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Broken Links</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
+            <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{linkAnalysis?.brokenLinkCount || 0}</div>
@@ -166,7 +159,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
             </div>
           ) : (
             <p className="flex items-center gap-1 text-sm text-muted-foreground">
-              {orphanContent.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+              {orphanContent.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />}
               {orphanContent.length === 0
                 ? "No orphan pages found. All content has at least one incoming internal link."
                 : normalizedSearchQuery
@@ -180,7 +173,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-red-500" />
+            <AlertCircle className="h-5 w-5 text-destructive" />
             Broken Internal Links
           </CardTitle>
         </CardHeader>
@@ -194,13 +187,13 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
                   </Badge>
                   <span className="font-medium">{item.sourceTitle}</span>
                   <span className="text-muted-foreground">-&gt;</span>
-                  <span className="text-red-500">{item.href}</span>
+                  <span className="text-destructive">{item.href}</span>
                 </div>
               ))}
             </div>
           ) : (
             <p className="flex items-center gap-1 text-sm text-muted-foreground">
-              {brokenLinks.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+              {brokenLinks.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />}
               {brokenLinks.length === 0
                 ? "No broken internal links found."
                 : normalizedSearchQuery

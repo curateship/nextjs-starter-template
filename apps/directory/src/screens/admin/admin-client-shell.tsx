@@ -13,7 +13,7 @@ import { resolveBackground, type AdminStyling } from "@/lib/utils/admin-styling"
 import { clampAdminSidebarWidth } from "@/lib/utils/admin-sidebar-width"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { usePathname } from "@/lib/navigation-client"
-import { toast } from "sonner"
+import { showErrorToast } from "@/lib/error-toast"
 
 interface AdminClientShellProps {
   children: React.ReactNode
@@ -148,7 +148,7 @@ export function AdminClientShell({
     setSidebarWidth(nextWidth)
 
     const request = sidebarWidthSaveQueueRef.current.then(async () => {
-      const result = await updateAdminSettingsAction({ sidebar_width: nextWidth })
+      const result = await updateAdminSettingsAction({ data: { sidebar_width: nextWidth } })
       if (result.error) throw new Error(result.error)
     })
     sidebarWidthSaveQueueRef.current = request.catch(() => undefined)
@@ -160,7 +160,7 @@ export function AdminClientShell({
       .catch((error) => {
         if (version !== sidebarWidthSaveVersionRef.current) return
         setSidebarWidth(savedSidebarWidthRef.current)
-        toast.error(error instanceof Error ? error.message : "Failed to save sidebar width")
+        showErrorToast(error instanceof Error ? error.message : "Failed to save sidebar width")
       })
   }, [])
 

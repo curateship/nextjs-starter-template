@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useBlocker, useNavigate } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import { ChevronsUpIcon, XIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
@@ -30,7 +30,6 @@ import {
   CHART_UP_COLOR,
 } from "@/components/chart/chart-markers"
 import type { ChartPriceLine } from "@/components/chart/price-chart"
-import { maxWindowDays } from "@/lib/backtest/types"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
 import { Button } from "@/components/ui/button"
@@ -79,12 +78,17 @@ import {
 } from "@/lib/automations/node-registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import { usePanelLayout } from "@/lib/use-panel-layout"
+import type { SaveStatus } from "@/components/ui/save-status"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
 import { AutomationPanelToggles } from "./automation-panel-toggles"
 import { useAutomationBacktest } from "./use-automation-backtest"
 import { useAutomationBot } from "./use-automation-bot"
+
+// Quiet window after the last edit before the canvas auto-saves itself. Matches
+// the settings page's debounce so the whole app feels the same.
+const SAVE_DEBOUNCE_MS = 700
 
 export function AutomationEditor({
   initial,
@@ -123,7 +127,7 @@ export function AutomationEditor({
   const [paletteOpen, setPaletteOpen] = React.useState(false)
   const [inspectorOpen, setInspectorOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [saving, setSaving] = React.useState(false)
+  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [saveError, setSaveError] = React.useState<string | null>(null)
   const [desktop, setDesktop] = React.useState(false)
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
@@ -242,16 +246,8 @@ export function AutomationEditor({
   )
   const dirty = currentSerialized !== lastSaved
 
-  // Guard navigation while the graph has unsaved edits. Keyed on `dirty`
-  // alone: a save in flight keeps `dirty` true until it succeeds, and after a
-  // successful save the programmatic create-bot/backtest navigations pass
-  // through unprompted. `enableBeforeUnload` covers refresh/close natively.
-  const shouldBlockNavigation = React.useCallback(() => dirty, [dirty])
-  const blocker = useBlocker({
-    shouldBlockFn: shouldBlockNavigation,
-    enableBeforeUnload: shouldBlockNavigation,
-    withResolver: true,
-  })
+  // No navigation guard: edits auto-save, and leaving flushes whatever is still
+  // pending (see the unmount effect below), so there is nothing to warn about.
 
   const selectedNode =
     previewNode ??
@@ -442,77 +438,194 @@ export function AutomationEditor({
     [record]
   )
 
-  const handleSave = React.useCallback(async () => {
-    if (saving) return false
-    setSaving(true)
-    setSaveError(null)
-    const payload = {
+  // ── Auto-save ───────────────────────────────────────────────────────────
+  // There is no Save button. Every edit schedules a debounced write, and
+  // anything that reads the SAVED automation (a backtest, a deploy) flushes
+  // first. Saves run on a serialized queue so rapid edits land in order.
+  const latestPayloadRef = React.useRef({
+    name,
+    type,
+    interval,
+    graph,
+    backtest: backtestSettings,
+  })
+  React.useEffect(() => {
+    latestPayloadRef.current = {
       name,
       type,
       interval,
       graph,
       backtest: backtestSettings,
     }
-    try {
-      const saved = await saveAutomation({
-        automationId: initial.id,
-        ...payload,
-      })
-      setName(saved.name)
-      setType(saved.type)
-      setInterval(saved.interval)
-      setGraph(saved.graph)
-      setBacktestSettings(saved.backtest)
-      setLastSaved(
-        serialize(
-          saved.name,
-          saved.type,
-          saved.interval,
-          saved.graph,
-          saved.backtest
-        )
-      )
-      record(
-        saved.compiledConfig
-          ? "Saved Automation. It is ready to run."
-          : "Saved draft with validation issues."
-      )
-      return Boolean(saved.compiledConfig)
-    } catch (error) {
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : "Could not save this automation."
-      )
-      return false
-    } finally {
-      setSaving(false)
-    }
-  }, [
-    backtestSettings,
-    graph,
-    initial.id,
-    interval,
-    name,
-    record,
-    saving,
-    serialize,
-    type,
-  ])
+  }, [backtestSettings, graph, interval, name, type])
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveQueueRef = React.useRef(Promise.resolve())
+  const saveVersionRef = React.useRef(0)
+  // The last snapshot a save was started for. A failed save is not retried
+  // until the user edits again, so a rejected name can't loop every 700ms.
+  const attemptedRef = React.useRef(lastSaved)
+  const serializePayload = React.useCallback(
+    (payload: typeof latestPayloadRef.current) =>
+      serialize(
+        payload.name,
+        payload.type,
+        payload.interval,
+        payload.graph,
+        payload.backtest
+      ),
+    [serialize]
+  )
 
-  // Whale Wall gate + save gate, shared by the toolbar and the backtest panel.
+  /**
+   * Writes the freshest canvas now, cancelling any pending debounce. Returns
+   * whether the saved copy is ready to run, which is what gates Run/Deploy.
+   * `explicit` is set by those buttons: they say why nothing happened, while a
+   * background auto-save stays quiet about a half-typed name.
+   */
+  const saveNow = React.useCallback(
+    async (explicit = false) => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+
+      const snapshot = latestPayloadRef.current
+      // The server requires a name; skip while the field is mid-retype instead
+      // of flashing a validation error at someone who just cleared it.
+      if (!snapshot.name.trim()) {
+        if (explicit) setSaveError("Give this automation a name first.")
+        return false
+      }
+
+      const sent = serializePayload(snapshot)
+      attemptedRef.current = sent
+      const version = saveVersionRef.current + 1
+      saveVersionRef.current = version
+      setSaveStatus("saving")
+      setSaveError(null)
+
+      const save = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveAutomation({ automationId: initial.id, ...snapshot }))
+      saveQueueRef.current = save.then(
+        () => undefined,
+        () => undefined
+      )
+
+      try {
+        const saved = await save
+        // A newer save has already superseded this one: let it own the status
+        // and the state write-back, so an older reply can't rewind either.
+        if (version !== saveVersionRef.current) {
+          return Boolean(saved.compiledConfig)
+        }
+        if (sent === serializePayload(latestPayloadRef.current)) {
+          // Nothing was typed during the round trip, so it is safe to adopt the
+          // server's normalized copy. If something was, keep the user's version
+          // — overwriting it would swallow keystrokes — and let the next
+          // debounce save it.
+          setName(saved.name)
+          setType(saved.type)
+          setInterval(saved.interval)
+          // Keep the live camera. Pan and zoom are deliberately excluded from
+          // the dirty check, so they move without a save — which means the
+          // reply's viewport is stale and adopting it would snap the canvas
+          // back to wherever it was when the save left.
+          setGraph((current) => ({ ...saved.graph, viewport: current.viewport }))
+          setBacktestSettings(saved.backtest)
+          setLastSaved(
+            serialize(
+              saved.name,
+              saved.type,
+              saved.interval,
+              saved.graph,
+              saved.backtest
+            )
+          )
+        } else {
+          setLastSaved(sent)
+        }
+        setSaveStatus("saved")
+        return Boolean(saved.compiledConfig)
+      } catch (error) {
+        if (version === saveVersionRef.current) {
+          setSaveError(
+            error instanceof Error
+              ? error.message
+              : "Could not save this automation."
+          )
+          setSaveStatus("idle")
+        }
+        return false
+      }
+    },
+    [initial.id, serialize, serializePayload]
+  )
+
+  // Debounce: every edit restarts the clock, so a save fires once the canvas
+  // goes quiet. Guarded on the attempted snapshot so a failure doesn't retry.
+  React.useEffect(() => {
+    if (!dirty || currentSerialized === attemptedRef.current) return
+    const timer = setTimeout(() => {
+      saveTimerRef.current = null
+      void saveNow()
+    }, SAVE_DEBOUNCE_MS)
+    saveTimerRef.current = timer
+    return () => clearTimeout(timer)
+  }, [currentSerialized, dirty, saveNow])
+
+  // Leaving the editor flushes an edit the debounce never got to. Keyed on the
+  // snapshot, not the timer: the debounce effect's own cleanup runs first on
+  // unmount and would have already cleared it. It goes on the same queue as
+  // every other save — an earlier write may still be in flight, and jumping it
+  // would let the older content land last. Fire-and-forget, since the component
+  // is going away and has no state left to update.
+  React.useEffect(() => {
+    return () => {
+      const snapshot = latestPayloadRef.current
+      if (!snapshot.name.trim()) return
+      const sent = serializePayload(snapshot)
+      if (sent === attemptedRef.current) return
+      attemptedRef.current = sent
+      saveQueueRef.current = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveAutomation({ automationId: initial.id, ...snapshot }))
+        .then(
+          () => undefined,
+          () => undefined
+        )
+    }
+  }, [initial.id, serializePayload])
+
+  // Let the "Saved" tick fade so the toolbar isn't permanently annotated.
+  React.useEffect(() => {
+    if (saveStatus !== "saved") return
+    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
+    return () => clearTimeout(timer)
+  }, [saveStatus])
+
+  // Run and Deploy read the SAVED automation, so they flush a pending edit
+  // first. When nothing is pending they must NOT write: every save re-syncs
+  // this automation's live bots and costs a database round trip before the run
+  // can even start. `dirty === false` means the server confirmed this exact
+  // graph, and the buttons are already gated on it compiling.
+  const flushBeforeRun = React.useCallback(
+    () => (dirty ? saveNow(true) : Promise.resolve(true)),
+    [dirty, saveNow]
+  )
+
+  // Whale Wall gate, shared by the toolbar and the backtest panel. There is no
+  // save gate any more: Run and Deploy flush the pending save themselves.
   const backtestDisabledReason =
     compiled.config &&
     !automationCapabilities(compiled.config).supportsHistoricalBacktest
       ? "Whale Wall needs live order-book data, so historical backtesting is unavailable."
       : undefined
-  const runnableNow = compiled.config !== null && !dirty && !saving
+  const runnableNow = compiled.config !== null
   const runnableDisabledReason =
     compiled.config === null
       ? "Fix the automation's issues to enable."
-      : dirty || saving
-        ? "Save the automation to enable."
-        : undefined
+      : undefined
 
   const view: AutomationView = bot.open
     ? "bot"
@@ -589,18 +702,6 @@ export function AutomationEditor({
     [record, updateNode]
   )
 
-  const handleSaveAndRerun = async () => {
-    const saved = await handleSave()
-    if (!saved) return
-    const windowDays = Number(backtest.days)
-    await backtest.start(
-      Math.min(
-        Number.isInteger(windowDays) && windowDays >= 1 ? windowDays : 30,
-        maxWindowDays(interval)
-      )
-    )
-  }
-
   // Selecting a market surfaces its trades in the bottom panel.
   const selectedBacktestRunId = backtest.selectedRunId
   React.useEffect(() => {
@@ -621,7 +722,8 @@ export function AutomationEditor({
 
   // Preview TP/SL lines come from the CANVAS nodes (the bot's config is the
   // canvas), anchored at the current mark price. Dragging rewrites the node —
-  // dirty — and Save stores it; the deployed run gets exactly this config.
+  // dirty, so the auto-save stores it; the deployed run gets exactly this
+  // config, because Deploy flushes any pending write before it fires.
   const botTuneAnchor = botLive.markPrice
   const botPriceLines = React.useMemo<ChartPriceLine[]>(() => {
     if (!bot.open || !(botTuneAnchor > 0)) return []
@@ -772,8 +874,7 @@ export function AutomationEditor({
       config={compiled.config}
       runnable={runnableNow && !backtestDisabledReason}
       disabledReason={backtestDisabledReason ?? runnableDisabledReason}
-      canSaveAndRerun={dirty && compiled.config !== null && !saving}
-      onSaveAndRerun={() => void handleSaveAndRerun()}
+      onBeforeRun={flushBeforeRun}
     />
   )
   const paramsPanel = (
@@ -797,6 +898,7 @@ export function AutomationEditor({
       isDca={Boolean(compiled.config?.dca)}
       runnable={runnableNow}
       disabledReason={runnableDisabledReason}
+      onBeforeDeploy={flushBeforeRun}
     />
   )
   const leftPanel = backtest.open ? paramsPanel : palette
@@ -854,11 +956,9 @@ export function AutomationEditor({
         backtestDisabledReason={backtestDisabledReason}
         view={view}
         onViewChange={handleViewChange}
-        dirty={dirty}
-        saving={saving}
+        saveStatus={saveStatus}
         onNameChange={setName}
         onOpenSettings={() => setSettingsOpen(true)}
-        onSave={() => void handleSave()}
         onSaveRun={
           view === "backtest" &&
           backtest.phase === "results" &&
@@ -999,43 +1099,6 @@ export function AutomationEditor({
           {rightPanel}
         </SheetContent>
       </Sheet>
-
-      <Dialog
-        open={blocker.status === "blocked"}
-        onOpenChange={(open) => {
-          if (!open) blocker.reset?.()
-        }}
-      >
-        <DialogContent variant="admin" className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Unsaved changes</DialogTitle>
-            <DialogDescription>
-              Leaving discards the edits made since the last save.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              You have unsaved changes — leave without saving?
-            </p>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => blocker.reset?.()}
-            >
-              Stay
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => blocker.proceed?.()}
-            >
-              Leave
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={saveRunOpen} onOpenChange={setSaveRunOpen}>
         <DialogContent variant="admin" className="sm:max-w-sm">

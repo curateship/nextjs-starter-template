@@ -9,6 +9,7 @@ import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
 import Globe2 from "lucide-react/dist/esm/icons/earth.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
+import Mail from "lucide-react/dist/esm/icons/mail.js"
 import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Rss from "lucide-react/dist/esm/icons/rss.js"
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { NEWSLETTER_SUBJECT_MAX } from "@/features/automations/domain/nodes/newsletter";
 import type {
   AutomationEditorData,
   AutomationNode,
@@ -53,6 +55,7 @@ export type NodePanelData = Pick<
   | "templates"
   | "listingTemplates"
   | "eventTemplates"
+  | "newsletterTemplates"
   | "categories"
   | "providers"
 >;
@@ -155,6 +158,16 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
     describe: (node) =>
       node.kind === "event" ? `Draft events · ${node.config.model}` : "",
     Panel: EventPanel,
+  },
+  newsletter: {
+    icon: Mail,
+    describe: (node) =>
+      node.kind === "newsletter"
+        ? node.config.subjectMode === "fixed"
+          ? "Draft newsletter · fixed subject"
+          : "Draft newsletter · AI subject"
+        : "",
+    Panel: NewsletterPanel,
   },
 };
 
@@ -323,16 +336,32 @@ function TimePanel({ node, onChange }: NodePanelProps) {
   );
 }
 
-function ScraperPanel({ node, onChange }: NodePanelProps) {
-  if (node.kind !== "scraper") return null;
+/**
+ * The URL-list editor behind both the scraper and the feed node. They were the
+ * same 62-line panel twice over, differing only in the wording passed in here.
+ */
+function UrlListPanel({
+  node,
+  onChange,
+  label,
+  hint,
+  itemNoun,
+  placeholder,
+  addLabel,
+}: Pick<NodePanelProps, "node" | "onChange"> & {
+  label: string;
+  hint: string;
+  itemNoun: string;
+  placeholder: string;
+  addLabel: string;
+}) {
+  if (node.kind !== "scraper" && node.kind !== "feed") return null;
   const setUrls = (urls: string[]) => onChange({ ...node, config: { urls } });
   return (
     <div className="grid gap-3">
       <div>
-        <Label>Website URLs</Label>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Public HTTPS pages only. Unchanged pages are skipped.
-        </p>
+        <Label>{label}</Label>
+        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       </div>
       <div className="grid gap-2 rounded-2xl border border-foreground/5 bg-muted/40 p-2.5">
         {node.config.urls.map((url, index) => (
@@ -344,11 +373,11 @@ function ScraperPanel({ node, onChange }: NodePanelProps) {
               {String(index + 1).padStart(2, "0")}
             </span>
             <Input
-              aria-label={`Website URL ${index + 1}`}
+              aria-label={`${itemNoun} ${index + 1}`}
               className="h-8 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
               type="url"
               value={url}
-              placeholder="https://example.com/article"
+              placeholder={placeholder}
               onChange={(event) =>
                 setUrls(
                   node.config.urls.map((item, itemIndex) =>
@@ -365,7 +394,7 @@ function ScraperPanel({ node, onChange }: NodePanelProps) {
                 setUrls(node.config.urls.filter((_, itemIndex) => itemIndex !== index))
               }
               disabled={node.config.urls.length === 1}
-              aria-label={`Remove website URL ${index + 1}`}
+              aria-label={`Remove ${itemNoun.toLowerCase()} ${index + 1}`}
             >
               <Trash2 />
             </Button>
@@ -379,73 +408,40 @@ function ScraperPanel({ node, onChange }: NodePanelProps) {
           disabled={node.config.urls.length >= 20}
         >
           <Plus />
-          Add URL
+          {addLabel}
         </Button>
       </div>
     </div>
   );
 }
 
+function ScraperPanel({ node, onChange }: NodePanelProps) {
+  if (node.kind !== "scraper") return null;
+  return (
+    <UrlListPanel
+      node={node}
+      onChange={onChange}
+      label="Website URLs"
+      hint="Public HTTPS pages only. Unchanged pages are skipped."
+      itemNoun="Website URL"
+      placeholder="https://example.com/article"
+      addLabel="Add URL"
+    />
+  );
+}
+
 function FeedPanel({ node, onChange }: NodePanelProps) {
   if (node.kind !== "feed") return null;
-  const setUrls = (urls: string[]) => onChange({ ...node, config: { urls } });
   return (
-    <div className="grid gap-3">
-      <div>
-        <Label>Feed URLs</Label>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Public RSS or Atom feeds. Each entry is processed once across runs.
-        </p>
-      </div>
-      <div className="grid gap-2 rounded-2xl border border-foreground/5 bg-muted/40 p-2.5">
-        {node.config.urls.map((url, index) => (
-          <div
-            key={index}
-            className="flex items-center gap-2 rounded-xl border border-foreground/5 bg-card p-2.5 shadow-sm"
-          >
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 font-mono text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-200">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <Input
-              aria-label={`Feed URL ${index + 1}`}
-              className="h-8 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
-              type="url"
-              value={url}
-              placeholder="https://example.com/feed.xml"
-              onChange={(event) =>
-                setUrls(
-                  node.config.urls.map((item, itemIndex) =>
-                    itemIndex === index ? event.target.value : item,
-                  ),
-                )
-              }
-            />
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="shrink-0 text-muted-foreground hover:text-destructive"
-              onClick={() =>
-                setUrls(node.config.urls.filter((_, itemIndex) => itemIndex !== index))
-              }
-              disabled={node.config.urls.length === 1}
-              aria-label={`Remove feed URL ${index + 1}`}
-            >
-              <Trash2 />
-            </Button>
-          </div>
-        ))}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full"
-          onClick={() => setUrls([...node.config.urls, ""])}
-          disabled={node.config.urls.length >= 20}
-        >
-          <Plus />
-          Add feed
-        </Button>
-      </div>
-    </div>
+    <UrlListPanel
+      node={node}
+      onChange={onChange}
+      label="Feed URLs"
+      hint="Public RSS or Atom feeds. Each entry is processed once across runs."
+      itemNoun="Feed URL"
+      placeholder="https://example.com/feed.xml"
+      addLabel="Add feed"
+    />
   );
 }
 
@@ -1048,6 +1044,80 @@ function EventPanel({ node, data, onChange }: NodePanelProps) {
           }
         />
       </Field>
+    </>
+  );
+}
+
+function NewsletterPanel({ node, data, onChange }: NodePanelProps) {
+  if (node.kind !== "newsletter") return null;
+  const setConfig = (config: typeof node.config) => onChange({ ...node, config });
+  return (
+    <>
+      <Field
+        label="Newsletter template"
+        htmlFor="newsletter-template"
+        description="The template supplies the whole email frame — logo header, footer, and unsubscribe link. Its first Rich Text block holds the written content. Blank starts from a single Rich Text block."
+      >
+        <Select
+          value={node.config.templateId ?? "blank"}
+          onValueChange={(value) =>
+            setConfig({ ...node.config, templateId: value === "blank" ? null : value })
+          }
+        >
+          <SelectTrigger id="newsletter-template" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="blank">Blank</SelectItem>
+            {data.newsletterTemplates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+                {template.isDefault ? " (default)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Subject line"
+        htmlFor="newsletter-subject-mode"
+        description="Drafts are never sent. You choose the audience and press send yourself in the newsletter builder."
+      >
+        <Select
+          value={node.config.subjectMode}
+          onValueChange={(value) =>
+            setConfig({
+              ...node.config,
+              subjectMode: value === "fixed" ? "fixed" : "article",
+            })
+          }
+        >
+          <SelectTrigger id="newsletter-subject-mode" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="article">Written by the AI</SelectItem>
+            <SelectItem value="fixed">The same line every time</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      {node.config.subjectMode === "fixed" ? (
+        <Field
+          label="Fixed subject line"
+          htmlFor="newsletter-subject-text"
+          description="Write {{title}} anywhere in the line to drop in the AI's own title, such as: Austin Weekly: {{title}}"
+        >
+          <Input
+            id="newsletter-subject-text"
+            value={node.config.subjectText}
+            maxLength={NEWSLETTER_SUBJECT_MAX}
+            placeholder="Austin Weekly: {{title}}"
+            onChange={(event) =>
+              setConfig({ ...node.config, subjectText: event.target.value })
+            }
+          />
+        </Field>
+      ) : null}
     </>
   );
 }

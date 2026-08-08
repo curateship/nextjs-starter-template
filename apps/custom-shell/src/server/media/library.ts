@@ -1,0 +1,912 @@
+import sanitizeHtml from "sanitize-html"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm"
+
+import { db, type CustomShellDb } from "@/server/db"
+import {
+  deleteFromR2,
+  getPublicMediaUrl,
+  listR2Objects,
+  R2StorageNotConfiguredError,
+} from "@/server/media/storage"
+import {
+  customShellMedia,
+  customShellUsers,
+  type CustomShellMedia,
+} from "@/server/schema"
+import { now, uuid } from "@/server/auth/security"
+
+export const IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+])
+export const VIDEO_TYPES = new Set([
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-matroska",
+])
+/**
+ * Sound. Kept apart from video because it is sized and described differently,
+ * and because a great many apps never touch it.
+ */
+export const AUDIO_TYPES = new Set([
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/aac",
+])
+export const ALLOWED_TYPES = new Set([
+  ...IMAGE_TYPES,
+  ...VIDEO_TYPES,
+  ...AUDIO_TYPES,
+])
+
+const IMAGE_MAX_BYTES = 10 * 1024 * 1024
+const VIDEO_MAX_BYTES = 100 * 1024 * 1024
+const AUDIO_MAX_BYTES = 50 * 1024 * 1024
+const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
+
+export type MediaFileType = "image" | "video" | "audio"
+export type MediaSortBy =
+  | "created_at"
+  | "original_name"
+  | "file_size"
+  | "file_type"
+export type MediaSortDirection = "asc" | "desc"
+
+export type MediaItem = {
+  id: string
+  filename: string
+  original_name: string
+  alt_text: string | null
+  file_size: number
+  mime_type: string
+  file_type: MediaFileType
+  url: string
+  created_at: string
+  updated_at: string
+}
+
+export type MediaListResponse = {
+  media: MediaItem[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export function getMediaFileType(mimeType: string): MediaFileType {
+  if (IMAGE_TYPES.has(mimeType)) return "image"
+  if (AUDIO_TYPES.has(mimeType)) return "audio"
+  return "video"
+}
+
+export function validateMediaFile(mimeType: string, size: number) {
+  if (!ALLOWED_TYPES.has(mimeType)) {
+    throw new Error(
+      "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG), videos (MP4, WebM, MOV, AVI, MKV) and sound (MP3, WAV, M4A, OGG) are allowed."
+    )
+  }
+
+  const fileType = getMediaFileType(mimeType)
+  const maxSize =
+    fileType === "image"
+      ? IMAGE_MAX_BYTES
+      : fileType === "audio"
+        ? AUDIO_MAX_BYTES
+        : VIDEO_MAX_BYTES
+  const maxSizeLabel =
+    fileType === "image" ? "10MB" : fileType === "audio" ? "50MB" : "100MB"
+  if (size > maxSize) {
+    throw new Error(`File size too large. Maximum size is ${maxSizeLabel}.`)
+  }
+}
+
+export function validateMediaContent(mimeType: string, data: Uint8Array) {
+  if (mimeType === "image/svg+xml") {
+    sanitizeSvgContent(data)
+    return
+  }
+
+  const valid =
+    (mimeType === "image/jpeg" || mimeType === "image/jpg") &&
+      hasPrefix(data, [0xff, 0xd8, 0xff]) ||
+    mimeType === "image/png" &&
+      hasPrefix(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
+    mimeType === "image/gif" &&
+      (hasAscii(data, 0, "GIF87a") || hasAscii(data, 0, "GIF89a")) ||
+    mimeType === "image/webp" &&
+      hasAscii(data, 0, "RIFF") &&
+      hasAscii(data, 8, "WEBP") ||
+    (mimeType === "video/mp4" || mimeType === "video/quicktime") &&
+      hasAscii(data, 4, "ftyp") ||
+    mimeType === "video/webm" &&
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]) ||
+    mimeType === "video/x-msvideo" &&
+      hasAscii(data, 0, "RIFF") &&
+      hasAscii(data, 8, "AVI ") ||
+    mimeType === "video/x-matroska" &&
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])
+
+  if (!valid) {
+    throw new Error("File content does not match the selected media type.")
+  }
+}
+
+export function prepareMediaContent(mimeType: string, data: Uint8Array) {
+  if (mimeType === "image/svg+xml") {
+    return sanitizeSvgContent(data)
+  }
+
+  validateMediaContent(mimeType, data)
+  return data
+}
+
+const svgSanitizeOptions = {
+  allowedTags: "svg g path rect circle ellipse line polyline polygon title desc".split(" "),
+  allowedAttributes: {
+    svg: "xmlns viewBox width height role aria-label aria-labelledby fill stroke".split(" "),
+    "*": "d x y x1 x2 y1 y2 cx cy r rx ry points fill stroke stroke-width opacity transform".split(" "),
+  },
+  parser: {
+    lowerCaseAttributeNames: false,
+    lowerCaseTags: false,
+  },
+} satisfies sanitizeHtml.IOptions
+
+function sanitizeSvgContent(data: Uint8Array) {
+  let source = ""
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(data)
+  } catch {
+    throw new Error("File content does not match the selected media type.")
+  }
+
+  const sanitized = sanitizeHtml(source, svgSanitizeOptions).trim()
+  if (
+    !/^<svg(?:\s|>)/i.test(sanitized) ||
+    /(?:javascript:|data:|url\s*\()/i.test(sanitized)
+  ) {
+    throw new Error("File content does not match the selected media type.")
+  }
+
+  return new TextEncoder().encode(sanitized)
+}
+
+export function cleanOriginalName(filename?: string) {
+  const name = (filename || "media").replace(/\\/g, "/").split("/").pop()?.trim()
+  return (name || "media").slice(0, 255)
+}
+
+function hasPrefix(data: Uint8Array, prefix: number[]) {
+  return prefix.every((byte, index) => data[index] === byte)
+}
+
+function hasAscii(data: Uint8Array, offset: number, value: string) {
+  if (data.length < offset + value.length) return false
+  return Array.from(value).every(
+    (character, index) => data[offset + index] === character.charCodeAt(0)
+  )
+}
+
+export function storedFilename(originalName: string, mimeType: string) {
+  const extensionIndex = originalName.lastIndexOf(".")
+  const base =
+    extensionIndex > -1 ? originalName.slice(0, extensionIndex) : originalName
+  const originalExtension =
+    extensionIndex > -1 ? originalName.slice(extensionIndex + 1) : ""
+  const extension = originalExtension || defaultExtensionForMimeType(mimeType)
+  const cleanBase = base.replace(FILENAME_SAFE_CHARS, "-").replace(/^[.-]+|[.-]+$/g, "") || "media"
+  const cleanExtension = extension.replace(FILENAME_SAFE_CHARS, "").replace(/^\.+|\.+$/g, "")
+  const suffix = cleanExtension ? `.${cleanExtension}` : ""
+  return `${uuid()}_${cleanBase}${suffix}`.slice(0, 255)
+}
+
+export function cleanAltText(value?: string | null) {
+  const cleaned = value?.trim() || ""
+  return cleaned ? cleaned.slice(0, 500) : null
+}
+
+/**
+ * The files this person has to choose from: **their own, on this site.**
+ *
+ * Both halves matter. The site half is why a photo uploaded for Alpha is never
+ * offered while working on Beta. The person half is the one that was already
+ * here, and it stays: the same picker is opened by a member choosing a profile
+ * photo or a feedback screenshot, and dropping it would put every member's
+ * uploads in front of every other member — a wider door than the one this task
+ * is closing.
+ */
+export async function listOwnedMedia({
+  workspaceId,
+  userId,
+  page,
+  pageSize,
+  search,
+  fileType,
+  mimeType,
+  sortBy = "created_at",
+  sortDirection = "desc",
+}: {
+  workspaceId: string
+  userId: string
+  page: number
+  pageSize: number
+  search?: string
+  fileType?: MediaFileType
+  mimeType?: "image/svg+xml"
+  sortBy?: MediaSortBy
+  sortDirection?: MediaSortDirection
+}): Promise<MediaListResponse> {
+  const normalizedPage = Math.max(1, page)
+  const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
+  // The filters are collected rather than nested, so adding one does not mean
+  // another layer of and(a, b) ? … : … guesswork.
+  const filters: SQL[] = [
+    eq(customShellMedia.workspaceId, workspaceId),
+    eq(customShellMedia.userId, userId),
+  ]
+  if (fileType) filters.push(eq(customShellMedia.fileType, fileType))
+  if (mimeType) filters.push(eq(customShellMedia.mimeType, mimeType))
+
+  // Searched on the same three things the picker used to read on the page:
+  // the name it was uploaded under, the name it is stored as, and its alt text.
+  const term = search?.trim()
+  if (term) {
+    const pattern = `%${term}%`
+    const match = or(
+      ilike(customShellMedia.originalName, pattern),
+      ilike(customShellMedia.filename, pattern),
+      ilike(customShellMedia.altText, pattern)
+    )
+    if (match) filters.push(match)
+  }
+
+  const where = and(...filters)
+
+  const [totalRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(customShellMedia)
+    .where(where)
+  const total = totalRow?.count ?? 0
+  const rows = await db
+    .select()
+    .from(customShellMedia)
+    .where(where)
+    .orderBy(getMediaOrderBy(sortBy, sortDirection))
+    .offset((normalizedPage - 1) * normalizedPageSize)
+    .limit(normalizedPageSize)
+
+  return {
+    media: rows.map(serializeMedia),
+    total,
+    page: normalizedPage,
+    page_size: normalizedPageSize,
+    total_pages: total ? Math.ceil(total / normalizedPageSize) : 0,
+  }
+}
+
+function getMediaOrderBy(sortBy: MediaSortBy, sortDirection: MediaSortDirection) {
+  const column =
+    sortBy === "original_name"
+      ? customShellMedia.originalName
+      : sortBy === "file_size"
+        ? customShellMedia.fileSize
+        : sortBy === "file_type"
+          ? customShellMedia.fileType
+          : customShellMedia.createdAt
+
+  return sortDirection === "asc" ? asc(column) : desc(column)
+}
+
+/**
+ * Whether a URL is one of this account's own uploaded images.
+ *
+ * Deliberately **not** scoped to a site. This is the check that stands between
+ * a field somebody types into and any address on the internet, and the picture
+ * it guards — a profile photo, a feedback screenshot — belongs to the person
+ * rather than to a site. Adding the site here would break somebody's avatar the
+ * moment they were looked at from another one.
+ *
+ * Anywhere a media URL arrives from the browser and is then stored and rendered
+ * back — a profile photo, for one — this is what stands between that and any
+ * other address someone could type. The URL is turned back into the storage key
+ * it would have to be, and that key has to belong to a row this account owns.
+ * Videos are refused too: a picture field is for pictures.
+ */
+export async function isOwnedImageUrl(
+  userId: string,
+  url: string,
+  // Narrowed to what it uses so a caller inside a transaction can hand its `tx`
+  // over and stay on the one connection.
+  database: Pick<CustomShellDb, "select"> = db
+) {
+  return Boolean(await findOwnedImageByUrl(userId, url, database))
+}
+
+/**
+ * The media row behind one of this account's own image URLs, or null when the
+ * URL is anything else. The row itself is for the callers that need to hold on
+ * to the picture — a feedback screenshot stores the id so deleting the feedback
+ * can find the file again.
+ */
+export async function findOwnedImageByUrl(
+  userId: string,
+  url: string,
+  database: Pick<CustomShellDb, "select"> = db
+) {
+  const storagePath = storagePathForUrl(url)
+  if (!storagePath) return null
+
+  const [row] = await database
+    .select({ id: customShellMedia.id, fileType: customShellMedia.fileType })
+    .from(customShellMedia)
+    .where(
+      and(
+        eq(customShellMedia.userId, userId),
+        eq(customShellMedia.storagePath, storagePath)
+      )
+    )
+    .limit(1)
+
+  return row?.fileType === "image" ? row : null
+}
+
+/**
+ * Takes the profile photo off any account that was using one of these files.
+ *
+ * Every path that erases a live picture calls this. An account stores its photo
+ * as a URL, which no foreign key can follow, so deleting the file would
+ * otherwise leave the account pointing at nothing. Deleting the account itself
+ * needs no call: its media rows cascade away with it, and ownership is checked
+ * on the way in, so nobody else can have been holding its files.
+ */
+export async function clearAvatarsForStoragePaths(
+  storagePaths: string[],
+  database: CustomShellDb = db
+) {
+  if (!storagePaths.length) return
+
+  let urls: string[]
+  try {
+    urls = storagePaths.map(getPublicMediaUrl)
+  } catch {
+    // No public URL means no account can be holding one.
+    return
+  }
+
+  await database
+    .update(customShellUsers)
+    .set({ avatarUrl: null, updatedAt: now() })
+    .where(inArray(customShellUsers.avatarUrl, urls))
+}
+
+/**
+ * The bucket key a public media URL points at, or null when the URL is not one
+ * this app would ever have handed out.
+ */
+function storagePathForUrl(url: string) {
+  let prefix: string
+  try {
+    // Passing the empty key yields the public base with its trailing slash,
+    // which is exactly what every real media URL starts with.
+    prefix = getPublicMediaUrl("")
+  } catch {
+    // Storage is not configured, so this app has handed out no media URLs and
+    // nothing can match.
+    return null
+  }
+
+  // Compared exactly as it was handed out: `getPublicMediaUrl` glues the key on
+  // without escaping it, and stored keys only ever hold safe characters.
+  if (!url.startsWith(prefix)) return null
+  return url.slice(prefix.length) || null
+}
+
+/**
+ * One of this person's own files, for editing its alt text and for serving its
+ * bytes. The person, not the site — see `isOwnedImageUrl` for why.
+ */
+export async function getOwnedMedia(userId: string, mediaId: string) {
+  const [row] = await db
+    .select()
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+
+  if (!row) {
+    throw new Error("Media not found")
+  }
+
+  return row
+}
+
+export function serializeMedia(row: CustomShellMedia): MediaItem {
+  return {
+    id: row.id,
+    filename: row.filename,
+    original_name: row.originalName,
+    alt_text: row.altText,
+    file_size: row.fileSize,
+    mime_type: row.mimeType,
+    file_type: row.fileType as MediaFileType,
+    url: getPublicMediaUrl(row.storagePath),
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin-wide media. Everything below crosses account boundaries and is only
+// ever reached through server functions that call requireAdmin() first.
+// ---------------------------------------------------------------------------
+
+/** How many bucket keys one orphan scan will read before giving up. */
+const ORPHAN_SCAN_MAX_KEYS = 20000
+
+/**
+ * Uploads are stored at `<user id>/<filename>`. Anything else in the bucket was
+ * put there by something other than this app, so an orphan sweep leaves it
+ * alone rather than deleting a stranger's file.
+ */
+const APP_STORAGE_KEY = /^[0-9a-fA-F-]{36}\/.+/
+
+export type AdminMediaSort = "file" | "owner" | "type" | "size" | "created"
+export type AdminMediaTypeFilter = "all" | MediaFileType | "svg"
+
+export type AdminMediaItem = MediaItem & {
+  owner_id: string
+  owner_name: string
+  owner_email: string
+  storage_path: string
+}
+
+export type AdminMediaListQuery = {
+  search: string
+  ownerId: string
+  fileType: AdminMediaTypeFilter
+  page: number
+  pageSize: number
+  sort: AdminMediaSort
+  direction: MediaSortDirection
+}
+
+export type AdminMediaListResponse = {
+  media: AdminMediaItem[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export type MediaOwner = { userId: string; name: string }
+
+export type MediaOrphanKind = "missing_file" | "unlinked_object"
+
+export type MediaOrphan = {
+  kind: MediaOrphanKind
+  mediaId: string | null
+  storagePath: string
+  name: string
+  bytes: number
+  ownerId: string | null
+  ownerName: string | null
+  createdAt: string | null
+  fileType: MediaFileType | "other"
+  /** Null when the file is gone, so there is nothing to preview. */
+  url: string | null
+}
+
+type MediaOrphanScan = {
+  orphans: MediaOrphan[]
+  scannedObjects: number
+  /** True when the bucket held more keys than one scan reads. */
+  truncated: boolean
+}
+
+export type OrphanDashboard = {
+  orphans: MediaOrphan[]
+  scannedObjects: number
+  truncated: boolean
+  /** Everyone the orphans could be traced back to, for the owner filter. */
+  owners: MediaOwner[]
+  scanError: string | null
+}
+
+/**
+ * Every file on the deployment, whichever site it was uploaded for.
+ *
+ * Deliberately not per site: this is the storage screen, and it exists to
+ * answer how much room is being used and which files nothing points at any
+ * more. Both questions are about the deployment's disk. Nothing is exposed by
+ * it that an admin could not already reach, since an admin can enter every
+ * workspace on the deployment.
+ */
+export async function listAllMedia(
+  query: AdminMediaListQuery,
+  database: CustomShellDb = db
+): Promise<AdminMediaListResponse> {
+  const page = Math.max(1, query.page)
+  const pageSize = Math.min(Math.max(1, query.pageSize), 100)
+  const where = buildAdminMediaWhere(query)
+  const direction = query.direction === "asc" ? asc : desc
+  const sortColumn = {
+    file: customShellMedia.originalName,
+    owner: customShellUsers.name,
+    type: customShellMedia.fileType,
+    size: customShellMedia.fileSize,
+    created: customShellMedia.createdAt,
+  }[query.sort]
+
+  const rows = await database
+    .select({ media: customShellMedia, owner: customShellUsers })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .where(where)
+    .orderBy(direction(sortColumn))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  const [totals] = await database
+    .select({ total: count() })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .where(where)
+
+  const total = totals?.total ?? 0
+
+  return {
+    media: rows.map((row) => ({
+      ...serializeMedia(row.media),
+      owner_id: row.owner.id,
+      owner_name: row.owner.name,
+      owner_email: row.owner.email,
+      storage_path: row.media.storagePath,
+    })),
+    total,
+    page,
+    page_size: pageSize,
+    total_pages: total ? Math.ceil(total / pageSize) : 0,
+  }
+}
+
+/** One admin-visible file, used when a shared link names a file off the page. */
+export async function getAdminMedia(mediaId: string): Promise<AdminMediaItem | null> {
+  const [row] = await db
+    .select({ media: customShellMedia, owner: customShellUsers })
+    .from(customShellMedia)
+    .innerJoin(customShellUsers, eq(customShellUsers.id, customShellMedia.userId))
+    .where(eq(customShellMedia.id, mediaId))
+    .limit(1)
+
+  return row
+    ? {
+        ...serializeMedia(row.media),
+        owner_id: row.owner.id,
+        owner_name: row.owner.name,
+        owner_email: row.owner.email,
+        storage_path: row.media.storagePath,
+      }
+    : null
+}
+
+function buildAdminMediaWhere(query: AdminMediaListQuery) {
+  const filters: SQL[] = []
+  const search = query.search.trim()
+
+  if (search) {
+    const pattern = `%${search}%`
+    const match = or(
+      ilike(customShellMedia.originalName, pattern),
+      ilike(customShellMedia.filename, pattern),
+      ilike(customShellUsers.name, pattern),
+      ilike(customShellUsers.email, pattern)
+    )
+    if (match) filters.push(match)
+  }
+  if (query.ownerId !== "all") {
+    filters.push(eq(customShellMedia.userId, query.ownerId))
+  }
+  if (query.fileType === "svg") {
+    filters.push(eq(customShellMedia.mimeType, "image/svg+xml"))
+  } else if (query.fileType !== "all") {
+    filters.push(eq(customShellMedia.fileType, query.fileType))
+  }
+
+  return filters.length ? and(...filters) : undefined
+}
+
+/** Just enough to fill the media page's owner filter. */
+export async function listMediaOwners(
+  database: CustomShellDb = db
+): Promise<MediaOwner[]> {
+  const rows = await database
+    .selectDistinct({
+      userId: customShellUsers.id,
+      name: customShellUsers.name,
+    })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .orderBy(asc(customShellUsers.name))
+
+  return rows
+}
+
+/** The orphan list, with the people it could be traced to. */
+export async function loadOrphanDashboard(
+  database: CustomShellDb = db
+): Promise<OrphanDashboard> {
+  const { scan, scanError } = await tryScanMediaOrphans(database)
+  const owners = new Map<string, MediaOwner>()
+  for (const orphan of scan.orphans) {
+    if (orphan.ownerId && orphan.ownerName) {
+      owners.set(orphan.ownerId, {
+        userId: orphan.ownerId,
+        name: orphan.ownerName,
+      })
+    }
+  }
+
+  return {
+    orphans: scan.orphans,
+    scannedObjects: scan.scannedObjects,
+    truncated: scan.truncated,
+    owners: Array.from(owners.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    ),
+    scanError,
+  }
+}
+
+/**
+ * A bucket that cannot be read is reported rather than swallowed, so a page can
+ * still show the numbers it does have.
+ */
+async function tryScanMediaOrphans(database: CustomShellDb) {
+  try {
+    return { scan: await scanMediaOrphans(database), scanError: null }
+  } catch (error) {
+    return {
+      scan: { orphans: [], scannedObjects: 0, truncated: false },
+      scanError:
+        error instanceof R2StorageNotConfiguredError
+          ? "R2_NOT_CONFIGURED"
+          : "SCAN_FAILED",
+    } satisfies { scan: MediaOrphanScan; scanError: string }
+  }
+}
+
+export type AccountStorage = { files: number; bytes: number }
+
+/**
+ * One person's files and the space they take, straight from the media table.
+ *
+ * Deliberately no orphan numbers: finding orphans means listing the whole
+ * bucket, which is the storage page's job once, not something to repeat every
+ * time an admin opens somebody's account.
+ */
+export async function loadAccountStorage(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<AccountStorage> {
+  const [row] = await database
+    .select({
+      files: count(),
+      bytes: sql<number>`coalesce(sum(${customShellMedia.fileSize}), 0)::bigint`,
+    })
+    .from(customShellMedia)
+    .where(eq(customShellMedia.userId, userId))
+
+  return { files: row?.files ?? 0, bytes: Number(row?.bytes ?? 0) }
+}
+
+/**
+ * Compares the media table against the bucket in both directions: rows whose
+ * file is gone, and files no row points at. When the bucket is bigger than one
+ * scan reads, the missing-file half is skipped — a key we never looked at is
+ * not evidence the file is missing.
+ */
+async function scanMediaOrphans(
+  database: CustomShellDb = db
+): Promise<MediaOrphanScan> {
+  const { objects, truncated } = await listR2Objects(ORPHAN_SCAN_MAX_KEYS)
+  const storedKeys = new Set(objects.map((object) => object.key))
+
+  const rows = await database
+    .select({ media: customShellMedia, owner: customShellUsers })
+    .from(customShellMedia)
+    .innerJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellMedia.userId)
+    )
+    .orderBy(desc(customShellMedia.createdAt))
+
+  const knownPaths = new Set(rows.map((row) => row.media.storagePath))
+  const orphans: MediaOrphan[] = []
+
+  if (!truncated) {
+    for (const row of rows) {
+      if (storedKeys.has(row.media.storagePath)) continue
+      orphans.push({
+        kind: "missing_file",
+        mediaId: row.media.id,
+        storagePath: row.media.storagePath,
+        name: row.media.originalName,
+        bytes: row.media.fileSize,
+        ownerId: row.owner.id,
+        ownerName: row.owner.name,
+        createdAt: row.media.createdAt.toISOString(),
+        fileType: row.media.fileType as MediaFileType,
+        // The file is gone, so its URL would only ever 404.
+        url: null,
+      })
+    }
+  }
+
+  // A key is `<uploader id>/<filename>`, so a file that lost its record can
+  // still be traced back to a person.
+  const unlinked = objects
+    .filter(
+      (object) => !knownPaths.has(object.key) && APP_STORAGE_KEY.test(object.key)
+    )
+    .map((object) => {
+      const [ownerId, ...rest] = object.key.split("/")
+      return { ...object, ownerId, filename: rest.join("/") }
+    })
+  const owners = await findUsersByIds(
+    Array.from(new Set(unlinked.map((object) => object.ownerId))),
+    database
+  )
+
+  for (const object of unlinked) {
+    const owner = owners.get(object.ownerId)
+    orphans.push({
+      kind: "unlinked_object",
+      mediaId: null,
+      storagePath: object.key,
+      name: object.filename || object.key,
+      bytes: object.size,
+      ownerId: owner?.id ?? null,
+      ownerName: owner?.name ?? null,
+      createdAt: null,
+      fileType: fileTypeFromKey(object.key),
+      // The file is still there, so it can be previewed before it is erased.
+      url: getPublicMediaUrl(object.key),
+    })
+  }
+
+  return { orphans, scannedObjects: objects.length, truncated }
+}
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg"])
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "avi", "mkv"])
+
+/** A stray file has no record, so its extension is all there is to go on. */
+function fileTypeFromKey(key: string): MediaFileType | "other" {
+  const extension = key.split(".").pop()?.toLowerCase() ?? ""
+  if (IMAGE_EXTENSIONS.has(extension)) return "image"
+  if (VIDEO_EXTENSIONS.has(extension)) return "video"
+  return "other"
+}
+
+async function findUsersByIds(ids: string[], database: CustomShellDb) {
+  if (!ids.length) return new Map<string, { id: string; name: string }>()
+
+  const rows = await database
+    .select({ id: customShellUsers.id, name: customShellUsers.name })
+    .from(customShellUsers)
+    .where(inArray(customShellUsers.id, ids))
+
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+/**
+ * Removes only entries the server can still prove are orphans, so a stale page
+ * (or a crafted request) can never delete a live file or an unrelated object.
+ */
+export async function cleanMediaOrphans(
+  input: { mediaIds: string[]; storagePaths: string[] },
+  database: CustomShellDb = db
+) {
+  const scan = await scanMediaOrphans(database)
+  const requestedIds = new Set(input.mediaIds)
+  const requestedPaths = new Set(input.storagePaths)
+
+  const rowsToDelete = scan.orphans
+    .filter(
+      (orphan) => orphan.kind === "missing_file" && requestedIds.has(orphan.mediaId ?? "")
+    )
+    .map((orphan) => orphan.mediaId as string)
+  const objectsToDelete = scan.orphans
+    .filter(
+      (orphan) =>
+        orphan.kind === "unlinked_object" && requestedPaths.has(orphan.storagePath)
+    )
+    .map((orphan) => orphan.storagePath)
+
+  for (const storagePath of objectsToDelete) {
+    await deleteFromR2(storagePath)
+  }
+
+  if (rowsToDelete.length) {
+    await database
+      .delete(customShellMedia)
+      .where(inArray(customShellMedia.id, rowsToDelete))
+  }
+
+  return { deletedCount: rowsToDelete.length + objectsToDelete.length }
+}
+
+/** Deletes any owner's media, file first so a failure never strands the file. */
+export async function deleteMediaAsAdmin(
+  mediaIds: string[],
+  database: CustomShellDb = db
+) {
+  const uniqueIds = Array.from(new Set(mediaIds))
+  const rows = await database
+    .select()
+    .from(customShellMedia)
+    .where(inArray(customShellMedia.id, uniqueIds))
+
+  for (const row of rows) {
+    await deleteFromR2(row.storagePath)
+  }
+
+  if (rows.length) {
+    await database.delete(customShellMedia).where(
+      inArray(
+        customShellMedia.id,
+        rows.map((row) => row.id)
+      )
+    )
+    await clearAvatarsForStoragePaths(
+      rows.map((row) => row.storagePath),
+      database
+    )
+  }
+
+  return { deletedCount: rows.length }
+}
+
+function defaultExtensionForMimeType(mimeType: string) {
+  if (mimeType === "image/jpeg" || mimeType === "image/jpg") return "jpg"
+  if (mimeType === "image/png") return "png"
+  if (mimeType === "image/gif") return "gif"
+  if (mimeType === "image/webp") return "webp"
+  if (mimeType === "image/svg+xml") return "svg"
+  if (mimeType === "video/mp4") return "mp4"
+  if (mimeType === "video/webm") return "webm"
+  if (mimeType === "video/quicktime") return "mov"
+  if (mimeType === "video/x-msvideo") return "avi"
+  if (mimeType === "video/x-matroska") return "mkv"
+  return ""
+}

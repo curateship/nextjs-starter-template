@@ -335,7 +335,7 @@ export function GoogleMapsDashboard() {
     <div className="w-full pb-8">
       <DashboardTable
         title="Google Maps"
-        icon={<MapPinnedIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<MapPinnedIcon className="text-muted-foreground" />}
         count={filtered.length}
         status={message ?? (hasToken === false ? { tone: "error", text: "Add an Apify API token in provider settings before starting runs." } : null)}
         selectedCount={selectedRunIds.size}
@@ -350,7 +350,7 @@ export function GoogleMapsDashboard() {
             ) : null}
             <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search data sources..." />
             <Select value={status} onValueChange={(value) => setStatus(value as keyof typeof statusLabels)}>
-              <DashboardToolbarSelectTrigger aria-label="Filter by status" labels={Object.values(statusLabels)}>
+              <DashboardToolbarSelectTrigger aria-label="Filter by status">
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -998,7 +998,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   return (
     <div className="w-full pb-8">
       <DashboardTable
-        icon={<MapPinnedIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<MapPinnedIcon className="text-muted-foreground" />}
         title={<GoogleMapsResultsBreadcrumb title={data?.run.name ?? "Results"} />}
         count={results.length}
         status={message}
