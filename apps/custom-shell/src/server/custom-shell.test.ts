@@ -124,6 +124,7 @@ import { describeDevice } from "@/lib/format/device-label"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
 import {
+  addAutomationTemplatesLink,
   addNewsletterLink,
   addOverviewLink,
   addPagesLink,
@@ -1154,6 +1155,9 @@ describe("custom shell workspaces", () => {
         label: "Automations",
         href: "/admin/automations",
         visible: true,
+        children: [
+          { label: "Templates", href: "/admin/automations/templates" },
+        ],
       },
       {
         type: "item",
@@ -1237,6 +1241,9 @@ describe("custom shell workspaces", () => {
         label: "Automations",
         href: "/admin/automations",
         visible: true,
+        children: [
+          { label: "Templates", href: "/admin/automations/templates" },
+        ],
       },
       {
         type: "item",
@@ -2371,6 +2378,51 @@ describe("pages link", () => {
 
   it("leaves an emptied sidebar empty", () => {
     expect(addPagesLink([])).toEqual([])
+  })
+})
+
+describe("automation templates sidebar link", () => {
+  const automations = {
+    type: "item" as const,
+    id: "item-automations",
+    label: "My flows",
+    href: "/admin/automations",
+    icon: "workflow" as const,
+    visible: true,
+  }
+  const section = (entry: ShellItem): ShellSection[] => [
+    { id: "section-platform-settings", title: "Platform", entries: [entry] },
+  ]
+
+  it("adds Templates beneath the existing parent", () => {
+    const [updated] = addAutomationTemplatesLink(section(automations))
+    expect(updated.entries[0]).toMatchObject({
+      label: "My flows",
+      children: [{ label: "Templates", href: "/admin/automations/templates" }],
+    })
+  })
+
+  it("keeps existing children and never adds Templates twice", () => {
+    const withChild = section({
+      ...automations,
+      children: [{ id: "custom-child", label: "Runs", href: "/runs" }],
+    })
+    const once = addAutomationTemplatesLink(withChild)
+    const twice = addAutomationTemplatesLink(once)
+
+    expect((once[0].entries[0] as ShellItem).children).toMatchObject([
+      { label: "Runs", href: "/runs" },
+      { label: "Templates", href: "/admin/automations/templates" },
+    ])
+    expect(twice).toBe(once)
+  })
+
+  it("leaves a sidebar without Automations alone", () => {
+    const sections: ShellSection[] = [
+      { id: "section-platform-settings", title: "Platform", entries: [] },
+    ]
+    expect(addAutomationTemplatesLink(sections)).toBe(sections)
+    expect(addAutomationTemplatesLink([])).toEqual([])
   })
 })
 

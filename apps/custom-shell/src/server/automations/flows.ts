@@ -208,10 +208,16 @@ export async function getUserAutomation(
 export async function createUserAutomation(
   userId: string,
   name: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  sourceGraph: AutomationGraph = EMPTY_AUTOMATION_GRAPH
 ): Promise<CustomShellAutomation> {
   const trimmed = name.trim().slice(0, NAME_MAX_LENGTH)
   if (!trimmed) throw new Error("NAME_REQUIRED")
+
+  const graph = sanitizeAutomationEmailBlocks(
+    automationGraphSchema.parse(sourceGraph)
+  )
+  const compiled = compileAutomationGraph(graph)
 
   const createdAt = now()
   try {
@@ -221,8 +227,10 @@ export async function createUserAutomation(
         id: uuid(),
         userId,
         name: trimmed,
-        graph: EMPTY_AUTOMATION_GRAPH,
-        compiledConfig: null,
+        graph,
+        compiledConfig: compiled.config,
+        // A template is a starting point, never permission to contact people.
+        enabled: false,
         createdAt,
         updatedAt: createdAt,
       })
@@ -272,7 +280,7 @@ export async function saveUserAutomation(
 }
 
 /** Cleans builder markup before an automation graph ever reaches storage. */
-function sanitizeAutomationEmailBlocks(
+export function sanitizeAutomationEmailBlocks(
   graph: AutomationGraph
 ): AutomationGraph {
   return {
