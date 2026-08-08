@@ -49,7 +49,7 @@ export async function listVideoMedia({
   page?: number
   pageSize?: number
   search?: string
-  fileType?: "image" | "video"
+  fileType?: "image" | "video" | "audio"
   collectionId?: CollectionFilter
   database?: CustomShellDb
 }): Promise<VideoMediaListResponse> {

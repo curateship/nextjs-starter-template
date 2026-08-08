@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { TRANSITION_KINDS } from "./clip-transitions"
+import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { TEXT_FONT_IDS } from "./text-fonts"
 
 /**
@@ -45,6 +46,8 @@ const clipSchema = z
     color: z.string().max(32).optional(),
     // A block of colour drawn behind the whole line; unset = no box.
     highlightColor: z.string().max(32).optional(),
+    // How the words arrive on screen. Unset means they simply appear.
+    animation: z.enum(CAPTION_ANIMATION_IDS).optional(),
     // Where the middle of the text sits on the frame, 0–1 in each direction
     // (0.5/0.5 = dead centre). Set by dragging the text on the preview.
     x: z.number().min(0).max(1).optional(),

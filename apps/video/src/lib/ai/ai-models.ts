@@ -129,6 +129,11 @@ export const AI_UNIT_PRICES: Record<
   eleven_multilingual_v2: { dollarsPerUnit: 0.00015, unit: "character" },
   eleven_turbo_v2_5: { dollarsPerUnit: 0.000075, unit: "character" },
   eleven_flash_v2_5: { dollarsPerUnit: 0.000075, unit: "character" },
+  // Whisper is billed by the minute of sound it listens to, at $0.006.
+  "whisper-1": { dollarsPerUnit: 0.006, unit: "minute" },
+  // Reading text aloud is billed by the character, at roughly $0.015 per
+  // thousand — about a tenth of what a cloned voice costs.
+  "gpt-4o-mini-tts": { dollarsPerUnit: 0.000015, unit: "character" },
 }
 
 /** Whether this model is charged per unit made rather than per token. */

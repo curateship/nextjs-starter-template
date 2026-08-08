@@ -1,6 +1,6 @@
 ---
 name: Video port — AI editing tools and the credits meter
-status: in progress
+status: done
 ---
 
 **What this is.** The AI panel of the studio and everything behind it — captions, voiceover, jump cuts and filler-word removal, hook variants, the script writer — plus the credits meter that prices every AI call, warns at 80 out of 100 and blocks at the cap. Sits on tasks 01–02.
@@ -141,8 +141,105 @@ words, rather than cutting the wrong thing.
 A **"Talking sample" project** is seeded so all of this can be tried without
 recording anything.
 
-**Still to do.** Caption animations in the preview and export, voiceover, hooks
-and the script writer.
+**How a caption arrives.** A text clip can now carry an entrance — none, pop,
+rise or bounce — chosen in the inspector under "How it arrives".
+
+The preview moves the words every frame; the export draws the same entrance as
+a handful of stills across it and one still for the rest. Both read the same
+maths out of `lib/video/caption-animations.ts`, so what is watched and what
+comes out cannot drift apart.
+
+Proved by measuring rather than by eye: in an exported file the word is 140
+pixels wide as it lands and 104 once it settles — the 1.35× the "pop" curve
+asks for — and in the preview the same clip reports scale 1.35 → 1.27 → 1.06 →
+1.00 over the same quarter of a second.
+
+**Voice.** Type a script, pick a voice, a quality and a speed, and it is read
+aloud. The sound lands on its own lane with the words above it, already lined
+up to when they are said, and the file goes into the media library like
+anything else. "Make this the usual voice" remembers the choice
+(migration `0047`), so the window opens on it next time.
+
+Charged by the character, which is how that provider charges — the unit
+pricing added to the shell's meter early in this task is exactly for this. A
+failed reading costs nothing.
+
+**Hook.** Reads whatever the video says on screen in its first few seconds and
+offers three other ways of saying it. Picking one puts the new words back
+across the clips they came from, keeping their places and lengths; one press of
+undo restores the old line.
+
+**The script writer and brief-to-reel were dropped** at Tyler's request on
+8 Aug. The tiles are still shown, greyed, so it is plain they are not built
+rather than missing.
+
+**Shape of the panel.** Copied from the automation palette after Tyler pointed
+out the first attempt was neither: one column of cards, each with an icon
+block, a name and a line about what it does. Every tool opens its own window;
+the panel itself holds nothing else.
+
+**Two things found by reading the old app rather than guessing:**
+
+- Every tool read the SAVED timeline, so pressing one within a second and a
+  half of an edit worked on the project as it was before that edit. They now
+  send anything pending first, the way the old app called `flushSave()`.
+- The inspector's footage box was a fixed height and drew nothing at all for
+  video, so a tall picture came out as a cropped slice and a video as an empty
+  grey rectangle. It now takes its height from the file and shows a video's
+  first frame.
+
+**Whisper, and choosing who does what (8 Aug, after Tyler added an OpenAI key).**
+Every tool used to decide for itself which AI to use, which meant a choice
+nobody could see or change.
+
+- Each window that asks an AI to do something now offers who should do it, and
+  **saves the answer the moment it is made** — so it is answered once, not every
+  time. Stored beside the brand kit and the voice (migration `0048`).
+- Only the ones whose key is saved are offered, and a saved choice whose key has
+  since gone is quietly ignored rather than obeyed into an error. One option is
+  not a choice, so the field hides itself.
+- **Whisper is now the default for writing speech down**, and it is a different
+  thing altogether. On the same eight-second clip: Gemini returned "ah" for the
+  word "uh" and missed it; Whisper returned 23 words with measured times and all
+  three fillers were found — "um" 1020–1200, "uh" 4180–4500, "you know"
+  6800–7360. That is the accuracy problem from earlier in this task, fixed.
+- Whisper is charged by the minute of sound, priced in the shell's own list.
+
+**Voice works off either key, and Hook re-records (8 Aug).** Tyler asked why
+Hook only changed the words when the old app replaced the spoken line too. It
+should, and now does.
+
+- **OpenAI reads things aloud as well as ElevenLabs.** Six fixed voices for
+  about a tenth of the price, off the key that already exists. ElevenLabs is
+  still better and can use a voice of your own, and it is the only one that
+  says where each word falls in the sound — so its captions land on the exact
+  word and OpenAI's are spread evenly across the line. That difference is
+  written on the choice rather than hidden.
+- **Hook now looks for the voice the opening line is spoken over**: a short
+  piece of sound at the top, not a bed of music under the whole video. When
+  there is one, picking a rewrite says it aloud in the new words and swaps the
+  sound and the captions together, as one action. When there is not, the words
+  are the whole hook and only they change.
+- **The media library accepts sound**, which it never did — a shell change
+  (`0047_custom_shell_media_audio.sql`, made in `apps/custom-shell` and merged
+  in). Sound has no picture, so it shows as sound rather than a broken
+  thumbnail, and is capped at 50MB.
+
+**The opening line can be spoken rather than written.** A piece to camera has
+no caption at the top — the hook exists only as speech. When nothing is written
+on screen, the first few seconds are listened to and the opening line is taken
+from what was said: up to the first full stop, or a breath's worth of words.
+Rewrites are told to drop the hesitations, because a line written down from
+speech is full of them.
+
+Proved: a line read aloud by OpenAI came back as 4.1 seconds of sound, saved
+into the library, with three caption lines across it. And on a bare talking
+clip with no captions at all, Hook heard "Hello there. Um, this is a test of
+the caption writer…" and offered three rewrites of it.
+
+**Gemini's free tier is 20 requests a day**, which is what every 429 during this
+task turned out to be. A day's allowance does not come back in a minute, so
+that case now says so plainly instead of advising a wait that cannot work.
 
 **Blocked on keys.** There is no Gemini or ElevenLabs key anywhere in this
 repo — the old app only ever had an example file with empty values. Everything

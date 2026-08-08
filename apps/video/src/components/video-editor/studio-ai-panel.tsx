@@ -1,9 +1,7 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import {
   CaptionsIcon,
   FileTextIcon,
-  Loader2Icon,
   MicIcon,
   PenLineIcon,
   ScissorsIcon,
@@ -11,22 +9,18 @@ import {
   SplitIcon,
   type LucideIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { CaptionsDialog } from "@/components/video-editor/captions-dialog"
+import { HookDialog } from "@/components/video-editor/hook-dialog"
 import { JumpCutsDialog } from "@/components/video-editor/jump-cuts-dialog"
+import { VoiceDialog } from "@/components/video-editor/voice-dialog"
 import {
-  getAiToolErrorMessage,
   loadAiToolsAvailability,
-  writeCaptions,
   type AiToolsAvailability,
 } from "@/lib/api/video/ai-tools"
-import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { CAPTION_DEFAULTS, captionClipName } from "@/lib/video/captions"
-import { editorId } from "@/lib/video/timeline-utils"
-import { plural } from "@/lib/format/plural"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
@@ -40,25 +34,61 @@ import { cn } from "@/lib/utils"
 
 type ToolId = "captions" | "jump-cut" | "voice" | "hook" | "script" | "brief"
 
-const TILES: { id: ToolId; label: string; Icon: LucideIcon }[] = [
-  { id: "captions", label: "Captions", Icon: CaptionsIcon },
-  { id: "jump-cut", label: "Tighten", Icon: ScissorsIcon },
-  { id: "voice", label: "Voice", Icon: MicIcon },
-  { id: "hook", label: "Hook", Icon: SplitIcon },
-  { id: "script", label: "Script", Icon: PenLineIcon },
-  { id: "brief", label: "Brief to reel", Icon: FileTextIcon },
+const TOOLS: {
+  id: ToolId
+  label: string
+  description: string
+  Icon: LucideIcon
+}[] = [
+  {
+    id: "captions",
+    label: "Captions",
+    description: "Write down the talking and lay it over the picture.",
+    Icon: CaptionsIcon,
+  },
+  {
+    id: "jump-cut",
+    label: "Tighten",
+    description: "Take out the dead air, and the \u201cum\u201ds if you want.",
+    Icon: ScissorsIcon,
+  },
+  {
+    id: "voice",
+    label: "Voice",
+    description: "Read a script aloud and drop it on the timeline.",
+    Icon: MicIcon,
+  },
+  {
+    id: "hook",
+    label: "Hook",
+    description: "Rewrite the opening line three ways.",
+    Icon: SplitIcon,
+  },
+  {
+    id: "script",
+    label: "Script",
+    description: "Write the script from an idea.",
+    Icon: PenLineIcon,
+  },
+  {
+    id: "brief",
+    label: "Brief to reel",
+    description: "Turn a brief into a whole reel.",
+    Icon: FileTextIcon,
+  },
 ]
 
 /** The ones that are built. The rest show as what is coming, greyed out. */
-const BUILT: ToolId[] = ["captions", "jump-cut"]
+const BUILT: ToolId[] = ["captions", "jump-cut", "voice", "hook"]
 
 export function AiPanel() {
-  const { projectId, dispatch } = useEditorRuntime()
   const [available, setAvailable] = React.useState<AiToolsAvailability | null>(
     null
   )
-  const [busy, setBusy] = React.useState<ToolId | null>(null)
+  const [captionsOpen, setCaptionsOpen] = React.useState(false)
   const [cutsOpen, setCutsOpen] = React.useState(false)
+  const [voiceOpen, setVoiceOpen] = React.useState(false)
+  const [hookOpen, setHookOpen] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
@@ -72,42 +102,11 @@ export function AiPanel() {
     }
   }, [])
 
-  async function handleCaptions() {
-    setBusy("captions")
-    try {
-      const { captions } = await writeCaptions(projectId)
-      dispatch({
-        type: "INSERT_CAPTIONS",
-        captions: captions.map((line) => ({
-          id: editorId(),
-          kind: "text" as const,
-          name: captionClipName(line.text),
-          text: line.text,
-          fontId: "inter" as const,
-          startMs: line.startMs,
-          durationMs: line.endMs - line.startMs,
-          trimStartMs: 0,
-          fontSize: CAPTION_DEFAULTS.fontSize,
-          color: CAPTION_DEFAULTS.color,
-          highlightColor: CAPTION_DEFAULTS.backgroundColor,
-          x: CAPTION_DEFAULTS.x,
-          y: CAPTION_DEFAULTS.y,
-        })),
-      })
-      dismissErrorToast()
-      toast.success(
-        `${captions.length} ${plural(captions.length, "caption", "captions")} added. Undo takes them all back off.`
-      )
-    } catch (error) {
-      showErrorToast(getAiToolErrorMessage(error))
-    } finally {
-      setBusy(null)
-    }
-  }
-
   function press(id: ToolId) {
-    if (id === "captions") void handleCaptions()
+    if (id === "captions") setCaptionsOpen(true)
     if (id === "jump-cut") setCutsOpen(true)
+    if (id === "voice") setVoiceOpen(true)
+    if (id === "hook") setHookOpen(true)
   }
 
   return (
@@ -118,59 +117,58 @@ export function AiPanel() {
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-4">
-          <p className="text-sm text-muted-foreground">
-            Each of these works out for itself which part of the project it is
-            about. Undo takes any of them back.
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {TILES.map(({ id, label, Icon }) => {
+          <div className="grid gap-2">
+            {TOOLS.map(({ id, label, description, Icon }) => {
               const ready = BUILT.includes(id)
-              const running = busy === id
               return (
                 <button
                   key={id}
                   type="button"
-                  disabled={!ready || busy !== null}
+                  disabled={!ready}
                   onClick={() => press(id)}
                   title={ready ? undefined : "Not built yet"}
                   className={cn(
-                    "flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border transition-colors",
+                    "flex w-full items-start gap-2 overflow-hidden rounded-lg border border-foreground/5 bg-card p-2 text-left transition-colors",
                     ready
-                      ? "border-foreground/10 hover:border-foreground/25 hover:bg-muted"
-                      : "border-dashed border-foreground/10 text-muted-foreground",
-                    busy !== null && !running ? "opacity-60" : null
+                      ? "hover:border-primary/40 hover:bg-muted/30"
+                      : "text-muted-foreground",
+                    focusRingInset
                   )}
                 >
-                  {running ? (
-                    <Loader2Icon className="size-5 animate-spin" />
-                  ) : (
-                    <Icon className="size-5" />
-                  )}
-                  <span className="text-sm font-medium">{label}</span>
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="size-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1 overflow-hidden">
+                    <span className="block truncate text-xs font-medium">
+                      {label}
+                    </span>
+                    <span className="line-clamp-2 text-[10px] leading-4 text-muted-foreground">
+                      {ready ? description : "Not built yet."}
+                    </span>
+                  </span>
                 </button>
               )
             })}
           </div>
-          {available !== null && !available.words ? (
-            <p className="text-sm text-muted-foreground">
-              Captions and filler words need a Google Gemini key.{" "}
-              <Link
-                to="/admin/settings/$tab"
-                params={{ tab: "ai" }}
-                className="underline underline-offset-2"
-              >
-                Add one in Settings
-              </Link>
-              . Cutting dead air works without one.
-            </p>
-          ) : null}
         </div>
       </ScrollArea>
 
+      <CaptionsDialog
+        open={captionsOpen}
+        onOpenChange={setCaptionsOpen}
+        available={available}
+      />
       <JumpCutsDialog
         open={cutsOpen}
         onOpenChange={setCutsOpen}
-        canUseWords={available?.words ?? false}
+        canUseWords={available?.words || available?.openai || false}
+        available={available}
+      />
+      <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
+      <HookDialog
+        open={hookOpen}
+        onOpenChange={setHookOpen}
+        available={available}
       />
     </div>
   )

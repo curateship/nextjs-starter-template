@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import {
@@ -144,5 +145,32 @@ export async function saveIndicators(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { indicators, updatedAt: new Date() },
+    })
+}
+
+/**
+ * Which settings cards were left folded away. Empty for somebody who has never
+ * folded one, which every card reads as "open me the way you always did".
+ */
+export async function loadCardFolds(userId: string): Promise<CardFolds> {
+  const row = await db
+    .select({ cardFolds: tradePrefs.cardFolds })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readCardFolds(row[0]?.cardFolds ?? null)
+}
+
+/** Remember them — saved once the window has been left alone for a moment. */
+export async function saveCardFolds(
+  userId: string,
+  cardFolds: CardFolds
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, cardFolds, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { cardFolds, updatedAt: new Date() },
     })
 }

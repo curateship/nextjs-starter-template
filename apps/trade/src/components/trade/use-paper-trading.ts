@@ -99,7 +99,7 @@ export type PaperTrading = {
   /** Places a whole DCA ladder at once; the toast counts any instant buys. */
   placeLadder: (input: {
     marketKey: string
-    anchorPx: number
+    clickPx: number
     interval: CandleInterval
     params: DcaParams
   }) => Promise<boolean>
@@ -371,15 +371,16 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
       if (!walletId) return false
       setPending((count) => count + 1)
       try {
-        const { placed, filledNow } = await placeDcaLadder({
+        const { placed, passed } = await placeDcaLadder({
           walletId,
           ...input,
         })
-        // Counted honestly: a click above the market buys some rungs at once,
-        // and finding fills you did not expect is worse than being told.
+        // Counted honestly: rungs above the price never get a chance to wait,
+        // and a ladder quietly placing four buys instead of seven is worse
+        // than one that says so.
         toast.success(
-          filledNow > 0
-            ? `Ladder placed in ${nameOf(walletId)} — ${placed} buys, ${filledNow} filled straight away.`
+          passed > 0
+            ? `Ladder placed in ${nameOf(walletId)} — ${placed} buys waiting, ${passed} skipped because price is already below them.`
             : `Ladder placed in ${nameOf(walletId)} — ${placed} buys waiting.`
         )
         return true

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { BASE_FIELDS, baseIndicator, cappedHold } from "@/lib/trade/indicators/base"
+import {
+  BASE_FIELDS,
+  baseIndicator,
+  baseInForce,
+  cappedHold,
+} from "@/lib/trade/indicators/base"
 import { readIndicatorParams } from "@/lib/trade/indicators/contract"
 import type { IndicatorCandle } from "@/lib/trade/indicators/contract"
 
@@ -168,5 +173,22 @@ describe("reading an indicator's settings", () => {
   it("ignores a setting nobody offered", () => {
     const read = readIndicatorParams(BASE_FIELDS, { crackPercent: 3 })
     expect(read.crackPercent).toBeUndefined()
+  })
+})
+
+describe("the base in force", () => {
+  it("is the level that confirmed last, whatever price has done since", () => {
+    expect(baseInForce(bars(TWO_BASES), settings())).toBeCloseTo(4, 9)
+  })
+
+  it("is null until one has confirmed, so nothing rests on a guess", () => {
+    expect(baseInForce(bars([10, 9, 8]), settings())).toBeNull()
+    expect(baseInForce([], settings())).toBeNull()
+  })
+
+  it("answers the same level the chart draws a dash at", () => {
+    const candles = bars(ONE_BASE)
+    const paint = baseIndicator.compute(candles, settings())
+    expect(baseInForce(candles, settings())).toBeCloseTo(paint.dashes[0].price, 9)
   })
 })

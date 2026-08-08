@@ -11,7 +11,18 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  CAPTION_ANIMATIONS,
+  resolveCaptionAnimation,
+} from "@/lib/video/caption-animations"
 import {
   clampTransitionMs,
   DEFAULT_TRANSITION_MS,
@@ -114,8 +125,8 @@ function ReadOnlyRows({ rows }: { rows: [string, string][] }) {
 }
 
 function ProjectProps() {
-  const aspect = useEditorSelector((state) => state.aspect)
   const durationMs = useEditorDurationMs()
+  const aspect = useEditorSelector((state) => state.aspect)
 
   return (
     <>
@@ -183,6 +194,32 @@ function TextInspector({ clip }: { clip: EditorClip }) {
         />
       </InspectorCard>
 
+      <InspectorCard
+        title="How it arrives"
+        description="What the words do the moment they appear."
+      >
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="clip-animation">Entrance</FieldLabel>
+          <Select
+            value={resolveCaptionAnimation(clip.animation)}
+            onValueChange={(animation) =>
+              patch({ animation: resolveCaptionAnimation(animation) })
+            }
+          >
+            <SelectTrigger id="clip-animation" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CAPTION_ANIMATIONS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label} — {option.description}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </InspectorCard>
+
       <InspectorCard title="Behind it">
         <SwitchField
           id="clip-highlight"
@@ -220,14 +257,33 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
   return (
     <>
       <InspectorCard title="The footage">
-        <div
-          className="h-32 rounded-lg bg-muted bg-cover bg-center"
-          style={
-            clip.kind === "image" && clip.url
-              ? { backgroundImage: `url("${clip.url}")` }
-              : undefined
-          }
-        />
+        {/* Whatever shape the file is. A box of a fixed shape either crops a
+            tall picture down to a slice of itself or leaves a video floating
+            in grey, and neither shows you what you picked. So the box takes
+            its height from the media, up to the point where it would take over
+            the panel. Video shows its first frame, which is why it is a paused
+            player rather than a picture. */}
+        <div className="grid place-items-center overflow-hidden rounded-lg bg-muted">
+          {clip.kind === "video" && clip.url ? (
+            <video
+              src={clip.url}
+              preload="metadata"
+              muted
+              playsInline
+              className="max-h-64 w-full object-contain"
+            />
+          ) : clip.url ? (
+            <img
+              src={clip.url}
+              alt={clip.name}
+              className="max-h-64 w-full object-contain"
+            />
+          ) : (
+            <span className="grid h-24 place-items-center text-sm text-muted-foreground">
+              No file on this clip
+            </span>
+          )}
+        </div>
         <Button
           type="button"
           variant="outline"
