@@ -39,6 +39,11 @@ import {
   tradePaperState,
   tradeWallets,
 } from "@/server/trade/schema"
+import {
+  advanceLadders,
+  ladderCandleNeeds,
+  type LadderBars,
+} from "@/server/trade/smart-ladders"
 
 /**
  * The practice trading engine: what a paper wallet does when price moves.
@@ -68,7 +73,7 @@ import {
  */
 
 /** Practice wallets stay a hand-made thing: enough orders to work, not a fleet. */
-const MAX_OPEN_ORDERS = 50
+export const MAX_OPEN_ORDERS = 50
 
 /** Below this the engine will not open anything — a dust order is a mistake. */
 const MIN_ORDER_VALUE_USD = 0.01
@@ -162,7 +167,7 @@ function toJournalEntry(row: JournalRow): PaperJournalEntry {
  * has changed so far. Everything happens here in memory and is written once at
  * the end, so a half-applied candle can never reach the database.
  */
-type WalletBook = {
+export type WalletBook = {
   wallet: TradeWallet
   /** Starting balance plus everything banked — the cash the account has. */
   cash: number
@@ -184,7 +189,7 @@ function markSaved(book: WalletBook): void {
 }
 
 /** Cash not held as margin by anything open. */
-function freeCash(book: WalletBook): number {
+export function freeCash(book: WalletBook): number {
   let held = 0
   for (const position of book.positions.values()) {
     held += positionMargin(position)
@@ -197,7 +202,7 @@ function freeCash(book: WalletBook): number {
  * book — the single door every fill goes through, whether it came from a
  * candle, from the price right now, or from somebody pressing Close.
  */
-function fill(
+export function fill(
   book: WalletBook,
   input: {
     marketKey: string
@@ -533,7 +538,7 @@ async function readBook(
  * how far back the candles must be read from, and rewriting it every four
  * seconds would be a write per poll for no gain.
  */
-async function saveBook(
+export async function saveBook(
   database: CustomShellDb,
   userId: string,
   book: WalletBook,
@@ -628,7 +633,7 @@ async function saveBook(
  * than loading every position and order, because this runs before the exchange
  * is asked anything and only needs the names.
  */
-async function exposedMarketKeys(
+export async function exposedMarketKeys(
   userId: string,
   walletIds: readonly string[]
 ): Promise<string[]> {
@@ -663,7 +668,7 @@ async function exposedMarketKeys(
  * to. The key carries its own protocol and network, so the venues to ask fall
  * out of the keys themselves and each is asked exactly once.
  */
-async function marksForKeys(
+export async function marksForKeys(
   marketKeys: readonly string[]
 ): Promise<Map<string, number>> {
   const venues = new Map<
@@ -739,13 +744,24 @@ async function loadBars(
  * Hyperliquid. The rows are then read again inside, so nothing is decided from
  * a copy that went stale while the prices were on their way.
  */
-async function settleWallet(
+export async function settleWallet(
   userId: string,
   wallet: TradeWallet,
   shared?: { marks: ReadonlyMap<string, number> }
 ): Promise<WalletBook> {
   const markets = await exposedMarketKeys(userId, [wallet.id])
   const now = Date.now()
+
+  // The candles any two-green ladder is watching — asked out here, before the
+  // transaction, for the same reason the marks are: a network call must never
+  // sit inside the lock. Costs nothing when no ladder is watching.
+  const greenBars = new Map<string, { bars: CandleBar[]; barMs: number }>()
+  for (const need of await ladderCandleNeeds(userId, wallet.id, now)) {
+    greenBars.set(need.marketKey, {
+      bars: await loadBars(wallet, need.marketKey, need.interval, need.since),
+      barMs: need.barMs,
+    })
+  }
 
   const stateRows = await db
     .select()
@@ -803,6 +819,13 @@ async function settleWallet(
         now,
       })
     }
+    // The smart-order ladders react to what the replay just did — a rung that
+    // bought gets its sell, a stop that fired ends its ladder — before the
+    // book is saved, so their changes ride the same write.
+    await advanceLadders(
+      { tx, userId, book, marks, greenBars: greenBars as LadderBars, now },
+      { fill, dropOrder, freeCash }
+    )
     const moved = book.fills.length > 0 || book.goneOrderIds.size > 0
     await saveBook(tx, userId, book, catchingUp || moved ? new Date(now) : null)
     return book

@@ -21,6 +21,8 @@ const CACHE_MS = 5 * 60_000
 export type MarketRules = {
   sizeDecimals: number | null
   maxLeverage: number | null
+  /** Dollars traded in the last day — what the DCA liquidity guard caps by. */
+  volume24hUsd: number | null
 }
 
 type Entry = { at: number; rules: Map<string, MarketRules> }
@@ -44,7 +46,11 @@ async function rulesFor(
   const rules = new Map<string, MarketRules>(
     catalog.rows.map((row) => [
       row.marketId,
-      { sizeDecimals: row.sizeDecimals, maxLeverage: row.maxLeverage },
+      {
+        sizeDecimals: row.sizeDecimals,
+        maxLeverage: row.maxLeverage,
+        volume24hUsd: row.volume24hUsd,
+      },
     ])
   )
   cache.set(key, { at: Date.now(), rules })

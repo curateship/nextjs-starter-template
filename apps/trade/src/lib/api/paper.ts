@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
+import type { SmartLadder } from "@/lib/trade/dca"
 import type {
   PaperJournalEntry,
   PaperOrder,
@@ -18,6 +19,7 @@ import {
   placePaperOrder as placeOrderRow,
   setPaperBrackets as setBracketsRow,
 } from "@/server/trade/paper"
+import { listActiveLadders } from "@/server/trade/smart-orders"
 import { findWallet, listWallets } from "@/server/trade/wallets"
 
 import { createErrorMessage } from "./error-message"
@@ -95,15 +97,22 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
       positions: PaperPosition[]
       orders: PaperOrder[]
       journal: PaperJournalEntry[]
+      ladders: SmartLadder[]
       wallets: { id: string; label: string }[]
     }> => {
       const wallets = await listWallets(context.user.id)
       const portfolio = await loadPortfolio(context.user.id, wallets)
+      const paper = wallets.filter((wallet) => wallet.kind === "paper")
+      // Read after the settle inside the portfolio load, so a ladder a stop
+      // just finished is already gone from the answer.
+      const ladders = await listActiveLadders(
+        context.user.id,
+        paper.map((wallet) => wallet.id)
+      )
       return {
         ...portfolio,
-        wallets: wallets
-          .filter((wallet) => wallet.kind === "paper")
-          .map((wallet) => ({ id: wallet.id, label: wallet.label })),
+        ladders,
+        wallets: paper.map((wallet) => ({ id: wallet.id, label: wallet.label })),
       }
     }
   )

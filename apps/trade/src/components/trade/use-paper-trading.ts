@@ -12,7 +12,16 @@ import {
   placePaperOrder,
   setPaperBrackets,
 } from "@/lib/api/paper"
+import {
+  cancelLadderRest,
+  cancelLadderRung,
+  getSmartOrderErrorMessage,
+  placeDcaLadder,
+  updateLadderExits,
+} from "@/lib/api/smart-orders"
+import type { CandleInterval } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import type { DcaParams, SmartLadder } from "@/lib/trade/dca"
 import type {
   PaperJournalEntry,
   PaperOrder,
@@ -50,6 +59,8 @@ export type PaperTrading = {
   positions: PaperPosition[]
   orders: PaperOrder[]
   journal: PaperJournalEntry[]
+  /** The smart-order ladders still working, across every practice wallet. */
+  ladders: SmartLadder[]
   /** Each practice wallet's name, for the Wallet column. */
   walletNames: ReadonlyMap<string, string>
   /** An action is in flight; the buttons that started it stay disabled. */
@@ -85,6 +96,30 @@ export type PaperTrading = {
   close: (walletId: string, marketKey: string) => Promise<void>
   flip: (walletId: string, marketKey: string) => Promise<void>
   closeAll: () => Promise<void>
+  /** Places a whole DCA ladder at once; the toast counts any instant buys. */
+  placeLadder: (input: {
+    marketKey: string
+    anchorPx: number
+    interval: CandleInterval
+    params: DcaParams
+  }) => Promise<boolean>
+  /** The × on one waiting rung. */
+  cancelRung: (
+    walletId: string,
+    ladderId: string,
+    rungIndex: number
+  ) => Promise<void>
+  /** Stop buying deeper: calls off every waiting rung, keeps what's bought. */
+  cancelLadder: (walletId: string, ladderId: string) => Promise<void>
+  /** Change a live ladder's take profit and stop rules. */
+  setLadderExits: (
+    walletId: string,
+    ladderId: string,
+    exits: {
+      takeProfit: DcaParams["takeProfit"]
+      stopLoss: DcaParams["stopLoss"]
+    }
+  ) => Promise<boolean>
 }
 
 export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
@@ -92,6 +127,7 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     positions: PaperPosition[]
     orders: PaperOrder[]
     journal: PaperJournalEntry[]
+    ladders: SmartLadder[]
     wallets: { id: string; label: string }[]
   } | null>(null)
   // Counted, not a flag: two actions can overlap, and the first to finish
@@ -164,15 +200,19 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
    * re-read either way — a refused order still leaves the account worth
    * re-reading, because the refusal may be why.
    */
-  const run = React.useCallback(
-    async (action: () => Promise<unknown>, done?: string): Promise<boolean> => {
+  const runWith = React.useCallback(
+    async (
+      describeError: (error: unknown) => string,
+      action: () => Promise<unknown>,
+      done?: string
+    ): Promise<boolean> => {
       setPending((count) => count + 1)
       try {
         await action()
         if (done) toast.success(done)
         return true
       } catch (error) {
-        showErrorToast(getPaperErrorMessage(error))
+        showErrorToast(describeError(error))
         return false
       } finally {
         setPending((count) => count - 1)
@@ -180,6 +220,12 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
       }
     },
     [refresh]
+  )
+
+  const run = React.useCallback(
+    (action: () => Promise<unknown>, done?: string): Promise<boolean> =>
+      runWith(getPaperErrorMessage, action, done),
+    [runWith]
   )
 
   const current = answer
@@ -320,6 +366,67 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     [run, nameOf]
   )
 
+  const placeLadder: PaperTrading["placeLadder"] = React.useCallback(
+    async (input) => {
+      if (!walletId) return false
+      setPending((count) => count + 1)
+      try {
+        const { placed, filledNow } = await placeDcaLadder({
+          walletId,
+          ...input,
+        })
+        // Counted honestly: a click above the market buys some rungs at once,
+        // and finding fills you did not expect is worse than being told.
+        toast.success(
+          filledNow > 0
+            ? `Ladder placed in ${nameOf(walletId)} — ${placed} buys, ${filledNow} filled straight away.`
+            : `Ladder placed in ${nameOf(walletId)} — ${placed} buys waiting.`
+        )
+        return true
+      } catch (error) {
+        showErrorToast(getSmartOrderErrorMessage(error))
+        return false
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    },
+    [walletId, nameOf, refresh]
+  )
+
+  const cancelRung: PaperTrading["cancelRung"] = React.useCallback(
+    async (walletId, ladderId, rungIndex) => {
+      await runWith(
+        getSmartOrderErrorMessage,
+        () => cancelLadderRung({ walletId, ladderId, rungIndex }),
+        `Rung ${rungIndex + 1} called off in ${nameOf(walletId)}.`
+      )
+    },
+    [runWith, nameOf]
+  )
+
+  const cancelLadder: PaperTrading["cancelLadder"] = React.useCallback(
+    async (walletId, ladderId) => {
+      await runWith(
+        getSmartOrderErrorMessage,
+        () => cancelLadderRest({ walletId, ladderId }),
+        `Ladder stopped in ${nameOf(walletId)} — what's bought stays.`
+      )
+    },
+    [runWith, nameOf]
+  )
+
+  const setLadderExits: PaperTrading["setLadderExits"] = React.useCallback(
+    async (walletId, ladderId, exits) => {
+      return await runWith(
+        getSmartOrderErrorMessage,
+        () => updateLadderExits({ walletId, ladderId, ...exits }),
+        "Exits changed."
+      )
+    },
+    [runWith]
+  )
+
   const closeAll: PaperTrading["closeAll"] = React.useCallback(async () => {
     setPending((count) => count + 1)
     try {
@@ -343,6 +450,7 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     positions,
     orders,
     journal: current?.journal ?? [],
+    ladders: current?.ladders ?? [],
     busy: pending > 0,
     place,
     move,
@@ -352,5 +460,9 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     close,
     flip,
     closeAll,
+    placeLadder,
+    cancelRung,
+    cancelLadder,
+    setLadderExits,
   }
 }

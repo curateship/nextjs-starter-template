@@ -57,6 +57,25 @@ type Line = {
   onMove?: (price: number) => void
   /** The × throws it away. */
   onRemove?: () => void
+  /** The ⚙ opens whatever settings the thing behind it has. */
+  onSettings?: () => void
+  /** Words that belong on hover, not in the pill. */
+  hint?: string
+}
+
+/**
+ * Something riding on a position that wants to live in its entry pill — the
+ * DCA ladder folds itself in as "Entry · 4 ⚙ ×": the count and the controls,
+ * with the words in the hover tooltip instead of the bar.
+ */
+export type EntryBadge = {
+  /** As short as possible — a count, not a sentence. */
+  text: string
+  /** The sentence, shown on hover. */
+  hint: string
+  onSettings: () => void
+  /** Null when there is nothing left to call off. */
+  onRemove: (() => void) | null
 }
 
 /**
@@ -115,6 +134,7 @@ export function TradeLinesLayer({
   orders,
   walletName,
   tool,
+  entryBadge,
   onMoveOrder,
   onCancelOrder,
   onSetBrackets,
@@ -133,6 +153,8 @@ export function TradeLinesLayer({
    * is meant for the line being drawn, not for the stop.
    */
   tool: string | null
+  /** What a position's entry pill carries besides "Entry", if anything. */
+  entryBadge?: (position: PaperPosition) => EntryBadge | null
   onMoveOrder: (walletId: string, orderId: string, price: number) => void
   onCancelOrder: (walletId: string, orderId: string) => void
   onSetBrackets: (
@@ -171,12 +193,16 @@ export function TradeLinesLayer({
   for (const position of held) {
     if (!marketKey) break
     const tag = whose(position.walletId)
+    const badge = entryBadge?.(position) ?? null
 
     lines.push({
       id: `entry:${position.id}`,
       kind: "entry",
       price: position.entryPx,
-      label: () => `Entry${tag}`,
+      label: () => `Entry${tag}${badge ? ` · ${badge.text}` : ""}`,
+      hint: badge?.hint,
+      onSettings: badge?.onSettings,
+      onRemove: badge?.onRemove ?? undefined,
     })
 
     const liq = liquidationPx(position)
@@ -303,7 +329,10 @@ export function TradeLinesLayer({
         // itself — so the line, what it is, and what it costs read as one
         // thing left to right instead of three things to hunt for.
         const pillWidth =
-          label.length * CHAR_WIDTH + 16 + (line.onRemove ? CLOSE_WIDTH : 0)
+          label.length * CHAR_WIDTH +
+          16 +
+          (line.onRemove ? CLOSE_WIDTH : 0) +
+          (line.onSettings ? CLOSE_WIDTH : 0)
         const pillX = Math.max(2, surface.width - pillWidth)
         const top = y - PILL_HEIGHT / 2
 
@@ -378,6 +407,61 @@ export function TradeLinesLayer({
                   }
                 }}
               />
+            ) : null}
+
+            {line.onSettings && !tool ? (
+              // The whole pill is the press target, not just the little gear —
+              // the gear stays as the visual cue, the × on top still wins.
+              <g
+                role="button"
+                tabIndex={0}
+                aria-label={line.hint ?? `Settings for ${label.toLowerCase()}`}
+                style={{
+                  pointerEvents: "all",
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                  line.onSettings?.()
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    line.onSettings?.()
+                  }
+                }}
+              >
+                {line.hint ? <title>{line.hint}</title> : null}
+                <rect
+                  x={pillX}
+                  y={top}
+                  width={pillWidth + surface.axisWidth}
+                  height={PILL_HEIGHT}
+                  fill="transparent"
+                />
+              </g>
+            ) : null}
+
+            {line.onSettings ? (
+              // Just the glyph — the whole pill above is the press target, so
+              // a second button here would only fight it for the pointer.
+              <text
+                x={
+                  pillX +
+                  pillWidth -
+                  (line.onRemove ? CLOSE_WIDTH : 0) -
+                  CLOSE_WIDTH / 2 -
+                  6
+                }
+                y={y + 5}
+                textAnchor="middle"
+                fill="#ffffff"
+                fillOpacity={0.9}
+                style={{ fontSize: 15, pointerEvents: "none" }}
+              >
+                ⚙
+              </text>
             ) : null}
 
             {line.onRemove && !tool ? (

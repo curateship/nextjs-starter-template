@@ -14,6 +14,7 @@ import {
 
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
+import type { DcaParams, LadderPlan, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
 import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
 import type { WalletKind } from "@/lib/trade/wallets"
@@ -66,6 +67,9 @@ export const tradePrefs = pgTable("trade_prefs", {
   // remembered choice, resolved against the wallets that exist at read time,
   // so a deleted wallet leaves a memory that simply matches nothing.
   lastWalletId: varchar("last_wallet_id", { length: 36 }),
+  // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
+  // or out, so a value written by an older build falls back to the defaults.
+  smartDca: jsonb("smart_dca").$type<DcaParams>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -282,6 +286,42 @@ export const tradePaperJournal = pgTable(
       table.userId,
       table.walletId,
       table.fillTime
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * The smart-order ladders the engine keeps working on — one row per placed
+ * ladder. The percentages from the window die at placement; what lives here is
+ * concrete prices and sizes in one jsonb plan, read only through
+ * `ladderPlanSchema` so a row an older build wrote is ignored, never
+ * half-obeyed. Finished ladders flip to `done` and stay for the record.
+ */
+export const tradeSmartLadders = pgTable(
+  "trade_smart_ladders",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    status: varchar("status", { length: 8 }).$type<LadderStatus>().notNull(),
+    plan: jsonb("plan").$type<LadderPlan>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_smart_ladders_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.status
     ),
     foreignKey({
       columns: [table.userId, table.walletId],

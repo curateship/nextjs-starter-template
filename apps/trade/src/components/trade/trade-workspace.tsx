@@ -182,6 +182,7 @@ export function TradeWorkspace({
     ? account.summaryOf(account.activeWallet.id)
     : null
   const free = activeSummary?.state === "ok" ? activeSummary.free : 0
+  const equity = activeSummary?.state === "ok" ? activeSummary.equity : 0
 
   // A trade changes what the account is worth, so the two polls are nudged
   // into step: the moment the trading side goes quiet, the wallet figures are
@@ -289,6 +290,7 @@ export function TradeWorkspace({
             market={selection.kind === "market" ? selection.row : null}
             paper={paper}
             free={free}
+            equity={equity}
           />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
