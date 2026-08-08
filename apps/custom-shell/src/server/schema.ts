@@ -153,9 +153,19 @@ export const customShellWorkspaces = pgTable(
   "workspaces",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * Who made this workspace, and empty once they are gone.
+     *
+     * Deliberately not the thing that owns it. A workspace holds contacts,
+     * segments, broadcasts and email settings, and while this cascaded, deleting
+     * one account took all of that with it — silently, from the schema, with
+     * nothing in `account-deletion.ts` saying so. It sets to null instead, so a
+     * workspace outlives the person who made it.
+     */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
     name: varchar("name", { length: 255 }).notNull(),
     settings: jsonb("settings").notNull(),
     isDefault: boolean("is_default").notNull().default(false),

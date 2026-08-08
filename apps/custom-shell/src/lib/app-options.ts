@@ -34,7 +34,7 @@ export type AppOptions = {
 
 type PagesOptions = {
   /**
-   * Lets the app answer an address before the shell's written pages do.
+   * Lets the app answer an address before the shell's own pages do.
    *
    * `src/routes/$.tsx` is where every address without a route of its own ends
    * up, and today that means one thing: a page an admin wrote. An app whose
@@ -46,6 +46,12 @@ type PagesOptions = {
    * as the app's page. That is deliberately a hook and not a replacement: an
    * app claims the addresses it knows and leaves every other one alone, so
    * admin-written pages keep working underneath it.
+   *
+   * **`/` is asked too**, with `path` as `"/"`, before the front page renders —
+   * an app serving different pages to different domains has to be able to
+   * answer the front page as well, and `landing.page` cannot: it is chosen once
+   * when the app boots, long before there is a request to look at. Saying "not
+   * mine" there leaves the front page exactly as it was.
    *
    * The loader may throw `notFound()` or `redirect()` itself when the app wants
    * to answer an address *and* refuse it — a page that exists but is not for

@@ -61,6 +61,16 @@ export type ChartSurface = {
   xOf(time: number): number
   /** A horizontal position back to epoch milliseconds. */
   timeAt(x: number): number
+  /**
+   * Epoch milliseconds as a position in candles — 0 is the oldest, 1 the next.
+   *
+   * For anything counting bars rather than measuring pixels. It is the same
+   * number `xOf` works from, so "how many candles apart are these two times?"
+   * is one subtraction and never a guess at how long a candle is. Fractional
+   * between candles, and past either end it carries on at the spacing of the
+   * nearest pair.
+   */
+  barAt(time: number): number
   /** A price to a vertical position, or null before the scale exists. */
   yOf(price: number): number | null
   /** A vertical position back to a price. */
@@ -394,6 +404,7 @@ export function PriceChart({
       // last candle without moving anything already on screen.
       xOf: (time) => next.barZeroX + barOfTime(timesRef.current, time) * next.barWidth,
       timeAt: (x) => timeOfBar(timesRef.current, (x - next.barZeroX) / next.barWidth),
+      barAt: (time) => barOfTime(timesRef.current, time),
       yOf: (price) => series.priceToCoordinate(price),
       priceAt: (y) => series.coordinateToPrice(y),
     })

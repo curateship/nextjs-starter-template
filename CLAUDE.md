@@ -76,6 +76,19 @@ him respond.
 `apps/custom-shell` is the base every future app is copied from. Updates flow
 one way: shell → app, via git merge. For any app built on top of the shell:
 
+**Only three apps are built on: `apps/cms`, `apps/trade` and `apps/video`.**
+Every other app in `apps/` is kept as **reference only** — read it to see how a
+feature already works when porting one, but never work in it, never fix it, and
+never merge the shell into it. Do not delete them either; they are the only
+record of how several features behave.
+
+A shell change therefore only has to merge cleanly into those three, and must
+not be weighed against the rest. Those three are also the only ones still in
+sync with the shell: nine of the others put their own tables inside the shell's
+`src/server/schema.ts` and have drifted so far that they can no longer take a
+shell update at all. That is what the rule below prevents, and it is not
+hypothetical.
+
 - **App code goes in the app's own files and folders.** Never edit a
   shell-origin file inside an app's copy — not even a one-line tweak. An edited
   shell file is a fork, and every future shell merge will conflict on it.
