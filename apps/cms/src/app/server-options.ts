@@ -1,5 +1,4 @@
 import type { AppServerOptions } from "@/server/app-options"
-import { hostBelongsToThisApp } from "@/server/sites/host"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -16,18 +15,4 @@ import { hostBelongsToThisApp } from "@/server/sites/host"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {
-  security: {
-    /**
-     * This app answers on one address per site, and the shell's own list is a
-     * fixed set in an environment variable — which cannot name addresses that
-     * live in a table and change while the app runs.
-     *
-     * Synchronous, as the option requires. A subdomain of the base domain is
-     * ours by definition and needs nothing looked up; a custom domain is
-     * answered from the cache the resolver already fills while drawing the
-     * page the form sits on.
-     */
-    isTrustedOrigin: hostBelongsToThisApp,
-  },
-}
+export const appServerOptions: AppServerOptions = {}

@@ -1,7 +1,16 @@
 import { createServerFn } from "@tanstack/react-start"
 import { describeAuthError } from "../error-message"
 import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/people/workspaces"
+import {
+  MAX_CUSTOM_DOMAIN,
+  MAX_SUBDOMAIN,
+} from "@/lib/workspaces/addresses"
+import {
+  WORKSPACE_STATUSES,
+  type WorkspaceStatus,
+} from "@/lib/workspaces/status"
 import { adminGet, adminPost } from "@/server/guards"
+import { workspaceBaseDomain } from "@/server/workspaces/host"
 import { z } from "zod"
 
 import { iconMeta, type IconKey } from "@/lib/custom-shell"
@@ -12,6 +21,11 @@ export type WorkspaceItem = {
   name: string
   icon: IconKey
   favicon: string
+  /** The label it answers on, in front of the base domain. */
+  subdomain: string
+  /** A domain of its own, or empty. */
+  customDomain: string
+  status: WorkspaceStatus
   active: boolean
   created_at: string
   updated_at: string
@@ -19,6 +33,12 @@ export type WorkspaceItem = {
 
 export type WorkspaceListResponse = {
   workspaces: WorkspaceItem[]
+  /**
+   * The domain workspaces hang off, so the form can show what a workspace will
+   * answer on as the address is typed. Empty when none is configured, which is
+   * every app that is not serving several sites.
+   */
+  baseDomain: string
 }
 
 /** A bulk delete's honest accounting: what went, and what is still there. */
@@ -32,9 +52,19 @@ const iconSchema = z.custom<IconKey>(
   { message: "Invalid workspace icon." }
 )
 
+const addressSchema = z.object({
+  subdomain: z.string().max(MAX_SUBDOMAIN),
+  customDomain: z.string().max(MAX_CUSTOM_DOMAIN),
+  status: z.enum(WORKSPACE_STATUSES),
+})
+
+/** The address half of the form, as it travels to the server. */
+export type WorkspaceAddressInput = z.infer<typeof addressSchema>
+
 const createWorkspaceSchema = z.object({
   name: z.string().min(1).max(255),
   icon: iconSchema.optional(),
+  address: addressSchema.optional(),
 })
 
 const switchWorkspaceSchema = z.object({
@@ -45,6 +75,7 @@ const updateWorkspaceSchema = z.object({
   workspaceId: z.string().min(1),
   name: z.string().min(1).max(255),
   icon: iconSchema,
+  address: addressSchema.optional(),
 })
 
 const deleteWorkspaceSchema = z.object({
@@ -70,7 +101,13 @@ const createWorkspaceFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(createWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
-    await createUserWorkspace(context.user.id, data.name, { icon: data.icon })
+    await createUserWorkspace(
+      context.user.id,
+      data.name,
+      { icon: data.icon },
+      undefined,
+      data.address
+    )
     return workspaceListForUser(context.user)
   })
 
@@ -91,7 +128,7 @@ const updateWorkspaceFn = createServerFn({ method: "POST" })
     await updateUserWorkspace(
       context.user.id,
       data.workspaceId,
-      { name: data.name, settings: { icon: data.icon } },
+      { name: data.name, settings: { icon: data.icon }, address: data.address },
       undefined,
       { seesEveryWorkspace: seesEveryWorkspace(context.user) }
     )
@@ -122,8 +159,12 @@ export function loadWorkspaces() {
   return loadWorkspacesFn()
 }
 
-export function createWorkspace(name: string, icon?: IconKey) {
-  return createWorkspaceFn({ data: { name, icon } })
+export function createWorkspace(
+  name: string,
+  icon?: IconKey,
+  address?: WorkspaceAddressInput
+) {
+  return createWorkspaceFn({ data: { name, icon, address } })
 }
 
 export function switchWorkspace(workspaceId: string) {
@@ -133,9 +174,10 @@ export function switchWorkspace(workspaceId: string) {
 export function updateWorkspace(
   workspaceId: string,
   name: string,
-  icon: IconKey
+  icon: IconKey,
+  address?: WorkspaceAddressInput
 ) {
-  return updateWorkspaceFn({ data: { workspaceId, name, icon } })
+  return updateWorkspaceFn({ data: { workspaceId, name, icon, address } })
 }
 
 export function deleteWorkspace(workspaceId: string) {
@@ -182,5 +224,8 @@ async function workspaceListForUser(
     workspaces: workspaces.map((row) =>
       serializeWorkspace(row, currentWorkspaceId)
     ),
+    // A server value: the form shows the address as it is typed and cannot work
+    // out on its own what the workspace will answer on.
+    baseDomain: workspaceBaseDomain(),
   }
 }

@@ -46,8 +46,11 @@ const workspacesRoute = getRouteApi("/_authenticated/workspaces")
 
 export function WorkspacesDashboard({
   initialWorkspaces: workspaces,
+  baseDomain = "",
 }: {
   initialWorkspaces: WorkspaceItem[]
+  /** The domain workspaces hang off, for the address field's preview. */
+  baseDomain?: string
 }) {
   const router = useRouter()
   const navigate = useNavigate()
@@ -323,6 +326,7 @@ export function WorkspacesDashboard({
       />
 
       <WorkspaceFormDialog
+        baseDomain={baseDomain}
         open={formOpen}
         editing={editing}
         onClose={() => {

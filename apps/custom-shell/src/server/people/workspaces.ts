@@ -28,7 +28,24 @@ import {
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
 } from "@/lib/layout/sidebar-width"
+import {
+  cleanCustomDomain,
+  cleanSubdomain,
+  customDomainProblem,
+  MAX_SUBDOMAIN,
+  MIN_SUBDOMAIN,
+  subdomainProblem,
+} from "@/lib/workspaces/addresses"
+import {
+  WORKSPACE_STATUSES,
+  type WorkspaceStatus,
+} from "@/lib/workspaces/status"
 import { db, type CustomShellDb } from "@/server/db"
+import {
+  answerForRequest,
+  dropWorkspaceCache,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
 import {
   customShellUsers,
   customShellWorkspaces,
@@ -480,12 +497,14 @@ export async function startWorkspaceFor(
     }
 
     const createdAt = now()
+    const id = uuid()
     const [workspace] = await tx
       .insert(customShellWorkspaces)
       .values({
-        id: uuid(),
+        id,
         userId,
         name: DEFAULT_WORKSPACE_NAME,
+        subdomain: await freeSubdomain(DEFAULT_WORKSPACE_NAME, id, tx),
         settings: defaultWorkspaceSettings(),
         createdAt,
         updatedAt: createdAt,
@@ -497,6 +516,7 @@ export async function startWorkspaceFor(
     }
 
     await setCurrentWorkspace(userId, workspace.id, tx)
+    dropWorkspaceCache()
     return workspace
   })
 }
@@ -504,17 +524,20 @@ export async function startWorkspaceFor(
 /** The workspace switcher's list, already serialized for the browser. */
 export async function readWorkspaceList(
   userId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  options: { seesEveryWorkspace?: boolean } = {}
 ) {
   const { workspaces, currentWorkspaceId } = await listUserWorkspaces(
     userId,
-    database
+    database,
+    options
   )
 
   return {
     workspaces: workspaces.map((row) =>
       serializeWorkspace(row, currentWorkspaceId)
     ),
+    baseDomain: workspaceBaseDomain(),
   }
 }
 
@@ -532,6 +555,116 @@ export async function readWorkspaceList(
  * able to see any workspace, because that is where the admin check gets made.
  * Until then an orphan is kept and unreachable, which is the safe way round.
  */
+/**
+ * An address nobody is using yet, derived from the workspace's name.
+ *
+ * Names are not unique and "My project" is what every workspace starts as, so a
+ * number goes on the end until one is free. The id's first characters stand in
+ * when a name gives nothing usable — "日本語" and "!!!" both do.
+ */
+async function freeSubdomain(name: string, id: string, database: CustomShellDb) {
+  const base =
+    cleanSubdomain(name.replace(/[^a-zA-Z0-9]+/g, "-"))
+      .replace(/^-+|-+$/g, "")
+      .slice(0, MAX_SUBDOMAIN) || `w-${id.slice(0, 8)}`
+
+  const taken = new Set(
+    (
+      await database
+        .select({ subdomain: customShellWorkspaces.subdomain })
+        .from(customShellWorkspaces)
+    ).map((row) => row.subdomain)
+  )
+
+  const atLeastThree = base.length >= MIN_SUBDOMAIN ? base : `${base}-1`
+  if (!taken.has(atLeastThree)) return atLeastThree
+
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${atLeastThree.slice(0, MAX_SUBDOMAIN - 5)}-${n}`
+    if (!taken.has(candidate)) return candidate
+  }
+
+  return `w-${id.slice(0, 8)}`
+}
+
+/** The address half of a workspace, as the form sends it. */
+export type WorkspaceAddress = {
+  subdomain: string
+  customDomain: string
+  status: WorkspaceStatus
+}
+
+/**
+ * The address fields, checked and tidied.
+ *
+ * The same rules the form applies, applied again — the form is a courtesy to
+ * whoever is typing, not a gate. Refusals are sentences because an admin reads
+ * them and there is nothing else to turn them into.
+ */
+function cleanAddress(input: WorkspaceAddress): WorkspaceAddress {
+  const subdomain = cleanSubdomain(input.subdomain)
+  const addressProblem = subdomainProblem(subdomain)
+  if (addressProblem) throw new Error(addressProblem)
+
+  const customDomain = cleanCustomDomain(input.customDomain)
+  const domainProblem = customDomainProblem(customDomain)
+  if (domainProblem) throw new Error(domainProblem)
+
+  if (!WORKSPACE_STATUSES.includes(input.status)) {
+    throw new Error("That is not a state a workspace can be in.")
+  }
+
+  return { subdomain, customDomain, status: input.status }
+}
+
+/**
+ * Turns the database's own complaint about a taken address into the sentence
+ * the check would have given.
+ *
+ * The check before the write makes the message readable; the unique indexes are
+ * what make it true when two admins save the same address in the same instant,
+ * and the loser of that race gets Postgres's words rather than a refusal.
+ */
+function describeAddressClash(error: unknown, values: WorkspaceAddress) {
+  const constraint =
+    error && typeof error === "object" && "constraint" in error
+      ? String((error as { constraint?: unknown }).constraint ?? "")
+      : ""
+
+  if (constraint === "ux_workspaces_subdomain") {
+    return new Error(`Another workspace already answers on ${values.subdomain}.`)
+  }
+  if (constraint === "ux_workspaces_custom_domain") {
+    return new Error(`Another workspace already uses ${values.customDomain}.`)
+  }
+
+  return error
+}
+
+/**
+ * Points somebody at the workspace whose domain they arrived on, if any.
+ *
+ * Called when signing in. Somebody who went to alpha's address to sign in means
+ * to work on alpha, so landing them wherever they were last is a step they then
+ * have to undo. On the deployment's own address, and on an app with no base
+ * domain configured, nothing resolves and their own last choice stands.
+ *
+ * Quiet when it cannot: a workspace that has gone, or a host belonging to
+ * nobody, simply leaves the pointer alone.
+ */
+export async function pointAtWorkspaceForHost(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const answer = await answerForRequest(database)
+  if (answer.kind !== "workspace") return
+
+  await database
+    .update(customShellUsers)
+    .set({ currentWorkspaceId: answer.workspace.id, updatedAt: now() })
+    .where(eq(customShellUsers.id, userId))
+}
+
 /** Which workspaces this person may act on: an admin any, anybody else theirs. */
 function reachable(userId: string, seesEveryWorkspace: boolean) {
   return seesEveryWorkspace ? undefined : eq(customShellWorkspaces.userId, userId)
@@ -575,7 +708,8 @@ export async function createUserWorkspace(
   userId: string,
   name: string,
   settings: Partial<WorkspaceSettings> = {},
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  address?: Partial<WorkspaceAddress>
 ) {
   const trimmedName = name.trim()
   if (!trimmedName) {
@@ -584,22 +718,40 @@ export async function createUserWorkspace(
 
   return database.transaction(async (tx) => {
     const createdAt = now()
+    const id = uuid()
     const [workspace] = await tx
       .insert(customShellWorkspaces)
       .values({
-        id: uuid(),
+        id,
         userId,
         name: trimmedName.slice(0, 255),
+        // An address given by the form is checked; one left out is derived from
+        // the name, which is what the switcher's "New workspace" does.
+        ...(address?.subdomain
+          ? cleanAddress({
+              subdomain: address.subdomain,
+              customDomain: address.customDomain ?? "",
+              status: address.status ?? "active",
+            })
+          : { subdomain: await freeSubdomain(trimmedName, id, tx) }),
         settings: cleanWorkspaceSettings(settings),
         createdAt,
         updatedAt: createdAt,
       })
       .returning()
+      .catch((error) => {
+        throw describeAddressClash(error, {
+          subdomain: cleanSubdomain(address?.subdomain ?? ""),
+          customDomain: cleanCustomDomain(address?.customDomain ?? ""),
+          status: address?.status ?? "active",
+        })
+      })
 
     if (!workspace) {
       throw new Error("Workspace was not created")
     }
 
+    dropWorkspaceCache()
     return setCurrentWorkspace(userId, workspace.id, tx)
   })
 }
@@ -607,7 +759,11 @@ export async function createUserWorkspace(
 export async function updateUserWorkspace(
   userId: string,
   workspaceId: string,
-  data: { name: string; settings: Partial<WorkspaceSettings> },
+  data: {
+    name: string
+    settings: Partial<WorkspaceSettings>
+    address?: WorkspaceAddress
+  },
   database: CustomShellDb = db,
   options: { seesEveryWorkspace?: boolean } = {}
 ) {
@@ -631,6 +787,7 @@ export async function updateUserWorkspace(
     .update(customShellWorkspaces)
     .set({
       name: trimmedName.slice(0, 255),
+      ...(data.address ? cleanAddress(data.address) : {}),
       settings: cleanWorkspaceSettings({
         ...parseWorkspaceSettings(existing.settings),
         ...data.settings,
@@ -639,11 +796,16 @@ export async function updateUserWorkspace(
     })
     .where(and(eq(customShellWorkspaces.id, workspaceId), mayReach))
     .returning()
+    .catch((error) => {
+      throw data.address ? describeAddressClash(error, data.address) : error
+    })
 
   if (!workspace) {
     throw new Error("Workspace not found")
   }
 
+  // An address or a state that just changed must not keep answering the old way.
+  dropWorkspaceCache()
   return workspace
 }
 
@@ -700,6 +862,7 @@ export async function deleteUserWorkspace(
       throw new Error("Workspace not found")
     }
 
+    dropWorkspaceCache()
     return { workspaceId: deleted.id }
   })
 }
@@ -763,6 +926,7 @@ export async function deleteUserWorkspaces(
       .returning({ id: customShellWorkspaces.id })
 
     const deletedIds = deleted.map((row) => row.id)
+    dropWorkspaceCache()
     const wentThrough = new Set(deletedIds)
     return {
       deleted: deletedIds,
@@ -1989,6 +2153,9 @@ export function serializeWorkspace(
     name: row.name,
     icon: settings.icon,
     favicon: settings.favicon,
+    subdomain: row.subdomain,
+    customDomain: row.customDomain,
+    status: row.status,
     active: row.id === currentWorkspaceId,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),

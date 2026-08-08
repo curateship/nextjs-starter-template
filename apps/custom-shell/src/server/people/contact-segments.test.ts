@@ -101,6 +101,7 @@ beforeEach(async () => {
       userId: owner.id,
       name: id,
       settings: {},
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt: timestamp,
       updatedAt: timestamp,
     })

@@ -25,6 +25,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
+import type { WorkspaceStatus } from "@/lib/workspaces/status"
 
 export const customShellUsers = pgTable(
   "users",
@@ -178,12 +179,39 @@ export const customShellWorkspaces = pgTable(
       { onDelete: "set null" }
     ),
     name: varchar("name", { length: 255 }).notNull(),
+    /** The label this workspace answers on, in front of the base domain. */
+    subdomain: varchar("subdomain", { length: 63 }).notNull(),
+    /**
+     * A domain of its own, stored bare — no scheme, no port, no `www.` —
+     * because that is the shape an incoming host is reduced to before it is
+     * matched. Empty means it answers only on its subdomain.
+     */
+    customDomain: varchar("custom_domain", { length: 253 })
+      .notNull()
+      .default(""),
+    /**
+     * `active` and `draft` both answer a visitor; `inactive` looks like the
+     * workspace never existed. Draft answers on purpose — it is how a site is
+     * looked at before anybody is told about it.
+     */
+    status: varchar("status", { length: 20 })
+      .$type<WorkspaceStatus>()
+      .notNull()
+      .default("active"),
     settings: jsonb("settings").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("ix_workspaces_user_id").on(table.userId),
+    uniqueIndex("ux_workspaces_subdomain").on(table.subdomain),
+    uniqueIndex("ux_workspaces_custom_domain")
+      .on(table.customDomain)
+      .where(sql`${table.customDomain} <> ''`),
+    check(
+      "workspaces_status_check",
+      sql`${table.status} in ('active', 'inactive', 'draft')`
+    ),
   ]
 )
 

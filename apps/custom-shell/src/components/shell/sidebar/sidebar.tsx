@@ -38,6 +38,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user: AuthUser
   plan: PlanSummary
   workspaces: WorkspaceItem[]
+  baseDomain?: string
   /** True while an admin is looking at the app as this member. */
   viewingAsMember: boolean
   onLogout: () => void
@@ -125,6 +126,7 @@ export function AppSidebar({
   user,
   plan,
   workspaces,
+  baseDomain,
   viewingAsMember,
   onLogout,
   ...props
@@ -156,6 +158,7 @@ export function AppSidebar({
       <SidebarHeader className="pb-3">
         <WorkspaceSwitcher
           workspaces={workspaces}
+          baseDomain={baseDomain}
           workspaceName={config.workspaceName}
           workspaceSubheader={config.workspacePlan}
           favicon={config.favicon}

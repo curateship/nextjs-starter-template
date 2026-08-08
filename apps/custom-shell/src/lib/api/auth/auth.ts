@@ -1056,8 +1056,16 @@ export async function startWorkspaceFor(
   // stripped; out here it is not.
   if (user.role !== "admin") return
 
-  const { startWorkspaceFor: start } = await import("@/server/people/workspaces")
+  const { startWorkspaceFor: start, pointAtWorkspaceForHost } = await import(
+    "@/server/people/workspaces"
+  )
   await start(user.id)
+
+  // Signing in on a workspace's own domain puts you in that workspace. Somebody
+  // who went to alpha's address to sign in means to work on alpha, and making
+  // them pick it again from the switcher is a needless step. On the
+  // deployment's own address nothing moves, so an admin's last choice survives.
+  await pointAtWorkspaceForHost(user.id)
 }
 
 function sendVerificationEmail(email: string, token: string) {

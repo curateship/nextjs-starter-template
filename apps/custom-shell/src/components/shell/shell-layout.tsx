@@ -516,6 +516,7 @@ export function ShellLayout({
             user={user}
             plan={plan}
             workspaces={workspaces.workspaces}
+            baseDomain={workspaces.baseDomain}
             viewingAsMember={Boolean(viewedBy)}
             onLogout={handleLogout}
           />

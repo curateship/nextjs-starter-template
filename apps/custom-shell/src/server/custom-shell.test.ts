@@ -1673,6 +1673,7 @@ describe("membership section", () => {
       name: "Before Membership",
       // Saved before Membership existed: no navVersion at all.
       settings: { sections: savedAdminSection() },
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
@@ -1977,6 +1978,7 @@ describe("overview link", () => {
       name: "Saved",
       // Everything before this upgrade has already run for this workspace.
       settings: { icon: "briefcaseBusiness", navVersion: 5, sections: savedSections() },
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
@@ -2188,6 +2190,7 @@ describe("traffic link", () => {
       name: "Saved",
       // Everything before this upgrade has already run for this workspace.
       settings: { icon: "briefcaseBusiness", navVersion: 8, sections: savedSections() },
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
@@ -2798,6 +2801,7 @@ describe("revenue folds into membership", () => {
       id: uuid(),
       userId,
       name: "Saved",
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       // Everything before this upgrade has already run for this workspace.
       settings: {
         icon: "briefcaseBusiness",
@@ -3553,6 +3557,7 @@ describe("feeds section", () => {
       name: "Before Feeds",
       // Saved when Membership was the latest restructure.
       settings: { sections: savedV1Sections(), navVersion: 1 },
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
@@ -3810,6 +3815,7 @@ describe("feeds section", () => {
       userId,
       name: "Before Feedback moved",
       settings: { sections: savedV2Sections(), navVersion: 2 },
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })

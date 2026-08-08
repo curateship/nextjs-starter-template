@@ -44,6 +44,7 @@ describe("whether email is on", () => {
       userId: user.id,
       name: "Test",
       settings: {},
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt: new Date(),
       updatedAt: new Date(),
     })

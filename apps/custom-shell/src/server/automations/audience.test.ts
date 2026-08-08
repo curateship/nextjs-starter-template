@@ -52,6 +52,7 @@ beforeEach(async () => {
     userId: owner.id,
     name: "Main",
     settings: {},
+    subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
     createdAt: timestamp,
     updatedAt: timestamp,
   })
@@ -288,6 +289,7 @@ describe("counting who matches", () => {
       userId: owner.id,
       name: "Elsewhere",
       settings: {},
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
