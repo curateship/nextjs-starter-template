@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { AiPanel } from "@/components/video-editor/studio-ai-panel"
+import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import {
   getVideoMediaErrorMessage,
   listMediaCollections,
@@ -42,18 +44,23 @@ import {
  * everything each of them needs is loaded here.
  */
 
-export type StudioPanel = "media" | "text" | "brand"
+export type StudioPanel = "media" | "text" | "brand" | "ai" | "transcript"
 
 const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
   text: "Text",
   brand: "Brand kit",
+  ai: "AI",
+  transcript: "Transcript",
 }
 
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // Media has search and upload buttons to put in its header, so it draws its
   // own; the other two only need a title.
   if (panel === "media") return <MediaPanel />
+  // The AI panel draws its own header too, so its tools can say what they need.
+  if (panel === "ai") return <AiPanel />
+  if (panel === "transcript") return <TranscriptPanel />
 
   return (
     <div className="flex h-full min-h-0 flex-col">

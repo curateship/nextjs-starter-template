@@ -42,6 +42,10 @@ import type {
 } from "@/components/video-editor/editor-store"
 import { db } from "@/server/db"
 import { customShellMedia } from "@/server/schema"
+import {
+  FFMPEG_MISSING_MESSAGE,
+  runFfmpeg as runFfmpegCommand,
+} from "@/server/video/ffmpeg"
 import { downloadToFile } from "@/server/video/storage-files"
 
 /**
@@ -76,10 +80,8 @@ const OUTPUT_FPS = 30
 const AUDIO_BITRATE = "192k"
 // Text sizes are authored against a 1080-tall frame in the editor.
 const DESIGN_HEIGHT = 1080
-const RENDER_TIMEOUT_MS = 10 * 60_000
 
 export const MEDIA_MISSING_MESSAGE = "A clip's file is no longer in the library"
-export const FFMPEG_MISSING_MESSAGE = "ffmpeg is not installed on this server"
 export const RENDER_FAILED_MESSAGE = "The export could not be made"
 const FONT_MISSING_MESSAGE = "The font this server renders words with is missing"
 
@@ -933,33 +935,7 @@ function hasAudioStream(file: string) {
   })
 }
 
-/**
- * Runs ffmpeg and hands back the tail of what it said, which the loudness pass
- * reads its measurement out of and the log keeps when something goes wrong.
- */
+/** Every ffmpeg run in the exporter says the same thing when it fails. */
 function runFfmpeg(args: string[]) {
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn("ffmpeg", ["-y", ...args], {
-      timeout: RENDER_TIMEOUT_MS,
-    })
-    let stderr = ""
-    child.stderr.on("data", (chunk) => {
-      stderr = (stderr + chunk).slice(-4000)
-    })
-    child.on("error", (error: NodeJS.ErrnoException) => {
-      reject(
-        new Error(
-          error.code === "ENOENT" ? FFMPEG_MISSING_MESSAGE : RENDER_FAILED_MESSAGE
-        )
-      )
-    })
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(stderr)
-      } else {
-        console.error("ffmpeg said:", stderr)
-        reject(new Error(RENDER_FAILED_MESSAGE))
-      }
-    })
-  })
+  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE)
 }

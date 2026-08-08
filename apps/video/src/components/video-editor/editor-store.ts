@@ -68,6 +68,17 @@ export type EditorAction =
       }
     }
   | { type: "ADD_TRACK" }
+  // Cut several pieces out of one clip at once, closing the gaps. What comes
+  // after on the same lane shuffles back by however much was taken out.
+  | {
+      type: "APPLY_JUMP_CUTS"
+      clipId: string
+      removals: { clipStartMs: number; clipEndMs: number }[]
+      rippleClipIds: string[]
+    }
+  // Every caption at once, onto a lane of their own. One action so one press
+  // of undo takes the whole lot back off again.
+  | { type: "INSERT_CAPTIONS"; captions: EditorClip[] }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
@@ -186,6 +197,33 @@ function withTrack(
 }
 
 // Remember the tracks as they were, so this edit can be undone.
+/**
+ * The pieces to cut, tidied: inside the clip, in order, joined where they
+ * overlap, and with anything too short to bother with dropped.
+ */
+function normalizeJumpCutRemovals(
+  removals: { clipStartMs: number; clipEndMs: number }[],
+  durationMs: number
+) {
+  const sorted = removals
+    .map((removal) => ({
+      startMs: Math.max(0, Math.min(removal.clipStartMs, durationMs)),
+      endMs: Math.max(0, Math.min(removal.clipEndMs, durationMs)),
+    }))
+    .filter((removal) => removal.endMs - removal.startMs >= MIN_CLIP_MS)
+    .sort((a, b) => a.startMs - b.startMs)
+  const merged: { startMs: number; endMs: number }[] = []
+  for (const removal of sorted) {
+    const previous = merged.at(-1)
+    if (previous && removal.startMs <= previous.endMs) {
+      previous.endMs = Math.max(previous.endMs, removal.endMs)
+    } else {
+      merged.push({ ...removal })
+    }
+  }
+  return merged
+}
+
 function pushUndo(state: EditorState, tracks: EditorTrack[]): EditorState {
   return {
     ...state,
@@ -256,6 +294,95 @@ export function editorReducer(
 
     case "ADD_TRACK":
       return pushUndo(state, [...state.tracks, newTrack()])
+
+    case "APPLY_JUMP_CUTS": {
+      const found = findClip(state.tracks, action.clipId)
+      if (
+        !found ||
+        (found.clip.kind !== "video" && found.clip.kind !== "audio")
+      ) {
+        return state
+      }
+
+      const removals = normalizeJumpCutRemovals(
+        action.removals,
+        found.clip.durationMs
+      )
+      if (!removals.length) return state
+
+      // Walk the clip, keeping what is between the cuts. Each kept piece stays
+      // pointing at the same moment of the original recording, so the picture
+      // and the sound never drift.
+      let sourceCursorMs = 0
+      let timelineCursorMs = found.clip.startMs
+      let first = true
+      const clips: EditorClip[] = []
+      const keepUpTo = (endMs: number) => {
+        const durationMs = endMs - sourceCursorMs
+        if (durationMs < MIN_CLIP_MS) return
+        const isFirst = first
+        first = false
+        clips.push({
+          ...found.clip,
+          id: isFirst ? found.clip.id : editorId(),
+          startMs: timelineCursorMs,
+          durationMs,
+          trimStartMs: found.clip.trimStartMs + sourceCursorMs,
+          // Only the first piece keeps the blend coming into it. The rest butt
+          // against a cut in the same footage, where a dissolve makes no sense.
+          transition: isFirst ? found.clip.transition : undefined,
+        })
+        timelineCursorMs += durationMs
+      }
+
+      for (const removal of removals) {
+        keepUpTo(removal.startMs)
+        sourceCursorMs = removal.endMs
+      }
+      keepUpTo(found.clip.durationMs)
+      if (!clips.length) return state
+
+      const removedDurationMs =
+        found.clip.durationMs -
+        clips.reduce((total, clip) => total + clip.durationMs, 0)
+      const rippleClipIds = new Set(action.rippleClipIds)
+
+      const tracks = withTrack(state.tracks, found.track.id, (track) => ({
+        ...track,
+        clips: sortClips([
+          ...track.clips
+            .filter((clip) => clip.id !== found.clip.id)
+            .map((clip) =>
+              rippleClipIds.has(clip.id)
+                ? {
+                    ...clip,
+                    startMs: Math.max(
+                      found.clip.startMs,
+                      clip.startMs - removedDurationMs
+                    ),
+                  }
+                : clip
+            ),
+          ...clips,
+        ]),
+      }))
+      return { ...pushUndo(state, tracks), selectedClipId: clips[0].id }
+    }
+
+    case "INSERT_CAPTIONS": {
+      if (!action.captions.length) return state
+      // A lane of their own, above everything: captions belong over the
+      // picture, and keeping them together means they can be muted, moved or
+      // deleted as one thing later.
+      const track: EditorTrack = {
+        ...newTrack(),
+        clips: [...action.captions].sort((a, b) => a.startMs - b.startMs),
+      }
+      return {
+        ...pushUndo(state, [track, ...state.tracks]),
+        selectedClipId: null,
+      }
+    }
 
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)

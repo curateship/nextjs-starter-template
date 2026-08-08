@@ -3,9 +3,11 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 import {
   Check,
   FilmIcon,
+  CaptionsIcon,
   LayoutGrid,
   Loader2Icon,
   Share2,
+  SparklesIcon,
   Type,
   Upload,
 } from "lucide-react"
@@ -81,6 +83,8 @@ const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
   { id: "media", label: "Media", Icon: FilmIcon },
   { id: "text", label: "Text", Icon: Type },
   { id: "brand", label: "Brand", Icon: LayoutGrid },
+  { id: "ai", label: "AI", Icon: SparklesIcon },
+  { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
 ]
 
 export function StudioEditor({

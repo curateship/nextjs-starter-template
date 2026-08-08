@@ -13,6 +13,11 @@ export const Route = createFileRoute("/_authenticated/workspaces")({
 })
 
 function WorkspacesRoute() {
-  const { workspaces } = Route.useLoaderData()
-  return <WorkspacesDashboard initialWorkspaces={workspaces} />
+  const { workspaces, baseDomain } = Route.useLoaderData()
+  return (
+    <WorkspacesDashboard
+      initialWorkspaces={workspaces}
+      baseDomain={baseDomain}
+    />
+  )
 }

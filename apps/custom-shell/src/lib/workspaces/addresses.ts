@@ -1,8 +1,8 @@
 /**
- * What a site's address may be, written once so the admin form and the server
- * refuse the same things for the same reasons.
+ * What a workspace's address may be, written once so the admin form and the
+ * server refuse the same things for the same reasons.
  *
- * Browser-safe on purpose: the dialog shows the address as it is typed and says
+ * Browser-safe on purpose: the form shows the address as it is typed and says
  * why a bad one is bad, and the server checks the same rules again before it
  * writes. Neither trusts the other.
  */
@@ -43,7 +43,7 @@ export function cleanSubdomain(value: string) {
 export function subdomainProblem(value: string): string | null {
   const subdomain = cleanSubdomain(value)
 
-  if (!subdomain) return "A site needs an address."
+  if (!subdomain) return "A workspace needs an address."
   if (subdomain.length < MIN_SUBDOMAIN) {
     return `An address needs at least ${MIN_SUBDOMAIN} characters.`
   }
@@ -95,7 +95,7 @@ export function customDomainProblem(value: string): string | null {
   return null
 }
 
-/** The address a site answers on, for showing next to the field as it is typed. */
-export function siteAddress(subdomain: string, baseDomain: string) {
-  return `${cleanSubdomain(subdomain) || "your-site"}.${baseDomain}`
+/** The address a workspace answers on, for showing beside the field as it is typed. */
+export function workspaceAddress(subdomain: string, baseDomain: string) {
+  return `${cleanSubdomain(subdomain) || "your-workspace"}.${baseDomain}`
 }
