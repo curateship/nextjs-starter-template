@@ -2,6 +2,15 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import {
+  cancelLiveOrder,
+  closeLivePosition,
+  describeLiveJournalNote,
+  getLiveErrorMessage,
+  loadLiveTrading,
+  placeLiveOrder,
+  setLiveBrackets,
+} from "@/lib/api/live"
+import {
   cancelPaperOrder,
   closeAllPaperPositions,
   closePaperPosition,
@@ -22,7 +31,9 @@ import {
 import type { CandleInterval } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { DcaParams, SmartLadder } from "@/lib/trade/dca"
+import type { LiveJournalEntry } from "@/lib/trade/live"
 import type {
+  JournalReason,
   PaperJournalEntry,
   PaperOrder,
   PaperPosition,
@@ -31,18 +42,24 @@ import type {
 import type { TradeWallet } from "@/lib/trade/wallets"
 
 /**
- * The one owner of practice-trading state, mounted once in the workspace so
- * the chart's lines, the order window and the bottom panel are three views of
- * one answer rather than three polls disagreeing with each other.
+ * The one owner of trading state — practice AND real, mounted once in the
+ * workspace so the chart's lines, the order window and the bottom panel are
+ * views of one answer rather than polls disagreeing with each other.
  *
- * It reads **every** practice wallet, not only the one being traded with:
- * which wallet an order goes to is a choice made when placing it, but what you
- * are holding afterwards is something you need to see all of. Every row
- * therefore carries its own wallet, and every action takes that wallet with it
- * rather than assuming the active one.
+ * The two kinds of wallet flow through the SAME rows and the same actions;
+ * each action looks at the row it was aimed at and goes down the paper road
+ * or the live one. What the screens see is one portfolio. The differences
+ * that are kept are the honest ones: live rows carry the exchange's own
+ * margin and liquidation figures, a live resting order cannot be dragged yet,
+ * and only a practice wallet runs smart-order ladders.
  *
- * Reads every four seconds while the tab is visible — the engine settles on
- * every read, so this poll is also what makes stops and targets fire — and
+ * It reads **every** wallet, not only the one being traded with: which wallet
+ * an order goes to is a choice made when placing it, but what you are holding
+ * afterwards is something you need to see all of. Every row therefore carries
+ * its own wallet, and every action takes that wallet with it.
+ *
+ * Reads every four seconds while the tab is visible — the practice engine
+ * settles on every read, and the live side is the exchange's answer — and
  * again straight after anything is done, without waiting for the next tick.
  *
  * Dragging a line is optimistic. The dropped price is held on screen until a
@@ -52,16 +69,26 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 
 const REFRESH_MS = 4_000
 
-export type PaperTrading = {
+/** How a live action reads in the journal's Why column. */
+const LIVE_REASONS: Record<LiveJournalEntry["action"], JournalReason> = {
+  fill: "order",
+  placed: "placed",
+  cancelled: "cancelled",
+  close: "manual",
+  brackets: "brackets",
+  refused: "refused",
+}
+
+export type Trading = {
   /** The wallet an order placed right now would go to, or null until one is picked. */
   wallet: TradeWallet | null
-  /** Held across every practice wallet. */
+  /** Held across every wallet, practice and real alike. */
   positions: PaperPosition[]
   orders: PaperOrder[]
   journal: PaperJournalEntry[]
   /** The smart-order ladders still working, across every practice wallet. */
   ladders: SmartLadder[]
-  /** Each practice wallet's name, for the Wallet column. */
+  /** Each wallet's name, for the Wallet column. */
   walletNames: ReadonlyMap<string, string>
   /** An action is in flight; the buttons that started it stay disabled. */
   busy: boolean
@@ -122,14 +149,25 @@ export type PaperTrading = {
   ) => Promise<boolean>
 }
 
-export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
-  const [answer, setAnswer] = React.useState<{
-    positions: PaperPosition[]
-    orders: PaperOrder[]
-    journal: PaperJournalEntry[]
-    ladders: SmartLadder[]
-    wallets: { id: string; label: string }[]
-  } | null>(null)
+type PaperAnswer = {
+  positions: PaperPosition[]
+  orders: PaperOrder[]
+  journal: PaperJournalEntry[]
+  ladders: SmartLadder[]
+  wallets: { id: string; label: string }[]
+}
+
+type LiveAnswer = {
+  positions: PaperPosition[]
+  orders: PaperOrder[]
+  journal: LiveJournalEntry[]
+  wallets: { id: string; label: string }[]
+  unreachable: string[]
+}
+
+export function useTrading(wallet: TradeWallet | null): Trading {
+  const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
+  const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
   // Counted, not a flag: two actions can overlap, and the first to finish
   // must not re-enable the buttons while the second is still running.
   const [pending, setPending] = React.useState(0)
@@ -150,25 +188,29 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
   const bracketKey = (walletId: string, marketKey: string) =>
     `${walletId}:${marketKey}`
 
-  const walletId = wallet?.kind === "paper" ? wallet.id : null
+  // The wallet an order goes to: a practice wallet, or a live one with a key
+  // saved. A live wallet with no key can be looked at but not traded with.
+  const tradable =
+    wallet !== null &&
+    (wallet.kind === "paper" || (wallet.kind === "live" && wallet.hasKey))
+  const walletId = tradable ? wallet.id : null
 
   /**
-   * Re-reads everything. Answers whether this read actually became what is on
-   * screen: a read the poll overtook is thrown away, and a caller holding a
-   * dragged price has to keep holding it until one really lands.
+   * Re-reads everything, both halves at once, each half keeping its last good
+   * answer when its read fails. Answers whether this read fully became what
+   * is on screen: a read the poll overtook is thrown away, and a caller
+   * holding a dragged price has to keep holding it until one really lands.
    */
   const refresh = React.useCallback(async (): Promise<boolean> => {
     const request = ++requestRef.current
-    try {
-      const next = await loadPaperPortfolio()
-      if (requestRef.current !== request) return false
-      setAnswer(next)
-      return true
-    } catch {
-      // A failed poll keeps the last good answer on screen; the next tick is
-      // the retry. Only something the person actually pressed says so out loud.
-      return false
-    }
+    const [paper, live] = await Promise.allSettled([
+      loadPaperPortfolio(),
+      loadLiveTrading(),
+    ])
+    if (requestRef.current !== request) return false
+    if (paper.status === "fulfilled") setPaperAnswer(paper.value)
+    if (live.status === "fulfilled") setLiveAnswer(live.value)
+    return paper.status === "fulfilled" && live.status === "fulfilled"
   }, [])
 
   /** Reads until one lands, so a dragged price is never let go too early. */
@@ -228,49 +270,127 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     [runWith]
   )
 
-  const current = answer
-
   /** A wallet's name, for the messages that have to say which one they mean. */
   const walletNames = React.useMemo(
-    () => new Map((current?.wallets ?? []).map((one) => [one.id, one.label])),
-    [current]
+    () =>
+      new Map(
+        [...(paperAnswer?.wallets ?? []), ...(liveAnswer?.wallets ?? [])].map(
+          (one) => [one.id, one.label]
+        )
+      ),
+    [paperAnswer, liveAnswer]
   )
   const nameOf = React.useCallback(
     (walletId: string) => walletNames.get(walletId) ?? "that wallet",
     [walletNames]
   )
 
+  const allOrders = React.useMemo(
+    () => [...(paperAnswer?.orders ?? []), ...(liveAnswer?.orders ?? [])],
+    [paperAnswer, liveAnswer]
+  )
+  const allPositions = React.useMemo(
+    () => [...(paperAnswer?.positions ?? []), ...(liveAnswer?.positions ?? [])],
+    [paperAnswer, liveAnswer]
+  )
+
+  const journal = React.useMemo((): PaperJournalEntry[] => {
+    const live = (liveAnswer?.journal ?? []).map(
+      (entry): PaperJournalEntry => ({
+        id: entry.id,
+        walletId: entry.walletId,
+        marketKey: entry.marketKey,
+        side: entry.side,
+        px: entry.px,
+        sz: entry.sz,
+        fee: 0,
+        closedPnl: 0,
+        reason: LIVE_REASONS[entry.action],
+        fillTime: entry.at,
+        live: true,
+        // A rails refusal is stored as its bare code; said in words here.
+        note: entry.note ? describeLiveJournalNote(entry.note) : null,
+      })
+    )
+    return [...(paperAnswer?.journal ?? []), ...live]
+  }, [paperAnswer, liveAnswer])
+
   const orders = React.useMemo(() => {
-    if (dropped.size === 0) return current?.orders ?? []
-    return (current?.orders ?? []).map((order) => {
+    if (dropped.size === 0) return allOrders
+    return allOrders.map((order) => {
       const held = dropped.get(order.id)
       return held === undefined ? order : { ...order, px: held }
     })
-  }, [current, dropped])
+  }, [allOrders, dropped])
 
   const positions = React.useMemo(() => {
-    if (droppedBrackets.size === 0) return current?.positions ?? []
-    return (current?.positions ?? []).map((position) => {
+    if (droppedBrackets.size === 0) return allPositions
+    return allPositions.map((position) => {
       const held = droppedBrackets.get(
         `${position.walletId}:${position.marketKey}`
       )
       return held ? { ...position, ...held } : position
     })
-  }, [current, droppedBrackets])
+  }, [allPositions, droppedBrackets])
 
-  const place: PaperTrading["place"] = React.useCallback(
-    async (input) => {
-      if (!walletId) return false
-      return await run(
-        () => placePaperOrder({ walletId, ...input }),
-        `${input.side === "buy" ? "Buy" : "Sell"} order placed in ${nameOf(walletId)}.`
-      )
-    },
-    [walletId, run, nameOf]
+  /** The row an action is aimed at decides which road the action takes. */
+  const findOrder = React.useCallback(
+    (orderId: string) => allOrders.find((one) => one.id === orderId) ?? null,
+    [allOrders]
+  )
+  const findPosition = React.useCallback(
+    (walletId: string, marketKey: string) =>
+      allPositions.find(
+        (one) => one.walletId === walletId && one.marketKey === marketKey
+      ) ?? null,
+    [allPositions]
   )
 
-  const move: PaperTrading["move"] = React.useCallback(
+  const place: Trading["place"] = React.useCallback(
+    async (input) => {
+      if (!walletId || !wallet) return false
+      if (wallet.kind === "paper") {
+        return await run(
+          () => placePaperOrder({ walletId, ...input }),
+          `${input.side === "buy" ? "Buy" : "Sell"} order placed in ${nameOf(walletId)}.`
+        )
+      }
+      // The real road. The outcome is reported exactly: filled, resting, or
+      // — the one that must never fold into a success — placed but not fully
+      // protected.
+      setPending((count) => count + 1)
+      try {
+        const { outcome } = await placeLiveOrder({ walletId, ...input })
+        toast.success(
+          outcome.status === "filled"
+            ? `${input.side === "buy" ? "Bought" : "Sold"} ${outcome.filledSz ?? input.sz} — real order in ${nameOf(walletId)}.`
+            : `Real ${input.side} order resting in ${nameOf(walletId)}.`
+        )
+        if (outcome.protection === "partial" && outcome.protectionNote) {
+          showErrorToast(outcome.protectionNote)
+        }
+        return true
+      } catch (error) {
+        showErrorToast(getLiveErrorMessage(error))
+        return false
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    },
+    [walletId, wallet, run, nameOf, refresh]
+  )
+
+  const move: Trading["move"] = React.useCallback(
     async (walletId, orderId, px) => {
+      const order = findOrder(orderId)
+      if (order?.live) {
+        // The chart never offers this drag; the guard is for any other path.
+        showErrorToast(
+          "A real order cannot be dragged to a new price yet — cancel it and place a new one."
+        )
+        return
+      }
       // Let go only of this drop. A second drag while the first is still
       // saving owns the line now, and releasing its hold here would show the
       // first price again for as long as the second save takes.
@@ -294,34 +414,51 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
         forget()
       }
     },
-    [refreshUntilLanded]
+    [refreshUntilLanded, findOrder]
   )
 
-  const cancel: PaperTrading["cancel"] = React.useCallback(
+  const cancel: Trading["cancel"] = React.useCallback(
     async (walletId, orderId) => {
       // Cancelling costs nothing and the × on the chart has to stay instant,
       // so there is no question asked first. The toast names the wallet
       // instead: cancelling in the wrong one is then obvious at once.
+      const order = findOrder(orderId)
+      if (order?.live) {
+        await runWith(
+          getLiveErrorMessage,
+          () => cancelLiveOrder({ walletId, marketKey: order.marketKey, orderId }),
+          `Real order cancelled in ${nameOf(walletId)}.`
+        )
+        return
+      }
       await run(
         () => cancelPaperOrder(walletId, orderId),
         `Order cancelled in ${nameOf(walletId)}.`
       )
     },
-    [run, nameOf]
+    [run, runWith, nameOf, findOrder]
   )
 
-  const setBrackets: PaperTrading["setBrackets"] = React.useCallback(
+  const setBrackets: Trading["setBrackets"] = React.useCallback(
     async (walletId, marketKey, brackets) => {
+      if (findPosition(walletId, marketKey)?.live) {
+        return await runWith(
+          getLiveErrorMessage,
+          () => setLiveBrackets({ walletId, marketKey, ...brackets }),
+          "Saved on the exchange."
+        )
+      }
       return await run(
         () => setPaperBrackets({ walletId, marketKey, ...brackets }),
         "Saved."
       )
     },
-    [run]
+    [run, runWith, findPosition]
   )
 
-  const dragBrackets: PaperTrading["dragBrackets"] = React.useCallback(
+  const dragBrackets: Trading["dragBrackets"] = React.useCallback(
     async (walletId, marketKey, brackets) => {
+      const live = findPosition(walletId, marketKey)?.live !== undefined
       const key = bracketKey(walletId, marketKey)
       const forget = () =>
         setDroppedBrackets((held) => {
@@ -333,42 +470,64 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
 
       setDroppedBrackets((held) => new Map(held).set(key, brackets))
       try {
-        await setPaperBrackets({ walletId, marketKey, ...brackets })
+        if (live) {
+          await setLiveBrackets({ walletId, marketKey, ...brackets })
+        } else {
+          await setPaperBrackets({ walletId, marketKey, ...brackets })
+        }
       } catch (error) {
         // A refusal still has to be said out loud — a stop dragged to the
         // wrong side of the trade would otherwise just spring back unexplained.
-        showErrorToast(getPaperErrorMessage(error))
+        showErrorToast(
+          live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
+        )
       } finally {
-        await refresh()
+        await refreshUntilLanded()
         forget()
       }
     },
-    [refresh]
+    [refreshUntilLanded, findPosition]
   )
 
-  const close: PaperTrading["close"] = React.useCallback(
+  const close: Trading["close"] = React.useCallback(
     async (walletId, marketKey) => {
+      if (findPosition(walletId, marketKey)?.live) {
+        await runWith(
+          getLiveErrorMessage,
+          () => closeLivePosition(walletId, marketKey),
+          `Real position closed in ${nameOf(walletId)}.`
+        )
+        return
+      }
       await run(
         () => closePaperPosition(walletId, marketKey),
         `Position closed in ${nameOf(walletId)}.`
       )
     },
-    [run, nameOf]
+    [run, runWith, nameOf, findPosition]
   )
 
-  const flip: PaperTrading["flip"] = React.useCallback(
+  const flip: Trading["flip"] = React.useCallback(
     async (walletId, marketKey) => {
+      if (findPosition(walletId, marketKey)?.live) {
+        // The table hides its flip button on live rows; this is the backstop.
+        showErrorToast(
+          "Turning a real position around in one go isn't built yet — close it, then open the other way."
+        )
+        return
+      }
       await run(
         () => flipPaperPosition(walletId, marketKey),
         `Position turned around in ${nameOf(walletId)}.`
       )
     },
-    [run, nameOf]
+    [run, nameOf, findPosition]
   )
 
-  const placeLadder: PaperTrading["placeLadder"] = React.useCallback(
+  const placeLadder: Trading["placeLadder"] = React.useCallback(
     async (input) => {
-      if (!walletId) return false
+      // Ladders are the practice engine's; the menu only offers them there.
+      if (!walletId || wallet?.kind !== "paper") return false
       setPending((count) => count + 1)
       try {
         const { placed, passed } = await placeDcaLadder({
@@ -392,10 +551,10 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
         void refresh()
       }
     },
-    [walletId, nameOf, refresh]
+    [walletId, wallet, nameOf, refresh]
   )
 
-  const cancelRung: PaperTrading["cancelRung"] = React.useCallback(
+  const cancelRung: Trading["cancelRung"] = React.useCallback(
     async (walletId, ladderId, rungIndex) => {
       await runWith(
         getSmartOrderErrorMessage,
@@ -406,7 +565,7 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     [runWith, nameOf]
   )
 
-  const cancelLadder: PaperTrading["cancelLadder"] = React.useCallback(
+  const cancelLadder: Trading["cancelLadder"] = React.useCallback(
     async (walletId, ladderId) => {
       await runWith(
         getSmartOrderErrorMessage,
@@ -417,7 +576,7 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     [runWith, nameOf]
   )
 
-  const setLadderExits: PaperTrading["setLadderExits"] = React.useCallback(
+  const setLadderExits: Trading["setLadderExits"] = React.useCallback(
     async (walletId, ladderId, exits) => {
       return await runWith(
         getSmartOrderErrorMessage,
@@ -428,7 +587,7 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
     [runWith]
   )
 
-  const closeAll: PaperTrading["closeAll"] = React.useCallback(async () => {
+  const closeAll: Trading["closeAll"] = React.useCallback(async () => {
     setPending((count) => count + 1)
     try {
       const { closed } = await closeAllPaperPositions()
@@ -446,12 +605,12 @@ export function usePaperTrading(wallet: TradeWallet | null): PaperTrading {
   }, [refresh])
 
   return {
-    wallet: wallet?.kind === "paper" ? wallet : null,
+    wallet: tradable ? wallet : null,
     walletNames,
     positions,
     orders,
-    journal: current?.journal ?? [],
-    ladders: current?.ladders ?? [],
+    journal,
+    ladders: paperAnswer?.ladders ?? [],
     busy: pending > 0,
     place,
     move,

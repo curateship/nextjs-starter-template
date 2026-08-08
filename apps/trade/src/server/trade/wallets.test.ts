@@ -15,10 +15,15 @@ import {
 
 // The exchange is a mock: these tests are about the store, and a real
 // network call would make them flaky and slow. The mock answers like the
-// adapter does — figures, or a rejection for an address it cannot reach.
+// adapter does — figures, or a rejection for an address it cannot reach —
+// and the key check answers approved unless a test says otherwise.
 const fetchAccount = vi.fn()
+const verifyAgent = vi.fn()
 vi.mock("@/server/protocols/registry", () => ({
-  getProtocol: () => ({ account: { fetch: fetchAccount } }),
+  getProtocol: () => ({
+    account: { fetch: fetchAccount },
+    agent: { verify: verifyAgent },
+  }),
 }))
 
 const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
@@ -40,6 +45,8 @@ beforeEach(async () => {
     inTrades: 4_000,
     openProfit: 150,
   })
+  verifyAgent.mockReset()
+  verifyAgent.mockResolvedValue({ validUntil: null })
 })
 
 afterEach(async () => {
@@ -106,6 +113,25 @@ describe("adding wallets", () => {
     expect(JSON.stringify(await listWallets(userId))).not.toContain(KEY)
   })
 
+  it("refuses a key the exchange does not approve of, saving nothing", async () => {
+    const userId = await person()
+    verifyAgent.mockRejectedValue(new Error("KEY_IS_ACCOUNT"))
+
+    await expect(createWallet(userId, liveInput())).rejects.toThrow(
+      "KEY_IS_ACCOUNT"
+    )
+    expect(await listWallets(userId)).toEqual([])
+  })
+
+  it("records the key's expiry when the exchange reports one", async () => {
+    const userId = await person()
+    const expiry = Date.now() + 90 * 86_400_000
+    verifyAgent.mockResolvedValue({ validUntil: expiry })
+
+    const wallet = await createWallet(userId, liveInput())
+    expect(wallet.keyValidUntil).toBe(expiry)
+  })
+
   it("refuses an address the exchange cannot answer for, saving nothing", async () => {
     const userId = await person()
     fetchAccount.mockRejectedValue(new Error("no such account"))
@@ -164,6 +190,34 @@ describe("editing wallets", () => {
     await expect(
       updateWallet(userId, { id: wallet.id, agentKey: KEY })
     ).rejects.toThrow("WALLET_KEY_KIND")
+  })
+
+  it("proves a replacement key too, keeping the old one on refusal", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    const before = (
+      await database
+        .select()
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+    )[0].agentKeyEncrypted
+
+    verifyAgent.mockRejectedValue(new Error("KEY_NOT_APPROVED"))
+    await expect(
+      updateWallet(userId, { id: wallet.id, agentKey: "cd".repeat(32) })
+    ).rejects.toThrow("KEY_NOT_APPROVED")
+
+    const after = (
+      await database
+        .select()
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+    )[0].agentKeyEncrypted
+    expect(after).toBe(before)
   })
 
   it("replaces a key with fresh ciphertext", async () => {
