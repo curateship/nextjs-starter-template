@@ -4,9 +4,13 @@ import {
   AI_MODEL_OPTIONS,
   AI_MODEL_PRICES,
   AI_PROVIDERS,
+  AI_TEXT_PROVIDERS,
+  AI_UNIT_PRICES,
   aiAllowanceCentsFromFeatures,
   aiCostCents,
+  aiUnitCostCents,
   DEFAULT_AI_MODEL,
+  isUnitPricedModel,
 } from "@/lib/ai/ai-models"
 
 describe("aiCostCents", () => {
@@ -36,12 +40,53 @@ describe("aiCostCents", () => {
 
   it("has a price for every model offered in the dropdowns", () => {
     // A model an admin can pick must never be a silent zero-cost hole in the
-    // meter. (The reverse is fine: prices may outlive delisted models.)
+    // meter — priced by the token or by what it makes, but priced. (The
+    // reverse is fine: prices may outlive delisted models.)
+    const priced = (model: string) =>
+      AI_MODEL_PRICES[model] !== undefined || AI_UNIT_PRICES[model] !== undefined
     for (const provider of AI_PROVIDERS) {
       for (const option of AI_MODEL_OPTIONS[provider]) {
-        expect(AI_MODEL_PRICES[option.id], option.id).toBeDefined()
+        expect(priced(option.id), option.id).toBe(true)
       }
-      expect(AI_MODEL_PRICES[DEFAULT_AI_MODEL[provider]]).toBeDefined()
+      expect(priced(DEFAULT_AI_MODEL[provider]), provider).toBe(true)
+    }
+  })
+})
+
+describe("work charged by what it makes rather than by the word", () => {
+  it("knows which models those are", () => {
+    expect(isUnitPricedModel("eleven_multilingual_v2")).toBe(true)
+    expect(isUnitPricedModel("claude-opus-5")).toBe(false)
+  })
+
+  it("prices it by the unit", () => {
+    // $0.15 per 1,000 characters: 10,000 characters is $1.50.
+    expect(aiUnitCostCents("eleven_multilingual_v2", 10_000)).toBe(150)
+    // Half that on the quicker voices.
+    expect(aiUnitCostCents("eleven_flash_v2_5", 10_000)).toBe(75)
+  })
+
+  it("costs nothing for nothing, and never a negative", () => {
+    expect(aiUnitCostCents("eleven_multilingual_v2", 0)).toBe(0)
+    expect(aiUnitCostCents("eleven_multilingual_v2", -500)).toBe(0)
+  })
+
+  it("costs zero for a model not on the list, instead of throwing", () => {
+    expect(aiUnitCostCents("some-future-voice", 10_000)).toBe(0)
+  })
+
+  it("has a price for every voice offered in the dropdown", () => {
+    for (const option of AI_MODEL_OPTIONS.elevenlabs) {
+      expect(AI_UNIT_PRICES[option.id], option.id).toBeDefined()
+    }
+  })
+})
+
+describe("which providers can answer in words", () => {
+  it("leaves the voice one out, and is a subset of the whole list", () => {
+    expect(AI_TEXT_PROVIDERS).not.toContain("elevenlabs")
+    for (const provider of AI_TEXT_PROVIDERS) {
+      expect(AI_PROVIDERS).toContain(provider)
     }
   })
 })

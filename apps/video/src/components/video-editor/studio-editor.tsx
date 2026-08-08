@@ -47,6 +47,7 @@ import {
   StudioContextPanel,
   type StudioPanel,
 } from "@/components/video-editor/studio-panels"
+import { AiBudgetIndicator } from "@/components/video-editor/ai-budget-indicator"
 import { ExportDialog } from "@/components/video-editor/export-dialog"
 import { useProjectExport } from "@/components/video-editor/use-project-export"
 import { StudioInspector } from "@/components/video-editor/studio-inspector"
@@ -405,6 +406,7 @@ function StageHeader() {
       <AspectSwitch />
 
       <div className="flex items-center justify-end gap-2">
+        <AiBudgetIndicator />
         <Button type="button" variant="outline" onClick={shareLink}>
           {shared ? <Check /> : <Share2 />}
           {shared ? "Copied" : "Share"}

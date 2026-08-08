@@ -22,6 +22,8 @@ import { runAiCall, type AiCallUsage } from "@/server/ai/usage"
 const ENV_VAR: Record<AiProvider, string> = {
   anthropic: "CUSTOM_SHELL_ANTHROPIC_API_KEY",
   openai: "CUSTOM_SHELL_OPENAI_API_KEY",
+  gemini: "CUSTOM_SHELL_GEMINI_API_KEY",
+  elevenlabs: "CUSTOM_SHELL_ELEVENLABS_API_KEY",
 }
 
 /**
@@ -167,9 +169,16 @@ class AiKeyTestFailure extends Error {
 const TEST_CALL: Record<
   AiProvider,
   {
-    url: string
+    /**
+     * The address to call. A function only where the model is part of the
+     * path — never the key: a key in an address ends up in logs and proxy
+     * history, so every provider here carries it in a header.
+     */
+    url: string | ((model: string) => string)
+    /** Left out for a provider whose test only asks a question. */
+    method?: "GET" | "POST"
     headers: (key: string) => Record<string, string>
-    body: (model: string) => string
+    body: (model: string) => string | undefined
     usage: (payload: Record<string, unknown>) => AiCallUsage
   }
 > = {
@@ -214,6 +223,35 @@ const TEST_CALL: Record<
       }
     },
   },
+  gemini: {
+    url: (model) =>
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    headers: (key) => ({
+      "x-goog-api-key": key,
+      "content-type": "application/json",
+    }),
+    body: () =>
+      JSON.stringify({
+        contents: [{ parts: [{ text: "Say OK." }] }],
+        generationConfig: { maxOutputTokens: 1 },
+      }),
+    usage: (payload) => {
+      const usage = (payload.usageMetadata ?? {}) as Record<string, unknown>
+      return {
+        inputTokens: asTokenCount(usage.promptTokenCount),
+        outputTokens: asTokenCount(usage.candidatesTokenCount),
+      }
+    },
+  },
+  elevenlabs: {
+    // Only asks whose key it is. Reading anything aloud would cost money to
+    // find out something this answers for nothing.
+    url: "https://api.elevenlabs.io/v1/user",
+    method: "GET",
+    headers: (key) => ({ "xi-api-key": key }),
+    body: () => undefined,
+    usage: () => ({ inputTokens: 0, outputTokens: 0 }),
+  },
 }
 
 /** A provider's token count, or 0 when the response shape surprises us. */
@@ -251,12 +289,17 @@ export async function testAiKey(
       async () => {
         let response: Response
         try {
-          response = await fetch(request.url, {
-            method: "POST",
-            headers: request.headers(key),
-            body: request.body(model),
-            signal: AbortSignal.timeout(15_000),
-          })
+          response = await fetch(
+            typeof request.url === "string"
+              ? request.url
+              : request.url(model),
+            {
+              method: request.method ?? "POST",
+              headers: request.headers(key),
+              body: request.body(model),
+              signal: AbortSignal.timeout(15_000),
+            }
+          )
         } catch {
           throw new AiKeyTestFailure({ result: "unreachable" })
         }
