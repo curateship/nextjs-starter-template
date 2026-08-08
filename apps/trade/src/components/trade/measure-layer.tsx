@@ -146,6 +146,16 @@ export function MeasureLayer({
     return { time: surface.timeAt(event.clientX - box.left), price }
   }
 
+  // Where the pointer is, for the crosshair below. This layer covers the plot
+  // while shift is held, so the chart underneath sees no pointer at all and
+  // drops its own crosshair — taking away the prices shift was held to read.
+  // Drawing one here rather than driving the chart's: the library positions
+  // its crosshair by candle, and a pixel between two candles is not a candle,
+  // which made it jump about and blink out.
+  const [pointer, setPointer] = React.useState<{ x: number; y: number } | null>(
+    null
+  )
+
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Only the left button draws one. A right-click is handled below.
     if (event.button !== 0) return
@@ -165,6 +175,9 @@ export function MeasureLayer({
   }
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect()
+    setPointer({ x: event.clientX - box.left, y: event.clientY - box.top })
+
     if (!measure || measure.stage === "locked") return
     const point = pointAt(event)
     if (point) setMeasure({ ...measure, to: point })
@@ -202,6 +215,9 @@ export function MeasureLayer({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      // Off the plot the chart has no crosshair to show, and leaving a stale
+      // one behind would read as a price the pointer is not on.
+      onPointerLeave={() => setPointer(null)}
       // A right-click while the ruler is armed puts the ruler away rather than
       // opening the order menu underneath it, which is never what was meant.
       onContextMenu={(event) => {
@@ -210,6 +226,18 @@ export function MeasureLayer({
         setMeasure(null)
       }}
     >
+      {pointer ? (
+        <>
+          <div
+            className="pointer-events-none absolute inset-y-0 border-l border-dashed border-foreground/40"
+            style={{ left: pointer.x }}
+          />
+          <div
+            className="pointer-events-none absolute inset-x-0 border-t border-dashed border-foreground/40"
+            style={{ top: pointer.y }}
+          />
+        </>
+      ) : null}
       {reading ? (
         <>
           <div

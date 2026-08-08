@@ -10,6 +10,7 @@ import {
   saveLastMarket,
 } from "@/lib/api/markets"
 import { loadRememberedChartView } from "@/lib/api/chart-view"
+import { loadRememberedFolds } from "@/lib/api/card-folds"
 import { loadIndicatorSettings } from "@/lib/api/indicators"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -34,7 +35,7 @@ function readTradeSearch(search: Record<string, unknown>): TradeSearch {
 export const Route = createFileRoute("/_authenticated/trade")({
   validateSearch: readTradeSearch,
   loader: async () => {
-    const [markets, favorites, lastMarket, chartView, indicators] =
+    const [markets, favorites, lastMarket, chartView, indicators, cardFolds] =
       await Promise.all([
         // A dead exchange must not take the page down with it: the workspace
         // still opens, and the list explains itself and offers a retry.
@@ -61,6 +62,10 @@ export const Route = createFileRoute("/_authenticated/trade")({
         loadIndicatorSettings().catch(() => ({
           indicators: defaultIndicatorSettings(),
         })),
+        // Read here rather than when a window opens, which would be too late:
+        // its cards would draw open and then fold themselves a moment later,
+        // in front of you. Losing it only means cards open as they always did.
+        loadRememberedFolds().catch(() => ({ folds: {} })),
       ])
     return {
       markets,
@@ -68,13 +73,14 @@ export const Route = createFileRoute("/_authenticated/trade")({
       lastMarketKey: lastMarket.marketKey,
       chartView: chartView.chartView,
       indicators: indicators.indicators,
+      cardFolds: cardFolds.folds,
     }
   },
   component: TradeRoute,
 })
 
 function TradeRoute() {
-  const { markets, favoriteKeys, lastMarketKey, chartView, indicators } =
+  const { markets, favoriteKeys, lastMarketKey, chartView, indicators, cardFolds } =
     Route.useLoaderData()
   const { market } = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -110,6 +116,7 @@ function TradeRoute() {
       initialFavoriteKeys={favoriteKeys}
       initialChartView={chartView}
       initialIndicators={indicators}
+      initialCardFolds={cardFolds}
       selectedKey={selectedKey}
       onSelectMarket={(key) =>
         void navigate({

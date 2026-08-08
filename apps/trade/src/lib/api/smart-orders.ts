@@ -4,6 +4,7 @@ import { z } from "zod"
 import { CANDLE_INTERVALS, parseMarketKey } from "@/lib/protocols/contracts"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { userGet, userPost } from "@/server/guards"
+import { marketBaseInForce } from "@/server/trade/base-level"
 import { loadSmartDca, saveSmartDca } from "@/server/trade/prefs"
 import {
   cancelLadderRest as cancelRestRows,
@@ -34,7 +35,7 @@ const marketKeySchema = z
 const placeSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
-  anchorPx: z.number().positive().finite(),
+  clickPx: z.number().positive().finite(),
   interval: z.enum(CANDLE_INTERVALS),
   params: dcaParamsSchema,
 })
@@ -65,6 +66,36 @@ async function paperWallet(userId: string, walletId: string) {
   return wallet
 }
 
+/**
+ * The base a ladder would hang from right now.
+ *
+ * The window asks before it draws anything: the rungs it previews are stepped
+ * down from this, and so are the rungs the server writes, so what is shown is
+ * what is placed. Null when no base has confirmed, which is a ladder that
+ * cannot be placed and a window that says so.
+ */
+const loadLadderBaseFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ marketKey: marketKeySchema }))
+  .handler(async ({ data }): Promise<{ basePx: number | null }> => {
+    const ref = parseMarketKey(data.marketKey)
+    if (!ref) return { basePx: null }
+    return {
+      basePx: await marketBaseInForce(
+        ref.protocol,
+        ref.network,
+        ref.marketId,
+        Date.now()
+      ),
+    }
+  })
+
+export function loadLadderBase(
+  marketKey: string
+): Promise<{ basePx: number | null }> {
+  return loadLadderBaseFn({ data: { marketKey } })
+}
+
 const placeDcaLadderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(placeSchema)
@@ -72,7 +103,7 @@ const placeDcaLadderFn = createServerFn({ method: "POST" })
     const wallet = await paperWallet(context.user.id, data.walletId)
     const placed = await placeLadderRows(context.user.id, wallet, {
       marketKey: data.marketKey,
-      anchorPx: data.anchorPx,
+      clickPx: data.clickPx,
       interval: data.interval,
       params: data.params,
     })
@@ -153,6 +184,12 @@ export const getSmartOrderErrorMessage = createErrorMessage(
       "A rung is too small to be an order at this market's size step — nothing was placed. Use fewer rungs, a gentler ramp, or a bigger share.",
     SMART_LADDER_COST:
       "The whole ladder costs more than the free cash — nothing was placed. Use a smaller share or fewer rungs.",
+    SMART_LADDER_ABOVE_MARKET:
+      "Every rung sits above the price right now, so there is nothing left to wait for — nothing was placed.",
+    SMART_LADDER_NO_BASE:
+      "This market has no confirmed base yet, and the ladder hangs from one — nothing was placed. Wait for the chart to mark a base.",
+    SMART_LADDER_UNDER_BASE:
+      "Price is already below the base, so that level has gone — nothing was placed. The ladder starts when price is at or above a base and buys the fall from there.",
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
     SMART_RUNG_DONE: "That rung already bought or was already called off.",

@@ -15,6 +15,8 @@ import {
   MarketHeader,
   type MarketSelection,
 } from "@/components/trade/market-header"
+import { CardFolds } from "@/components/trade/card-folds"
+import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketListPanel } from "@/components/trade/market-list-panel"
 import {
@@ -57,6 +59,15 @@ import {
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+
+/**
+ * No focus ring on a panel divider.
+ *
+ * The shell's divider draws one when it has keyboard focus, which is a line
+ * the full height of the app appearing the moment any key goes down. Merged
+ * last, so it beats the shell's own class without editing a shell file.
+ */
+const NO_RING = "focus-visible:ring-0"
 
 /** Which side panel a narrow screen has slid open, if any. */
 type OpenSheet = "markets" | "account" | null
@@ -107,6 +118,7 @@ export function TradeWorkspace({
   initialFavoriteKeys,
   initialChartView,
   initialIndicators,
+  initialCardFolds,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -119,6 +131,8 @@ export function TradeWorkspace({
   initialChartView: ChartView | null
   /** Which indicators this account has on, and what each is set to. */
   initialIndicators: IndicatorSettings
+  /** How the trading windows' settings cards were left folded. */
+  initialCardFolds: CardFoldsValue
   /** The picked market's key, carried in the address bar. */
   selectedKey: string | null
   onSelectMarket: (key: string) => void
@@ -199,6 +213,24 @@ export function TradeWorkspace({
   React.useEffect(() => {
     if (!paperBusy) void refreshAccount()
   }, [paperBusy, refreshAccount])
+
+  // A divider dragged with the mouse keeps keyboard focus, and its arrow keys
+  // would then resize a panel with nothing on screen saying so. Handing focus
+  // back when the drag lets go is what stops that. Tabbing to one is untouched
+  // — that fires no pointerup.
+  React.useEffect(() => {
+    const onPointerUp = () => {
+      const active = document.activeElement
+      if (
+        active instanceof HTMLElement &&
+        active.getAttribute("role") === "separator"
+      ) {
+        active.blur()
+      }
+    }
+    window.addEventListener("pointerup", onPointerUp)
+    return () => window.removeEventListener("pointerup", onPointerUp)
+  }, [])
 
   // The chart's timeframe, owned here so the header's picker and the chart's
   // fetch read the same choice.
@@ -355,11 +387,11 @@ export function TradeWorkspace({
           {marketList}
         </WorkspacePanel>
       </ResizablePanel>
-      <ResizableHandle gap collapsed={marketsCollapsed} />
+      <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
       <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
         {middle}
       </ResizablePanel>
-      <ResizableHandle gap collapsed={accountCollapsed} />
+      <ResizableHandle gap collapsed={accountCollapsed} className={NO_RING} />
       <ResizablePanel
         id="account"
         panelRef={accountPanelRef}
@@ -383,6 +415,10 @@ export function TradeWorkspace({
   )
 
   return (
+    // One memory of which settings cards are folded, for every window under
+    // here — the ladder window and a live ladder's exits both draw the same
+    // cards, and folding one in one place should mean it is folded in both.
+    <CardFolds initial={initialCardFolds}>
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
         key={verticalLayout.layoutKey}
@@ -397,7 +433,7 @@ export function TradeWorkspace({
         {/* Keeps its gap even while the panel below is collapsed — that
             collapsed tab row is still a panel on screen, and this handle is
             what makes it draggable back open. */}
-        <ResizableHandle gap />
+        <ResizableHandle gap className={NO_RING} />
         <ResizablePanel
           id="activity"
           panelRef={activityPanelRef}
@@ -461,5 +497,6 @@ export function TradeWorkspace({
         onUse={account.switchWallet}
       />
     </div>
+    </CardFolds>
   )
 }

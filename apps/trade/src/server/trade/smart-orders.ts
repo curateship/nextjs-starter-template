@@ -9,6 +9,7 @@ import {
 import {
   dcaLadderPlan,
   floorSize,
+  ladderBaseStopOf,
   ladderExitLevels,
   readLadderPlan,
   DUST_ORDER_USD,
@@ -17,24 +18,21 @@ import {
   type LadderRungState,
   type SmartLadder,
 } from "@/lib/trade/dca"
-import {
-  isMarketable,
-  paperAccountFigures,
-  TAKER_FEE_RATE,
-} from "@/lib/trade/paper"
+import { isMarketable, paperAccountFigures } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
+import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
 import {
   exposedMarketKeys,
-  fill,
   freeCash,
   marksForKeys,
   MAX_OPEN_ORDERS,
   saveBook,
   settleWallet,
 } from "@/server/trade/paper"
+import { wantedStopPx } from "@/server/trade/smart-ladders"
 import {
   tradePaperOrders,
   tradePaperPositions,
@@ -56,8 +54,8 @@ import {
 
 export type PlaceLadderInput = {
   marketKey: string
-  /** The clicked price the ladder hangs from. */
-  anchorPx: number
+  /** The right-clicked price. Used only when the ladder hangs off the click. */
+  clickPx: number
   /** The chart's timeframe at placement — what two-green mode watches. */
   interval: CandleInterval
   params: DcaParams
@@ -66,8 +64,8 @@ export type PlaceLadderInput = {
 export type PlacedLadder = {
   /** How many rungs the ladder has. */
   placed: number
-  /** How many bought immediately because the click was above the market. */
-  filledNow: number
+  /** Rungs price had already passed, so they never got a chance to wait. */
+  passed: number
 }
 
 export async function placeDcaLadder(
@@ -87,14 +85,36 @@ export async function placeDcaLadder(
 
   const protocol = getProtocol(wallet.protocol)
   const roundPx = (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals)
-  const anchorPx = roundPx(input.anchorPx)
-  if (!(anchorPx > 0)) throw new Error("PAPER_PRICE")
 
   // One mark fetch covers the settle, the sizing and the marketable check.
   const keys = await exposedMarketKeys(userId, [wallet.id])
   const marks = await marksForKeys([...new Set([...keys, input.marketKey])])
   const mark = marks.get(input.marketKey)
   if (mark === undefined || !(mark > 0)) throw new Error("PAPER_NO_PRICE")
+
+  // Where rung 1 is measured from. The base is the QFL rule and the default:
+  // the ladder hangs off the level it is betting on, and each rung after steps
+  // down from the one above. The click is the way out for a ladder somewhere
+  // the indicator has not marked.
+  let anchorPx: number
+  if (input.params.anchor === "click") {
+    anchorPx = roundPx(input.clickPx)
+    if (!(anchorPx > 0)) throw new Error("PAPER_PRICE")
+  } else {
+    const base = await marketBaseInForce(
+      wallet.protocol,
+      wallet.network,
+      ref.marketId,
+      Date.now()
+    )
+    if (base === null) throw new Error("SMART_LADDER_NO_BASE")
+    anchorPx = roundPx(base)
+    if (!(anchorPx > 0)) throw new Error("PAPER_PRICE")
+    // Price under the base means the level has already gone. The ladder arms
+    // when price is AT OR ABOVE a confirmed base and buys the fall from there;
+    // starting it halfway down is a different trade nobody asked for.
+    if (mark < anchorPx) throw new Error("SMART_LADDER_UNDER_BASE")
+  }
 
   const book = await settleWallet(userId, wallet, { marks })
 
@@ -141,43 +161,49 @@ export async function placeDcaLadder(
 
   const now = Date.now()
   const maxLeverage = rules.maxLeverage ?? 1
-  let filledNow = 0
 
   const rungs: LadderRungState[] = priced.map((rung) => {
     const state: LadderRungState = {
       px: rung.px,
       sz: rung.sz,
       status: "waiting",
+      // Frozen here and never recalculated: this is the ceiling a buy-back is
+      // held to, so it has to survive a rung whose size changes.
+      budget: rung.px * rung.sz,
       orderId: null,
       sellOrderId: null,
       dead: false,
       touched: false,
     }
     if (!twoGreen && isMarketable("buy", rung.px, mark)) {
-      // The click sat above the market, so this rung is not going to wait —
-      // it is taken now, at the market's price, never at the worse one asked.
-      fill(book, {
-        marketKey: input.marketKey,
-        side: "buy",
-        px: mark,
-        sz: rung.sz,
-        feeRate: TAKER_FEE_RATE,
-        leverage: 1,
-        maxLeverage,
-        reason: "order",
-        at: now,
-      })
-      state.status = "filled"
-      filledNow += 1
+      // Price is already below this rung, so its moment has been and gone.
+      //
+      // It used to buy here, at the market — which is defensible for one rung
+      // clicked just above the price and wrong for a ladder placed well above
+      // it, where several rungs collapse into a single buy at a single price.
+      // That is not a ladder, and it is not what a ladder placed above a level
+      // was meant to do: this one buys as price FALLS to each rung. A rung
+      // price has already passed is skipped, exactly as `reviveRungs` skips
+      // one that was passed while it sat under a stop.
+      //
+      // Two-green mode is exempt because nothing rests there: price being
+      // below a rung is that mode's TRIGGER, not a moment it missed. Skipping
+      // them would throw away the rungs it exists to buy.
+      state.status = "skipped"
     } else if (!twoGreen) {
       state.orderId = randomUUID()
     }
     return state
   })
 
+  if (rungs.every((rung) => rung.status === "skipped")) {
+    throw new Error("SMART_LADDER_ABOVE_MARKET")
+  }
+
   const tp = input.params.takeProfit
   const plan: LadderPlan = {
     anchorPx,
+    anchor: input.params.anchor,
     sizeDecimals: rules.sizeDecimals,
     maxLeverage,
     rungs,
@@ -185,13 +211,20 @@ export async function placeDcaLadder(
       ? { mode: tp.mode, pct: tp.mode === "average" ? tp.pct : null }
       : null,
     stopLoss: input.params.stopLoss
-      ? { mode: "percent", pct: input.params.stopLoss.pct }
+      ? {
+          mode: "percent",
+          pct: input.params.stopLoss.pct,
+          base: ladderBaseStopOf(input.params.stopLoss.base),
+        }
       : null,
     aimedTpPx: null,
     aimedSlPx: null,
     twoGreen,
     greenInterval: twoGreen ? input.interval : null,
     green: null,
+    steppedDown: 0,
+    baseWatch: null,
+    reclaim: null,
   }
 
   await db.transaction(async (tx) => {
@@ -257,7 +290,12 @@ export async function placeDcaLadder(
   // of anything that bought immediately, and rest its sells.
   await settleWallet(userId, wallet, { marks })
 
-  return { placed: rungs.length, filledNow }
+  return {
+    placed: rungs.filter((rung) => rung.status === "waiting").length,
+    // Rungs price had already passed. Reported rather than hidden: a ladder
+    // that placed four of seven buys should say so on the spot.
+    passed: rungs.filter((rung) => rung.status === "skipped").length,
+  }
 }
 
 // ----- Steering a live ladder -------------------------------------------
@@ -433,8 +471,15 @@ export async function updateLadderExits(
       }
     : null
   plan.stopLoss = input.stopLoss
-    ? { mode: "percent", pct: input.stopLoss.pct }
+    ? {
+        mode: "percent",
+        pct: input.stopLoss.pct,
+        base: ladderBaseStopOf(input.stopLoss.base),
+      }
     : null
+  // Switching the base rule off drops what it was waiting on. A buy-back is
+  // that rule's promise, and it must not outlive it.
+  if (!plan.stopLoss?.base) plan.reclaim = null
 
   // Rewrite the position's brackets to the new rules right now, and remember
   // exactly what was written — anything else there later means a hand moved it.
@@ -451,9 +496,7 @@ export async function updateLadderExits(
       }
       tpPx = deepest >= 0 ? roundPx(ladderExitLevels(plan)[deepest]) : null
     }
-    if (plan.stopLoss) {
-      slPx = roundPx(position.entryPx * (1 - (plan.stopLoss.pct ?? 0) / 100))
-    }
+    slPx = wantedStopPx(plan, position.entryPx, roundPx)
     await db
       .update(tradePaperPositions)
       .set({ tpPx, slPx, updatedAt: new Date() })
