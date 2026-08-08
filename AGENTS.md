@@ -129,6 +129,7 @@ The single UI standard lives in `.agents/skills/Ui-standards/SKILL.md`. Every ap
 
 ## Working Rules
 
+- Each agent may have only one shell session open at a time. Finish or close it before opening another.
 - Keep changes simple and narrow.
 - Fix only the requested behavior.
 - Do not refactor adjacent code unless it is required for the request.

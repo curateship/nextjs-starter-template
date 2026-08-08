@@ -2,6 +2,10 @@
 
 Turborepo monorepo for the System Everything platform.
 
+## Agent Rules
+
+- Each agent may have only one shell session open at a time. Finish or close it before opening another.
+
 ## Structure
 
 ```
