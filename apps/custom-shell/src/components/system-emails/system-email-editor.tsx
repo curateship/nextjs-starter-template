@@ -60,12 +60,12 @@ export function SystemEmailEditor({
     [initial.kind]
   )
 
-  const sendTest = async (saveNow: () => Promise<void>) => {
+  const sendTest = async (saveNow: () => Promise<boolean>) => {
     setTesting(true)
     try {
       // Saved first, or the test would show the version before the last thing
       // that was typed — the send reads the email out of the database.
-      await saveNow()
+      if (!(await saveNow())) return
       const { delivered } = await sendSystemEmailTest(initial.kind)
       toast.success(
         delivered

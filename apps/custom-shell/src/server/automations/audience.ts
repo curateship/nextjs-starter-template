@@ -3,6 +3,7 @@ import {
   asc,
   countDistinct,
   eq,
+  gt,
   isNotNull,
   isNull,
   notInArray,
@@ -313,6 +314,76 @@ export async function countAutomationAudience(
     database,
     await audienceFilter(audience, workspaceId, database, timestamp, segment)
   )
+}
+
+/** One contact a send-style automation step can act on. */
+export type AutomationAudienceContact = {
+  id: string
+  userId: string | null
+  email: string
+  firstName: string | null
+  lastName: string | null
+  emailVerifiedAt: Date | null
+  createdAt: Date
+}
+
+/**
+ * One bounded page of an audience, in a stable order.
+ *
+ * Send-style steps ask for the next page after finishing the current one, so a
+ * large audience never becomes one large array in server memory. Verification
+ * is returned as a fact rather than folded into the audience condition: the
+ * caller must count an unconfirmed member as skipped, not make them disappear.
+ */
+export async function listAutomationAudienceContacts(
+  audience: AutomationAudience,
+  workspaceId: string,
+  options: {
+    limit: number
+    after?: { createdAt: Date; id: string }
+    timestamp?: Date
+  },
+  database: CustomShellDb = db
+): Promise<AutomationAudienceContact[]> {
+  const limit = Math.min(Math.max(options.limit, 1), 100)
+  const filter = await audienceFilter(
+    audience,
+    workspaceId,
+    database,
+    options.timestamp ?? now()
+  )
+  const after = options.after
+    ? or(
+        gt(customShellContacts.createdAt, options.after.createdAt),
+        and(
+          eq(customShellContacts.createdAt, options.after.createdAt),
+          gt(customShellContacts.id, options.after.id)
+        )
+      )
+    : undefined
+
+  return database
+    .selectDistinct({
+      id: customShellContacts.id,
+      userId: customShellContacts.userId,
+      email: customShellContacts.email,
+      firstName: customShellContacts.firstName,
+      lastName: customShellContacts.lastName,
+      emailVerifiedAt: customShellUsers.emailVerifiedAt,
+      createdAt: customShellContacts.createdAt,
+    })
+    .from(customShellContacts)
+    .leftJoin(
+      customShellUsers,
+      eq(customShellUsers.id, customShellContacts.userId)
+    )
+    .leftJoin(
+      customShellSubscriptions,
+      eq(customShellSubscriptions.userId, customShellContacts.userId)
+    )
+    .where(and(filter, after))
+    .orderBy(asc(customShellContacts.createdAt), asc(customShellContacts.id))
+    .limit(limit)
 }
 
 /** One of the handful of people the inspector shows by name. */
