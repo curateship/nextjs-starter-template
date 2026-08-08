@@ -22,7 +22,7 @@ import {
 } from "@/server/schema"
 import { isAdmin } from "@/server/auth/security"
 import {
-  getOrCreateCurrentWorkspace,
+  currentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
 
@@ -83,12 +83,16 @@ export async function readShellSettings(
   database: CustomShellDb = db
 ): Promise<ShellConfig> {
   const globals = await readShellGlobals(database)
-  const workspace = await getOrCreateCurrentWorkspace(user.id, database)
-  const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+  // Reads never make a workspace. This runs on every signed-in page load,
+  // including a member's, and the old read created one when it missed — which
+  // is how members ended up owning workspaces they never saw. Nobody in a
+  // workspace yet simply gets the app-wide defaults.
+  const workspace = await currentWorkspace(user.id, database)
+  const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
 
   return {
     ...globals,
-    workspaceName: workspace.name,
+    workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
     // Same rule as the sidebar below: an admin sees and edits their own row,

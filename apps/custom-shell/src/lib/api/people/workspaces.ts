@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { describeAuthError } from "../error-message"
 import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/people/workspaces"
-import { userGet, userPost } from "@/server/guards"
+import { adminGet, adminPost } from "@/server/guards"
 import { z } from "zod"
 
 import { iconMeta, type IconKey } from "@/lib/custom-shell"
+import type { CustomShellUser } from "@/server/schema"
 
 export type WorkspaceItem = {
   id: string
@@ -60,55 +61,61 @@ export function getWorkspaceErrorMessage(error: unknown) {
 }
 
 const loadWorkspacesFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
+  .middleware([adminGet])
   .handler(async ({ context }): Promise<WorkspaceListResponse> => {
-    return workspaceListForUser(context.user.id)
+    return workspaceListForUser(context.user)
   })
 
 const createWorkspaceFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([adminPost])
   .inputValidator(createWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
     await createUserWorkspace(context.user.id, data.name, { icon: data.icon })
-    return workspaceListForUser(context.user.id)
+    return workspaceListForUser(context.user)
   })
 
 const switchWorkspaceFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([adminPost])
   .inputValidator(switchWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
-    await switchUserWorkspace(context.user.id, data.workspaceId)
-    return workspaceListForUser(context.user.id)
+    await switchUserWorkspace(context.user.id, data.workspaceId, undefined, {
+      seesEveryWorkspace: seesEveryWorkspace(context.user),
+    })
+    return workspaceListForUser(context.user)
   })
 
 const updateWorkspaceFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([adminPost])
   .inputValidator(updateWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
-    await updateUserWorkspace(context.user.id, data.workspaceId, {
-      name: data.name,
-      settings: { icon: data.icon },
-    })
-    return workspaceListForUser(context.user.id)
+    await updateUserWorkspace(
+      context.user.id,
+      data.workspaceId,
+      { name: data.name, settings: { icon: data.icon } },
+      undefined,
+      { seesEveryWorkspace: seesEveryWorkspace(context.user) }
+    )
+    return workspaceListForUser(context.user)
   })
 
 const deleteWorkspaceFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([adminPost])
   .inputValidator(deleteWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
-    await deleteUserWorkspace(context.user.id, data.workspaceId)
-    return workspaceListForUser(context.user.id)
+    await deleteUserWorkspace(context.user.id, data.workspaceId, undefined, {
+      seesEveryWorkspace: seesEveryWorkspace(context.user),
+    })
+    return workspaceListForUser(context.user)
   })
 
 const deleteWorkspacesFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
+  .middleware([adminPost])
   .inputValidator(deleteWorkspacesSchema)
   .handler(async ({ data, context }): Promise<WorkspaceBulkDeleteResponse> => {
-    const result = await deleteUserWorkspaces(
-      context.user.id,
-      data.workspaceIds
-    )
-    return { ...(await workspaceListForUser(context.user.id)), ...result }
+    const result = await deleteUserWorkspaces(context.user.id, data.workspaceIds, undefined, {
+      seesEveryWorkspace: seesEveryWorkspace(context.user),
+    })
+    return { ...(await workspaceListForUser(context.user)), ...result }
   })
 
 export function loadWorkspaces() {
@@ -139,10 +146,38 @@ export function deleteWorkspaces(workspaceIds: string[]) {
   return deleteWorkspacesFn({ data: { workspaceIds } })
 }
 
+/**
+ * True for an admin, checked without reaching into `@/server`.
+ *
+ * `isAdmin` lives in `@/server/auth/security`, and this file is reachable from
+ * the browser — the switcher calls it. Importing it here dragged that module,
+ * and `node:crypto` with it, into the client bundle, which broke the whole app
+ * with "Cannot read properties of undefined". The role is already on the user
+ * the guard put in context, so comparing it costs nothing.
+ */
+function seesEveryWorkspace(user: Pick<CustomShellUser, "role">) {
+  return user.role === "admin"
+}
+
+/**
+ * An admin sees every workspace on the deployment; anybody else sees their own.
+ *
+ * A workspace is a thing the deployment has, not one person's property, so an
+ * admin has to be able to reach one another admin made — and the ones nobody
+ * owns, which is how a departed admin's work stays reachable. **Members are
+ * deliberately unchanged**: these endpoints are `userGet`/`userPost` and
+ * `/workspaces` carries no admin check, so widening for everybody would hand a
+ * member somebody else's contacts and broadcasts.
+ */
 async function workspaceListForUser(
-  userId: string
+  user: Pick<CustomShellUser, "id" | "role">
 ): Promise<WorkspaceListResponse> {
-  const { workspaces, currentWorkspaceId } = await listUserWorkspaces(userId)
+  const userId = user.id
+  const { workspaces, currentWorkspaceId } = await listUserWorkspaces(
+    userId,
+    undefined,
+    { seesEveryWorkspace: seesEveryWorkspace(user) }
+  )
   return {
     workspaces: workspaces.map((row) =>
       serializeWorkspace(row, currentWorkspaceId)

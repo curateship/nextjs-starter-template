@@ -52,7 +52,6 @@ beforeEach(async () => {
     userId: owner.id,
     name: "Main",
     settings: {},
-    isDefault: true,
     createdAt: timestamp,
     updatedAt: timestamp,
   })
@@ -289,7 +288,6 @@ describe("counting who matches", () => {
       userId: owner.id,
       name: "Elsewhere",
       settings: {},
-      isDefault: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     })

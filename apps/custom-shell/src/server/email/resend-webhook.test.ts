@@ -42,7 +42,6 @@ describe("resend webhook", () => {
       userId: user.id,
       name: "Test",
       settings: {},
-      isDefault: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     })

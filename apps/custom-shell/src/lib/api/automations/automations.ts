@@ -12,7 +12,7 @@ import {
   setAutomationEnabled,
 } from "@/server/automations/flows"
 import {
-  getOrCreateCurrentWorkspace,
+  requireCurrentWorkspace,
   parseWorkspaceSettings,
   saveWorkspaceAutomationFavorites,
 } from "@/server/people/workspaces"
@@ -241,7 +241,7 @@ const deleteAutomationsFn = createServerFn({ method: "POST" })
 const loadAutomationFavoritesFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<{ favoriteNodeKeys: string[] }> => {
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     return {
       favoriteNodeKeys: parseWorkspaceSettings(workspace.settings)
         .automationFavoriteNodeKeys,

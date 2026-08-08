@@ -70,6 +70,17 @@ export const customShellUsers = pgTable(
      * moderation decision.
      */
     deletedBy: varchar("deleted_by", { length: 36 }),
+    /**
+     * The workspace this person is looking at, or empty when they have not
+     * picked one.
+     *
+     * On the person, not on the workspace. It used to be `is_default` on the
+     * workspace row, which could only hold one person's opinion of it — so two
+     * admins sharing a workspace cleared each other's choice every time either
+     * of them switched. Empty is an ordinary state: a new account is in it
+     * until it picks one.
+     */
+    currentWorkspaceId: varchar("current_workspace_id", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -168,7 +179,6 @@ export const customShellWorkspaces = pgTable(
     ),
     name: varchar("name", { length: 255 }).notNull(),
     settings: jsonb("settings").notNull(),
-    isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -756,6 +766,17 @@ export const customShellAutomationRuns = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * Which workspace this run is for, fixed when it started.
+     *
+     * The engine used to work it out from the owner's *current* workspace every
+     * time it woke, so switching workspace silently changed who a running flow
+     * would email. Empty only on runs that predate this column.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
     status: varchar("status", { length: 20 })
       .$type<AutomationRunStatus>()
       .notNull(),

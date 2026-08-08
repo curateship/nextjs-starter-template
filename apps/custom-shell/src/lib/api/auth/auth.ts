@@ -33,7 +33,11 @@ import { enforceDeliverableEmail } from "@/server/email/deliverability"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { googleSignInEnabled } from "@/server/auth/google"
-import { customShellSessions, customShellUsers } from "@/server/schema"
+import {
+  customShellSessions,
+  customShellUsers,
+  type CustomShellUser,
+} from "@/server/schema"
 import { consumeSignInLink, createSignInLinkToken } from "@/server/auth/sign-in-link"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import {
@@ -417,7 +421,7 @@ const loginFn = createServerFn({ method: "POST" })
     await purgeExpiredDeletions()
 
     const token = await startSessionWithAlert(user, describeRequestOrigin())
-    await startWorkspaceFor(user.id)
+    await startWorkspaceFor(user)
 
     setSessionCookie(token)
     return serializeUser(user)
@@ -495,7 +499,7 @@ const consumeSignInLinkFn = createServerFn({ method: "POST" })
       describeRequestOrigin()
     )
     await clearRateLimit(rateLimitKey)
-    await startWorkspaceFor(user.id)
+    await startWorkspaceFor(user)
 
     setSessionCookie(sessionToken)
     return serializeUser(user)
@@ -1037,9 +1041,23 @@ export function serializeUser(user: {
  * The import stays dynamic: workspaces.ts is a thousand lines of navigation
  * defaults that only the sign-in handlers ever need.
  */
-export async function startWorkspaceFor(userId: string) {
-  const { getOrCreateCurrentWorkspace } = await import("@/server/people/workspaces")
-  await getOrCreateCurrentWorkspace(userId)
+export async function startWorkspaceFor(
+  user: Pick<CustomShellUser, "id" | "role">
+) {
+  // Admins only. Every sign-in used to make one for everybody, and a member has
+  // no use for a workspace and no way to reach one — they never see the
+  // switcher. The shell's own database had seven, all empty, all called "My
+  // project". See `0048_custom_shell_workspaces_are_for_admins.sql`.
+  //
+  // The role is compared here rather than through `isAdmin`, which lives in
+  // `@/server/auth/security`. This function is top-level in a file the browser
+  // reaches, so importing that module for it pulled `node:crypto` into the
+  // client bundle and broke the app on load. Inside a handler it would be
+  // stripped; out here it is not.
+  if (user.role !== "admin") return
+
+  const { startWorkspaceFor: start } = await import("@/server/people/workspaces")
+  await start(user.id)
 }
 
 function sendVerificationEmail(email: string, token: string) {

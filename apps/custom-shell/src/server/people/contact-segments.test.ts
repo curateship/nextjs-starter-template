@@ -101,7 +101,6 @@ beforeEach(async () => {
       userId: owner.id,
       name: id,
       settings: {},
-      isDefault: id === WORKSPACE_ID,
       createdAt: timestamp,
       updatedAt: timestamp,
     })

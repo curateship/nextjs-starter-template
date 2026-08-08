@@ -21,7 +21,7 @@ import {
   updateSystemEmail as saveSystemEmail,
 } from "@/server/email/system-emails"
 import {
-  getOrCreateCurrentWorkspace,
+  requireCurrentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
 import { appUrlFor } from "@/server/app-url"
@@ -117,7 +117,7 @@ const getSystemEmailFn = createServerFn({ method: "GET" })
     // An email nobody has saved starts from the workspace's saved block
     // setups, so its header and footer open already carrying the logo and
     // company lines every other email uses.
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     return {
       kind: data.kind,
       subject: SYSTEM_EMAIL_META[data.kind].defaults.subject,

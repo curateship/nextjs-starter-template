@@ -12,7 +12,7 @@ import {
   type AutomationAudienceContact,
 } from "@/server/automations/audience"
 import { syncContactsFromUsers } from "@/server/people/contacts"
-import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
+import { currentWorkspaceId } from "@/server/people/workspaces"
 import type { CustomShellDb } from "@/server/db"
 import { getEmailProvider, type EmailProvider } from "@/server/email/provider"
 import { composeFromAddress } from "@/server/email/send"
@@ -290,8 +290,10 @@ export async function executeSendEmailNode({
   now,
 }: SendEmailContext) {
   const settings = readSendEmailSettings(rawSettings)
-  const workspace = await getOrCreateCurrentWorkspace(run.userId, database)
-  await syncContactsFromUsers(workspace.id, database)
+  // The run's own workspace, fixed when it started. See executors.ts.
+  const workspaceId =
+    run.workspaceId ?? (await currentWorkspaceId(run.userId, database))
+  await syncContactsFromUsers(workspaceId, database)
 
   const audience = await audienceForRun(run, nodeId, database)
   const fixedAt = now()
@@ -316,7 +318,7 @@ export async function executeSendEmailNode({
         "Unsubscribe links are not set up, so this email cannot be sent safely."
       )
     }
-    sender ??= await emailProvider(workspace.id, database)
+    sender ??= await emailProvider(workspaceId, database)
     if (attempted % CLAIM_REFRESH_EVERY === 0) {
       await refreshRunClaim(run, database, now())
     }
@@ -340,7 +342,7 @@ export async function executeSendEmailNode({
     while (true) {
       const page = await listAutomationAudienceContacts(
         audience,
-        workspace.id,
+        workspaceId,
         { limit: SEND_BATCH_SIZE, after, timestamp: fixedAt },
         database
       )
@@ -350,7 +352,7 @@ export async function executeSendEmailNode({
       after = { createdAt: last.createdAt, id: last.id }
     }
   } else {
-    const recipient = await subjectRecipient(run, workspace.id, database)
+    const recipient = await subjectRecipient(run, workspaceId, database)
     if (recipient) {
       await processRecipient(recipient)
     } else {

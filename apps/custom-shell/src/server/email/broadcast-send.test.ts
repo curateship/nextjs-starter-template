@@ -121,7 +121,6 @@ beforeEach(async () => {
     userId: user.id,
     name: "Test",
     settings: {},
-    isDefault: true,
     createdAt: timestamp,
     updatedAt: timestamp,
   })

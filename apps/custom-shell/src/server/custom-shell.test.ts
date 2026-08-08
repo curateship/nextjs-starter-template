@@ -138,7 +138,7 @@ import {
   createUserWorkspace,
   deleteUserWorkspace,
   deleteUserWorkspaces,
-  getOrCreateCurrentWorkspace,
+  startWorkspaceFor,
   groupFeedbackIntoFeeds,
   groupFeedsLinks,
   groupMembershipLinks,
@@ -1117,7 +1117,7 @@ describe("custom shell workspaces", () => {
       await listUserWorkspaces(userId, database as unknown as CustomShellDb)
     ).toEqual({ workspaces: [], currentWorkspaceId: null })
 
-    const defaultWorkspace = await getOrCreateCurrentWorkspace(
+    const defaultWorkspace = await startWorkspaceFor(
       userId,
       database as unknown as CustomShellDb
     )
@@ -1339,12 +1339,12 @@ describe("custom shell workspaces", () => {
       },
     ])
 
-    const first = await getOrCreateCurrentWorkspace(userId, shellDb)
+    const first = await startWorkspaceFor(userId, shellDb)
     const second = await createUserWorkspace(userId, "Second", {}, shellDb)
     // Creating one makes it the current workspace, so this batch takes the
     // workspace in use with it and the user has to land somewhere.
     const third = await createUserWorkspace(userId, "Third", {}, shellDb)
-    const strangers = await getOrCreateCurrentWorkspace(strangerId, shellDb)
+    const strangers = await startWorkspaceFor(strangerId, shellDb)
     const missingId = uuid()
 
     const result = await deleteUserWorkspaces(
@@ -1673,14 +1673,13 @@ describe("membership section", () => {
       name: "Before Membership",
       // Saved before Membership existed: no navVersion at all.
       settings: { sections: savedAdminSection() },
-      isDefault: true,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -1735,7 +1734,7 @@ describe("membership section", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -1978,14 +1977,13 @@ describe("overview link", () => {
       name: "Saved",
       // Everything before this upgrade has already run for this workspace.
       settings: { icon: "briefcaseBusiness", navVersion: 5, sections: savedSections() },
-      isDefault: true,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2021,7 +2019,7 @@ describe("overview link", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2190,14 +2188,13 @@ describe("traffic link", () => {
       name: "Saved",
       // Everything before this upgrade has already run for this workspace.
       settings: { icon: "briefcaseBusiness", navVersion: 8, sections: savedSections() },
-      isDefault: true,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2229,7 +2226,7 @@ describe("traffic link", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2807,14 +2804,13 @@ describe("revenue folds into membership", () => {
         navVersion: 9,
         sections: savedSections(),
       },
-      isDefault: true,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2862,7 +2858,7 @@ describe("revenue folds into membership", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -3557,14 +3553,13 @@ describe("feeds section", () => {
       name: "Before Feeds",
       // Saved when Membership was the latest restructure.
       settings: { sections: savedV1Sections(), navVersion: 1 },
-      isDefault: true,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -3612,7 +3607,7 @@ describe("feeds section", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -3815,14 +3810,13 @@ describe("feeds section", () => {
       userId,
       name: "Before Feedback moved",
       settings: { sections: savedV2Sections(), navVersion: 2 },
-      isDefault: true,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )

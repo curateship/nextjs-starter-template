@@ -69,7 +69,6 @@ beforeEach(async () => {
     userId: owner.id,
     name: "Main",
     settings: {},
-    isDefault: true,
     createdAt: timestamp,
     updatedAt: timestamp,
   })
