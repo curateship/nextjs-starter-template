@@ -88,7 +88,7 @@ export function ActivityPanel({
         <WorkspacePanelTab
           value="journal"
           icon={<ReceiptIcon className="size-4" />}
-          label="Journal"
+          label="Fill history"
           count={paper.journal.length}
         />
         {paper.positions.length > 0 ? (

@@ -40,16 +40,43 @@ Root workspaces are:
 ["apps/*", "packages/*", "services/*"]
 ```
 
-Current apps:
+### Which apps are live
 
-- Hub: `apps/hub`
-- Custom Shell: `apps/custom-shell`
-- Core: `apps/core`
-- AI Video: `apps/ai-video`
-- Antidetect: `apps/anti-detect`
-- AI Agents: `apps/ai-agents`
-- Personal IDE: `apps/personal-ide`
-- Directory: `apps/directory`
+**Three apps are in use. Only these get worked on:**
+
+- CMS: `apps/cms` (3015)
+- Trade: `apps/trade` (3014)
+- Video: `apps/video` (3016)
+
+**Two are not products but are still live**, and both matter:
+
+- Custom Shell: `apps/custom-shell` (3002) — the template every app is copied
+  from. Shell changes reach the three apps above by merging.
+- Personal IDE: `apps/personal-ide` — the tool that creates apps from the shell.
+
+**Everything else in `apps/` is kept as reference, and nothing else.**
+`ai-agents`, `ai-video`, `analytic`, `anti-detect`, `core`, `directory`, `hub`,
+`newsletter`, `pomoder`, `seo`, `trading`.
+
+They are still worth having: when a feature is ported into one of the three live
+apps, the older app that already has it is the best description of how it should
+behave. `apps/directory` is the clearest example — it is where the multisite and
+directory-listing work is read from.
+
+So the rule for them is read, never write:
+
+- **Read them** for behaviour, shapes and edge cases when porting a feature.
+- **Do not work in them**, do not fix them, and do not merge the shell into them.
+- **Do not judge a change to the shell** by what it would do to them.
+- **Do not delete them.** They are the only record of how several features work.
+
+**Why the dead ones cannot come back cheaply.** Nine of them added their own
+tables straight into the shell's `src/server/schema.ts` instead of a file of
+their own, so that file has drifted 1,300–2,200 lines from the shell's. An
+edited shell file is a fork, and it argues on every future merge — which is why
+those apps can no longer take shell updates at all. Only CMS, Trade and Video
+are still in sync, and keeping them that way is the whole reason for the rule
+that an app never edits a shell file.
 
 ## Root Commands
 

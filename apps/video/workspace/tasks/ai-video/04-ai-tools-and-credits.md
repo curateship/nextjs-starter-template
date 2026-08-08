@@ -1,6 +1,6 @@
 ---
 name: Video port — AI editing tools and the credits meter
-status: todo
+status: in progress
 ---
 
 **What this is.** The AI panel of the studio and everything behind it — captions, voiceover, jump cuts and filler-word removal, hook variants, the script writer — plus the credits meter that prices every AI call, warns at 80 out of 100 and blocks at the cap. Sits on tasks 01–02.
@@ -36,3 +36,47 @@ status: todo
 [x] Add brief and what you changed below.
 
 ## Brief
+
+**In progress.** The meter and the providers are done; the tools themselves are
+part built.
+
+**One meter, not two.** The task above asks for `video_credit_limits`,
+`video_credit_events` and `video_credit_alerts` plus an `/admin/video-credits`
+screen. The shell turned out to already have every part of that — a monthly
+ceiling per person, a warning at 80 out of 100, a hard block, a notice in the
+bell, and a usage screen. Building a second set beside it would have meant two
+meters that disagree, so with Tyler's go-ahead (8 Aug) the shell's own meter is
+what everything charges through. No new tables, no second screen.
+
+**What was added to the shell instead** (in `apps/custom-shell`, then merged
+into this app):
+
+- Google Gemini and ElevenLabs sit in the same one key store as Anthropic and
+  OpenAI: same encrypted storage, same "Test this key", same masked tail, same
+  env-var fallback. The ElevenLabs test only asks whose key it is, so checking
+  costs nothing.
+- Anywhere the app asks an AI to *write* something now offers only the three
+  that can write; a voice provider has no answer to give.
+- **The meter can price work that is not charged by the word.** Reading a
+  script aloud is charged per character, a picture per picture. A call can now
+  say how much it made instead of how many tokens it used, and it lands on the
+  same meter with the same ceiling, warning and block. Token calls are
+  untouched.
+
+**Done in this app so far.**
+
+- The studio's top bar shows how much of the month's AI budget is left, and
+  opens on what it went on. It draws nothing at all when there is no ceiling.
+- The three parts of captions and jump cuts that are pure maths are ported with
+  their tests, rewritten from `node:test` to vitest: the four caption entrance
+  animations (`lib/video/caption-animations.ts`), finding filler words
+  (`lib/video/filler-words.ts`), and turning crossed-out words into a cut of
+  the right clip (`lib/video/transcript-editing.ts`).
+
+**Still to do.** Transcription itself and inserting the caption clips, the
+transcript panel, the jump-cut window, voiceover, hooks and the script writer.
+
+**Blocked on keys.** There is no Gemini or ElevenLabs key anywhere in this
+repo — the old app only ever had an example file with empty values. Everything
+is built so that pasting the two keys into Settings → AI switches it on, but
+the calls themselves cannot be proved until that happens.

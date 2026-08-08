@@ -12,6 +12,8 @@ import type { CandleBar } from "@/lib/protocols/contracts"
 import { barOfTime, timeOfBar } from "@/lib/trade/chart-time"
 import { readChartColors, type ChartColors } from "@/lib/trade/chart-theme"
 import {
+  DEFAULT_MARGIN_BOTTOM,
+  DEFAULT_MARGIN_TOP,
   frameOf,
   sameView,
   viewOf,
@@ -59,6 +61,16 @@ export type ChartSurface = {
   xOf(time: number): number
   /** A horizontal position back to epoch milliseconds. */
   timeAt(x: number): number
+  /**
+   * Epoch milliseconds as a position in candles — 0 is the oldest, 1 the next.
+   *
+   * For anything counting bars rather than measuring pixels. It is the same
+   * number `xOf` works from, so "how many candles apart are these two times?"
+   * is one subtraction and never a guess at how long a candle is. Fractional
+   * between candles, and past either end it carries on at the spacing of the
+   * nearest pair.
+   */
+  barAt(time: number): number
   /** A price to a vertical position, or null before the scale exists. */
   yOf(price: number): number | null
   /** A vertical position back to a price. */
@@ -294,6 +306,27 @@ export function PriceChart({
   }, [])
 
   /**
+   * Back to the whole history, both directions: every candle across the width
+   * and the library's own share of the height above and below them.
+   *
+   * Deliberately not routed through `frameChart` — that one *applies* a
+   * remembered view and hushes the reporting while it does it. This one throws
+   * the remembered view away, so the reporting has to run: whatever the chart
+   * settles at is what gets written down, and reopening the page shows the
+   * reset rather than the zoom it replaced.
+   */
+  const resetChart = React.useCallback(() => {
+    const chart = chartRef.current
+    const series = priceSeriesRef.current
+    if (!chart || !series) return
+    series.priceScale().applyOptions({
+      autoScale: true,
+      scaleMargins: { top: DEFAULT_MARGIN_TOP, bottom: DEFAULT_MARGIN_BOTTOM },
+    })
+    chart.timeScale().fitContent()
+  }, [])
+
+  /**
    * What the chart is set up like right now, if it can be read.
    *
    * The up-and-down half needs both the window of prices on screen and the
@@ -371,6 +404,7 @@ export function PriceChart({
       // last candle without moving anything already on screen.
       xOf: (time) => next.barZeroX + barOfTime(timesRef.current, time) * next.barWidth,
       timeAt: (x) => timeOfBar(timesRef.current, (x - next.barZeroX) / next.barWidth),
+      barAt: (time) => barOfTime(timesRef.current, time),
       yOf: (price) => series.priceToCoordinate(price),
       priceAt: (y) => series.coordinateToPrice(y),
     })
@@ -554,7 +588,15 @@ export function PriceChart({
 
   return (
     <div className="relative h-full min-h-0 w-full">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* Double-click puts the chart back to its whole history. On this box
+          rather than the one around it, because everything drawn on top —
+          lines, orders, ladders — is a sibling of it: a double-click meant for
+          a drawn line, or a second click of a tool, never reaches here. */}
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+        onDoubleClick={resetChart}
+      />
       {overlay && surface ? (
         // As tall as the plot and as wide as the plot plus the price axis. The
         // extra strip is there for one thing only — a price badge sitting on

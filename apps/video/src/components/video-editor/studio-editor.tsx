@@ -1,6 +1,14 @@
 import * as React from "react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
-import { Check, FilmIcon, LayoutGrid, Share2, Type } from "lucide-react"
+import {
+  Check,
+  FilmIcon,
+  LayoutGrid,
+  Loader2Icon,
+  Share2,
+  Type,
+  Upload,
+} from "lucide-react"
 
 import { renameProject } from "@/lib/api/video/projects"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -39,6 +47,9 @@ import {
   StudioContextPanel,
   type StudioPanel,
 } from "@/components/video-editor/studio-panels"
+import { AiBudgetIndicator } from "@/components/video-editor/ai-budget-indicator"
+import { ExportDialog } from "@/components/video-editor/export-dialog"
+import { useProjectExport } from "@/components/video-editor/use-project-export"
 import { StudioInspector } from "@/components/video-editor/studio-inspector"
 import { StudioStage } from "@/components/video-editor/studio-stage"
 import { StudioTimeline } from "@/components/video-editor/studio-timeline"
@@ -322,6 +333,9 @@ function StageHeader() {
   const [editing, setEditing] = React.useState(false)
   const [draft, setDraft] = React.useState(projectName)
   const [shared, setShared] = React.useState(false)
+  const [exportOpen, setExportOpen] = React.useState(false)
+  const { job, setJob } = useProjectExport(projectId)
+  const rendering = job?.status === "queued" || job?.status === "running"
 
   async function commitRename() {
     setEditing(false)
@@ -391,12 +405,26 @@ function StageHeader() {
 
       <AspectSwitch />
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <AiBudgetIndicator />
         <Button type="button" variant="outline" onClick={shareLink}>
           {shared ? <Check /> : <Share2 />}
           {shared ? "Copied" : "Share"}
         </Button>
+        <Button type="button" onClick={() => setExportOpen(true)}>
+          {rendering ? <Loader2Icon className="animate-spin" /> : <Upload />}
+          {rendering ? "Exporting" : "Export"}
+        </Button>
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        projectId={projectId}
+        projectName={projectName}
+        job={job}
+        onJobChange={setJob}
+      />
     </div>
   )
 }

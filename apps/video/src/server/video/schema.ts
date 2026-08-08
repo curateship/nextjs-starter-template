@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm"
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -220,7 +221,74 @@ export const videoSettings = pgTable(
   ]
 )
 
+/**
+ * An export: what was asked for, and what came out.
+ *
+ * The same row is the queue entry and the finished file. A worker claims it,
+ * holds a lease it renews while ffmpeg runs, and anything whose lease runs out
+ * is picked up again — which is what makes a render survive a restart without
+ * ever running twice. The gallery is simply the rows that reached "ready".
+ */
+export const videoRenderJobs = pgTable(
+  "video_render_jobs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 }).notNull(),
+    quality: varchar("quality", { length: 10 }).notNull(),
+    normalizeLoudness: boolean("normalize_loudness").notNull().default(true),
+    attempts: integer("attempts").notNull().default(0),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    storagePath: text("storage_path").unique(),
+    fileSize: bigint("file_size", { mode: "number" }),
+    thumbnailStoragePath: text("thumbnail_storage_path"),
+    durationMs: integer("duration_ms"),
+    width: integer("width"),
+    height: integer("height"),
+    title: varchar("title", { length: 200 }),
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "video_render_jobs_status_check",
+      sql`${table.status} in ('queued', 'running', 'ready', 'error', 'cancelled')`
+    ),
+    check(
+      "video_render_jobs_quality_check",
+      sql`${table.quality} in ('high', 'medium', 'low')`
+    ),
+    check(
+      "video_render_jobs_ready_check",
+      sql`${table.status} <> 'ready' or ${table.storagePath} is not null`
+    ),
+    check("video_render_jobs_attempts_check", sql`${table.attempts} >= 0`),
+    // One export at a time per project. Partial, so the finished ones pile up
+    // freely: this is what makes pressing Export twice hand back the first job
+    // rather than start a second.
+    uniqueIndex("ux_video_render_jobs_project_active")
+      .on(table.projectId)
+      .where(sql`${table.status} in ('queued', 'running')`),
+    index("ix_video_render_jobs_status_created").on(
+      table.status,
+      table.createdAt
+    ),
+    index("ix_video_render_jobs_user_created").on(table.userId, table.createdAt),
+  ]
+)
+
 export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
+export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect

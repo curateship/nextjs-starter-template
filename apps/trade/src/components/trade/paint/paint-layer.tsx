@@ -328,30 +328,23 @@ export function PaintLayer({
             key={drawing.id}
             className={selected ? "text-foreground" : "text-foreground/55"}
           >
-            {/* A soft glow along the line itself says it is the picked one.
-                The browser's own focus ring is turned off below and this
-                stands in for it: a ring draws a box round the whole thing,
-                which on a line running corner to corner is a rectangle over
-                half the chart. */}
-            {selected ? (
-              <line
-                {...segment}
-                stroke="currentColor"
-                strokeOpacity={0.18}
-                strokeWidth={9}
-                strokeLinecap="round"
-              />
-            ) : null}
+            {/* The picked line is drawn darker and thicker than the rest, and
+                that is the whole mark. It used to carry a grey halo as well —
+                a band down the chart nobody asked for, and the thing the eye
+                landed on instead of the line. The browser's own focus ring is
+                turned off below, so this stands in for it: a ring draws a box
+                round the whole thing, which on a line running corner to corner
+                is a rectangle over half the chart. */}
             <line
               {...segment}
               stroke="currentColor"
-              strokeWidth={selected ? 2 : 1.5}
+              strokeWidth={selected ? 2.5 : 1.5}
             />
             {/* The part the pointer and the Tab key actually meet: a fat
                 invisible line over the thin visible one, because a 1.5px
-                target is not one. Focus picks the line out, so the glow above
-                is the focus mark too — one thing to look for whether the line
-                was clicked or tabbed to. */}
+                target is not one. Focus picks the line out, so the darker,
+                thicker line above is the focus mark too — one thing to look
+                for whether the line was clicked or tabbed to. */}
             <line
               {...segment}
               stroke="currentColor"

@@ -109,6 +109,33 @@ export function computeDuckEnvelope(params: {
   return keyframes
 }
 
+/**
+ * The same curve written as an expression ffmpeg can follow while it renders,
+ * in seconds. Straight lines between the points, holding the ends beyond them.
+ * An empty curve is simply full volume.
+ */
+export function duckEnvelopeToVolumeExpr(keyframes: GainKeyframe[]): string {
+  if (keyframes.length === 0) return "1"
+  const points = keyframes.map((keyframe) => ({
+    t: keyframe.tMs / 1000,
+    g: keyframe.gain,
+  }))
+  const num = (value: number) =>
+    Number.isInteger(value) ? String(value) : value.toFixed(5)
+
+  let expr = num(points[points.length - 1].g) // past the last point
+  for (let index = points.length - 2; index >= 0; index--) {
+    const before = points[index]
+    const after = points[index + 1]
+    const segment =
+      before.g === after.g
+        ? num(before.g)
+        : `(${num(before.g)}+${num(after.g - before.g)}*(t-${num(before.t)})/${num(after.t - before.t)})`
+    expr = `if(lt(t,${num(after.t)}),${segment},${expr})`
+  }
+  return `if(lt(t,${num(points[0].t)}),${num(points[0].g)},${expr})`
+}
+
 // The volume at one moment, sliding between the two points either side and
 // holding the ends beyond them. An empty curve is full volume.
 export function sampleEnvelope(keyframes: GainKeyframe[], tMs: number): number {

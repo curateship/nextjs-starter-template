@@ -8,7 +8,11 @@ import {
 import { MarketIcon } from "@/components/trade/market-icon"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { TableSortButton, type TableSortDirection } from "@/components/ui/table"
+import {
+  TableRow,
+  TableSortButton,
+  type TableSortDirection,
+} from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
 import {
@@ -286,7 +290,13 @@ function PositionRow({
   const away = liquidationAway(position, mark)
 
   return (
-    <tr className="border-t border-foreground/5 hover:bg-muted/40">
+    <TableRow
+      // The whole row charts its market, which is what its name already did —
+      // one action, a target the width of the panel instead of six characters.
+      // The buttons at the end keep their own clicks; see `column="actions"`.
+      rowAction={() => onSelectMarket(position.marketKey)}
+      className="border-t border-foreground/5 hover:bg-muted/40"
+    >
       <MarketCell
         marketKey={position.marketKey}
         market={market}
@@ -340,7 +350,7 @@ function PositionRow({
           {profitShare.toFixed(2)}%
         </span>
       </Cell>
-      <td className="px-3 py-2 text-left whitespace-nowrap">
+      <td data-column="actions" className="px-3 py-2 text-left whitespace-nowrap">
         <span className="flex items-center gap-0.5">
           <Button
             type="button"
@@ -373,7 +383,7 @@ function PositionRow({
           </Button>
         </span>
       </td>
-    </tr>
+    </TableRow>
   )
 }
 

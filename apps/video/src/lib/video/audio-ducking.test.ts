@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   computeDuckEnvelope,
   dbToGain,
+  duckEnvelopeToVolumeExpr,
   mergeIntervals,
   sampleEnvelope,
   type GainKeyframe,
@@ -149,3 +150,70 @@ describe("sampleEnvelope", () => {
     expect(sampleEnvelope([], 1_000)).toBe(1)
   })
 })
+
+describe("the same curve, written for the renderer", () => {
+  const keys = envelope([{ startMs: 10_000, endMs: 12_000 }])
+
+  it("is plain full volume when there is nothing to duck under", () => {
+    expect(duckEnvelopeToVolumeExpr([])).toBe("1")
+  })
+
+  it("holds the ends and slides between the points", () => {
+    const expr = duckEnvelopeToVolumeExpr(keys)
+    // Before the first point it is full volume, and after the last it is again.
+    expect(expr).toMatch(/^if\(lt\(t,9\.85\d*\),1,/)
+    expect(evaluateVolumeExpr(expr, 0)).toBe(1)
+    expect(evaluateVolumeExpr(expr, 30)).toBe(1)
+    // And the stretch in between sits at the ducked level.
+    expect(evaluateVolumeExpr(expr, 11)).toBeCloseTo(0.25, 4)
+  })
+
+  it("says the same thing at a given moment as the preview does", () => {
+    // Both sides read one curve, so a spot check of the written form against
+    // the sampled one is what keeps export and preview honest.
+    for (const tMs of [0, 9_900, 10_000, 11_000, 12_100, 20_000]) {
+      const expected = sampleEnvelope(keys, tMs)
+      expect(evaluateVolumeExpr(duckEnvelopeToVolumeExpr(keys), tMs / 1000)).toBeCloseTo(
+        expected,
+        4
+      )
+    }
+  })
+})
+
+/**
+ * Works out what ffmpeg would, for the two shapes this expression can take:
+ * a choice on the time, and a straight line between two points.
+ */
+function evaluateVolumeExpr(expr: string, t: number): number {
+  const conditional = expr.match(/^if\(lt\(t,([-\d.]+)\),(.*)\)$/)
+  if (conditional) {
+    const [, boundary, rest] = conditional
+    const split = splitTopLevel(rest)
+    return t < Number(boundary)
+      ? evaluateVolumeExpr(split[0], t)
+      : evaluateVolumeExpr(split[1], t)
+  }
+  const line = expr.match(
+    /^\(([-\d.]+)\+([-\d.]+)\*\(t-([-\d.]+)\)\/([-\d.]+)\)$/
+  )
+  if (line) {
+    const [, from, change, at, over] = line
+    return Number(from) + (Number(change) * (t - Number(at))) / Number(over)
+  }
+  return Number(expr)
+}
+
+/** Splits "a,b" on the comma that is not inside brackets. */
+function splitTopLevel(value: string): [string, string] {
+  let depth = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]
+    if (character === "(") depth += 1
+    else if (character === ")") depth -= 1
+    else if (character === "," && depth === 0) {
+      return [value.slice(0, index), value.slice(index + 1)]
+    }
+  }
+  return [value, "1"]
+}

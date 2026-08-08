@@ -5,6 +5,7 @@ import { describeAuthError } from "../error-message"
 import {
   BRAND_COLOR_NAME_MAX,
   BRAND_LOGO_URL_MAX,
+  END_CARD_TEXT_MAX,
   MAX_BRAND_COLORS,
   type VideoBrandKit,
 } from "@/lib/video/brand-kit"
@@ -34,6 +35,19 @@ const brandKitSchema = z.object({
     )
     .max(MAX_BRAND_COLORS),
   logoUrl: z.string().max(BRAND_LOGO_URL_MAX),
+  watermark: z.object({
+    enabled: z.boolean(),
+    position: z.enum(["top-left", "top-right", "bottom-left", "bottom-right"]),
+    widthPercent: z.number().int().min(4).max(50),
+    opacity: z.number().int().min(10).max(100),
+  }),
+  endCard: z.object({
+    enabled: z.boolean(),
+    durationSeconds: z.number().int().min(1).max(10),
+    backgroundColor: z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/),
+    ctaText: z.string().max(END_CARD_TEXT_MAX),
+  }),
+  normalizeLoudness: z.boolean(),
 })
 
 const getBrandKitFn = createServerFn({ method: "GET" })
