@@ -2468,6 +2468,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
       '@simplewebauthn/browser':
         specifier: ^13.3.0
         version: 13.3.0

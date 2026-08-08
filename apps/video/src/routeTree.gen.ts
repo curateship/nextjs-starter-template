@@ -47,6 +47,8 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedAdminVideoEditorRouteImport } from './routes/_authenticated/admin/video-editor'
+import { Route as AuthenticatedAdminVideoExportsRouteImport } from './routes/_authenticated/admin/video-exports'
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
@@ -57,12 +59,14 @@ import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from '.
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
+import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor_.$projectId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1VideoExportsExportIdCoverRouteImport } from './routes/api/v1/video/exports/$exportId/cover'
+import { Route as ApiV1VideoExportsExportIdFileRouteImport } from './routes/api/v1/video/exports/$exportId/file'
 import { Route as ApiV1VideoMediaMediaIdFilmstripRouteImport } from './routes/api/v1/video/media/$mediaId/filmstrip'
-import { Route as ApiV1VideoMediaMediaIdProxyRouteImport } from './routes/api/v1/video/media/$mediaId/proxy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -266,6 +270,18 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminVideoEditorRoute =
+  AuthenticatedAdminVideoEditorRouteImport.update({
+    id: '/video-editor',
+    path: '/video-editor',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminVideoExportsRoute =
+  AuthenticatedAdminVideoExportsRouteImport.update({
+    id: '/video-exports',
+    path: '/video-exports',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedChangelogIndexRoute =
   AuthenticatedChangelogIndexRouteImport.update({
     id: '/',
@@ -323,6 +339,12 @@ const AuthenticatedAdminSystemEmailsKindRoute =
     path: '/system-emails/$kind',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminVideoEditorProjectIdRoute =
+  AuthenticatedAdminVideoEditorProjectIdRouteImport.update({
+    id: '/video-editor_/$projectId',
+    path: '/video-editor/$projectId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
@@ -344,16 +366,22 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1VideoExportsExportIdCoverRoute =
+  ApiV1VideoExportsExportIdCoverRouteImport.update({
+    id: '/api/v1/video/exports/$exportId/cover',
+    path: '/api/v1/video/exports/$exportId/cover',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1VideoExportsExportIdFileRoute =
+  ApiV1VideoExportsExportIdFileRouteImport.update({
+    id: '/api/v1/video/exports/$exportId/file',
+    path: '/api/v1/video/exports/$exportId/file',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1VideoMediaMediaIdFilmstripRoute =
   ApiV1VideoMediaMediaIdFilmstripRouteImport.update({
     id: '/api/v1/video/media/$mediaId/filmstrip',
     path: '/api/v1/video/media/$mediaId/filmstrip',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiV1VideoMediaMediaIdProxyRoute =
-  ApiV1VideoMediaMediaIdProxyRouteImport.update({
-    id: '/api/v1/video/media/$mediaId/proxy',
-    path: '/api/v1/video/media/$mediaId/proxy',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -394,6 +422,8 @@ export interface FileRoutesByFullPath {
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRoute
+  '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -405,12 +435,14 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
+  '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
-  '/api/v1/video/media/$mediaId/proxy': typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -447,6 +479,8 @@ export interface FileRoutesByTo {
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRoute
+  '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -458,12 +492,14 @@ export interface FileRoutesByTo {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
+  '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
-  '/api/v1/video/media/$mediaId/proxy': typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -504,6 +540,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/admin/video-editor': typeof AuthenticatedAdminVideoEditorRoute
+  '/_authenticated/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -515,12 +553,14 @@ export interface FileRoutesById {
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/_authenticated/admin/video-editor_/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
+  '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
-  '/api/v1/video/media/$mediaId/proxy': typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -561,6 +601,8 @@ export interface FileRouteTypes {
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
+    | '/admin/video-editor'
+    | '/admin/video-exports'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -572,12 +614,14 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/admin/video-editor/$projectId'
     | '/api/auth/google/callback'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/exports/$exportId/cover'
+    | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
-    | '/api/v1/video/media/$mediaId/proxy'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -614,6 +658,8 @@ export interface FileRouteTypes {
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
+    | '/admin/video-editor'
+    | '/admin/video-exports'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -625,12 +671,14 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/admin/video-editor/$projectId'
     | '/api/auth/google/callback'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/exports/$exportId/cover'
+    | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
-    | '/api/v1/video/media/$mediaId/proxy'
   id:
     | '__root__'
     | '/'
@@ -670,6 +718,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/system-emails'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
+    | '/_authenticated/admin/video-editor'
+    | '/_authenticated/admin/video-exports'
     | '/_authenticated/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -681,12 +731,14 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
+    | '/_authenticated/admin/video-editor_/$projectId'
     | '/api/auth/google_/callback'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/video/exports/$exportId/cover'
+    | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
-    | '/api/v1/video/media/$mediaId/proxy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -711,8 +763,9 @@ export interface RootRouteChildren {
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1VideoExportsExportIdCoverRoute: typeof ApiV1VideoExportsExportIdCoverRoute
+  ApiV1VideoExportsExportIdFileRoute: typeof ApiV1VideoExportsExportIdFileRoute
   ApiV1VideoMediaMediaIdFilmstripRoute: typeof ApiV1VideoMediaMediaIdFilmstripRoute
-  ApiV1VideoMediaMediaIdProxyRoute: typeof ApiV1VideoMediaMediaIdProxyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -983,6 +1036,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/video-editor': {
+      id: '/_authenticated/admin/video-editor'
+      path: '/video-editor'
+      fullPath: '/admin/video-editor'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/video-exports': {
+      id: '/_authenticated/admin/video-exports'
+      path: '/video-exports'
+      fullPath: '/admin/video-exports'
+      preLoaderRoute: typeof AuthenticatedAdminVideoExportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/changelog/': {
       id: '/_authenticated/changelog/'
       path: '/'
@@ -1053,6 +1120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsKindRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/video-editor_/$projectId': {
+      id: '/_authenticated/admin/video-editor_/$projectId'
+      path: '/video-editor/$projectId'
+      fullPath: '/admin/video-editor/$projectId'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorProjectIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
@@ -1081,18 +1155,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/video/exports/$exportId/cover': {
+      id: '/api/v1/video/exports/$exportId/cover'
+      path: '/api/v1/video/exports/$exportId/cover'
+      fullPath: '/api/v1/video/exports/$exportId/cover'
+      preLoaderRoute: typeof ApiV1VideoExportsExportIdCoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/video/exports/$exportId/file': {
+      id: '/api/v1/video/exports/$exportId/file'
+      path: '/api/v1/video/exports/$exportId/file'
+      fullPath: '/api/v1/video/exports/$exportId/file'
+      preLoaderRoute: typeof ApiV1VideoExportsExportIdFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/video/media/$mediaId/filmstrip': {
       id: '/api/v1/video/media/$mediaId/filmstrip'
       path: '/api/v1/video/media/$mediaId/filmstrip'
       fullPath: '/api/v1/video/media/$mediaId/filmstrip'
       preLoaderRoute: typeof ApiV1VideoMediaMediaIdFilmstripRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/video/media/$mediaId/proxy': {
-      id: '/api/v1/video/media/$mediaId/proxy'
-      path: '/api/v1/video/media/$mediaId/proxy'
-      fullPath: '/api/v1/video/media/$mediaId/proxy'
-      preLoaderRoute: typeof ApiV1VideoMediaMediaIdProxyRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1143,10 +1224,13 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedAdminVideoEditorRoute: typeof AuthenticatedAdminVideoEditorRoute
+  AuthenticatedAdminVideoExportsRoute: typeof AuthenticatedAdminVideoExportsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
+  AuthenticatedAdminVideoEditorProjectIdRoute: typeof AuthenticatedAdminVideoEditorProjectIdRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
@@ -1168,6 +1252,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedAdminVideoEditorRoute: AuthenticatedAdminVideoEditorRoute,
+  AuthenticatedAdminVideoExportsRoute: AuthenticatedAdminVideoExportsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
@@ -1175,6 +1261,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
     AuthenticatedAdminSystemEmailsKindRoute,
+  AuthenticatedAdminVideoEditorProjectIdRoute:
+    AuthenticatedAdminVideoEditorProjectIdRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =
@@ -1238,8 +1326,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1VideoExportsExportIdCoverRoute: ApiV1VideoExportsExportIdCoverRoute,
+  ApiV1VideoExportsExportIdFileRoute: ApiV1VideoExportsExportIdFileRoute,
   ApiV1VideoMediaMediaIdFilmstripRoute: ApiV1VideoMediaMediaIdFilmstripRoute,
-  ApiV1VideoMediaMediaIdProxyRoute: ApiV1VideoMediaMediaIdProxyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

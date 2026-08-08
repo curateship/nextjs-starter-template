@@ -33,6 +33,14 @@ export const appServerOptions: AppServerOptions = {
             workers.videoMediaTick()
           ),
       },
+      {
+        // Renders exports, and puts back anything a restart interrupted.
+        name: "video-render",
+        tick: () =>
+          import("@/server/video/render-queue").then((queue) =>
+            queue.videoRenderTick()
+          ),
+      },
     ],
   },
 }

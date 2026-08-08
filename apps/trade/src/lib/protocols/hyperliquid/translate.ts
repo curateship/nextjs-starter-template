@@ -32,6 +32,25 @@ export function namespaceMarketId(dexName: string, assetName: string): string {
 export type { LiveFigures }
 
 /**
+ * A price the exchange would actually accept for an order.
+ *
+ * Hyperliquid takes at most five significant digits, and at most
+ * `6 − szDecimals` decimal places — a market whose size goes to three decimals
+ * gets three decimal places of price. Whole numbers are always allowed however
+ * long they run, which is the only reason a $118,204 order is not forced to
+ * $118,200.
+ *
+ * Pure arithmetic, so it can be checked without the exchange. A price that
+ * cannot be a price at all comes back untouched for the caller to refuse.
+ */
+export function roundOrderPx(px: number, sizeDecimals: number | null): number {
+  if (!Number.isFinite(px) || px <= 0) return px
+  const significant = px >= 1e5 ? Math.round(px) : Number(px.toPrecision(5))
+  const factor = 10 ** Math.max(0, 6 - (sizeDecimals ?? 0))
+  return Math.round(significant * factor) / factor
+}
+
+/**
  * The exchange's category vocabulary into the app's — the same mapping the
  * old app proved. A market the exchange left uncategorised is a crypto coin
  * on the main exchange (that is all the main exchange lists) and "other" on

@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto"
 
 import { and, asc, eq } from "drizzle-orm"
 
-import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import type {
+  NetworkId,
+  ProtocolId,
+  WalletAccountFigures,
+} from "@/lib/protocols/contracts"
 import {
   MAX_WALLETS,
-  paperFigures,
   summarizeWallet,
   type TradeWallet,
   type WalletAccountSummary,
@@ -14,6 +17,7 @@ import {
 import { db } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
 import { getProtocol } from "@/server/protocols/registry"
+import { paperWalletFigures } from "@/server/trade/paper"
 import { tradeWallets } from "@/server/trade/schema"
 
 /**
@@ -70,6 +74,23 @@ export async function listWallets(userId: string): Promise<TradeWallet[]> {
     .where(eq(tradeWallets.userId, userId))
     .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
   return rows.map(toWallet)
+}
+
+/**
+ * One of this person's wallets, or null. The pair (person, wallet) is the
+ * whole lookup, so a request carrying somebody else's wallet id can only ever
+ * miss — which is what every trading function leans on before it does anything.
+ */
+export async function findWallet(
+  userId: string,
+  id: string
+): Promise<TradeWallet | null> {
+  const rows = await db
+    .select()
+    .from(tradeWallets)
+    .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))
+    .limit(1)
+  return rows[0] ? toWallet(rows[0]) : null
 }
 
 export async function createWallet(
@@ -187,6 +208,10 @@ export async function deleteWallet(userId: string, id: string): Promise<void> {
  * address answers "unreachable" while the rest answer normally. Nothing here
  * throws for a wallet the exchange would not price; throwing is for the read
  * of the list itself.
+ *
+ * Practice wallets are settled and folded together by the engine rather than
+ * one at a time, so the exchange is asked once for every market they are all
+ * in — see `paperWalletFigures`.
  */
 export async function loadWalletSummaries(
   userId: string
@@ -198,10 +223,20 @@ export async function loadWalletSummaries(
     .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
 
   const wallets = rows.map(toWallet)
+  const paper = await paperWalletFigures(
+    userId,
+    wallets.filter((wallet) => wallet.kind === "paper")
+  ).catch(() => new Map<string, WalletAccountFigures>())
+
   const summaries = await Promise.all(
     wallets.map(async (wallet): Promise<WalletAccountSummary> => {
       if (wallet.kind === "paper") {
-        return summarizeWallet(wallet, paperFigures(wallet))
+        const figures = paper.get(wallet.id)
+        // The engine could not be run — the exchange would not answer, or the
+        // settle itself failed. Saying so beats reporting a balance worked out
+        // from prices nobody could read.
+        if (!figures) return { walletId: wallet.id, state: "unreachable" }
+        return summarizeWallet(wallet, figures)
       }
       const figures = await getProtocol(wallet.protocol)
         .account.fetch(wallet.network, wallet.address ?? "")

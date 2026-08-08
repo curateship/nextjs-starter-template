@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
+import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -79,5 +80,34 @@ export async function saveChartView(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { chartView, updatedAt: new Date() },
+    })
+}
+
+/**
+ * The DCA window's last-used settings, or null on a first use. Read back
+ * through the same validator they went in through, so a value an older build
+ * wrote falls back to the defaults instead of half-filling the window.
+ */
+export async function loadSmartDca(userId: string): Promise<DcaParams | null> {
+  const row = await db
+    .select({ smartDca: tradePrefs.smartDca })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  const parsed = dcaParamsSchema.safeParse(row[0]?.smartDca ?? null)
+  return parsed.success ? parsed.data : null
+}
+
+/** Remember them — saved after a successful place, never on every keystroke. */
+export async function saveSmartDca(
+  userId: string,
+  smartDca: DcaParams
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, smartDca, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { smartDca, updatedAt: new Date() },
     })
 }

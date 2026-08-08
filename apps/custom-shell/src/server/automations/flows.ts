@@ -11,11 +11,13 @@ import {
   type AutomationGraph,
   type AutomationValidationError,
 } from "@/lib/automations/graph"
+import { sendEmailDraftSettingsSchema } from "@/lib/automations/nodes/send-email"
 import {
   automationKindIsTrigger,
   automationNodeName,
 } from "@/lib/automations/node-registry"
 import { db, type CustomShellDb } from "@/server/db"
+import { sanitizeBlocks } from "@/server/email/broadcasts"
 import {
   customShellAutomationRuns,
   customShellAutomations,
@@ -113,9 +115,7 @@ export function automationTriggerName(
   const triggers = inspected.graph.nodes.filter((node) =>
     automationKindIsTrigger(node.kind)
   )
-  return triggers.length === 1
-    ? automationNodeName(triggers[0])
-    : null
+  return triggers.length === 1 ? automationNodeName(triggers[0]) : null
 }
 
 export async function listUserAutomations(
@@ -241,7 +241,9 @@ export async function saveUserAutomation(
 ): Promise<CustomShellAutomation | null> {
   const trimmed = input.name.trim().slice(0, NAME_MAX_LENGTH)
   if (!trimmed) throw new Error("NAME_REQUIRED")
-  const graph = automationGraphSchema.parse(input.graph)
+  const graph = sanitizeAutomationEmailBlocks(
+    automationGraphSchema.parse(input.graph)
+  )
   // Compile on every save: only a fresh, server-verified compile may write
   // compiled_config, and an invalid draft stores null there — never a stale
   // or client-supplied config.
@@ -266,6 +268,27 @@ export async function saveUserAutomation(
     return row ?? null
   } catch (error) {
     throw asNameTaken(error)
+  }
+}
+
+/** Cleans builder markup before an automation graph ever reaches storage. */
+function sanitizeAutomationEmailBlocks(
+  graph: AutomationGraph
+): AutomationGraph {
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => {
+      if (node.kind !== "sendEmail") return node
+      const parsed = sendEmailDraftSettingsSchema.safeParse(node.settings)
+      if (!parsed.success) return node
+      return {
+        ...node,
+        settings: {
+          ...parsed.data,
+          blocks: sanitizeBlocks(parsed.data.blocks),
+        },
+      }
+    }),
   }
 }
 

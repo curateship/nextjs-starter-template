@@ -1,17 +1,22 @@
 import {
+  boolean,
   doublePrecision,
+  foreignKey,
   index,
   jsonb,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
 
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
+import type { DcaParams, LadderPlan, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
+import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
 import type { WalletKind } from "@/lib/trade/wallets"
 import { customShellUsers } from "@/server/schema"
 
@@ -62,6 +67,9 @@ export const tradePrefs = pgTable("trade_prefs", {
   // remembered choice, resolved against the wallets that exist at read time,
   // so a deleted wallet leaves a memory that simply matches nothing.
   lastWalletId: varchar("last_wallet_id", { length: 36 }),
+  // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
+  // or out, so a value written by an older build falls back to the defaults.
+  smartDca: jsonb("smart_dca").$type<DcaParams>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -146,5 +154,200 @@ export const tradeChartDrawings = pgTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.id] }),
     index("trade_chart_drawings_market_idx").on(table.userId, table.marketKey),
+  ]
+)
+
+/**
+ * The practice trading engine's four tables.
+ *
+ * They share one shape: keyed by the person, hung off `trade_wallets` by the
+ * pair (user_id, wallet_id) so a deleted wallet takes its whole history with
+ * it, and holding only facts. Cash, margin, liquidation prices and open profit
+ * are all arithmetic on these rows plus today's price — worked out on read by
+ * `@/lib/trade/paper`, never stored, because a stored copy of a derived figure
+ * is a second answer that drifts from the first.
+ */
+
+/** Everything each engine table needs to name its owner and its wallet. */
+function paperOwner() {
+  return {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+  }
+}
+
+/**
+ * What a paper wallet is holding, one row per market. `szi` is signed —
+ * positive is long, negative is short — because every sum built from it wants
+ * the direction anyway.
+ */
+export const tradePaperPositions = pgTable(
+  "trade_paper_positions",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    szi: doublePrecision("szi").notNull(),
+    entryPx: doublePrecision("entry_px").notNull(),
+    // Fixed when the position opened; anything added to it inherits this.
+    leverage: doublePrecision("leverage").notNull(),
+    // The market's own limit, copied at that moment — the liquidation estimate
+    // is built from it and the exchange's answer can change underneath.
+    maxLeverage: doublePrecision("max_leverage").notNull(),
+    tpPx: doublePrecision("tp_px"),
+    slPx: doublePrecision("sl_px"),
+    feesPaid: doublePrecision("fees_paid").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    uniqueIndex("trade_paper_positions_market_idx").on(
+      table.userId,
+      table.walletId,
+      table.marketKey
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * Orders still waiting to fill, and only those: filling or cancelling one
+ * deletes the row. The journal is where history lives, and a second history
+ * would drift from it.
+ */
+export const tradePaperOrders = pgTable(
+  "trade_paper_orders",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    px: doublePrecision("px").notNull(),
+    sz: doublePrecision("sz").notNull(),
+    leverage: doublePrecision("leverage").notNull(),
+    maxLeverage: doublePrecision("max_leverage").notNull(),
+    reduceOnly: boolean("reduce_only").notNull().default(false),
+    // The brackets to hand the position this order opens, once it fills.
+    tpPx: doublePrecision("tp_px"),
+    slPx: doublePrecision("sl_px"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_paper_orders_wallet_idx").on(table.userId, table.walletId),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * Every fill that ever happened, and why it happened. Both the trade history
+ * the Journal tab shows and the ledger the wallet's cash is added up from,
+ * which is why nothing is ever removed from it.
+ */
+export const tradePaperJournal = pgTable(
+  "trade_paper_journal",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    px: doublePrecision("px").notNull(),
+    sz: doublePrecision("sz").notNull(),
+    fee: doublePrecision("fee").notNull(),
+    closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    reason: varchar("reason", { length: 16 })
+      .$type<PaperFillReason>()
+      .notNull(),
+    fillTime: timestamp("fill_time", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_paper_journal_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.fillTime
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * The smart-order ladders the engine keeps working on — one row per placed
+ * ladder. The percentages from the window die at placement; what lives here is
+ * concrete prices and sizes in one jsonb plan, read only through
+ * `ladderPlanSchema` so a row an older build wrote is ignored, never
+ * half-obeyed. Finished ladders flip to `done` and stay for the record.
+ */
+export const tradeSmartLadders = pgTable(
+  "trade_smart_ladders",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    status: varchar("status", { length: 8 }).$type<LadderStatus>().notNull(),
+    plan: jsonb("plan").$type<LadderPlan>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_smart_ladders_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.status
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * How far the engine has replayed each wallet. Nothing runs in the background:
+ * reading an account replays the candles since this moment first, so a wallet
+ * left alone for a day catches up the moment somebody looks at it.
+ */
+export const tradePaperState = pgTable(
+  "trade_paper_state",
+  {
+    ...paperOwner(),
+    settledTo: timestamp("settled_to", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId] }),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
   ]
 )

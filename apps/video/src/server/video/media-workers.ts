@@ -1,16 +1,14 @@
 import { spawn } from "node:child_process"
-import { createWriteStream } from "node:fs"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { Readable } from "node:stream"
-import { pipeline } from "node:stream/promises"
 import { sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { deleteFromR2, getFromR2, uploadToR2 } from "@/server/media/storage"
+import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
 import { resolveProxyConcurrency } from "@/server/video/media-worker-config"
+import { downloadToFile } from "@/server/video/storage-files"
 
 /**
  * The background builder for playback proxies and filmstrips, riding the
@@ -459,27 +457,6 @@ async function probeDimensions(inputPath: string) {
     throw new Error("Could not read the sprite's dimensions")
   }
   return { width: stream.width, height: stream.height }
-}
-
-async function downloadToFile(storagePath: string, filePath: string) {
-  const object = await getFromR2(storagePath)
-  if (!object.Body) {
-    throw new Error("Stored file has no content")
-  }
-  await pipeline(
-    bodyToReadable(object.Body),
-    createWriteStream(filePath, { flags: "wx" })
-  )
-}
-
-function bodyToReadable(body: unknown): Readable {
-  if (body instanceof Readable) return body
-  if (body instanceof Uint8Array) return Readable.from([body])
-  const stream = (
-    body as { transformToWebStream?: () => ReadableStream }
-  ).transformToWebStream?.()
-  if (stream) return Readable.fromWeb(stream as never)
-  throw new Error("Failed to read stored file")
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   approvalDeadline,
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
+import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
@@ -20,6 +21,7 @@ import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
 import type { AutomationTriggerFacts } from "@/lib/automations/run"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import { executeSendEmailNode } from "@/server/automations/send-email"
 
 /**
  * What a step is handed, and what it may answer with.
@@ -138,6 +140,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
           : `Matched ${matched} ${plural(matched, "person", "people")} — ${who}.`,
     }
   },
+
+  [sendEmailNode.kind]: executeSendEmailNode,
 
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =
