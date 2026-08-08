@@ -200,7 +200,18 @@ export function cleanAltText(value?: string | null) {
   return cleaned ? cleaned.slice(0, 500) : null
 }
 
+/**
+ * The files this person has to choose from: **their own, on this site.**
+ *
+ * Both halves matter. The site half is why a photo uploaded for Alpha is never
+ * offered while working on Beta. The person half is the one that was already
+ * here, and it stays: the same picker is opened by a member choosing a profile
+ * photo or a feedback screenshot, and dropping it would put every member's
+ * uploads in front of every other member — a wider door than the one this task
+ * is closing.
+ */
 export async function listOwnedMedia({
+  workspaceId,
   userId,
   page,
   pageSize,
@@ -210,6 +221,7 @@ export async function listOwnedMedia({
   sortBy = "created_at",
   sortDirection = "desc",
 }: {
+  workspaceId: string
   userId: string
   page: number
   pageSize: number
@@ -223,7 +235,10 @@ export async function listOwnedMedia({
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
   // The filters are collected rather than nested, so adding one does not mean
   // another layer of and(a, b) ? … : … guesswork.
-  const filters: SQL[] = [eq(customShellMedia.userId, userId)]
+  const filters: SQL[] = [
+    eq(customShellMedia.workspaceId, workspaceId),
+    eq(customShellMedia.userId, userId),
+  ]
   if (fileType) filters.push(eq(customShellMedia.fileType, fileType))
   if (mimeType) filters.push(eq(customShellMedia.mimeType, mimeType))
 
@@ -279,6 +294,12 @@ function getMediaOrderBy(sortBy: MediaSortBy, sortDirection: MediaSortDirection)
 
 /**
  * Whether a URL is one of this account's own uploaded images.
+ *
+ * Deliberately **not** scoped to a site. This is the check that stands between
+ * a field somebody types into and any address on the internet, and the picture
+ * it guards — a profile photo, a feedback screenshot — belongs to the person
+ * rather than to a site. Adding the site here would break somebody's avatar the
+ * moment they were looked at from another one.
  *
  * Anywhere a media URL arrives from the browser and is then stored and rendered
  * back — a profile photo, for one — this is what stands between that and any
@@ -375,6 +396,10 @@ function storagePathForUrl(url: string) {
   return url.slice(prefix.length) || null
 }
 
+/**
+ * One of this person's own files, for editing its alt text and for serving its
+ * bytes. The person, not the site — see `isOwnedImageUrl` for why.
+ */
 export async function getOwnedMedia(userId: string, mediaId: string) {
   const [row] = await db
     .select()
@@ -481,6 +506,15 @@ export type OrphanDashboard = {
   scanError: string | null
 }
 
+/**
+ * Every file on the deployment, whichever site it was uploaded for.
+ *
+ * Deliberately not per site: this is the storage screen, and it exists to
+ * answer how much room is being used and which files nothing points at any
+ * more. Both questions are about the deployment's disk. Nothing is exposed by
+ * it that an admin could not already reach, since an admin can enter every
+ * workspace on the deployment.
+ */
 export async function listAllMedia(
   query: AdminMediaListQuery,
   database: CustomShellDb = db

@@ -24,8 +24,16 @@ export type FeedsSummary = {
   }
 }
 
-/** The activity list and feedback figures shown on the admin Overview. */
+/**
+ * The activity list and feedback figures shown on the admin Overview.
+ *
+ * The figures are this site's. The activity list beside them is not scoped: it
+ * reads the notification rows, and a notice already belongs to one person
+ * rather than to a site. Narrowing it means answering who belongs to which
+ * site, which nothing in the shell does yet.
+ */
 export async function loadFeedsSummary(
+  workspaceId: string,
   database: CustomShellDb = db
 ): Promise<FeedsSummary> {
   const today = now()
@@ -61,7 +69,8 @@ export async function loadFeedsSummary(
           ),
         noReply: sql`count(*) filter (where ${hasNoReply})`.mapWith(Number),
       })
-      .from(customShellFeedback),
+      .from(customShellFeedback)
+      .where(eq(customShellFeedback.workspaceId, workspaceId)),
   ])
 
   const [feedback] = feedbackCountRows

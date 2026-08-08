@@ -219,6 +219,13 @@ export const customShellFeedback = pgTable(
   "feedback",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site it was left on. Feedback about one site is that site's roadmap,
+     * and its votes and replies follow it through the parent row.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -257,7 +264,8 @@ export const customShellFeedback = pgTable(
       sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
-    index("ix_feedback_type").on(table.type),
+    index("ix_feedback_workspace_created").on(table.workspaceId, table.createdAt),
+    index("ix_feedback_workspace_type").on(table.workspaceId, table.type),
     index("ix_feedback_attachment_media_id").on(table.attachmentMediaId),
   ]
 )
@@ -387,6 +395,10 @@ export const customShellAnnouncements = pgTable(
   "announcements",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site this banner is for. Another site's visitors never see it. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     /** How loud the banner looks: info, warning or critical. */
@@ -418,7 +430,11 @@ export const customShellAnnouncements = pgTable(
       "announcements_channel_check",
       sql`${table.showBanner} or ${table.notify}`
     ),
-    index("ix_announcements_window").on(table.startsAt, table.endsAt),
+    index("ix_announcements_workspace_window").on(
+      table.workspaceId,
+      table.startsAt,
+      table.endsAt
+    ),
   ]
 )
 
@@ -444,6 +460,18 @@ export const customShellMedia = pgTable(
   "media",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site this file belongs to, which is the site it was uploaded on.
+     *
+     * The library and the picker read by this and nothing else, so a photo
+     * uploaded for one site is never offered to another. `userId` stays beside
+     * it and still means the person who uploaded it — it is what an avatar and
+     * a feedback screenshot are checked against, and those are personal rather
+     * than the site's.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -465,9 +493,9 @@ export const customShellMedia = pgTable(
     index("ix_media_user_id").on(table.userId),
     index("ix_media_file_type").on(table.fileType),
     index("ix_media_created_at").on(table.createdAt),
-    index("ix_media_user_type_created").on(
+    index("ix_media_workspace_user_created").on(
+      table.workspaceId,
       table.userId,
-      table.fileType,
       table.createdAt
     ),
   ]
@@ -949,6 +977,10 @@ export const customShellChangelogEntries = pgTable(
   "changelog_entries",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site whose updates these are. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     /** Null while the entry is a draft. Only published entries reach members. */
@@ -957,7 +989,10 @@ export const customShellChangelogEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_changelog_entries_published_at").on(table.publishedAt),
+    index("ix_changelog_entries_workspace_published").on(
+      table.workspaceId,
+      table.publishedAt
+    ),
   ]
 )
 

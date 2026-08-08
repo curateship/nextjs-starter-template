@@ -820,6 +820,17 @@ export async function switchUserWorkspace(
   )
 }
 
+/**
+ * Removes a site and everything filed under it.
+ *
+ * "Everything" grew with `0050_custom_shell_workspace_content.sql`: the
+ * contacts, segments, broadcasts and email settings it always took, and now its
+ * announcements, changelog, feedback and media rows too. **The media files
+ * themselves stay in the bucket** — no foreign key reaches outside the
+ * database. They show up on the storage screen as objects nothing points at,
+ * which is the same state a deleted account's files end in, and the same button
+ * clears them.
+ */
 export async function deleteUserWorkspace(
   userId: string,
   workspaceId: string,
@@ -2076,6 +2087,41 @@ async function findCurrentWorkspace(userId: string, database: CustomShellDb) {
     .limit(1)
 
   return owned ?? null
+}
+
+/**
+ * The same rule as `findCurrentWorkspace`, answering with the id alone.
+ *
+ * Beside it rather than derived from it on purpose: the full read parses the
+ * workspace's settings and brings its sidebar up to date, and a caller that
+ * only wants to know which site to scope a query to should pay for neither. It
+ * runs on every content read and on every signed-in page load, so it is worth
+ * the twenty lines.
+ */
+export async function findCurrentWorkspaceId(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const [pointed] = await database
+    .select({ id: customShellWorkspaces.id })
+    .from(customShellUsers)
+    .innerJoin(
+      customShellWorkspaces,
+      eq(customShellWorkspaces.id, customShellUsers.currentWorkspaceId)
+    )
+    .where(eq(customShellUsers.id, userId))
+    .limit(1)
+
+  if (pointed) return pointed.id
+
+  const [owned] = await database
+    .select({ id: customShellWorkspaces.id })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.userId, userId))
+    .orderBy(asc(customShellWorkspaces.createdAt))
+    .limit(1)
+
+  return owned?.id ?? null
 }
 
 /**
