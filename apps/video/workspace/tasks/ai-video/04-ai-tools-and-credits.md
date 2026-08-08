@@ -73,8 +73,76 @@ into this app):
   (`lib/video/filler-words.ts`), and turning crossed-out words into a cut of
   the right clip (`lib/video/transcript-editing.ts`).
 
-**Still to do.** Transcription itself and inserting the caption clips, the
-transcript panel, the jump-cut window, voiceover, hooks and the script writer.
+**Captions, end to end.** There is now an AI panel on the studio's tool rail,
+and Captions is the first thing in it.
+
+- Pressing it pulls the sound off the project's main talking clip, sends only
+  that — never the picture — to be transcribed, and lays the words back over
+  the video as short text clips on a lane of their own. One press of undo takes
+  the whole lot off again.
+- The times come back against the recording and are moved onto the timeline:
+  shifted by where the clip sits and how far it has been trimmed, clamped
+  inside it, kept in order, and never allowed to overlap.
+- A tool that cannot run says why instead of offering a button that fails —
+  "Needs a Google Gemini key", with a link straight to Settings.
+- `src/server/video/gemini.ts` holds the awkward parts of talking to Google
+  (uploading sound too big to inline, waiting while it is read, insisting on an
+  answer of a known shape, tidying up) so the features on top stay small.
+- Running ffmpeg now lives in `src/server/video/ffmpeg.ts`, used by the
+  exporter and the transcriber rather than written twice.
+
+**Tightening a clip.** The AI panel's second tool. Pick a clip on the
+timeline, and it finds what could come out of it.
+
+- **Dead air costs nothing and needs no key.** The quiet is found by listening
+  to the sound itself — ffmpeg reports every stretch below a whisper — so it
+  works whether or not anybody has pasted a key. Three settings for how keen to
+  be, which change how long a gap has to be and how much quiet is left at each
+  end so speech is never clipped.
+- **Filler words need a transcript**, so that tab is switched off until a
+  Gemini key is saved, and it says so.
+- **Nothing is cut until it has been looked at.** Every stretch is listed with
+  where it is, how long it is and why, and any of them can be kept. What is
+  left is applied as one action, so one press of undo puts the clip back
+  exactly as it was — including the pieces after it on the same lane, which
+  shuffle back by however much came out.
+- Two cuts that all but touch become one, and a scrap of video too short to
+  notice between two cuts is swallowed rather than left flickering.
+- One clip at a time per person: asking again while one is running is refused
+  in words rather than queued.
+
+Proved on a real file end to end — downloaded, the clip's own stretch of sound
+pulled out, listened to, and cuts returned — with the three settings giving
+different answers as intended.
+
+**The transcript panel.** A fifth panel on the rail, "Words". Pick a clip,
+press "Write it down", and what it says appears word by word. Click a word,
+shift-click a later one, and cutting takes exactly that much out of the video —
+editing the film by editing the writing. The words are held for as long as the
+panel is open rather than saved: the timeline changes under them with every
+cut, and a stored transcript would quietly stop matching.
+
+A run of words that no longer sits in one piece of the clip is refused in
+words, rather than cutting the wrong thing.
+
+**Proved for real (8 Aug), with a Gemini key saved.**
+
+- Captions on an eight-second talking clip: 12 lines, correctly timed and
+  shifted onto the timeline.
+- Filler words on the same clip: found "um" and "you know", each placed
+  correctly. It did not find the "uh" because the voice actually says "ah" —
+  which is not on the list, and is the honest answer.
+- Dead air on a screen recording: found the silence; the three settings gave
+  different answers as intended.
+- The transcript panel: real words, a run struck through, cut, and the clip
+  split in two around it.
+- Every one of those left a row on the meter under its own name.
+
+A **"Talking sample" project** is seeded so all of this can be tried without
+recording anything.
+
+**Still to do.** Caption animations in the preview and export, voiceover, hooks
+and the script writer.
 
 **Blocked on keys.** There is no Gemini or ElevenLabs key anywhere in this
 repo — the old app only ever had an example file with empty values. Everything

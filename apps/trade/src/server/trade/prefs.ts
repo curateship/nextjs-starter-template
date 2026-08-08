@@ -2,6 +2,10 @@ import { eq } from "drizzle-orm"
 
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
+import {
+  readIndicatorSettings,
+  type IndicatorSettings,
+} from "@/lib/trade/indicators/registry"
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -109,5 +113,36 @@ export async function saveSmartDca(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { smartDca, updatedAt: new Date() },
+    })
+}
+
+/**
+ * Which indicators are on and what each is set to.
+ *
+ * Never null: a first visit and a row this build cannot read both come back as
+ * everything off at its own defaults, which is a working chart either way.
+ */
+export async function loadIndicators(
+  userId: string
+): Promise<IndicatorSettings> {
+  const row = await db
+    .select({ indicators: tradePrefs.indicators })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readIndicatorSettings(row[0]?.indicators ?? null)
+}
+
+/** Remember them — saved once the chart has been left alone for a moment. */
+export async function saveIndicators(
+  userId: string,
+  indicators: IndicatorSettings
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, indicators, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { indicators, updatedAt: new Date() },
     })
 }

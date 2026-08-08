@@ -10,10 +10,12 @@ import {
   WalletSettingsDialog,
 } from "@/components/trade/wallet-dialogs"
 import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
+import { IndicatorsMenu } from "@/components/trade/indicators-menu"
 import {
   MarketHeader,
   type MarketSelection,
 } from "@/components/trade/market-header"
+import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketListPanel } from "@/components/trade/market-list-panel"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
@@ -41,6 +43,7 @@ import {
   type MarketCatalog,
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
+import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
   CHART_INTERVAL_STORAGE_KEY,
   DEFAULT_CHART_INTERVAL,
@@ -103,6 +106,7 @@ export function TradeWorkspace({
   marketsError,
   initialFavoriteKeys,
   initialChartView,
+  initialIndicators,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -113,6 +117,8 @@ export function TradeWorkspace({
   initialFavoriteKeys: string[]
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
+  /** Which indicators this account has on, and what each is set to. */
+  initialIndicators: IndicatorSettings
   /** The picked market's key, carried in the address bar. */
   selectedKey: string | null
   onSelectMarket: (key: string) => void
@@ -202,6 +208,12 @@ export function TradeWorkspace({
     CANDLE_INTERVALS
   )
 
+  // The indicators, owned here for the same reason: the header's menu switches
+  // them on and the chart below draws them, so both have to be reading one
+  // answer. They belong to the account rather than to the market, exactly like
+  // the zoom — an indicator is how you read a chart, not a fact about a coin.
+  const indicators = useChartIndicators(initialIndicators)
+
   // The live feed: one watch per catalog, torn down with the page. When the
   // feed recovers from a gap it refetches the loader's snapshot, so figures
   // that moved during the outage do not linger.
@@ -269,11 +281,15 @@ export function TradeWorkspace({
         onToggleFavorite={() => {
           if (selectedKey) void toggleFavorite(selectedKey)
         }}
-        // The chart's timeframe lives in the header row; it only makes sense
-        // once there is a market to chart.
+        // The chart's own controls live in the header row; they only make
+        // sense once there is a market to chart. Indicators sit to the right
+        // of the timeframe: which candles first, then what to draw on them.
         toolbar={
           selection.kind === "market" ? (
-            <IntervalPicker value={interval} onChange={setInterval} />
+            <>
+              <IntervalPicker value={interval} onChange={setInterval} />
+              <IndicatorsMenu indicators={indicators} />
+            </>
           ) : undefined
         }
         // On a wide screen both panels are already on screen, so the buttons
@@ -287,6 +303,7 @@ export function TradeWorkspace({
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            indicators={indicators.settings}
             market={selection.kind === "market" ? selection.row : null}
             paper={paper}
             free={free}
