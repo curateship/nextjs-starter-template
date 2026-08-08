@@ -10,6 +10,7 @@ import {
   ChartQuickOrder,
   type QuickOrderState,
 } from "@/components/trade/chart-quick-order"
+import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
@@ -36,6 +37,10 @@ import {
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { SmartLadder } from "@/lib/trade/dca"
+import {
+  indicatorPaint,
+  type IndicatorSettings,
+} from "@/lib/trade/indicators/registry"
 import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
 import { cn } from "@/lib/utils"
 
@@ -85,6 +90,7 @@ export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  indicators,
   market,
   paper,
   free,
@@ -97,6 +103,8 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /** Which indicators are on and what each is set to, owned by the workspace. */
+  indicators: IndicatorSettings
   /** The market on screen, for the rules an order has to obey. */
   market: MarketRow | null
   /**
@@ -250,6 +258,24 @@ export function ChartPanel({
     void paper.dragBrackets(walletId, marketKey, brackets)
   }
 
+  // The candles on screen right now: an answer whose tag does not match what
+  // is wanted belongs to a market that was switched away from, and is not one.
+  const current = answer && answer.key === wanted ? answer : null
+
+  /**
+   * What the switched-on indicators want drawn.
+   *
+   * Worked out from the closed candles only — the working bar the feed is
+   * still filling in is left out on purpose. A level has to hold for several
+   * candles before it counts, so the newest bar could not confirm one anyway,
+   * and recomputing every level on the chart on every tick would be work for
+   * an answer that cannot have changed.
+   */
+  const indicatorPainted = React.useMemo(
+    () => indicatorPaint(indicators, current?.candles ?? []),
+    [indicators, current?.candles]
+  )
+
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
     let stale = false
@@ -281,8 +307,6 @@ export function ChartPanel({
       </PanelPlaceholder>
     )
   }
-
-  const current = answer && answer.key === wanted ? answer : null
 
   return (
     <div
@@ -324,6 +348,11 @@ export function ChartPanel({
             // neither is anything the chart itself knows about.
             overlay={(surface) => (
               <>
+                {/* First, so everything else sits over it. An indicator is
+                    the chart's own reading of the candles — a drawn line, an
+                    order or a stop is something somebody put there, and that
+                    should never end up behind a dash. */}
+                <IndicatorLayer surface={surface} paint={indicatorPainted} />
                 <PaintLayer
                   surface={surface}
                   drawings={paint.drawings}
