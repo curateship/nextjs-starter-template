@@ -1,11 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import {
-  Loader2Icon,
-  PauseIcon,
-  PlayIcon,
-  WorkflowIcon,
-} from "lucide-react"
+import { Loader2Icon, PauseIcon, PlayIcon, WorkflowIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
@@ -13,6 +8,7 @@ import { AutomationRunsPanel } from "@/components/automations/automation-runs-pa
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
+import { SendEmailEditor } from "@/components/automations/nodes/send-email-editor"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
@@ -29,6 +25,7 @@ import {
 } from "@/components/ui/resizable"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
+import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import {
   automationKindIsTrigger,
   automationNodeName,
@@ -69,11 +66,13 @@ export function AutomationEditor({
   initial,
   initialFavoriteNodeKeys,
   initialRuns,
+  initialBlockDefaults,
   openRunId,
 }: {
   initial: AutomationDetail
   initialFavoriteNodeKeys: string[]
   initialRuns: AutomationRunsPanelData
+  initialBlockDefaults: BroadcastBlockDefaults
   /** The run a bell notice linked to, opened in the bottom panel on arrival. */
   openRunId?: string
 }) {
@@ -95,6 +94,9 @@ export function AutomationEditor({
   const [previewNode, setPreviewNode] = React.useState<AutomationNode | null>(
     null
   )
+  const [editingEmailNodeId, setEditingEmailNodeId] = React.useState<
+    string | null
+  >(null)
   const [draggedNodeKey, setDraggedNodeKey] = React.useState<string | null>(
     null
   )
@@ -167,10 +169,10 @@ export function AutomationEditor({
     }
     const snapshot = latestRef.current
     const serialized = serialize(snapshot.name, snapshot.graph)
-    if (serialized === lastSavedRef.current) return
+    if (serialized === lastSavedRef.current) return true
     if (!snapshot.name.trim()) {
       setSaveStatus("blocked")
-      return
+      return false
     }
 
     const version = saveVersionRef.current + 1
@@ -197,11 +199,13 @@ export function AutomationEditor({
       if (version === saveVersionRef.current) {
         setSaveStatus("saved")
       }
+      return true
     } catch (error) {
       if (version === saveVersionRef.current) {
         setSaveStatus("idle")
         showErrorToast(getAutomationErrorMessage(error))
       }
+      return false
     }
   }, [initial.id, serialize])
 
@@ -292,7 +296,7 @@ export function AutomationEditor({
     if (savingLive) return
     setSavingLive(true)
     try {
-      if (next) await saveNow()
+      if (next && !(await saveNow())) return
       const saved = await setAutomationLive(initial.id, next)
       dismissErrorToast()
       setLive(saved.enabled)
@@ -314,7 +318,8 @@ export function AutomationEditor({
     try {
       await saveNow()
       const current = latestRef.current
-      if (serialize(current.name, current.graph) !== lastSavedRef.current) return
+      if (serialize(current.name, current.graph) !== lastSavedRef.current)
+        return
 
       const { runId } = await runAutomationNow(initial.id)
       dismissErrorToast()
@@ -466,6 +471,7 @@ export function AutomationEditor({
       }
       savingFavorite={savingFavorites}
       onNodeChange={updateNode}
+      onOpenNodeEditor={setEditingEmailNodeId}
       onToggleFavorite={
         selectedPaletteKey
           ? () => void toggleFavoriteNode(selectedPaletteKey)
@@ -475,6 +481,37 @@ export function AutomationEditor({
       onDeleteNode={deleteNode}
     />
   )
+
+  const runsPanel = (
+    <AutomationRunsPanel
+      key={`${initial.id}:${openRunId ?? "runs"}`}
+      automationId={initial.id}
+      initial={initialRuns}
+      openRunId={openRunId}
+    />
+  )
+  const editingEmailNode = editingEmailNodeId
+    ? (graph.nodes.find((node) => node.id === editingEmailNodeId) ?? null)
+    : null
+
+  if (editingEmailNode?.kind === "sendEmail") {
+    return (
+      <SendEmailEditor
+        key={editingEmailNode.id}
+        automationName={name}
+        node={editingEmailNode}
+        graph={graph}
+        initialBlockDefaults={initialBlockDefaults}
+        onSave={async (nextNode) => {
+          updateNode(nextNode)
+          return saveNow()
+        }}
+        onBack={() => setEditingEmailNodeId(null)}
+        bottomPanel={runsPanel}
+      />
+    )
+  }
+
   const canvas = (
     <AutomationFlowCanvas
       graph={graph}
@@ -536,9 +573,7 @@ export function AutomationEditor({
             variant="outline"
             disabled={automationPauseBusy}
             onClick={() =>
-              paused
-                ? void handlePauseChange(false)
-                : setConfirmPauseOpen(true)
+              paused ? void handlePauseChange(false) : setConfirmPauseOpen(true)
             }
           >
             {automationPauseBusy ? (
@@ -613,10 +648,18 @@ export function AutomationEditor({
           <div className="relative flex min-h-0 flex-1">
             {canvas}
             {paletteCollapsed ? (
-              <PanelReopenTab side="left" label="Show node palette" onClick={togglePalette} />
+              <PanelReopenTab
+                side="left"
+                label="Show node palette"
+                onClick={togglePalette}
+              />
             ) : null}
             {inspectorCollapsed ? (
-              <PanelReopenTab side="right" label="Show inspector" onClick={toggleInspector} />
+              <PanelReopenTab
+                side="right"
+                label="Show inspector"
+                onClick={toggleInspector}
+              />
             ) : null}
           </div>
         </WorkspacePanel>
@@ -695,12 +738,7 @@ export function AutomationEditor({
             collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
           >
             <WorkspacePanel onDoubleClick={runsDoubleClick}>
-              <AutomationRunsPanel
-                key={`${initial.id}:${openRunId ?? "runs"}`}
-                automationId={initial.id}
-                initial={initialRuns}
-                openRunId={openRunId}
-              />
+              {runsPanel}
             </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>

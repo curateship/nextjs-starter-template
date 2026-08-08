@@ -1,69 +1,53 @@
-import * as React from "react"
+import { SettingsIcon } from "lucide-react"
 
 import {
   InspectorCard,
   InspectorNote,
 } from "@/components/automations/inspector-card"
-import { FieldLabel } from "@/components/ui/field-label"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import type {
-  AutomationNodeFieldsProps,
-  AutomationNodeSettings,
-} from "@/lib/automations/node-descriptor"
-import { sendEmailAudienceWording } from "@/lib/automations/nodes/send-email"
+import { Button } from "@/components/ui/button"
+import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
+import {
+  sendEmailAudienceWording,
+  sendEmailDraftSettingsSchema,
+} from "@/lib/automations/nodes/send-email"
+import { plural } from "@/lib/format/plural"
 
 export default function SendEmailFields({
   node,
   graph,
-  onChange,
+  onOpenEditor,
 }: AutomationNodeFieldsProps) {
-  const subject =
-    typeof node.settings.subject === "string" ? node.settings.subject : ""
-  const body = typeof node.settings.body === "string" ? node.settings.body : ""
-  const [subjectTouched, setSubjectTouched] = React.useState(false)
-  const [bodyTouched, setBodyTouched] = React.useState(false)
-  const setSettings = (settings: AutomationNodeSettings) =>
-    onChange({ ...node, settings: { ...node.settings, ...settings } })
+  const parsed = sendEmailDraftSettingsSchema.safeParse(node.settings)
 
   return (
-    <InspectorCard title="Settings">
-      <div className="grid gap-2">
-        <FieldLabel htmlFor={`send-email-${node.id}-subject`} className="text-xs">
-          Subject
-        </FieldLabel>
-        <Input
-          id={`send-email-${node.id}-subject`}
-          value={subject}
-          maxLength={200}
-          placeholder="e.g. Your weekly update"
-          className="text-xs"
-          aria-invalid={(subjectTouched && !subject.trim()) || undefined}
-          onChange={(event) => setSettings({ subject: event.target.value })}
-          onBlur={() => setSubjectTouched(true)}
-        />
-      </div>
-
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor={`send-email-${node.id}-body`}
-          className="text-xs"
-          hint="Plain text with paragraph breaks. Email branding and images are added by their own steps later."
-        >
-          Message
-        </FieldLabel>
-        <Textarea
-          id={`send-email-${node.id}-body`}
-          value={body}
-          rows={1}
-          maxLength={100_000}
-          placeholder="Write the email…"
-          className="text-xs"
-          aria-invalid={(bodyTouched && !body.trim()) || undefined}
-          onChange={(event) => setSettings({ body: event.target.value })}
-          onBlur={() => setBodyTouched(true)}
-        />
-      </div>
+    <InspectorCard title="Email">
+      {parsed.success ? (
+        <>
+          <div className="grid gap-1">
+            <p className="text-xs font-medium text-foreground">
+              {parsed.data.subject.trim() || "No subject yet"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {parsed.data.blocks.length}{" "}
+              {plural(parsed.data.blocks.length, "block", "blocks")}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={onOpenEditor}
+          >
+            <SettingsIcon className="size-4" />
+            Open email builder
+          </Button>
+        </>
+      ) : (
+        <InspectorNote>
+          This step uses an older email format. Remove it and add a new Send
+          Email step to use the builder.
+        </InspectorNote>
+      )}
 
       <InspectorNote>
         <span className="font-medium text-foreground">Who this goes to: </span>

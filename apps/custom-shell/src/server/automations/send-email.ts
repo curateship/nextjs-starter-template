@@ -1,8 +1,11 @@
 import { and, eq, sql } from "drizzle-orm"
 
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
-import { escapeHtml } from "@/lib/email/escape-html"
 import { readSendEmailSettings } from "@/lib/automations/nodes/send-email"
+import {
+  personalizeEmail,
+  renderBroadcastEmailHtml,
+} from "@/lib/broadcasts/render"
 import {
   listAutomationAudienceContacts,
   readAutomationAudience,
@@ -11,11 +14,13 @@ import {
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
 import type { CustomShellDb } from "@/server/db"
-import {
-  getEmailProvider,
-  type EmailProvider,
-} from "@/server/email/provider"
+import { getEmailProvider, type EmailProvider } from "@/server/email/provider"
+import { composeFromAddress } from "@/server/email/send"
 import { getSendableEmailConfig } from "@/server/email/settings"
+import {
+  buildUnsubscribeUrl,
+  canBuildUnsubscribeLinks,
+} from "@/server/email/unsubscribe"
 import {
   customShellAutomationDeliveries,
   customShellAutomationRuns,
@@ -42,26 +47,6 @@ type Recipient = Pick<
   AutomationAudienceContact,
   "id" | "userId" | "email" | "firstName" | "lastName" | "emailVerifiedAt"
 >
-
-/**
- * Safe, intentionally plain HTML for the first version of the node.
- *
- * The branding-wrapper task replaces the outer document here, and the images
- * task can grow the body format here. Recipient selection and delivery records
- * do not need to change for either one.
- */
-export function renderAutomationEmailBody(body: string): string {
-  const paragraphs = body
-    .trim()
-    .split(/\n\s*\n/)
-    .map(
-      (paragraph) =>
-        `<p style="margin:0 0 16px;">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`
-    )
-    .join("")
-
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head><body style="margin:0;padding:24px;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#18181b;">${paragraphs}</body></html>`
-}
 
 /** The closest upstream Audience step this run actually completed, if any. */
 async function audienceForRun(
@@ -165,7 +150,10 @@ async function emailProvider(
 ): Promise<{ provider: EmailProvider; from: string }> {
   const config = await getSendableEmailConfig(workspaceId, database)
   if (config) {
-    return { provider: getEmailProvider(config.apiKey), from: config.from }
+    return {
+      provider: getEmailProvider(config.apiKey),
+      from: config.from,
+    }
   }
   if (isProduction()) {
     throw new Error(
@@ -212,8 +200,9 @@ async function sendRecipient({
   recipient,
   run,
   nodeId,
-  subject,
-  html,
+  subjectTemplate,
+  htmlTemplate,
+  includeUnsubscribe,
   provider,
   from,
   database,
@@ -222,14 +211,25 @@ async function sendRecipient({
   recipient: Recipient
   run: CustomShellAutomationRun
   nodeId: string
-  subject: string
-  html: string
+  subjectTemplate: string
+  htmlTemplate: string
+  includeUnsubscribe: boolean
   provider: EmailProvider
   from: string
   database: CustomShellDb
   timestamp: Date
 }) {
   const id = uuid()
+  const unsubscribeUrl = includeUnsubscribe
+    ? buildUnsubscribeUrl(recipient.id)
+    : undefined
+  const subject = personalizeEmail(subjectTemplate, recipient, {
+    html: false,
+  }).replace(/[\r\n]+/g, " ")
+  const html = personalizeEmail(htmlTemplate, recipient, {
+    html: true,
+    unsubscribeUrl,
+  })
   const [reserved] = await database
     .insert(customShellAutomationDeliveries)
     .values({
@@ -257,6 +257,14 @@ async function sendRecipient({
       to: recipient.email,
       subject,
       html,
+      ...(unsubscribeUrl
+        ? {
+            headers: {
+              "List-Unsubscribe": `<${unsubscribeUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          }
+        : {}),
     })
     status = result.success ? "sent" : "failed"
     providerMessageId = result.messageId ?? null
@@ -287,7 +295,12 @@ export async function executeSendEmailNode({
 
   const audience = await audienceForRun(run, nodeId, database)
   const fixedAt = now()
-  const html = renderAutomationEmailBody(settings.body)
+  const htmlTemplate = renderBroadcastEmailHtml(settings.blocks, {
+    preheader: settings.preheader,
+  })
+  const includeUnsubscribe = settings.blocks.some(
+    (block) => block.kind === "footer" && block.content.showUnsubscribe
+  )
   let skipped = 0
   let attempted = 0
   let emptyReason = ""
@@ -298,6 +311,11 @@ export async function executeSendEmailNode({
       skipped += 1
       return
     }
+    if (includeUnsubscribe && !canBuildUnsubscribeLinks()) {
+      throw new Error(
+        "Unsubscribe links are not set up, so this email cannot be sent safely."
+      )
+    }
     sender ??= await emailProvider(workspace.id, database)
     if (attempted % CLAIM_REFRESH_EVERY === 0) {
       await refreshRunClaim(run, database, now())
@@ -307,10 +325,11 @@ export async function executeSendEmailNode({
       recipient,
       run,
       nodeId,
-      subject: settings.subject,
-      html,
+      subjectTemplate: settings.subject,
+      htmlTemplate,
+      includeUnsubscribe,
       provider: sender.provider,
-      from: sender.from,
+      from: composeFromAddress(settings.fromName, sender.from),
       database,
       timestamp: now(),
     })

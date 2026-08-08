@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { AutomationGraph } from "@/lib/automations/graph"
 import {
+  sendEmailDraftSettingsSchema,
   sendEmailAudienceWording,
   sendEmailSettingsSchema,
   upstreamAudienceNode,
@@ -33,7 +34,22 @@ const graph: AutomationGraph = {
       kind: "sendEmail",
       x: 0,
       y: 0,
-      settings: { subject: "Hello", body: "News" },
+      settings: {
+        subject: "Hello",
+        preheader: "Preview",
+        fromName: "",
+        blocks: [
+          {
+            id: "message",
+            kind: "richText",
+            content: {
+              htmlContent: "<p>News</p>",
+              backgroundColor: "#ffffff",
+              padding: 20,
+            },
+          },
+        ],
+      },
     },
   ],
   edges: [
@@ -44,19 +60,37 @@ const graph: AutomationGraph = {
 }
 
 describe("Send Email node", () => {
-  it("requires a one-line subject and a message", () => {
+  const valid = sendEmailDraftSettingsSchema.parse(
+    graph.nodes.find((node) => node.id === "email")?.settings
+  )
+
+  it("requires a one-line subject and at least one block", () => {
     expect(
-      sendEmailSettingsSchema.safeParse({ subject: "", body: "News" }).success
+      sendEmailSettingsSchema.safeParse({ ...valid, subject: "" }).success
     ).toBe(false)
     expect(
       sendEmailSettingsSchema.safeParse({
+        ...valid,
         subject: "Hello\nBcc: someone@example.test",
-        body: "News",
       }).success
     ).toBe(false)
     expect(
-      sendEmailSettingsSchema.safeParse({ subject: "Hello", body: "   " })
-        .success
+      sendEmailSettingsSchema.safeParse({ ...valid, blocks: [] }).success
+    ).toBe(false)
+  })
+
+  it("refuses a button without a complete safe link", () => {
+    expect(
+      sendEmailSettingsSchema.safeParse({
+        ...valid,
+        blocks: [
+          {
+            id: "button",
+            kind: "button",
+            content: { label: "Open", url: "javascript:alert(1)" },
+          },
+        ],
+      }).success
     ).toBe(false)
   })
 

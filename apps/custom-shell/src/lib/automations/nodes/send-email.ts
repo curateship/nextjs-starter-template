@@ -1,36 +1,82 @@
 import { MailIcon } from "lucide-react"
 import { z } from "zod"
 
+import {
+  broadcastBlocksSchema,
+  createStarterBlocks,
+  safeLinkUrl,
+} from "@/lib/broadcasts/blocks"
+
 import type { AutomationGraph, AutomationNode } from "../graph"
 import { defineNode } from "../node-descriptor"
-import {
-  audienceWording,
-  isAudienceKind,
-} from "./audience"
+import { audienceWording, isAudienceKind } from "./audience"
 
-export const sendEmailSettingsSchema = z.object({
+export const sendEmailDraftSettingsSchema = z.object({
   subject: z
     .string()
-    .trim()
-    .min(1, "Write a subject before this flow can run.")
     .max(200, "Keep the subject to 200 characters or fewer.")
     .refine((subject) => !/[\r\n]/.test(subject), {
       message: "Keep the subject on one line.",
     }),
-  body: z
+  preheader: z
     .string()
-    .trim()
-    .min(1, "Write a message before this flow can run.")
-    .max(100_000, "Keep the message to 100,000 characters or fewer."),
+    .max(300, "Keep the preview line to 300 characters or fewer.")
+    .refine((preheader) => !/[\r\n]/.test(preheader), {
+      message: "Keep the preview line on one line.",
+    }),
+  fromName: z
+    .string()
+    .max(120, "Keep the sender name to 120 characters or fewer.")
+    .refine((fromName) => !/[\r\n]/.test(fromName), {
+      message: "Keep the sender name on one line.",
+    }),
+  blocks: broadcastBlocksSchema,
 })
 
+export const sendEmailSettingsSchema = sendEmailDraftSettingsSchema.superRefine(
+  (settings, context) => {
+    if (!settings.subject.trim()) {
+      context.addIssue({
+        code: "custom",
+        path: ["subject"],
+        message: "Write a subject before this flow can run.",
+      })
+    }
+    if (settings.blocks.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["blocks"],
+        message: "Add at least one block before this flow can run.",
+      })
+    }
+    settings.blocks.forEach((block, index) => {
+      if (block.kind !== "button" || safeLinkUrl(block.content.url)) return
+      context.addIssue({
+        code: "custom",
+        path: ["blocks", index, "content", "url"],
+        message:
+          "Give every button a complete, safe link before this flow can run.",
+      })
+    })
+  }
+)
+
 export type SendEmailSettings = z.infer<typeof sendEmailSettingsSchema>
+export type SendEmailDraftSettings = z.infer<
+  typeof sendEmailDraftSettingsSchema
+>
 
 /** Refuses unreadable saved settings instead of sending guessed-at wording. */
 export function readSendEmailSettings(
   settings: Record<string, unknown>
 ): SendEmailSettings {
   return sendEmailSettingsSchema.parse(settings)
+}
+
+export function readSendEmailDraftSettings(
+  settings: Record<string, unknown>
+): SendEmailDraftSettings {
+  return sendEmailDraftSettingsSchema.parse(settings)
 }
 
 /**
@@ -95,13 +141,18 @@ export const sendEmailNode = defineNode({
     group: "Actions",
     description: "Email this run's audience and record every delivery",
   },
-  createSettings: () => ({ subject: "", body: "" }),
+  createSettings: () => ({
+    subject: "",
+    preheader: "",
+    fromName: "",
+    blocks: createStarterBlocks(),
+  }),
   settingsSchema: sendEmailSettingsSchema,
   name: () => "Send email",
   description: (settings) => {
     const subject =
       typeof settings.subject === "string" ? settings.subject.trim() : ""
-    return subject ? `Subject: ${subject}` : "Write the subject and message"
+    return subject ? `Subject: ${subject}` : "Build the email and add a subject"
   },
   icon: MailIcon,
   outputPorts: [{ id: "then", label: "Then" }],

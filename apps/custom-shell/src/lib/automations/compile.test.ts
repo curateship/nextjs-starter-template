@@ -30,6 +30,17 @@ function aiStep(id: string, settings: AutomationNodeSettings = {}) {
 }
 
 function sendEmail(id: string, settings: AutomationNodeSettings = {}) {
+  const blocks = [
+    {
+      id: "message",
+      kind: "richText",
+      content: {
+        htmlContent: "<p>Hello there.</p>",
+        backgroundColor: "#ffffff",
+        padding: 20,
+      },
+    },
+  ]
   return {
     id,
     kind: "sendEmail",
@@ -37,7 +48,9 @@ function sendEmail(id: string, settings: AutomationNodeSettings = {}) {
     y: 0,
     settings: {
       subject: "A small update",
-      body: "Hello there.",
+      preheader: "",
+      fromName: "",
+      blocks,
       ...settings,
     },
   }
@@ -168,13 +181,25 @@ describe("compileAutomationGraph", () => {
     expect(result.errors).toEqual([])
     expect(result.config?.nodes.b.settings).toEqual({
       subject: "A small update",
-      body: "Hello there.",
+      preheader: "",
+      fromName: "",
+      blocks: [
+        {
+          id: "message",
+          kind: "richText",
+          content: {
+            htmlContent: "<p>Hello there.</p>",
+            backgroundColor: "#ffffff",
+            padding: 20,
+          },
+        },
+      ],
     })
   })
 
-  it("refuses to compile a Send Email step with an empty message", () => {
+  it("refuses to compile a Send Email step with no blocks", () => {
     const result = compileAutomationGraph({
-      nodes: [sendEmail("email", { body: "" })],
+      nodes: [sendEmail("email", { blocks: [] })],
       edges: [],
       viewport,
     })

@@ -3,10 +3,13 @@ import { and, asc, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
+import { sendEmailDraftSettingsSchema } from "@/lib/automations/nodes/send-email"
+import { executeSendEmailNode } from "@/server/automations/send-email"
 import {
-  executeSendEmailNode,
-  renderAutomationEmailBody,
-} from "@/server/automations/send-email"
+  createUserAutomation,
+  inspectAutomation,
+  saveUserAutomation,
+} from "@/server/automations/flows"
 import type { CustomShellDb } from "@/server/db"
 import { setEmailProviderFactoryForTests } from "@/server/email/provider"
 import {
@@ -24,7 +27,32 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 
 const WORKSPACE_ID = "ws-send-email"
 const EMAIL_NODE_ID = "email"
-const SETTINGS = { subject: "A small update", body: "Hello <friend>\n\nNews." }
+const SETTINGS = {
+  subject: "A small update",
+  preheader: "A quick preview",
+  fromName: "",
+  blocks: [
+    {
+      id: "message",
+      kind: "richText",
+      content: {
+        htmlContent: "<p>Hello &lt;friend&gt;</p><p>News.</p>",
+        backgroundColor: "#ffffff",
+        padding: 20,
+      },
+    },
+  ],
+}
+const UNSUBSCRIBE_FOOTER = {
+  id: "footer",
+  kind: "footer",
+  content: {
+    companyName: "Example",
+    companyAddress: "123 Main Street",
+    alignment: "center",
+    showUnsubscribe: true,
+  },
+} as const
 
 let client: PGlite
 let db: CustomShellDb
@@ -78,13 +106,15 @@ function config(withAudience: boolean) {
   })
 }
 
-async function insertRun(options: {
-  withAudience?: boolean
-  subjectUserId?: string | null
-  claimToken?: string | null
-  configOverride?: ReturnType<typeof config>
-  completedAudiences?: Array<{ id: string; nodeId: string }>
-} = {}): Promise<CustomShellAutomationRun> {
+async function insertRun(
+  options: {
+    withAudience?: boolean
+    subjectUserId?: string | null
+    claimToken?: string | null
+    configOverride?: ReturnType<typeof config>
+    completedAudiences?: Array<{ id: string; nodeId: string }>
+  } = {}
+): Promise<CustomShellAutomationRun> {
   const withAudience = options.withAudience ?? true
   const runConfig = options.configOverride ?? config(withAudience)
   const timestamp = now()
@@ -121,30 +151,33 @@ async function insertRun(options: {
 
   if (withAudience) {
     await db.insert(customShellAutomationRunSteps).values(
-      (options.completedAudiences ?? [
-        { id: uuid(), nodeId: "audience" },
-      ]).map((audience) => ({
-        id: audience.id,
-        runId: run.id,
-        nodeId: audience.nodeId,
-        kind: "audience",
-        status: "completed" as const,
-        attempts: 1,
-        summary: "Matched people.",
-        startedAt: timestamp,
-        finishedAt: timestamp,
-      }))
+      (options.completedAudiences ?? [{ id: uuid(), nodeId: "audience" }]).map(
+        (audience) => ({
+          id: audience.id,
+          runId: run.id,
+          nodeId: audience.nodeId,
+          kind: "audience",
+          status: "completed" as const,
+          attempts: 1,
+          summary: "Matched people.",
+          startedAt: timestamp,
+          finishedAt: timestamp,
+        })
+      )
     )
   }
   return run
 }
 
-async function execute(run: CustomShellAutomationRun) {
+async function execute(
+  run: CustomShellAutomationRun,
+  settings: Record<string, unknown> = SETTINGS
+) {
   return executeSendEmailNode({
     database: db,
     run,
     nodeId: EMAIL_NODE_ID,
-    settings: SETTINGS,
+    settings,
     now,
   })
 }
@@ -180,12 +213,12 @@ describe("Send Email executor", () => {
       .where(eq(customShellAutomationDeliveries.runId, run.id))
       .orderBy(asc(customShellAutomationDeliveries.toEmail))
     expect(rows).toHaveLength(3)
-    expect(rows.find((row) => row.toEmail === "bad@example.test")).toMatchObject(
-      { status: "failed", error: "Address rejected" }
-    )
-    expect(rows.find((row) => row.toEmail === "good@example.test")).toMatchObject(
-      { status: "sent", subject: SETTINGS.subject }
-    )
+    expect(
+      rows.find((row) => row.toEmail === "bad@example.test")
+    ).toMatchObject({ status: "failed", error: "Address rejected" })
+    expect(
+      rows.find((row) => row.toEmail === "good@example.test")
+    ).toMatchObject({ status: "sent", subject: SETTINGS.subject })
 
     const retried = await execute(run)
     expect(retried.summary).toBe(first.summary)
@@ -194,7 +227,10 @@ describe("Send Email executor", () => {
 
   it("emails the run's subject member when no Audience step came first", async () => {
     const member = await insertUser(db, { email: "subject@example.test" })
-    const send = vi.fn(async () => ({ success: true, messageId: "sent-subject" }))
+    const send = vi.fn(async () => ({
+      success: true,
+      messageId: "sent-subject",
+    }))
     setEmailProviderFactoryForTests(() => ({ send }))
     const run = await insertRun({
       withAudience: false,
@@ -299,10 +335,149 @@ describe("Send Email executor", () => {
     expect(stillClaimed?.id).toBe(run.id)
   })
 
-  it("escapes message HTML while preserving paragraphs and line breaks", () => {
-    const html = renderAutomationEmailBody("Hello <script>\nfriend\n\nNews")
-    expect(html).not.toContain("<script>")
-    expect(html).toContain("Hello &lt;script&gt;<br>friend")
-    expect(html.match(/<p /g)).toHaveLength(2)
+  it("renders builder blocks and escapes personalised contact values", async () => {
+    const member = await insertUser(db, {
+      email: "personalised@example.test",
+      name: "<Friend> Person",
+    })
+    const send = vi.fn(async () => ({ success: true, messageId: "sent" }))
+    setEmailProviderFactoryForTests(() => ({ send }))
+    const run = await insertRun({
+      withAudience: false,
+      subjectUserId: member.id,
+    })
+
+    await execute(run, {
+      ...SETTINGS,
+      blocks: [
+        {
+          ...SETTINGS.blocks[0],
+          content: {
+            ...SETTINGS.blocks[0].content,
+            htmlContent: "<p>Hello {{firstName}}</p>",
+          },
+        },
+      ],
+    })
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining("Hello &lt;Friend&gt;"),
+      })
+    )
+  })
+
+  it("adds a signed unsubscribe link when the footer asks for one", async () => {
+    const previousKey = process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+    process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY =
+      "send-email-test-signing-key"
+    try {
+      const member = await insertUser(db, { email: "footer@example.test" })
+      const send = vi.fn(async () => ({ success: true, messageId: "sent" }))
+      setEmailProviderFactoryForTests(() => ({ send }))
+      const run = await insertRun({
+        withAudience: false,
+        subjectUserId: member.id,
+      })
+
+      await execute(run, {
+        ...SETTINGS,
+        blocks: [...SETTINGS.blocks, UNSUBSCRIBE_FOOTER],
+      })
+
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.not.stringContaining("{{unsubscribe_url}}"),
+          headers: expect.objectContaining({
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          }),
+        })
+      )
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+      } else {
+        process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = previousKey
+      }
+    }
+  })
+
+  it("sends nothing when an unsubscribe link cannot be signed", async () => {
+    const previousKey = process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+    delete process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+    try {
+      const member = await insertUser(db, { email: "blocked@example.test" })
+      const send = vi.fn(async () => ({ success: true, messageId: "sent" }))
+      setEmailProviderFactoryForTests(() => ({ send }))
+      const run = await insertRun({
+        withAudience: false,
+        subjectUserId: member.id,
+      })
+
+      await expect(
+        execute(run, {
+          ...SETTINGS,
+          blocks: [...SETTINGS.blocks, UNSUBSCRIBE_FOOTER],
+        })
+      ).rejects.toThrow(
+        "Unsubscribe links are not set up, so this email cannot be sent safely."
+      )
+      expect(send).not.toHaveBeenCalled()
+      const deliveries = await db
+        .select()
+        .from(customShellAutomationDeliveries)
+        .where(eq(customShellAutomationDeliveries.runId, run.id))
+      expect(deliveries).toHaveLength(0)
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+      } else {
+        process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = previousKey
+      }
+    }
+  })
+
+  it("cleans builder markup before an automation is stored", async () => {
+    const automation = await createUserAutomation(owner.id, "Clean me", db)
+    const saved = await saveUserAutomation(
+      owner.id,
+      {
+        id: automation.id,
+        name: automation.name,
+        graph: {
+          nodes: [
+            {
+              id: EMAIL_NODE_ID,
+              kind: "sendEmail",
+              x: 0,
+              y: 0,
+              settings: {
+                ...SETTINGS,
+                blocks: [
+                  {
+                    ...SETTINGS.blocks[0],
+                    content: {
+                      ...SETTINGS.blocks[0].content,
+                      htmlContent:
+                        '<p onclick="alert(1)">Safe</p><script>alert(2)</script>',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          edges: [],
+          viewport: { x: 0, y: 0, zoom: 1 },
+        },
+      },
+      db
+    )
+
+    const node = saved ? inspectAutomation(saved).graph.nodes[0] : null
+    const settings = sendEmailDraftSettingsSchema.parse(node?.settings)
+    const block = settings.blocks[0]
+    expect(block.kind).toBe("richText")
+    if (block.kind !== "richText") throw new Error("Expected rich text")
+    expect(block.content.htmlContent).toBe("<p>Safe</p>")
   })
 })
