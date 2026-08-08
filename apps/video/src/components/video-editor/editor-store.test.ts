@@ -40,6 +40,155 @@ const START = createInitialEditorState({
   ],
 })
 
+describe("rewriting the opening line", () => {
+  const opening = createInitialEditorState({
+    aspect: "9:16",
+    tracks: [
+      {
+        id: "words",
+        muted: false,
+        clips: [
+          { ...caption("a", 0), text: "Stop" },
+          { ...caption("b", 900), text: "watching this" },
+        ],
+      },
+    ],
+  })
+
+  it("puts the new words across the clips they came from", () => {
+    const after = editorReducer(opening, {
+      type: "REWRITE_HOOK",
+      lines: [
+        { clipId: "a", text: "Do not scroll" },
+        { clipId: "b", text: "past this" },
+      ],
+    })
+    expect(after.tracks[0].clips.map((clip) => clip.text)).toEqual([
+      "Do not scroll",
+      "past this",
+    ])
+    // Where and how long they are is untouched — only the words changed.
+    expect(after.tracks[0].clips.map((clip) => clip.startMs)).toEqual([0, 900])
+  })
+
+  it("puts the old line back in one press of undo", () => {
+    const after = editorReducer(opening, {
+      type: "REWRITE_HOOK",
+      lines: [{ clipId: "a", text: "Something else" }],
+    })
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(
+      opening.tracks
+    )
+  })
+
+  it("quietens only the opening of the footage and lays the new line over it", () => {
+    const talking = createInitialEditorState({
+      aspect: "9:16",
+      tracks: [
+        { id: "words", muted: false, clips: [{ ...caption("a", 0), text: "Stop" }] },
+        {
+          id: "cam",
+          muted: false,
+          clips: [
+            {
+              id: "take",
+              kind: "video",
+              name: "Piece to camera",
+              mediaId: "m",
+              startMs: 0,
+              durationMs: 30_000,
+              trimStartMs: 0,
+            },
+          ],
+        },
+      ],
+    })
+
+    const after = editorReducer(talking, {
+      type: "REWRITE_HOOK",
+      lines: [{ clipId: "a", text: "Do not scroll" }],
+      spoken: {
+        how: "quieten",
+        clipId: "take",
+        untilMs: 2_000,
+        voice: {
+          id: "newvoice",
+          kind: "audio",
+          name: "Do not scroll",
+          mediaId: "spoken",
+          startMs: 0,
+          durationMs: 1_800,
+          trimStartMs: 0,
+        },
+      },
+    })
+
+    const [opening, rest] = after.tracks[1].clips
+    // The take is cut in two: the first two seconds silent, the remainder as
+    // it was, still pointing at the right moment of the recording.
+    expect(opening).toMatchObject({ durationMs: 2_000, muted: true, trimStartMs: 0 })
+    expect(rest).toMatchObject({
+      startMs: 2_000,
+      durationMs: 28_000,
+      trimStartMs: 2_000,
+    })
+    expect(rest.muted).toBeFalsy()
+    // And the new line is on a lane of its own.
+    expect(after.tracks.at(-1)?.clips[0].id).toBe("newvoice")
+    // One press of undo puts the take back in one piece.
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(talking.tracks)
+  })
+
+  it("does nothing when there is nothing to change", () => {
+    expect(editorReducer(opening, { type: "REWRITE_HOOK", lines: [] })).toBe(
+      opening
+    )
+  })
+})
+
+describe("dropping in a voiceover", () => {
+  const audio: EditorClip = {
+    id: "voice",
+    kind: "audio",
+    name: "Voiceover",
+    mediaId: "media-voice",
+    startMs: 0,
+    durationMs: 4_000,
+    trimStartMs: 0,
+  }
+
+  it("puts the sound at the bottom and its words on top", () => {
+    const after = editorReducer(START, {
+      type: "INSERT_VOICEOVER",
+      audio,
+      captions: [caption("b", 1_000), caption("a", 0)],
+    })
+
+    expect(after.tracks[0].clips.map((clip) => clip.id)).toEqual(["a", "b"])
+    expect(after.tracks.at(-1)?.clips[0].id).toBe("voice")
+    // The sound is what you would want to move next, so it is what is picked.
+    expect(after.selectedClipId).toBe("voice")
+  })
+
+  it("adds no empty lane when there is nothing to say", () => {
+    const after = editorReducer(START, {
+      type: "INSERT_VOICEOVER",
+      audio,
+      captions: [],
+    })
+    expect(after.tracks).toHaveLength(START.tracks.length + 1)
+  })
+
+  it("comes off in one press of undo", () => {
+    const after = editorReducer(START, {
+      type: "INSERT_VOICEOVER",
+      audio,
+      captions: [caption("a", 0), caption("b", 1_000)],
+    })
+    expect(editorReducer(after, { type: "UNDO" }).tracks).toEqual(START.tracks)
+  })
+})
+
 describe("cutting pieces out of a clip", () => {
   const talking = createInitialEditorState({
     aspect: "9:16",

@@ -15,6 +15,13 @@ import {
   type ClipTransition,
 } from "@/lib/video/clip-transitions"
 import type { PlaybackSeekMode } from "@/lib/video/playback-clock"
+import {
+  captionEntranceProgress,
+  captionWordAnimation,
+  captionWordTransformCss,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+} from "@/lib/video/caption-animations"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
   snapStageCenter,
@@ -530,6 +537,29 @@ export function EditorPreview() {
           }
         }
         previousFrame = frame
+      }
+
+      // The entrance. Every visible line is moved from the same numbers the
+      // export bakes into its pictures, so what is watched here and what comes
+      // out of an export are the same thing.
+      for (const [clipId, entry] of frame.texts) {
+        const element = textRefs.current.get(clipId)
+        if (!element) continue
+        const animation = resolveCaptionAnimation(entry.clip.animation)
+        const at = isAnimatedCaption(animation)
+          ? captionWordAnimation(
+              animation,
+              captionEntranceProgress(timeMs - entry.clip.startMs, 0)
+            )
+          : null
+        const transform = at
+          ? `translate(-50%, -50%) ${captionWordTransformCss(at)}`
+          : "translate(-50%, -50%)"
+        if (element.style.transform !== transform) {
+          element.style.transform = transform
+        }
+        const opacity = at ? String(at.opacity) : ""
+        if (element.style.opacity !== opacity) element.style.opacity = opacity
       }
 
       const seekMode = clock.seekMode ?? "precise"

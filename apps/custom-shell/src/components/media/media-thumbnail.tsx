@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FileQuestionIcon, PlayIcon } from "lucide-react"
+import { AudioLinesIcon, FileQuestionIcon, PlayIcon } from "lucide-react"
 
 import { videoPosterSrc } from "@/lib/media/media-upload"
 import { cn } from "@/lib/utils"
@@ -24,7 +24,7 @@ export function MediaThumbnail({
   showPlayBadge = true,
 }: {
   url: string
-  fileType: "image" | "video"
+  fileType: "image" | "video" | "audio"
   alt: string
   className?: string
   fit?: "contain" | "cover"
@@ -47,6 +47,15 @@ export function MediaThumbnail({
         <div className="grid place-items-center gap-1 p-2 text-center text-muted-foreground">
           <FileQuestionIcon className="size-6" />
           <span className="text-[10px] leading-tight">No preview</span>
+        </div>
+      ) : fileType === "audio" ? (
+        // Sound has nothing to show, so it says what it is rather than
+        // pretending to be a picture that failed to load.
+        <div className="grid place-items-center gap-1 p-2 text-center text-muted-foreground">
+          <AudioLinesIcon className="size-6" />
+          {compact ? null : (
+            <span className="text-[10px] leading-tight">Sound</span>
+          )}
         </div>
       ) : fileType === "video" ? (
         <>

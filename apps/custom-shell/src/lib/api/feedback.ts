@@ -22,6 +22,10 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { adminPost, userGet, userPost } from "@/server/guards"
 import {
+  findWorkspaceIdForRequest,
+  workspaceIdForRequest,
+} from "@/server/workspaces/for-request"
+import {
   FEEDBACK_STATUSES,
   type FeedbackStatus,
 } from "@/lib/feedback/feedback-status"
@@ -188,7 +192,12 @@ const listFeedbackFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(listFeedbackSchema)
   .handler(async ({ data, context }): Promise<FeedbackListResponse> => {
-    const filters = []
+    // The site's own board, always. This filter is the whole boundary for the
+    // list — take it out and every site's feedback appears on every other's.
+    const workspaceId = await findWorkspaceIdForRequest(context.user.id)
+    if (!workspaceId) return { feedback: [] }
+
+    const filters = [eq(customShellFeedback.workspaceId, workspaceId)]
     if (data.type !== "all") {
       filters.push(eq(customShellFeedback.type, data.type))
     }
@@ -217,7 +226,7 @@ const listFeedbackFn = createServerFn({ method: "GET" })
     const rows = await db
       .select()
       .from(customShellFeedback)
-      .where(filters.length ? and(...filters) : undefined)
+      .where(and(...filters))
       .orderBy(...order)
 
     return { feedback: await serializeFeedbackRows(rows, context.user) }
@@ -257,6 +266,7 @@ const createFeedbackFn = createServerFn({ method: "POST" })
     const createdAt = now()
     const row = {
       id: uuid(),
+      workspaceId: await workspaceIdForRequest(context.user.id),
       userId: context.user.id,
       type: data.type,
       status: "open",
@@ -299,7 +309,15 @@ const updateFeedbackFn = createServerFn({ method: "POST" })
         message,
         updatedAt: now(),
       })
-      .where(eq(customShellFeedback.id, data.feedbackId))
+      .where(
+        and(
+          eq(customShellFeedback.id, data.feedbackId),
+          eq(
+            customShellFeedback.workspaceId,
+            await workspaceIdForRequest(context.user.id)
+          )
+        )
+      )
       .returning()
 
     if (!row) {
@@ -312,10 +330,18 @@ const updateFeedbackFn = createServerFn({ method: "POST" })
 const deleteFeedbackFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(feedbackIdSchema)
-  .handler(async ({ data }): Promise<{ feedbackId: string }> => {
+  .handler(async ({ data, context }): Promise<{ feedbackId: string }> => {
     const [row] = await db
       .delete(customShellFeedback)
-      .where(eq(customShellFeedback.id, data.feedbackId))
+      .where(
+        and(
+          eq(customShellFeedback.id, data.feedbackId),
+          eq(
+            customShellFeedback.workspaceId,
+            await workspaceIdForRequest(context.user.id)
+          )
+        )
+      )
       .returning({
         id: customShellFeedback.id,
         attachmentMediaId: customShellFeedback.attachmentMediaId,
@@ -335,10 +361,18 @@ const deleteFeedbackFn = createServerFn({ method: "POST" })
 const deleteFeedbackManyFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(feedbackIdsSchema)
-  .handler(async ({ data }): Promise<{ feedbackIds: string[] }> => {
+  .handler(async ({ data, context }): Promise<{ feedbackIds: string[] }> => {
     const rows = await db
       .delete(customShellFeedback)
-      .where(inArray(customShellFeedback.id, data.feedbackIds))
+      .where(
+        and(
+          inArray(customShellFeedback.id, data.feedbackIds),
+          eq(
+            customShellFeedback.workspaceId,
+            await workspaceIdForRequest(context.user.id)
+          )
+        )
+      )
       .returning({
         id: customShellFeedback.id,
         attachmentMediaId: customShellFeedback.attachmentMediaId,
@@ -357,15 +391,10 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(feedbackIdSchema)
   .handler(async ({ data, context }): Promise<FeedbackItem> => {
-    const [row] = await db
-      .select()
-      .from(customShellFeedback)
-      .where(eq(customShellFeedback.id, data.feedbackId))
-      .limit(1)
-
-    if (!row) {
-      throw new Error("Feedback not found")
-    }
+    const row = await requireFeedback(
+      await workspaceIdForRequest(context.user.id),
+      data.feedbackId
+    )
     const [existingVote] = await db
       .select()
       .from(customShellFeedbackVotes)
@@ -460,17 +489,30 @@ const mergeFeedbackFn = createServerFn({ method: "POST" })
     // of which. The duplicate's screenshot cannot be erased in here — the file
     // lives outside the database — so its id comes back out for cleanup after
     // the merge itself is safely done.
+    // Both ends are looked up inside the site, so merging one site's item into
+    // another's is not a thing that can be asked for — it reads as "not found".
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const { leftoverAttachmentId } = await db.transaction(
       async (tx) => {
         const [source] = await tx
           .select()
           .from(customShellFeedback)
-          .where(eq(customShellFeedback.id, data.sourceId))
+          .where(
+            and(
+              eq(customShellFeedback.id, data.sourceId),
+              eq(customShellFeedback.workspaceId, workspaceId)
+            )
+          )
           .limit(1)
         const [target] = await tx
           .select()
           .from(customShellFeedback)
-          .where(eq(customShellFeedback.id, data.targetId))
+          .where(
+            and(
+              eq(customShellFeedback.id, data.targetId),
+              eq(customShellFeedback.workspaceId, workspaceId)
+            )
+          )
           .limit(1)
 
         if (!source || !target) {
@@ -550,7 +592,7 @@ const mergeFeedbackFn = createServerFn({ method: "POST" })
     // Read back rather than reusing the row from inside the transaction, which
     // would not know about a screenshot that just moved across.
     return serializeFeedbackWithMeta(
-      await requireFeedback(data.targetId),
+      await requireFeedback(workspaceId, data.targetId),
       context.user
     )
   })
@@ -559,6 +601,13 @@ const listFeedbackCommentsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(feedbackIdSchema)
   .handler(async ({ data, context }): Promise<FeedbackCommentListResponse> => {
+    // Checked through the parent rather than on the comment: a comment has no
+    // site of its own, it belongs to the item it is under.
+    await requireFeedback(
+      await workspaceIdForRequest(context.user.id),
+      data.feedbackId
+    )
+
     const rows = await db
       .select()
       .from(customShellFeedbackComments)
@@ -583,7 +632,8 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
       windowSeconds: 10 * 60,
     })
 
-    const feedback = await requireFeedback(data.feedbackId)
+    const workspaceId = await workspaceIdForRequest(context.user.id)
+    const feedback = await requireFeedback(workspaceId, data.feedbackId)
 
     const createdAt = now()
     const row = await db.transaction(async (tx) => {
@@ -619,7 +669,7 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
       return comment
     })
 
-    return serializeFeedbackCommentWithMeta(row, context.user)
+    return serializeFeedbackCommentWithMeta(workspaceId, row, context.user)
   })
 
 const updateFeedbackCommentFn = createServerFn({ method: "POST" })
@@ -632,7 +682,8 @@ const updateFeedbackCommentFn = createServerFn({ method: "POST" })
       throw new Error("Comment is required")
     }
 
-    const comment = await requireFeedbackComment(data.commentId)
+    const workspaceId = await workspaceIdForRequest(context.user.id)
+    const comment = await requireFeedbackComment(workspaceId, data.commentId)
     if (!canManageFeedbackComment(comment, context.user)) {
       throw new Error("Not authorized")
     }
@@ -647,7 +698,7 @@ const updateFeedbackCommentFn = createServerFn({ method: "POST" })
       throw new Error("Comment not found")
     }
 
-    return serializeFeedbackCommentWithMeta(row, context.user)
+    return serializeFeedbackCommentWithMeta(workspaceId, row, context.user)
   })
 
 const deleteFeedbackCommentFn = createServerFn({ method: "POST" })
@@ -655,7 +706,10 @@ const deleteFeedbackCommentFn = createServerFn({ method: "POST" })
   .inputValidator(feedbackCommentIdSchema)
   .handler(
     async ({ data, context }): Promise<{ commentId: string; feedbackId: string }> => {
-      const comment = await requireFeedbackComment(data.commentId)
+      const comment = await requireFeedbackComment(
+        await workspaceIdForRequest(context.user.id),
+        data.commentId
+      )
 
       if (!canManageFeedbackComment(comment, context.user)) {
         throw new Error("Not authorized")
@@ -728,11 +782,24 @@ export function deleteFeedbackComment(commentId: string) {
   return deleteFeedbackCommentFn({ data: { commentId } })
 }
 
-async function requireFeedback(feedbackId: string) {
+/**
+ * One item on this site's board.
+ *
+ * The workspace is part of the lookup rather than something checked after, so
+ * an id belonging to another site is simply not found — which is both the safe
+ * answer and the honest one, since a site nobody is in has nothing to say about
+ * what it holds.
+ */
+async function requireFeedback(workspaceId: string, feedbackId: string) {
   const [row] = await db
     .select()
     .from(customShellFeedback)
-    .where(eq(customShellFeedback.id, feedbackId))
+    .where(
+      and(
+        eq(customShellFeedback.id, feedbackId),
+        eq(customShellFeedback.workspaceId, workspaceId)
+      )
+    )
     .limit(1)
 
   if (!row) {
@@ -742,18 +809,28 @@ async function requireFeedback(feedbackId: string) {
   return row
 }
 
-async function requireFeedbackComment(commentId: string) {
+/** One reply, found through the item it hangs off, so it inherits its site. */
+async function requireFeedbackComment(workspaceId: string, commentId: string) {
   const [row] = await db
-    .select()
+    .select({ comment: customShellFeedbackComments })
     .from(customShellFeedbackComments)
-    .where(eq(customShellFeedbackComments.id, commentId))
+    .innerJoin(
+      customShellFeedback,
+      eq(customShellFeedback.id, customShellFeedbackComments.feedbackId)
+    )
+    .where(
+      and(
+        eq(customShellFeedbackComments.id, commentId),
+        eq(customShellFeedback.workspaceId, workspaceId)
+      )
+    )
     .limit(1)
 
   if (!row) {
     throw new Error("Comment not found")
   }
 
-  return row
+  return row.comment
 }
 
 export function canManageFeedbackComment(
@@ -982,6 +1059,7 @@ async function serializeFeedbackCommentRows(
 }
 
 async function serializeFeedbackCommentWithMeta(
+  workspaceId: string,
   row: CustomShellFeedbackComment,
   currentUser: CustomShellUser
 ) {
@@ -992,7 +1070,7 @@ async function serializeFeedbackCommentWithMeta(
       .where(eq(customShellUsers.id, row.userId))
       .limit(1),
 
-    requireFeedback(row.feedbackId),
+    requireFeedback(workspaceId, row.feedbackId),
   ])
 
   return serializeFeedbackCommentRow(

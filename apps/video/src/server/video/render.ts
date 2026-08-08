@@ -21,6 +21,13 @@ import {
 } from "@/lib/video/audio-loudness"
 import type { VideoBrandKit } from "@/lib/video/brand-kit"
 import {
+  captionExportWindows,
+  captionWordAnimation,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+  type CaptionWordAnimation,
+} from "@/lib/video/caption-animations"
+import {
   resolveIncomingTransition,
   type ClipTransition,
 } from "@/lib/video/clip-transitions"
@@ -545,14 +552,34 @@ async function buildFfmpegCommand(options: {
     const durS = clip.durationMs / 1000
 
     if (clip.kind === "text") {
-      const png = await renderTextPng(clip, size)
-      const file = path.join(dir, `text-${visualStep}.png`)
-      await writeFile(file, png)
-      inputs.push("-loop", "1", "-t", String(durS), "-i", file)
-      filters.push(
-        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
-      )
+      const animation = resolveCaptionAnimation(clip.animation)
+      // A still line is one picture shown for its whole turn. An animated one
+      // is a few pictures across its entrance and then one still — the same
+      // windows the preview moves through, drawn instead of tweened.
+      const windows = isAnimatedCaption(animation)
+        ? captionExportWindows(0, clip.durationMs, 0)
+        : [{ fromMs: 0, toMs: clip.durationMs, progress: 1 }]
+
+      let step = visualStep
+      for (const [index, window] of windows.entries()) {
+        const png = await renderTextPng(
+          clip,
+          size,
+          captionWordAnimation(animation, window.progress)
+        )
+        const file = path.join(dir, `text-${visualStep}-${index}.png`)
+        await writeFile(file, png)
+        const fromS = startS + window.fromMs / 1000
+        const toS = startS + window.toMs / 1000
+        inputs.push("-loop", "1", "-t", String((window.toMs - window.fromMs) / 1000), "-i", file)
+        filters.push(
+          `[${inputIndex + index}:v]format=rgba,setpts=PTS-STARTPTS+${fromS}/TB[l${step}]`,
+          `[v${step}][l${step}]overlay=x=0:y=0:enable='between(t,${fromS},${toS})'[v${step + 1}]`
+        )
+        step += 1
+      }
+      visualStep = step - 1
+      inputIndex += windows.length - 1
     } else {
       const file = sourceFiles.get(clip.mediaId!)!
       if (clip.kind === "image") {
@@ -799,7 +826,9 @@ function requireRenderFont() {
  */
 async function renderTextPng(
   clip: EditorClip,
-  size: { width: number; height: number }
+  size: { width: number; height: number },
+  /** Where the words are in their entrance; left out means fully arrived. */
+  entrance: CaptionWordAnimation = { scale: 1, opacity: 1, dyEm: 0 }
 ) {
   const font = requireTextFont(clip.fontId)
   const fontFile = requireRenderFont()
@@ -842,12 +871,23 @@ async function renderTextPng(
   // Boxed words drop the shadow, the way the preview does, so they read
   // cleanly against their block of colour.
   const textFilter = highlight ? "" : ` filter="url(#shadow)"`
+  // The entrance is drawn as one move of the whole line: bigger or smaller
+  // about its own middle, shifted up or down, and faded. The preview does
+  // exactly this with a stylesheet, from the same numbers.
+  const shiftY = entrance.dyEm * fontSize
+  const entering =
+    entrance.scale !== 1 || entrance.opacity !== 1 || entrance.dyEm !== 0
+  const openGroup = entering
+    ? `<g opacity="${entrance.opacity.toFixed(4)}" transform="translate(${centerX.toFixed(1)} ${(centerY + shiftY).toFixed(1)}) scale(${entrance.scale.toFixed(4)}) translate(${(-centerX).toFixed(1)} ${(-centerY).toFixed(1)})">`
+    : ""
+  const closeGroup = entering ? "</g>" : ""
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
   <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
     <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
   </filter>
-  ${highlightRect}
-  <text${textFilter} text-anchor="middle" font-family="Inter" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>
+  ${openGroup}${highlightRect}
+  <text${textFilter} text-anchor="middle" font-family="Inter" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>${closeGroup}
 </svg>`
 
   const { Resvg } = loadResvg()

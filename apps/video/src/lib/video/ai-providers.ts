@@ -15,7 +15,18 @@ export const GEMINI_KEY_MISSING_MESSAGE =
  * thing to wait out, which is more use to know than a number.
  */
 export const AI_TOO_BUSY_MESSAGE =
-  "Google is turning requests away right now — wait a minute and try again, or check the allowance on your key"
+  "Google is turning requests away right now — wait a minute and try again"
+
+/**
+ * The free tier allows a couple of dozen requests a day, and waiting will not
+ * bring them back. Saying so beats "try again in a minute", which is advice
+ * that cannot work.
+ */
+export const AI_DAY_USED_UP_MESSAGE =
+  "This key's free allowance for today is used up — it resets tomorrow, or add billing to the key. Whisper and cutting dead air still work"
+
+export const OPENAI_KEY_MISSING_MESSAGE =
+  "No OpenAI key is saved — add one in Settings → AI"
 
 export const ELEVENLABS_KEY_MISSING_MESSAGE =
   "No ElevenLabs key is saved — add one in Settings → AI"
@@ -39,6 +50,7 @@ const PROVIDER_PROBLEMS = [
 
 export function isShowableProviderProblem(message: string) {
   if (message === AI_TOO_BUSY_MESSAGE) return true
+  if (message === AI_DAY_USED_UP_MESSAGE) return true
   if (PROVIDER_PROBLEMS.some((problem) => message.includes(problem))) return true
   // "Captions failed (HTTP 503)" — the number is the useful part.
   return /\(HTTP \d{3}\)$/.test(message)

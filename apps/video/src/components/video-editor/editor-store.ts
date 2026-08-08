@@ -76,6 +76,33 @@ export type EditorAction =
       removals: { clipStartMs: number; clipEndMs: number }[]
       rippleClipIds: string[]
     }
+  // The opening line, rewritten across the clips it was read from. One action
+  // so one undo puts the old words back.
+  | {
+      type: "REWRITE_HOOK"
+      lines: { clipId: string; text: string }[]
+      /**
+       * When the opening line is spoken, what to do about it: swap a voice
+       * clip's sound outright, or quieten the opening of a piece of footage
+       * and lay the new line over it.
+       */
+      spoken?:
+        | { how: "swap"; clipId: string; media: Partial<EditorClip> }
+        | {
+            how: "quieten"
+            clipId: string
+            /** How far into the timeline the footage stops being silent. */
+            untilMs: number
+            voice: EditorClip
+          }
+    }
+  // A voiceover and the words it says, dropped on together: the sound on a
+  // lane of its own and the captions above it. One action, one undo.
+  | {
+      type: "INSERT_VOICEOVER"
+      audio: EditorClip
+      captions: EditorClip[]
+    }
   // Every caption at once, onto a lane of their own. One action so one press
   // of undo takes the whole lot back off again.
   | { type: "INSERT_CAPTIONS"; captions: EditorClip[] }
@@ -367,6 +394,79 @@ export function editorReducer(
         ]),
       }))
       return { ...pushUndo(state, tracks), selectedClipId: clips[0].id }
+    }
+
+    case "REWRITE_HOOK": {
+      const byId = new Map(action.lines.map((line) => [line.clipId, line.text]))
+      const spoken = action.spoken
+      if (!byId.size && !spoken) return state
+
+      let tracks = state.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.flatMap((clip) => {
+          // A voice clip of its own: the same clip, now pointing at the new
+          // sound. It keeps its place so nothing after it has to move.
+          if (spoken?.how === "swap" && clip.id === spoken.clipId) {
+            return [{ ...clip, ...spoken.media }]
+          }
+
+          // Footage talking: the take is cut where the opening line ends, and
+          // only that first piece is silenced. The rest keeps its own sound,
+          // and nothing moves — the two pieces still cover exactly what the
+          // one did.
+          if (spoken?.how === "quieten" && clip.id === spoken.clipId) {
+            const openingMs = Math.min(
+              Math.max(spoken.untilMs - clip.startMs, MIN_CLIP_MS),
+              clip.durationMs
+            )
+            const rest = clip.durationMs - openingMs
+            const opening = { ...clip, durationMs: openingMs, muted: true }
+            if (rest < MIN_CLIP_MS) return [opening]
+            return [
+              opening,
+              {
+                ...clip,
+                id: editorId(),
+                startMs: clip.startMs + openingMs,
+                durationMs: rest,
+                trimStartMs: clip.trimStartMs + openingMs,
+                transition: undefined,
+              },
+            ]
+          }
+
+          const text = byId.get(clip.id)
+          // A clip whose share of the new line is empty keeps its place on the
+          // timeline rather than leaving a hole; it simply says nothing.
+          return [
+            text === undefined ? clip : { ...clip, text, name: text || clip.name },
+          ]
+        }),
+      }))
+
+      // The new line goes on a lane of its own, under the picture.
+      if (spoken?.how === "quieten") {
+        tracks = [...tracks, { ...newTrack(), clips: [spoken.voice] }]
+      }
+      return pushUndo(state, tracks)
+    }
+
+    case "INSERT_VOICEOVER": {
+      const captions: EditorTrack = {
+        ...newTrack(),
+        clips: [...action.captions].sort((a, b) => a.startMs - b.startMs),
+      }
+      const voice: EditorTrack = { ...newTrack(), clips: [action.audio] }
+      // Words above the picture, sound below it, the way they are laid out
+      // when somebody does this by hand.
+      return {
+        ...pushUndo(state, [
+          ...(action.captions.length ? [captions] : []),
+          ...state.tracks,
+          voice,
+        ]),
+        selectedClipId: action.audio.id,
+      }
     }
 
     case "INSERT_CAPTIONS": {
@@ -667,6 +767,8 @@ type EditorContextValue = {
   dispatch: React.Dispatch<EditorAction>
   clock: PlaybackClock
   projectId: string
+  /** Sends any edit still waiting, so the server reads the timeline as it is. */
+  saveNow: () => Promise<void>
   setProjectName: (name: string) => void
 }
 

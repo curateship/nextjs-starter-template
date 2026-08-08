@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { findWorkspaceIdForRequest } from "@/server/workspaces/for-request"
 import { loadUserAnnouncements } from "@/server/content/announcements"
 import { loadEntitlements } from "@/server/billing/entitlements"
 import { countUnreadNotifications } from "@/server/notifications/inbox"
@@ -56,6 +57,9 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     const { user, viewedBy } = session
 
     const settingsPromise = readShellSettings(user)
+    // Read once and handed down: the banners belong to the site this person is
+    // in, and asking again inside the list below would run the lookup twice.
+    const workspaceId = await findWorkspaceIdForRequest(user.id)
     const [settings, workspaces, { entitlements }, unreadCount, announcements] =
       await Promise.all([
         settingsPromise,
@@ -68,7 +72,9 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
             value.notificationTypes
           )
         ),
-        loadUserAnnouncements(user.id),
+        workspaceId
+          ? loadUserAnnouncements(workspaceId, user.id)
+          : Promise.resolve({ banners: [], noticesCreated: 0 }),
       ])
 
     // The announcement read is the one call here that can write: it drops in the
