@@ -8,6 +8,7 @@ import { tradeWallets } from "@/server/trade/schema"
 import {
   createWallet,
   deleteWallet,
+  findTradingWallet,
   listWallets,
   loadWalletSummaries,
   updateWallet,
@@ -84,6 +85,7 @@ describe("adding wallets", () => {
     const wallet = await createWallet(userId, paperInput())
 
     expect(wallet.kind).toBe("paper")
+    expect(wallet.status).toBe("active")
     expect(wallet.startingBalance).toBe(10_000)
     expect(wallet.hasKey).toBe(false)
     expect(wallet.address).toBeNull()
@@ -164,6 +166,28 @@ describe("adding wallets", () => {
 })
 
 describe("editing wallets", () => {
+  it("moves a wallet between active and inactive", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, paperInput())
+
+    const inactive = await updateWallet(userId, {
+      id: wallet.id,
+      status: "inactive",
+    })
+    expect(inactive.status).toBe("inactive")
+    expect((await listWallets(userId))[0].status).toBe("inactive")
+    await expect(findTradingWallet(userId, wallet.id)).rejects.toThrow(
+      "WALLET_INACTIVE"
+    )
+
+    const active = await updateWallet(userId, {
+      id: wallet.id,
+      status: "active",
+    })
+    expect(active.status).toBe("active")
+    expect(await findTradingWallet(userId, wallet.id)).toEqual(active)
+  })
+
   it("renames, and changes a practice wallet's starting cash", async () => {
     const userId = await person()
     const wallet = await createWallet(userId, paperInput())

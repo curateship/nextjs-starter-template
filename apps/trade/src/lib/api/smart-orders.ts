@@ -20,7 +20,11 @@ import {
   updateLadderExits as updateExitsRows,
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
-import { findWallet, listWallets } from "@/server/trade/wallets"
+import {
+  findTradingWallet,
+  findWallet,
+  listWallets,
+} from "@/server/trade/wallets"
 
 import { createErrorMessage } from "./error-message"
 
@@ -66,8 +70,15 @@ const exitsSchema = z.object({
 })
 
 /** The wallet, or a refusal — the same first step as the rest of trading. */
-async function tradingWallet(userId: string, walletId: string) {
-  const wallet = await findWallet(userId, walletId)
+async function tradingWallet(
+  userId: string,
+  walletId: string,
+  receivingOrder = false
+) {
+  const wallet = await (receivingOrder ? findTradingWallet : findWallet)(
+    userId,
+    walletId
+  )
   if (!wallet) throw new Error("PAPER_WALLET_NOT_FOUND")
   return wallet
 }
@@ -99,7 +110,7 @@ const placeDcaLadderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(placeSchema)
   .handler(async ({ data, context }): Promise<PlacedLadder> => {
-    const wallet = await tradingWallet(context.user.id, data.walletId)
+    const wallet = await tradingWallet(context.user.id, data.walletId, true)
     const input = {
       marketKey: data.marketKey,
       clickPx: data.clickPx,
@@ -199,6 +210,7 @@ export const getSmartOrderErrorMessage = createErrorMessage(
     PAPER_WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     PAPER_WALLET_KIND: "Only a practice wallet trades this way.",
+    WALLET_INACTIVE: "Make this wallet active before placing a Smart order.",
     LIVE_WALLET_KEY: "This live wallet needs a trading key before it can place a Smart order.",
     LIVE_MARKET: "That market is not one this live wallet can trade.",
     LIVE_NO_PRICE: "Hyperliquid would not give a price for that market, so nothing was placed.",

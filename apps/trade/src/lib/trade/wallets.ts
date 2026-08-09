@@ -17,11 +17,13 @@ import type {
  * lands — trade with.
  */
 export type WalletKind = "paper" | "live"
+export type WalletStatus = "active" | "inactive"
 
 export type TradeWallet = {
   id: string
   label: string
   kind: WalletKind
+  status: WalletStatus
   protocol: ProtocolId
   network: NetworkId
   /**

@@ -104,7 +104,11 @@ export function useTradeAccount(): TradeAccount {
   // A remembered id that matches nothing — the wallet was deleted, here or in
   // another tab — resolves to null, which puts the "pick one" prompt back up.
   const activeWallet =
-    list.find((wallet) => wallet.id === (chosenWalletId ?? lastWalletId)) ?? null
+    list.find(
+      (wallet) =>
+        wallet.id === (chosenWalletId ?? lastWalletId) &&
+        wallet.status === "active"
+    ) ?? null
 
   return {
     loading: wallets === null && !failed,
