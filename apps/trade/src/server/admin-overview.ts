@@ -1,7 +1,8 @@
 import { loadNewestAccounts, type AccountRow } from "@/server/people/accounts"
-import { listUserAutomations } from "@/server/automations/flows"
+import { listWorkspaceAutomations } from "@/server/automations/flows"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadFeedsSummary, type FeedsSummary } from "@/server/content/feeds"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { loadMembershipSummary, type MembershipSummary } from "@/server/people/membership"
 import { getDefaultPlan } from "@/server/billing/plans"
 
@@ -47,7 +48,10 @@ export async function loadAdminOverview(
   const [membership, extras] = await Promise.all([
     loadMembershipSummary(database),
     (async () => {
-      const automations = await listUserAutomations(userId, database)
+      const automations = await listWorkspaceAutomations(
+        await workspaceIdForRequest(userId, database),
+        database
+      )
       // The Overview's table shows what plan somebody is on, which needs the
       // default plan for everyone who is not paying for one.
       const defaultPlan = await getDefaultPlan(database)
@@ -62,7 +66,10 @@ export async function loadAdminOverview(
 
   // Wave two runs on its own. The feeds read has a second stage of its own
   // that peaks at five in flight, so there is no room for anything beside it.
-  const feeds = await loadFeedsSummary(database)
+  const feeds = await loadFeedsSummary(
+    await workspaceIdForRequest(userId, database),
+    database
+  )
 
   return {
     membership,

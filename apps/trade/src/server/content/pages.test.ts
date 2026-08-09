@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { publicPages } from "@/lib/pages/page-registry"
@@ -8,9 +9,16 @@ import {
   readPageVisibility,
   setPageVisibility,
 } from "@/server/content/pages"
-import { readShellGlobals } from "@/server/shell-settings"
-import { customShellTrafficDailyFacts } from "@/server/schema"
-import { createTestDatabase, type TestDatabase } from "@/server/test-support"
+import { parseWorkspaceSettings } from "@/server/people/workspaces"
+import {
+  customShellTrafficDailyFacts,
+  customShellWorkspaces,
+} from "@/server/schema"
+import {
+  createTestDatabase,
+  insertWorkspace,
+  type TestDatabase,
+} from "@/server/test-support"
 
 /**
  * The Pages dashboard's read: the page registry joined to the traffic
@@ -21,6 +29,8 @@ import { createTestDatabase, type TestDatabase } from "@/server/test-support"
 
 let client: PGlite
 let database: TestDatabase
+/** The site every page in these tests belongs to. */
+let site: string
 
 // A fixed moment so the day arithmetic in these tests never depends on when
 // they run.
@@ -30,19 +40,30 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
+  site = (await insertWorkspace(database)).id
 })
 
 afterEach(async () => {
   await client.close()
 })
 
+/** What this site has actually stored about which pages are hidden. */
+async function savedPageMap() {
+  const [row] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, site))
+    .limit(1)
+  return parseWorkspaceSettings(row?.settings).pages
+}
+
 function factRow(day: string, key: string, views: number) {
-  return { day, dimension: "path", key, views }
+  return { workspaceId: site, day, dimension: "path", key, views }
 }
 
 describe("loadPagesOverview", () => {
   it("has a row for every registered page even with no traffic at all", async () => {
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
 
     expect(overview.rows.map((row) => row.path)).toEqual(
       publicPages().map((page) => page.path)
@@ -55,7 +76,7 @@ describe("loadPagesOverview", () => {
     // The column heading is built from this field rather than from a second
     // copy of the number written into the screen, so the two can never
     // disagree about how far back "Visits" goes.
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
 
     expect(overview.visitDays).toBe(PAGES_VISIT_DAYS)
   })
@@ -68,7 +89,7 @@ describe("loadPagesOverview", () => {
       factRow("2026-07-06", "/pricing", 99), // 31st day back — outside
     ])
 
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
     const pricing = overview.rows.find((row) => row.path === "/pricing")
 
     expect(pricing?.visits).toBe(5)
@@ -81,12 +102,18 @@ describe("loadPagesOverview", () => {
       // The 31st day back — one outside a 30-day window ending today.
       factRow("2026-07-06", "/pricing", 100),
       // Another dimension's counter for a look-alike key stays out of it.
-      { day: "2026-08-05", dimension: "referrer", key: "/pricing", views: 50 },
+      {
+        workspaceId: site,
+        day: "2026-08-05",
+        dimension: "referrer",
+        key: "/pricing",
+        views: 50,
+      },
       // An address the tracker saw but no page declares gets no row at all.
       factRow("2026-08-05", "/no-such-page", 9),
     ])
 
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
     const byPath = new Map(overview.rows.map((row) => [row.path, row]))
 
     expect(byPath.get("/pricing")?.visits).toBe(7)
@@ -100,7 +127,7 @@ describe("loadPagesOverview", () => {
       .insert(customShellTrafficDailyFacts)
       .values([factRow("2026-08-05", "(other)", 500)])
 
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
 
     expect(overview.approximate).toBe(true)
     // The overflow bucket is a caveat, never a row.
@@ -115,7 +142,7 @@ describe("loadPagesOverview", () => {
       .insert(customShellTrafficDailyFacts)
       .values([factRow("2026-07-06", "(other)", 500)])
 
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
 
     expect(overview.approximate).toBe(false)
   })
@@ -123,25 +150,24 @@ describe("loadPagesOverview", () => {
 
 describe("changing who can see a page", () => {
   it("starts with every page open and nothing stored", async () => {
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
 
     expect(overview.rows.every((row) => row.visibility === "everyone")).toBe(
       true
     )
     // The point of the default: an install nobody has configured has no row
     // about pages at all.
-    expect((await readShellGlobals(database)).pages).toEqual({})
+    expect(await savedPageMap()).toEqual({})
   })
 
   it("saves a change and reads it back everywhere", async () => {
-    await setPageVisibility(
-      { path: "/pricing", visibility: "members" },
+    await setPageVisibility(site, { path: "/pricing", visibility: "members" },
       database
     )
 
-    expect(await readPageVisibility("/pricing", database)).toBe("members")
+    expect(await readPageVisibility(site, "/pricing", database)).toBe("members")
 
-    const overview = await loadPagesOverview(database, at)
+    const overview = await loadPagesOverview(site, database, at)
     const pricing = overview.rows.find((row) => row.path === "/pricing")
     expect(pricing?.visibility).toBe("members")
     // Everything else is untouched.
@@ -153,50 +179,70 @@ describe("changing who can see a page", () => {
   })
 
   it("forgets the page entirely when it goes back to everyone", async () => {
-    await setPageVisibility({ path: "/pricing", visibility: "off" }, database)
-    expect((await readShellGlobals(database)).pages).toEqual({
+    await setPageVisibility(site, { path: "/pricing", visibility: "off" }, database)
+    expect(await savedPageMap()).toEqual({
       "/pricing": { visibility: "off" },
     })
 
-    await setPageVisibility(
-      { path: "/pricing", visibility: "everyone" },
+    await setPageVisibility(site, { path: "/pricing", visibility: "everyone" },
       database
     )
 
     // Not `{ "/pricing": { visibility: "everyone" } }` — back to normal means
     // nothing stored, the same state as never having been touched.
-    expect((await readShellGlobals(database)).pages).toEqual({})
+    expect(await savedPageMap()).toEqual({})
   })
 
   it("refuses to hide a page the app cannot live without", async () => {
     // The screen greys these out; this is the same refusal on the server, so
     // a hand-made request cannot lock everyone out of their own app.
     await expect(
-      setPageVisibility({ path: "/login", visibility: "off" }, database)
+      setPageVisibility(site, { path: "/login", visibility: "off" }, database)
     ).rejects.toThrow("cannot be hidden")
 
-    expect(await readPageVisibility("/login", database)).toBe("everyone")
-    expect((await readShellGlobals(database)).pages).toEqual({})
+    expect(await readPageVisibility(site, "/login", database)).toBe("everyone")
+    expect(await savedPageMap()).toEqual({})
   })
 
   it("refuses an address no page declares", async () => {
     await expect(
-      setPageVisibility({ path: "/nope", visibility: "off" }, database)
+      setPageVisibility(site, { path: "/nope", visibility: "off" }, database)
     ).rejects.toThrow("no public page")
   })
 
-  it("leaves the other app-wide settings alone", async () => {
-    // This writes into the one row that holds every global, so the read-merge
-    // -write has to keep what it did not come to change.
-    const before = await readShellGlobals(database)
+  it("leaves the site's other settings alone", async () => {
+    // This writes into the one column that holds every setting a site has, so
+    // the read-merge-write has to keep what it did not come to change.
+    const [beforeRow] = await database
+      .select({ settings: customShellWorkspaces.settings })
+      .from(customShellWorkspaces)
+      .where(eq(customShellWorkspaces.id, site))
+      .limit(1)
+    const before = parseWorkspaceSettings(beforeRow?.settings)
 
-    await setPageVisibility({ path: "/pricing", visibility: "off" }, database)
+    await setPageVisibility(site, { path: "/pricing", visibility: "off" }, database)
 
-    const after = await readShellGlobals(database)
+    const [afterRow] = await database
+      .select({ settings: customShellWorkspaces.settings })
+      .from(customShellWorkspaces)
+      .where(eq(customShellWorkspaces.id, site))
+      .limit(1)
+    const after = parseWorkspaceSettings(afterRow?.settings)
     expect({ ...after, pages: before.pages }).toEqual(before)
   })
 
+  it("hides a page on one site and leaves the other site's alone", async () => {
+    // The reason this moved off the app-wide settings row: keyed by the bare
+    // address, one site closing its pricing page closed every site's.
+    const other = (await insertWorkspace(database)).id
+
+    await setPageVisibility(site, { path: "/pricing", visibility: "off" }, database)
+
+    expect(await readPageVisibility(site, "/pricing", database)).toBe("off")
+    expect(await readPageVisibility(other, "/pricing", database)).toBe("everyone")
+  })
+
   it("answers everyone for an address that is not a page at all", async () => {
-    expect(await readPageVisibility("/admin/pages", database)).toBe("everyone")
+    expect(await readPageVisibility(site, "/admin/pages", database)).toBe("everyone")
   })
 })

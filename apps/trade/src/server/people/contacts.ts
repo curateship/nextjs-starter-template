@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm"
 
 import type { SegmentRules } from "@/lib/contacts/contact-segments"
 import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
@@ -7,6 +18,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
   customShellUsers,
+  customShellWorkspaces,
   type CustomShellContact,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
@@ -25,12 +37,23 @@ function splitName(name: string) {
 }
 
 /**
- * Makes the contacts list match the accounts on the app.
+ * Makes a site's contacts list match **that site's** people.
  *
- * Every account that is not on its way out gets a contact, and one that is
- * already there has its address, name and role tag brought back into line —
- * the account is the truth about all three, so somebody changing their email
- * does not leave the newsletter mailing the old one.
+ * Every account belonging to this site that is not on its way out gets a
+ * contact, and one that is already there has its address, name and role tag
+ * brought back into line — the account is the truth about all three, so
+ * somebody changing their email does not leave the newsletter mailing the old
+ * one.
+ *
+ * **It used to take every account on the deployment.** With one site that was
+ * merely surprising; with several it copied the whole user table into each
+ * one's list, so Alpha's newsletter went to Beta's customers. That is a leak
+ * between customers, and it is the reason this function's shape changed.
+ *
+ * Belonging is the same rule the rest of the shell uses: the site somebody is
+ * pointed at, which sign-in sets from the domain they arrived on. Somebody
+ * pointed nowhere belongs to the deployment's only site — on an app with one
+ * site that is everybody, which is exactly how this behaved before.
  *
  * Two things it deliberately will not touch:
  *
@@ -44,6 +67,22 @@ export async function syncContactsFromUsers(
   workspaceId: string,
   database: CustomShellDb = db
 ) {
+  // Which site an unpointed person counts as belonging to. Read once: the
+  // answer is the same for every row in the query below.
+  const [oldest] = await database
+    .select({ id: customShellWorkspaces.id })
+    .from(customShellWorkspaces)
+    .orderBy(asc(customShellWorkspaces.createdAt))
+    .limit(1)
+
+  const belongsHere =
+    oldest?.id === workspaceId
+      ? or(
+          eq(customShellUsers.currentWorkspaceId, workspaceId),
+          isNull(customShellUsers.currentWorkspaceId)
+        )
+      : eq(customShellUsers.currentWorkspaceId, workspaceId)
+
   const users = await database
     .select({
       id: customShellUsers.id,
@@ -52,8 +91,13 @@ export async function syncContactsFromUsers(
       role: customShellUsers.role,
     })
     .from(customShellUsers)
-    // Somebody on their way out is not somebody to email.
-    .where(ne(customShellUsers.status, "pending_deletion"))
+    .where(
+      and(
+        // Somebody on their way out is not somebody to email.
+        ne(customShellUsers.status, "pending_deletion"),
+        belongsHere
+      )
+    )
 
   if (users.length === 0) return { added: 0, updated: 0 }
 

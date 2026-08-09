@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { requireUser, isAdmin } from "@/server/auth/security"
 import { adminPost, userGet } from "@/server/guards"
+import {
+  findWorkspaceIdForRequest,
+  workspaceIdForRequest,
+} from "@/server/workspaces/for-request"
 import { listPublishedChangelogEntries, serializeChangelogEntry, listChangelogEntries, createChangelogEntry, updateChangelogEntry, deleteChangelogEntries } from "@/server/content/changelog"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
@@ -43,8 +47,14 @@ export type ChangelogEntryFormInput = z.input<typeof entryInputSchema>
  */
 const listFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async (): Promise<{ entries: ChangelogEntry[] }> => {
-    const entries = await listPublishedChangelogEntries(CHANGELOG_PAGE_LIMIT)
+  .handler(async ({ context }): Promise<{ entries: ChangelogEntry[] }> => {
+    const workspaceId = await findWorkspaceIdForRequest(context.user.id)
+    if (!workspaceId) return { entries: [] }
+
+    const entries = await listPublishedChangelogEntries(
+      workspaceId,
+      CHANGELOG_PAGE_LIMIT
+    )
     return { entries: entries.map(serializeChangelogEntry) }
   })
 
@@ -58,7 +68,9 @@ const listAdminFn = createServerFn({ method: "GET" }).handler(
     const user = await requireUser()
     if (!isAdmin(user)) return { entries: null }
 
-    const entries = await listChangelogEntries()
+    const entries = await listChangelogEntries(
+      await workspaceIdForRequest(user.id)
+    )
     return { entries: entries.map(serializeChangelogEntry) }
   }
 )
@@ -66,8 +78,13 @@ const listAdminFn = createServerFn({ method: "GET" }).handler(
 const createEntryFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(entryInputSchema)
-  .handler(async ({ data }): Promise<ChangelogEntry> => {
-    return serializeChangelogEntry(await createChangelogEntry(data))
+  .handler(async ({ data, context }): Promise<ChangelogEntry> => {
+    return serializeChangelogEntry(
+      await createChangelogEntry(
+        await workspaceIdForRequest(context.user.id),
+        data
+      )
+    )
   })
 
 const updateEntryFn = createServerFn({ method: "POST" })
@@ -75,9 +92,13 @@ const updateEntryFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({ entryId: z.string().min(1).max(36), entry: entryInputSchema })
   )
-  .handler(async ({ data }): Promise<ChangelogEntry> => {
+  .handler(async ({ data, context }): Promise<ChangelogEntry> => {
     return serializeChangelogEntry(
-      await updateChangelogEntry(data.entryId, data.entry)
+      await updateChangelogEntry(
+        await workspaceIdForRequest(context.user.id),
+        data.entryId,
+        data.entry
+      )
     )
   })
 
@@ -88,8 +109,11 @@ const deleteEntriesFn = createServerFn({ method: "POST" })
       entryIds: z.array(z.string().min(1).max(36)).min(1).max(200),
     })
   )
-  .handler(async ({ data }): Promise<{ count: number }> => {
-    return deleteChangelogEntries(data.entryIds)
+  .handler(async ({ data, context }): Promise<{ count: number }> => {
+    return deleteChangelogEntries(
+      await workspaceIdForRequest(context.user.id),
+      data.entryIds
+    )
   })
 
 export function loadChangelog() {

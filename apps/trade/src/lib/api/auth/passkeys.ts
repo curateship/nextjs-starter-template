@@ -180,7 +180,7 @@ const finishPasskeySignInFn = createServerFn({ method: "POST" })
     await purgeExpiredDeletions()
 
     const token = await startSessionWithAlert(user, describeRequestOrigin())
-    await startWorkspaceFor(user.id)
+    await startWorkspaceFor(user)
 
     setSessionCookie(token)
     return serializeUser(user)

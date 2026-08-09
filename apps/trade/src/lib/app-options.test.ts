@@ -3,7 +3,15 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { z } from "zod"
 
-import { appAutomationNodes, landingPageOverride } from "@/lib/app-options"
+import {
+  appAutomationNodes,
+  catchAllOverride,
+  landingPageOverride,
+  mayHaveWorkspace,
+  whoMayHaveWorkspaces,
+  capitalise,
+  workspaceWord,
+} from "@/lib/app-options"
 import { defineNode } from "@/lib/automations/node-descriptor"
 
 /**
@@ -52,6 +60,13 @@ describe("an option nobody set means what the shell always did", () => {
   it("adds no automation steps of its own", () => {
     expect(appAutomationNodes({})).toEqual([])
   })
+
+  it("leaves the catch-all to the written pages", () => {
+    // Null is what `$.tsx` checks for before it asks anything of the app, so
+    // this is the difference between "written pages as always" and an app
+    // getting first refusal on every address in the app.
+    expect(catchAllOverride({})).toBeNull()
+  })
 })
 
 describe("an app's answer wins", () => {
@@ -63,6 +78,14 @@ describe("an app's answer wins", () => {
   it("hands over the app's own automation steps", () => {
     const nodes = [testNode("sendSms")]
     expect(appAutomationNodes({ automations: { nodes } })).toBe(nodes)
+  })
+
+  it("hands over the catch-all", () => {
+    const catchAll = {
+      loader: async () => null,
+      Component: () => null,
+    }
+    expect(catchAllOverride({ pages: { catchAll } })).toBe(catchAll)
   })
 })
 
@@ -89,5 +112,55 @@ describe("the app's options file stays on its own side of the line", () => {
     // line, and everything it holds reaches the database. Importing it from
     // here would drag all of that into the browser bundle by the back door.
     expect(source()).not.toContain("@/app/server-options")
+  })
+})
+
+describe("who may have a workspace", () => {
+  const admin = { role: "admin" }
+  const member = { role: "member" }
+
+  it("means admins when the app has not said otherwise", () => {
+    // The one option whose default is deliberately **not** what the shell did
+    // before it existed — the old answer was everybody, and that was the hole.
+    expect(whoMayHaveWorkspaces({})).toBe("admins")
+    expect(mayHaveWorkspace(admin, {})).toBe(true)
+    expect(mayHaveWorkspace(member, {})).toBe(false)
+  })
+
+  it("closes the door on everybody when an app is one site", () => {
+    const off = { workspaces: { whoMayHave: "off" as const } }
+
+    expect(mayHaveWorkspace(admin, off)).toBe(false)
+    expect(mayHaveWorkspace(member, off)).toBe(false)
+  })
+
+  it("opens it to members only when an app asks for that", () => {
+    const everyone = { workspaces: { whoMayHave: "everyone" as const } }
+
+    expect(mayHaveWorkspace(member, everyone)).toBe(true)
+    expect(mayHaveWorkspace(admin, everyone)).toBe(true)
+  })
+
+  it("refuses somebody who is not signed in at all", () => {
+    expect(mayHaveWorkspace(null, { workspaces: { whoMayHave: "everyone" } })).toBe(
+      false
+    )
+  })
+})
+
+describe("what an app calls a workspace", () => {
+  it("says workspace when the app has not renamed it", () => {
+    expect(workspaceWord({})).toEqual({ one: "workspace", many: "workspaces" })
+  })
+
+  it("uses the app's own word where somebody can see it", () => {
+    const word = workspaceWord({
+      workspaces: { word: { one: "site", many: "sites" } },
+    })
+
+    expect(word.one).toBe("site")
+    // Written lower case and raised where a heading needs it, so an app never
+    // has to write the same word twice in two shapes.
+    expect(capitalise(word.many)).toBe("Sites")
   })
 })

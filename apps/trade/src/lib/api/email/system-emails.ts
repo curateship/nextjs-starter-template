@@ -14,6 +14,7 @@ import {
 } from "@/lib/system-emails/kinds"
 import { sendAuthEmail } from "@/server/email/send"
 import { adminGet, adminPost } from "@/server/guards"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import {
   getSystemEmail as getSystemEmailRow,
   listSystemEmailSends as listSends,
@@ -21,7 +22,7 @@ import {
   updateSystemEmail as saveSystemEmail,
 } from "@/server/email/system-emails"
 import {
-  getOrCreateCurrentWorkspace,
+  requireCurrentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
 import { appUrlFor } from "@/server/app-url"
@@ -90,8 +91,10 @@ const kindSchema = z.object({ kind: systemEmailKindSchema })
 
 const loadSystemEmailsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async (): Promise<SystemEmailListItem[]> => {
-    const rows = await listSystemEmails()
+  .handler(async ({ context }): Promise<SystemEmailListItem[]> => {
+    const rows = await listSystemEmails(
+      await workspaceIdForRequest(context.user.id)
+    )
     return rows.map((row) => ({
       kind: row.kind,
       subject: row.subject,
@@ -111,13 +114,16 @@ const getSystemEmailFn = createServerFn({ method: "GET" })
     // list saying "edited today" about emails nobody has touched. Unsaved, the
     // built-in wording is handed over as-is and the row appears on the first
     // real change — see `updateSystemEmail`.
-    const row = await getSystemEmailRow(data.kind)
+    const row = await getSystemEmailRow(
+      await workspaceIdForRequest(context.user.id),
+      data.kind
+    )
     if (row) return toDetail(data.kind, row)
 
     // An email nobody has saved starts from the workspace's saved block
     // setups, so its header and footer open already carrying the logo and
     // company lines every other email uses.
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     return {
       kind: data.kind,
       subject: SYSTEM_EMAIL_META[data.kind].defaults.subject,
@@ -140,9 +146,16 @@ const updateSystemEmailFn = createServerFn({ method: "POST" })
       blocks: broadcastBlocksSchema.optional(),
     })
   )
-  .handler(async ({ data }): Promise<SystemEmailDetail> => {
+  .handler(async ({ data, context }): Promise<SystemEmailDetail> => {
     const { kind, ...fields } = data
-    return toDetail(kind, await saveSystemEmail(kind, fields))
+    return toDetail(
+      kind,
+      await saveSystemEmail(
+        await workspaceIdForRequest(context.user.id),
+        kind,
+        fields
+      )
+    )
   })
 
 const loadSystemEmailSendsFn = createServerFn({ method: "GET" })
@@ -153,11 +166,12 @@ const loadSystemEmailSendsFn = createServerFn({ method: "GET" })
       offset: z.number().int().min(0).optional(),
     })
   )
-  .handler(async ({ data }): Promise<SystemEmailSendsPage> => {
-    const { sends, hasMore } = await listSends(data.kind, {
-      limit: data.limit,
-      offset: data.offset,
-    })
+  .handler(async ({ data, context }): Promise<SystemEmailSendsPage> => {
+    const { sends, hasMore } = await listSends(
+      await workspaceIdForRequest(context.user.id),
+      data.kind,
+      { limit: data.limit, offset: data.offset }
+    )
     return {
       sends: sends.map((send) => ({
         id: send.id,

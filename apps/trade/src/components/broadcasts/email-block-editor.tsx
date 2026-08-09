@@ -39,9 +39,13 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { panelLayoutKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import {
+  panelLayoutKey,
+  useRememberedPanelLayout,
+} from "@/lib/layout/panel-layout"
 import { cn } from "@/lib/utils"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
@@ -147,13 +151,14 @@ export function EmailBlockEditor({
   /** The last card in the email settings panel — audience, or placeholders. */
   settingsExtra?: React.ReactNode
   /** Top-right of the canvas. Given a flush, so it can save before it acts. */
-  headerAction?: (saveNow: () => Promise<void>) => React.ReactNode
+  headerAction?: (saveNow: () => Promise<boolean>) => React.ReactNode
   bottomPanel: React.ReactNode
-  layout?: "broadcast" | "systemEmail"
-  onSave: (fields: EmailEditableFields) => Promise<void>
+  layout?: "broadcast" | "systemEmail" | "automationEmail"
+  onSave: (fields: EmailEditableFields) => Promise<void | boolean>
 }) {
   const { reportSaveStatus } = useShellRuntime()
-  const [fields, setFields] = React.useState<EmailEditableFields>(incomingFields)
+  const [fields, setFields] =
+    React.useState<EmailEditableFields>(incomingFields)
   const [selectedBlockId, setSelectedBlockId] = React.useState<string | null>(
     null
   )
@@ -176,7 +181,8 @@ export function EmailBlockEditor({
   const [templatesVersion, setTemplatesVersion] = React.useState(0)
   // Which width the sheet is drawn at. A view of the same email, not a setting
   // on it, so it is not saved and not part of what gets sent.
-  const [previewWidth, setPreviewWidth] = React.useState<PreviewWidth>("desktop")
+  const [previewWidth, setPreviewWidth] =
+    React.useState<PreviewWidth>("desktop")
 
   // Known before the first render on the server too, so the editor opens in the
   // layout it is going to keep rather than painting the narrow one and
@@ -190,17 +196,25 @@ export function EmailBlockEditor({
   const horizontalLayout = useRememberedPanelLayout(
     layout === "broadcast"
       ? panelLayoutKey.broadcastEditorHorizontal
-      : panelLayoutKey.systemEmailEditorHorizontal
+      : layout === "systemEmail"
+        ? panelLayoutKey.systemEmailEditorHorizontal
+        : panelLayoutKey.automationEmailEditorHorizontal
   )
   const verticalLayout = useRememberedPanelLayout(
     layout === "broadcast"
       ? panelLayoutKey.broadcastEditorVertical
-      : panelLayoutKey.systemEmailEditorVertical
+      : layout === "systemEmail"
+        ? panelLayoutKey.systemEmailEditorVertical
+        : panelLayoutKey.automationEmailEditorVertical
   )
 
   const togglePalette = usePanelToggle(palettePanelRef)
   const toggleInspector = usePanelToggle(inspectorPanelRef)
   const toggleBottom = usePanelToggle(bottomPanelRef)
+
+  // Shut, the bottom panel is exactly its own header, and the header's line
+  // would sit on top of the panel's bottom edge. See `headerOnly`.
+  const bottomShut = usePanelCollapsed(bottomPanelRef)
 
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
@@ -232,7 +246,7 @@ export function EmailBlockEditor({
     }
     const snapshot = latestRef.current
     const serialized = serialize(snapshot)
-    if (serialized === lastSavedRef.current) return
+    if (serialized === lastSavedRef.current) return true
 
     const version = saveVersionRef.current + 1
     saveVersionRef.current = version
@@ -247,14 +261,20 @@ export function EmailBlockEditor({
     )
 
     try {
-      await save
+      const saved = await save
+      if (saved === false) {
+        if (version === saveVersionRef.current) setSaveStatus("idle")
+        return false
+      }
       lastSavedRef.current = serialized
       if (version === saveVersionRef.current) setSaveStatus("saved")
+      return true
     } catch (error) {
       if (version === saveVersionRef.current) {
         setSaveStatus("idle")
         showErrorToast(getBroadcastErrorMessage(error))
       }
+      return false
     }
   }, [serialize])
 
@@ -326,7 +346,8 @@ export function EmailBlockEditor({
   // clears the canvas selection, and picking a block on the canvas clears this.
   const selectedBlock =
     previewBlock ??
-    (fields.blocks.find((block) => block.id === selectedBlockId) ?? null)
+    fields.blocks.find((block) => block.id === selectedBlockId) ??
+    null
 
   /** Puts the canvas selection somewhere, and drops any preview on the way. */
   const selectBlock = React.useCallback((blockId: string | null) => {
@@ -475,7 +496,9 @@ export function EmailBlockEditor({
       disabled={!editable}
       onSelect={selectBlock}
       onOpenSettings={() => selectBlock(null)}
-      onReorder={(blocks) => changeFields((current) => ({ ...current, blocks }))}
+      onReorder={(blocks) =>
+        changeFields((current) => ({ ...current, blocks }))
+      }
       onInsert={insertBlock}
       onDuplicate={duplicateBlock}
       onDelete={removeBlock}
@@ -638,8 +661,12 @@ export function EmailBlockEditor({
             maxSize="60%"
             collapsible
             collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+            onResize={bottomShut.onResize}
           >
-            <WorkspacePanel onDoubleClick={bottomDoubleClick}>
+            <WorkspacePanel
+              onDoubleClick={bottomDoubleClick}
+              headerOnly={bottomShut.collapsed}
+            >
               {bottomPanel}
             </WorkspacePanel>
           </ResizablePanel>

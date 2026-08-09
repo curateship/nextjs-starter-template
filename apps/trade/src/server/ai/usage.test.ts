@@ -7,6 +7,7 @@ import {
   checkAiAllowance,
   loadAiUsageDashboard,
   loadMyAiUsage,
+  recordDeferredAiSuccess,
   recordAiUsage,
   runAiCall,
   setAiAllowanceOverride,
@@ -88,6 +89,45 @@ describe("runAiCall", () => {
     // By hand: 200k in at $5/M = $1.00, 10k out at $25/M = $0.25 → 125 cents.
     expect(row.costCents).toBe(125)
     expect(row.monthStart).toBe(aiUsageMonthStart(new Date()))
+  })
+
+  it("prices work charged by what it makes, and keeps the count beside it", async () => {
+    await runAiCall(
+      {
+        userId: "user-1",
+        provider: "elevenlabs",
+        model: "eleven_multilingual_v2",
+        feature: "voiceover",
+      },
+      async () => ({
+        result: "spoken",
+        // No tokens to count: 10,000 characters were read aloud.
+        usage: { inputTokens: 0, outputTokens: 0, units: 10_000 },
+      })
+    )
+
+    const [row] = await allRows()
+    // By hand: 10,000 characters at $0.15 per 1,000 → $1.50 → 150 cents.
+    expect(row.costCents).toBe(150)
+    expect(row.inputTokens).toBe(0)
+    expect(row.metadata.units).toBe(10_000)
+  })
+
+  it("records a completed background job only when its result is ready", async () => {
+    await recordDeferredAiSuccess(
+      {
+        userId: "user-1",
+        provider: "gemini",
+        model: "veo-3.1-generate-preview",
+        feature: "video-generation",
+      },
+      { inputTokens: 0, outputTokens: 0, units: 4 }
+    )
+
+    const [row] = await allRows()
+    expect(row.status).toBe("success")
+    expect(row.costCents).toBe(160)
+    expect(row.metadata.units).toBe(4)
   })
 
   it("writes exactly one failed row when the call throws, then rethrows", async () => {

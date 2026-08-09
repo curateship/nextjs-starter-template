@@ -151,6 +151,7 @@ export function SegmentRuleBuilder({
     </>
   )
 }
+
 /**
  * One rule, in a card of its own.
  *
@@ -465,4 +466,5 @@ function OperatorSelect({
     </Select>
   )
 }
+
 

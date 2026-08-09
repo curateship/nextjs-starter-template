@@ -103,29 +103,45 @@ function toWrittenPage(row: {
 }
 
 export async function listWrittenPages(
+  workspaceId: string,
   database: CustomShellDb = db
 ): Promise<WrittenPage[]> {
   const rows = await database
     .select()
     .from(customShellWrittenPages)
+    .where(eq(customShellWrittenPages.workspaceId, workspaceId))
     .orderBy(asc(customShellWrittenPages.path))
   return rows.map(toWrittenPage)
 }
 
-/** One page by address, or null — what the public route asks. */
+/**
+ * One page by address on one site, or null — what the public route asks.
+ *
+ * The site comes first because it is what makes the address mean anything: the
+ * same `/about` is a different page on each domain the deployment answers, and
+ * a lookup that left the site out would hand whichever one it found first to
+ * every visitor.
+ */
 export async function findWrittenPage(
+  workspaceId: string,
   path: string,
   database: CustomShellDb = db
 ): Promise<WrittenPage | null> {
   const [row] = await database
     .select()
     .from(customShellWrittenPages)
-    .where(eq(customShellWrittenPages.path, normalizeWrittenPagePath(path)))
+    .where(
+      and(
+        eq(customShellWrittenPages.workspaceId, workspaceId),
+        eq(customShellWrittenPages.path, normalizeWrittenPagePath(path))
+      )
+    )
     .limit(1)
   return row ? toWrittenPage(row) : null
 }
 
 async function pathIsTaken(
+  workspaceId: string,
   path: string,
   exceptId: string | null,
   database: CustomShellDb
@@ -134,18 +150,18 @@ async function pathIsTaken(
     .select({ id: customShellWrittenPages.id })
     .from(customShellWrittenPages)
     .where(
-      exceptId
-        ? and(
-            eq(customShellWrittenPages.path, path),
-            ne(customShellWrittenPages.id, exceptId)
-          )
-        : eq(customShellWrittenPages.path, path)
+      and(
+        eq(customShellWrittenPages.workspaceId, workspaceId),
+        eq(customShellWrittenPages.path, path),
+        exceptId ? ne(customShellWrittenPages.id, exceptId) : undefined
+      )
     )
     .limit(1)
   return Boolean(row)
 }
 
 export async function createWrittenPage(
+  workspaceId: string,
   input: { path: string; title: string; body: unknown },
   database: CustomShellDb = db
 ): Promise<WrittenPage> {
@@ -156,7 +172,7 @@ export async function createWrittenPage(
   const title = input.title.trim().slice(0, MAX_WRITTEN_PAGE_TITLE)
   if (!title) throw new Error("A page needs a title.")
 
-  if (await pathIsTaken(path, null, database)) {
+  if (await pathIsTaken(workspaceId, path, null, database)) {
     throw new Error(`Another page already answers on ${path}.`)
   }
 
@@ -165,6 +181,7 @@ export async function createWrittenPage(
     .insert(customShellWrittenPages)
     .values({
       id: uuid(),
+      workspaceId,
       path,
       title,
       body: cleanWrittenPageBody(input.body),
@@ -178,6 +195,7 @@ export async function createWrittenPage(
 }
 
 export async function updateWrittenPage(
+  workspaceId: string,
   id: string,
   input: { path?: string; title?: string; body?: unknown },
   database: CustomShellDb = db
@@ -188,7 +206,7 @@ export async function updateWrittenPage(
     const path = normalizeWrittenPagePath(input.path)
     const problem = writtenPagePathProblem(path)
     if (problem) throw new Error(problem)
-    if (await pathIsTaken(path, id, database)) {
+    if (await pathIsTaken(workspaceId, path, id, database)) {
       throw new Error(`Another page already answers on ${path}.`)
     }
     values.path = path
@@ -205,7 +223,14 @@ export async function updateWrittenPage(
   const [row] = await database
     .update(customShellWrittenPages)
     .set(values)
-    .where(eq(customShellWrittenPages.id, id))
+    // Another site's page is simply not found, rather than refused: a site
+    // nobody is in should not be able to confirm what it holds.
+    .where(
+      and(
+        eq(customShellWrittenPages.id, id),
+        eq(customShellWrittenPages.workspaceId, workspaceId)
+      )
+    )
     .returning()
 
   if (!row) throw new Error("That page no longer exists.")
@@ -213,12 +238,18 @@ export async function updateWrittenPage(
 }
 
 export async function deleteWrittenPage(
+  workspaceId: string,
   id: string,
   database: CustomShellDb = db
 ): Promise<{ path: string }> {
   const [row] = await database
     .delete(customShellWrittenPages)
-    .where(eq(customShellWrittenPages.id, id))
+    .where(
+      and(
+        eq(customShellWrittenPages.id, id),
+        eq(customShellWrittenPages.workspaceId, workspaceId)
+      )
+    )
     .returning({ path: customShellWrittenPages.path })
 
   if (!row) throw new Error("That page no longer exists.")

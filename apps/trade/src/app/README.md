@@ -12,6 +12,10 @@ file, so there is nothing to reconcile.
 - `options.ts` — the app's answers. Catalogue: `src/lib/app-options.ts`.
 - `server-options.ts` — the answers that only run on the server. Catalogue:
   `src/server/app-options.ts`.
+- `open-endpoints.ts` — the app's own entries in the guard test's exception
+  lists, for an endpoint of the app's that has to be reachable by somebody who
+  is not signed in. Read by `src/server/guards.test.ts`, which applies every
+  check it applies to its own entries.
 
 Two files because of one line: everything in `options.ts` can be seen by the
 browser, and everything in `server-options.ts` never is. Drawing and wording go
@@ -25,9 +29,16 @@ an app can deviate from it. Need something that is not on offer? Add it to
 custom-shell first, defaulting to today's behaviour — the procedure is in
 `apps/custom-shell/CLAUDE.md`.
 
+A public page the app adds is a new route plus a `*.page.ts` beside it, and it
+belongs in `src/routes` like any other — no option, no entry in this folder.
+**Write `source: "app"` in that declaration.** Nothing can work it out
+otherwise, since the app's pages and the shell's share one folder, and it is
+what makes the Pages screen say which of them is yours. Leaving it out only
+costs you the label.
+
 New server functions still go in `src/lib/api/`, never here: the guard test only
 walks that folder, so an endpoint declared in this one would be an unguarded
 door nobody is told about.
 
-**In custom-shell itself both files stay empty forever.** A value here would make
-every app ever copied from the shell conflict on it on every merge.
+**In custom-shell itself all three files stay empty forever.** A value here would
+make every app ever copied from the shell conflict on it on every merge.

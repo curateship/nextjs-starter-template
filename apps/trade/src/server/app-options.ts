@@ -20,6 +20,66 @@ import type { AutomationExecutor } from "@/server/automations/executors"
 export type AppServerOptions = {
   automations?: AutomationServerOptions
   background?: BackgroundServerOptions
+  security?: SecurityServerOptions
+  auth?: AuthServerOptions
+}
+
+type SecurityServerOptions = {
+  /**
+   * Extra addresses this app answers form posts from.
+   *
+   * Every write checks that the browser sending it was on a page of this app,
+   * and the list of what counts is `CUSTOM_SHELL_APP_ORIGINS` — one flat set of
+   * exact addresses, decided before the app starts. That is right for an app
+   * with one address and impossible for an app whose addresses live in a table:
+   * one deployment answering on many domains cannot name them in an
+   * environment variable that a deploy would have to change.
+   *
+   * So the check asks here when its own list misses. Answer `true` only for an
+   * address this app really does serve — saying yes to a stranger's domain
+   * hands them the right to make writes from their own pages using a signed-in
+   * visitor's session, which is the whole attack the check exists to stop.
+   *
+   * **This has to be synchronous.** The check that calls it is not awaited
+   * anywhere, so a promise would be truthy on arrival and every origin would
+   * pass. Look the answer up in memory — a cache the app fills when it saves,
+   * never a database read from here.
+   */
+  isTrustedOrigin?: (origin: string) => boolean
+}
+
+/** Somebody made an account, or somebody signed in. */
+export type AppAuthEvent = {
+  kind: "register" | "signin"
+  userId: string
+}
+
+type AuthServerOptions = {
+  /**
+   * Called when an account is made and every time one is signed in to.
+   *
+   * The shell owns signing in and is not open to being changed; this is the
+   * app being *told*, after the fact, so it can do its own work — greet
+   * somebody, give them starter content, record which of the app's own areas
+   * they arrived through. The request is still in hand, so anything about it
+   * that matters has to be read now.
+   *
+   * Both moments fire, because they are genuinely different and neither
+   * implies the other: making an account starts no session (a verification
+   * email has to be answered first), and most sign-ins are by people whose
+   * account was made long ago.
+   *
+   * It runs on **every** sign-in, so make it safe to run again — the second
+   * time and the hundredth should change nothing the first did not.
+   *
+   * A failure is logged and swallowed, never passed on. By the time this runs
+   * the account exists or the session does, and neither can be taken back: a
+   * throw here would show an error to somebody whose sign-in actually worked,
+   * or fail a registration that already made the account and cannot be retried.
+   * The shell holds the same line for its own security emails — see
+   * `src/server/auth/security-alerts.ts`.
+   */
+  onAuthEvent?: (event: AppAuthEvent) => Promise<void>
 }
 
 /**
@@ -100,4 +160,48 @@ export function appBackgroundWorkers(
   options: AppServerOptions = appServerOptions
 ): readonly AppBackgroundWorker[] {
   return options.background?.workers ?? []
+}
+
+/**
+ * Whether the app vouches for an address the origin check did not recognise.
+ *
+ * No by default, which is the shell's own answer today: only the configured
+ * addresses pass. Deliberately not awaited — see the option's own note.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appTrustsOrigin(
+  origin: string,
+  options: AppServerOptions = appServerOptions
+): boolean {
+  return options.security?.isTrustedOrigin?.(origin) ?? false
+}
+
+/**
+ * Tells the app somebody registered or signed in, and never lets it get in the
+ * way of either.
+ *
+ * The swallow is here rather than at the two call sites so the rule is written
+ * once: by the time this runs the account or the session already exists, and a
+ * throw would break something that genuinely worked. Logged, because a hook
+ * that quietly stops running is a bug nobody would find.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export async function notifyAppAuthEvent(
+  event: AppAuthEvent,
+  options: AppServerOptions = appServerOptions
+): Promise<void> {
+  const handler = options.auth?.onAuthEvent
+  if (!handler) return
+
+  try {
+    await handler(event)
+  } catch (error) {
+    console.error(`app auth hook failed for ${event.kind}`, error)
+  }
 }
