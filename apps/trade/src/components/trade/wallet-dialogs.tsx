@@ -93,7 +93,7 @@ function KindChoice({
             "rounded-lg border p-3 text-left transition-colors",
             kind === option.id
               ? "border-foreground/60 bg-muted/50"
-              : "border-foreground/10 hover:bg-muted/30"
+              : "hover:bg-muted/30"
           )}
         >
           <span className="block text-sm font-medium">{option.label}</span>

@@ -313,18 +313,18 @@ export function TradeWorkspace({
     />
   )
 
+  const marketRows = catalogs.flatMap((catalog) => catalog.rows)
+
   const middle = (
     // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
     // a width to fill it shrinks to its content.
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
       <MarketHeader
         selection={selection}
-        // One star, on the market you are looking at, rather than one per row
-        // hiding until hover.
-        favorite={selectedKey !== null && favorites.has(selectedKey)}
-        onToggleFavorite={() => {
-          if (selectedKey) void toggleFavorite(selectedKey)
-        }}
+        markets={marketRows}
+        favorites={favorites}
+        onToggleFavorite={(key) => void toggleFavorite(key)}
+        onSelectMarket={onSelectMarket}
         // The chart's own controls live in the header row; they only make
         // sense once there is a market to chart. Indicators sit to the right
         // of the timeframe: which candles first, then what to draw on them.

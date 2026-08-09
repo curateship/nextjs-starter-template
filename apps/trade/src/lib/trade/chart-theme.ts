@@ -10,7 +10,14 @@
 
 export type ChartColors = {
   text: string
+  /** The chart's own rules. Faint on purpose: they sit under the candles. */
   grid: string
+  /**
+   * The two lines fencing off the price and time axes. Read from the theme's
+   * border token, the same one every other divider in the app takes, so the
+   * Styling settings' Divider lines colour reaches the chart's edges too.
+   */
+  border: string
   up: string
   down: string
   upSoft: string
@@ -32,6 +39,7 @@ export function readChartColors(host: HTMLElement): ChartColors {
   return {
     text: resolve("text-muted-foreground"),
     grid: withAlpha(resolve("text-foreground"), 0.08),
+    border: resolve("text-border"),
     up,
     down,
     upSoft: withAlpha(up, 0.4),

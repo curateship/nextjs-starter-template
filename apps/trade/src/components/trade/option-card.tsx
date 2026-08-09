@@ -56,7 +56,7 @@ export function OptionCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="grid gap-4 rounded-lg border border-foreground/5 bg-muted/30 p-3"
+      className="grid gap-4 rounded-lg border bg-muted/30 p-3"
     >
       <div className="flex items-center gap-2">
         {toggle ? (

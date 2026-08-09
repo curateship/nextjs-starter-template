@@ -476,8 +476,8 @@ export function PriceChart({
             ? CrosshairMode.Normal
             : CrosshairMode.Hidden,
         },
-        rightPriceScale: { borderColor: colors.grid },
-        timeScale: { borderColor: colors.grid, timeVisible: true },
+        rightPriceScale: { borderColor: colors.border },
+        timeScale: { borderColor: colors.border, timeVisible: true },
       })
 
       const price = chart.addSeries(CandlestickSeries, {
@@ -544,8 +544,8 @@ export function PriceChart({
               visible: optionsRef.current.grid,
             },
           },
-          rightPriceScale: { borderColor: next.grid },
-          timeScale: { borderColor: next.grid },
+          rightPriceScale: { borderColor: next.border },
+          timeScale: { borderColor: next.border },
         })
         price.applyOptions({
           upColor: next.up,

@@ -60,7 +60,7 @@ export function ChartOrderMenu({
       <div
         role="menu"
         aria-label="Order at this price"
-        className="fixed z-50 w-48 overflow-hidden rounded-md border border-foreground/10 bg-popover py-1 text-popover-foreground shadow-md"
+        className="fixed z-50 w-48 overflow-hidden rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
         style={{
           left: Math.min(menu.x, window.innerWidth - MENU_WIDTH),
           top: Math.min(menu.y, window.innerHeight - MENU_HEIGHT),
@@ -80,7 +80,7 @@ export function ChartOrderMenu({
           <>
             <div
               role="presentation"
-              className="mx-2 my-1 border-t border-foreground/10"
+              className="mx-2 my-1 border-t"
             />
             {/* A labelled group, not a stray heading: everything inside a menu
                 has to be a menu item or a group, or the heading reads as one. */}

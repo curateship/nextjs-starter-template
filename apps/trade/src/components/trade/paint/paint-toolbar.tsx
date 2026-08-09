@@ -62,7 +62,7 @@ export function PaintToolbar({
     // paint marker keeps a press in here from letting the picked line go.
     <div
       data-chart-paint
-      className="absolute top-2 left-2 z-20 flex flex-col gap-0.5 rounded-lg border border-foreground/10 bg-card/85 p-0.5 shadow-sm backdrop-blur-sm"
+      className="absolute top-2 left-2 z-20 flex flex-col gap-0.5 rounded-lg border bg-card/85 p-0.5 shadow-sm backdrop-blur-sm"
     >
       {TOOLS.map((entry) => (
         <Tooltip key={entry.kind}>

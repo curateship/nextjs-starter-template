@@ -334,7 +334,7 @@ function PositionRow({
       // one action, a target the width of the panel instead of six characters.
       // The buttons at the end keep their own clicks; see `column="actions"`.
       rowAction={() => onSelectMarket(position.marketKey)}
-      className="border-t border-foreground/5 hover:bg-muted/40"
+      className="border-t hover:bg-muted/40"
     >
       <MarketCell
         marketKey={position.marketKey}
@@ -634,7 +634,7 @@ export function OpenOrdersTable({
         {rows.map((order) => (
           <tr
             key={order.id}
-            className="border-t border-foreground/5 hover:bg-muted/40"
+            className="border-t hover:bg-muted/40"
           >
             <MarketCell
               marketKey={order.marketKey}
@@ -762,7 +762,7 @@ export function JournalTable({
         {rows.map((entry) => (
           <tr
             key={entry.id}
-            className="border-t border-foreground/5 hover:bg-muted/40"
+            className="border-t hover:bg-muted/40"
           >
             <MarketCell
               marketKey={entry.marketKey}

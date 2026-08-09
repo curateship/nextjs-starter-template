@@ -19,17 +19,18 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
 └───────────────────────────────────────────────┘
 ```
 
-- **Left — Markets.** The whole panel is the market list: which exchange it
-  comes from, search, five tabs, a sort, and a star on every row. Live exchange
-  data. (An earlier draft had a separate Favourites row below the list; it was
-  replaced by the Fav tab — two homes for one list is duplication.)
+- **Left — Markets.** The whole panel is the compact market list: which
+  exchange it comes from, search, tabs, and sorting. Live exchange data. (An
+  earlier draft had a separate Favourites row below the list; it was replaced
+  by the Fav tab — two homes for one list is duplication.)
 - **Middle — the market you picked.** One header row, nothing more: the
   market's own logo (carried as data on the row, with a first-letter circle
   when an exchange has no art), its name, and on the right the timeframe
   picker (1m–1d, remembered per browser, 4h the default) with the Indicators
-  dropdown after it. The live figures — price, day's move, volume, funding,
-  open interest, and which exchange and network — live behind the market's own
-  name, click or hover. Below,
+  dropdown after it. Pressing the market name opens the full market picker:
+  search; Favorites, All, Crypto, TradFi, HIP-3 and Trending tabs; sortable
+  price, day's move, funding, volume and open-interest columns; and a star on
+  every row. Below,
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Loading, no-history and failed-fetch
