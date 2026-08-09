@@ -9,7 +9,11 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
 import {
   addMediaToOwnedCollection,
   createOwnedCollection,
@@ -25,6 +29,7 @@ import { videoMediaCollectionItems } from "@/server/video/schema"
 let client: PGlite
 let database: CustomShellDb
 let user: CustomShellUser
+let workspaceId: string
 
 // serializeMedia builds public URLs, which need the R2 base — same pattern as
 // the shell's own tests.
@@ -40,6 +45,7 @@ beforeEach(async () => {
   client = testDb.client
   database = testDb.db
   user = await insertUser(database)
+  workspaceId = (await insertWorkspace(database, { userId: user.id })).id
 })
 
 afterEach(async () => {
@@ -60,6 +66,7 @@ async function insertMedia(
     .insert(customShellMedia)
     .values({
       id: uuid(),
+      workspaceId,
       userId: ownerId,
       filename: `${uuid()}.mp4`,
       originalName: "clip.mp4",

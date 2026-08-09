@@ -283,6 +283,24 @@ body.app-font {
 }
 
 /*
+ * A panel shut down to its own header draws one line along the bottom, not two.
+ *
+ * The header's line parts it from what is below; the panel's bottom edge closes
+ * the box. Open, they are far apart and both belong. Shut, the panel is exactly
+ * its header, so the two land one pixel apart and read as a single line of
+ * double thickness. The header's is the one that has nothing left to do.
+ *
+ * Written here rather than as a class on the header because the rule above sets
+ * these borders from the user's settings and would put the line straight back.
+ * Not scoped to `[data-content-styling]`: the doubling is the panel's own
+ * geometry and happens whether or not the styling wrapper is above it.
+ */
+[data-slot="workspace-panel"][data-header-only="true"]
+  [data-slot="workspace-panel-header"] {
+  border-bottom-width: 0;
+}
+
+/*
  * A dashboard card that fills a resizable panel needs the same treatment, and
  * for the same reason: its border is drawn OUTSIDE the box — a ring normally,
  * the box-shadow above once the Styling settings are in play — and the panel

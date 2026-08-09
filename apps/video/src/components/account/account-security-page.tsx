@@ -334,82 +334,88 @@ function PasskeysCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <TableSurface>
-          {loadError ? (
-            <ErrorBanner
-              message={loadError}
-              onRetry={() => setReloads((count) => count + 1)}
-            />
-          ) : !list ? (
-            <LoadingRow label="Loading…" className="min-h-56" />
-          ) : list.length === 0 ? (
-            <EmptyRow>No passkeys yet.</EmptyRow>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {/* Same treatment as the Devices table below: the modal is
-                      only as wide as a phone, so no 320px floor. */}
-                  <TableHead column="main" className="min-w-0">
-                    Name
-                  </TableHead>
-                  <TableHead column="meta" className="hidden sm:table-cell">
-                    Added
-                  </TableHead>
-                  <TableHead column="meta">Last used</TableHead>
-                  <TableHead column="meta" className="text-right">
-                    <span className="sr-only">Remove</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {list.map((passkey) => (
-                  <TableRow key={passkey.id}>
-                    <TableCell className="whitespace-normal">
-                      {passkey.name}
-                    </TableCell>
-                    <TableCell
-                      column="mutedMeta"
-                      className="hidden sm:table-cell"
-                      title={formatDateTime(passkey.createdAt)}
-                    >
-                      {formatTimeAgo(passkey.createdAt)}
-                    </TableCell>
-                    <TableCell
-                      column="mutedMeta"
-                      title={
-                        passkey.lastUsedAt
-                          ? formatDateTime(passkey.lastUsedAt)
-                          : undefined
-                      }
-                    >
-                      {passkey.lastUsedAt
-                        ? formatTimeAgo(passkey.lastUsedAt)
-                        : "Never"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DisabledReason
-                        disabled={adding || removing}
-                        reason="Wait for the current passkey action to finish."
-                      >
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={adding || removing}
-                          aria-label={`Remove ${passkey.name}`}
-                          onClick={() => setPendingRemove(passkey)}
-                        >
-                          <Trash2Icon className="size-4" />
-                        </Button>
-                      </DisabledReason>
-                    </TableCell>
+        {/* The failure is raised outside the surface rather than inside it.
+            The banner is a toast and draws nothing here, so a surface holding
+            only it is an empty box still wearing its one-pixel ring — which
+            paints as a stray hairline, not as nothing. */}
+        {loadError ? (
+          <ErrorBanner
+            message={loadError}
+            onRetry={() => setReloads((count) => count + 1)}
+          />
+        ) : (
+          <TableSurface>
+            {!list ? (
+              <LoadingRow label="Loading…" className="min-h-56" />
+            ) : list.length === 0 ? (
+              <EmptyRow>No passkeys yet.</EmptyRow>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {/* Same treatment as the Devices table below: the modal is
+                        only as wide as a phone, so no 320px floor. */}
+                    <TableHead column="main" className="min-w-0">
+                      Name
+                    </TableHead>
+                    <TableHead column="meta" className="hidden sm:table-cell">
+                      Added
+                    </TableHead>
+                    <TableHead column="meta">Last used</TableHead>
+                    <TableHead column="meta" className="text-right">
+                      <span className="sr-only">Remove</span>
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </TableSurface>
+                </TableHeader>
+                <TableBody>
+                  {list.map((passkey) => (
+                    <TableRow key={passkey.id}>
+                      <TableCell className="whitespace-normal">
+                        {passkey.name}
+                      </TableCell>
+                      <TableCell
+                        column="mutedMeta"
+                        className="hidden sm:table-cell"
+                        title={formatDateTime(passkey.createdAt)}
+                      >
+                        {formatTimeAgo(passkey.createdAt)}
+                      </TableCell>
+                      <TableCell
+                        column="mutedMeta"
+                        title={
+                          passkey.lastUsedAt
+                            ? formatDateTime(passkey.lastUsedAt)
+                            : undefined
+                        }
+                      >
+                        {passkey.lastUsedAt
+                          ? formatTimeAgo(passkey.lastUsedAt)
+                          : "Never"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DisabledReason
+                          disabled={adding || removing}
+                          reason="Wait for the current passkey action to finish."
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={adding || removing}
+                            aria-label={`Remove ${passkey.name}`}
+                            onClick={() => setPendingRemove(passkey)}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </DisabledReason>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </TableSurface>
+        )}
 
         {supported ? (
           <form onSubmit={handleAdd} className="flex flex-col gap-4">
@@ -542,97 +548,102 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <TableSurface>
-          {loadError ? (
-            <ErrorBanner
-              message={loadError}
-              onRetry={() => setReloads((count) => count + 1)}
-            />
-          ) : !list ? (
-            <LoadingRow label="Loading…" className="min-h-56" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {/* The flexible column, but without the dashboard `main`
-                      column's 320px floor — this table lives in a modal that is
-                      only as wide as a phone. Same treatment the Invoices table
-                      in this window uses, so the two match. */}
-                  <TableHead column="main" className="min-w-0">
-                    Device
-                  </TableHead>
-                  {/* The address is the first thing to go on a phone: the
-                      browser name and when it was last used are what somebody
-                      spots a stranger by. */}
-                  <TableHead column="meta" className="hidden sm:table-cell">
-                    Signed in from
-                  </TableHead>
-                  <TableHead column="meta">Last active</TableHead>
-                  <TableHead column="meta" className="text-right">
-                    <span className="sr-only">Sign out</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {list.sessions.map((session) => (
-                  <TableRow key={session.id}>
-                    {/* Wraps rather than staying on one line, so the badge can
-                        drop below the name on a phone instead of pushing the
-                        rest of the row off the screen. */}
-                    <TableCell className="whitespace-normal">
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        {session.device}
-                        {session.isCurrent ? (
-                          <Badge variant="secondary">This device</Badge>
-                        ) : null}
-                      </span>
-                    </TableCell>
-                    <TableCell
-                      column="mutedMeta"
-                      className="hidden sm:table-cell"
-                    >
-                      {session.ipAddress ?? "Unknown"}
-                    </TableCell>
-                    <TableCell
-                      column="mutedMeta"
-                      title={formatDateTime(session.lastSeenAt)}
-                    >
-                      {formatTimeAgo(session.lastSeenAt)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {session.isCurrent ? null : (
-                        <DisabledReason
-                          disabled={working}
-                          reason="Wait for the current session action to finish."
-                        >
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            disabled={working}
-                            aria-label={`Sign out ${session.device}`}
-                            onClick={() =>
-                              void run(session.id, async () => {
-                                await revokeSession(session.id)
-                                return `Signed out ${session.device}.`
-                              })
-                            }
-                          >
-                            {runningId === session.id ? (
-                              <Loader2Icon className="size-4 animate-spin" />
-                            ) : (
-                              <LogOutIcon className="size-4" />
-                            )}
-                          </Button>
-                        </DisabledReason>
-                      )}
-                    </TableCell>
+        {/* Outside the surface, for the reason given on the Passkeys table
+            above: a surface holding only the banner is an empty box wearing a
+            one-pixel ring, and that paints as a stray hairline. */}
+        {loadError ? (
+          <ErrorBanner
+            message={loadError}
+            onRetry={() => setReloads((count) => count + 1)}
+          />
+        ) : (
+          <TableSurface>
+            {!list ? (
+              <LoadingRow label="Loading…" className="min-h-56" />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {/* The flexible column, but without the dashboard `main`
+                        column's 320px floor — this table lives in a modal that is
+                        only as wide as a phone. Same treatment the Invoices table
+                        in this window uses, so the two match. */}
+                    <TableHead column="main" className="min-w-0">
+                      Device
+                    </TableHead>
+                    {/* The address is the first thing to go on a phone: the
+                        browser name and when it was last used are what somebody
+                        spots a stranger by. */}
+                    <TableHead column="meta" className="hidden sm:table-cell">
+                      Signed in from
+                    </TableHead>
+                    <TableHead column="meta">Last active</TableHead>
+                    <TableHead column="meta" className="text-right">
+                      <span className="sr-only">Sign out</span>
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </TableSurface>
+                </TableHeader>
+                <TableBody>
+                  {list.sessions.map((session) => (
+                    <TableRow key={session.id}>
+                      {/* Wraps rather than staying on one line, so the badge can
+                          drop below the name on a phone instead of pushing the
+                          rest of the row off the screen. */}
+                      <TableCell className="whitespace-normal">
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {session.device}
+                          {session.isCurrent ? (
+                            <Badge variant="secondary">This device</Badge>
+                          ) : null}
+                        </span>
+                      </TableCell>
+                      <TableCell
+                        column="mutedMeta"
+                        className="hidden sm:table-cell"
+                      >
+                        {session.ipAddress ?? "Unknown"}
+                      </TableCell>
+                      <TableCell
+                        column="mutedMeta"
+                        title={formatDateTime(session.lastSeenAt)}
+                      >
+                        {formatTimeAgo(session.lastSeenAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {session.isCurrent ? null : (
+                          <DisabledReason
+                            disabled={working}
+                            reason="Wait for the current session action to finish."
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={working}
+                              aria-label={`Sign out ${session.device}`}
+                              onClick={() =>
+                                void run(session.id, async () => {
+                                  await revokeSession(session.id)
+                                  return `Signed out ${session.device}.`
+                                })
+                              }
+                            >
+                              {runningId === session.id ? (
+                                <Loader2Icon className="size-4 animate-spin" />
+                              ) : (
+                                <LogOutIcon className="size-4" />
+                              )}
+                            </Button>
+                          </DisabledReason>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </TableSurface>
+        )}
 
         {list && list.total > 1 ? (
           <div className="flex flex-wrap items-center gap-3">

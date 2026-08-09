@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { now } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, type CustomShellUser } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
 import { videoGenerationTick } from "@/server/video/asset-factories/generations"
 import { createOwnedProject } from "@/server/video/projects"
 import {
@@ -17,6 +21,7 @@ import {
 let client: PGlite
 let database: CustomShellDb
 let user: CustomShellUser
+let workspaceId: string
 const originalGeminiKey = process.env.CUSTOM_SHELL_GEMINI_API_KEY
 
 beforeEach(async () => {
@@ -24,6 +29,7 @@ beforeEach(async () => {
   client = testDb.client
   database = testDb.db
   user = await insertUser(database)
+  workspaceId = (await insertWorkspace(database, { userId: user.id })).id
   process.env.CUSTOM_SHELL_GEMINI_API_KEY = "test-key"
 })
 
@@ -42,6 +48,7 @@ async function seedProcessingGeneration() {
   const project = await createOwnedProject(user.id, "Lease test", database)
   await database.insert(customShellMedia).values({
     id: "media-1",
+    workspaceId,
     userId: user.id,
     filename: "frame.png",
     originalName: "frame.png",

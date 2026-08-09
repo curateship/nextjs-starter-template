@@ -9,6 +9,7 @@ import {
 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 type GeneratedFileType = "image" | "video"
 
@@ -39,6 +40,8 @@ export async function saveGeneratedAsset(options: {
   const at = now()
   const row = {
     id,
+    // The site the person generating it is working in owns it, same as an upload.
+    workspaceId: await workspaceIdForRequest(options.userId),
     userId: options.userId,
     filename,
     originalName: `${options.name.replace(/[^a-zA-Z0-9 ._-]+/g, "").trim() || "Generated asset"}.${extension}`,

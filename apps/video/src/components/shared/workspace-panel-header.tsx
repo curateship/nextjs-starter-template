@@ -23,7 +23,16 @@ export function WorkspacePanelHeaderIcon({
   )
 }
 
-/** The dashboard card header pattern, sized for resizable workspace panels. */
+/**
+ * The dashboard card header pattern, sized for resizable workspace panels.
+ *
+ * The line under it is a plain `border-b`, with no colour of its own, so it
+ * takes `--border` — which is what the Divider lines setting writes. Every
+ * header line in the app is drawn this way, `ChartCard` included, so a card
+ * with tabs and a card with a chart never disagree about the shade. Naming a
+ * colour here is what made them disagree: it stayed a fixed grey while the
+ * setting moved everything else.
+ */
 export function WorkspacePanelHeader({
   icon,
   title,
@@ -39,8 +48,9 @@ export function WorkspacePanelHeader({
 }) {
   return (
     <div
+      data-slot="workspace-panel-header"
       className={cn(
-        "flex h-[3.15rem] shrink-0 items-center gap-2.5 border-b border-foreground/10 px-4 sm:px-5",
+        "flex h-[3.15rem] shrink-0 items-center gap-2.5 border-b px-4 sm:px-5",
         className
       )}
     >
@@ -64,7 +74,7 @@ export function WorkspacePanelTabsHeader({
   children: React.ReactNode
 }) {
   return (
-    <div className="shrink-0 border-b border-foreground/10 px-3">
+    <div data-slot="workspace-panel-header" className="shrink-0 border-b px-3">
       <TabsList className="-mb-px h-[3.15rem] w-full justify-start gap-4 rounded-none bg-transparent p-0">
         {children}
       </TabsList>

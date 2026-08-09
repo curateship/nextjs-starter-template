@@ -13,7 +13,7 @@ import {
 } from "@/server/automations/audience"
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import { adminGet } from "@/server/guards"
-import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
+import { requireCurrentWorkspace } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "../error-message"
 
@@ -58,7 +58,7 @@ const loadAudiencePreviewFn = createServerFn({ method: "GET" })
     })
   )
   .handler(async ({ data, context }): Promise<AudiencePreview> => {
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     await syncContactsFromUsers(workspace.id)
 
     try {

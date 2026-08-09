@@ -57,6 +57,7 @@ import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/res
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
+import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
@@ -70,6 +71,7 @@ import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './ro
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
+import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as ApiV1VideoActorsActorIdImageRouteImport } from './routes/api/v1/video/actors/$actorId/image'
 import { Route as ApiV1VideoExportsExportIdCoverRouteImport } from './routes/api/v1/video/exports/$exportId/cover'
@@ -336,6 +338,12 @@ const AuthenticatedAdminAutomationsAutomationIdRoute =
     path: '/automations/$automationId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAutomationsTemplatesRoute =
+  AuthenticatedAdminAutomationsTemplatesRouteImport.update({
+    id: '/automations_/templates',
+    path: '/automations/templates',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
   AuthenticatedAdminNewsletterBroadcastIdRouteImport.update({
     id: '/newsletter_/$broadcastId',
@@ -412,6 +420,12 @@ const ApiV1TrafficViewRoute = ApiV1TrafficViewRouteImport.update({
   path: '/api/v1/traffic/view',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
+  AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport.update({
+    id: '/automations_/templates_/$templateKey',
+    path: '/automations/templates/$templateKey',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -496,6 +510,7 @@ export interface FileRoutesByFullPath {
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -509,6 +524,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/video-carousels/': typeof AuthenticatedAdminVideoCarouselsIndexRoute
   '/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
+  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
@@ -560,6 +576,7 @@ export interface FileRoutesByTo {
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -573,6 +590,7 @@ export interface FileRoutesByTo {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsIndexRoute
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorIndexRoute
+  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
@@ -630,6 +648,7 @@ export interface FileRoutesById {
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -643,6 +662,7 @@ export interface FileRoutesById {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/video-carousels/': typeof AuthenticatedAdminVideoCarouselsIndexRoute
   '/_authenticated/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
+  '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
@@ -700,6 +720,7 @@ export interface FileRouteTypes {
     | '/changelog/'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
+    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
@@ -713,6 +734,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/video-carousels/'
     | '/admin/video-editor/'
+    | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/actors/$actorId/image'
     | '/api/v1/video/exports/$exportId/cover'
@@ -764,6 +786,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
+    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
@@ -777,6 +800,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/video-carousels'
     | '/admin/video-editor'
+    | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/actors/$actorId/image'
     | '/api/v1/video/exports/$exportId/cover'
@@ -833,6 +857,7 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
+    | '/_authenticated/admin/automations_/templates'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
@@ -846,6 +871,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/video-carousels/'
     | '/_authenticated/admin/video-editor/'
+    | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/actors/$actorId/image'
     | '/api/v1/video/exports/$exportId/cover'
@@ -1221,6 +1247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/automations_/templates': {
+      id: '/_authenticated/admin/automations_/templates'
+      path: '/automations/templates'
+      fullPath: '/admin/automations/templates'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/newsletter_/$broadcastId': {
       id: '/_authenticated/admin/newsletter_/$broadcastId'
       path: '/newsletter/$broadcastId'
@@ -1311,6 +1344,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/traffic/view'
       preLoaderRoute: typeof ApiV1TrafficViewRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/automations_/templates_/$templateKey': {
+      id: '/_authenticated/admin/automations_/templates_/$templateKey'
+      path: '/automations/templates/$templateKey'
+      fullPath: '/admin/automations/templates/$templateKey'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
@@ -1446,10 +1486,12 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminVideoExportsRoute: typeof AuthenticatedAdminVideoExportsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
+  AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
   AuthenticatedAdminVideoCarouselsCarouselIdRoute: typeof AuthenticatedAdminVideoCarouselsCarouselIdRoute
   AuthenticatedAdminVideoEditorProjectIdRoute: typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
@@ -1479,6 +1521,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
+  AuthenticatedAdminAutomationsTemplatesRoute:
+    AuthenticatedAdminAutomationsTemplatesRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
@@ -1487,6 +1531,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminVideoCarouselsCarouselIdRoute,
   AuthenticatedAdminVideoEditorProjectIdRoute:
     AuthenticatedAdminVideoEditorProjectIdRoute,
+  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute:
+    AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =

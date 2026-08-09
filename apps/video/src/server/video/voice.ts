@@ -28,6 +28,7 @@ import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/stor
 import { customShellMedia } from "@/server/schema"
 import { runFfmpeg } from "@/server/video/ffmpeg"
 import { requireOpenAiKey } from "@/server/video/whisper"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 /**
  * Having a script read aloud.
@@ -218,6 +219,8 @@ async function keepInLibrary(
   const at = now()
   const row = {
     id: uuid(),
+    // The site the voiceover was made in is the site that keeps it.
+    workspaceId: await workspaceIdForRequest(userId),
     userId,
     filename,
     originalName: `${name}.mp3`,

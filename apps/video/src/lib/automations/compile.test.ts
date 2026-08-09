@@ -29,6 +29,33 @@ function aiStep(id: string, settings: AutomationNodeSettings = {}) {
   }
 }
 
+function sendEmail(id: string, settings: AutomationNodeSettings = {}) {
+  const blocks = [
+    {
+      id: "message",
+      kind: "richText",
+      content: {
+        htmlContent: "<p>Hello there.</p>",
+        backgroundColor: "#ffffff",
+        padding: 20,
+      },
+    },
+  ]
+  return {
+    id,
+    kind: "sendEmail",
+    x: 0,
+    y: 0,
+    settings: {
+      subject: "A small update",
+      preheader: "",
+      fromName: "",
+      blocks,
+      ...settings,
+    },
+  }
+}
+
 function edge(id: string, from: string, to: string, sourcePort = "then") {
   return { id, from, sourcePort, to }
 }
@@ -141,6 +168,47 @@ describe("compileAutomationGraph", () => {
     expect(result.config).toBeNull()
     expect(result.errors.map((error) => error.code)).toContain(
       "invalid_settings"
+    )
+  })
+
+  it("compiles a Send Email step with its finished wording", () => {
+    const result = compileAutomationGraph({
+      nodes: [placeholder("a"), sendEmail("b")],
+      edges: [edge("e1", "a", "b")],
+      viewport,
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.config?.nodes.b.settings).toEqual({
+      subject: "A small update",
+      preheader: "",
+      fromName: "",
+      blocks: [
+        {
+          id: "message",
+          kind: "richText",
+          content: {
+            htmlContent: "<p>Hello there.</p>",
+            backgroundColor: "#ffffff",
+            padding: 20,
+          },
+        },
+      ],
+    })
+  })
+
+  it("refuses to compile a Send Email step with no blocks", () => {
+    const result = compileAutomationGraph({
+      nodes: [sendEmail("email", { blocks: [] })],
+      edges: [],
+      viewport,
+    })
+
+    expect(result.config).toBeNull()
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "invalid_settings", nodeId: "email" }),
+      ])
     )
   })
 

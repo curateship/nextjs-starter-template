@@ -28,7 +28,98 @@ import type { AutomationNodeDescriptor } from "@/lib/automations/node-descriptor
  */
 export type AppOptions = {
   landing?: LandingOptions
+  pages?: PagesOptions
   automations?: AutomationOptions
+  workspaces?: WorkspaceOptions
+}
+
+/** What an app calls a workspace, singular and plural, in lower case. */
+export type WorkspaceWord = { one: string; many: string }
+
+/** Who, if anyone, may have a workspace of their own on this app. */
+export type WhoMayHaveWorkspaces = "off" | "admins" | "everyone"
+
+type WorkspaceOptions = {
+  /**
+   * What this app calls a workspace, where somebody can see it.
+   *
+   * The shell says "workspace" because that is what it is: a container one
+   * person works in. An app whose containers are public websites calls them
+   * sites, and showing an admin two words for one thing is worse than either
+   * word on its own.
+   *
+   * Only the wording changes. Addresses, tables and every name in the code stay
+   * `workspace`, because renaming those would be a fork rather than a setting —
+   * and the merge that brings the next shell update has to have something to
+   * merge into.
+   *
+   * Written in lower case; the shell capitalises where a heading needs it.
+   */
+  word?: WorkspaceWord
+  /**
+   * Who may have a workspace at all.
+   *
+   * - **`"off"`** — nobody. No switcher is drawn and a second workspace is
+   *   refused. For an app that is one site and always will be, like Trade and
+   *   Video. Hiding the control while leaving the door open is worse than
+   *   either, which is why this closes the door too.
+   * - **`"admins"`** — the default. Admins have and switch sites; members have
+   *   none and reach none. What this shell and cms want.
+   * - **`"everyone"`** — an app that genuinely gives each member a workspace of
+   *   their own says so deliberately.
+   *
+   * **This is the one option whose default is not today's behaviour, and that
+   * is a decision rather than an oversight.** Today every signed-in person was
+   * given a workspace on sign-in and every workspace endpoint was open to any
+   * member, so a member could make and delete workspaces on any app built on
+   * this shell. Nobody noticed because members are never shown the switcher.
+   * Defaulting to `"everyone"` would keep that door open to satisfy a
+   * convention about defaults, and no app can tell the difference because no
+   * app ever showed members the control.
+   */
+  whoMayHave?: WhoMayHaveWorkspaces
+}
+
+type PagesOptions = {
+  /**
+   * Lets the app answer an address before the shell's own pages do.
+   *
+   * `src/routes/$.tsx` is where every address without a route of its own ends
+   * up, and today that means one thing: a page an admin wrote. An app whose
+   * pages live in a table of its own — a docs tree, a knowledge base, one site
+   * out of many — has nowhere to put them without editing that route.
+   *
+   * So the route asks here first. Returning `null` means "not mine", and the
+   * written-page path runs exactly as it did before; anything else is rendered
+   * as the app's page. That is deliberately a hook and not a replacement: an
+   * app claims the addresses it knows and leaves every other one alone, so
+   * admin-written pages keep working underneath it.
+   *
+   * **`/` is asked too**, with `path` as `"/"`, before the front page renders —
+   * an app serving different pages to different domains has to be able to
+   * answer the front page as well, and `landing.page` cannot: it is chosen once
+   * when the app boots, long before there is a request to look at. Saying "not
+   * mine" there leaves the front page exactly as it was.
+   *
+   * The loader may throw `notFound()` or `redirect()` itself when the app wants
+   * to answer an address *and* refuse it — a page that exists but is not for
+   * this reader. Falling through to the written pages would say "no such
+   * address", which is a different answer.
+   *
+   * Two things come with going first.
+   *
+   * **The app owns who may read what it claims.** The written-page path decides
+   * that for itself — a page switched off comes back as "missing", a members-only
+   * one as a sign-in — and an address the app answers never reaches it. Decide it
+   * inside the loader, and answer a page somebody may not see the same way as one
+   * that does not exist, or the difference tells them it is there.
+   *
+   * **An address the app claims hides an admin-written one at the same address.**
+   * Claim narrowly — a prefix the app owns, or a lookup that only answers for
+   * addresses actually in its own table — so an admin writing `/about` is not
+   * quietly overruled by a page nobody remembers claiming.
+   */
+  catchAll?: CatchAllPage
 }
 
 type AutomationOptions = {
@@ -77,10 +168,30 @@ type PageHead = { meta?: Array<Record<string, string>> }
  * draws. Kept together because a route needs all three to come from the same
  * place — a replacement that only swapped the component would still be running
  * the shell's loader behind it.
+ *
+ * `head` is handed what the loader returned, so a title can be part of the
+ * page rather than a second fetch. It is an argument the function may simply
+ * not take: a head that ignores its data is written `() => ({ ... })` and is
+ * still a valid one, which is why every head that existed before this argument
+ * did keeps working untouched.
  */
 export type PublicPage = {
-  head?: () => PageHead
+  head?: (context: { loaderData: unknown }) => PageHead
   loader?: () => Promise<unknown>
+  Component: ComponentType<{ data: unknown }>
+}
+
+/**
+ * A page the app answers arbitrary addresses with — the `pages.catchAll`
+ * option above.
+ *
+ * Unlike `PublicPage` the loader is compulsory and takes the address being
+ * asked for, because the whole job here is deciding whether this address is
+ * the app's at all. `null` is that answer, and it is the only way to give it.
+ */
+export type CatchAllPage = {
+  loader: (context: { path: string }) => Promise<unknown | null>
+  head?: (context: { data: unknown }) => PageHead
   Component: ComponentType<{ data: unknown }>
 }
 
@@ -94,11 +205,27 @@ export type PublicPage = {
  * returns.
  */
 export function definePublicPage<TData = undefined>(page: {
-  head?: () => PageHead
+  head?: (context: { loaderData: TData }) => PageHead
   loader?: () => Promise<TData>
   Component: ComponentType<{ data: TData }>
 }): PublicPage {
   return page as PublicPage
+}
+
+/**
+ * The same idea as `definePublicPage`, for the catch-all page, and for the same
+ * reason: the route renders whichever page is in use and needs one shape, while
+ * the app's own component keeps the type its own loader returns.
+ *
+ * `TData` is what the app answers *with*; the `null` that means "not mine" is
+ * added here, so the app writes its real type and still returns null freely.
+ */
+export function defineCatchAllPage<TData>(page: {
+  loader: (context: { path: string }) => Promise<TData | null>
+  head?: (context: { data: TData }) => PageHead
+  Component: ComponentType<{ data: TData }>
+}): CatchAllPage {
+  return page as CatchAllPage
 }
 
 /*
@@ -138,6 +265,24 @@ export function landingPageOverride(
 }
 
 /**
+ * The app's page for addresses nothing else claims, or null to leave the
+ * catch-all exactly as the shell wrote it.
+ *
+ * Null rather than a default page, for the same reason as the front page above:
+ * a default here would pull a page module into this file and rebuild the import
+ * circle the rules above exist to avoid.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function catchAllOverride(
+  options: AppOptions = appOptions
+): CatchAllPage | null {
+  return options.pages?.catchAll ?? null
+}
+
+/**
  * The steps this app adds to the automation palette, or none.
  *
  * Read by `node-registry.ts`, which adds them to the shell's own list the first
@@ -149,4 +294,50 @@ export function appAutomationNodes(
   options: AppOptions = appOptions
 ): readonly AutomationNodeDescriptor[] {
   return options.automations?.nodes ?? []
+}
+
+/**
+ * Who may have a workspace on this app — see `workspaces.whoMayHave` above.
+ *
+ * Defaults to admins only, which is deliberately *not* what the shell did
+ * before this option existed. The reason is written on the option itself.
+ *
+ * The argument is only ever passed by the tests, so the check that an unset
+ * option still means "admins" keeps working inside an app that has set it.
+ */
+export function whoMayHaveWorkspaces(
+  options: AppOptions = appOptions
+): WhoMayHaveWorkspaces {
+  return options.workspaces?.whoMayHave ?? "admins"
+}
+
+/** Whether this person may have a workspace at all, on this app. */
+export function mayHaveWorkspace(
+  user: { role: string } | null | undefined,
+  options: AppOptions = appOptions
+): boolean {
+  if (!user) return false
+
+  const who = whoMayHaveWorkspaces(options)
+  if (who === "off") return false
+  if (who === "everyone") return true
+  return user.role === "admin"
+}
+
+/**
+ * What this app calls a workspace — "workspace" unless it says otherwise.
+ *
+ * Read inside a component, never at the top of a module: an app's options file
+ * imports app components, which import shell components, which import this one.
+ *
+ * The argument is only ever passed by the tests, so the check that an unset
+ * option still says "workspace" keeps working inside an app that has set it.
+ */
+export function workspaceWord(options: AppOptions = appOptions): WorkspaceWord {
+  return options.workspaces?.word ?? { one: "workspace", many: "workspaces" }
+}
+
+/** The same word with its first letter raised, for a heading or a button. */
+export function capitalise(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1)
 }

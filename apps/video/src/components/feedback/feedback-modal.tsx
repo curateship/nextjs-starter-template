@@ -828,15 +828,13 @@ export function FeedbackModal({
                   </CardContent>
                 </Card>
               ) : loadError ? (
-                // The banner is a flat, square band. On its own it would be the
-                // one square-cornered thing among the cards, so it takes a card
-                // of its own with no padding and is clipped to the same corners.
-                <Card className="py-0">
-                  <ErrorBanner
-                    message={loadError}
-                    onRetry={() => setReloads((count) => count + 1)}
-                  />
-                </Card>
+                // No card around it. The banner is a toast now and draws
+                // nothing here, so a card would be an empty one — and an empty
+                // card is a stray hairline across the modal, not nothing.
+                <ErrorBanner
+                  message={loadError}
+                  onRetry={() => setReloads((count) => count + 1)}
+                />
               ) : visibleFeedback.length === 0 ? (
                 <Card size="sm">
                   <CardContent>
