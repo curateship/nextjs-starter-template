@@ -79,10 +79,13 @@ import {
 } from "@/lib/api/video/carousels"
 import {
   getMediaErrorMessage,
-  listMedia,
   uploadMedia,
   type MediaItem,
 } from "@/lib/api/media/media"
+import {
+  attachEditorMedia,
+  listVideoMedia,
+} from "@/lib/api/video/media"
 import type { CarouselShadowDirection } from "@/lib/video/carousel-schema"
 import {
   CAROUSEL_CONFLICT_MESSAGE,
@@ -563,6 +566,7 @@ export function CarouselBuilderPage({
       <IconRail panel={panel} onSelect={setPanel} />
       <div className="flex min-w-0 flex-1 flex-col">
         <CarouselContextPanel
+          carouselId={document.id}
           panel={panel}
           slides={state.slides}
           format={state.format}
@@ -938,6 +942,7 @@ function IconRail({
 // --------------------------------------------------------- Context panel ----
 
 function CarouselContextPanel({
+  carouselId,
   panel,
   slides,
   format,
@@ -948,6 +953,7 @@ function CarouselContextPanel({
   onDeleteSlide,
   onAddItem,
 }: {
+  carouselId: string
   panel: StudioPanel
   slides: CarouselSlide[]
   format: CarouselFormat
@@ -991,7 +997,11 @@ function CarouselContextPanel({
           ) : panel === "text" ? (
             <TextPanelBody onAddItem={onAddItem} />
           ) : panel === "image" ? (
-            <ImagePanelBody format={format} onAddItem={onAddItem} />
+            <ImagePanelBody
+              carouselId={carouselId}
+              format={format}
+              onAddItem={onAddItem}
+            />
           ) : (
             <ShadowPanelBody onAddItem={onAddItem} />
           )}
@@ -1473,9 +1483,11 @@ function TextPanelBody({
 // -------------------------------------------------------- Image panel -------
 
 function ImagePanelBody({
+  carouselId,
   format,
   onAddItem,
 }: {
+  carouselId: string
   format: CarouselFormat
   onAddItem: (item: CarouselSlideItem) => void
 }) {
@@ -1494,7 +1506,8 @@ function ImagePanelBody({
 
   React.useEffect(() => {
     let active = true
-    listMedia({
+    listVideoMedia({
+      scope: { type: "carousel", id: carouselId },
       pageSize: 30,
       fileType: "image",
       search: debounced || undefined,
@@ -1511,7 +1524,7 @@ function ImagePanelBody({
     return () => {
       active = false
     }
-  }, [debounced, refresh])
+  }, [carouselId, debounced, refresh])
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length) return
@@ -1519,7 +1532,8 @@ function ImagePanelBody({
     setError(null)
     try {
       for (const file of Array.from(files)) {
-        await uploadMedia(file)
+        const media = await uploadMedia(file)
+        await attachEditorMedia({ type: "carousel", id: carouselId }, media.id)
       }
       setRefresh((c) => c + 1)
     } catch (caught) {

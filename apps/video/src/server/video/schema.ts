@@ -233,6 +233,46 @@ export const videoCarousels = pgTable(
 )
 
 /**
+ * Files uploaded from one video editor stay on that project's media shelf.
+ * The file itself remains an ordinary shell media row and can still be used by
+ * a copied project; deleting either side only removes this membership row.
+ */
+export const videoProjectMedia = pgTable(
+  "video_project_media",
+  {
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.mediaId] }),
+    index("ix_video_project_media_media_id").on(table.mediaId),
+  ]
+)
+
+/** Files uploaded from one carousel editor stay on that carousel's shelf. */
+export const videoCarouselMedia = pgTable(
+  "video_carousel_media",
+  {
+    carouselId: varchar("carousel_id", { length: 36 })
+      .notNull()
+      .references(() => videoCarousels.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.carouselId, table.mediaId] }),
+    index("ix_video_carousel_media_media_id").on(table.mediaId),
+  ]
+)
+
+/**
  * The brand kit every project draws with: one row, kept that way by the check
  * on `id`. The kit itself is a JSON document read through a normalizer, the
  * same shape the shell uses for its own styling settings, so a later feature

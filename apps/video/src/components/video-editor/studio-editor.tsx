@@ -1,6 +1,8 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import {
+  ArrowLeftIcon,
   Check,
   FilmIcon,
   CaptionsIcon,
@@ -373,9 +375,21 @@ function StageHeader() {
   return (
     <div className="grid h-[3.15rem] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b px-4 sm:px-5">
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground" aria-hidden>
-          <FilmIcon className="size-4" />
-        </span>
+        <Button asChild variant="ghost" size="icon">
+          <Link
+            to="/admin/video-editor"
+            search={{
+              q: undefined,
+              sort: undefined,
+              direction: undefined,
+              page: undefined,
+            }}
+            aria-label="Back to video projects"
+            title="Back to video projects"
+          >
+            <ArrowLeftIcon />
+          </Link>
+        </Button>
         {editing ? (
           <Input
             autoFocus
