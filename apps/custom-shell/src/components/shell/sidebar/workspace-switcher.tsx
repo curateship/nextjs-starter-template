@@ -33,23 +33,21 @@ import {
 import { renderShellIcon } from "@/lib/custom-shell"
 
 /**
- * The line under a workspace's name is the workspace subheader an admin writes
- * in Settings — the same words for every row in the list, because that setting
- * is one value for the whole app rather than one per workspace. It used to be
- * the reader's billing plan on the row they were in and the literal word
- * "Project" on all the others, which made one list say two different things
- * about neighbouring rows.
+ * The line under a site's name is **its address**, which is the one thing that
+ * genuinely tells two sites apart.
+ *
+ * It used to be a single subheader an admin typed in Settings, so every row in
+ * the list said the same words — three sites read as three copies of one. Before
+ * that it was the reader's billing plan on the active row and the literal word
+ * "Project" on the others, which made one list say two different kinds of thing
+ * about neighbouring rows. Both are gone, along with the setting behind them.
  */
 export function WorkspaceSwitcher({
   workspaces,
-  workspaceName,
-  workspaceSubheader,
   favicon,
   baseDomain = "",
 }: {
   workspaces: WorkspaceItem[]
-  workspaceName: string
-  workspaceSubheader: string
   favicon: string
   /** The domain workspaces hang off, for the address field's preview. */
   baseDomain?: string
@@ -58,9 +56,21 @@ export function WorkspaceSwitcher({
   const { isMobile } = useSidebar()
   const activeWorkspace =
     workspaces.find((workspace) => workspace.active) ?? workspaces[0]
-  const activeWorkspaceName = workspaceName.trim() || activeWorkspace?.name || ""
-  const subheader = workspaceSubheader.trim() || "Project"
+  const activeWorkspaceName = activeWorkspace?.name ?? ""
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
+
+  /**
+   * What a site answers on. Its own domain when it has one, otherwise its name
+   * in front of the deployment's base domain — the same wording the address
+   * field previews while it is being typed.
+   *
+   * Falls back to the site's name where no base domain is configured, because
+   * on an app that is one site there is no address to show and repeating the
+   * name reads better than an empty line.
+   */
+  const addressOf = (workspace: WorkspaceItem) =>
+    workspace.customDomain ||
+    (baseDomain ? `${workspace.subdomain}.${baseDomain}` : workspace.name)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [busyWorkspaceId, setBusyWorkspaceId] = React.useState<string | null>(
     null
@@ -109,7 +119,7 @@ export function WorkspaceSwitcher({
                   {activeWorkspaceName}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {subheader}
+                  {addressOf(activeWorkspace)}
                 </span>
               </Link>
               <DropdownMenu>
@@ -131,9 +141,7 @@ export function WorkspaceSwitcher({
                     Workspaces
                   </DropdownMenuLabel>
                   {workspaces.map((workspace) => {
-                    const displayName = workspace.active
-                      ? activeWorkspaceName
-                      : workspace.name
+                    const displayName = workspace.name
                     const workspaceFavicon = workspace.active
                       ? activeFavicon
                       : workspace.favicon
@@ -156,7 +164,7 @@ export function WorkspaceSwitcher({
                         <div className="flex-1">
                           <div className="font-medium">{displayName}</div>
                           <div className="text-xs text-muted-foreground">
-                            {subheader}
+                            {addressOf(workspace)}
                           </div>
                         </div>
                         {busy ? (

@@ -18,6 +18,11 @@ import {
 } from "@/server/content/changelog"
 import { loadFeedsSummary } from "@/server/content/feeds"
 import {
+  listWorkspaceContacts,
+  syncContactsFromUsers,
+} from "@/server/people/contacts"
+import { loadTrafficSummary, recordVisit } from "@/server/traffic"
+import {
   readPageVisibility,
   readWrittenPageForViewer,
   setPageVisibility,
@@ -45,7 +50,12 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
-import { customShellFeedback, customShellMedia } from "@/server/schema"
+import {
+  customShellFeedback,
+  customShellMedia,
+  customShellWorkspaces,
+} from "@/server/schema"
+import { ne } from "drizzle-orm"
 
 /**
  * Two sites, content in both, and nothing on one reachable from the other.
@@ -383,5 +393,82 @@ describe("automations stay on their own site", () => {
     expect(
       (await getWorkspaceAutomation(beta, theirs.id, database))?.name
     ).toBe("Beta welcome")
+  })
+})
+
+describe("traffic is counted per site", () => {
+  const visit = (workspaceId: string, visitorHash: string, path = "/about") => ({
+    workspaceId,
+    path,
+    referrerDomain: "direct",
+    device: "computer" as const,
+    audience: "visitor" as const,
+    visitorHash,
+  })
+
+  const at = new Date("2026-08-08T12:00:00Z")
+
+  it("moves only the site that was visited", async () => {
+    await recordVisit(visit(alpha, "one"), database, at)
+    await recordVisit(visit(alpha, "two"), database, at)
+    await recordVisit(visit(beta, "three"), database, at)
+
+    // Analytics that quietly adds two sites together is the whole failure this
+    // is here to prevent, so both are checked rather than just one.
+    expect((await loadTrafficSummary(alpha, 7, database, at)).totals.views).toBe(2)
+    expect((await loadTrafficSummary(beta, 7, database, at)).totals.views).toBe(1)
+  })
+
+  it("counts the same person as one visitor on each site they read", async () => {
+    // One browser, both sites. Each site's own figure should say one visitor —
+    // it is one person as far as that site is concerned.
+    await recordVisit(visit(alpha, "same-person"), database, at)
+    await recordVisit(visit(beta, "same-person"), database, at)
+
+    expect(
+      (await loadTrafficSummary(alpha, 7, database, at)).totals.uniqueVisitors
+    ).toBe(1)
+    expect(
+      (await loadTrafficSummary(beta, 7, database, at)).totals.uniqueVisitors
+    ).toBe(1)
+  })
+
+  it("keeps one site's top pages out of the other's", async () => {
+    await recordVisit(visit(alpha, "one", "/alpha-only"), database, at)
+    await recordVisit(visit(beta, "two", "/beta-only"), database, at)
+
+    const onAlpha = await loadTrafficSummary(alpha, 7, database, at)
+    expect(onAlpha.topPages.map((row) => row.key)).toEqual(["/alpha-only"])
+    expect(onAlpha.siteName).toBe("Alpha")
+  })
+})
+
+describe("a site's contacts are that site's people", () => {
+  it("leaves out an account that has never touched this site", async () => {
+    // `syncContactsFromUsers` used to take **every** account on the
+    // deployment, so Alpha's newsletter list filled up with Beta's customers.
+    await syncContactsFromUsers(alpha, database)
+    await syncContactsFromUsers(beta, database)
+
+    const onAlpha = await listWorkspaceContacts(alpha, {}, database)
+    const onBeta = await listWorkspaceContacts(beta, {}, database)
+
+    expect(onAlpha.contacts.map((row) => row.userId)).toEqual([alphaPerson])
+    expect(onBeta.contacts.map((row) => row.userId)).toEqual([betaPerson])
+  })
+
+  it("still takes everybody on an app that has only one site", async () => {
+    // The old behaviour, which has to survive: on one site, somebody pointed
+    // nowhere belongs to it, so the list is every account exactly as before.
+    const only = (await insertWorkspace(database)).id
+    await database.delete(customShellWorkspaces).where(
+      ne(customShellWorkspaces.id, only)
+    )
+    const nobody = (await insertUser(database)).id
+
+    await syncContactsFromUsers(only, database)
+
+    const list = await listWorkspaceContacts(only, {}, database)
+    expect(list.contacts.map((row) => row.userId)).toContain(nobody)
   })
 })
