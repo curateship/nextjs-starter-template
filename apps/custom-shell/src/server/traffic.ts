@@ -1,4 +1,4 @@
-import { and, asc, gte, lt, sql } from "drizzle-orm"
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -7,6 +7,7 @@ import {
   customShellTrafficDailyTotals,
   customShellTrafficDaySalts,
   customShellTrafficVisitors,
+  customShellWorkspaces,
   customShellTrafficVisits,
 } from "@/server/schema"
 import { createSecretToken, hashToken, now, uuid } from "@/server/auth/security"
@@ -186,6 +187,8 @@ export function resetTrafficSweepForTests() {
 // The write path.
 
 export type VisitInput = {
+  /** The site the visitor was looking at, from the domain they typed. */
+  workspaceId: string
   path: string
   referrerDomain: string
   device: TrafficDevice
@@ -197,6 +200,14 @@ export type VisitInput = {
  * Counts one page view: the visit log row, the day's totals (unique visitors
  * frozen in as they first appear), and the three per-dimension fact rows —
  * in two statements, so a view under load is two round trips, not seven.
+ */
+/**
+ * Counts one page view **against one site**.
+ *
+ * A visit that cannot be tied to a site is never recorded — see the beacon in
+ * `src/routes/api/v1/traffic/view.ts`. Counting it against everything would put
+ * a number on every site's screen that belongs to none of them, and a wrong
+ * number is worse than a missing one because it gets believed.
  */
 export async function recordVisit(
   input: VisitInput,
@@ -218,18 +229,18 @@ export async function recordVisit(
   // from it.
   await database.execute(sql`
     with new_visitor as (
-      insert into traffic_visitors (day, visitor_hash)
-      values (${day}, ${input.visitorHash})
+      insert into traffic_visitors (workspace_id, day, visitor_hash)
+      values (${input.workspaceId}, ${day}, ${input.visitorHash})
       on conflict do nothing
       returning 1
     ),
     visit as (
-      insert into traffic_visits (id, occurred_at, path, referrer_domain, device, audience)
-      values (${uuid()}, ${at}, ${input.path}, ${input.referrerDomain}, ${input.device}, ${input.audience})
+      insert into traffic_visits (id, workspace_id, occurred_at, path, referrer_domain, device, audience)
+      values (${uuid()}, ${input.workspaceId}, ${at}, ${input.path}, ${input.referrerDomain}, ${input.device}, ${input.audience})
     )
-    insert into traffic_daily_totals (day, views, member_views, visitor_views, unique_visitors)
-    values (${day}, 1, ${isMember}, ${1 - isMember}, (select count(*) from new_visitor))
-    on conflict (day) do update set
+    insert into traffic_daily_totals (workspace_id, day, views, member_views, visitor_views, unique_visitors)
+    values (${input.workspaceId}, ${day}, 1, ${isMember}, ${1 - isMember}, (select count(*) from new_visitor))
+    on conflict (workspace_id, day) do update set
       views = traffic_daily_totals.views + 1,
       member_views = traffic_daily_totals.member_views + ${isMember},
       visitor_views = traffic_daily_totals.visitor_views + ${1 - isMember},
@@ -253,22 +264,24 @@ export async function recordVisit(
         case
           when exists (
             select 1 from traffic_daily_facts existing
-            where existing.day = ${day}
+            where existing.workspace_id = ${input.workspaceId}
+              and existing.day = ${day}
               and existing.dimension = candidate.dimension
               and existing.key = candidate.key
           ) then candidate.key
           when (
             select count(*) from traffic_daily_facts existing
-            where existing.day = ${day}
+            where existing.workspace_id = ${input.workspaceId}
+              and existing.day = ${day}
               and existing.dimension = candidate.dimension
           ) >= candidate.cap then ${OTHER_KEY}
           else candidate.key
         end as key
       from candidate
     )
-    insert into traffic_daily_facts (day, dimension, key, views)
-    select ${day}, dimension, key, 1 from capped
-    on conflict (day, dimension, key) do update set
+    insert into traffic_daily_facts (workspace_id, day, dimension, key, views)
+    select ${input.workspaceId}, ${day}, dimension, key, 1 from capped
+    on conflict (workspace_id, day, dimension, key) do update set
       views = traffic_daily_facts.views + 1
   `)
 }
@@ -288,6 +301,12 @@ export type TrafficKeyCount = { key: string; views: number }
 
 export type TrafficSummary = {
   days: TrafficRangeDays
+  /**
+   * Whose figures these are. Carried so the screen can say it out loud —
+   * numbers on a deployment serving several sites are meaningless without it,
+   * and a screenshot of them is worse than meaningless.
+   */
+  siteName: string
   totals: {
     views: number
     memberViews: number
@@ -305,6 +324,7 @@ export type TrafficSummary = {
 const TOP_ROWS = 15
 
 export async function loadTrafficSummary(
+  workspaceId: string,
   days: TrafficRangeDays,
   database: CustomShellDb = db,
   at: Date = now()
@@ -319,10 +339,16 @@ export async function loadTrafficSummary(
   const totals = customShellTrafficDailyTotals
   const facts = customShellTrafficDailyFacts
 
+  const [site] = await database
+    .select({ name: customShellWorkspaces.name })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+
   const totalRows = await database
     .select()
     .from(totals)
-    .where(gte(totals.day, firstDay))
+    .where(and(eq(totals.workspaceId, workspaceId), gte(totals.day, firstDay)))
     .orderBy(asc(totals.day))
 
   const factRows = await database
@@ -332,7 +358,7 @@ export async function loadTrafficSummary(
       views: sql<string>`sum(${facts.views})`,
     })
     .from(facts)
-    .where(gte(facts.day, firstDay))
+    .where(and(eq(facts.workspaceId, workspaceId), gte(facts.day, firstDay)))
     .groupBy(facts.dimension, facts.key)
 
   // Every day in the range appears in the chart, traffic or none — a gap
@@ -366,6 +392,7 @@ export async function loadTrafficSummary(
 
   return {
     days,
+    siteName: site?.name ?? "",
     totals: {
       views: totalRows.reduce((sum, row) => sum + row.views, 0),
       memberViews: totalRows.reduce((sum, row) => sum + row.memberViews, 0),

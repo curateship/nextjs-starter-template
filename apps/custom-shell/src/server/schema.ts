@@ -1210,13 +1210,26 @@ export const customShellAiUsageAlerts = pgTable(
  * frozen in here as each day happens, so the hash rows it was counted from
  * can be thrown away when the day ends.
  */
-export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
-  day: date("day").primaryKey(),
-  views: integer("views").notNull().default(0),
-  memberViews: integer("member_views").notNull().default(0),
-  visitorViews: integer("visitor_views").notNull().default(0),
-  uniqueVisitors: integer("unique_visitors").notNull().default(0),
-})
+export const customShellTrafficDailyTotals = pgTable(
+  "traffic_daily_totals",
+  {
+    /** The site these are the figures for. Part of the key, not beside it. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    views: integer("views").notNull().default(0),
+    memberViews: integer("member_views").notNull().default(0),
+    visitorViews: integer("visitor_views").notNull().default(0),
+    uniqueVisitors: integer("unique_visitors").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "traffic_daily_totals_pkey",
+      columns: [table.workspaceId, table.day],
+    }),
+  ]
+)
 
 /**
  * Per-day view counts by page, referrer site and device, merged into one
@@ -1227,6 +1240,9 @@ export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
 export const customShellTrafficDailyFacts = pgTable(
   "traffic_daily_facts",
   {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     day: date("day").notNull(),
     dimension: varchar("dimension", { length: 20 }).notNull(),
     key: varchar("key", { length: 160 }).notNull(),
@@ -1235,7 +1251,7 @@ export const customShellTrafficDailyFacts = pgTable(
   (table) => [
     primaryKey({
       name: "traffic_daily_facts_pk",
-      columns: [table.day, table.dimension, table.key],
+      columns: [table.workspaceId, table.day, table.dimension, table.key],
     }),
     check(
       "traffic_daily_facts_dimension_check",
@@ -1253,6 +1269,9 @@ export const customShellTrafficVisits = pgTable(
   "traffic_visits",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     path: varchar("path", { length: 160 }).notNull(),
     referrerDomain: varchar("referrer_domain", { length: 100 }).notNull(),
@@ -1268,7 +1287,10 @@ export const customShellTrafficVisits = pgTable(
       "traffic_visits_audience_check",
       sql`${table.audience} in ('member', 'visitor')`
     ),
-    index("ix_traffic_visits_occurred_at").on(table.occurredAt),
+    index("ix_traffic_visits_workspace_occurred").on(
+      table.workspaceId,
+      table.occurredAt
+    ),
   ]
 )
 
@@ -1280,13 +1302,21 @@ export const customShellTrafficVisits = pgTable(
 export const customShellTrafficVisitors = pgTable(
   "traffic_visitors",
   {
+    /**
+     * Per site, so "unique visitors" means unique to this site. One person
+     * reading two of the deployment's sites is one visitor on each, which is
+     * what each site's own figure should say.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     day: date("day").notNull(),
     visitorHash: varchar("visitor_hash", { length: 64 }).notNull(),
   },
   (table) => [
     primaryKey({
       name: "traffic_visitors_pk",
-      columns: [table.day, table.visitorHash],
+      columns: [table.workspaceId, table.day, table.visitorHash],
     }),
   ]
 )
@@ -1294,6 +1324,18 @@ export const customShellTrafficVisitors = pgTable(
 /**
  * The random ingredient in each day's visitor hashes, swept with the day —
  * which is what makes an old hash truly unrecoverable.
+ *
+ * **One salt for the whole deployment, shared across every site, decided
+ * rather than inherited.** Its job is to stop a visitor being followed from one
+ * day to the next, and it does that whether or not sites share it.
+ *
+ * Giving each site its own would mean the same person reading two of the
+ * deployment's sites hashed differently on each. That sounds like more privacy
+ * and buys none: the hash never leaves this deployment and is thrown away
+ * nightly either way. What it would cost is real — each site would count that
+ * person separately, which is exactly right, and it already does, because the
+ * *visitor* rows are per site while the salt is not. Splitting the salt as well
+ * would change nothing a visitor can feel and add a table's worth of rows.
  */
 export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
   day: date("day").primaryKey(),
