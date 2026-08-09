@@ -213,6 +213,12 @@ export const videoSettings = pgTable(
   {
     id: varchar("id", { length: 20 }).primaryKey(),
     brandKit: jsonb("brand_kit").notNull(),
+    // The voice scripts are read in, remembered so it is not picked every time.
+    // Empty until somebody saves one.
+    voiceDefaults: jsonb("voice_defaults").notNull().default({}),
+    // Which AI writes down speech, and which one rewrites words. Empty until
+    // somebody chooses, at which point the choice sticks.
+    aiDefaults: jsonb("ai_defaults").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

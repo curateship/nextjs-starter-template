@@ -4,7 +4,11 @@ import { eq, inArray, sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
-import { createTestDatabase, type TestDatabase } from "@/server/test-support"
+import {
+  createTestDatabase,
+  insertWorkspace,
+  type TestDatabase,
+} from "@/server/test-support"
 import {
   cleanAltText,
   cleanOriginalName,
@@ -138,7 +142,7 @@ import {
   createUserWorkspace,
   deleteUserWorkspace,
   deleteUserWorkspaces,
-  getOrCreateCurrentWorkspace,
+  startWorkspaceFor,
   groupFeedbackIntoFeeds,
   groupFeedsLinks,
   groupMembershipLinks,
@@ -1117,7 +1121,7 @@ describe("custom shell workspaces", () => {
       await listUserWorkspaces(userId, database as unknown as CustomShellDb)
     ).toEqual({ workspaces: [], currentWorkspaceId: null })
 
-    const defaultWorkspace = await getOrCreateCurrentWorkspace(
+    const defaultWorkspace = await startWorkspaceFor(
       userId,
       database as unknown as CustomShellDb
     )
@@ -1339,12 +1343,12 @@ describe("custom shell workspaces", () => {
       },
     ])
 
-    const first = await getOrCreateCurrentWorkspace(userId, shellDb)
+    const first = await startWorkspaceFor(userId, shellDb)
     const second = await createUserWorkspace(userId, "Second", {}, shellDb)
     // Creating one makes it the current workspace, so this batch takes the
     // workspace in use with it and the user has to land somewhere.
     const third = await createUserWorkspace(userId, "Third", {}, shellDb)
-    const strangers = await getOrCreateCurrentWorkspace(strangerId, shellDb)
+    const strangers = await startWorkspaceFor(strangerId, shellDb)
     const missingId = uuid()
 
     const result = await deleteUserWorkspaces(
@@ -1673,14 +1677,14 @@ describe("membership section", () => {
       name: "Before Membership",
       // Saved before Membership existed: no navVersion at all.
       settings: { sections: savedAdminSection() },
-      isDefault: true,
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -1735,7 +1739,7 @@ describe("membership section", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -1978,14 +1982,14 @@ describe("overview link", () => {
       name: "Saved",
       // Everything before this upgrade has already run for this workspace.
       settings: { icon: "briefcaseBusiness", navVersion: 5, sections: savedSections() },
-      isDefault: true,
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2021,7 +2025,7 @@ describe("overview link", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2190,14 +2194,14 @@ describe("traffic link", () => {
       name: "Saved",
       // Everything before this upgrade has already run for this workspace.
       settings: { icon: "briefcaseBusiness", navVersion: 8, sections: savedSections() },
-      isDefault: true,
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2229,7 +2233,7 @@ describe("traffic link", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2801,20 +2805,20 @@ describe("revenue folds into membership", () => {
       id: uuid(),
       userId,
       name: "Saved",
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       // Everything before this upgrade has already run for this workspace.
       settings: {
         icon: "briefcaseBusiness",
         navVersion: 9,
         sections: savedSections(),
       },
-      isDefault: true,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -2862,7 +2866,7 @@ describe("revenue folds into membership", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -3557,14 +3561,14 @@ describe("feeds section", () => {
       name: "Before Feeds",
       // Saved when Membership was the latest restructure.
       settings: { sections: savedV1Sections(), navVersion: 1 },
-      isDefault: true,
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -3612,7 +3616,7 @@ describe("feeds section", () => {
 
     const reloaded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -3815,14 +3819,14 @@ describe("feeds section", () => {
       userId,
       name: "Before Feedback moved",
       settings: { sections: savedV2Sections(), navVersion: 2 },
-      isDefault: true,
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt,
       updatedAt: createdAt,
     })
 
     const upgraded = parseWorkspaceSettings(
       (
-        await getOrCreateCurrentWorkspace(
+        await startWorkspaceFor(
           userId,
           database as unknown as CustomShellDb
         )
@@ -3909,6 +3913,7 @@ describe("feeds section", () => {
   })
 
   it("adds up the same numbers the pages it links to show", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const DAY_MS = 24 * 60 * 60 * 1000
     const db = database as unknown as CustomShellDb
     const createdAt = now()
@@ -3937,12 +3942,10 @@ describe("feeds section", () => {
     ])
 
     // Two published updates. Publishing drops a notice in both people's trays.
-    await createChangelogEntry(
-      { title: "Shipped one", body: "It is out.", published: true },
+    await createChangelogEntry(workspaceId, { title: "Shipped one", body: "It is out.", published: true },
       db
     )
-    await createChangelogEntry(
-      { title: "Shipped two", body: "Also out.", published: true },
+    await createChangelogEntry(workspaceId, { title: "Shipped two", body: "Also out.", published: true },
       db
     )
 
@@ -3960,6 +3963,7 @@ describe("feeds section", () => {
     const answeredFeedbackId = uuid()
     await database.insert(customShellFeedback).values([
       {
+      workspaceId,
         id: uuid(),
         userId: memberId,
         type: "suggestion",
@@ -3968,6 +3972,7 @@ describe("feeds section", () => {
         updatedAt: createdAt,
       },
       {
+      workspaceId,
         id: answeredFeedbackId,
         userId: memberId,
         type: "bug_report",
@@ -3986,7 +3991,7 @@ describe("feeds section", () => {
       createdAt,
       updatedAt: createdAt,
     })
-    const summary = await loadFeedsSummary(db)
+    const summary = await loadFeedsSummary(workspaceId, db)
 
     // Publishing wrote a notice per person, but the activity feed is one line
     // per event: two published updates, not four notices.
@@ -4926,6 +4931,7 @@ describe("device sessions", () => {
 
 describe("custom shell feedback comments", () => {
   it("creates, updates, deletes, counts, and cascades comments", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const userId = uuid()
     const feedbackId = uuid()
@@ -4942,6 +4948,7 @@ describe("custom shell feedback comments", () => {
       updatedAt: createdAt,
     })
     await database.insert(customShellFeedback).values({
+      workspaceId,
       id: feedbackId,
       userId,
       type: "suggestion",
@@ -5012,6 +5019,7 @@ describe("custom shell feedback comments", () => {
 
 describe("custom shell feedback notifications", () => {
   it("tracks feedback activity, marks read, and cascades source rows", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const ownerId = uuid()
     const actorId = uuid()
@@ -5042,6 +5050,7 @@ describe("custom shell feedback notifications", () => {
       },
     ])
     await database.insert(customShellFeedback).values({
+      workspaceId,
       id: feedbackId,
       userId: ownerId,
       type: "suggestion",
@@ -5115,6 +5124,7 @@ describe("custom shell feedback notifications", () => {
   })
 
   it("paginates only the current user's notifications", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const actorId = uuid()
     const ownerId = uuid()
@@ -5156,6 +5166,7 @@ describe("custom shell feedback notifications", () => {
     ])
     await database.insert(customShellFeedback).values([
       {
+      workspaceId,
         id: ownerFeedbackId,
         userId: ownerId,
         type: "suggestion",
@@ -5164,6 +5175,7 @@ describe("custom shell feedback notifications", () => {
         updatedAt: createdAt,
       },
       {
+      workspaceId,
         id: otherFeedbackId,
         userId: otherOwnerId,
         type: "suggestion",
@@ -5264,6 +5276,7 @@ describe("custom shell feedback notifications", () => {
   })
 
   it("allows only admins to list all notifications", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const adminId = uuid()
     const ownerId = uuid()
@@ -5304,6 +5317,7 @@ describe("custom shell feedback notifications", () => {
       },
     ])
     await database.insert(customShellFeedback).values({
+      workspaceId,
       id: feedbackId,
       userId: ownerId,
       type: "suggestion",
@@ -5348,6 +5362,7 @@ describe("custom shell feedback notifications", () => {
   })
 
   it("searches, filters and sorts the whole admin list, not one page", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const recipientId = uuid()
     const votersIds = [uuid(), uuid(), uuid()]
@@ -5381,6 +5396,7 @@ describe("custom shell feedback notifications", () => {
     await database.insert(customShellFeedback).values(
       feedbackIds.map((id, index) => ({
         id,
+        workspaceId,
         userId: recipientId,
         type: "suggestion",
         message: `Feedback ${index}`,
@@ -5472,6 +5488,7 @@ describe("member home page", () => {
    * vote and reply counts and a total that owns up to what the five rows hide.
    */
   it("shows only the reader's own feedback, counted", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const readerId = uuid()
     const otherId = uuid()
@@ -5502,6 +5519,7 @@ describe("member home page", () => {
     await database.insert(customShellFeedback).values([
       ...feedbackIds.map((id, index) => ({
         id,
+        workspaceId,
         userId: readerId,
         type: "suggestion",
         message: `Mine ${index}`,
@@ -5510,6 +5528,7 @@ describe("member home page", () => {
         updatedAt: createdAt,
       })),
       {
+      workspaceId,
         id: otherFeedbackId,
         userId: otherId,
         type: "suggestion",
@@ -5641,6 +5660,7 @@ describe("custom shell media helpers", () => {
   })
 
   it("lists only owned media and blocks cross-user access", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const ownerId = uuid()
     const otherId = uuid()
@@ -5669,6 +5689,7 @@ describe("custom shell media helpers", () => {
 
     await database.insert(customShellMedia).values([
       {
+      workspaceId,
         id: ownedMediaId,
         userId: ownerId,
         filename: "hero.png",
@@ -5682,6 +5703,7 @@ describe("custom shell media helpers", () => {
         updatedAt: createdAt,
       },
       {
+      workspaceId,
         id: uuid(),
         userId: otherId,
         filename: "other.png",
@@ -5697,7 +5719,7 @@ describe("custom shell media helpers", () => {
     ])
 
     await expect(
-      listOwnedMedia({ userId: ownerId, page: 1, pageSize: 20 })
+      listOwnedMedia({ workspaceId, userId: ownerId, page: 1, pageSize: 20 })
     ).resolves.toMatchObject({
       total: 1,
       media: [
@@ -5714,6 +5736,7 @@ describe("custom shell media helpers", () => {
   })
 
   it("only accepts a profile photo the account itself uploaded", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const ownerId = uuid()
     const strangerId = uuid()
@@ -5741,6 +5764,7 @@ describe("custom shell media helpers", () => {
 
     await database.insert(customShellMedia).values([
       {
+      workspaceId,
         id: uuid(),
         userId: ownerId,
         filename: "face.png",
@@ -5754,6 +5778,7 @@ describe("custom shell media helpers", () => {
         updatedAt: createdAt,
       },
       {
+      workspaceId,
         id: uuid(),
         userId: ownerId,
         filename: "clip.mp4",
@@ -5767,6 +5792,7 @@ describe("custom shell media helpers", () => {
         updatedAt: createdAt,
       },
       {
+      workspaceId,
         id: uuid(),
         userId: strangerId,
         filename: "theirs.png",
@@ -5850,6 +5876,7 @@ describe("custom shell media helpers", () => {
   })
 
   it("filters owned media by SVG mime type", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const createdAt = now()
     const userId = uuid()
     const svgMediaId = uuid()
@@ -5866,6 +5893,7 @@ describe("custom shell media helpers", () => {
 
     await database.insert(customShellMedia).values([
       {
+      workspaceId,
         id: uuid(),
         userId,
         filename: "hero.png",
@@ -5879,6 +5907,7 @@ describe("custom shell media helpers", () => {
         updatedAt: createdAt,
       },
       {
+      workspaceId,
         id: svgMediaId,
         userId,
         filename: "icon.svg",
@@ -5894,7 +5923,7 @@ describe("custom shell media helpers", () => {
     ])
 
     await expect(
-      listOwnedMedia({
+      listOwnedMedia({ workspaceId,
         userId,
         page: 1,
         pageSize: 20,
@@ -5942,18 +5971,16 @@ describe("custom shell changelog", () => {
   }
 
   it("keeps drafts out of the panel and lists published entries newest first", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
 
-    const older = await createChangelogEntry(
-      { title: "Older", body: "Shipped a while ago", published: true },
+    const older = await createChangelogEntry(workspaceId, { title: "Older", body: "Shipped a while ago", published: true },
       db
     )
-    await createChangelogEntry(
-      { title: "Draft", body: "Not ready", published: false },
+    await createChangelogEntry(workspaceId, { title: "Draft", body: "Not ready", published: false },
       db
     )
-    const newer = await createChangelogEntry(
-      { title: "Newer", body: "Shipped just now", published: true },
+    const newer = await createChangelogEntry(workspaceId, { title: "Newer", body: "Shipped just now", published: true },
       db
     )
     // Two entries created in the same test can share a timestamp, so space them
@@ -5963,19 +5990,19 @@ describe("custom shell changelog", () => {
       .set({ publishedAt: new Date(Date.now() - 60_000) })
       .where(eq(customShellChangelogEntries.id, older.id))
 
-    const published = await listPublishedChangelogEntries(20, db)
+    const published = await listPublishedChangelogEntries(workspaceId, 20, db)
 
     expect(published.map((entry) => entry.title)).toEqual(["Newer", "Older"])
     expect(newer.publishedAt).not.toBeNull()
   })
 
   it("drops a notice in every person's tray when an update is published", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedReader()
     const otherId = await seedReader("second@internal.dev")
 
-    const entry = await createChangelogEntry(
-      { title: "First", body: "Something shipped", published: true },
+    const entry = await createChangelogEntry(workspaceId, { title: "First", body: "Something shipped", published: true },
       db
     )
 
@@ -5996,16 +6023,16 @@ describe("custom shell changelog", () => {
   })
 
   it("says nothing when a draft is saved, and announces it when published", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     await seedReader()
 
-    const entry = await createChangelogEntry(
-      { title: "Draft", body: "Not ready", published: false },
+    const entry = await createChangelogEntry(workspaceId, { title: "Draft", body: "Not ready", published: false },
       db
     )
     await expect(countNotices(entry.id)).resolves.toBe(0)
 
-    await updateChangelogEntry(
+    await updateChangelogEntry(workspaceId,
       entry.id,
       { title: "Draft", body: "Now it is ready", published: true },
       db
@@ -6014,14 +6041,14 @@ describe("custom shell changelog", () => {
   })
 
   it("does not announce an edit to an update that is already out", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     await seedReader()
 
-    const entry = await createChangelogEntry(
-      { title: "Typo", body: "Teh feature shipped", published: true },
+    const entry = await createChangelogEntry(workspaceId, { title: "Typo", body: "Teh feature shipped", published: true },
       db
     )
-    await updateChangelogEntry(
+    await updateChangelogEntry(workspaceId,
       entry.id,
       { title: "Typo", body: "The feature shipped", published: true },
       db
@@ -6031,16 +6058,16 @@ describe("custom shell changelog", () => {
   })
 
   it("takes the notices back when an update is pulled", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     await seedReader()
 
-    const entry = await createChangelogEntry(
-      { title: "Too early", body: "Not shipped after all", published: true },
+    const entry = await createChangelogEntry(workspaceId, { title: "Too early", body: "Not shipped after all", published: true },
       db
     )
     await expect(countNotices(entry.id)).resolves.toBe(1)
 
-    await updateChangelogEntry(
+    await updateChangelogEntry(workspaceId,
       entry.id,
       { title: "Too early", body: "Not shipped after all", published: false },
       db
@@ -6049,29 +6076,29 @@ describe("custom shell changelog", () => {
   })
 
   it("clears the notices when the update itself is deleted", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     await seedReader()
 
-    const entry = await createChangelogEntry(
-      { title: "Gone", body: "Deleted later", published: true },
+    const entry = await createChangelogEntry(workspaceId, { title: "Gone", body: "Deleted later", published: true },
       db
     )
     await expect(countNotices(entry.id)).resolves.toBe(1)
 
-    await deleteChangelogEntries([entry.id], db)
+    await deleteChangelogEntries(workspaceId, [entry.id], db)
     await expect(countNotices(entry.id)).resolves.toBe(0)
   })
 
   it("keeps the original date when a published entry is edited", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
 
-    const entry = await createChangelogEntry(
-      { title: "Typo", body: "Teh feature shipped", published: true },
+    const entry = await createChangelogEntry(workspaceId, { title: "Typo", body: "Teh feature shipped", published: true },
       db
     )
     const firstPublishedAt = entry.publishedAt
 
-    const fixed = await updateChangelogEntry(
+    const fixed = await updateChangelogEntry(workspaceId,
       entry.id,
       { title: "Typo", body: "The feature shipped", published: true },
       db
@@ -6083,38 +6110,40 @@ describe("custom shell changelog", () => {
   })
 
   it("clears the date when an entry goes back to a draft", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
 
-    const entry = await createChangelogEntry(
-      { title: "Too early", body: "Not shipped after all", published: true },
+    const entry = await createChangelogEntry(workspaceId, { title: "Too early", body: "Not shipped after all", published: true },
       db
     )
 
-    const pulled = await updateChangelogEntry(
+    const pulled = await updateChangelogEntry(workspaceId,
       entry.id,
       { title: "Too early", body: "Not shipped after all", published: false },
       db
     )
 
     expect(pulled.publishedAt).toBeNull()
-    await expect(listPublishedChangelogEntries(20, db)).resolves.toEqual([])
+    await expect(listPublishedChangelogEntries(workspaceId, 20, db)).resolves.toEqual([])
   })
 
   it("refuses an entry with no title or no details", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
 
     await expect(
-      createChangelogEntry({ title: "  ", body: "Body", published: true }, db)
+      createChangelogEntry(workspaceId, { title: "  ", body: "Body", published: true }, db)
     ).rejects.toThrow("CHANGELOG_TITLE_REQUIRED")
     await expect(
-      createChangelogEntry({ title: "Title", body: "  ", published: true }, db)
+      createChangelogEntry(workspaceId, { title: "Title", body: "  ", published: true }, db)
     ).rejects.toThrow("CHANGELOG_BODY_REQUIRED")
   })
 
   it("reports a delete that matched nothing instead of passing silently", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
 
-    await expect(deleteChangelogEntries([uuid()], db)).rejects.toThrow(
+    await expect(deleteChangelogEntries(workspaceId, [uuid()], db)).rejects.toThrow(
       "CHANGELOG_ENTRY_NOT_FOUND"
     )
   })
@@ -6498,48 +6527,51 @@ describe("custom shell announcements", () => {
   }
 
   it("shows a live announcement and keeps a scheduled one out of sight", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
 
-    const live = await createAnnouncement(baseInput(), db)
-    await createAnnouncement(
+    const live = await createAnnouncement(workspaceId, baseInput(), db)
+    await createAnnouncement(workspaceId,
       baseInput({ title: "Next week", startsOn: dayField(7) }),
       db
     )
 
-    const { banners } = await loadUserAnnouncements(readerId, db)
+    const { banners } = await loadUserAnnouncements(workspaceId, readerId, db)
     expect(banners.map((banner) => banner.id)).toEqual([live.id])
     expect(banners[0].level).toBe("warning")
   })
 
   it("hides a dismissed banner for that person and nobody else", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
     const otherId = await seedPerson("second@internal.dev")
 
-    const announcement = await createAnnouncement(baseInput(), db)
-    await dismissAnnouncement(readerId, announcement.id, db)
+    const announcement = await createAnnouncement(workspaceId, baseInput(), db)
+    await dismissAnnouncement(workspaceId, readerId, announcement.id, db)
     // Dismissing twice is a no-op, not a crash.
-    await dismissAnnouncement(readerId, announcement.id, db)
+    await dismissAnnouncement(workspaceId, readerId, announcement.id, db)
 
-    expect((await loadUserAnnouncements(readerId, db)).banners).toEqual([])
-    expect((await loadUserAnnouncements(otherId, db)).banners).toHaveLength(1)
+    expect((await loadUserAnnouncements(workspaceId, readerId, db)).banners).toEqual([])
+    expect((await loadUserAnnouncements(workspaceId, otherId, db)).banners).toHaveLength(1)
   })
 
   it("takes a retired announcement down for everyone", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
 
-    const showing = await createAnnouncement(baseInput(), db)
-    const scheduled = await createAnnouncement(
+    const showing = await createAnnouncement(workspaceId, baseInput(), db)
+    const scheduled = await createAnnouncement(workspaceId,
       baseInput({ title: "Next week", startsOn: dayField(7) }),
       db
     )
 
-    const result = await retireAnnouncements([showing.id, scheduled.id], db)
+    const result = await retireAnnouncements(workspaceId, [showing.id, scheduled.id], db)
 
     expect(result.count).toBe(2)
-    expect((await loadUserAnnouncements(readerId, db)).banners).toEqual([])
+    expect((await loadUserAnnouncements(workspaceId, readerId, db)).banners).toEqual([])
     // Retiring one that had not started closes its window down to nothing
     // rather than leaving a start date in the future it could reopen on.
     const [row] = await database
@@ -6551,11 +6583,12 @@ describe("custom shell announcements", () => {
   })
 
   it("writes one tray notice per person, the first time they look", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
     const otherId = await seedPerson("second@internal.dev")
 
-    const announcement = await createAnnouncement(
+    const announcement = await createAnnouncement(workspaceId,
       baseInput({ notify: true }),
       db
     )
@@ -6565,9 +6598,9 @@ describe("custom shell announcements", () => {
 
     // The count of what it wrote is what tells the shell to ask for a fresh
     // unread total, so it has to be right on the first look and zero after.
-    expect((await loadUserAnnouncements(readerId, db)).noticesCreated).toBe(1)
-    expect((await loadUserAnnouncements(readerId, db)).noticesCreated).toBe(0)
-    await loadUserAnnouncements(otherId, db)
+    expect((await loadUserAnnouncements(workspaceId, readerId, db)).noticesCreated).toBe(1)
+    expect((await loadUserAnnouncements(workspaceId, readerId, db)).noticesCreated).toBe(0)
+    await loadUserAnnouncements(workspaceId, otherId, db)
 
     const notices = await noticesFor(announcement.id)
     expect(notices).toHaveLength(2)
@@ -6579,60 +6612,64 @@ describe("custom shell announcements", () => {
   })
 
   it("sends nothing to the tray for a banner-only announcement", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
 
-    const announcement = await createAnnouncement(baseInput(), db)
-    await loadUserAnnouncements(readerId, db)
+    const announcement = await createAnnouncement(workspaceId, baseInput(), db)
+    await loadUserAnnouncements(workspaceId, readerId, db)
 
     expect(await noticesFor(announcement.id)).toHaveLength(0)
   })
 
   it("takes the tray notices back when the tray is switched off", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
 
-    const announcement = await createAnnouncement(
+    const announcement = await createAnnouncement(workspaceId,
       baseInput({ notify: true }),
       db
     )
-    await loadUserAnnouncements(readerId, db)
+    await loadUserAnnouncements(workspaceId, readerId, db)
     expect(await noticesFor(announcement.id)).toHaveLength(1)
 
-    await updateAnnouncement(announcement.id, baseInput({ notify: false }), db)
+    await updateAnnouncement(workspaceId, announcement.id, baseInput({ notify: false }), db)
 
     expect(await noticesFor(announcement.id)).toHaveLength(0)
   })
 
   it("keeps a retired announcement readable in the tray", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
 
-    const announcement = await createAnnouncement(
+    const announcement = await createAnnouncement(workspaceId,
       baseInput({ notify: true }),
       db
     )
-    await loadUserAnnouncements(readerId, db)
-    await retireAnnouncements([announcement.id], db)
+    await loadUserAnnouncements(workspaceId, readerId, db)
+    await retireAnnouncements(workspaceId, [announcement.id], db)
 
-    expect((await loadUserAnnouncements(readerId, db)).banners).toEqual([])
+    expect((await loadUserAnnouncements(workspaceId, readerId, db)).banners).toEqual([])
     expect(await noticesFor(announcement.id)).toHaveLength(1)
   })
 
   it("refuses an announcement with nothing to say and nowhere to say it", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
 
     await expect(
-      createAnnouncement(baseInput({ title: "   " }), db)
+      createAnnouncement(workspaceId, baseInput({ title: "   " }), db)
     ).rejects.toThrow("ANNOUNCEMENT_TITLE_REQUIRED")
     await expect(
-      createAnnouncement(baseInput({ body: "   " }), db)
+      createAnnouncement(workspaceId, baseInput({ body: "   " }), db)
     ).rejects.toThrow("ANNOUNCEMENT_BODY_REQUIRED")
     await expect(
-      createAnnouncement(baseInput({ showBanner: false, notify: false }), db)
+      createAnnouncement(workspaceId, baseInput({ showBanner: false, notify: false }), db)
     ).rejects.toThrow("ANNOUNCEMENT_CHANNEL_REQUIRED")
     await expect(
-      createAnnouncement(
+      createAnnouncement(workspaceId,
         baseInput({ startsOn: dayField(7), endsOn: dayField(1) }),
         db
       )
@@ -6640,28 +6677,29 @@ describe("custom shell announcements", () => {
     // The API's date check is a shape check, so a date-shaped non-date still
     // reaches here and must not be written as an unreadable timestamp.
     await expect(
-      createAnnouncement(baseInput({ startsOn: "9999-99-99" }), db)
+      createAnnouncement(workspaceId, baseInput({ startsOn: "9999-99-99" }), db)
     ).rejects.toThrow("ANNOUNCEMENT_WINDOW_INVALID")
     await expect(
-      createAnnouncement(baseInput({ endsOn: "2026-13-40" }), db)
+      createAnnouncement(workspaceId, baseInput({ endsOn: "2026-13-40" }), db)
     ).rejects.toThrow("ANNOUNCEMENT_WINDOW_INVALID")
   })
 
   it("takes its notices with it when it is deleted", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const readerId = await seedPerson("reader@internal.dev")
 
-    const announcement = await createAnnouncement(
+    const announcement = await createAnnouncement(workspaceId,
       baseInput({ notify: true }),
       db
     )
-    await loadUserAnnouncements(readerId, db)
-    await dismissAnnouncement(readerId, announcement.id, db)
+    await loadUserAnnouncements(workspaceId, readerId, db)
+    await dismissAnnouncement(workspaceId, readerId, announcement.id, db)
 
-    await deleteAnnouncements([announcement.id], db)
+    await deleteAnnouncements(workspaceId, [announcement.id], db)
 
     expect(await noticesFor(announcement.id)).toHaveLength(0)
-    expect(await listAnnouncements(db)).toHaveLength(0)
+    expect(await listAnnouncements(workspaceId, db)).toHaveLength(0)
   })
 })
 
@@ -6723,6 +6761,7 @@ describe("custom shell account detail", () => {
   })
 
   it("adds up storage from the same rows the media dashboard reads", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
     const db = database as unknown as CustomShellDb
     const userId = await seedPerson("busy@internal.dev")
     const voterId = await seedPerson("voter@internal.dev")
@@ -6731,6 +6770,7 @@ describe("custom shell account detail", () => {
     await database.insert(customShellMedia).values([
       {
         id: uuid(),
+        workspaceId,
         userId,
         filename: "one.png",
         originalName: "one.png",
@@ -6743,6 +6783,7 @@ describe("custom shell account detail", () => {
       },
       {
         id: uuid(),
+        workspaceId,
         userId,
         filename: "two.png",
         originalName: "two.png",
@@ -6756,6 +6797,7 @@ describe("custom shell account detail", () => {
       // Somebody else's file must not land on this person's total.
       {
         id: uuid(),
+        workspaceId,
         userId: voterId,
         filename: "other.png",
         originalName: "other.png",

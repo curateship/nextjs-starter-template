@@ -25,6 +25,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
+import type { WorkspaceStatus } from "@/lib/workspaces/status"
 
 export const customShellUsers = pgTable(
   "users",
@@ -70,6 +71,17 @@ export const customShellUsers = pgTable(
      * moderation decision.
      */
     deletedBy: varchar("deleted_by", { length: 36 }),
+    /**
+     * The workspace this person is looking at, or empty when they have not
+     * picked one.
+     *
+     * On the person, not on the workspace. It used to be `is_default` on the
+     * workspace row, which could only hold one person's opinion of it — so two
+     * admins sharing a workspace cleared each other's choice every time either
+     * of them switched. Empty is an ordinary state: a new account is in it
+     * until it picks one.
+     */
+    currentWorkspaceId: varchar("current_workspace_id", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -167,13 +179,39 @@ export const customShellWorkspaces = pgTable(
       { onDelete: "set null" }
     ),
     name: varchar("name", { length: 255 }).notNull(),
+    /** The label this workspace answers on, in front of the base domain. */
+    subdomain: varchar("subdomain", { length: 63 }).notNull(),
+    /**
+     * A domain of its own, stored bare — no scheme, no port, no `www.` —
+     * because that is the shape an incoming host is reduced to before it is
+     * matched. Empty means it answers only on its subdomain.
+     */
+    customDomain: varchar("custom_domain", { length: 253 })
+      .notNull()
+      .default(""),
+    /**
+     * `active` and `draft` both answer a visitor; `inactive` looks like the
+     * workspace never existed. Draft answers on purpose — it is how a site is
+     * looked at before anybody is told about it.
+     */
+    status: varchar("status", { length: 20 })
+      .$type<WorkspaceStatus>()
+      .notNull()
+      .default("active"),
     settings: jsonb("settings").notNull(),
-    isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("ix_workspaces_user_id").on(table.userId),
+    uniqueIndex("ux_workspaces_subdomain").on(table.subdomain),
+    uniqueIndex("ux_workspaces_custom_domain")
+      .on(table.customDomain)
+      .where(sql`${table.customDomain} <> ''`),
+    check(
+      "workspaces_status_check",
+      sql`${table.status} in ('active', 'inactive', 'draft')`
+    ),
   ]
 )
 
@@ -181,6 +219,13 @@ export const customShellFeedback = pgTable(
   "feedback",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site it was left on. Feedback about one site is that site's roadmap,
+     * and its votes and replies follow it through the parent row.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -219,7 +264,8 @@ export const customShellFeedback = pgTable(
       sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
-    index("ix_feedback_type").on(table.type),
+    index("ix_feedback_workspace_created").on(table.workspaceId, table.createdAt),
+    index("ix_feedback_workspace_type").on(table.workspaceId, table.type),
     index("ix_feedback_attachment_media_id").on(table.attachmentMediaId),
   ]
 )
@@ -349,6 +395,10 @@ export const customShellAnnouncements = pgTable(
   "announcements",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site this banner is for. Another site's visitors never see it. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     /** How loud the banner looks: info, warning or critical. */
@@ -380,7 +430,11 @@ export const customShellAnnouncements = pgTable(
       "announcements_channel_check",
       sql`${table.showBanner} or ${table.notify}`
     ),
-    index("ix_announcements_window").on(table.startsAt, table.endsAt),
+    index("ix_announcements_workspace_window").on(
+      table.workspaceId,
+      table.startsAt,
+      table.endsAt
+    ),
   ]
 )
 
@@ -406,6 +460,18 @@ export const customShellMedia = pgTable(
   "media",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site this file belongs to, which is the site it was uploaded on.
+     *
+     * The library and the picker read by this and nothing else, so a photo
+     * uploaded for one site is never offered to another. `userId` stays beside
+     * it and still means the person who uploaded it — it is what an avatar and
+     * a feedback screenshot are checked against, and those are personal rather
+     * than the site's.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -422,14 +488,14 @@ export const customShellMedia = pgTable(
   (table) => [
     check(
       "media_file_type_check",
-      sql`${table.fileType} in ('image', 'video')`
+      sql`${table.fileType} in ('image', 'video', 'audio')`
     ),
     index("ix_media_user_id").on(table.userId),
     index("ix_media_file_type").on(table.fileType),
     index("ix_media_created_at").on(table.createdAt),
-    index("ix_media_user_type_created").on(
+    index("ix_media_workspace_user_created").on(
+      table.workspaceId,
       table.userId,
-      table.fileType,
       table.createdAt
     ),
   ]
@@ -756,6 +822,17 @@ export const customShellAutomationRuns = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * Which workspace this run is for, fixed when it started.
+     *
+     * The engine used to work it out from the owner's *current* workspace every
+     * time it woke, so switching workspace silently changed who a running flow
+     * would email. Empty only on runs that predate this column.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
     status: varchar("status", { length: 20 })
       .$type<AutomationRunStatus>()
       .notNull(),
@@ -900,6 +977,10 @@ export const customShellChangelogEntries = pgTable(
   "changelog_entries",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site whose updates these are. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     /** Null while the entry is a draft. Only published entries reach members. */
@@ -908,7 +989,10 @@ export const customShellChangelogEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_changelog_entries_published_at").on(table.publishedAt),
+    index("ix_changelog_entries_workspace_published").on(
+      table.workspaceId,
+      table.publishedAt
+    ),
   ]
 )
 

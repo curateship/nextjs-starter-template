@@ -1,7 +1,12 @@
 import { eq } from "drizzle-orm"
 
+import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
+import {
+  readIndicatorSettings,
+  type IndicatorSettings,
+} from "@/lib/trade/indicators/registry"
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -109,5 +114,63 @@ export async function saveSmartDca(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { smartDca, updatedAt: new Date() },
+    })
+}
+
+/**
+ * Which indicators are on and what each is set to.
+ *
+ * Never null: a first visit and a row this build cannot read both come back as
+ * everything off at its own defaults, which is a working chart either way.
+ */
+export async function loadIndicators(
+  userId: string
+): Promise<IndicatorSettings> {
+  const row = await db
+    .select({ indicators: tradePrefs.indicators })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readIndicatorSettings(row[0]?.indicators ?? null)
+}
+
+/** Remember them — saved once the chart has been left alone for a moment. */
+export async function saveIndicators(
+  userId: string,
+  indicators: IndicatorSettings
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, indicators, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { indicators, updatedAt: new Date() },
+    })
+}
+
+/**
+ * Which settings cards were left folded away. Empty for somebody who has never
+ * folded one, which every card reads as "open me the way you always did".
+ */
+export async function loadCardFolds(userId: string): Promise<CardFolds> {
+  const row = await db
+    .select({ cardFolds: tradePrefs.cardFolds })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readCardFolds(row[0]?.cardFolds ?? null)
+}
+
+/** Remember them — saved once the window has been left alone for a moment. */
+export async function saveCardFolds(
+  userId: string,
+  cardFolds: CardFolds
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, cardFolds, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { cardFolds, updatedAt: new Date() },
     })
 }

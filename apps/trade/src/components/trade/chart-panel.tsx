@@ -10,6 +10,7 @@ import {
   ChartQuickOrder,
   type QuickOrderState,
 } from "@/components/trade/chart-quick-order"
+import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
@@ -23,7 +24,7 @@ import {
   type SmartOrderState,
 } from "@/components/trade/smart-order-dialog"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
-import type { PaperTrading } from "@/components/trade/use-paper-trading"
+import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
@@ -36,6 +37,10 @@ import {
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { SmartLadder } from "@/lib/trade/dca"
+import {
+  indicatorPaint,
+  type IndicatorSettings,
+} from "@/lib/trade/indicators/registry"
 import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
 import { cn } from "@/lib/utils"
 
@@ -85,8 +90,9 @@ export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  indicators,
   market,
-  paper,
+  trading,
   free,
   equity,
 }: {
@@ -97,13 +103,16 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /** Which indicators are on and what each is set to, owned by the workspace. */
+  indicators: IndicatorSettings
   /** The market on screen, for the rules an order has to obey. */
   market: MarketRow | null
   /**
-   * Practice trading. Always present; it is `paper.wallet` that is null when
-   * no practice wallet has been picked to trade with.
+   * Trading, practice and real together. Always present; it is
+   * `trading.wallet` that is null when no wallet has been picked to trade
+   * with (or the picked live wallet has no key).
    */
-  paper: PaperTrading
+  trading: Trading
   /** Cash free to put behind a trade, from the account's own figures. */
   free: number
   /** What the account is worth — the pot a DCA ladder's shares are cut from. */
@@ -185,7 +194,7 @@ export function ChartPanel({
   const openMenu = (event: React.MouseEvent) => {
     // A tool in hand is drawing, not trading; the browser's own menu is the
     // honest answer when there is nothing here to offer.
-    if (paint.tool || !paper.wallet || !market) return
+    if (paint.tool || !trading.wallet || !market) return
     const surface = surfaceRef.current
     const box = plotRef.current?.getBoundingClientRect()
     if (!surface || !box) return
@@ -202,17 +211,17 @@ export function ChartPanel({
   // order lines must not draw them a second time (or offer to drag them).
   const ladderOrderIds = React.useMemo(() => {
     const ids = new Set<string>()
-    for (const ladder of paper.ladders) {
+    for (const ladder of trading.ladders) {
       for (const rung of ladder.plan.rungs) {
         if (rung.orderId) ids.add(rung.orderId)
         if (rung.sellOrderId) ids.add(rung.sellOrderId)
       }
     }
     return ids
-  }, [paper.ladders])
+  }, [trading.ladders])
   const looseOrders = React.useMemo(
-    () => paper.orders.filter((order) => !ladderOrderIds.has(order.id)),
-    [paper.orders, ladderOrderIds]
+    () => trading.orders.filter((order) => !ladderOrderIds.has(order.id)),
+    [trading.orders, ladderOrderIds]
   )
 
   /**
@@ -225,7 +234,7 @@ export function ChartPanel({
     marketKey: string,
     brackets: { tpPx: number | null; slPx: number | null }
   ) => {
-    const ladder = paper.ladders.find(
+    const ladder = trading.ladders.find(
       (one) => one.walletId === walletId && one.marketKey === marketKey
     )
     if (ladder) {
@@ -247,8 +256,26 @@ export function ChartPanel({
         )
       }
     }
-    void paper.dragBrackets(walletId, marketKey, brackets)
+    void trading.dragBrackets(walletId, marketKey, brackets)
   }
+
+  // The candles on screen right now: an answer whose tag does not match what
+  // is wanted belongs to a market that was switched away from, and is not one.
+  const current = answer && answer.key === wanted ? answer : null
+
+  /**
+   * What the switched-on indicators want drawn.
+   *
+   * Worked out from the closed candles only — the working bar the feed is
+   * still filling in is left out on purpose. A level has to hold for several
+   * candles before it counts, so the newest bar could not confirm one anyway,
+   * and recomputing every level on the chart on every tick would be work for
+   * an answer that cannot have changed.
+   */
+  const indicatorPainted = React.useMemo(
+    () => indicatorPaint(indicators, current?.candles ?? []),
+    [indicators, current?.candles]
+  )
 
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
@@ -281,8 +308,6 @@ export function ChartPanel({
       </PanelPlaceholder>
     )
   }
-
-  const current = answer && answer.key === wanted ? answer : null
 
   return (
     <div
@@ -324,6 +349,11 @@ export function ChartPanel({
             // neither is anything the chart itself knows about.
             overlay={(surface) => (
               <>
+                {/* First, so everything else sits over it. An indicator is
+                    the chart's own reading of the candles — a drawn line, an
+                    order or a stop is something somebody put there, and that
+                    should never end up behind a dash. */}
+                <IndicatorLayer surface={surface} paint={indicatorPainted} />
                 <PaintLayer
                   surface={surface}
                   drawings={paint.drawings}
@@ -344,19 +374,19 @@ export function ChartPanel({
                   // Every wallet's, not just the active one's: a row in the
                   // table below is a link to its own market, and it would be a
                   // dead end if the chart then showed nothing.
-                  positions={paper.positions}
+                  positions={trading.positions}
                   orders={looseOrders}
                   walletName={(walletId) =>
-                    paper.walletNames.get(walletId) ?? "Another wallet"
+                    trading.walletNames.get(walletId) ?? "Another wallet"
                   }
                   onMoveOrder={(walletId, orderId, price) =>
-                    void paper.move(walletId, orderId, price)
+                    void trading.move(walletId, orderId, price)
                   }
                   onCancelOrder={(walletId, orderId) =>
-                    void paper.cancel(walletId, orderId)
+                    void trading.cancel(walletId, orderId)
                   }
                   entryBadge={(position) => {
-                    const ladder = paper.ladders.find(
+                    const ladder = trading.ladders.find(
                       (one) =>
                         one.walletId === position.walletId &&
                         one.marketKey === position.marketKey &&
@@ -385,14 +415,14 @@ export function ChartPanel({
                 <SmartLadderLayer
                   surface={surface}
                   marketKey={selectedKey}
-                  ladders={paper.ladders}
+                  ladders={trading.ladders}
                   preview={preview}
                   tool={paint.tool}
                   walletName={(walletId) =>
-                    paper.walletNames.get(walletId) ?? "Another wallet"
+                    trading.walletNames.get(walletId) ?? "Another wallet"
                   }
                   onCancelRung={(walletId, ladderId, rungIndex) =>
-                    void paper.cancelRung(walletId, ladderId, rungIndex)
+                    void trading.cancelRung(walletId, ladderId, rungIndex)
                   }
                   onCancelLadder={setCancelFor}
                   onEditExits={setExitsFor}
@@ -423,6 +453,9 @@ export function ChartPanel({
       {menu ? (
         <ChartOrderMenu
           menu={menu}
+          // The ladders are the practice engine's; on a real wallet the menu
+          // offers plain orders only rather than a row that would refuse.
+          smartOrders={trading.wallet?.kind === "paper"}
           onClose={() => setMenu(null)}
           onPick={(side) => {
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
@@ -438,12 +471,15 @@ export function ChartPanel({
         <ChartQuickOrder
           quick={quick}
           market={market}
-          wallet={paper.wallet?.label ?? ""}
+          wallet={trading.wallet?.label ?? ""}
+          // Real money asks first — the window adds a confirm step that says
+          // the order back in dollars before anything is sent.
+          real={trading.wallet?.kind === "live"}
           free={free}
-          busy={paper.busy}
+          busy={trading.busy}
           onClose={() => setQuick(null)}
           onPlace={(input) =>
-            paper.place({ marketKey: market.key, ...input })
+            trading.place({ marketKey: market.key, ...input })
           }
         />
       ) : null}
@@ -451,15 +487,15 @@ export function ChartPanel({
         <SmartOrderDialog
           state={smart}
           market={market}
-          wallet={paper.wallet?.label ?? ""}
+          wallet={trading.wallet?.label ?? ""}
           equity={equity}
           free={free}
           interval={interval}
-          busy={paper.busy}
+          busy={trading.busy}
           onPreview={setPreview}
           onClose={() => setSmart(null)}
           onPlace={(input) =>
-            paper.placeLadder({ marketKey: market.key, ...input })
+            trading.placeLadder({ marketKey: market.key, ...input })
           }
         />
       ) : null}
@@ -467,16 +503,16 @@ export function ChartPanel({
         ladder={exitsFor}
         position={
           exitsFor
-            ? (paper.positions.find(
+            ? (trading.positions.find(
                 (one) =>
                   one.walletId === exitsFor.walletId &&
                   one.marketKey === exitsFor.marketKey
               ) ?? null)
             : null
         }
-        busy={paper.busy}
+        busy={trading.busy}
         onSave={(ladder, exits) =>
-          paper.setLadderExits(ladder.walletId, ladder.id, exits)
+          trading.setLadderExits(ladder.walletId, ladder.id, exits)
         }
         onClose={() => setExitsFor(null)}
       />
@@ -502,7 +538,7 @@ export function ChartPanel({
         confirmLabel="Stop the ladder"
         onConfirm={() => {
           if (cancelFor) {
-            void paper.cancelLadder(cancelFor.walletId, cancelFor.id)
+            void trading.cancelLadder(cancelFor.walletId, cancelFor.id)
           }
           setCancelFor(null)
         }}

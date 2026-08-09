@@ -10,7 +10,10 @@ import {
   saveLastMarket,
 } from "@/lib/api/markets"
 import { loadRememberedChartView } from "@/lib/api/chart-view"
+import { loadRememberedFolds } from "@/lib/api/card-folds"
+import { loadIndicatorSettings } from "@/lib/api/indicators"
 import type { ChartView } from "@/lib/trade/chart-view"
+import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 
 /**
  * `?market=<key>` is which market the middle panel shows — a full market key
@@ -32,38 +35,52 @@ function readTradeSearch(search: Record<string, unknown>): TradeSearch {
 export const Route = createFileRoute("/_authenticated/trade")({
   validateSearch: readTradeSearch,
   loader: async () => {
-    const [markets, favorites, lastMarket, chartView] = await Promise.all([
-      // A dead exchange must not take the page down with it: the workspace
-      // still opens, and the list explains itself and offers a retry.
-      loadMarkets()
-        .then((result) => ({ catalogs: result.catalogs, error: null }))
-        .catch((error: unknown) => ({
-          catalogs: [],
-          error: getMarketsErrorMessage(error),
-        })),
-      // Losing the stars is cosmetic — an empty set just draws no stars.
-      loadMarketFavorites().catch(() => ({ marketKeys: [] as string[] })),
-      // Losing the memory only means a blank middle panel, never a broken page.
-      loadLastMarket().catch(() => ({ marketKey: null as string | null })),
+    const [markets, favorites, lastMarket, chartView, indicators, cardFolds] =
+      await Promise.all([
+        // A dead exchange must not take the page down with it: the workspace
+        // still opens, and the list explains itself and offers a retry.
+        loadMarkets()
+          .then((result) => ({ catalogs: result.catalogs, error: null }))
+          .catch((error: unknown) => ({
+            catalogs: [],
+            error: getMarketsErrorMessage(error),
+          })),
+        // Losing the stars is cosmetic — an empty set just draws no stars.
+        loadMarketFavorites().catch(() => ({ marketKeys: [] as string[] })),
+        // Losing the memory only means a blank middle panel, never a broken
+        // page.
+        loadLastMarket().catch(() => ({ marketKey: null as string | null })),
         // Read here rather than after the chart is up: arriving late would
         // frame the whole history first and jump to the remembered zoom a
         // beat later. Losing it only means the chart frames its own history.
         loadRememberedChartView().catch(() => ({
           chartView: null as ChartView | null,
         })),
+        // Read here too, so the first chart drawn already carries them rather
+        // than painting bare candles and popping dashes on a beat later.
+        // Losing them only means an unmarked chart, never a broken page.
+        loadIndicatorSettings().catch(() => ({
+          indicators: defaultIndicatorSettings(),
+        })),
+        // Read here rather than when a window opens, which would be too late:
+        // its cards would draw open and then fold themselves a moment later,
+        // in front of you. Losing it only means cards open as they always did.
+        loadRememberedFolds().catch(() => ({ folds: {} })),
       ])
     return {
       markets,
       favoriteKeys: favorites.marketKeys,
       lastMarketKey: lastMarket.marketKey,
       chartView: chartView.chartView,
+      indicators: indicators.indicators,
+      cardFolds: cardFolds.folds,
     }
   },
   component: TradeRoute,
 })
 
 function TradeRoute() {
-  const { markets, favoriteKeys, lastMarketKey, chartView } =
+  const { markets, favoriteKeys, lastMarketKey, chartView, indicators, cardFolds } =
     Route.useLoaderData()
   const { market } = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -98,6 +115,8 @@ function TradeRoute() {
       marketsError={markets.error}
       initialFavoriteKeys={favoriteKeys}
       initialChartView={chartView}
+      initialIndicators={indicators}
+      initialCardFolds={cardFolds}
       selectedKey={selectedKey}
       onSelectMarket={(key) =>
         void navigate({

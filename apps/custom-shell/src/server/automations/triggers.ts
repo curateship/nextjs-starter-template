@@ -17,6 +17,7 @@ import {
 import { readAutomationsPaused } from "@/server/automations/pause"
 import type { CardExpiryWarning } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
+import { currentWorkspace } from "@/server/people/workspaces"
 import {
   customShellAutomationRuns,
   customShellAutomations,
@@ -174,6 +175,8 @@ async function startTriggeredRun(
       id: uuid(),
       automationId: flow.automationId,
       userId: flow.userId,
+      // Fixed at the moment the event fired, for the same reason as above.
+      workspaceId: (await currentWorkspace(flow.userId, database))?.id ?? null,
       status: "active",
       currentNodeId: flow.entryNodeId,
       configSnapshot: flow.config,

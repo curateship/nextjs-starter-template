@@ -2,11 +2,14 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { startWorkspaceFor as startWorkspaceOnSignIn } from "@/lib/api/auth/auth"
 import { now, uuid } from "@/server/auth/security"
 import {
   deleteUserWorkspace,
-  getOrCreateCurrentWorkspace,
   listUserWorkspaces,
+  startWorkspaceFor,
+  switchUserWorkspace,
+  updateUserWorkspace,
 } from "@/server/people/workspaces"
 import {
   customShellContacts,
@@ -55,10 +58,36 @@ async function addContact(workspaceId: string) {
   })
 }
 
+describe("workspaces are for admins", () => {
+  it("makes none when a member signs in", async () => {
+    // Every sign-in used to make one for everybody. A member never sees the
+    // switcher, so seven empty ones sat in the shell's own database unnoticed.
+    const member = await insertUser(database, { role: "member" })
+    await startWorkspaceOnSignIn(member)
+
+    const [row] = await database
+      .select()
+      .from(customShellWorkspaces)
+      .where(eq(customShellWorkspaces.userId, member.id))
+    expect(row).toBeUndefined()
+  })
+
+  it("still makes one when an admin signs in", async () => {
+    const admin = await insertUser(database, { role: "admin" })
+    await startWorkspaceOnSignIn(admin)
+
+    const [row] = await database
+      .select()
+      .from(customShellWorkspaces)
+      .where(eq(customShellWorkspaces.userId, admin.id))
+    expect(row).toBeDefined()
+  })
+})
+
 describe("a workspace outlives the person who made it", () => {
   it("keeps the workspace when the account goes", async () => {
     const owner = await insertUser(database, { role: "admin" })
-    const workspace = await getOrCreateCurrentWorkspace(owner.id, database)
+    const workspace = await startWorkspaceFor(owner.id, database)
 
     await deleteAccount(owner.id)
 
@@ -76,7 +105,7 @@ describe("a workspace outlives the person who made it", () => {
     // cascade from the workspace — so deleting one account quietly emptied a
     // newsletter estate that had nothing to do with that person.
     const owner = await insertUser(database, { role: "admin" })
-    const workspace = await getOrCreateCurrentWorkspace(owner.id, database)
+    const workspace = await startWorkspaceFor(owner.id, database)
     await addContact(workspace.id)
 
     await deleteAccount(owner.id)
@@ -100,11 +129,11 @@ describe("a workspace nobody owns", () => {
     // the task that makes any *admin* able to see any workspace, which is where
     // that check gets made.
     const leaver = await insertUser(database, { role: "admin" })
-    const orphan = await getOrCreateCurrentWorkspace(leaver.id, database)
+    const orphan = await startWorkspaceFor(leaver.id, database)
     await deleteAccount(leaver.id)
 
     const staying = await insertUser(database, { role: "admin" })
-    await getOrCreateCurrentWorkspace(staying.id, database)
+    await startWorkspaceFor(staying.id, database)
 
     const listed = await listUserWorkspaces(staying.id, database)
     expect(listed.workspaces.map((row) => row.id)).not.toContain(orphan.id)
@@ -119,23 +148,74 @@ describe("a workspace nobody owns", () => {
 
   it("cannot be deleted by somebody who never owned it", async () => {
     const leaver = await insertUser(database, { role: "admin" })
-    const orphan = await getOrCreateCurrentWorkspace(leaver.id, database)
+    const orphan = await startWorkspaceFor(leaver.id, database)
     await deleteAccount(leaver.id)
 
     const member = await insertUser(database, { role: "member" })
-    await getOrCreateCurrentWorkspace(member.id, database)
+    await startWorkspaceFor(member.id, database)
 
     await expect(
       deleteUserWorkspace(member.id, orphan.id, database)
     ).rejects.toThrow("Workspace not found")
   })
 
+  it("cannot be switched into by a member who was handed its id", async () => {
+    // Switching is a `userPost` endpoint, so a plain member reaches it. Without
+    // a check here, anybody signed in could point themselves at any workspace
+    // by id and read its name, icon and styling through the shell settings.
+    const admin = await insertUser(database, { role: "admin" })
+    const theirs = await startWorkspaceFor(admin.id, database)
+
+    const member = await insertUser(database, { role: "member" })
+    await startWorkspaceFor(member.id, database)
+
+    await expect(
+      switchUserWorkspace(member.id, theirs.id, database)
+    ).rejects.toThrow("Workspace not found")
+  })
+
+  it("can be switched into by an admin, who may reach any workspace", async () => {
+    const other = await insertUser(database, { role: "admin" })
+    const theirs = await startWorkspaceFor(other.id, database)
+
+    const admin = await insertUser(database, { role: "admin" })
+    await startWorkspaceFor(admin.id, database)
+
+    await switchUserWorkspace(admin.id, theirs.id, database, {
+      seesEveryWorkspace: true,
+    })
+
+    const listed = await listUserWorkspaces(admin.id, database, {
+      seesEveryWorkspace: true,
+    })
+    expect(listed.currentWorkspaceId).toBe(theirs.id)
+  })
+
+  it("lets an admin edit a workspace they can see but did not make", async () => {
+    // The list widened for admins before the writes did, so an admin could see
+    // and switch into a workspace and then be told "Workspace not found" when
+    // they tried to rename it.
+    const other = await insertUser(database, { role: "admin" })
+    const theirs = await startWorkspaceFor(other.id, database)
+
+    const admin = await insertUser(database, { role: "admin" })
+
+    const saved = await updateUserWorkspace(
+      admin.id,
+      theirs.id,
+      { name: "Renamed by another admin", settings: {} },
+      database,
+      { seesEveryWorkspace: true }
+    )
+    expect(saved.name).toBe("Renamed by another admin")
+  })
+
   it("still leaves somebody else's workspace alone", async () => {
     const other = await insertUser(database, { role: "admin" })
-    const theirs = await getOrCreateCurrentWorkspace(other.id, database)
+    const theirs = await startWorkspaceFor(other.id, database)
 
     const staying = await insertUser(database, { role: "admin" })
-    await getOrCreateCurrentWorkspace(staying.id, database)
+    await startWorkspaceFor(staying.id, database)
 
     const listed = await listUserWorkspaces(staying.id, database)
     expect(listed.workspaces.map((row) => row.id)).not.toContain(theirs.id)

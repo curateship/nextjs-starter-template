@@ -6,9 +6,14 @@ import {
   dcaLevels,
   dcaParamsSchema,
   defaultDcaParams,
+  ladderBaseStopOf,
   ladderExitLevels,
+  ladderFirstBuyPx,
+  baseStopPx,
   readLadderPlan,
+  rungBudget,
   type LadderPlan,
+  type LadderRungState,
 } from "./dca"
 
 describe("dcaLevels", () => {
@@ -58,7 +63,9 @@ describe("dcaParamsSchema", () => {
     ["a ramp over 10", { sizeMultiplier: 11 }],
     ["a pot over 100", { maxPositionPct: 101 }],
     ["a zero target", { takeProfit: { mode: "average", pct: 0 } }],
-    ["a 100% stop", { stopLoss: { pct: 100 } }],
+    // 100 itself is allowed now — it is how a base stop says "nothing until
+    // the base arrives". Anything past it is still nonsense.
+    ["a stop over 100%", { stopLoss: { pct: 101 } }],
     ["a volume guard over 5", { maxOrderVolPct: 6 }],
   ])("refuses %s", (_name, override) => {
     const params = { ...defaultDcaParams(), ...override }
@@ -125,12 +132,14 @@ describe("dcaLadderPlan", () => {
 describe("ladder plans", () => {
   const plan: LadderPlan = {
     anchorPx: 100,
+    anchor: "click",
     sizeDecimals: 3,
     maxLeverage: 50,
     rungs: [
       {
         px: 95,
         sz: 1,
+        budget: 95,
         status: "waiting",
         orderId: null,
         sellOrderId: null,
@@ -140,6 +149,7 @@ describe("ladder plans", () => {
       {
         px: 87.4,
         sz: 2,
+        budget: 174.8,
         status: "waiting",
         orderId: null,
         sellOrderId: null,
@@ -154,6 +164,9 @@ describe("ladder plans", () => {
     twoGreen: false,
     greenInterval: null,
     green: null,
+    steppedDown: 0,
+    baseWatch: null,
+    reclaim: null,
   }
 
   it("exits each rung at the rung above it, the first at the click", () => {
@@ -164,5 +177,84 @@ describe("ladder plans", () => {
     expect(readLadderPlan(plan)).toEqual(plan)
     expect(readLadderPlan(null)).toBeNull()
     expect(readLadderPlan({ anchorPx: "up" })).toBeNull()
+  })
+})
+
+describe("the stop that rests under the base", () => {
+  const rung = (px: number, sz: number, status: LadderRungState["status"]) => ({
+    px,
+    sz,
+    budget: px * sz,
+    status,
+    orderId: null,
+    sellOrderId: null,
+    dead: false,
+    touched: false,
+  })
+
+  const withStop = (
+    rungs: LadderRungState[],
+    base: { underPct: number } | null
+  ) => ({
+    rungs,
+    stopLoss: {
+      mode: "percent" as const,
+      pct: 100,
+      base: base
+        ? { ...base, reclaimDays: 1, searchBars: 36, holdBars: 8 }
+        : null,
+    },
+  })
+
+  it("rests on the level, and the chosen percent under it", () => {
+    const held = [rung(95, 1, "filled")]
+    expect(baseStopPx(withStop(held, { underPct: 0 }), 90)).toBeCloseTo(90, 9)
+    expect(baseStopPx(withStop(held, { underPct: 2 }), 90)).toBeCloseTo(88.2, 9)
+  })
+
+  it("refuses a level above what is held — that is a target, not a stop", () => {
+    const held = [rung(87.4, 1, "filled")]
+    expect(baseStopPx(withStop(held, { underPct: 0 }), 90)).toBeNull()
+  })
+
+  it("counts only rungs still held, so a stopped-out round cannot arm the next", () => {
+    // Rung 1 was sold at a stop and rung 2 has just bought. A base of 90 is
+    // above what is held now, so it must not become the new rung's stop.
+    const rungs = [rung(95, 1, "sold"), rung(87.4, 2, "filled")]
+    expect(ladderFirstBuyPx({ rungs })).toBeCloseTo(87.4, 9)
+    expect(baseStopPx(withStop(rungs, { underPct: 0 }), 90)).toBeNull()
+  })
+
+  it("says nothing at all before a base has confirmed, or with the rule off", () => {
+    const held = [rung(95, 1, "filled")]
+    expect(baseStopPx(withStop(held, { underPct: 0 }), null)).toBeNull()
+    expect(baseStopPx(withStop(held, null), 90)).toBeNull()
+  })
+
+  it("freezes the chart's own base settings onto the ladder", () => {
+    expect(ladderBaseStopOf({ underPct: 1, reclaimDays: 1 })).toEqual({
+      underPct: 1,
+      reclaimDays: 1,
+      searchBars: 36,
+      holdBars: 8,
+    })
+    expect(ladderBaseStopOf(null)).toBeNull()
+  })
+
+  it("caps a buy-back at the budget the rung was placed with, not what it holds", () => {
+    // A rung bought back cheaper holds more coins. Its budget must not follow,
+    // or every round of stop-and-reclaim would spend more than the last.
+    const bought = { ...rung(95, 1, "filled"), sz: 3 }
+    expect(rungBudget(bought)).toBeCloseTo(95, 9)
+    // A ladder placed before budgets existed falls back to what it holds.
+    expect(rungBudget({ ...bought, budget: 0 })).toBeCloseTo(285, 9)
+  })
+
+  it("keeps a 100% stop, which is how you say no stop until the base arrives", () => {
+    const asked = defaultDcaParams()
+    asked.stopLoss = { pct: 100, base: { underPct: 0, reclaimDays: 1 } }
+    expect(dcaParamsSchema.safeParse(asked).success).toBe(true)
+    asked.stopLoss = { pct: 101, base: null }
+    expect(dcaParamsSchema.safeParse(asked).success).toBe(false)
   })
 })

@@ -23,7 +23,7 @@ import {
 import { adminGet, adminPost } from "@/server/guards"
 import { listPlans } from "@/server/billing/plans"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
-import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
+import { currentWorkspaceId } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "../error-message"
 
@@ -126,9 +126,6 @@ const upsertSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(100)).max(25).optional(),
 })
 
-async function currentWorkspaceId(userId: string) {
-  return (await getOrCreateCurrentWorkspace(userId)).id
-}
 
 const loadContactsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])

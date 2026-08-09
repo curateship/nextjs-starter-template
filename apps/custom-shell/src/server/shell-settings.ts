@@ -22,9 +22,10 @@ import {
 } from "@/server/schema"
 import { isAdmin } from "@/server/auth/security"
 import {
-  getOrCreateCurrentWorkspace,
+  currentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
+import { answerForRequest } from "@/server/workspaces/host"
 
 /** The app-wide globals row, already parsed and defaulted. */
 export async function readShellGlobals(database: CustomShellDb = db) {
@@ -52,20 +53,52 @@ export async function readDashboardRowsPerPage(
 /**
  * Everything a signed-out visitor's page needs before there is a session: the
  * app name, the logo, and the look every public page wears. Like rows-per-page
- * this reads the settings row on its own rather than going through the
- * workspace lookup, because a visitor has no workspace.
+ * this used to read the settings row on its own, because a visitor signed in to
+ * nothing has no workspace to read.
+ *
+ * They can have one now: the domain they typed. A visitor on a workspace's own
+ * address sees that workspace's name, not the deployment's — which is the whole
+ * point of one deployment serving many. On the deployment's own address, and on
+ * an app with no base domain configured, nothing resolves and the app-wide
+ * values answer exactly as before.
  *
  * The root route loads this on the server, which is what puts the theme in the
  * first paint instead of applying it after the page has already been drawn.
  */
 export async function readBranding(
   database: CustomShellDb = db
-): Promise<{ appName: string; logo: string; logoDark: string }> {
+): Promise<{
+  appName: string
+  logo: string
+  logoDark: string
+  /**
+   * True when the domain belongs to no workspace at all — a subdomain nobody
+   * has taken, or one whose workspace is switched off. The root route turns
+   * that into a dead end, because serving the deployment's own pages under a
+   * stranger's address is worse than answering nothing.
+   */
+  hostIsUnknown: boolean
+}> {
   const globals = await readShellGlobals(database)
+  const answer = await answerForRequest(database)
+
+  if (answer.kind !== "workspace") {
+    return {
+      appName: globals.appName,
+      logo: globals.logo,
+      logoDark: globals.logoDark,
+      hostIsUnknown: answer.kind === "unknown",
+    }
+  }
+
   return {
-    appName: globals.appName,
+    appName: answer.workspace.name || globals.appName,
+    // A workspace has a favicon of its own but no logo yet — that arrives with
+    // the rest of its look, in a later task. Until then the deployment's logo
+    // is shown, which beats a site with no mark at all.
     logo: globals.logo,
     logoDark: globals.logoDark,
+    hostIsUnknown: false,
   }
 }
 
@@ -83,12 +116,16 @@ export async function readShellSettings(
   database: CustomShellDb = db
 ): Promise<ShellConfig> {
   const globals = await readShellGlobals(database)
-  const workspace = await getOrCreateCurrentWorkspace(user.id, database)
-  const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+  // Reads never make a workspace. This runs on every signed-in page load,
+  // including a member's, and the old read created one when it missed — which
+  // is how members ended up owning workspaces they never saw. Nobody in a
+  // workspace yet simply gets the app-wide defaults.
+  const workspace = await currentWorkspace(user.id, database)
+  const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
 
   return {
     ...globals,
-    workspaceName: workspace.name,
+    workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
     // Same rule as the sidebar below: an admin sees and edits their own row,

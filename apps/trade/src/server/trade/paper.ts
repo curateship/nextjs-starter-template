@@ -41,6 +41,7 @@ import {
 } from "@/server/trade/schema"
 import {
   advanceLadders,
+  ladderBarsKey,
   ladderCandleNeeds,
   type LadderBars,
 } from "@/server/trade/smart-ladders"
@@ -173,8 +174,13 @@ export type WalletBook = {
   cash: number
   positions: Map<string, PaperPosition>
   orders: PaperOrder[]
-  /** Fills to record, in the order they happened. */
-  fills: PaperJournalEntry[]
+  /**
+   * Fills to record, in the order they happened. Narrower than the display
+   * type on purpose: everything this engine writes IS a fill, with a side
+   * and a fill reason — the nullable/live variants belong to the live
+   * journal, never to this table.
+   */
+  fills: Array<PaperJournalEntry & { side: PaperSide; reason: PaperFillReason }>
   /** Markets whose position row must be rewritten or removed. */
   touchedMarkets: Set<string>
   /** Orders that filled or were cancelled by the engine. */
@@ -752,12 +758,13 @@ export async function settleWallet(
   const markets = await exposedMarketKeys(userId, [wallet.id])
   const now = Date.now()
 
-  // The candles any two-green ladder is watching — asked out here, before the
+  // The candles the ladders are watching — a two-green ladder's own timeframe,
+  // and the 4h a base stop reads its level off. Asked out here, before the
   // transaction, for the same reason the marks are: a network call must never
   // sit inside the lock. Costs nothing when no ladder is watching.
-  const greenBars = new Map<string, { bars: CandleBar[]; barMs: number }>()
+  const ladderBars = new Map<string, { bars: CandleBar[]; barMs: number }>()
   for (const need of await ladderCandleNeeds(userId, wallet.id, now)) {
-    greenBars.set(need.marketKey, {
+    ladderBars.set(ladderBarsKey(need.use, need.marketKey), {
       bars: await loadBars(wallet, need.marketKey, need.interval, need.since),
       barMs: need.barMs,
     })
@@ -823,7 +830,7 @@ export async function settleWallet(
     // bought gets its sell, a stop that fired ends its ladder — before the
     // book is saved, so their changes ride the same write.
     await advanceLadders(
-      { tx, userId, book, marks, greenBars: greenBars as LadderBars, now },
+      { tx, userId, book, marks, ladderBars: ladderBars as LadderBars, now },
       { fill, dropOrder, freeCash }
     )
     const moved = book.fills.length > 0 || book.goneOrderIds.size > 0

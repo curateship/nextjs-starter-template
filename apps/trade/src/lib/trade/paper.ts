@@ -43,13 +43,30 @@ export type PaperFillReason =
   | "stop_loss"
   | "liquidated"
 
+/**
+ * What a journal row can say happened. The practice engine only ever writes
+ * fills (`PaperFillReason`); the live journal also records the actions around
+ * them — an order left resting, a cancel, a protection change, a refusal —
+ * because with real money the asking is as much a fact as the filling.
+ */
+export type JournalReason =
+  | PaperFillReason
+  | "placed"
+  | "cancelled"
+  | "brackets"
+  | "refused"
+
 /** How each reason reads in the journal. */
-export const PAPER_FILL_REASON_LABELS: Record<PaperFillReason, string> = {
+export const PAPER_FILL_REASON_LABELS: Record<JournalReason, string> = {
   order: "Order",
   manual: "Closed by hand",
   take_profit: "Take profit",
   stop_loss: "Stop loss",
   liquidated: "Liquidated",
+  placed: "Order placed",
+  cancelled: "Cancelled",
+  brackets: "Stop / target changed",
+  refused: "Refused",
 }
 
 export type PaperPosition = {
@@ -77,6 +94,18 @@ export type PaperPosition = {
   feesPaid: number
   /** Epoch ms. The settlement guard reads it — see `paper.ts` on the server. */
   updatedAt: number
+  /**
+   * Present on a REAL position. Carries the exchange's own answers, which the
+   * screens prefer over the formulas below — for real money the exchange's
+   * margin and liquidation price are the ones actually enforced. The order
+   * ids are the protection legs', needed to replace them.
+   */
+  live?: {
+    marginUsed: number
+    liquidationPx: number | null
+    tpOrderId: string | null
+    slOrderId: string | null
+  }
 }
 
 export type PaperOrder = {
@@ -94,20 +123,31 @@ export type PaperOrder = {
   slPx: number | null
   createdAt: number
   updatedAt: number
+  /**
+   * A REAL resting order. Its id is the exchange's own; it cannot be dragged
+   * to a new price yet (that is the edit-orders task), and its leverage reads
+   * as a dash — the account's setting, not the order's.
+   */
+  live?: true
 }
 
 export type PaperJournalEntry = {
   id: string
   walletId: string
   marketKey: string
-  side: PaperSide
+  /** Null only on live refusal rows that never got as far as having a side. */
+  side: PaperSide | null
   px: number
   sz: number
   fee: number
   /** What the closing part of this fill banked. Zero when it only opened. */
   closedPnl: number
-  reason: PaperFillReason
+  reason: JournalReason
   fillTime: number
+  /** A REAL action. Fees and figures the exchange did not report show as dashes. */
+  live?: true
+  /** The plain-word sentence a live row carries — a refusal's reason, mostly. */
+  note?: string | null
 }
 
 /** Everything the fill arithmetic reads and rewrites. */

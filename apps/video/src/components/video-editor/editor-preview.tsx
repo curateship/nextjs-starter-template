@@ -15,6 +15,13 @@ import {
   type ClipTransition,
 } from "@/lib/video/clip-transitions"
 import type { PlaybackSeekMode } from "@/lib/video/playback-clock"
+import {
+  captionEntranceProgress,
+  captionWordAnimation,
+  captionWordTransformCss,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+} from "@/lib/video/caption-animations"
 import { requireTextFont } from "@/lib/video/text-fonts"
 import {
   snapStageCenter,
@@ -36,8 +43,10 @@ import {
  * in it. React draws the elements once per edit; from then on a single loop
  * subscribed to the clock moves them by touching the DOM directly, because a
  * re-render per frame would reload the very `<video>` elements that are
- * playing. Clips of the same file share one element, so a cut between two
- * pieces of the same footage plays straight through without a handover.
+ * playing. Clips of the same file share one element, which keeps playback
+ * smooth — but it means the moment the playhead crosses from one piece of that
+ * file to another, the element has to be jumped to the new place exactly, or
+ * it simply carries on playing the part that was cut out.
  */
 
 // How far a video or audio element may drift from the clock before it is
@@ -457,6 +466,9 @@ export function EditorPreview() {
   React.useEffect(() => {
     let previousFrame: PlaybackFrame | null = null
     const mediaSeekRequests = new WeakMap<HTMLMediaElement, MediaSeekRequest>()
+    // Which piece of its file each element is playing. When that changes, the
+    // element has to land on the new piece exactly rather than drift into it.
+    const playingClipIds = new WeakMap<HTMLMediaElement, string>()
     // Start from a known state whenever the project changes shape; the loop
     // below then only touches what is active or crossing a boundary.
     for (const element of videoRefs.current.values()) {
@@ -527,6 +539,29 @@ export function EditorPreview() {
         previousFrame = frame
       }
 
+      // The entrance. Every visible line is moved from the same numbers the
+      // export bakes into its pictures, so what is watched here and what comes
+      // out of an export are the same thing.
+      for (const [clipId, entry] of frame.texts) {
+        const element = textRefs.current.get(clipId)
+        if (!element) continue
+        const animation = resolveCaptionAnimation(entry.clip.animation)
+        const at = isAnimatedCaption(animation)
+          ? captionWordAnimation(
+              animation,
+              captionEntranceProgress(timeMs - entry.clip.startMs, 0)
+            )
+          : null
+        const transform = at
+          ? `translate(-50%, -50%) ${captionWordTransformCss(at)}`
+          : "translate(-50%, -50%)"
+        if (element.style.transform !== transform) {
+          element.style.transform = transform
+        }
+        const opacity = at ? String(at.opacity) : ""
+        if (element.style.opacity !== opacity) element.style.opacity = opacity
+      }
+
       const seekMode = clock.seekMode ?? "precise"
       const seekToleranceS =
         clock.seekMode === "precise"
@@ -581,11 +616,16 @@ export function EditorPreview() {
           ? clip.trimStartMs / 1000
           : (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
         if ((!playing || reaching) && !element.paused) element.pause()
+        // A different piece of the same file: jump to it exactly. Letting the
+        // usual drift allowance decide would play a short cut straight through
+        // — the very thing that was just taken out.
+        const crossedIntoNewPiece = playingClipIds.get(element) !== clip.id
+        playingClipIds.set(element, clip.id)
         seekPreviewMedia(
           element,
           targetS,
-          seekMode,
-          seekToleranceS,
+          crossedIntoNewPiece ? "precise" : seekMode,
+          crossedIntoNewPiece ? 0.001 : seekToleranceS,
           mediaSeekRequests
         )
         if (playing && !reaching && element.paused) {

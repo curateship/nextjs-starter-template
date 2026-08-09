@@ -20,7 +20,10 @@ import {
 } from "@/lib/announcement"
 
 /**
- * App-wide announcements: one message an admin writes once and everybody sees.
+ * A site's announcements: one message an admin writes once and that site's
+ * people see. Another site's visitors never see it — every query below names a
+ * workspace, and a banner that named no site would be shown to every customer
+ * of every site on the deployment.
  *
  * It reaches people two ways and an admin picks either or both — a dismissible
  * banner across the top of the app, and a notice in the notification tray. The
@@ -43,10 +46,14 @@ export type AnnouncementInput = {
 }
 
 /** Newest first. The admin dashboard reads this — every announcement, live or not. */
-export async function listAnnouncements(database: CustomShellDb = db) {
+export async function listAnnouncements(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
   return database
     .select()
     .from(customShellAnnouncements)
+    .where(eq(customShellAnnouncements.workspaceId, workspaceId))
     .orderBy(
       desc(customShellAnnouncements.startsAt),
       desc(customShellAnnouncements.createdAt)
@@ -54,6 +61,7 @@ export async function listAnnouncements(database: CustomShellDb = db) {
 }
 
 export async function createAnnouncement(
+  workspaceId: string,
   input: AnnouncementInput,
   database: CustomShellDb = db
 ) {
@@ -62,6 +70,7 @@ export async function createAnnouncement(
     .insert(customShellAnnouncements)
     .values({
       id: uuid(),
+      workspaceId,
       ...cleanAnnouncementInput(input, timestamp),
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -76,6 +85,7 @@ export async function createAnnouncement(
 }
 
 export async function updateAnnouncement(
+  workspaceId: string,
   announcementId: string,
   input: AnnouncementInput,
   database: CustomShellDb = db
@@ -87,7 +97,15 @@ export async function updateAnnouncement(
     const [announcement] = await tx
       .update(customShellAnnouncements)
       .set({ ...cleaned, updatedAt: timestamp })
-      .where(eq(customShellAnnouncements.id, announcementId))
+      // The workspace is part of the where rather than checked first: an id
+      // from another site simply matches nothing, and "not found" is the right
+      // answer to give somebody asking about a site that is not theirs.
+      .where(
+        and(
+          eq(customShellAnnouncements.id, announcementId),
+          eq(customShellAnnouncements.workspaceId, workspaceId)
+        )
+      )
       .returning()
 
     if (!announcement) {
@@ -114,6 +132,7 @@ export async function updateAnnouncement(
  * back too, leaving a window of no length — which is to say it never shows.
  */
 export async function retireAnnouncements(
+  workspaceId: string,
   announcementIds: string[],
   database: CustomShellDb = db
 ) {
@@ -127,6 +146,7 @@ export async function retireAnnouncements(
     })
     .where(
       and(
+        eq(customShellAnnouncements.workspaceId, workspaceId),
         inArray(customShellAnnouncements.id, announcementIds),
         // Already over? Leave the dates it actually ran on alone.
         or(
@@ -141,12 +161,18 @@ export async function retireAnnouncements(
 }
 
 export async function deleteAnnouncements(
+  workspaceId: string,
   announcementIds: string[],
   database: CustomShellDb = db
 ) {
   const rows = await database
     .delete(customShellAnnouncements)
-    .where(inArray(customShellAnnouncements.id, announcementIds))
+    .where(
+      and(
+        eq(customShellAnnouncements.workspaceId, workspaceId),
+        inArray(customShellAnnouncements.id, announcementIds)
+      )
+    )
     .returning({ id: customShellAnnouncements.id })
 
   if (!rows.length) {
@@ -173,6 +199,7 @@ export async function deleteAnnouncements(
  * to ask again. See `loadShellBootstrap`.
  */
 export async function loadUserAnnouncements(
+  workspaceId: string,
   userId: string,
   database: CustomShellDb = db
 ): Promise<{ banners: UserAnnouncement[]; noticesCreated: number }> {
@@ -208,6 +235,7 @@ export async function loadUserAnnouncements(
     )
     .where(
       and(
+        eq(customShellAnnouncements.workspaceId, workspaceId),
         lte(customShellAnnouncements.startsAt, timestamp),
         or(
           isNull(customShellAnnouncements.endsAt),
@@ -271,6 +299,7 @@ export async function loadUserAnnouncements(
 
 /** Hides one banner for one person. Dismissing twice is not an error. */
 export async function dismissAnnouncement(
+  workspaceId: string,
   userId: string,
   announcementId: string,
   database: CustomShellDb = db
@@ -278,7 +307,12 @@ export async function dismissAnnouncement(
   const [announcement] = await database
     .select({ id: customShellAnnouncements.id })
     .from(customShellAnnouncements)
-    .where(eq(customShellAnnouncements.id, announcementId))
+    .where(
+      and(
+        eq(customShellAnnouncements.id, announcementId),
+        eq(customShellAnnouncements.workspaceId, workspaceId)
+      )
+    )
     .limit(1)
 
   if (!announcement) {

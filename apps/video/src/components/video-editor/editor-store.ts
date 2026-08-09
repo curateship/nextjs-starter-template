@@ -68,6 +68,44 @@ export type EditorAction =
       }
     }
   | { type: "ADD_TRACK" }
+  // Cut several pieces out of one clip at once, closing the gaps. What comes
+  // after on the same lane shuffles back by however much was taken out.
+  | {
+      type: "APPLY_JUMP_CUTS"
+      clipId: string
+      removals: { clipStartMs: number; clipEndMs: number }[]
+      rippleClipIds: string[]
+    }
+  // The opening line, rewritten across the clips it was read from. One action
+  // so one undo puts the old words back.
+  | {
+      type: "REWRITE_HOOK"
+      lines: { clipId: string; text: string }[]
+      /**
+       * When the opening line is spoken, what to do about it: swap a voice
+       * clip's sound outright, or quieten the opening of a piece of footage
+       * and lay the new line over it.
+       */
+      spoken?:
+        | { how: "swap"; clipId: string; media: Partial<EditorClip> }
+        | {
+            how: "quieten"
+            clipId: string
+            /** How far into the timeline the footage stops being silent. */
+            untilMs: number
+            voice: EditorClip
+          }
+    }
+  // A voiceover and the words it says, dropped on together: the sound on a
+  // lane of its own and the captions above it. One action, one undo.
+  | {
+      type: "INSERT_VOICEOVER"
+      audio: EditorClip
+      captions: EditorClip[]
+    }
+  // Every caption at once, onto a lane of their own. One action so one press
+  // of undo takes the whole lot back off again.
+  | { type: "INSERT_CAPTIONS"; captions: EditorClip[] }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
@@ -186,6 +224,33 @@ function withTrack(
 }
 
 // Remember the tracks as they were, so this edit can be undone.
+/**
+ * The pieces to cut, tidied: inside the clip, in order, joined where they
+ * overlap, and with anything too short to bother with dropped.
+ */
+function normalizeJumpCutRemovals(
+  removals: { clipStartMs: number; clipEndMs: number }[],
+  durationMs: number
+) {
+  const sorted = removals
+    .map((removal) => ({
+      startMs: Math.max(0, Math.min(removal.clipStartMs, durationMs)),
+      endMs: Math.max(0, Math.min(removal.clipEndMs, durationMs)),
+    }))
+    .filter((removal) => removal.endMs - removal.startMs >= MIN_CLIP_MS)
+    .sort((a, b) => a.startMs - b.startMs)
+  const merged: { startMs: number; endMs: number }[] = []
+  for (const removal of sorted) {
+    const previous = merged.at(-1)
+    if (previous && removal.startMs <= previous.endMs) {
+      previous.endMs = Math.max(previous.endMs, removal.endMs)
+    } else {
+      merged.push({ ...removal })
+    }
+  }
+  return merged
+}
+
 function pushUndo(state: EditorState, tracks: EditorTrack[]): EditorState {
   return {
     ...state,
@@ -256,6 +321,168 @@ export function editorReducer(
 
     case "ADD_TRACK":
       return pushUndo(state, [...state.tracks, newTrack()])
+
+    case "APPLY_JUMP_CUTS": {
+      const found = findClip(state.tracks, action.clipId)
+      if (
+        !found ||
+        (found.clip.kind !== "video" && found.clip.kind !== "audio")
+      ) {
+        return state
+      }
+
+      const removals = normalizeJumpCutRemovals(
+        action.removals,
+        found.clip.durationMs
+      )
+      if (!removals.length) return state
+
+      // Walk the clip, keeping what is between the cuts. Each kept piece stays
+      // pointing at the same moment of the original recording, so the picture
+      // and the sound never drift.
+      let sourceCursorMs = 0
+      let timelineCursorMs = found.clip.startMs
+      let first = true
+      const clips: EditorClip[] = []
+      const keepUpTo = (endMs: number) => {
+        const durationMs = endMs - sourceCursorMs
+        if (durationMs < MIN_CLIP_MS) return
+        const isFirst = first
+        first = false
+        clips.push({
+          ...found.clip,
+          id: isFirst ? found.clip.id : editorId(),
+          startMs: timelineCursorMs,
+          durationMs,
+          trimStartMs: found.clip.trimStartMs + sourceCursorMs,
+          // Only the first piece keeps the blend coming into it. The rest butt
+          // against a cut in the same footage, where a dissolve makes no sense.
+          transition: isFirst ? found.clip.transition : undefined,
+        })
+        timelineCursorMs += durationMs
+      }
+
+      for (const removal of removals) {
+        keepUpTo(removal.startMs)
+        sourceCursorMs = removal.endMs
+      }
+      keepUpTo(found.clip.durationMs)
+      if (!clips.length) return state
+
+      const removedDurationMs =
+        found.clip.durationMs -
+        clips.reduce((total, clip) => total + clip.durationMs, 0)
+      const rippleClipIds = new Set(action.rippleClipIds)
+
+      const tracks = withTrack(state.tracks, found.track.id, (track) => ({
+        ...track,
+        clips: sortClips([
+          ...track.clips
+            .filter((clip) => clip.id !== found.clip.id)
+            .map((clip) =>
+              rippleClipIds.has(clip.id)
+                ? {
+                    ...clip,
+                    startMs: Math.max(
+                      found.clip.startMs,
+                      clip.startMs - removedDurationMs
+                    ),
+                  }
+                : clip
+            ),
+          ...clips,
+        ]),
+      }))
+      return { ...pushUndo(state, tracks), selectedClipId: clips[0].id }
+    }
+
+    case "REWRITE_HOOK": {
+      const byId = new Map(action.lines.map((line) => [line.clipId, line.text]))
+      const spoken = action.spoken
+      if (!byId.size && !spoken) return state
+
+      let tracks = state.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.flatMap((clip) => {
+          // A voice clip of its own: the same clip, now pointing at the new
+          // sound. It keeps its place so nothing after it has to move.
+          if (spoken?.how === "swap" && clip.id === spoken.clipId) {
+            return [{ ...clip, ...spoken.media }]
+          }
+
+          // Footage talking: the take is cut where the opening line ends, and
+          // only that first piece is silenced. The rest keeps its own sound,
+          // and nothing moves — the two pieces still cover exactly what the
+          // one did.
+          if (spoken?.how === "quieten" && clip.id === spoken.clipId) {
+            const openingMs = Math.min(
+              Math.max(spoken.untilMs - clip.startMs, MIN_CLIP_MS),
+              clip.durationMs
+            )
+            const rest = clip.durationMs - openingMs
+            const opening = { ...clip, durationMs: openingMs, muted: true }
+            if (rest < MIN_CLIP_MS) return [opening]
+            return [
+              opening,
+              {
+                ...clip,
+                id: editorId(),
+                startMs: clip.startMs + openingMs,
+                durationMs: rest,
+                trimStartMs: clip.trimStartMs + openingMs,
+                transition: undefined,
+              },
+            ]
+          }
+
+          const text = byId.get(clip.id)
+          // A clip whose share of the new line is empty keeps its place on the
+          // timeline rather than leaving a hole; it simply says nothing.
+          return [
+            text === undefined ? clip : { ...clip, text, name: text || clip.name },
+          ]
+        }),
+      }))
+
+      // The new line goes on a lane of its own, under the picture.
+      if (spoken?.how === "quieten") {
+        tracks = [...tracks, { ...newTrack(), clips: [spoken.voice] }]
+      }
+      return pushUndo(state, tracks)
+    }
+
+    case "INSERT_VOICEOVER": {
+      const captions: EditorTrack = {
+        ...newTrack(),
+        clips: [...action.captions].sort((a, b) => a.startMs - b.startMs),
+      }
+      const voice: EditorTrack = { ...newTrack(), clips: [action.audio] }
+      // Words above the picture, sound below it, the way they are laid out
+      // when somebody does this by hand.
+      return {
+        ...pushUndo(state, [
+          ...(action.captions.length ? [captions] : []),
+          ...state.tracks,
+          voice,
+        ]),
+        selectedClipId: action.audio.id,
+      }
+    }
+
+    case "INSERT_CAPTIONS": {
+      if (!action.captions.length) return state
+      // A lane of their own, above everything: captions belong over the
+      // picture, and keeping them together means they can be muted, moved or
+      // deleted as one thing later.
+      const track: EditorTrack = {
+        ...newTrack(),
+        clips: [...action.captions].sort((a, b) => a.startMs - b.startMs),
+      }
+      return {
+        ...pushUndo(state, [track, ...state.tracks]),
+        selectedClipId: null,
+      }
+    }
 
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
@@ -540,6 +767,8 @@ type EditorContextValue = {
   dispatch: React.Dispatch<EditorAction>
   clock: PlaybackClock
   projectId: string
+  /** Sends any edit still waiting, so the server reads the timeline as it is. */
+  saveNow: () => Promise<void>
   setProjectName: (name: string) => void
 }
 

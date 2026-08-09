@@ -2,6 +2,7 @@ import { loadNewestAccounts, type AccountRow } from "@/server/people/accounts"
 import { listUserAutomations } from "@/server/automations/flows"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadFeedsSummary, type FeedsSummary } from "@/server/content/feeds"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { loadMembershipSummary, type MembershipSummary } from "@/server/people/membership"
 import { getDefaultPlan } from "@/server/billing/plans"
 
@@ -62,7 +63,10 @@ export async function loadAdminOverview(
 
   // Wave two runs on its own. The feeds read has a second stage of its own
   // that peaks at five in flight, so there is no room for anything beside it.
-  const feeds = await loadFeedsSummary(database)
+  const feeds = await loadFeedsSummary(
+    await workspaceIdForRequest(userId, database),
+    database
+  )
 
   return {
     membership,

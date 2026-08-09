@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  AudioLines,
   FilmIcon,
   LayoutGrid,
   Loader2,
@@ -14,6 +15,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { AiPanel } from "@/components/video-editor/studio-ai-panel"
+import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import {
   getVideoMediaErrorMessage,
   listMediaCollections,
@@ -42,18 +45,23 @@ import {
  * everything each of them needs is loaded here.
  */
 
-export type StudioPanel = "media" | "text" | "brand"
+export type StudioPanel = "media" | "text" | "brand" | "ai" | "transcript"
 
 const PANEL_TITLE: Record<StudioPanel, string> = {
   media: "Media",
   text: "Text",
   brand: "Brand kit",
+  ai: "AI",
+  transcript: "Transcript",
 }
 
 export function StudioContextPanel({ panel }: { panel: StudioPanel }) {
   // Media has search and upload buttons to put in its header, so it draws its
   // own; the other two only need a title.
   if (panel === "media") return <MediaPanel />
+  // The AI panel draws its own header too, so its tools can say what they need.
+  if (panel === "ai") return <AiPanel />
+  if (panel === "transcript") return <TranscriptPanel />
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -86,17 +94,21 @@ function Label({
 
 // --------------------------------------------------------------- Media ------
 
-// Only the kinds the library actually holds. Sound arrives with the voiceover
-// work, which is also what makes the shell's library accept audio files.
-const MEDIA_FILTERS: { id: "all" | "video" | "image"; label: string }[] = [
+const MEDIA_FILTERS: {
+  id: "all" | "video" | "image" | "audio"
+  label: string
+}[] = [
   { id: "all", label: "All" },
   { id: "video", label: "Video" },
   { id: "image", label: "Image" },
+  { id: "audio", label: "Sound" },
 ]
 
 function MediaPanel() {
   const { dispatch, clock, store } = useEditorRuntime()
-  const [filter, setFilter] = React.useState<"all" | "video" | "image">("all")
+  const [filter, setFilter] = React.useState<
+    "all" | "video" | "image" | "audio"
+  >("all")
   // "all" = every file, "uncollected" = the ones in no collection, anything
   // else is a collection's id.
   const [collectionFilter, setCollectionFilter] = React.useState("all")
@@ -479,6 +491,18 @@ function MediaPanel() {
                       draggable={false}
                       style={{ display: "block", width: "100%" }}
                     />
+                  ) : item.file_type === "audio" ? (
+                    // Sound has no picture. Drawn as a video it is a black
+                    // rectangle that looks like footage that failed to load.
+                    <div
+                      className="grid aspect-video place-items-center gap-1 text-muted-foreground"
+                      style={{ padding: 8 }}
+                    >
+                      <AudioLines className="size-5" />
+                      <span className="truncate text-[10px] leading-tight">
+                        {item.original_name}
+                      </span>
+                    </div>
                   ) : (
                     <video
                       src={item.playback_url}
@@ -503,7 +527,11 @@ function MediaPanel() {
                       fontSize: 11,
                     }}
                   >
-                    {item.file_type === "image" ? "▣" : "▶"}
+                    {item.file_type === "image"
+                      ? "▣"
+                      : item.file_type === "audio"
+                        ? "♪"
+                        : "▶"}
                   </div>
                 </button>
               ))}

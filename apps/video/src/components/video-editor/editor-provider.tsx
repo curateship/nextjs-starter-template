@@ -131,6 +131,32 @@ export function EditorProvider({
   // Stop the frame loop if the editor closes mid-playback.
   React.useEffect(() => () => clock.pause(), [clock])
 
+  /**
+   * Send whatever is still waiting.
+   *
+   * This is the one way an edit reaches the server: the auto-save timer calls
+   * it, and so does anything that needs the saved project to be up to date.
+   * The AI tools are the second sort — they pull the sound off the file the
+   * server knows about, so without this they work on the timeline as it was a
+   * second and a half ago.
+   */
+  const saveNow = React.useCallback(async () => {
+    const snapshot = pendingRef.current
+    if (!snapshot || store.getSnapshot().hasConflict) return
+    pendingRef.current = null
+    store.setSaveStatus("saving")
+    try {
+      await saveTimeline(snapshot)
+      dismissErrorToast()
+      lastSavedRef.current = serializeTimeline(snapshot)
+      store.setSaveStatus("saved")
+    } catch {
+      store.setSaveStatus("error")
+      // Stay flushable on the way out unless a later edit replaced it.
+      pendingRef.current ??= snapshot
+    }
+  }, [saveTimeline, store])
+
   // Auto-save: every edit re-arms the timer. What is sent is the whole
   // timeline, so a later save heals an earlier one that failed.
   React.useEffect(() => {
@@ -143,24 +169,10 @@ export function EditorProvider({
     // Keep the edit on screen, but do not send one the server will refuse.
     if (hasConflict) return
 
-    const timer = setTimeout(() => {
-      pendingRef.current = null
-      store.setSaveStatus("saving")
-      saveTimeline(snapshot)
-        .then(() => {
-          dismissErrorToast()
-          lastSavedRef.current = serialized
-          store.setSaveStatus("saved")
-        })
-        .catch(() => {
-          store.setSaveStatus("error")
-          // Stay flushable on the way out unless a later edit replaced it.
-          pendingRef.current ??= snapshot
-        })
-    }, AUTOSAVE_DEBOUNCE_MS)
+    const timer = setTimeout(() => void saveNow(), AUTOSAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [saveTimeline, tracks, aspect, store, hasConflict])
+  }, [saveNow, tracks, aspect, hasConflict])
 
   // Work still inside the debounce window when the editor closes — going back
   // to the list, say — is sent on the way out.
@@ -181,9 +193,10 @@ export function EditorProvider({
       dispatch: store.dispatch,
       clock,
       projectId: document.id,
+      saveNow,
       setProjectName: store.setProjectName,
     }),
-    [store, clock, document.id]
+    [store, clock, document.id, saveNow]
   )
 
   return (

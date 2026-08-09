@@ -1,4 +1,4 @@
-import { desc, eq, inArray, isNotNull } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -14,7 +14,8 @@ import {
 import { now, uuid } from "@/server/auth/security"
 
 /**
- * Shipped-update entries, written by an admin and read by everyone. Publishing
+ * One site's shipped-update entries, written by an admin and read by everyone.
+ * Every query names a workspace, so Alpha's updates are Alpha's. Publishing
  * one drops a notice in every person's notification tray, so read state, the
  * unread dot and "mark all as read" are the tray's job — the changelog itself
  * keeps no per-person state at all.
@@ -27,10 +28,14 @@ export type ChangelogEntryInput = {
 }
 
 /** Newest first, drafts included. Admin authoring reads this. */
-export async function listChangelogEntries(database: CustomShellDb = db) {
+export async function listChangelogEntries(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
   return database
     .select()
     .from(customShellChangelogEntries)
+    .where(eq(customShellChangelogEntries.workspaceId, workspaceId))
     .orderBy(
       desc(customShellChangelogEntries.publishedAt),
       desc(customShellChangelogEntries.createdAt)
@@ -39,24 +44,32 @@ export async function listChangelogEntries(database: CustomShellDb = db) {
 
 /** Newest first, published only. The What's new panel reads this. */
 export async function listPublishedChangelogEntries(
+  workspaceId: string,
   limit: number,
   database: CustomShellDb = db
 ) {
   return database
     .select()
     .from(customShellChangelogEntries)
-    .where(isNotNull(customShellChangelogEntries.publishedAt))
+    .where(
+      and(
+        eq(customShellChangelogEntries.workspaceId, workspaceId),
+        isNotNull(customShellChangelogEntries.publishedAt)
+      )
+    )
     .orderBy(desc(customShellChangelogEntries.publishedAt))
     .limit(limit)
 }
 
 export async function createChangelogEntry(
+  workspaceId: string,
   input: ChangelogEntryInput,
   database: CustomShellDb = db
 ) {
   const timestamp = now()
   const values = {
     id: uuid(),
+    workspaceId,
     ...cleanEntryInput(input),
     publishedAt: input.published ? timestamp : null,
     createdAt: timestamp,
@@ -85,6 +98,7 @@ export async function createChangelogEntry(
 }
 
 export async function updateChangelogEntry(
+  workspaceId: string,
   entryId: string,
   input: ChangelogEntryInput,
   database: CustomShellDb = db
@@ -99,7 +113,12 @@ export async function updateChangelogEntry(
     const [existing] = await tx
       .select({ publishedAt: customShellChangelogEntries.publishedAt })
       .from(customShellChangelogEntries)
-      .where(eq(customShellChangelogEntries.id, entryId))
+      .where(
+        and(
+          eq(customShellChangelogEntries.id, entryId),
+          eq(customShellChangelogEntries.workspaceId, workspaceId)
+        )
+      )
       .limit(1)
 
     if (!existing) {
@@ -119,7 +138,12 @@ export async function updateChangelogEntry(
     const [entry] = await tx
       .update(customShellChangelogEntries)
       .set({ ...cleaned, publishedAt, updatedAt: timestamp })
-      .where(eq(customShellChangelogEntries.id, entryId))
+      .where(
+        and(
+          eq(customShellChangelogEntries.id, entryId),
+          eq(customShellChangelogEntries.workspaceId, workspaceId)
+        )
+      )
       .returning()
 
     if (!entry) {
@@ -148,6 +172,14 @@ export async function updateChangelogEntry(
  * state, the unread count and "mark all as read" work without the tray knowing
  * anything about changelogs. It is a write per account, so it is worth knowing
  * this scales with how many people are signed up.
+ *
+ * **Still everyone, on every site.** The entry itself belongs to one workspace
+ * now, but nothing in the shell yet says which people belong to which site — a
+ * member has no workspace of their own, and the contacts list is not that
+ * either. So the notice goes to every account, and somebody who only ever uses
+ * Beta can get a tray notice about an Alpha update. Naming the right people is
+ * the job of whatever answers "who belongs to this site", and until that exists
+ * any narrowing here would be a guess.
  */
 async function notifyEveryone(
   changelogEntryId: string,
@@ -180,12 +212,18 @@ async function notifyEveryone(
 }
 
 export async function deleteChangelogEntries(
+  workspaceId: string,
   entryIds: string[],
   database: CustomShellDb = db
 ) {
   const rows = await database
     .delete(customShellChangelogEntries)
-    .where(inArray(customShellChangelogEntries.id, entryIds))
+    .where(
+      and(
+        eq(customShellChangelogEntries.workspaceId, workspaceId),
+        inArray(customShellChangelogEntries.id, entryIds)
+      )
+    )
     .returning({ id: customShellChangelogEntries.id })
 
   if (!rows.length) {
