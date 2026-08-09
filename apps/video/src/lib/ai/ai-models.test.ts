@@ -19,6 +19,8 @@ describe("aiCostCents", () => {
     expect(aiCostCents("claude-opus-5", 1_000_000, 1_000_000)).toBe(3000)
     // 200k in + 10k out = $1.00 + $0.25 = 125 cents.
     expect(aiCostCents("claude-opus-5", 200_000, 10_000)).toBe(125)
+    // GPT Image 2: $8 in + $30 out per million image tokens.
+    expect(aiCostCents("gpt-image-2", 1_000_000, 1_000_000)).toBe(3800)
   })
 
   it("rounds to the nearest whole cent", () => {
@@ -64,6 +66,9 @@ describe("work charged by what it makes rather than by the word", () => {
     expect(aiUnitCostCents("eleven_multilingual_v2", 10_000)).toBe(150)
     // Half that on the quicker voices.
     expect(aiUnitCostCents("eleven_flash_v2_5", 10_000)).toBe(75)
+    expect(aiUnitCostCents("gemini-2.5-flash-image", 1)).toBe(4)
+    expect(aiUnitCostCents("gemini-3.1-flash-image", 1)).toBe(7)
+    expect(aiUnitCostCents("veo-3.1-generate-preview", 4)).toBe(160)
   })
 
   it("costs nothing for nothing, and never a negative", () => {

@@ -267,11 +267,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         ...pickShellGlobals({
           ...data,
           automationPause: existingGlobals.automationPause,
-          // Not in this request's shape either, and kept for the same reason:
-          // the Pages screen is the one writer, so an admin whose settings page
-          // loaded before a page was hidden cannot put it back on the internet
-          // by renaming the app.
-          pages: existingGlobals.pages,
         }),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,

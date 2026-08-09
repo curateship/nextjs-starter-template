@@ -9,6 +9,10 @@ import {
 } from "@/lib/pages/page-visibility"
 import { adminGet, adminPost } from "@/server/guards"
 import {
+  visitorWorkspaceId,
+  workspaceIdForRequest,
+} from "@/server/workspaces/for-request"
+import {
   loadPagesOverview as loadPagesOverviewQuery,
   readPageVisibility,
   readWrittenPageForViewer,
@@ -58,8 +62,8 @@ export function getPageVisibilityErrorMessage(error: unknown) {
 
 const loadPagesOverviewFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async (): Promise<PagesOverview> => {
-    return loadPagesOverviewQuery()
+  .handler(async ({ context }): Promise<PagesOverview> => {
+    return loadPagesOverviewQuery(await workspaceIdForRequest(context.user.id))
   })
 
 export function loadPagesOverview() {
@@ -74,8 +78,8 @@ const setPageVisibilityFn = createServerFn({ method: "POST" })
       visibility: z.enum(PAGE_VISIBILITIES),
     })
   )
-  .handler(async ({ data }): Promise<ShellPageOverrides> => {
-    return setPageVisibility(data)
+  .handler(async ({ data, context }): Promise<ShellPageOverrides> => {
+    return setPageVisibility(await workspaceIdForRequest(context.user.id), data)
   })
 
 export function savePageVisibility(input: {
@@ -99,10 +103,15 @@ const readPageAccessFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ path: z.string().min(1).max(160) }))
   .handler(
     async ({ data }): Promise<{ visibility: PageVisibility; signedIn: boolean }> => {
-      const [visibility, session] = await Promise.all([
-        readPageVisibility(data.path),
+      const [workspaceId, session] = await Promise.all([
+        visitorWorkspaceId(),
         findSessionContext(),
       ])
+      // No site at the address at all means nothing is hidden there, because
+      // there is nothing there. The route above answers not-found on its own.
+      const visibility = workspaceId
+        ? await readPageVisibility(workspaceId, data.path)
+        : "everyone"
       return { visibility, signedIn: Boolean(session) }
     }
   )
@@ -147,23 +156,27 @@ const writtenPageInput = z.object({
 const createWrittenPageFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(writtenPageInput)
-  .handler(async ({ data }): Promise<WrittenPage> => {
-    return createWrittenPage(data)
+  .handler(async ({ data, context }): Promise<WrittenPage> => {
+    return createWrittenPage(await workspaceIdForRequest(context.user.id), data)
   })
 
 const updateWrittenPageFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(writtenPageInput.partial().extend({ id: z.string().min(1) }))
-  .handler(async ({ data }): Promise<WrittenPage> => {
+  .handler(async ({ data, context }): Promise<WrittenPage> => {
     const { id, ...rest } = data
-    return updateWrittenPage(id, rest)
+    return updateWrittenPage(
+      await workspaceIdForRequest(context.user.id),
+      id,
+      rest
+    )
   })
 
 const deleteWrittenPageFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ id: z.string().min(1) }))
-  .handler(async ({ data }): Promise<{ path: string }> => {
-    return deleteWrittenPage(data.id)
+  .handler(async ({ data, context }): Promise<{ path: string }> => {
+    return deleteWrittenPage(await workspaceIdForRequest(context.user.id), data.id)
   })
 
 /**
@@ -181,8 +194,16 @@ const deleteWrittenPageFn = createServerFn({ method: "POST" })
 const readWrittenPageFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ path: z.string().min(1).max(160) }))
   .handler(async ({ data }): Promise<WrittenPageView> => {
-    const session = await findSessionContext()
-    return readWrittenPageForViewer(data.path, Boolean(session))
+    // The domain decides which site's page this is — never the reader's own
+    // site, or an admin signed in to Alpha would be served Alpha's `/about`
+    // while standing on Beta's domain.
+    const [workspaceId, session] = await Promise.all([
+      visitorWorkspaceId(),
+      findSessionContext(),
+    ])
+    if (!workspaceId) return { status: "missing" }
+
+    return readWrittenPageForViewer(workspaceId, data.path, Boolean(session))
   })
 
 /**
@@ -201,8 +222,8 @@ const readWrittenPageFn = createServerFn({ method: "GET" })
 const readWrittenPageForEditFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ path: z.string().min(1).max(160) }))
-  .handler(async ({ data }): Promise<WrittenPage | null> => {
-    return findWrittenPage(data.path)
+  .handler(async ({ data, context }): Promise<WrittenPage | null> => {
+    return findWrittenPage(await workspaceIdForRequest(context.user.id), data.path)
   })
 
 export function saveNewWrittenPage(input: {
