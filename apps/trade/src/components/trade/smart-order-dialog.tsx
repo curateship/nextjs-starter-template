@@ -404,7 +404,7 @@ export function SmartOrderDialog({
         // in a window with a largest size but no set size is not, and anything
         // told to fill one quietly grows to fit its contents instead, which is
         // the one thing that never scrolls.
-        className="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-foreground/10 bg-card shadow-lg"
+        className="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border bg-card shadow-lg"
         style={{
           left: at.x,
           top: at.y,
@@ -421,7 +421,7 @@ export function SmartOrderDialog({
         onContextMenu={(event) => event.stopPropagation()}
       >
         <div
-          className="flex cursor-grab items-center gap-2 border-b border-foreground/10 px-3 py-2 active:cursor-grabbing"
+          className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
           onPointerDown={(event) => {
             dragRef.current = {
               dx: event.clientX - at.x,
@@ -745,7 +745,7 @@ export function SmartOrderDialog({
 
         {/* Below the scroll, not in it: however many rungs the ladder has, the
             refusal and the button that would ignore it stay on screen. */}
-        <div className="border-t border-foreground/10 p-3">
+        <div className="border-t p-3">
           {refusal ? (
             <p className="pb-3 text-xs text-red-600 dark:text-red-400">
               {refusal}

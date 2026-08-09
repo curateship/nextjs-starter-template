@@ -217,7 +217,7 @@ function SettingsCard({
     <Collapsible
       open={open}
       onOpenChange={onOpenChange}
-      className="grid gap-4 rounded-lg border border-foreground/5 bg-muted/30 p-3"
+      className="grid gap-4 rounded-lg border bg-muted/30 p-3"
     >
       <CollapsibleTrigger asChild>
         <button

@@ -209,13 +209,13 @@ export function ChartQuickOrder({
       <div
         role="dialog"
         aria-label={`${buy ? "Buy" : "Sell"} ${market.symbol} at ${formatPrice(quick.px)}`}
-        className="fixed z-50 w-72 rounded-xl border border-foreground/10 bg-card shadow-lg"
+        className="fixed z-50 w-72 rounded-xl border bg-card shadow-lg"
         style={{ left: at.x, top: at.y }}
         onPointerDown={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.stopPropagation()}
       >
         <div
-          className="flex cursor-grab items-center gap-2 border-b border-foreground/10 px-3 py-2 active:cursor-grabbing"
+          className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
           onPointerDown={(event) => {
             dragRef.current = {
               dx: event.clientX - at.x,

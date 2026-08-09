@@ -192,7 +192,7 @@ function WalletCard({
         "w-full rounded-xl border px-3.5 py-3 text-left transition-colors",
         active
           ? "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10"
-          : "border-foreground/10 bg-muted/20 hover:bg-muted/40"
+          : "bg-muted/20 hover:bg-muted/40"
       )}
       aria-label={`${wallet.label}${active ? " — the wallet in use" : ""} — open wallet settings`}
     >
@@ -267,7 +267,7 @@ function ChooseWalletView({
               key={wallet.id}
               type="button"
               onClick={() => onUseWallet(wallet.id)}
-              className="flex w-full items-center justify-between gap-3 rounded-lg border border-foreground/10 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+              className="flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted/40"
               aria-label={`Trade with ${wallet.label}`}
             >
               <span className="flex min-w-0 items-center gap-2">
@@ -387,7 +387,7 @@ export function AccountPanel({
     >
       {/* The tab row is the header — same anatomy as the activity panel's,
           with the add button sharing the row the way the mock draws it. */}
-      <div className="flex shrink-0 items-center border-b border-foreground/10 px-3">
+      <div className="flex shrink-0 items-center border-b px-3">
         <TabsList className="-mb-px h-[3.15rem] justify-start gap-4 rounded-none bg-transparent p-0">
           <WorkspacePanelTab
             value="active"

@@ -264,7 +264,7 @@ export function MarketListPanel({
           evenly instead lines up only the left one. */}
       <div
         className={cn(
-          "flex shrink-0 items-center overflow-x-auto border-b border-foreground/10 text-muted-foreground",
+          "flex shrink-0 items-center overflow-x-auto border-b text-muted-foreground",
           ROW_COLUMNS
         )}
       >
@@ -314,7 +314,7 @@ export function MarketListPanel({
           works). While the page IS on testnet, this row says so, always —
           the labelling rule outlives the switch. */}
       {network === "testnet" ? (
-        <div className="shrink-0 border-t border-foreground/10 bg-amber-500/10 px-3 py-1.5">
+        <div className="shrink-0 border-t bg-amber-500/10 px-3 py-1.5">
           <span className="block truncate text-xs font-medium text-amber-700 dark:text-amber-400">
             Testnet — practice network, pretend money.
           </span>
@@ -324,7 +324,7 @@ export function MarketListPanel({
       {/* The bottom bar: the kind-of-market filter and the search. The
           search placeholder names the exchange, so what the list covers is
           on screen without spending a row on it. */}
-      <div className="flex shrink-0 items-center gap-1.5 border-t border-foreground/10 p-2">
+      <div className="flex shrink-0 items-center gap-1.5 border-t p-2">
         {/* The filter narrows the catalog; on Fav and Watch it has nothing
             to narrow. DisabledReason rather than a title: a title on a
             disabled control never shows, because the pointer never lands. */}

@@ -61,6 +61,18 @@ in `src/lib/custom-shell.tsx` and are applied by
 - New page containers consume `--shell-gutter` instead of hardcoding spacing.
 - Content surfaces use `Card` or `TableSurface` so runtime border settings reach
   them.
+- Divider and frame lines are a plain `border`, `border-b`, or `border-t` with
+  no color class. They then take `--border`, which is what the Divider lines
+  setting writes. Naming a shade — `border-foreground/10`, `border-black/10` —
+  looks right at the default and then never moves when the setting changes.
+  `src/components/shared/workspace-panel-header.tsx` is the reference.
+- Selected-state outlines and deliberate drawings, such as a measuring overlay
+  or an annotation on a chart, keep their own color. Everything meant to read as
+  a dividing line does not.
+- A canvas or chart library that cannot read CSS still uses the same token:
+  resolve it off the page and hand the result to the library, the way
+  `apps/trade/src/lib/trade/chart-theme.ts` does for its axis lines. A fixed
+  alpha of the foreground is the same mistake in a different place.
 - The sidebar and sticky header both use `bg-sidebar`; do not color them
   separately.
 - Modal rules use the shared dialog slots. Do not restate modal padding,
