@@ -1,9 +1,10 @@
 import * as React from "react"
 import {
-  AudioLines,
   FilmIcon,
   LayoutGrid,
   Loader2,
+  PauseIcon,
+  PlayIcon,
   Plus,
   Search,
   Type,
@@ -15,9 +16,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import {
+  attachEditorMedia,
   getVideoMediaErrorMessage,
   listMediaCollections,
   listVideoMedia,
@@ -26,12 +29,16 @@ import {
 } from "@/lib/api/video/media"
 import { loadBrandKit, type VideoBrandKit } from "@/lib/api/video/settings"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { formatFileSize } from "@/lib/format/format-bytes"
 import { type TextFontId } from "@/lib/video/text-fonts"
 import {
   DEFAULT_TEXT_DURATION_MS,
   editorId,
+  formatClock,
   pxToMs,
+  waveformDataUrl,
 } from "@/lib/video/timeline-utils"
+import { Card, CardContent } from "@/components/ui/card"
 import { BrandKitDialog } from "@/components/video-editor/brand-kit-dialog"
 import { buildMediaClip } from "@/components/video-editor/media-clip"
 import {
@@ -105,7 +112,7 @@ const MEDIA_FILTERS: {
 ]
 
 function MediaPanel() {
-  const { dispatch, clock, store } = useEditorRuntime()
+  const { dispatch, clock, store, projectId } = useEditorRuntime()
   const [filter, setFilter] = React.useState<
     "all" | "video" | "image" | "audio"
   >("all")
@@ -119,6 +126,9 @@ function MediaPanel() {
   const [debounced, setDebounced] = React.useState("")
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [items, setItems] = React.useState<VideoMediaItem[]>([])
+  const [previewingAudioId, setPreviewingAudioId] = React.useState<string | null>(
+    null
+  )
   const [refresh, setRefresh] = React.useState(0)
   const [uploading, setUploading] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
@@ -146,6 +156,7 @@ function MediaPanel() {
   React.useEffect(() => {
     let active = true
     listVideoMedia({
+      scope: { type: "project", id: projectId },
       pageSize: 30,
       collectionId:
         collectionFilter === "all"
@@ -157,7 +168,14 @@ function MediaPanel() {
       search: debounced || undefined,
     })
       .then((data) => {
-        if (active) setItems(data.media)
+        if (active) {
+          setItems(data.media)
+          setPreviewingAudioId((current) =>
+            current && data.media.some((item) => item.id === current)
+              ? current
+              : null
+          )
+        }
       })
       .catch((error) => {
         if (active) showErrorToast(getVideoMediaErrorMessage(error))
@@ -165,7 +183,7 @@ function MediaPanel() {
     return () => {
       active = false
     }
-  }, [collectionFilter, filter, debounced, refresh])
+  }, [collectionFilter, filter, debounced, projectId, refresh])
 
   async function addItem(item: VideoMediaItem, atMs: number, trackId?: string) {
     try {
@@ -176,12 +194,18 @@ function MediaPanel() {
     }
   }
 
+  function handleMediaDeleted(mediaId: string) {
+    setItems((current) => current.filter((item) => item.id !== mediaId))
+    setPreviewingAudioId((current) => (current === mediaId ? null : current))
+  }
+
   async function handleUpload(files: FileList | null) {
     if (!files?.length) return
     setUploading(true)
     try {
       for (const file of Array.from(files)) {
-        await uploadMedia(file)
+        const media = await uploadMedia(file)
+        await attachEditorMedia({ type: "project", id: projectId }, media.id)
       }
       setRefresh((count) => count + 1)
     } catch (error) {
@@ -323,7 +347,7 @@ function MediaPanel() {
             <input
               ref={fileRef}
               type="file"
-              accept="video/*,image/*"
+              accept="video/*,image/*,audio/*"
               multiple
               hidden
               onChange={(event) => {
@@ -449,92 +473,115 @@ function MediaPanel() {
               {uploading ? "Uploading…" : "Drop or import media"}
             </div>
             <div style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>
-              MP4 · MOV · PNG · JPG
+              MP4 · MOV · PNG · JPG · MP3 · WAV
             </div>
           </div>
         ) : (
           <>
             <Label>Clips · {items.length}</Label>
-            {/* Two columns of natural-height tiles, so a portrait clip and a
-                landscape one both read at their true shape. */}
-            <div style={{ columnCount: 2, columnGap: 9 }}>
-              {items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="st-hovlift"
-                  onPointerDown={(event) => tileDown(event, item)}
-                  onPointerMove={tileMove}
-                  onPointerUp={tileUp}
-                  onPointerCancel={tileCancel}
-                  title={`${item.original_name} — click to add at the playhead, or drag onto a track`}
-                  style={{
-                    position: "relative",
-                    display: "block",
-                    width: "100%",
-                    marginBottom: 9,
-                    breakInside: "avoid",
-                    borderRadius: 11,
-                    overflow: "hidden",
-                    border: "1px solid var(--line)",
-                    cursor: "grab",
-                    background: "var(--panel)",
-                    padding: 0,
-                    touchAction: "none",
-                  }}
-                >
-                  {item.file_type === "image" ? (
-                    <img
-                      src={item.url}
-                      alt=""
-                      loading="lazy"
-                      draggable={false}
-                      style={{ display: "block", width: "100%" }}
-                    />
-                  ) : item.file_type === "audio" ? (
-                    // Sound has no picture. Drawn as a video it is a black
-                    // rectangle that looks like footage that failed to load.
-                    <div
-                      className="grid aspect-video min-w-0 place-items-center gap-1 overflow-hidden text-muted-foreground"
-                      style={{ padding: 8 }}
-                    >
-                      <AudioLines className="size-5" />
-                      <span className="block w-full min-w-0 truncate text-[10px] leading-tight">
-                        {item.original_name}
-                      </span>
-                    </div>
-                  ) : (
-                    <video
-                      src={item.playback_url}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      style={{ display: "block", width: "100%" }}
-                    />
-                  )}
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 6,
-                      top: 6,
-                      height: 22,
-                      width: 22,
+            {/* Pictures and video keep their natural-height masonry layout.
+                Sound uses an even two-column card grid for its preview UI. */}
+            <div
+              style={
+                filter === "audio"
+                  ? {
                       display: "grid",
-                      placeItems: "center",
-                      background: "rgba(0,0,0,.5)",
-                      borderRadius: 7,
-                      color: "#fff",
-                      fontSize: 11,
-                    }}
+                      gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+                      gap: 9,
+                    }
+                  : { columnCount: 2, columnGap: 9 }
+              }
+            >
+              {items.map((item) =>
+                item.file_type === "audio" ? (
+                  <EditorMediaContextMenu
+                    key={item.id}
+                    scope={{ type: "project", id: projectId }}
+                    mediaId={item.id}
+                    mediaName={item.original_name}
+                    onDeleted={handleMediaDeleted}
                   >
-                    {item.file_type === "image"
-                      ? "▣"
-                      : item.file_type === "audio"
-                        ? "♪"
-                        : "▶"}
-                  </div>
-                </button>
-              ))}
+                    <AudioMediaCard
+                      item={item}
+                      active={previewingAudioId === item.id}
+                      inAudioGrid={filter === "audio"}
+                      onActiveChange={setPreviewingAudioId}
+                      onAdd={() => void addItem(item, clock.getTime())}
+                      onPointerDown={(event) => tileDown(event, item)}
+                      onPointerMove={tileMove}
+                      onPointerUp={tileUp}
+                      onPointerCancel={tileCancel}
+                    />
+                  </EditorMediaContextMenu>
+                ) : (
+                  <EditorMediaContextMenu
+                    key={item.id}
+                    scope={{ type: "project", id: projectId }}
+                    mediaId={item.id}
+                    mediaName={item.original_name}
+                    onDeleted={handleMediaDeleted}
+                  >
+                    <button
+                      type="button"
+                      className="st-hovlift"
+                      onPointerDown={(event) => tileDown(event, item)}
+                      onPointerMove={tileMove}
+                      onPointerUp={tileUp}
+                      onPointerCancel={tileCancel}
+                      title={`${item.original_name} — click to add, drag onto a track, or right-click to delete`}
+                      style={{
+                        position: "relative",
+                        display: "block",
+                        width: "100%",
+                        marginBottom: 9,
+                        breakInside: "avoid",
+                        borderRadius: 11,
+                        overflow: "hidden",
+                        border: "1px solid var(--line)",
+                        cursor: "grab",
+                        background: "var(--panel)",
+                        padding: 0,
+                        touchAction: "none",
+                      }}
+                    >
+                      {item.file_type === "image" ? (
+                        <img
+                          src={item.url}
+                          alt=""
+                          loading="lazy"
+                          draggable={false}
+                          style={{ display: "block", width: "100%" }}
+                        />
+                      ) : (
+                        <video
+                          src={item.playback_url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          style={{ display: "block", width: "100%" }}
+                        />
+                      )}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 6,
+                          top: 6,
+                          height: 22,
+                          width: 22,
+                          display: "grid",
+                          placeItems: "center",
+                          background: "rgba(0,0,0,.5)",
+                          borderRadius: 7,
+                          color: "#fff",
+                          fontSize: 11,
+                        }}
+                      >
+                        {item.file_type === "image" ? "▣" : "▶"}
+                      </div>
+                    </button>
+                  </EditorMediaContextMenu>
+                )
+              )}
             </div>
           </>
         )}
@@ -567,6 +614,164 @@ function MediaPanel() {
         </div>
       ) : null}
     </div>
+  )
+}
+
+function AudioMediaCard({
+  item,
+  active,
+  inAudioGrid,
+  onActiveChange,
+  onAdd,
+  ...pointerProps
+}: {
+  item: VideoMediaItem
+  active: boolean
+  inAudioGrid: boolean
+  onActiveChange: (mediaId: string | null) => void
+  onAdd: () => void
+} & Pick<
+  React.ComponentProps<typeof Card>,
+  "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel"
+>) {
+  const audioRef = React.useRef<HTMLAudioElement>(null)
+  const [durationMs, setDurationMs] = React.useState(0)
+  const [progress, setProgress] = React.useState(0)
+
+  React.useEffect(() => {
+    if (!active) audioRef.current?.pause()
+  }, [active])
+
+  React.useEffect(
+    () => () => {
+      audioRef.current?.pause()
+    },
+    []
+  )
+
+  async function togglePreview() {
+    const audio = audioRef.current
+    if (!audio) return
+    if (active) {
+      audio.pause()
+      onActiveChange(null)
+      return
+    }
+
+    onActiveChange(item.id)
+    try {
+      await audio.play()
+    } catch {
+      onActiveChange(null)
+      showErrorToast("Audio preview could not be played.")
+    }
+  }
+
+  const waveformMask = waveformDataUrl("#000000")
+
+  return (
+    <Card
+      size="sm"
+      title={`${item.original_name} — click to add, drag onto a track, or right-click to delete`}
+      className="st-hovlift cursor-grab gap-3"
+      style={{
+        marginBottom: inAudioGrid ? 0 : 9,
+        breakInside: "avoid",
+        touchAction: "none",
+      }}
+      {...pointerProps}
+    >
+      <CardContent className="grid gap-3">
+        <div className="relative h-14 min-w-0">
+          <Button
+            type="button"
+            size="icon-lg"
+            className="absolute top-1/2 left-0 z-10 -translate-y-1/2 rounded-full"
+            aria-label={active ? `Pause ${item.original_name}` : `Play ${item.original_name}`}
+            title={active ? "Pause preview" : "Play preview"}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              void togglePreview()
+            }}
+          >
+            {active ? <PauseIcon /> : <PlayIcon />}
+          </Button>
+          <div className="absolute inset-0 overflow-hidden" aria-hidden>
+            <div
+              className="absolute inset-0 bg-muted-foreground/25"
+              style={{
+                maskImage: waveformMask,
+                WebkitMaskImage: waveformMask,
+                maskPosition: "center",
+                WebkitMaskPosition: "center",
+                maskRepeat: "no-repeat",
+                WebkitMaskRepeat: "no-repeat",
+                maskSize: "100% 100%",
+                WebkitMaskSize: "100% 100%",
+              }}
+            />
+            <div
+              className="absolute inset-y-0 left-0 bg-primary transition-[width]"
+              style={{
+                width: `${progress * 100}%`,
+                maskImage: waveformMask,
+                WebkitMaskImage: waveformMask,
+                maskPosition: "left center",
+                WebkitMaskPosition: "left center",
+                maskRepeat: "no-repeat",
+                WebkitMaskRepeat: "no-repeat",
+                maskSize:
+                  progress > 0 ? `${100 / progress}% 100%` : "100% 100%",
+                WebkitMaskSize:
+                  progress > 0 ? `${100 / progress}% 100%` : "100% 100%",
+              }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="min-w-0 text-left outline-none focus-visible:underline"
+          aria-label={`Add ${item.original_name} at the playhead`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            onAdd()
+          }}
+        >
+          <span
+            className="line-clamp-2 text-xs leading-4 font-medium"
+            title={item.original_name}
+          >
+            {item.original_name}
+          </span>
+          <span className="mt-0.5 block text-[10px] text-muted-foreground">
+            {durationMs ? formatClock(durationMs) : "—"} ·{" "}
+            {formatFileSize(item.file_size)}
+          </span>
+        </button>
+      </CardContent>
+
+      <audio
+        hidden
+        ref={audioRef}
+        src={item.playback_url}
+        preload="metadata"
+        onLoadedMetadata={(event) => {
+          const seconds = event.currentTarget.duration
+          setDurationMs(Number.isFinite(seconds) ? Math.round(seconds * 1000) : 0)
+        }}
+        onTimeUpdate={(event) => {
+          const audio = event.currentTarget
+          setProgress(audio.duration ? audio.currentTime / audio.duration : 0)
+        }}
+        onEnded={() => {
+          setProgress(0)
+          onActiveChange(null)
+        }}
+      />
+    </Card>
   )
 }
 

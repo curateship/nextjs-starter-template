@@ -26,6 +26,7 @@ import {
 } from "@/lib/api/video/media"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { loadMediaDurationMs } from "@/lib/video/timeline-utils"
+import { useEditorRuntime } from "@/components/video-editor/editor-store"
 
 /** What the editor needs to swap the footage in a clip. */
 export type ReplacementMedia = {
@@ -53,6 +54,7 @@ export function ReplaceMediaDialog({
   onOpenChange: (open: boolean) => void
   onReplace: (media: ReplacementMedia) => void
 }) {
+  const { projectId } = useEditorRuntime()
   const [items, setItems] = React.useState<VideoMediaItem[] | null>(null)
   const [fileType, setFileType] = React.useState<"video" | "image">("video")
   const [search, setSearch] = React.useState("")
@@ -72,6 +74,7 @@ export function ReplaceMediaDialog({
     if (!open) return
     let active = true
     listVideoMedia({
+      scope: { type: "project", id: projectId },
       fileType,
       pageSize: 60,
       search: debouncedSearch || undefined,
@@ -85,7 +88,7 @@ export function ReplaceMediaDialog({
     return () => {
       active = false
     }
-  }, [open, fileType, debouncedSearch])
+  }, [open, fileType, debouncedSearch, projectId])
 
   async function confirmSelection() {
     if (!selected) {

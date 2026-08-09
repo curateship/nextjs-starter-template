@@ -23,7 +23,16 @@ import {
   renameOwnedCollection,
   setMediaItemCollections,
 } from "@/server/video/media-collections"
-import { listVideoMedia } from "@/server/video/media-list"
+import { createOwnedCarousel } from "@/server/video/carousels"
+import {
+  attachMediaToScope,
+  deleteMediaFromScope,
+  listVideoMedia,
+} from "@/server/video/media-list"
+import {
+  createOwnedProject,
+  writeProjectTimeline,
+} from "@/server/video/projects"
 import { videoMediaCollectionItems } from "@/server/video/schema"
 
 let client: PGlite
@@ -189,6 +198,154 @@ describe("collections", () => {
 })
 
 describe("the media list with video extras", () => {
+  it("keeps project and carousel media on their own editor shelves", async () => {
+    const project = await createOwnedProject(user.id, "Project", database)
+    const carousel = await createOwnedCarousel(user.id, "Carousel", database)
+    const projectMedia = await insertMedia(user.id)
+    const carouselMedia = await insertMedia(user.id)
+    await insertMedia(user.id)
+
+    await attachMediaToScope(
+      user.id,
+      { type: "project", id: project.id },
+      projectMedia.id,
+      database
+    )
+    await attachMediaToScope(
+      user.id,
+      { type: "carousel", id: carousel.id },
+      carouselMedia.id,
+      database
+    )
+
+    const projectList = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "project", id: project.id },
+      database,
+    })
+    const carouselList = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "carousel", id: carousel.id },
+      database,
+    })
+
+    expect(projectList.media.map((item) => item.id)).toEqual([projectMedia.id])
+    expect(carouselList.media.map((item) => item.id)).toEqual([carouselMedia.id])
+  })
+
+  it("refuses to attach media or documents owned by another person", async () => {
+    const stranger = await insertUser(database)
+    const project = await createOwnedProject(user.id, "Project", database)
+    const theirProject = await createOwnedProject(stranger.id, "Private", database)
+    const mine = await insertMedia(user.id)
+    const theirs = await insertMedia(stranger.id)
+
+    await expect(
+      attachMediaToScope(
+        user.id,
+        { type: "project", id: theirProject.id },
+        mine.id,
+        database
+      )
+    ).rejects.toThrowError("Project not found")
+    await expect(
+      attachMediaToScope(
+        user.id,
+        { type: "project", id: project.id },
+        theirs.id,
+        database
+      )
+    ).rejects.toThrowError("Media not found")
+    await expect(
+      listVideoMedia({
+        userId: user.id,
+        scope: { type: "project", id: theirProject.id },
+        database,
+      })
+    ).rejects.toThrowError("Project not found")
+  })
+
+  it("keeps media already used by an older project visible", async () => {
+    const project = await createOwnedProject(user.id, "Project", database)
+    const used = await insertMedia(user.id)
+    await writeProjectTimeline(
+      user.id,
+      project.id,
+      {
+        aspect: "9:16",
+        tracks: [
+          {
+            id: "track-1",
+            muted: false,
+            clips: [
+              {
+                id: "clip-1",
+                kind: "video",
+                name: "Used clip",
+                startMs: 0,
+                durationMs: 1_000,
+                trimStartMs: 0,
+                mediaId: used.id,
+              },
+            ],
+          },
+        ],
+      },
+      project.version,
+      database
+    )
+
+    const listed = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "project", id: project.id },
+      database,
+    })
+    expect(listed.media.map((item) => item.id)).toEqual([used.id])
+  })
+
+  it("deletes media from an editor only when it belongs to that shelf", async () => {
+    const project = await createOwnedProject(user.id, "Project", database)
+    const attached = await insertMedia(user.id)
+    const unattached = await insertMedia(user.id)
+    await attachMediaToScope(
+      user.id,
+      { type: "project", id: project.id },
+      attached.id,
+      database
+    )
+    const deleteRows: typeof import("@/server/media/library").deleteMediaAsAdmin =
+      async (mediaIds, targetDatabase = database) => {
+        const deleted = await targetDatabase
+          .delete(customShellMedia)
+          .where(eq(customShellMedia.id, mediaIds[0]))
+          .returning({ id: customShellMedia.id })
+        return { deletedCount: deleted.length }
+      }
+
+    await expect(
+      deleteMediaFromScope(
+        user.id,
+        { type: "project", id: project.id },
+        unattached.id,
+        database,
+        deleteRows
+      )
+    ).rejects.toThrowError("Media not found")
+    await deleteMediaFromScope(
+      user.id,
+      { type: "project", id: project.id },
+      attached.id,
+      database,
+      deleteRows
+    )
+
+    const remaining = await database
+      .select({ id: customShellMedia.id })
+      .from(customShellMedia)
+      .where(eq(customShellMedia.userId, user.id))
+    expect(remaining.map((row) => row.id)).toEqual([unattached.id])
+  })
+
   it("filters to one collection, to Uncollected, or not at all", async () => {
     const collection = await createOwnedCollection(user.id, "Hooks", database)
     const inCollection = await insertMedia(user.id)

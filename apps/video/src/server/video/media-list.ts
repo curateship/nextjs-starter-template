@@ -1,13 +1,25 @@
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm"
 
+import { CAROUSEL_NOT_FOUND_MESSAGE, requireCanonicalCarouselSlides } from "@/lib/video/carousel-schema"
+import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { parseTimelineForReset } from "@/lib/video/timeline-schema"
+import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { serializeMedia, type MediaItem } from "@/server/media/library"
+import {
+  deleteMediaAsAdmin,
+  serializeMedia,
+  type MediaItem,
+} from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { collectionIdsByMedia } from "@/server/video/media-collections"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
   videoMediaFilmstrips,
   videoMediaProxies,
+  videoCarouselMedia,
+  videoCarousels,
+  videoProjectMedia,
+  videoProjects,
 } from "@/server/video/schema"
 
 /**
@@ -36,6 +48,10 @@ export type VideoMediaListResponse = {
 /** `undefined` = no filter, `null` = in no collection, a string = members of that one. */
 export type CollectionFilter = string | null | undefined
 
+export type MediaScope =
+  | { type: "project"; id: string }
+  | { type: "carousel"; id: string }
+
 export async function listVideoMedia({
   userId,
   page = 1,
@@ -43,6 +59,7 @@ export async function listVideoMedia({
   search = "",
   fileType,
   collectionId,
+  scope,
   database = db,
 }: {
   userId: string
@@ -51,6 +68,7 @@ export async function listVideoMedia({
   search?: string
   fileType?: "image" | "video" | "audio"
   collectionId?: CollectionFilter
+  scope?: MediaScope
   database?: CustomShellDb
 }): Promise<VideoMediaListResponse> {
   const safePage = Math.max(1, Math.floor(page))
@@ -58,6 +76,19 @@ export async function listVideoMedia({
 
   // Collected rather than nested, the way the shell's own list query does it.
   const filters: SQL[] = [eq(customShellMedia.userId, userId)]
+  if (scope) {
+    const mediaIds = await mediaIdsForScope(userId, scope, database)
+    if (!mediaIds.length) {
+      return {
+        media: [],
+        total: 0,
+        page: safePage,
+        page_size: safePageSize,
+        total_pages: 1,
+      }
+    }
+    filters.push(inArray(customShellMedia.id, mediaIds))
+  }
   if (fileType) {
     filters.push(eq(customShellMedia.fileType, fileType))
   }
@@ -118,6 +149,125 @@ export async function listVideoMedia({
     page_size: safePageSize,
     total_pages: Math.max(1, Math.ceil(total / safePageSize)),
   }
+}
+
+/**
+ * A document sees files uploaded on its own shelf plus files already present
+ * in its saved timeline/slides. Reading the saved document keeps older work
+ * visible without a one-off data backfill.
+ */
+async function mediaIdsForScope(
+  userId: string,
+  scope: MediaScope,
+  database: CustomShellDb
+) {
+  if (scope.type === "project") {
+    const [project] = await database
+      .select({ timeline: videoProjects.timeline })
+      .from(videoProjects)
+      .where(and(eq(videoProjects.id, scope.id), eq(videoProjects.userId, userId)))
+      .limit(1)
+    if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+
+    const attached = await database
+      .select({ mediaId: videoProjectMedia.mediaId })
+      .from(videoProjectMedia)
+      .where(eq(videoProjectMedia.projectId, scope.id))
+    const timeline = parseTimelineForReset(project.timeline).timeline
+    return Array.from(
+      new Set([
+        ...attached.map((row) => row.mediaId),
+        ...timeline.tracks.flatMap((track) =>
+          track.clips.flatMap((clip) => (clip.mediaId ? [clip.mediaId] : []))
+        ),
+      ])
+    )
+  }
+
+  const [carousel] = await database
+    .select({ slides: videoCarousels.slides })
+    .from(videoCarousels)
+    .where(and(eq(videoCarousels.id, scope.id), eq(videoCarousels.userId, userId)))
+    .limit(1)
+  if (!carousel) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
+
+  const attached = await database
+    .select({ mediaId: videoCarouselMedia.mediaId })
+    .from(videoCarouselMedia)
+    .where(eq(videoCarouselMedia.carouselId, scope.id))
+  const slides = requireCanonicalCarouselSlides(carousel.slides)
+  return Array.from(
+    new Set([
+      ...attached.map((row) => row.mediaId),
+      ...slides.flatMap((slide) =>
+        slide.items.flatMap((item) =>
+          item.type === "image" || item.type === "video" ? [item.mediaId] : []
+        )
+      ),
+    ])
+  )
+}
+
+/** Attach a newly uploaded, owned media row to one owned editor document. */
+export async function attachMediaToScope(
+  userId: string,
+  scope: MediaScope,
+  mediaId: string,
+  database: CustomShellDb = db
+) {
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media) throw new Error("Media not found")
+
+  if (scope.type === "project") {
+    const [project] = await database
+      .select({ id: videoProjects.id })
+      .from(videoProjects)
+      .where(and(eq(videoProjects.id, scope.id), eq(videoProjects.userId, userId)))
+      .limit(1)
+    if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+    await database
+      .insert(videoProjectMedia)
+      .values({ projectId: scope.id, mediaId, createdAt: now() })
+      .onConflictDoNothing()
+    return
+  }
+
+  const [carousel] = await database
+    .select({ id: videoCarousels.id })
+    .from(videoCarousels)
+    .where(and(eq(videoCarousels.id, scope.id), eq(videoCarousels.userId, userId)))
+    .limit(1)
+  if (!carousel) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
+  await database
+    .insert(videoCarouselMedia)
+    .values({ carouselId: scope.id, mediaId, createdAt: now() })
+    .onConflictDoNothing()
+}
+
+/** Delete one owned file that is visible on the requested editor shelf. */
+export async function deleteMediaFromScope(
+  userId: string,
+  scope: MediaScope,
+  mediaId: string,
+  database: CustomShellDb = db,
+  deleteMedia: typeof deleteMediaAsAdmin = deleteMediaAsAdmin
+) {
+  const visibleMediaIds = await mediaIdsForScope(userId, scope, database)
+  if (!visibleMediaIds.includes(mediaId)) throw new Error("Media not found")
+
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media) throw new Error("Media not found")
+
+  const result = await deleteMedia([mediaId], database)
+  if (result.deletedCount !== 1) throw new Error("Media not found")
 }
 
 async function videoStateByMedia(

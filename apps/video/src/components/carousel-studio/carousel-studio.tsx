@@ -35,6 +35,7 @@ import {
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import {
   InspectorCard,
   SliderField,
@@ -79,10 +80,13 @@ import {
 } from "@/lib/api/video/carousels"
 import {
   getMediaErrorMessage,
-  listMedia,
   uploadMedia,
   type MediaItem,
 } from "@/lib/api/media/media"
+import {
+  attachEditorMedia,
+  listVideoMedia,
+} from "@/lib/api/video/media"
 import type { CarouselShadowDirection } from "@/lib/video/carousel-schema"
 import {
   CAROUSEL_CONFLICT_MESSAGE,
@@ -563,6 +567,7 @@ export function CarouselBuilderPage({
       <IconRail panel={panel} onSelect={setPanel} />
       <div className="flex min-w-0 flex-1 flex-col">
         <CarouselContextPanel
+          carouselId={document.id}
           panel={panel}
           slides={state.slides}
           format={state.format}
@@ -599,7 +604,13 @@ export function CarouselBuilderPage({
           setExportOpen(true)
         }}
       />
-      <div className="relative flex min-h-0 flex-1">
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-1",
+          !panelCollapsed && "studio-flat-stage-left",
+          !inspectorCollapsed && "studio-flat-stage-right"
+        )}
+      >
         {selectedSlide ? (
           <CanvasStage
             slide={selectedSlide}
@@ -938,6 +949,7 @@ function IconRail({
 // --------------------------------------------------------- Context panel ----
 
 function CarouselContextPanel({
+  carouselId,
   panel,
   slides,
   format,
@@ -948,6 +960,7 @@ function CarouselContextPanel({
   onDeleteSlide,
   onAddItem,
 }: {
+  carouselId: string
   panel: StudioPanel
   slides: CarouselSlide[]
   format: CarouselFormat
@@ -991,7 +1004,11 @@ function CarouselContextPanel({
           ) : panel === "text" ? (
             <TextPanelBody onAddItem={onAddItem} />
           ) : panel === "image" ? (
-            <ImagePanelBody format={format} onAddItem={onAddItem} />
+            <ImagePanelBody
+              carouselId={carouselId}
+              format={format}
+              onAddItem={onAddItem}
+            />
           ) : (
             <ShadowPanelBody onAddItem={onAddItem} />
           )}
@@ -1473,9 +1490,11 @@ function TextPanelBody({
 // -------------------------------------------------------- Image panel -------
 
 function ImagePanelBody({
+  carouselId,
   format,
   onAddItem,
 }: {
+  carouselId: string
   format: CarouselFormat
   onAddItem: (item: CarouselSlideItem) => void
 }) {
@@ -1494,7 +1513,8 @@ function ImagePanelBody({
 
   React.useEffect(() => {
     let active = true
-    listMedia({
+    listVideoMedia({
+      scope: { type: "carousel", id: carouselId },
       pageSize: 30,
       fileType: "image",
       search: debounced || undefined,
@@ -1511,7 +1531,7 @@ function ImagePanelBody({
     return () => {
       active = false
     }
-  }, [debounced, refresh])
+  }, [carouselId, debounced, refresh])
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length) return
@@ -1519,7 +1539,8 @@ function ImagePanelBody({
     setError(null)
     try {
       for (const file of Array.from(files)) {
-        await uploadMedia(file)
+        const media = await uploadMedia(file)
+        await attachEditorMedia({ type: "carousel", id: carouselId }, media.id)
       }
       setRefresh((c) => c + 1)
     } catch (caught) {
@@ -1638,41 +1659,52 @@ function ImagePanelBody({
       {/* 2-col masonry so each thumbnail keeps its own aspect ratio (no crop). */}
       <div style={{ columnCount: 2, columnGap: 10 }}>
         {items.map((item) => (
-          <button
+          <EditorMediaContextMenu
             key={item.id}
-            type="button"
-            className="st-hovlift"
-            onClick={(event) => {
-              const img = event.currentTarget.querySelector("img")
-              const box =
-                img && img.naturalWidth && img.naturalHeight
-                  ? fitImageBox(img.naturalWidth, img.naturalHeight, format)
-                  : undefined
-              onAddItem(
-                createImageItem(item.url, item.original_name, item.id, box)
+            scope={{ type: "carousel", id: carouselId }}
+            mediaId={item.id}
+            mediaName={item.original_name}
+            onDeleted={(mediaId) =>
+              setItems((current) =>
+                current.filter((media) => media.id !== mediaId)
               )
-            }}
-            title={`Add ${item.original_name}`}
-            style={{
-              display: "block",
-              width: "100%",
-              marginBottom: 10,
-              breakInside: "avoid",
-              borderRadius: 12,
-              overflow: "hidden",
-              border: "1px solid var(--line)",
-              cursor: "pointer",
-              background: "var(--elev)",
-              padding: 0,
-            }}
+            }
           >
-            <img
-              src={item.url}
-              alt=""
-              draggable={false}
-              style={{ display: "block", width: "100%", height: "auto" }}
-            />
-          </button>
+            <button
+              type="button"
+              className="st-hovlift"
+              onClick={(event) => {
+                const img = event.currentTarget.querySelector("img")
+                const box =
+                  img && img.naturalWidth && img.naturalHeight
+                    ? fitImageBox(img.naturalWidth, img.naturalHeight, format)
+                    : undefined
+                onAddItem(
+                  createImageItem(item.url, item.original_name, item.id, box)
+                )
+              }}
+              title={`Add ${item.original_name}, or right-click to delete`}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 10,
+                breakInside: "avoid",
+                borderRadius: 12,
+                overflow: "hidden",
+                border: "1px solid var(--line)",
+                cursor: "pointer",
+                background: "var(--elev)",
+                padding: 0,
+              }}
+            >
+              <img
+                src={item.url}
+                alt=""
+                draggable={false}
+                style={{ display: "block", width: "100%", height: "auto" }}
+              />
+            </button>
+          </EditorMediaContextMenu>
         ))}
       </div>
       {!items.length && !error ? (

@@ -7,6 +7,8 @@ import {
   COLLECTION_NAME_TAKEN_MESSAGE,
   COLLECTION_NOT_FOUND_MESSAGE,
 } from "@/lib/video/media-collections"
+import { CAROUSEL_NOT_FOUND_MESSAGE } from "@/lib/video/carousel-schema"
+import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { userGet, userPost } from "@/server/guards"
 import {
   addMediaToOwnedCollection,
@@ -19,10 +21,15 @@ import {
   type MediaCollectionSummary,
 } from "@/server/video/media-collections"
 import {
+  attachMediaToScope,
+  deleteMediaFromScope,
   listVideoMedia as listVideoMediaQuery,
+  type MediaScope,
   type VideoMediaItem,
   type VideoMediaListResponse,
 } from "@/server/video/media-list"
+
+export type { MediaScope } from "@/server/video/media-list"
 
 export type { MediaCollectionSummary, VideoMediaItem, VideoMediaListResponse }
 
@@ -37,6 +44,8 @@ const KNOWN_MESSAGES = new Set([
   COLLECTION_NAME_REQUIRED_MESSAGE,
   COLLECTION_NAME_TAKEN_MESSAGE,
   COLLECTION_NOT_FOUND_MESSAGE,
+  PROJECT_NOT_FOUND_MESSAGE,
+  CAROUSEL_NOT_FOUND_MESSAGE,
   "Media not found",
 ])
 
@@ -46,8 +55,14 @@ export function getVideoMediaErrorMessage(error: unknown) {
   return describeAuthError(message) ?? "Media request failed."
 }
 
+const mediaScopeSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("project"), id: z.string().min(1).max(36) }),
+  z.object({ type: z.literal("carousel"), id: z.string().min(1).max(36) }),
+])
+
 const listVideoMediaSchema = z
   .object({
+    scope: mediaScopeSchema,
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
     search: z.string().trim().max(120).default(""),
@@ -55,7 +70,6 @@ const listVideoMediaSchema = z
     // Absent = no filter; null = "Uncollected"; an id = that collection.
     collectionId: z.string().min(1).max(36).nullish(),
   })
-  .optional()
 
 const collectionIdSchema = z.object({
   collectionId: z.string().min(1).max(36),
@@ -78,18 +92,40 @@ const itemCollectionsSchema = z.object({
   collectionIds: z.array(z.string().min(1).max(36)).max(50),
 })
 
+const attachMediaSchema = z.object({
+  scope: mediaScopeSchema,
+  mediaId: z.string().min(1).max(36),
+})
+
+const deleteMediaSchema = attachMediaSchema
+
 const listVideoMediaFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(listVideoMediaSchema)
   .handler(async ({ data, context }) => {
     return listVideoMediaQuery({
       userId: context.user.id,
-      page: data?.page ?? 1,
-      pageSize: data?.pageSize ?? 24,
-      search: data?.search,
-      fileType: data?.fileType,
-      collectionId: data?.collectionId,
+      page: data.page ?? 1,
+      pageSize: data.pageSize ?? 24,
+      search: data.search,
+      fileType: data.fileType,
+      collectionId: data.collectionId,
+      scope: data.scope,
     })
+  })
+
+const attachMediaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(attachMediaSchema)
+  .handler(async ({ data, context }) => {
+    await attachMediaToScope(context.user.id, data.scope, data.mediaId)
+  })
+
+const deleteMediaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(deleteMediaSchema)
+  .handler(async ({ data, context }) => {
+    await deleteMediaFromScope(context.user.id, data.scope, data.mediaId)
   })
 
 const listCollectionsFn = createServerFn({ method: "GET" })
@@ -153,21 +189,31 @@ const setMediaCollectionsFn = createServerFn({ method: "POST" })
   })
 
 export function listVideoMedia({
+  scope,
   page = 1,
   pageSize = 24,
   search,
   fileType,
   collectionId,
 }: {
+  scope: MediaScope
   page?: number
   pageSize?: number
   search?: string
   fileType?: "image" | "video" | "audio"
   collectionId?: string | null
-} = {}) {
+}) {
   return listVideoMediaFn({
-    data: { page, pageSize, search, fileType, collectionId },
+    data: { scope, page, pageSize, search, fileType, collectionId },
   })
+}
+
+export function attachEditorMedia(scope: MediaScope, mediaId: string) {
+  return attachMediaFn({ data: { scope, mediaId } })
+}
+
+export function deleteEditorMedia(scope: MediaScope, mediaId: string) {
+  return deleteMediaFn({ data: { scope, mediaId } })
 }
 
 export function listMediaCollections() {
