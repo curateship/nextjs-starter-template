@@ -35,6 +35,7 @@ import {
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import {
   InspectorCard,
   SliderField,
@@ -603,7 +604,13 @@ export function CarouselBuilderPage({
           setExportOpen(true)
         }}
       />
-      <div className="relative flex min-h-0 flex-1">
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-1",
+          !panelCollapsed && "studio-flat-stage-left",
+          !inspectorCollapsed && "studio-flat-stage-right"
+        )}
+      >
         {selectedSlide ? (
           <CanvasStage
             slide={selectedSlide}
@@ -1652,41 +1659,52 @@ function ImagePanelBody({
       {/* 2-col masonry so each thumbnail keeps its own aspect ratio (no crop). */}
       <div style={{ columnCount: 2, columnGap: 10 }}>
         {items.map((item) => (
-          <button
+          <EditorMediaContextMenu
             key={item.id}
-            type="button"
-            className="st-hovlift"
-            onClick={(event) => {
-              const img = event.currentTarget.querySelector("img")
-              const box =
-                img && img.naturalWidth && img.naturalHeight
-                  ? fitImageBox(img.naturalWidth, img.naturalHeight, format)
-                  : undefined
-              onAddItem(
-                createImageItem(item.url, item.original_name, item.id, box)
+            scope={{ type: "carousel", id: carouselId }}
+            mediaId={item.id}
+            mediaName={item.original_name}
+            onDeleted={(mediaId) =>
+              setItems((current) =>
+                current.filter((media) => media.id !== mediaId)
               )
-            }}
-            title={`Add ${item.original_name}`}
-            style={{
-              display: "block",
-              width: "100%",
-              marginBottom: 10,
-              breakInside: "avoid",
-              borderRadius: 12,
-              overflow: "hidden",
-              border: "1px solid var(--line)",
-              cursor: "pointer",
-              background: "var(--elev)",
-              padding: 0,
-            }}
+            }
           >
-            <img
-              src={item.url}
-              alt=""
-              draggable={false}
-              style={{ display: "block", width: "100%", height: "auto" }}
-            />
-          </button>
+            <button
+              type="button"
+              className="st-hovlift"
+              onClick={(event) => {
+                const img = event.currentTarget.querySelector("img")
+                const box =
+                  img && img.naturalWidth && img.naturalHeight
+                    ? fitImageBox(img.naturalWidth, img.naturalHeight, format)
+                    : undefined
+                onAddItem(
+                  createImageItem(item.url, item.original_name, item.id, box)
+                )
+              }}
+              title={`Add ${item.original_name}, or right-click to delete`}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 10,
+                breakInside: "avoid",
+                borderRadius: 12,
+                overflow: "hidden",
+                border: "1px solid var(--line)",
+                cursor: "pointer",
+                background: "var(--elev)",
+                padding: 0,
+              }}
+            >
+              <img
+                src={item.url}
+                alt=""
+                draggable={false}
+                style={{ display: "block", width: "100%", height: "auto" }}
+              />
+            </button>
+          </EditorMediaContextMenu>
         ))}
       </div>
       {!items.length && !error ? (

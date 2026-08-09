@@ -75,6 +75,22 @@
   box-sizing: border-box;
 }
 
+/* Flat mode removes card chrome, but the editor still needs one clear line
+   where its side and bottom panels meet the canvas. The side borders sit on
+   the stage body, below its shared header, so they never cut through header
+   controls. `--border` is written by Settings → Styling → Divider lines. */
+[data-content-styling][data-flat="true"] .studio-flat-stage-left {
+  border-left: 1px solid var(--border);
+}
+
+[data-content-styling][data-flat="true"] .studio-flat-stage-right {
+  border-right: 1px solid var(--border);
+}
+
+[data-content-styling][data-flat="true"] .studio-flat-timeline {
+  border-top: 1px solid var(--border);
+}
+
 /* scrollbars */
 .studio-root ::-webkit-scrollbar {
   width: 9px;
@@ -169,4 +185,3 @@
     var(--sh-lg),
     0 0 0 1px rgba(0, 0, 0, 0.05);
 }
-

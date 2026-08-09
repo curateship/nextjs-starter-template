@@ -26,6 +26,7 @@ import {
 import { createOwnedCarousel } from "@/server/video/carousels"
 import {
   attachMediaToScope,
+  deleteMediaFromScope,
   listVideoMedia,
 } from "@/server/video/media-list"
 import {
@@ -300,6 +301,49 @@ describe("the media list with video extras", () => {
       database,
     })
     expect(listed.media.map((item) => item.id)).toEqual([used.id])
+  })
+
+  it("deletes media from an editor only when it belongs to that shelf", async () => {
+    const project = await createOwnedProject(user.id, "Project", database)
+    const attached = await insertMedia(user.id)
+    const unattached = await insertMedia(user.id)
+    await attachMediaToScope(
+      user.id,
+      { type: "project", id: project.id },
+      attached.id,
+      database
+    )
+    const deleteRows: typeof import("@/server/media/library").deleteMediaAsAdmin =
+      async (mediaIds, targetDatabase = database) => {
+        const deleted = await targetDatabase
+          .delete(customShellMedia)
+          .where(eq(customShellMedia.id, mediaIds[0]))
+          .returning({ id: customShellMedia.id })
+        return { deletedCount: deleted.length }
+      }
+
+    await expect(
+      deleteMediaFromScope(
+        user.id,
+        { type: "project", id: project.id },
+        unattached.id,
+        database,
+        deleteRows
+      )
+    ).rejects.toThrowError("Media not found")
+    await deleteMediaFromScope(
+      user.id,
+      { type: "project", id: project.id },
+      attached.id,
+      database,
+      deleteRows
+    )
+
+    const remaining = await database
+      .select({ id: customShellMedia.id })
+      .from(customShellMedia)
+      .where(eq(customShellMedia.userId, user.id))
+    expect(remaining.map((row) => row.id)).toEqual([unattached.id])
   })
 
   it("filters to one collection, to Uncollected, or not at all", async () => {

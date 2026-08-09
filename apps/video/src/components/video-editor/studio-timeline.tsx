@@ -275,7 +275,7 @@ export function StudioTimeline() {
   return (
     <section
       data-screen-label="Timeline"
-      className="flex h-full min-h-0 flex-col"
+      className="studio-flat-timeline flex h-full min-h-0 flex-col"
       style={{ position: "relative" }}
     >
       <TimelineToolbar fit={fit} />

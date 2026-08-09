@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { EditorMediaContextMenu } from "@/components/shared/editor-media-context-menu"
 import { AiPanel } from "@/components/video-editor/studio-ai-panel"
 import { TranscriptPanel } from "@/components/video-editor/studio-transcript-panel"
 import {
@@ -191,6 +192,11 @@ function MediaPanel() {
     } catch (error) {
       showErrorToast(getVideoMediaErrorMessage(error))
     }
+  }
+
+  function handleMediaDeleted(mediaId: string) {
+    setItems((current) => current.filter((item) => item.id !== mediaId))
+    setPreviewingAudioId((current) => (current === mediaId ? null : current))
   }
 
   async function handleUpload(files: FileList | null) {
@@ -488,78 +494,92 @@ function MediaPanel() {
             >
               {items.map((item) =>
                 item.file_type === "audio" ? (
-                  <AudioMediaCard
+                  <EditorMediaContextMenu
                     key={item.id}
-                    item={item}
-                    active={previewingAudioId === item.id}
-                    inAudioGrid={filter === "audio"}
-                    onActiveChange={setPreviewingAudioId}
-                    onAdd={() => void addItem(item, clock.getTime())}
-                    onPointerDown={(event) => tileDown(event, item)}
-                    onPointerMove={tileMove}
-                    onPointerUp={tileUp}
-                    onPointerCancel={tileCancel}
-                  />
-                ) : (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="st-hovlift"
-                    onPointerDown={(event) => tileDown(event, item)}
-                    onPointerMove={tileMove}
-                    onPointerUp={tileUp}
-                    onPointerCancel={tileCancel}
-                    title={`${item.original_name} — click to add at the playhead, or drag onto a track`}
-                    style={{
-                      position: "relative",
-                      display: "block",
-                      width: "100%",
-                      marginBottom: 9,
-                      breakInside: "avoid",
-                      borderRadius: 11,
-                      overflow: "hidden",
-                      border: "1px solid var(--line)",
-                      cursor: "grab",
-                      background: "var(--panel)",
-                      padding: 0,
-                      touchAction: "none",
-                    }}
+                    scope={{ type: "project", id: projectId }}
+                    mediaId={item.id}
+                    mediaName={item.original_name}
+                    onDeleted={handleMediaDeleted}
                   >
-                    {item.file_type === "image" ? (
-                      <img
-                        src={item.url}
-                        alt=""
-                        loading="lazy"
-                        draggable={false}
-                        style={{ display: "block", width: "100%" }}
-                      />
-                    ) : (
-                      <video
-                        src={item.playback_url}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        style={{ display: "block", width: "100%" }}
-                      />
-                    )}
-                    <div
+                    <AudioMediaCard
+                      item={item}
+                      active={previewingAudioId === item.id}
+                      inAudioGrid={filter === "audio"}
+                      onActiveChange={setPreviewingAudioId}
+                      onAdd={() => void addItem(item, clock.getTime())}
+                      onPointerDown={(event) => tileDown(event, item)}
+                      onPointerMove={tileMove}
+                      onPointerUp={tileUp}
+                      onPointerCancel={tileCancel}
+                    />
+                  </EditorMediaContextMenu>
+                ) : (
+                  <EditorMediaContextMenu
+                    key={item.id}
+                    scope={{ type: "project", id: projectId }}
+                    mediaId={item.id}
+                    mediaName={item.original_name}
+                    onDeleted={handleMediaDeleted}
+                  >
+                    <button
+                      type="button"
+                      className="st-hovlift"
+                      onPointerDown={(event) => tileDown(event, item)}
+                      onPointerMove={tileMove}
+                      onPointerUp={tileUp}
+                      onPointerCancel={tileCancel}
+                      title={`${item.original_name} — click to add, drag onto a track, or right-click to delete`}
                       style={{
-                        position: "absolute",
-                        left: 6,
-                        top: 6,
-                        height: 22,
-                        width: 22,
-                        display: "grid",
-                        placeItems: "center",
-                        background: "rgba(0,0,0,.5)",
-                        borderRadius: 7,
-                        color: "#fff",
-                        fontSize: 11,
+                        position: "relative",
+                        display: "block",
+                        width: "100%",
+                        marginBottom: 9,
+                        breakInside: "avoid",
+                        borderRadius: 11,
+                        overflow: "hidden",
+                        border: "1px solid var(--line)",
+                        cursor: "grab",
+                        background: "var(--panel)",
+                        padding: 0,
+                        touchAction: "none",
                       }}
                     >
-                      {item.file_type === "image" ? "▣" : "▶"}
-                    </div>
-                  </button>
+                      {item.file_type === "image" ? (
+                        <img
+                          src={item.url}
+                          alt=""
+                          loading="lazy"
+                          draggable={false}
+                          style={{ display: "block", width: "100%" }}
+                        />
+                      ) : (
+                        <video
+                          src={item.playback_url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          style={{ display: "block", width: "100%" }}
+                        />
+                      )}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 6,
+                          top: 6,
+                          height: 22,
+                          width: 22,
+                          display: "grid",
+                          placeItems: "center",
+                          background: "rgba(0,0,0,.5)",
+                          borderRadius: 7,
+                          color: "#fff",
+                          fontSize: 11,
+                        }}
+                      >
+                        {item.file_type === "image" ? "▣" : "▶"}
+                      </div>
+                    </button>
+                  </EditorMediaContextMenu>
                 )
               )}
             </div>
@@ -652,7 +672,7 @@ function AudioMediaCard({
   return (
     <Card
       size="sm"
-      title={`${item.original_name} — click to add at the playhead, or drag onto a track`}
+      title={`${item.original_name} — click to add, drag onto a track, or right-click to delete`}
       className="st-hovlift cursor-grab gap-3"
       style={{
         marginBottom: inAudioGrid ? 0 : 9,

@@ -22,11 +22,14 @@ import {
 } from "@/server/video/media-collections"
 import {
   attachMediaToScope,
+  deleteMediaFromScope,
   listVideoMedia as listVideoMediaQuery,
   type MediaScope,
   type VideoMediaItem,
   type VideoMediaListResponse,
 } from "@/server/video/media-list"
+
+export type { MediaScope } from "@/server/video/media-list"
 
 export type { MediaCollectionSummary, VideoMediaItem, VideoMediaListResponse }
 
@@ -94,6 +97,8 @@ const attachMediaSchema = z.object({
   mediaId: z.string().min(1).max(36),
 })
 
+const deleteMediaSchema = attachMediaSchema
+
 const listVideoMediaFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(listVideoMediaSchema)
@@ -114,6 +119,13 @@ const attachMediaFn = createServerFn({ method: "POST" })
   .inputValidator(attachMediaSchema)
   .handler(async ({ data, context }) => {
     await attachMediaToScope(context.user.id, data.scope, data.mediaId)
+  })
+
+const deleteMediaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(deleteMediaSchema)
+  .handler(async ({ data, context }) => {
+    await deleteMediaFromScope(context.user.id, data.scope, data.mediaId)
   })
 
 const listCollectionsFn = createServerFn({ method: "GET" })
@@ -198,6 +210,10 @@ export function listVideoMedia({
 
 export function attachEditorMedia(scope: MediaScope, mediaId: string) {
   return attachMediaFn({ data: { scope, mediaId } })
+}
+
+export function deleteEditorMedia(scope: MediaScope, mediaId: string) {
+  return deleteMediaFn({ data: { scope, mediaId } })
 }
 
 export function listMediaCollections() {

@@ -5,7 +5,11 @@ import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { parseTimelineForReset } from "@/lib/video/timeline-schema"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { serializeMedia, type MediaItem } from "@/server/media/library"
+import {
+  deleteMediaAsAdmin,
+  serializeMedia,
+  type MediaItem,
+} from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
 import { collectionIdsByMedia } from "@/server/video/media-collections"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
@@ -242,6 +246,28 @@ export async function attachMediaToScope(
     .insert(videoCarouselMedia)
     .values({ carouselId: scope.id, mediaId, createdAt: now() })
     .onConflictDoNothing()
+}
+
+/** Delete one owned file that is visible on the requested editor shelf. */
+export async function deleteMediaFromScope(
+  userId: string,
+  scope: MediaScope,
+  mediaId: string,
+  database: CustomShellDb = db,
+  deleteMedia: typeof deleteMediaAsAdmin = deleteMediaAsAdmin
+) {
+  const visibleMediaIds = await mediaIdsForScope(userId, scope, database)
+  if (!visibleMediaIds.includes(mediaId)) throw new Error("Media not found")
+
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media) throw new Error("Media not found")
+
+  const result = await deleteMedia([mediaId], database)
+  if (result.deletedCount !== 1) throw new Error("Media not found")
 }
 
 async function videoStateByMedia(

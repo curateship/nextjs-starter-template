@@ -175,7 +175,13 @@ export function StudioEditor({
   const stage = (
     <WorkspacePanel className="flex flex-col">
       <StageHeader />
-      <div className="relative flex min-h-0 flex-1">
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-1",
+          desktop && !panelCollapsed && "studio-flat-stage-left",
+          desktop && !inspectorCollapsed && "studio-flat-stage-right"
+        )}
+      >
         <StudioStage />
         {panelCollapsed ? (
           <PanelReopenTab
