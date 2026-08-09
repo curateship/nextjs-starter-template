@@ -86,8 +86,8 @@ export function isAiTextProvider(value: unknown): value is AiTextProvider {
  *
  * Last checked: 2026-08-02 (Anthropic from their published API pricing;
  * OpenAI's worth re-checking against platform.openai.com/pricing). The Gemini
- * rows were added on 2026-08-08 from memory rather than the price page, and
- * should be checked against ai.google.dev/pricing before anyone trusts a bill.
+ * image and video rows were checked against Google's published Gemini API
+ * pricing on 2026-08-08.
  */
 export const AI_MODEL_PRICES: Record<
   string,
@@ -99,6 +99,9 @@ export const AI_MODEL_PRICES: Record<
   "gpt-5.1": { inputPerMillion: 1.25, outputPerMillion: 10 },
   "gpt-5": { inputPerMillion: 1.25, outputPerMillion: 10 },
   "gpt-5-mini": { inputPerMillion: 0.25, outputPerMillion: 2 },
+  // GPT Image 2 image-token rates. Text-only prompt input is cheaper, so the
+  // shared meter deliberately uses the higher image-input rate as a safe cap.
+  "gpt-image-2": { inputPerMillion: 8, outputPerMillion: 30 },
   "gemini-2.5-pro": { inputPerMillion: 1.25, outputPerMillion: 10 },
   "gemini-2.5-flash": { inputPerMillion: 0.3, outputPerMillion: 2.5 },
 }
@@ -124,6 +127,13 @@ export const AI_UNIT_PRICES: Record<
   string,
   { dollarsPerUnit: number; unit: string }
 > = {
+  // Google charges these 1K image outputs per image. Prices checked against
+  // the Gemini API price page on 2026-08-08.
+  "gemini-2.5-flash-image": { dollarsPerUnit: 0.039, unit: "image" },
+  "gemini-3.1-flash-image": { dollarsPerUnit: 0.067, unit: "image" },
+  // Veo 3.1 Standard at 720p, charged per finished second. Google does not
+  // charge when generation is blocked, so callers record units only on success.
+  "veo-3.1-generate-preview": { dollarsPerUnit: 0.4, unit: "second" },
   // Characters of text read aloud, at roughly $0.15 per 1,000 — the quicker
   // voices about half that.
   eleven_multilingual_v2: { dollarsPerUnit: 0.00015, unit: "character" },

@@ -181,6 +181,26 @@ export async function runAiCall<T>(
   }
 }
 
+/**
+ * Finish metering for durable work whose provider operation outlives one
+ * request. The caller must run `checkAiAllowance` before starting the work;
+ * recording happens only after the provider confirms success, so a failed
+ * background attempt never spends from the person's allowance.
+ */
+export async function recordDeferredAiSuccess(
+  context: Omit<AiUsageEntry, "inputTokens" | "outputTokens" | "status">,
+  usage: AiCallUsage
+): Promise<void> {
+  await recordAiUsage({
+    ...context,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    units: usage.units,
+    status: "success",
+  })
+  if (context.userId) await sendAiAllowanceWarnings(context.userId)
+}
+
 // ---------------------------------------------------------------------------
 // The monthly allowance. A plan can carry one (the "aiDollars" key on its
 // features, in dollars a month), one person can be given their own instead,

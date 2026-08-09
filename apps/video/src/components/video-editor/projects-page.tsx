@@ -1,6 +1,12 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
-import { CopyIcon, FilmIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import {
+  CopyIcon,
+  FilmIcon,
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -41,7 +47,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { editorId, formatClock } from "@/lib/video/timeline-utils"
 import { ProjectFormDialog } from "@/components/video-editor/project-form-dialog"
 
-const projectsRoute = getRouteApi("/_authenticated/admin/video-editor")
+const projectsRoute = getRouteApi("/_authenticated/admin/video-editor/")
 
 export type ProjectSortColumn = "name" | "clips" | "length" | "aspect" | "updated"
 

@@ -228,6 +228,166 @@ export const videoSettings = pgTable(
 )
 
 /**
+ * A reusable generated character. The picture is an ordinary media-library
+ * row, so deleting this record never silently destroys a file already used by
+ * a project. The session-checked actor image route reads that same row.
+ */
+export const videoActors = pgTable(
+  "video_actors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    prompt: text("prompt").notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    tags: jsonb("tags").notNull().default([]),
+    imageMediaId: varchar("image_media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "restrict" }),
+    referenceMediaId: varchar("reference_media_id", {
+      length: 36,
+    }).references(() => customShellMedia.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_actors_status_check",
+      sql`${table.status} in ('active', 'inactive')`
+    ),
+    index("ix_video_actors_user_created").on(table.userId, table.createdAt),
+    index("ix_video_actors_image_media_id").on(table.imageMediaId),
+    index("ix_video_actors_reference_media_id").on(table.referenceMediaId),
+  ]
+)
+
+/**
+ * An opening image made from an actor. Its generated picture also remains in
+ * the media library when this organizing record is removed.
+ */
+export const videoFirstFrames = pgTable(
+  "video_first_frames",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    actorId: varchar("actor_id", { length: 36 })
+      .notNull()
+      .references(() => videoActors.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    prompt: text("prompt").notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    aspectRatio: varchar("aspect_ratio", { length: 8 }).notNull(),
+    tags: jsonb("tags").notNull().default([]),
+    pinned: boolean("pinned").notNull().default(false),
+    imageMediaId: varchar("image_media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "restrict" }),
+    referenceMediaId: varchar("reference_media_id", {
+      length: 36,
+    }).references(() => customShellMedia.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_first_frames_aspect_check",
+      sql`${table.aspectRatio} in ('9:16', '16:9')`
+    ),
+    index("ix_video_first_frames_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+    index("ix_video_first_frames_actor_id").on(table.actorId),
+    index("ix_video_first_frames_image_media_id").on(table.imageMediaId),
+    index("ix_video_first_frames_reference_media_id").on(
+      table.referenceMediaId
+    ),
+  ]
+)
+
+/**
+ * A durable Veo request. The background worker owns queued/processing rows, so
+ * leaving or reloading the dashboard does not cancel the provider operation.
+ */
+export const videoAiGenerations = pgTable(
+  "video_ai_generations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    firstFrameId: varchar("first_frame_id", { length: 36 })
+      .notNull()
+      .references(() => videoFirstFrames.id, { onDelete: "cascade" }),
+    firstFrameMediaId: varchar("first_frame_media_id", {
+      length: 36,
+    }).references(() => customShellMedia.id, { onDelete: "set null" }),
+    prompt: text("prompt").notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    aspectRatio: varchar("aspect_ratio", { length: 8 }).notNull(),
+    durationSeconds: integer("duration_seconds").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    operationName: text("operation_name"),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    outputMediaId: varchar("output_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    errorMessage: text("error_message"),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "video_ai_generations_status_check",
+      sql`${table.status} in ('queued', 'processing', 'ready', 'error')`
+    ),
+    check(
+      "video_ai_generations_aspect_check",
+      sql`${table.aspectRatio} in ('9:16', '16:9')`
+    ),
+    check(
+      "video_ai_generations_duration_check",
+      sql`${table.durationSeconds} in (4, 6, 8)`
+    ),
+    check("video_ai_generations_attempts_check", sql`${table.attempts} >= 0`),
+    check(
+      "video_ai_generations_ready_check",
+      sql`${table.status} <> 'ready' or ${table.outputMediaId} is not null`
+    ),
+    check(
+      "video_ai_generations_lease_check",
+      sql`(${table.leaseToken} is null) = (${table.leaseExpiresAt} is null)`
+    ),
+    uniqueIndex("ux_video_ai_generations_project_active")
+      .on(table.projectId)
+      .where(sql`${table.status} in ('queued', 'processing')`),
+    index("ix_video_ai_generations_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+    index("ix_video_ai_generations_first_frame_id").on(table.firstFrameId),
+    index("ix_video_ai_generations_output_media_id").on(table.outputMediaId),
+    index("ix_video_ai_generations_processing_lease").on(
+      table.status,
+      table.leaseExpiresAt
+    ),
+  ]
+)
+
+/**
  * An export: what was asked for, and what came out.
  *
  * The same row is the queue entry and the finished file. A worker claims it,
@@ -298,3 +458,6 @@ export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
+export type VideoActorRow = typeof videoActors.$inferSelect
+export type VideoFirstFrameRow = typeof videoFirstFrames.$inferSelect
+export type VideoAiGenerationRow = typeof videoAiGenerations.$inferSelect

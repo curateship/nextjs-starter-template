@@ -20,7 +20,10 @@ export async function streamPrivateR2Object({
   try {
     const object = await getFromR2(storagePath, range ?? undefined)
     if (!object.Body) {
-      return Response.json({ detail: "Stored file has no content" }, { status: 502 })
+      return Response.json(
+        { detail: "Stored file has no content" },
+        { status: 502, headers: { "Cache-Control": "no-store" } }
+      )
     }
 
     const headers = new Headers({
@@ -49,10 +52,13 @@ export async function streamPrivateR2Object({
           detail:
             "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables.",
         },
-        { status: 503 }
+        { status: 503, headers: { "Cache-Control": "no-store" } }
       )
     }
-    return Response.json({ detail: "Failed to read stored file" }, { status: 502 })
+    return Response.json(
+      { detail: "Failed to read stored file" },
+      { status: 502, headers: { "Cache-Control": "no-store" } }
+    )
   }
 }
 
