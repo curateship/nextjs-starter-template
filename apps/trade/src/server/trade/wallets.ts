@@ -46,6 +46,7 @@ type WalletFields = Pick<
   | "id"
   | "label"
   | "kind"
+  | "status"
   | "protocol"
   | "network"
   | "startingBalance"
@@ -59,6 +60,7 @@ function toWallet(row: WalletFields): TradeWallet {
     id: row.id,
     label: row.label,
     kind: row.kind,
+    status: row.status,
     protocol: row.protocol,
     network: row.network,
     startingBalance: row.startingBalance,
@@ -93,6 +95,16 @@ export async function findWallet(
     .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))
     .limit(1)
   return rows[0] ? toWallet(rows[0]) : null
+}
+
+/** A wallet that may receive a new order. Inactive wallets remain readable. */
+export async function findTradingWallet(
+  userId: string,
+  id: string
+): Promise<TradeWallet | null> {
+  const wallet = await findWallet(userId, id)
+  if (wallet?.status === "inactive") throw new Error("WALLET_INACTIVE")
+  return wallet
 }
 
 export async function createWallet(
@@ -154,6 +166,7 @@ export async function createWallet(
     id: randomUUID(),
     label: input.label,
     kind: input.kind,
+    status: "active" as const,
     protocol: input.protocol,
     network: input.network,
     startingBalance,
@@ -174,6 +187,7 @@ export async function updateWallet(
     startingBalance?: number
     /** Live only: a replacement trading key. */
     agentKey?: string
+    status?: TradeWallet["status"]
   }
 ): Promise<TradeWallet> {
   const rows = await db
@@ -195,6 +209,7 @@ export async function updateWallet(
     updatedAt: new Date(),
   }
   if (input.label !== undefined) set.label = input.label
+  if (input.status !== undefined) set.status = input.status
   if (input.startingBalance !== undefined) {
     set.startingBalance = input.startingBalance
   }

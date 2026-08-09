@@ -106,6 +106,16 @@ async function journalRows(userId: string) {
 }
 
 describe("the rails around placing", () => {
+  it("refuses a new order from an inactive wallet", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId, { status: "inactive" })
+
+    await expect(placeLiveOrder(userId, orderInput(walletId))).rejects.toThrow(
+      "WALLET_INACTIVE"
+    )
+    expect(place).not.toHaveBeenCalled()
+  })
+
   it("refuses a practice wallet — only a live wallet trades this way", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId, {
@@ -421,6 +431,7 @@ describe("the portfolio read", () => {
         id: walletId,
         label: "Live",
         kind: "live" as const,
+        status: "active" as const,
         protocol: "hyperliquid" as const,
         network: "mainnet" as const,
         startingBalance: 1000,
@@ -432,6 +443,7 @@ describe("the portfolio read", () => {
         id: deadId,
         label: "Dead",
         kind: "live" as const,
+        status: "active" as const,
         protocol: "hyperliquid" as const,
         network: "mainnet" as const,
         startingBalance: 1000,

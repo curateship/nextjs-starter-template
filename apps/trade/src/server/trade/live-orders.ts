@@ -174,6 +174,7 @@ export async function placeLiveOrder(
   }
 ): Promise<PlaceOrderOutcome> {
   const row = await liveWallet(userId, input.walletId)
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
   const protocol = getProtocol(row.protocol)
 
   try {

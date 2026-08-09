@@ -203,6 +203,36 @@ export const videoProjects = pgTable(
 )
 
 /**
+ * One carousel studio document. Slides stay together as validated JSON so a
+ * new layer setting does not require a column, while `format` and `version`
+ * remain cheap to list and safe to compare during auto-save.
+ */
+export const videoCarousels = pgTable(
+  "video_carousels",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    format: varchar("format", { length: 8 }).notNull(),
+    slides: jsonb("slides").notNull(),
+    caption: text("caption").notNull().default(""),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "video_carousels_format_check",
+      sql`${table.format} in ('4:5', '1:1', '9:16')`
+    ),
+    check("video_carousels_version_check", sql`${table.version} >= 1`),
+    index("ix_video_carousels_user_updated").on(table.userId, table.updatedAt),
+  ]
+)
+
+/**
  * The brand kit every project draws with: one row, kept that way by the check
  * on `id`. The kit itself is a JSON document read through a normalizer, the
  * same shape the shell uses for its own styling settings, so a later feature
@@ -457,6 +487,7 @@ export type VideoMediaProxy = typeof videoMediaProxies.$inferSelect
 export type VideoMediaFilmstrip = typeof videoMediaFilmstrips.$inferSelect
 export type VideoMediaCollection = typeof videoMediaCollections.$inferSelect
 export type VideoProjectRow = typeof videoProjects.$inferSelect
+export type VideoCarouselRow = typeof videoCarousels.$inferSelect
 export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect
 export type VideoFirstFrameRow = typeof videoFirstFrames.$inferSelect

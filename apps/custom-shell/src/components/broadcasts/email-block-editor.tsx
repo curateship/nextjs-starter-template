@@ -39,6 +39,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import {
@@ -210,6 +211,10 @@ export function EmailBlockEditor({
   const togglePalette = usePanelToggle(palettePanelRef)
   const toggleInspector = usePanelToggle(inspectorPanelRef)
   const toggleBottom = usePanelToggle(bottomPanelRef)
+
+  // Shut, the bottom panel is exactly its own header, and the header's line
+  // would sit on top of the panel's bottom edge. See `headerOnly`.
+  const bottomShut = usePanelCollapsed(bottomPanelRef)
 
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
@@ -656,8 +661,12 @@ export function EmailBlockEditor({
             maxSize="60%"
             collapsible
             collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+            onResize={bottomShut.onResize}
           >
-            <WorkspacePanel onDoubleClick={bottomDoubleClick}>
+            <WorkspacePanel
+              onDoubleClick={bottomDoubleClick}
+              headerOnly={bottomShut.collapsed}
+            >
               {bottomPanel}
             </WorkspacePanel>
           </ResizablePanel>

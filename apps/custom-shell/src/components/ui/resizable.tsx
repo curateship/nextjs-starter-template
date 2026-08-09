@@ -70,6 +70,7 @@ const BOTTOM_COLLAPSED_HEIGHT = "52.4px"
 function WorkspacePanel({
   className,
   collapsed,
+  headerOnly,
   ...props
 }: React.ComponentProps<"div"> & {
   /**
@@ -87,11 +88,27 @@ function WorkspacePanel({
    * settings and would put it straight back over any class written here.
    */
   collapsed?: boolean
+  /**
+   * The panel is shut down to **its own header**, on
+   * `BOTTOM_COLLAPSED_HEIGHT`, so that header is the last thing in it.
+   *
+   * A panel header carries a line under it to part it from what follows. Shut,
+   * nothing follows — and the panel's own bottom edge is already drawn one
+   * pixel below, so the two land on top of each other and the bar reads as
+   * having a double-thick line along the bottom. This takes the header's line
+   * off for as long as there is nothing under it to part it from.
+   *
+   * Off by default, so a panel nobody tells about this is drawn exactly as it
+   * always was. The rule is in `theme.css`, beside the one that sets these
+   * borders from the user's settings, because a class here would lose to it.
+   */
+  headerOnly?: boolean
 }) {
   return (
     <div
       data-slot="workspace-panel"
       data-collapsed={collapsed ? "true" : undefined}
+      data-header-only={headerOnly ? "true" : undefined}
       className={cn(
         // A REAL border, not a ring: these panels sit flush inside
         // resizable-panel containers that clip anything drawn outside the box

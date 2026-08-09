@@ -21,7 +21,11 @@ import {
   updatePaperOrder as updateOrderRow,
 } from "@/server/trade/paper"
 import { listActiveLadders } from "@/server/trade/smart-orders"
-import { findWallet, listWallets } from "@/server/trade/wallets"
+import {
+  findTradingWallet,
+  findWallet,
+  listWallets,
+} from "@/server/trade/wallets"
 
 import { createErrorMessage } from "./error-message"
 
@@ -86,8 +90,15 @@ const positionSchema = z.object({
 })
 
 /** The wallet, or a refusal — the same first step for every function here. */
-async function paperWallet(userId: string, walletId: string) {
-  const wallet = await findWallet(userId, walletId)
+async function paperWallet(
+  userId: string,
+  walletId: string,
+  receivingOrder = false
+) {
+  const wallet = await (receivingOrder ? findTradingWallet : findWallet)(
+    userId,
+    walletId
+  )
   if (!wallet) throw new Error("PAPER_WALLET_NOT_FOUND")
   if (wallet.kind !== "paper") throw new Error("PAPER_WALLET_KIND")
   return wallet
@@ -131,7 +142,7 @@ const placePaperOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(placeSchema)
   .handler(async ({ data, context }): Promise<{ placed: true }> => {
-    const wallet = await paperWallet(context.user.id, data.walletId)
+    const wallet = await paperWallet(context.user.id, data.walletId, true)
     await placeOrderRow(context.user.id, wallet, data)
     return { placed: true }
   })
@@ -239,6 +250,7 @@ export const getPaperErrorMessage = createErrorMessage(
     PAPER_WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     PAPER_WALLET_KIND: "Only a practice wallet trades this way.",
+    WALLET_INACTIVE: "Make this wallet active before placing a new order.",
     PAPER_MARKET: "That market is not one this wallet can trade.",
     PAPER_NO_PRICE:
       "Hyperliquid would not give a price for that market, so nothing was done.",
