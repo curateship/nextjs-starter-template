@@ -14,14 +14,25 @@ import { loadRememberedFolds } from "@/lib/api/card-folds"
 import { loadIndicatorSettings } from "@/lib/api/indicators"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
+import {
+  marketKeyOnNetwork,
+  resolveTradeNetwork,
+} from "@/lib/trade/trade-network"
 
 /**
  * `?market=<key>` is which market the middle panel shows — a full market key
  * (`hyperliquid:mainnet:BTC`), so the address stays honest about the exchange
  * and a link keeps meaning the same market when a second protocol exists.
  * Checked before use and dropped when it is not usable.
+ *
+ * `?network=testnet` is the practice-network door when nothing is charted.
+ * A market key already names its network, so with a market on screen the key
+ * is the truth and this param only matters on a bare page — the one rule in
+ * `resolveTradeNetwork`. There is no switch on screen any more (paper
+ * wallets are the everyday practice path); the address, and any testnet
+ * market's link, are how the door is opened when it is wanted.
  */
-type TradeSearch = { market?: string }
+type TradeSearch = { market?: string; network?: "testnet" }
 
 function readTradeSearch(search: Record<string, unknown>): TradeSearch {
   return {
@@ -29,17 +40,23 @@ function readTradeSearch(search: Record<string, unknown>): TradeSearch {
       typeof search.market === "string" && search.market.length <= 120
         ? search.market
         : undefined,
+    network: search.network === "testnet" ? "testnet" : undefined,
   }
 }
 
 export const Route = createFileRoute("/_authenticated/trade")({
   validateSearch: readTradeSearch,
-  loader: async () => {
+  // The loader re-runs only when the RESOLVED network changes — clicking
+  // between markets on one network keeps the catalog it already has.
+  loaderDeps: ({ search }) => ({
+    network: resolveTradeNetwork(search.market, search.network),
+  }),
+  loader: async ({ deps }) => {
     const [markets, favorites, lastMarket, chartView, indicators, cardFolds] =
       await Promise.all([
         // A dead exchange must not take the page down with it: the workspace
         // still opens, and the list explains itself and offers a retry.
-        loadMarkets()
+        loadMarkets(deps.network)
           .then((result) => ({ catalogs: result.catalogs, error: null }))
           .catch((error: unknown) => ({
             catalogs: [],
@@ -69,6 +86,7 @@ export const Route = createFileRoute("/_authenticated/trade")({
       ])
     return {
       markets,
+      network: deps.network,
       favoriteKeys: favorites.marketKeys,
       lastMarketKey: lastMarket.marketKey,
       chartView: chartView.chartView,
@@ -80,8 +98,15 @@ export const Route = createFileRoute("/_authenticated/trade")({
 })
 
 function TradeRoute() {
-  const { markets, favoriteKeys, lastMarketKey, chartView, indicators, cardFolds } =
-    Route.useLoaderData()
+  const {
+    markets,
+    network,
+    favoriteKeys,
+    lastMarketKey,
+    chartView,
+    indicators,
+    cardFolds,
+  } = Route.useLoaderData()
   const { market } = Route.useSearch()
   const navigate = Route.useNavigate()
   const router = useRouter()
@@ -96,8 +121,14 @@ function TradeRoute() {
 
   // The address wins; the account's memory fills a bare visit. A remembered
   // market that no longer resolves shows the honest missing state — never a
-  // swap to some market that does.
-  const selectedKey = market ?? lastMarketKey ?? null
+  // swap to some market that does. A memory from the OTHER network is left
+  // alone rather than shown as missing: switching to testnet with a mainnet
+  // market remembered should read as a bare testnet page, not a delisting.
+  const remembered =
+    lastMarketKey && marketKeyOnNetwork(lastMarketKey, network)
+      ? lastMarketKey
+      : null
+  const selectedKey = market ?? remembered ?? null
 
   // Remember whichever market is on screen, so the next bare visit reopens
   // it. Best-effort and ref-guarded: the same market is never saved twice in
@@ -113,6 +144,7 @@ function TradeRoute() {
     <TradeWorkspace
       catalogs={markets.catalogs}
       marketsError={markets.error}
+      network={network}
       initialFavoriteKeys={favoriteKeys}
       initialChartView={chartView}
       initialIndicators={indicators}

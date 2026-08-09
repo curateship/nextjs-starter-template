@@ -66,13 +66,24 @@ function toneOf(value: number): string {
 }
 
 /**
- * Marks a real-money row. Practice and real rows share these tables, and a
- * real dollar must never be readable as a pretend one.
+ * Marks a row that lives on the exchange rather than in the practice engine.
+ * Practice, testnet and real rows share these tables, and the two rules point
+ * the same way: a real dollar must never be readable as a pretend one, and a
+ * pretend one never as real — so a testnet exchange row says "Testnet", in
+ * its own colour, never "Real".
  */
-function RealBadge() {
+function RealBadge({ marketKey }: { marketKey: string }) {
+  const testnet = parseMarketKey(marketKey)?.network === "testnet"
   return (
-    <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-      Real
+    <span
+      className={cn(
+        "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+        testnet
+          ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+          : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      )}
+    >
+      {testnet ? "Testnet" : "Real"}
     </span>
   )
 }
@@ -331,7 +342,7 @@ function PositionRow({
         badge={
           <>
             <SideBadge position={position} />
-            {position.live ? <RealBadge /> : null}
+            {position.live ? <RealBadge marketKey={position.marketKey} /> : null}
           </>
         }
         onSelect={() => onSelectMarket(position.marketKey)}
@@ -636,7 +647,7 @@ export function OpenOrdersTable({
                       Reduce only
                     </span>
                   ) : null}
-                  {order.live ? <RealBadge /> : null}
+                  {order.live ? <RealBadge marketKey={order.marketKey} /> : null}
                 </>
               }
             />
@@ -757,7 +768,7 @@ export function JournalTable({
               marketKey={entry.marketKey}
               market={markets.get(entry.marketKey) ?? null}
               onSelect={() => onSelectMarket(entry.marketKey)}
-              badge={entry.live ? <RealBadge /> : undefined}
+              badge={entry.live ? <RealBadge marketKey={entry.marketKey} /> : undefined}
             />
             <WalletCell wallet={walletName(entry.walletId)} />
             <Cell className="text-muted-foreground">

@@ -132,15 +132,18 @@ describe("the rails around placing", () => {
     expect(place).not.toHaveBeenCalled()
   })
 
-  it("refuses a sub-exchange market rather than half-supporting it", async () => {
+  it("trades a sub-exchange market like any other — the venues are all read now", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
-    await expect(
-      placeLiveOrder(userId, {
-        ...orderInput(walletId),
-        marketKey: "hyperliquid:mainnet:xyz:AAPL",
-      })
-    ).rejects.toThrow("LIVE_SUBEXCHANGE")
+    prices.mockResolvedValue(new Map([["xyz:AAPL", 200]]))
+
+    await placeLiveOrder(userId, {
+      ...orderInput(walletId),
+      marketKey: "hyperliquid:mainnet:xyz:AAPL",
+      px: 190,
+    })
+    const [, , params] = place.mock.calls[0]
+    expect(params.marketId).toBe("xyz:AAPL")
   })
 
   it("refuses protection on the wrong side before anything is signed", async () => {

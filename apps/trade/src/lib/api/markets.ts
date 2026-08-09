@@ -25,13 +25,22 @@ import { createErrorMessage } from "./error-message"
  * word of this file changing.
  */
 
+/**
+ * Which network to list. One choice for the whole read: the screens show one
+ * network at a time, clearly labelled, and the labelling rule ("a pretend
+ * dollar must never be readable as a real one") is easiest to keep when the
+ * two never share a list.
+ */
+const networkSchema = z.object({ network: z.enum(["mainnet", "testnet"]) })
+
 const loadMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async (): Promise<{ catalogs: MarketCatalog[] }> => {
+  .inputValidator(networkSchema)
+  .handler(async ({ data }): Promise<{ catalogs: MarketCatalog[] }> => {
     const catalogs = await Promise.all(
       listProtocols()
         .filter((protocol) => protocol.capabilities.markets)
-        .map((protocol) => protocol.markets.fetch(protocol.defaultNetwork))
+        .map((protocol) => protocol.markets.fetch(data.network))
     )
     return { catalogs }
   })
@@ -100,8 +109,8 @@ const saveLastMarketFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
-export function loadMarkets() {
-  return loadMarketsFn()
+export function loadMarkets(network: "mainnet" | "testnet") {
+  return loadMarketsFn({ data: { network } })
 }
 
 export function loadLastMarket() {

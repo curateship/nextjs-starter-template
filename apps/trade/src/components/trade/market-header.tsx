@@ -14,7 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { MarketRow } from "@/lib/protocols/contracts"
+import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
 import {
   formatChange,
   formatCompactUsd,
@@ -149,11 +149,20 @@ export function MarketHeader({
       // the obvious place to ask about.
       title={<MarketInfo selection={selection} />}
       meta={
-        <FavoriteStar
-          symbol={selection.row.symbol}
-          favorite={favorite}
-          onToggle={onToggleFavorite}
-        />
+        <span className="flex items-center gap-2">
+          <FavoriteStar
+            symbol={selection.row.symbol}
+            favorite={favorite}
+            onToggle={onToggleFavorite}
+          />
+          {/* Always on screen for a practice-network market, never behind the
+              hover — a pretend dollar must not be readable as a real one. */}
+          {parseMarketKey(selection.row.key)?.network === "testnet" ? (
+            <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+              Testnet
+            </span>
+          ) : null}
+        </span>
       }
       action={action}
     />

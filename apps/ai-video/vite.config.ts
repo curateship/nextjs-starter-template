@@ -57,6 +57,10 @@ export default defineConfig({
     tsconfigPaths: true,
     alias: [
       {
+        find: /^@tanstack\/router-core$/,
+        replacement: path.resolve(__dirname, "./node_modules/@tanstack/router-core"),
+      },
+      {
         find: "@",
         replacement: path.resolve(__dirname, "./src"),
       },

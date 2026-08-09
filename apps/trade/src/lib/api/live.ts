@@ -147,8 +147,6 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_MARKET: "That market is not one this wallet can trade.",
   LIVE_NETWORK_MISMATCH:
     "This wallet and this chart are on different networks — a test-network wallet cannot trade a real-money market, or the reverse.",
-  LIVE_SUBEXCHANGE:
-    "Real orders on Hyperliquid's sub-exchange markets are not supported yet.",
   LIVE_MAINNET_OFF:
     "Real-money trading is switched off on this server. It stays off until the funded test run passes and TRADE_ENABLE_MAINNET is deliberately set.",
   LIVE_NO_PRICE:

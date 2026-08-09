@@ -87,17 +87,14 @@ async function liveWallet(userId: string, walletId: string): Promise<LiveWalletR
  * The market a request names, checked against the wallet it would trade
  * from. The network rule is the heart of it: the wallet's network and the
  * market's must MATCH — that one comparison is what makes "testnet first"
- * enforceable at all.
+ * enforceable at all. Sub-exchange markets ("xyz:IBM") pass through like any
+ * other: the adapter reads and numbers every venue.
  */
 function checkedMarket(row: LiveWalletRow, marketKey: string) {
   const ref = parseMarketKey(marketKey)
   if (!ref) throw new Error("LIVE_MARKET")
   if (ref.protocol !== row.protocol) throw new Error("LIVE_MARKET")
   if (ref.network !== row.network) throw new Error("LIVE_NETWORK_MISMATCH")
-  // Sub-exchange markets are refused for now: their positions would not show
-  // in the portfolio read, and an order whose position cannot be seen is a
-  // hole, not a feature. The ordering work for those venues comes later.
-  if (ref.marketId.includes(":")) throw new Error("LIVE_SUBEXCHANGE")
   return ref
 }
 

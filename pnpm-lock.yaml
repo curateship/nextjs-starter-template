@@ -198,6 +198,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/router-core':
+        specifier: 1.171.15
+        version: 1.171.15
       argon2:
         specifier: ^0.44.0
         version: 0.44.0

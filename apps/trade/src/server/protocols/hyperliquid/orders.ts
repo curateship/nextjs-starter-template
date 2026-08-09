@@ -12,7 +12,11 @@ import type {
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
-import { num, roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
+import {
+  namespaceMarketId,
+  num,
+  roundOrderPx,
+} from "@/lib/protocols/hyperliquid/translate"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 import {
   agentSigner,
@@ -59,16 +63,32 @@ function newCloid(): `0x${string}` {
 // ----- Asset ids ----------------------------------------------------------
 
 /**
- * Orders name assets by index, not by name — the index into the main venue's
- * own list. Cached briefly per network; the list gains coins rarely and an
- * order should not pay a meta round-trip every time.
+ * Orders name assets by index, not by name — and the numbering covers every
+ * venue: an asset on the main exchange is its position in the main list,
+ * while one on a hosted venue is `100000 + venue's slot × 10000 + position`
+ * (the exchange's own rule, mirrored by its SDK). Cached briefly per network;
+ * the lists gain coins rarely and an order should not pay the round-trips
+ * every time.
  */
 const assetCache = new Map<
   NetworkId,
-  { at: number; byId: Map<string, { assetId: number; szDecimals: number }> }
+  {
+    at: number
+    /** How long this answer may serve — see `exchangeAssets`. */
+    ttl: number
+    byId: Map<string, { assetId: number; szDecimals: number }>
+    /** Every venue's name, the main one first as "". */
+    venues: string[]
+  }
 >()
 
 const ASSET_CACHE_MS = 10 * 60_000
+/**
+ * A venue list with a hole in it must not stand for long: the portfolio
+ * sweep walks these names, so a venue whose one meta call was dropped would
+ * otherwise have its positions invisible for ten minutes.
+ */
+const PARTIAL_ASSET_CACHE_MS = 45_000
 
 const metaSchema = z.object({
   universe: z.array(
@@ -80,24 +100,65 @@ const metaSchema = z.object({
   ),
 })
 
-async function mainVenueAssets(network: NetworkId) {
-  const cached = assetCache.get(network)
-  if (cached && Date.now() - cached.at < ASSET_CACHE_MS) return cached.byId
+const perpDexsSchema = z.array(
+  z.union([z.null(), z.object({ name: z.string().min(1) })])
+)
 
-  const meta = metaSchema.parse(await infoClient(network).meta({ dex: "" }))
+/** The exchange's asset-id rule, pure so the test can pin it down. */
+export function venueAssetId(venueIndex: number, assetIndex: number): number {
+  return venueIndex === 0 ? assetIndex : 100_000 + venueIndex * 10_000 + assetIndex
+}
+
+async function exchangeAssets(network: NetworkId) {
+  const cached = assetCache.get(network)
+  if (cached && Date.now() - cached.at < cached.ttl) return cached
+
+  const client = infoClient(network)
+  const dexs = perpDexsSchema.parse(await client.perpDexs())
+  const metas = await Promise.all(
+    dexs.map((dex, index) =>
+      client
+        .meta({ dex: dex?.name ?? "" })
+        .then((response) => ({
+          index,
+          name: dex?.name ?? "",
+          meta: metaSchema.parse(response),
+        }))
+        // A venue that will not answer contributes no assets this round —
+        // its markets resolve to "unlisted" rather than to wrong numbers.
+        .catch(() => null)
+    )
+  )
+
   const byId = new Map<string, { assetId: number; szDecimals: number }>()
-  meta.universe.forEach((asset, index) => {
-    // Delisted markets keep their slot — the INDEX is the id, so skipping
-    // them here would not renumber anything, only hide them.
-    byId.set(asset.name, { assetId: index, szDecimals: asset.szDecimals ?? 0 })
-  })
-  assetCache.set(network, { at: Date.now(), byId })
-  return byId
+  const venues: string[] = []
+  for (const venue of metas) {
+    if (!venue) continue
+    venues.push(venue.name)
+    venue.meta.universe.forEach((asset, index) => {
+      // Delisted markets keep their slot — the INDEX is the id, so skipping
+      // them here would not renumber anything, only hide them.
+      byId.set(namespaceMarketId(venue.name, asset.name), {
+        assetId: venueAssetId(venue.index, index),
+        szDecimals: asset.szDecimals ?? 0,
+      })
+    })
+  }
+  const entry = {
+    at: Date.now(),
+    ttl: metas.some((venue) => venue === null)
+      ? PARTIAL_ASSET_CACHE_MS
+      : ASSET_CACHE_MS,
+    byId,
+    venues,
+  }
+  assetCache.set(network, entry)
+  return entry
 }
 
 async function resolveAsset(network: NetworkId, marketId: string) {
-  const assets = await mainVenueAssets(network)
-  const found = assets.get(marketId)
+  const { byId } = await exchangeAssets(network)
+  const found = byId.get(marketId)
   // Not "LIVE_MARKET_…": the sentence lookup matches by substring, and a code
   // that contains another code would put the wrong sentence on the toast.
   if (!found) throw new Error("LIVE_UNLISTED")
@@ -492,63 +553,117 @@ const openOrdersSchema = z.array(
 )
 
 /**
- * Everything one live wallet holds and has waiting, from the exchange's own
- * mouth. Position-protection trigger orders are folded INTO their position
- * as its stop and target rather than listed as orders — that is what they
- * are on screen.
+ * Which venues each wallet actually uses, so the four-second poll does not
+ * ask ten venues about an account that lives on two. A full sweep of every
+ * venue runs once a minute (and on the first look); the polls between read
+ * the main venue plus the remembered ones. The exchange rations requests,
+ * and this is what keeps a poll inside the ration. A position opened on a
+ * NEW venue from outside this app shows up within the minute.
+ */
+const ACTIVE_VENUES_MS = 60_000
+const activeVenues = new Map<string, { at: number; names: string[] }>()
+
+/**
+ * Everything one live wallet holds and has waiting — on every venue the
+ * exchange hosts, from the exchange's own mouth. Market ids come back
+ * namespaced ("xyz:IBM") exactly as the market list names them, so a row's
+ * click lands on its own chart. Position-protection trigger orders are
+ * folded INTO their position as its stop and target rather than listed as
+ * orders — that is what they are on screen.
  */
 export async function fetchHyperliquidPortfolio(
   network: NetworkId,
   address: string
 ): Promise<WalletPortfolio> {
   const client = infoClient(network)
-  const user = address as `0x${string}`
-  const [clearinghouseRaw, ordersRaw] = await Promise.all([
-    client.clearinghouseState({ user }),
-    client.frontendOpenOrders({ user }),
-  ])
-  const clearinghouse = clearinghouseSchema.parse(clearinghouseRaw)
-  const open = openOrdersSchema.parse(ordersRaw)
+  const user = address.toLowerCase() as `0x${string}`
+
+  const { venues } = await exchangeAssets(network)
+  const rememberKey = `${network}:${user}`
+  const remembered = activeVenues.get(rememberKey)
+  const sweeping = !remembered || Date.now() - remembered.at >= ACTIVE_VENUES_MS
+  // The main venue is always read; a sweep reads everything.
+  const names = sweeping
+    ? venues
+    : ["", ...remembered.names.filter((name) => name !== "")]
+
+  const reads = await Promise.all(
+    names.map(async (dex) => {
+      const [clearinghouseRaw, ordersRaw] = await Promise.all([
+        client.clearinghouseState({ user, dex }),
+        client.frontendOpenOrders({ user, dex }),
+      ])
+      return {
+        dex,
+        clearinghouse: clearinghouseSchema.parse(clearinghouseRaw),
+        open: openOrdersSchema.parse(ordersRaw),
+      }
+    })
+  )
 
   const positions = new Map<string, WalletPosition>()
-  for (const { position } of clearinghouse.assetPositions) {
-    const szi = num(position.szi)
-    if (szi === null || szi === 0) continue
-    const entryPx = num(position.entryPx ?? "")
-    const marginUsed = num(position.marginUsed)
-    if (entryPx === null || marginUsed === null) {
-      // A row that cannot be read fails the read — a wallet shown without one
-      // of its positions would be a wrong answer dressed as a clean one.
-      throw new Error("LIVE_UNREADABLE")
+  const openAcrossVenues: Array<{ dex: string; order: z.infer<typeof openOrdersSchema>[number] }> = []
+  const used = new Set<string>()
+  for (const read of reads) {
+    if (read.clearinghouse.assetPositions.length > 0 || read.open.length > 0) {
+      used.add(read.dex)
     }
-    positions.set(position.coin, {
-      marketId: position.coin,
-      szi,
-      entryPx,
-      leverage: position.leverage.value,
-      marginUsed,
-      liquidationPx: position.liquidationPx ? num(position.liquidationPx) : null,
-      tpPx: null,
-      slPx: null,
-      tpOrderId: null,
-      slOrderId: null,
-    })
+    for (const { position } of read.clearinghouse.assetPositions) {
+      const szi = num(position.szi)
+      if (szi === null || szi === 0) continue
+      const entryPx = num(position.entryPx ?? "")
+      const marginUsed = num(position.marginUsed)
+      if (entryPx === null || marginUsed === null) {
+        // A row that cannot be read fails the read — a wallet shown without
+        // one of its positions would be a wrong answer dressed as a clean one.
+        throw new Error("LIVE_UNREADABLE")
+      }
+      const marketId = namespaceMarketId(read.dex, position.coin)
+      positions.set(marketId, {
+        marketId,
+        szi,
+        entryPx,
+        leverage: position.leverage.value,
+        marginUsed,
+        liquidationPx: position.liquidationPx ? num(position.liquidationPx) : null,
+        tpPx: null,
+        slPx: null,
+        tpOrderId: null,
+        slOrderId: null,
+      })
+    }
+    for (const order of read.open) {
+      openAcrossVenues.push({ dex: read.dex, order })
+    }
+  }
+  if (sweeping) {
+    activeVenues.set(rememberKey, { at: Date.now(), names: [...used] })
   }
 
   const orders: WalletOpenOrder[] = []
-  for (const order of open) {
+  for (const { dex, order: rawOrder } of openAcrossVenues) {
+    const order = { ...rawOrder, coin: namespaceMarketId(dex, rawOrder.coin) }
     const position = positions.get(order.coin)
-    if (order.isPositionTpsl && position) {
+    // A reduce-only trigger on a held market IS its protection, whichever
+    // flavour the exchange filed it under: `positionTpsl` legs scale with the
+    // position, while brackets placed WITH an entry come back as fixed-size
+    // triggers with that flag off. Both are the stop/target the screens draw
+    // and the drag replaces. First one per slot; an extra stays an order row
+    // rather than being hidden.
+    if (position && order.isTrigger && order.reduceOnly) {
       const triggerPx = num(order.triggerPx)
       if (triggerPx === null) continue
-      if (/take profit/i.test(order.orderType)) {
+      const isTakeProfit = /take profit/i.test(order.orderType)
+      if (isTakeProfit && position.tpPx === null) {
         position.tpPx = triggerPx
         position.tpOrderId = String(order.oid)
-      } else {
+        continue
+      }
+      if (!isTakeProfit && position.slPx === null) {
         position.slPx = triggerPx
         position.slOrderId = String(order.oid)
+        continue
       }
-      continue
     }
     const px = order.isTrigger ? num(order.triggerPx) : num(order.limitPx)
     const sz = num(order.sz)

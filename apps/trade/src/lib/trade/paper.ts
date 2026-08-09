@@ -125,10 +125,16 @@ export type PaperOrder = {
   updatedAt: number
   /**
    * A REAL resting order. Its id is the exchange's own; it cannot be dragged
-   * to a new price yet (that is the edit-orders task), and its leverage reads
-   * as a dash — the account's setting, not the order's.
+   * to a new price or changed in place yet, and its leverage reads as a dash —
+   * the account's setting, not the order's.
    */
   live?: true
+  /**
+   * Asked for, but the answer has not come back. Only ever set in the browser,
+   * so a press is seen the instant it happens — nothing on the server ever
+   * writes one, and nothing offers to change or cancel it.
+   */
+  placing?: true
 }
 
 export type PaperJournalEntry = {
