@@ -17,4 +17,18 @@ import type { AppOptions } from "@/lib/app-options"
  * half-made, and the app falls over before it serves anything. Reach for an
  * endpoint **inside a loader**, where it is fetched at request time.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  workspaces: {
+    /**
+     * This app builds websites, so its containers are sites. The shell says
+     * "workspace" because that is what one is where a container is one
+     * person's desk; here every container is a public website with its own
+     * domain, and showing an admin both words for one thing is worse than
+     * either word alone.
+     *
+     * Wording only. Addresses, tables and every name in the code stay
+     * `workspace`, so a shell update still has something to merge into.
+     */
+    word: { one: "site", many: "sites" },
+  },
+}

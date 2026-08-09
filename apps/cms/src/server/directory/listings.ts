@@ -85,6 +85,7 @@ function toListing(row: DirectoryListingRow): DirectoryListing {
 }
 
 async function slugIsTaken(
+  workspaceId: string,
   slug: string,
   exceptId: string | null,
   database: CustomShellDb
@@ -92,13 +93,14 @@ async function slugIsTaken(
   const [row] = await database
     .select({ id: directoryListings.id })
     .from(directoryListings)
+    // **Taken on this site.** Another site using the address is not a clash —
+    // that is the whole point of the unique index moving.
     .where(
-      exceptId
-        ? and(
-            eq(directoryListings.slug, slug),
-            ne(directoryListings.id, exceptId)
-          )
-        : eq(directoryListings.slug, slug)
+      and(
+        eq(directoryListings.workspaceId, workspaceId),
+        eq(directoryListings.slug, slug),
+        exceptId ? ne(directoryListings.id, exceptId) : undefined
+      )
     )
     .limit(1)
   return Boolean(row)
@@ -107,23 +109,28 @@ async function slugIsTaken(
 const LISTING_NOUN = { one: "listing", many: "listings" }
 
 /** The address a new or copied listing gets, numbered past any clash. */
-function firstFreeSlug(wanted: string, database: CustomShellDb) {
+function firstFreeSlug(
+  workspaceId: string,
+  wanted: string,
+  database: CustomShellDb
+) {
   return firstFreeSlugRule(
     wanted,
-    (candidate) => slugIsTaken(candidate, null, database),
+    (candidate) => slugIsTaken(workspaceId, candidate, null, database),
     LISTING_NOUN
   )
 }
 
 /** Refuses a hand-picked address that is taken, rather than renaming it. */
 function requireFreeSlug(
+  workspaceId: string,
   slug: string,
   exceptId: string | null,
   database: CustomShellDb
 ) {
   return requireFreeSlugRule(
     slug,
-    (candidate) => slugIsTaken(candidate, exceptId, database),
+    (candidate) => slugIsTaken(workspaceId, candidate, exceptId, database),
     LISTING_NOUN
   )
 }
@@ -136,6 +143,7 @@ function cleanTitle(raw: string): string {
 
 /** The category names for each of these listings, for the dashboard rows. */
 async function categoryNamesFor(
+  workspaceId: string,
   listingIds: string[],
   database: CustomShellDb
 ): Promise<Map<string, string[]>> {
@@ -151,6 +159,7 @@ async function categoryNamesFor(
     .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
     .where(
       and(
+        eq(categoryRelationships.workspaceId, workspaceId),
         eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
         inArray(categoryRelationships.contentId, listingIds)
       )
@@ -167,6 +176,7 @@ async function categoryNamesFor(
 }
 
 export async function listListings(
+  workspaceId: string,
   options: {
     search?: string
     status?: ListingStatus
@@ -181,7 +191,9 @@ export async function listListings(
   const offset = Math.max(options.offset ?? 0, 0)
   const search = options.search?.trim()
 
-  const filters = []
+  // The site's own listings, always. This is the whole boundary for the list:
+  // take it out and every site's listings appear on every other's screen.
+  const filters = [eq(directoryListings.workspaceId, workspaceId)]
   if (search) {
     const pattern = `%${search}%`
     const searchFilter = or(
@@ -193,7 +205,7 @@ export async function listListings(
   if (options.status) {
     filters.push(eq(directoryListings.status, options.status))
   }
-  const where = filters.length ? and(...filters) : undefined
+  const where = and(...filters)
 
   // Ordered here rather than in the browser: the page only ever holds one
   // page of listings, so sorting what already arrived would shuffle those
@@ -223,6 +235,7 @@ export async function listListings(
   ])
 
   const names = await categoryNamesFor(
+    workspaceId,
     rows.map((row) => row.id),
     database
   )
@@ -238,13 +251,22 @@ export async function listListings(
 
 /** One listing with everything the edit form holds, or null when it is gone. */
 export async function findListing(
+  workspaceId: string,
   id: string,
   database: CustomShellDb = db
 ): Promise<DirectoryListing | null> {
   const [row] = await database
     .select()
     .from(directoryListings)
-    .where(eq(directoryListings.id, id))
+    // The site is part of the lookup rather than checked after: an id from
+    // another site is simply not found, which is both the safe answer and the
+    // honest one.
+    .where(
+      and(
+        eq(directoryListings.id, id),
+        eq(directoryListings.workspaceId, workspaceId)
+      )
+    )
     .limit(1)
   return row ? toListing(row) : null
 }
@@ -255,6 +277,7 @@ export async function findListing(
  * decision, made on the edit form once there is something to publish.
  */
 export async function createListing(
+  workspaceId: string,
   input: { title: string; slug?: string },
   database: CustomShellDb = db
 ): Promise<DirectoryListing> {
@@ -269,10 +292,10 @@ export async function createListing(
   if (chosen) {
     // Hand-picked, so a clash is refused out loud rather than quietly renamed
     // into something the person did not ask for.
-    await requireFreeSlug(wanted, null, database)
+    await requireFreeSlug(workspaceId, wanted, null, database)
     slug = wanted
   } else {
-    slug = await firstFreeSlug(wanted, database)
+    slug = await firstFreeSlug(workspaceId, wanted, database)
   }
 
   const at = now()
@@ -280,6 +303,7 @@ export async function createListing(
     .insert(directoryListings)
     .values({
       id: uuid(),
+      workspaceId,
       title,
       slug,
       contactLinks: cleanContactLinks(null),
@@ -294,6 +318,7 @@ export async function createListing(
 }
 
 export async function updateListing(
+  workspaceId: string,
   id: string,
   input: {
     title?: string
@@ -312,7 +337,7 @@ export async function updateListing(
   if (input.title !== undefined) values.title = cleanTitle(input.title)
   if (input.slug !== undefined) {
     const slug = input.slug.trim()
-    await requireFreeSlug(slug, id, database)
+    await requireFreeSlug(workspaceId, slug, id, database)
     values.slug = slug
   }
   if (input.metaDescription !== undefined) {
@@ -333,7 +358,12 @@ export async function updateListing(
   const [row] = await database
     .update(directoryListings)
     .set(values)
-    .where(eq(directoryListings.id, id))
+    .where(
+      and(
+        eq(directoryListings.id, id),
+        eq(directoryListings.workspaceId, workspaceId)
+      )
+    )
     .returning()
 
   if (!row) throw new Error("That listing no longer exists.")
@@ -346,14 +376,15 @@ export async function updateListing(
  * twin page live before anyone touched it.
  */
 export async function duplicateListing(
+  workspaceId: string,
   id: string,
   database: CustomShellDb = db
 ): Promise<DirectoryListing> {
-  const source = await findListing(id, database)
+  const source = await findListing(workspaceId, id, database)
   if (!source) throw new Error("That listing no longer exists.")
 
   const title = `Copy of ${source.title}`.slice(0, MAX_LISTING_TITLE)
-  const slug = await firstFreeSlug(slugFromTitle(title), database)
+  const slug = await firstFreeSlug(workspaceId, slugFromTitle(title), database)
 
   const at = now()
   // The copy and its categories together: a copy that lost its categories on
@@ -363,6 +394,7 @@ export async function duplicateListing(
       .insert(directoryListings)
       .values({
         id: uuid(),
+        workspaceId,
         title,
         slug,
         metaDescription: source.metaDescription,
@@ -378,12 +410,13 @@ export async function duplicateListing(
 
     if (!created) throw new Error("The listing was not copied.")
 
-    const links = await categoriesForListing(id, tx)
+    const links = await categoriesForListing(workspaceId, id, tx)
     if (links.length) {
       // The write half directly: these ids came out of the database a moment
       // ago, so there is nothing to check, and the public function would open
       // a transaction inside this one.
       await writeListingCategories(
+        workspaceId,
         created.id,
         links.map((link) => link.categoryId),
         links.find((link) => link.isPrimary)?.categoryId ?? null,
@@ -401,6 +434,7 @@ export async function duplicateListing(
  * loud before anything happens.
  */
 export async function listingDeleteImpact(
+  workspaceId: string,
   ids: string[],
   database: CustomShellDb = db
 ): Promise<{ listings: number; categoryLinks: number }> {
@@ -410,12 +444,18 @@ export async function listingDeleteImpact(
     database
       .select({ count: sql<number>`count(*)::int` })
       .from(directoryListings)
-      .where(inArray(directoryListings.id, ids)),
+      .where(
+        and(
+          eq(directoryListings.workspaceId, workspaceId),
+          inArray(directoryListings.id, ids)
+        )
+      ),
     database
       .select({ count: sql<number>`count(*)::int` })
       .from(categoryRelationships)
       .where(
         and(
+          eq(categoryRelationships.workspaceId, workspaceId),
           eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
           inArray(categoryRelationships.contentId, ids)
         )
@@ -434,6 +474,7 @@ export async function listingDeleteImpact(
  * honestly instead of saying "deleted" about things that were not.
  */
 export async function deleteListings(
+  workspaceId: string,
   ids: string[],
   database: CustomShellDb = db
 ): Promise<{ done: string[]; kept: string[] }> {
@@ -446,7 +487,12 @@ export async function deleteListings(
   const done = await database.transaction(async (tx) => {
     const deleted = await tx
       .delete(directoryListings)
-      .where(inArray(directoryListings.id, ids))
+      .where(
+        and(
+          eq(directoryListings.workspaceId, workspaceId),
+          inArray(directoryListings.id, ids)
+        )
+      )
       .returning({ id: directoryListings.id })
     const removed = deleted.map((row) => row.id)
 
@@ -455,6 +501,7 @@ export async function deleteListings(
         .delete(categoryRelationships)
         .where(
           and(
+            eq(categoryRelationships.workspaceId, workspaceId),
             eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
             inArray(categoryRelationships.contentId, removed)
           )
@@ -469,6 +516,7 @@ export async function deleteListings(
 
 /** Which categories this listing is in, primary first. */
 export async function categoriesForListing(
+  workspaceId: string,
   listingId: string,
   database: CustomShellDb = db
 ): Promise<{ categoryId: string; isPrimary: boolean }[]> {
@@ -480,6 +528,7 @@ export async function categoriesForListing(
     .from(categoryRelationships)
     .where(
       and(
+        eq(categoryRelationships.workspaceId, workspaceId),
         eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
         eq(categoryRelationships.contentId, listingId)
       )
@@ -494,6 +543,7 @@ export async function categoriesForListing(
  * is a form bug said out loud rather than silently added.
  */
 export async function setListingCategories(
+  workspaceId: string,
   listingId: string,
   categoryIds: string[],
   primaryId: string | null,
@@ -510,14 +560,22 @@ export async function setListingCategories(
     ? await database
         .select({ id: categories.id })
         .from(categories)
-        .where(inArray(categories.id, wanted))
+        // A category from another site is not one of this listing's choices —
+        // dropped here rather than refused, the same as one that stopped
+        // existing between the form loading and the save.
+        .where(
+          and(
+            eq(categories.workspaceId, workspaceId),
+            inArray(categories.id, wanted)
+          )
+        )
     : []
   const keep = existing.map((row) => row.id)
   const keepSet = new Set(keep)
   const primary = primaryId && keepSet.has(primaryId) ? primaryId : null
 
   await database.transaction((tx) =>
-    writeListingCategories(listingId, keep, primary, tx)
+    writeListingCategories(workspaceId, listingId, keep, primary, tx)
   )
 }
 
@@ -537,12 +595,14 @@ export async function setListingCategories(
  * exist.
  */
 async function writeListingCategories(
+  workspaceId: string,
   listingId: string,
   keep: string[],
   primary: string | null,
   tx: CustomShellDb
 ): Promise<void> {
   const listingRows = [
+    eq(categoryRelationships.workspaceId, workspaceId),
     eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
     eq(categoryRelationships.contentId, listingId),
   ]
@@ -558,7 +618,7 @@ async function writeListingCategories(
       )
     )
 
-  const current = await categoriesForListing(listingId, tx)
+  const current = await categoriesForListing(workspaceId, listingId, tx)
   const currentIds = new Set(current.map((row) => row.categoryId))
 
   const at = now()
@@ -567,6 +627,7 @@ async function writeListingCategories(
     await tx.insert(categoryRelationships).values(
       missing.map((categoryId) => ({
         id: uuid(),
+        workspaceId,
         categoryId,
         contentType: LISTING_CONTENT_TYPE,
         contentId: listingId,

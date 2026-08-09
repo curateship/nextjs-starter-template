@@ -1,3 +1,4 @@
+import { capitalise, workspaceWord } from "@/lib/app-options"
 import type { ReactNode } from "react"
 import {
   createRootRoute,
@@ -39,7 +40,9 @@ const ROUTE_TITLES: Record<string, string> = {
   "/pricing": "Pricing",
   "/maintenance": "Maintenance",
   "/_authenticated/home": "Home",
-  "/_authenticated/workspaces": "Workspaces",
+  // The one title an app can rename, because it is the one thing an app calls
+  // something else — see `workspaces.word` in `src/lib/app-options.ts`.
+  "/_authenticated/workspaces": capitalise(workspaceWord().many),
   "/_authenticated/account": "Account",
   "/_authenticated/account/billing_/success": "Billing success",
   "/_authenticated/admin/": "Admin dashboard",

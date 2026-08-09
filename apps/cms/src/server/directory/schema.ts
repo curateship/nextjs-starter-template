@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm"
+import { customShellWorkspaces } from "@/server/schema"
 import {
   boolean,
   check,
@@ -27,8 +28,12 @@ export const directoryListings = pgTable(
   "directory_listings",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site this listing is on. Its address is only its own within that. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 200 }).notNull(),
-    /** The address part after /directory/, unique per listing. */
+    /** The address part after /directory/, unique per listing on its site. */
     slug: varchar("slug", { length: 160 }).notNull(),
     /** What a search result shows under the title. May be empty. */
     metaDescription: varchar("meta_description", { length: 300 })
@@ -57,10 +62,22 @@ export const directoryListings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    uniqueIndex("directory_listings_slug_key").on(table.slug),
-    index("ix_directory_listings_status").on(table.status),
+    // One address, one listing — **within a site**. Two sites each having a
+    // `joes-diner` is ordinary, and refusing it is what stopped one deployment
+    // running two directories.
+    uniqueIndex("ux_directory_listings_workspace_slug").on(
+      table.workspaceId,
+      table.slug
+    ),
+    index("ix_directory_listings_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
     index("ix_directory_listings_created_at").on(table.createdAt),
-    index("ix_directory_listings_updated_at").on(table.updatedAt),
+    index("ix_directory_listings_workspace_updated").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
     index("ix_directory_listings_title").on(table.title),
     check(
       "directory_listings_status_check",
@@ -80,8 +97,12 @@ export const categories = pgTable(
   "categories",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site whose tree this category is part of. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
-    /** Unique across the whole tree, so a category page has one address. */
+    /** Unique across this site's tree, so a category page has one address. */
     slug: varchar("slug", { length: 160 }).notNull(),
     description: varchar("description", { length: 500 }).notNull().default(""),
     /**
@@ -94,8 +115,8 @@ export const categories = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    uniqueIndex("categories_slug_key").on(table.slug),
-    index("ix_categories_parent_id").on(table.parentId),
+    uniqueIndex("ux_categories_workspace_slug").on(table.workspaceId, table.slug),
+    index("ix_categories_workspace_parent").on(table.workspaceId, table.parentId),
   ]
 )
 
@@ -112,6 +133,17 @@ export const categoryRelationships = pgTable(
   "category_relationships",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site this row is on — the same one its category is on.
+     *
+     * Not strictly needed to keep sites apart: every read reaches these rows
+     * through a listing or a category that has already named its site. It is
+     * here so a site's rows are directly selectable and directly removable,
+     * rather than only ever reachable by joining back through one of those.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     categoryId: varchar("category_id", { length: 36 })
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
@@ -126,7 +158,8 @@ export const categoryRelationships = pgTable(
       table.contentType,
       table.contentId
     ),
-    index("ix_category_relationships_content").on(
+    index("ix_category_relationships_workspace_content").on(
+      table.workspaceId,
       table.contentType,
       table.contentId
     ),

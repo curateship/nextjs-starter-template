@@ -33,10 +33,29 @@ export type AppOptions = {
   workspaces?: WorkspaceOptions
 }
 
+/** What an app calls a workspace, singular and plural, in lower case. */
+export type WorkspaceWord = { one: string; many: string }
+
 /** Who, if anyone, may have a workspace of their own on this app. */
 export type WhoMayHaveWorkspaces = "off" | "admins" | "everyone"
 
 type WorkspaceOptions = {
+  /**
+   * What this app calls a workspace, where somebody can see it.
+   *
+   * The shell says "workspace" because that is what it is: a container one
+   * person works in. An app whose containers are public websites calls them
+   * sites, and showing an admin two words for one thing is worse than either
+   * word on its own.
+   *
+   * Only the wording changes. Addresses, tables and every name in the code stay
+   * `workspace`, because renaming those would be a fork rather than a setting —
+   * and the merge that brings the next shell update has to have something to
+   * merge into.
+   *
+   * Written in lower case; the shell capitalises where a heading needs it.
+   */
+  word?: WorkspaceWord
   /**
    * Who may have a workspace at all.
    *
@@ -303,4 +322,22 @@ export function mayHaveWorkspace(
   if (who === "off") return false
   if (who === "everyone") return true
   return user.role === "admin"
+}
+
+/**
+ * What this app calls a workspace — "workspace" unless it says otherwise.
+ *
+ * Read inside a component, never at the top of a module: an app's options file
+ * imports app components, which import shell components, which import this one.
+ *
+ * The argument is only ever passed by the tests, so the check that an unset
+ * option still says "workspace" keeps working inside an app that has set it.
+ */
+export function workspaceWord(options: AppOptions = appOptions): WorkspaceWord {
+  return options.workspaces?.word ?? { one: "workspace", many: "workspaces" }
+}
+
+/** The same word with its first letter raised, for a heading or a button. */
+export function capitalise(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1)
 }

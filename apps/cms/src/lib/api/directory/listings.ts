@@ -8,6 +8,7 @@ import {
   type ListingStatusFilter,
 } from "@/lib/directory/listing-sort"
 import { adminGet, adminPost } from "@/server/guards"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import {
   categoriesForListing,
   createListing,
@@ -68,17 +69,20 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
       limit: z.number().int().min(1).max(200).optional(),
     })
   )
-  .handler(async ({ data }): Promise<ListingsPage> => {
+  .handler(async ({ data, context }): Promise<ListingsPage> => {
     const pageSize = data.limit ?? 50
     const page = data.page ?? 1
-    const { listings, total } = await listListings({
-      search: data.search,
-      status: data.status,
-      sort: data.sort,
-      direction: data.direction,
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    })
+    const { listings, total } = await listListings(
+      await workspaceIdForRequest(context.user.id),
+      {
+        search: data.search,
+        status: data.status,
+        sort: data.sort,
+        direction: data.direction,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }
+    )
     return { listings, total, page, pageSize }
   })
 
@@ -103,13 +107,14 @@ export type ListingForEdit = {
 const loadListingForEditFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ id: z.string().min(1).max(36) }))
-  .handler(async ({ data }): Promise<ListingForEdit | null> => {
+  .handler(async ({ data, context }): Promise<ListingForEdit | null> => {
+    const site = await workspaceIdForRequest(context.user.id)
     // Both reads at once. One after the other made opening the edit window
     // cost two round trips to the database for no reason — neither answer
     // depends on the other.
     const [listing, links] = await Promise.all([
-      findListing(data.id),
-      categoriesForListing(data.id),
+      findListing(site, data.id),
+      categoriesForListing(site, data.id),
     ])
     if (!listing) return null
     return {
@@ -132,8 +137,8 @@ const createListingFn = createServerFn({ method: "POST" })
       slug: z.string().max(160).optional(),
     })
   )
-  .handler(async ({ data }): Promise<DirectoryListing> => {
-    return createListing(data)
+  .handler(async ({ data, context }): Promise<DirectoryListing> => {
+    return createListing(await workspaceIdForRequest(context.user.id), data)
   })
 
 export function saveNewListing(input: { title: string; slug?: string }) {
@@ -160,11 +165,12 @@ const updateListingFn = createServerFn({ method: "POST" })
       primaryCategoryId: z.string().min(1).max(36).nullable().optional(),
     })
   )
-  .handler(async ({ data }): Promise<DirectoryListing> => {
+  .handler(async ({ data, context }): Promise<DirectoryListing> => {
     const { id, categoryIds, primaryCategoryId, ...rest } = data
-    const listing = await updateListing(id, rest)
+    const site = await workspaceIdForRequest(context.user.id)
+    const listing = await updateListing(site, id, rest)
     if (categoryIds !== undefined) {
-      await setListingCategories(id, categoryIds, primaryCategoryId ?? null)
+      await setListingCategories(site, id, categoryIds, primaryCategoryId ?? null)
     }
     return listing
   })
@@ -188,8 +194,11 @@ export function saveListing(input: {
 const duplicateListingFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ id: z.string().min(1).max(36) }))
-  .handler(async ({ data }): Promise<DirectoryListing> => {
-    return duplicateListing(data.id)
+  .handler(async ({ data, context }): Promise<DirectoryListing> => {
+    return duplicateListing(
+      await workspaceIdForRequest(context.user.id),
+      data.id
+    )
   })
 
 export function copyListing(id: string) {
@@ -201,8 +210,11 @@ const listingDeleteImpactFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({ ids: z.array(z.string().min(1).max(36)).min(1).max(500) })
   )
-  .handler(async ({ data }) => {
-    return listingDeleteImpact(data.ids)
+  .handler(async ({ data, context }) => {
+    return listingDeleteImpact(
+      await workspaceIdForRequest(context.user.id),
+      data.ids
+    )
   })
 
 /** What deleting these would take with it, for the confirmation to say. */
@@ -215,8 +227,11 @@ const deleteListingsFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({ ids: z.array(z.string().min(1).max(36)).min(1).max(500) })
   )
-  .handler(async ({ data }): Promise<{ done: string[]; kept: string[] }> => {
-    return deleteListings(data.ids)
+  .handler(async ({ data, context }): Promise<{ done: string[]; kept: string[] }> => {
+    return deleteListings(
+      await workspaceIdForRequest(context.user.id),
+      data.ids
+    )
   })
 
 /** One request for the whole selection; the result counts honestly. */

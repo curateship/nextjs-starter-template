@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import {
   categoryDeleteImpact,
   createCategory,
@@ -36,8 +37,8 @@ export function getCategoryErrorMessage(error: unknown) {
 
 const loadCategoriesFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async (): Promise<Category[]> => {
-    return listCategories()
+  .handler(async ({ context }): Promise<Category[]> => {
+    return listCategories(await workspaceIdForRequest(context.user.id))
   })
 
 export function loadCategories() {
@@ -54,8 +55,8 @@ const categoryInput = z.object({
 const createCategoryFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(categoryInput)
-  .handler(async ({ data }): Promise<Category> => {
-    return createCategory(data)
+  .handler(async ({ data, context }): Promise<Category> => {
+    return createCategory(await workspaceIdForRequest(context.user.id), data)
   })
 
 export function saveNewCategory(input: {
@@ -72,9 +73,11 @@ const updateCategoryFn = createServerFn({ method: "POST" })
   .inputValidator(
     categoryInput.partial().extend({ id: z.string().min(1).max(36) })
   )
-  .handler(async ({ data }): Promise<Category> => {
+  .handler(async ({ data, context }): Promise<Category> => {
     const { id, ...rest } = data
-    return updateCategory(id, rest)
+    return updateCategory(
+      await workspaceIdForRequest(context.user.id),
+      id, rest)
   })
 
 export function saveCategory(input: {
@@ -90,8 +93,11 @@ export function saveCategory(input: {
 const categoryDeleteImpactFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ id: z.string().min(1).max(36) }))
-  .handler(async ({ data }) => {
-    return categoryDeleteImpact(data.id)
+  .handler(async ({ data, context }) => {
+    return categoryDeleteImpact(
+      await workspaceIdForRequest(context.user.id),
+      data.id
+    )
   })
 
 /** What deleting this category takes with it, for the confirmation to say. */
@@ -102,8 +108,8 @@ export function loadCategoryDeleteImpact(id: string) {
 const deleteCategoryFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ id: z.string().min(1).max(36) }))
-  .handler(async ({ data }): Promise<{ name: string }> => {
-    return deleteCategory(data.id)
+  .handler(async ({ data, context }): Promise<{ name: string }> => {
+    return deleteCategory(await workspaceIdForRequest(context.user.id), data.id)
   })
 
 export function removeCategory(id: string) {
