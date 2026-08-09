@@ -9,6 +9,7 @@ import {
   WORKSPACE_STATUSES,
   type WorkspaceStatus,
 } from "@/lib/workspaces/status"
+import { mayHaveWorkspace } from "@/lib/app-options"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceBaseDomain } from "@/server/workspaces/host"
 import { z } from "zod"
@@ -94,6 +95,7 @@ export function getWorkspaceErrorMessage(error: unknown) {
 const loadWorkspacesFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<WorkspaceListResponse> => {
+    requireMayHaveWorkspace(context.user)
     return workspaceListForUser(context.user)
   })
 
@@ -101,6 +103,7 @@ const createWorkspaceFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(createWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    requireMayHaveWorkspace(context.user)
     await createUserWorkspace(
       context.user.id,
       data.name,
@@ -115,6 +118,7 @@ const switchWorkspaceFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(switchWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    requireMayHaveWorkspace(context.user)
     await switchUserWorkspace(context.user.id, data.workspaceId, undefined, {
       seesEveryWorkspace: seesEveryWorkspace(context.user),
     })
@@ -125,6 +129,7 @@ const updateWorkspaceFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(updateWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    requireMayHaveWorkspace(context.user)
     await updateUserWorkspace(
       context.user.id,
       data.workspaceId,
@@ -139,6 +144,7 @@ const deleteWorkspaceFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(deleteWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
+    requireMayHaveWorkspace(context.user)
     await deleteUserWorkspace(context.user.id, data.workspaceId, undefined, {
       seesEveryWorkspace: seesEveryWorkspace(context.user),
     })
@@ -149,6 +155,7 @@ const deleteWorkspacesFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(deleteWorkspacesSchema)
   .handler(async ({ data, context }): Promise<WorkspaceBulkDeleteResponse> => {
+    requireMayHaveWorkspace(context.user)
     const result = await deleteUserWorkspaces(context.user.id, data.workspaceIds, undefined, {
       seesEveryWorkspace: seesEveryWorkspace(context.user),
     })
@@ -199,6 +206,21 @@ export function deleteWorkspaces(workspaceIds: string[]) {
  */
 function seesEveryWorkspace(user: Pick<CustomShellUser, "role">) {
   return user.role === "admin"
+}
+
+/**
+ * Refuses when this app does not give this person a workspace.
+ *
+ * The guards above already say "an admin", which is the default answer. This is
+ * the app's own answer on top: `"off"` closes the door for everybody including
+ * admins, and `"everyone"` opens it to members. Checked in every handler rather
+ * than once in a guard, because a guard is middleware and this is an app
+ * option — see `workspaces.whoMayHave` in `src/lib/app-options.ts`.
+ */
+function requireMayHaveWorkspace(user: Pick<CustomShellUser, "role">) {
+  if (!mayHaveWorkspace(user)) {
+    throw new Error("FORBIDDEN")
+  }
 }
 
 /**

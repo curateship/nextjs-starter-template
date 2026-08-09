@@ -124,6 +124,8 @@ export async function readShellSettings(
 
   return {
     ...globals,
+    // The site's own name, not the app-wide value — that is only the fallback
+    // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
@@ -156,6 +158,7 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.appName === "string"
         ? settings.appName
         : fallback.appName,
+    workspaceName: settings.workspaceName ?? fallback.workspaceName,
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
@@ -166,8 +169,6 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.logoDark === "string"
         ? settings.logoDark
         : fallback.logoDark,
-    workspaceName: settings.workspaceName ?? fallback.workspaceName,
-    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -225,10 +226,9 @@ export function pickShellGlobals(
   settings: Pick<
     ShellConfig,
     | "appName"
+    | "workspaceName"
     | "logo"
     | "logoDark"
-    | "workspaceName"
-    | "workspacePlan"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -245,10 +245,9 @@ export function pickShellGlobals(
 ) {
   return {
     appName: settings.appName,
+    workspaceName: settings.workspaceName,
     logo: settings.logo,
     logoDark: settings.logoDark,
-    workspaceName: settings.workspaceName,
-    workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,

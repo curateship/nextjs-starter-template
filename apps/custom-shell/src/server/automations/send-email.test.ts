@@ -23,7 +23,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
-import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
+import { createTestDatabase, insertUser } from "@/server/test-support"
 
 const WORKSPACE_ID = "ws-send-email"
 const EMAIL_NODE_ID = "email"
@@ -64,7 +64,6 @@ beforeEach(async () => {
   const created = await createTestDatabase()
   client = created.client
   db = created.db
-  site = (await insertWorkspace(db)).id
   owner = await insertUser(db, { role: "admin", email: "owner@example.test" })
   const timestamp = now()
   await db.insert(customShellWorkspaces).values({
@@ -76,6 +75,10 @@ beforeEach(async () => {
     createdAt: timestamp,
     updatedAt: timestamp,
   })
+  // The file's own workspace is the one the flows below belong to, and the only
+  // one there is — so an account pointed at no site belongs to it, which is how
+  // `syncContactsFromUsers` behaves on any app with a single site.
+  site = WORKSPACE_ID
 })
 
 afterEach(async () => {
