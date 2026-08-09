@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { AutomationEditor } from "@/components/automations/automation-editor"
 import { loadAutomationRunsPanel } from "@/lib/api/automations/automation-runs"
+import { loadBroadcastBlockDefaults } from "@/lib/api/email/broadcasts"
 import {
   getAutomation,
   getAutomationLoadErrorMessage,
@@ -28,21 +29,32 @@ function readEditorSearch(search: Record<string, unknown>): EditorSearch {
 export const Route = createFileRoute(
   "/_authenticated/admin/automations_/$automationId"
 )({
+  // The editor keeps its own graph state. Never remount it from a cached
+  // loader result after somebody leaves without using Back to flow, or a
+  // correctly saved node can look as though it disappeared.
+  gcTime: 0,
   validateSearch: readEditorSearch,
   loader: async ({ params }) => {
-    const [automation, favorites, runs] = await Promise.all([
+    const [automation, favorites, runs, blockDefaults] = await Promise.all([
       getAutomation(params.automationId),
       loadAutomationFavorites(),
       loadAutomationRunsPanel(params.automationId),
+      loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
     ])
-    return { automation, favoriteNodeKeys: favorites.favoriteNodeKeys, runs }
+    return {
+      automation,
+      favoriteNodeKeys: favorites.favoriteNodeKeys,
+      runs,
+      blockDefaults: blockDefaults.defaults,
+    }
   },
   component: AdminAutomationEditorRoute,
   errorComponent: routeErrorComponent(getAutomationLoadErrorMessage),
 })
 
 function AdminAutomationEditorRoute() {
-  const { automation, favoriteNodeKeys, runs } = Route.useLoaderData()
+  const { automation, favoriteNodeKeys, runs, blockDefaults } =
+    Route.useLoaderData()
   const { run } = Route.useSearch()
 
   return (
@@ -52,6 +64,7 @@ function AdminAutomationEditorRoute() {
       initial={automation}
       initialFavoriteNodeKeys={favoriteNodeKeys}
       initialRuns={runs}
+      initialBlockDefaults={blockDefaults}
       openRunId={run}
     />
   )

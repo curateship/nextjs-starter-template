@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, countUnreadNotifications as countUnreadNotificationRows, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications/inbox"
 import { userGet } from "@/server/guards"
+import { readShellGlobals } from "@/server/shell-settings"
 // The words and the kinds live apart from this module on purpose: it reaches
 // into `server/notifications/inbox.ts`, which reaches back, and a circle hands
 // out `undefined` to whichever side loads first. See `lib/notification-types`.
@@ -45,6 +46,8 @@ export type NotificationItem = {
   automation_run_id: string | null
   automation_id: string | null
   automation_name: string | null
+  /** The checkpoint's own sentence saying what approval will do. */
+  automation_approval_summary: string | null
   automation_approval_state: AutomationApprovalState | null
   read_at: string | null
   created_at: string
@@ -148,7 +151,14 @@ const countUnreadNotificationsFn = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<{ unread_count: number }> => {
     // The guard has already found the account, so this asks the database one
     // question, not three. It runs once a minute per open tab.
-    return { unread_count: await countUnreadNotificationRows(context.user.id) }
+    const { notificationTypes } = await readShellGlobals()
+    return {
+      unread_count: await countUnreadNotificationRows(
+        context.user.id,
+        undefined,
+        notificationTypes
+      ),
+    }
   })
 
 const markNotificationReadFn = createServerFn({ method: "POST" })

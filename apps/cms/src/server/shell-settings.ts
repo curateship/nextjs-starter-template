@@ -11,7 +11,7 @@ import {
   normalizeTopLeftNavLimit,
   type ShellConfig,
 } from "@/lib/custom-shell"
-import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -21,12 +21,13 @@ import {
 } from "@/server/schema"
 import { isAdmin } from "@/server/auth/security"
 import {
-  getOrCreateCurrentWorkspace,
+  currentWorkspace,
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
+import { answerForRequest } from "@/server/workspaces/host"
 
 /** The app-wide globals row, already parsed and defaulted. */
-export async function readShellGlobals(database: CustomShellDb) {
+export async function readShellGlobals(database: CustomShellDb = db) {
   const [row] = await database
     .select()
     .from(customShellSettings)
@@ -51,20 +52,52 @@ export async function readDashboardRowsPerPage(
 /**
  * Everything a signed-out visitor's page needs before there is a session: the
  * app name, the logo, and the look every public page wears. Like rows-per-page
- * this reads the settings row on its own rather than going through the
- * workspace lookup, because a visitor has no workspace.
+ * this used to read the settings row on its own, because a visitor signed in to
+ * nothing has no workspace to read.
+ *
+ * They can have one now: the domain they typed. A visitor on a workspace's own
+ * address sees that workspace's name, not the deployment's — which is the whole
+ * point of one deployment serving many. On the deployment's own address, and on
+ * an app with no base domain configured, nothing resolves and the app-wide
+ * values answer exactly as before.
  *
  * The root route loads this on the server, which is what puts the theme in the
  * first paint instead of applying it after the page has already been drawn.
  */
 export async function readBranding(
   database: CustomShellDb = db
-): Promise<{ appName: string; logo: string; logoDark: string }> {
+): Promise<{
+  appName: string
+  logo: string
+  logoDark: string
+  /**
+   * True when the domain belongs to no workspace at all — a subdomain nobody
+   * has taken, or one whose workspace is switched off. The root route turns
+   * that into a dead end, because serving the deployment's own pages under a
+   * stranger's address is worse than answering nothing.
+   */
+  hostIsUnknown: boolean
+}> {
   const globals = await readShellGlobals(database)
+  const answer = await answerForRequest(database)
+
+  if (answer.kind !== "workspace") {
+    return {
+      appName: globals.appName,
+      logo: globals.logo,
+      logoDark: globals.logoDark,
+      hostIsUnknown: answer.kind === "unknown",
+    }
+  }
+
   return {
-    appName: globals.appName,
+    appName: answer.workspace.name || globals.appName,
+    // A workspace has a favicon of its own but no logo yet — that arrives with
+    // the rest of its look, in a later task. Until then the deployment's logo
+    // is shown, which beats a site with no mark at all.
     logo: globals.logo,
     logoDark: globals.logoDark,
+    hostIsUnknown: false,
   }
 }
 
@@ -82,12 +115,18 @@ export async function readShellSettings(
   database: CustomShellDb = db
 ): Promise<ShellConfig> {
   const globals = await readShellGlobals(database)
-  const workspace = await getOrCreateCurrentWorkspace(user.id, database)
-  const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+  // Reads never make a workspace. This runs on every signed-in page load,
+  // including a member's, and the old read created one when it missed — which
+  // is how members ended up owning workspaces they never saw. Nobody in a
+  // workspace yet simply gets the app-wide defaults.
+  const workspace = await currentWorkspace(user.id, database)
+  const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
 
   return {
     ...globals,
-    workspaceName: workspace.name,
+    // The site's own name, not the app-wide value — that is only the fallback
+    // for somebody who is in no site at all.
+    workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
     // Same rule as the sidebar below: an admin sees and edits their own row,
@@ -98,6 +137,9 @@ export async function readShellSettings(
     sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
     styling: workspaceSettings.styling,
     dashboardWidgets: workspaceSettings.dashboardWidgets,
+    // Which pages are hidden is a per-site decision — Alpha closing its
+    // pricing page must not close Beta's.
+    pages: workspaceSettings.pages,
   }
 }
 
@@ -116,6 +158,7 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.appName === "string"
         ? settings.appName
         : fallback.appName,
+    workspaceName: settings.workspaceName ?? fallback.workspaceName,
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
@@ -126,8 +169,6 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.logoDark === "string"
         ? settings.logoDark
         : fallback.logoDark,
-    workspaceName: settings.workspaceName ?? fallback.workspaceName,
-    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
       DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
@@ -163,16 +204,15 @@ export function parseShellGlobals(value: unknown) {
     // Rows saved before this setting existed have no value, and the feature is
     // meant to be on — so only an explicit `false` turns it off.
     liveNotifications: settings.liveNotifications !== false,
+    notificationTypes: normalizeNotificationTypeVisibility(
+      settings.notificationTypes
+    ),
     maintenance: normalizeMaintenance(settings.maintenance),
     // Rows saved before this switch existed have no value, and the default is
     // running — so an existing install's automations keep going exactly as
     // they did.
     automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
-    // Rows saved before this setting existed have none, which normalizes to an
-    // empty map — every page on "everyone", exactly as the app behaved before
-    // pages could be switched off.
-    pages: normalizePageOverrides(settings.pages),
   }
 }
 
@@ -186,10 +226,9 @@ export function pickShellGlobals(
   settings: Pick<
     ShellConfig,
     | "appName"
+    | "workspaceName"
     | "logo"
     | "logoDark"
-    | "workspaceName"
-    | "workspacePlan"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -198,18 +237,17 @@ export function pickShellGlobals(
     | "memberSections"
     | "memberTopRightNavigation"
     | "liveNotifications"
+    | "notificationTypes"
     | "maintenance"
     | "automationPause"
     | "sessionPolicy"
-    | "pages"
   >
 ) {
   return {
     appName: settings.appName,
+    workspaceName: settings.workspaceName,
     logo: settings.logo,
     logoDark: settings.logoDark,
-    workspaceName: settings.workspaceName,
-    workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,
@@ -218,9 +256,9 @@ export function pickShellGlobals(
     memberSections: settings.memberSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
+    notificationTypes: settings.notificationTypes,
     maintenance: settings.maintenance,
     automationPause: settings.automationPause,
     sessionPolicy: settings.sessionPolicy,
-    pages: settings.pages,
   }
 }

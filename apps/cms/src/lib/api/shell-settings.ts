@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
-import { getOrCreateCurrentWorkspace, parseWorkspaceSettings } from "@/server/people/workspaces"
-import { and, eq } from "drizzle-orm"
+import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people/workspaces"
+import { eq } from "drizzle-orm"
 import { z } from "zod"
 
 import {
@@ -11,6 +11,7 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
@@ -133,7 +134,6 @@ const dashboardWidgetsSchema = z.object({
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
-  workspacePlan: z.string(),
   dashboardRowsPerPage: z.number().int().refine((value) =>
     DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
@@ -162,6 +162,11 @@ const shellConfigSchema = z.object({
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
   liveNotifications: z.boolean(),
+  notificationTypes: z.object(
+    Object.fromEntries(
+      NOTIFICATION_TYPES.map((type) => [type, z.boolean()])
+    ) as Record<(typeof NOTIFICATION_TYPES)[number], z.ZodBoolean>
+  ),
   maintenance: z.object({
     enabled: z.boolean(),
     message: z.string().max(MAX_MAINTENANCE_MESSAGE_LENGTH),
@@ -184,7 +189,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(shellConfigSchema)
   .handler(async ({ data, context }) => {
     const updatedAt = now()
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
@@ -207,12 +212,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           },
           updatedAt,
         })
-        .where(
-          and(
-            eq(customShellWorkspaces.id, workspace.id),
-            eq(customShellWorkspaces.userId, context.user.id)
-          )
-        )
+        // Admin-only endpoint, and an admin may edit any workspace — including
+        // one another admin made, which is the whole point of them being shared.
+        .where(eq(customShellWorkspaces.id, workspace.id))
 
       const [existing] = await tx
         .select({
@@ -264,11 +266,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         ...pickShellGlobals({
           ...data,
           automationPause: existingGlobals.automationPause,
-          // Not in this request's shape either, and kept for the same reason:
-          // the Pages screen is the one writer, so an admin whose settings page
-          // loaded before a page was hidden cannot put it back on the internet
-          // by renaming the app.
-          pages: existingGlobals.pages,
         }),
         maintenance: {
           enabled: existingGlobals.maintenance.enabled,
@@ -314,7 +311,7 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }) => {
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     const settings = parseWorkspaceSettings(workspace.settings)
 
     const [updated] = await db
@@ -323,12 +320,8 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
         settings: { ...settings, sidebarWidth: data.sidebarWidth },
         updatedAt: now(),
       })
-      .where(
-        and(
-          eq(customShellWorkspaces.id, workspace.id),
-          eq(customShellWorkspaces.userId, context.user.id)
-        )
-      )
+      // Admin-only endpoint, and an admin may edit any workspace.
+      .where(eq(customShellWorkspaces.id, workspace.id))
       .returning({ id: customShellWorkspaces.id })
 
     if (!updated) {

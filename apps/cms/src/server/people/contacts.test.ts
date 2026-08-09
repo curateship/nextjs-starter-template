@@ -69,7 +69,7 @@ beforeEach(async () => {
       userId: owner.id,
       name: id,
       settings: {},
-      isDefault: id === WORKSPACE_ID,
+      subdomain: `w-${Math.random().toString(36).slice(2, 10)}`,
       createdAt: daysAgo(400),
       updatedAt: daysAgo(400),
     })

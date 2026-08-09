@@ -7,6 +7,7 @@ import {
   approvalDeadline,
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
+import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
@@ -16,10 +17,11 @@ import {
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
-import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
+import { workspaceForRun } from "@/server/automations/runs"
 import type { AutomationTriggerFacts } from "@/lib/automations/run"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import { executeSendEmailNode } from "@/server/automations/send-email"
 
 /**
  * What a step is handed, and what it may answer with.
@@ -106,20 +108,23 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    */
   [audienceNode.kind]: async ({ database, run, settings, now }) => {
     const audience = readAutomationAudience(settings)
-    const workspace = await getOrCreateCurrentWorkspace(run.userId, database)
-    await syncContactsFromUsers(workspace.id, database)
+    // The run's own workspace, fixed when it started. Only a run that predates
+    // that column falls back to its owner's — looking it up every time is how a
+    // flow's audience used to change when its owner switched workspace.
+    const workspaceId = await workspaceForRun(run, database)
+    await syncContactsFromUsers(workspaceId, database)
 
     // Looked up here as well as inside the count so the run history can say
     // the segment's name — and looked up by id, so a renamed segment still
     // means the same people.
     const segment = await requireAudienceSegment(
       audience,
-      workspace.id,
+      workspaceId,
       database
     )
     const matched = await countAutomationAudience(
       audience,
-      workspace.id,
+      workspaceId,
       database,
       now(),
       segment
@@ -138,6 +143,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
           : `Matched ${matched} ${plural(matched, "person", "people")} — ${who}.`,
     }
   },
+
+  [sendEmailNode.kind]: executeSendEmailNode,
 
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =

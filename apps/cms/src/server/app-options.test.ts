@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   appAutomationExecutors,
+  appBackgroundWorkers,
   appTrustsOrigin,
   notifyAppAuthEvent,
 } from "@/server/app-options"
@@ -22,6 +23,10 @@ import {
 describe("an option nobody set means what the shell always did", () => {
   it("adds no automation executors of its own", () => {
     expect(appAutomationExecutors({})).toEqual({})
+  })
+
+  it("runs no background workers of its own", () => {
+    expect(appBackgroundWorkers({})).toEqual([])
   })
 
   it("vouches for no extra addresses", () => {
@@ -46,6 +51,11 @@ describe("an app's answer wins", () => {
     expect(appAutomationExecutors({ automations: { executors } })).toBe(
       executors
     )
+  })
+
+  it("hands over the app's own background workers", () => {
+    const workers = [{ name: "video-media", tick: async () => {} }]
+    expect(appBackgroundWorkers({ background: { workers } })).toBe(workers)
   })
 
   it("lets the app vouch for an address of its own", () => {

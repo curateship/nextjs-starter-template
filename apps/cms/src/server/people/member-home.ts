@@ -1,9 +1,11 @@
-import { desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { billingEnabled } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadEntitlements } from "@/server/billing/entitlements"
 import { getNotificationPage } from "@/server/notifications/inbox"
+import { readShellGlobals } from "@/server/shell-settings"
+import { findWorkspaceIdForRequest } from "@/server/workspaces/for-request"
 import {
   customShellFeedback,
   customShellFeedbackComments,
@@ -73,14 +75,28 @@ export async function loadMemberHome(
 ): Promise<MemberHome> {
   // Three reads that do not depend on each other, on a database that is a
   // second or two away, so they go out together rather than one after another.
+  const notificationTypesPromise = readShellGlobals(database).then(
+    (settings) => settings.notificationTypes
+  )
+  // Their own feedback, on the site they are on: somebody who uses two of the
+  // deployment's sites has a separate list on each, the same way a visitor sees
+  // a separate board on each.
+  const workspaceId = await findWorkspaceIdForRequest(user.id, database)
   const [{ entitlements }, notifications, feedback] = await Promise.all([
     loadEntitlements(user.id, database),
-    getNotificationPage({
-      currentUser: user,
-      limit: NOTIFICATIONS_SHOWN,
-      database,
-    }),
-    listOwnFeedback(user.id, database),
+    notificationTypesPromise.then((notificationTypes) =>
+      getNotificationPage({
+        currentUser: user,
+        limit: NOTIFICATIONS_SHOWN,
+        database,
+        notificationTypes,
+      })
+    ),
+    // No site at all means nothing has been filed on one, which is an empty
+    // list rather than a broken page.
+    workspaceId
+      ? listOwnFeedback(workspaceId, user.id, database)
+      : Promise.resolve({ total: 0, items: [] }),
   ])
 
   return {
@@ -116,7 +132,11 @@ export async function loadMemberHome(
  * hand-written correlated subquery, which drizzle renders without its table
  * prefix on a single-table select and silently counts the wrong thing.
  */
-async function listOwnFeedback(userId: string, database: CustomShellDb) {
+async function listOwnFeedback(
+  workspaceId: string,
+  userId: string,
+  database: CustomShellDb
+) {
   const rows = await database
     .select({
       id: customShellFeedback.id,
@@ -127,7 +147,12 @@ async function listOwnFeedback(userId: string, database: CustomShellDb) {
       total: sql<number>`(count(*) over ())::int`,
     })
     .from(customShellFeedback)
-    .where(eq(customShellFeedback.userId, userId))
+    .where(
+      and(
+        eq(customShellFeedback.workspaceId, workspaceId),
+        eq(customShellFeedback.userId, userId)
+      )
+    )
     .orderBy(desc(customShellFeedback.createdAt))
     .limit(FEEDBACK_SHOWN)
 
