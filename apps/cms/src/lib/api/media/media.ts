@@ -25,6 +25,10 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { customShellMedia } from "@/server/schema"
 import { now } from "@/server/auth/security"
 import { userGet, userPost } from "@/server/guards"
+import {
+  findWorkspaceIdForRequest,
+  workspaceIdForRequest,
+} from "@/server/workspaces/for-request"
 import { uuid } from "@/server/auth/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse }
@@ -35,7 +39,7 @@ const listMediaSchema = z
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
     search: z.string().trim().max(120).default(""),
-    fileType: z.enum(["image", "video"]).optional(),
+    fileType: z.enum(["image", "video", "audio"]).optional(),
     mimeType: z.enum(["image/svg+xml"]).optional(),
     sortBy: z.enum(["created_at", "original_name", "file_size", "file_type"]).optional(),
     sortDirection: z.enum(["asc", "desc"]).optional(),
@@ -59,7 +63,17 @@ const listMediaFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(listMediaSchema)
   .handler(async ({ data, context }) => {
+    // Worked out here rather than sent by the browser. Every screen that opens
+    // the picker — the page editor, settings, the newsletter builder, the
+    // profile photo field — therefore gets the right site without having to
+    // know there is such a thing.
+    const workspaceId = await findWorkspaceIdForRequest(context.user.id)
+    if (!workspaceId) {
+      return { media: [], total: 0, page: 1, page_size: 0, total_pages: 0 }
+    }
+
     return listOwnedMedia({
+      workspaceId,
       userId: context.user.id,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
@@ -122,6 +136,8 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     const createdAt = now()
     const row = {
       id: uuid(),
+      // The site it was uploaded on is the site it belongs to.
+      workspaceId: await workspaceIdForRequest(context.user.id),
       userId: context.user.id,
       filename,
       originalName,

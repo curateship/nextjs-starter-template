@@ -24,7 +24,7 @@ import {
 import { listWorkspaceTags, syncContactsFromUsers } from "@/server/people/contacts"
 import { adminGet, adminPost } from "@/server/guards"
 import { listPlans } from "@/server/billing/plans"
-import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
+import { currentWorkspaceId } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "../error-message"
 
@@ -85,9 +85,6 @@ const segmentInputSchema = z.object({
 
 export type SegmentFormInput = z.input<typeof segmentInputSchema>
 
-async function currentWorkspaceId(userId: string) {
-  return (await getOrCreateCurrentWorkspace(userId)).id
-}
 
 const loadSegmentsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])

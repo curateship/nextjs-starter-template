@@ -49,8 +49,10 @@ import { now, uuid } from "@/server/auth/security"
 /** A live flow that begins with the trigger being asked about. */
 type WatchingFlow = {
   automationId: string
-  /** The admin who owns the flow — never the person the run is about. */
-  userId: string
+  /** The site the flow belongs to, and therefore the site its runs are for. */
+  workspaceId: string
+  /** The admin who wrote it, empty once they are gone — never the person the run is about. */
+  userId: string | null
   config: AutomationCompiledConfig
   entryNodeId: string
   /** The trigger node's own settings, already strict-parsed at compile time. */
@@ -119,6 +121,7 @@ async function listFlowsWatching(
   const rows = await database
     .select({
       id: customShellAutomations.id,
+      workspaceId: customShellAutomations.workspaceId,
       userId: customShellAutomations.userId,
       compiledConfig: customShellAutomations.compiledConfig,
     })
@@ -144,6 +147,7 @@ async function listFlowsWatching(
 
     watching.push({
       automationId: row.id,
+      workspaceId: row.workspaceId,
       userId: row.userId,
       config,
       entryNodeId,
@@ -174,6 +178,11 @@ async function startTriggeredRun(
       id: uuid(),
       automationId: flow.automationId,
       userId: flow.userId,
+      // **The flow's site, not its author's.** This used to ask whoever wrote
+      // the flow which site they were looking at right now, so an admin
+      // switching site changed which customers a trigger reached — and an
+      // admin who had left had no answer to give at all.
+      workspaceId: flow.workspaceId,
       status: "active",
       currentNodeId: flow.entryNodeId,
       configSnapshot: flow.config,
@@ -230,6 +239,14 @@ export async function fireAutomationTrigger(
  * stored moment is old enough, so two servers ticking together cannot both
  * take the scan — the first one's write moves the timestamp and the second
  * matches nothing.
+ *
+ * **Deliberately not per site, even though everything around it now is.** This
+ * is a rate limit on a look that already covers the whole deployment: the scans
+ * read every live flow and every subscriber in one pass, and start a run for
+ * each pair. So two sites watching for the same moment are both already
+ * scanned. Keying this per site would run the same deployment-wide sweep once
+ * per site — the same runs at the end of it, several times the work, and
+ * several times the questions asked of Stripe on the card look.
  */
 export async function claimTriggerScan(
   kind: string,

@@ -1,19 +1,41 @@
 import { createServerFn } from "@tanstack/react-start"
 import { adminGet, adminPost } from "@/server/guards"
-import { listUserAutomations, getUserAutomation, createUserAutomation, saveUserAutomation, duplicateUserAutomation, deleteUserAutomations, inspectAutomation, automationTriggerName, setAutomationEnabled } from "@/server/automations/flows"
-import { getOrCreateCurrentWorkspace, parseWorkspaceSettings, saveWorkspaceAutomationFavorites } from "@/server/people/workspaces"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import {
+  listWorkspaceAutomations,
+  getWorkspaceAutomation,
+  createWorkspaceAutomation,
+  saveWorkspaceAutomation,
+  duplicateWorkspaceAutomation,
+  deleteWorkspaceAutomations,
+  inspectAutomation,
+  automationTriggerName,
+  setAutomationEnabled,
+} from "@/server/automations/flows"
+import {
+  requireCurrentWorkspace,
+  parseWorkspaceSettings,
+  saveWorkspaceAutomationFavorites,
+} from "@/server/people/workspaces"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
 
-import type {
-  AutomationCompiledConfig,
-} from "@/lib/automations/compile"
+import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import {
   automationGraphSchema,
   type AutomationGraph,
   type AutomationValidationError,
 } from "@/lib/automations/graph"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
+import {
+  AUTOMATION_TEMPLATE_KEYS,
+  type AutomationTemplateKey,
+} from "@/lib/automations/templates"
+import type { AutomationTemplateListItem } from "@/lib/api/automations/automation-templates"
+import {
+  getUserAutomationTemplate,
+  listUserAutomationTemplates,
+} from "@/server/automations/templates"
 import { plural } from "@/lib/format/plural"
 
 export type AutomationListItem = {
@@ -43,6 +65,7 @@ export type AutomationDetail = {
 
 export type AutomationsPage = {
   automations: AutomationListItem[]
+  templates: AutomationTemplateListItem[]
 }
 
 /**
@@ -78,7 +101,10 @@ const automationIdSchema = z.object({
 const idListSchema = z.object({
   automationIds: z.array(z.string().min(1).max(36)).min(1).max(200),
 })
-const createSchema = z.object({ name: nameSchema })
+const createSchema = z.object({
+  name: nameSchema,
+  templateKey: z.enum(AUTOMATION_TEMPLATE_KEYS).nullable(),
+})
 const saveSchema = automationIdSchema.extend({
   name: nameSchema,
   graph: automationGraphSchema,
@@ -113,7 +139,10 @@ export const getAutomationLoadErrorMessage = createErrorMessage(
 const loadAutomationsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<AutomationsPage> => {
-    const rows = await listUserAutomations(context.user.id)
+    const [rows, templates] = await Promise.all([
+      listWorkspaceAutomations(await workspaceIdForRequest(context.user.id)),
+      listUserAutomationTemplates(context.user.id),
+    ])
     return {
       automations: rows.map((row) => ({
         id: row.id,
@@ -125,6 +154,15 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
         trigger_name: row.triggerName,
         updated_at: row.updatedAt.toISOString(),
       })),
+      templates: templates.map((template) => ({
+        key: template.key,
+        name: template.name,
+        description: template.description,
+        steps: template.steps,
+        isCustomized: template.isCustomized,
+        isValid: template.isValid,
+        updated_at: template.updatedAt?.toISOString() ?? null,
+      })),
     }
   })
 
@@ -132,7 +170,10 @@ const getAutomationFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
-    const row = await getUserAutomation(context.user.id, data.automationId)
+    const row = await getWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
+      data.automationId
+    )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
@@ -141,8 +182,18 @@ const createAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(createSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
+    const graph = data.templateKey
+      ? (await getUserAutomationTemplate(context.user.id, data.templateKey))
+          .graph
+      : undefined
     return serializeDetail(
-      await createUserAutomation(context.user.id, data.name)
+      await createWorkspaceAutomation(
+        await workspaceIdForRequest(context.user.id),
+        context.user.id,
+        data.name,
+        undefined,
+        graph
+      )
     )
   })
 
@@ -150,11 +201,14 @@ const saveAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(saveSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
-    const row = await saveUserAutomation(context.user.id, {
-      id: data.automationId,
-      name: data.name,
-      graph: data.graph,
-    })
+    const row = await saveWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
+      {
+        id: data.automationId,
+        name: data.name,
+        graph: data.graph,
+      }
+    )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
@@ -163,7 +217,8 @@ const duplicateAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
-    const row = await duplicateUserAutomation(
+    const row = await duplicateWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
       context.user.id,
       data.automationId
     )
@@ -181,7 +236,7 @@ const setAutomationEnabledFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
     return serializeDetail(
       await setAutomationEnabled(
-        context.user.id,
+        await workspaceIdForRequest(context.user.id),
         data.automationId,
         data.enabled
       )
@@ -193,14 +248,17 @@ const deleteAutomationsFn = createServerFn({ method: "POST" })
   .inputValidator(idListSchema)
   .handler(async ({ data, context }): Promise<{ count: number }> => {
     return {
-      count: await deleteUserAutomations(context.user.id, data.automationIds),
+      count: await deleteWorkspaceAutomations(
+        await workspaceIdForRequest(context.user.id),
+        data.automationIds
+      ),
     }
   })
 
 const loadAutomationFavoritesFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<{ favoriteNodeKeys: string[] }> => {
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     return {
       favoriteNodeKeys: parseWorkspaceSettings(workspace.settings)
         .automationFavoriteNodeKeys,
@@ -229,8 +287,11 @@ export function getAutomation(automationId: string) {
   return getAutomationFn({ data: { automationId } })
 }
 
-export function createAutomation(name: string) {
-  return createAutomationFn({ data: { name } })
+export function createAutomation(
+  name: string,
+  templateKey: AutomationTemplateKey | null = null
+) {
+  return createAutomationFn({ data: { name, templateKey } })
 }
 
 export function saveAutomation(input: {

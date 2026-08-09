@@ -21,6 +21,7 @@ import {
   recordVisit,
   trafficDay,
 } from "@/server/traffic"
+import { visitorWorkspaceId } from "@/server/workspaces/for-request"
 
 /**
  * The beacon every page view lands on. It always answers 204 with nothing in
@@ -102,8 +103,25 @@ async function countView(request: Request) {
   if (session && (session.viewedBy || isAdmin(session.user))) return
   const audience = session ? "member" : "visitor"
 
+  // Which site was being read, from the domain the browser asked for — the same
+  // header two lines below already reads for the referrer.
+  //
+  // **A visit with no site is not counted.** That is a domain belonging to no
+  // site, which the app answers nothing on anyway. Counting it against
+  // everything would add a number to every site's screen that belongs to none
+  // of them, and a wrong figure is worse than a missing one.
+  //
+  // The deployment's own address falls to the same place every other read on
+  // it does — the deployment's only site — so its front page and pricing page
+  // are still counted rather than quietly dropped. On a deployment serving
+  // several, that is the oldest site, which is arbitrary and written down
+  // rather than hidden.
+  const workspaceId = await visitorWorkspaceId()
+  if (!workspaceId) return
+
   await recordVisit(
     {
+      workspaceId,
       path,
       referrerDomain: normalizeReferrer(
         referrer,

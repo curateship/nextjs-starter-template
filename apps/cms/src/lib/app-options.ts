@@ -30,6 +30,35 @@ export type AppOptions = {
   landing?: LandingOptions
   pages?: PagesOptions
   automations?: AutomationOptions
+  workspaces?: WorkspaceOptions
+}
+
+/** Who, if anyone, may have a workspace of their own on this app. */
+export type WhoMayHaveWorkspaces = "off" | "admins" | "everyone"
+
+type WorkspaceOptions = {
+  /**
+   * Who may have a workspace at all.
+   *
+   * - **`"off"`** — nobody. No switcher is drawn and a second workspace is
+   *   refused. For an app that is one site and always will be, like Trade and
+   *   Video. Hiding the control while leaving the door open is worse than
+   *   either, which is why this closes the door too.
+   * - **`"admins"`** — the default. Admins have and switch sites; members have
+   *   none and reach none. What this shell and cms want.
+   * - **`"everyone"`** — an app that genuinely gives each member a workspace of
+   *   their own says so deliberately.
+   *
+   * **This is the one option whose default is not today's behaviour, and that
+   * is a decision rather than an oversight.** Today every signed-in person was
+   * given a workspace on sign-in and every workspace endpoint was open to any
+   * member, so a member could make and delete workspaces on any app built on
+   * this shell. Nobody noticed because members are never shown the switcher.
+   * Defaulting to `"everyone"` would keep that door open to satisfy a
+   * convention about defaults, and no app can tell the difference because no
+   * app ever showed members the control.
+   */
+  whoMayHave?: WhoMayHaveWorkspaces
 }
 
 type PagesOptions = {
@@ -246,4 +275,32 @@ export function appAutomationNodes(
   options: AppOptions = appOptions
 ): readonly AutomationNodeDescriptor[] {
   return options.automations?.nodes ?? []
+}
+
+/**
+ * Who may have a workspace on this app — see `workspaces.whoMayHave` above.
+ *
+ * Defaults to admins only, which is deliberately *not* what the shell did
+ * before this option existed. The reason is written on the option itself.
+ *
+ * The argument is only ever passed by the tests, so the check that an unset
+ * option still means "admins" keeps working inside an app that has set it.
+ */
+export function whoMayHaveWorkspaces(
+  options: AppOptions = appOptions
+): WhoMayHaveWorkspaces {
+  return options.workspaces?.whoMayHave ?? "admins"
+}
+
+/** Whether this person may have a workspace at all, on this app. */
+export function mayHaveWorkspace(
+  user: { role: string } | null | undefined,
+  options: AppOptions = appOptions
+): boolean {
+  if (!user) return false
+
+  const who = whoMayHaveWorkspaces(options)
+  if (who === "off") return false
+  if (who === "everyone") return true
+  return user.role === "admin"
 }
