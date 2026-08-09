@@ -1,6 +1,7 @@
 import { getRequestHeader, getRequestIP } from "@tanstack/react-start/server"
 
 import { appTrustsOrigin } from "@/server/app-options"
+import { hostBelongsToThisApp } from "@/server/workspaces/host"
 
 /** The caller's address for rate-limit keys; "unknown" when the proxy hid it. */
 export function requestIp() {
@@ -18,9 +19,16 @@ export function requireAppOrigin() {
     return
   }
 
-  // The app gets the last word, and by default says no — so this is the same
-  // check it always was until an app opts in. It exists for an app that serves
-  // more addresses than an environment variable can name; see
+  // A workspace's own address counts as ours. A subdomain of the base domain is
+  // ours by definition and needs nothing looked up; a domain a workspace was
+  // given is answered from the cache the resolver fills while drawing the page
+  // the form sits on. Synchronous, because this check is never awaited.
+  if (hostBelongsToThisApp(asked)) {
+    return
+  }
+
+  // Then the app gets the last word, and by default says no — so this is the
+  // same check it always was until an app opts in. See
   // `security.isTrustedOrigin` in `src/server/app-options.ts`.
   if (appTrustsOrigin(asked)) {
     return

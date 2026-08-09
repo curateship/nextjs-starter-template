@@ -134,7 +134,6 @@ const dashboardWidgetsSchema = z.object({
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
-  workspacePlan: z.string(),
   dashboardRowsPerPage: z.number().int().refine((value) =>
     DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]

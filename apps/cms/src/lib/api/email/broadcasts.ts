@@ -41,7 +41,8 @@ import {
 import { listBroadcastDeliveries } from "@/server/email/deliveries"
 import { adminGet, adminPost } from "@/server/guards"
 import {
-  getOrCreateCurrentWorkspace,
+  currentWorkspaceId,
+  requireCurrentWorkspace,
   parseWorkspaceSettings,
   saveWorkspaceBroadcastBlockDefault,
 } from "@/server/people/workspaces"
@@ -198,9 +199,6 @@ const updateSchema = broadcastIdSchema.extend({
 
 const templateIdSchema = z.object({ templateId: z.string().min(1).max(36) })
 
-async function currentWorkspaceId(userId: string) {
-  return (await getOrCreateCurrentWorkspace(userId)).id
-}
 
 const loadBroadcastsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -423,7 +421,7 @@ const setDefaultTemplateFn = createServerFn({ method: "POST" })
 const loadBlockDefaultsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<{ defaults: BroadcastBlockDefaults }> => {
-    const workspace = await getOrCreateCurrentWorkspace(context.user.id)
+    const workspace = await requireCurrentWorkspace(context.user.id)
     return { defaults: parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults }
   })
 

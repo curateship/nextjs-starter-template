@@ -247,6 +247,16 @@ export type WalletPortfolio = {
   orders: WalletOpenOrder[]
 }
 
+export type WalletOrderFill = {
+  fillId: string
+  orderId: string
+  marketId: string
+  side: "buy" | "sell"
+  px: number
+  sz: number
+  at: number
+}
+
 /**
  * What a protocol needs before it may sign anything: the trading key, alive
  * for this one call only, and the counter that hands out order numbers. The
@@ -262,8 +272,8 @@ export type OrderAuth = {
 export type PlaceOrderParams = {
   marketId: string
   side: "buy" | "sell"
-  /** "market" fills now at a slippage-capped price; "limit" waits at `px`. */
-  kind: "market" | "limit"
+  /** Market fills now, limit may cross, and post-only must rest or be refused. */
+  kind: "market" | "limit" | "postOnly"
   px: number
   sz: number
   reduceOnly: boolean

@@ -36,6 +36,7 @@ import {
   type CandleInterval,
   type MarketRow,
 } from "@/lib/protocols/contracts"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { SmartLadder } from "@/lib/trade/dca"
 import type { PaperOrder } from "@/lib/trade/paper"
@@ -92,6 +93,7 @@ export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  options,
   indicators,
   market,
   trading,
@@ -105,6 +107,8 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /** Which supporting parts of the chart are visible. */
+  options: ChartOptions
   /** Which indicators are on and what each is set to, owned by the workspace. */
   indicators: IndicatorSettings
   /** The market on screen, for the rules an order has to obey. */
@@ -369,6 +373,7 @@ export function ChartPanel({
         <>
           <PriceChart
             candles={current.candles}
+            options={options}
             // Market and timeframe in one — the tag these very candles were
             // fetched under. It is what tells a new chart apart from more
             // candles for the one already drawn.
@@ -490,9 +495,7 @@ export function ChartPanel({
       {menu ? (
         <ChartOrderMenu
           menu={menu}
-          // The ladders are the practice engine's; on a real wallet the menu
-          // offers plain orders only rather than a row that would refuse.
-          smartOrders={trading.wallet?.kind === "paper"}
+          smartOrders={trading.wallet !== null}
           onClose={() => setMenu(null)}
           onPick={(side) => {
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
@@ -528,6 +531,7 @@ export function ChartPanel({
           state={smart}
           market={market}
           wallet={trading.wallet?.label ?? ""}
+          real={trading.wallet?.kind === "live"}
           equity={equity}
           free={free}
           interval={interval}

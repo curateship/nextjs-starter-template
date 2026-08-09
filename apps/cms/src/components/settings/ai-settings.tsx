@@ -41,6 +41,18 @@ const PROVIDERS: {
     hint: "The key from platform.openai.com → API keys. It is scrambled before it is stored, and only its last four characters are ever shown again.",
     placeholder: "Paste your OpenAI API key",
   },
+  {
+    id: "gemini",
+    name: "Google Gemini",
+    hint: "The key from aistudio.google.com → API keys. It is scrambled before it is stored, and only its last four characters are ever shown again.",
+    placeholder: "Paste your Gemini API key",
+  },
+  {
+    id: "elevenlabs",
+    name: "ElevenLabs",
+    hint: "The key from elevenlabs.io → your profile → API keys. This one reads text aloud rather than writing it. It is scrambled before it is stored, and only its last four characters are ever shown again.",
+    placeholder: "Paste your ElevenLabs API key",
+  },
 ]
 
 // A pasted key saves itself this long after the last edit; leaving the field

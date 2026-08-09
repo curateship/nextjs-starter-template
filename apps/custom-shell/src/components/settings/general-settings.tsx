@@ -45,6 +45,7 @@ export function GeneralSettings({
   // The auto-save refuses a blank workspace name (saveConfigNow in
   // shell-layout.tsx), so say so on blur rather than letting the edit sit on
   // screen looking saved.
+
   const workspaceNameMissing = !config.workspaceName.trim()
 
   return (
@@ -76,40 +77,27 @@ export function GeneralSettings({
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="workspace-name">Workspace name</Label>
+          <FieldLabel
+            htmlFor="workspace-name"
+            hint="The name of the site you are working on — it heads the sidebar and names this site in the switcher. Each site has its own; this renames the one you are in."
+          >
+            Site name
+          </FieldLabel>
           <Input
             id="workspace-name"
             value={config.workspaceName}
             onChange={(event) =>
-              onConfigChange({
-                ...config,
-                workspaceName: event.target.value,
-              })
+              onConfigChange({ ...config, workspaceName: event.target.value })
             }
-            placeholder="Workspace name"
+            placeholder="Site name"
             aria-invalid={workspaceNameMissing || undefined}
             onBlur={() => {
               if (workspaceNameMissing) {
                 showErrorToast(
-                  "Add a workspace name — settings can't be saved without one."
+                  "Give the site a name — settings can't be saved without one."
                 )
               }
             }}
-          />
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="workspace-subheader">Workspace subheader</Label>
-          <Input
-            id="workspace-subheader"
-            value={config.workspacePlan}
-            onChange={(event) =>
-              onConfigChange({
-                ...config,
-                workspacePlan: event.target.value,
-              })
-            }
-            placeholder="Project"
           />
         </div>
 

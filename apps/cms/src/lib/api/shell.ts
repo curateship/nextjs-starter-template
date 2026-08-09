@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { findWorkspaceIdForRequest } from "@/server/workspaces/for-request"
 import { loadUserAnnouncements } from "@/server/content/announcements"
 import { loadEntitlements } from "@/server/billing/entitlements"
 import { countUnreadNotifications } from "@/server/notifications/inbox"
@@ -42,7 +43,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
       return {
         user: null,
         settings: null,
-        workspaces: { workspaces: [] },
+        workspaces: { workspaces: [], baseDomain: "" },
         plan: { planSlug: "free", planName: "Free", isPaid: false },
         unreadNotifications: 0,
         announcements: [],
@@ -55,13 +56,25 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     // which is the whole point.
     const { user, viewedBy } = session
 
+    const settingsPromise = readShellSettings(user)
+    // Read once and handed down: the banners belong to the site this person is
+    // in, and asking again inside the list below would run the lookup twice.
+    const workspaceId = await findWorkspaceIdForRequest(user.id)
     const [settings, workspaces, { entitlements }, unreadCount, announcements] =
       await Promise.all([
-        readShellSettings(user),
+        settingsPromise,
         readWorkspaceList(user.id),
         loadEntitlements(user.id),
-        countUnreadNotifications(user.id),
-        loadUserAnnouncements(user.id),
+        settingsPromise.then((value) =>
+          countUnreadNotifications(
+            user.id,
+            undefined,
+            value.notificationTypes
+          )
+        ),
+        workspaceId
+          ? loadUserAnnouncements(workspaceId, user.id)
+          : Promise.resolve({ banners: [], noticesCreated: 0 }),
       ])
 
     // The announcement read is the one call here that can write: it drops in the
@@ -70,7 +83,11 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     // — otherwise the bell would sit there with no dot over a tray that has an
     // unread notice in it. Every other load pays nothing for this.
     const unreadNotifications = announcements.noticesCreated
-      ? await countUnreadNotifications(user.id)
+      ? await countUnreadNotifications(
+          user.id,
+          undefined,
+          settings.notificationTypes
+        )
       : unreadCount
 
     return {
@@ -113,14 +130,21 @@ export function loadShellBootstrap() {
  * trace rather than an app that quietly renamed itself.
  */
 const loadBrandingFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ appName: string; logo: string; logoDark: string }> => {
+  async (): Promise<{
+    appName: string
+    logo: string
+    logoDark: string
+    hostIsUnknown: boolean
+  }> => {
     try {
       return await readBranding()
     } catch (error) {
       console.error("Branding could not be read; using the default", error)
       // Blank, not a name of its own: "" is already how the app says "use the
       // default", so this goes through the one place that decides what that is.
-      return { appName: "", logo: "", logoDark: "" }
+      // And never a dead end on a failure — a database that could not be read
+      // must not turn every address into a 404.
+      return { appName: "", logo: "", logoDark: "", hostIsUnknown: false }
     }
   }
 )

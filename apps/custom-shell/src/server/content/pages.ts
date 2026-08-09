@@ -110,7 +110,15 @@ export async function loadPagesOverview(
         views: sql<string>`sum(${facts.views})`,
       })
       .from(facts)
-      .where(and(eq(facts.dimension, "path"), gte(facts.day, firstDay)))
+      // This site's visits. The counters are per site now, so without this
+      // the Visits column would quietly add every site's together.
+      .where(
+        and(
+          eq(facts.workspaceId, workspaceId),
+          eq(facts.dimension, "path"),
+          gte(facts.day, firstDay)
+        )
+      )
       .groupBy(facts.key),
     readWorkspacePageOverrides(workspaceId, database),
     listWrittenPages(workspaceId, database),

@@ -9,6 +9,7 @@ import type {
   PlaceOrderOutcome,
   PlaceOrderParams,
   WalletOpenOrder,
+  WalletOrderFill,
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
@@ -215,6 +216,14 @@ export function cappedMarketPx(
   return roundOrderPx(capped, szDecimals)
 }
 
+export function orderTimeInForce(
+  kind: PlaceOrderParams["kind"]
+): "Ioc" | "Gtc" | "Alo" {
+  if (kind === "market") return "Ioc"
+  if (kind === "postOnly") return "Alo"
+  return "Gtc"
+}
+
 // ----- The signing client -------------------------------------------------
 
 /**
@@ -298,7 +307,11 @@ export async function placeHyperliquidOrder(
       p: px,
       s: sz,
       r: params.reduceOnly,
-      t: { limit: { tif: params.kind === "market" ? ("Ioc" as const) : ("Gtc" as const) } },
+      t: {
+        limit: {
+          tif: orderTimeInForce(params.kind),
+        },
+      },
       c: newCloid(),
     },
     // The protection legs ride in the same request (`normalTpsl`), each a
@@ -551,6 +564,41 @@ const openOrdersSchema = z.array(
     orderType: z.string(),
   })
 )
+
+const fillSchema = z.object({
+  coin: z.string(),
+  px: z.string(),
+  sz: z.string(),
+  side: z.enum(["B", "A"]),
+  time: z.number(),
+  oid: z.number(),
+  tid: z.union([z.number(), z.string()]),
+})
+
+export async function fetchHyperliquidOrderFills(
+  network: NetworkId,
+  address: string,
+  since: number
+): Promise<WalletOrderFill[]> {
+  const rows = await infoClient(network).userFillsByTime({
+    user: address.toLowerCase() as `0x${string}`,
+    startTime: Math.max(0, since),
+  })
+  return z.array(fillSchema).parse(rows).map((row) => {
+    const px = num(row.px)
+    const sz = num(row.sz)
+    if (px === null || sz === null) throw new Error("LIVE_UNREADABLE")
+    return {
+      fillId: String(row.tid),
+      orderId: String(row.oid),
+      marketId: row.coin,
+      side: row.side === "B" ? ("buy" as const) : ("sell" as const),
+      px,
+      sz,
+      at: row.time,
+    }
+  })
+}
 
 /**
  * Which venues each wallet actually uses, so the four-second poll does not

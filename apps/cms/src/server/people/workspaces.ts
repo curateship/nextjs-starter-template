@@ -18,7 +18,6 @@ import {
   normalizeDashboardWidgets,
   type DashboardWidgetLayout,
 } from "@/lib/dashboard/dashboard-widgets"
-import { cleanDismissedUrgent } from "@/lib/dashboard/urgent-items"
 import {
   cleanBroadcastBlockDefaults,
   type BroadcastBlock,
@@ -29,8 +28,30 @@ import {
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
 } from "@/lib/layout/sidebar-width"
+import {
+  cleanCustomDomain,
+  cleanSubdomain,
+  customDomainProblem,
+  MAX_SUBDOMAIN,
+  MIN_SUBDOMAIN,
+  subdomainProblem,
+} from "@/lib/workspaces/addresses"
+import {
+  normalizePageOverrides,
+  type ShellPageOverrides,
+} from "@/lib/pages/page-visibility"
+import {
+  WORKSPACE_STATUSES,
+  type WorkspaceStatus,
+} from "@/lib/workspaces/status"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  answerForRequest,
+  dropWorkspaceCache,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
+import {
+  customShellUsers,
   customShellWorkspaces,
   type CustomShellWorkspace,
 } from "@/server/schema"
@@ -277,15 +298,29 @@ const FEEDS_CHILD_HREFS: readonly string[] = [
   AUDIT_HREF,
 ]
 
-/** The automation canvas. */
+const AUTOMATIONS_LINK_ID = "item-automations"
+const AUTOMATIONS_HREF = "/admin/automations"
+const AUTOMATION_TEMPLATES_LINK_ID = "item-automation-templates"
+const AUTOMATION_TEMPLATES_HREF = "/admin/automations/templates"
+
+function automationTemplatesChildLink(): ShellChildItem {
+  return {
+    id: AUTOMATION_TEMPLATES_LINK_ID,
+    label: "Templates",
+    href: AUTOMATION_TEMPLATES_HREF,
+  }
+}
+
+/** The automation canvas and the templates used to start new flows. */
 const AUTOMATIONS_LINK: ShellItem = {
   type: "item",
-  id: "item-automations",
+  id: AUTOMATIONS_LINK_ID,
   label: "Automations",
-  href: "/admin/automations",
+  href: AUTOMATIONS_HREF,
   icon: "workflow",
   visible: true,
   roles: ["admin"],
+  children: [automationTemplatesChildLink()],
 }
 
 const NEWSLETTER_LINK_ID = "item-newsletter"
@@ -358,7 +393,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 17
+export const NAVIGATION_VERSION = 18
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -373,15 +408,86 @@ export type WorkspaceSettings = {
   styling: ShellStyling
   // Which cards the Overview dashboard draws, and where, saved per-workspace.
   dashboardWidgets: DashboardWidgetLayout
-  // Urgent rows waved off on the Overview's activity card, saved per-workspace.
-  dismissedUrgent: string[]
   // Starred palette nodes in the automation editor, saved per-workspace.
   automationFavoriteNodeKeys: string[]
   // How each kind of newsletter block starts out, saved per-workspace.
   broadcastBlockDefaults: BroadcastBlockDefaults
+  /**
+   * Which public pages are switched off or members-only, on this site.
+   *
+   * It used to live in the one app-wide settings row, keyed by the bare
+   * address — so one site hiding its `/pricing` hid every site's, and two sites
+   * with an `/about` each could not disagree about it. It is a per-site
+   * decision, so it is saved per site.
+   */
+  pages: ShellPageOverrides
 }
 
-export async function getOrCreateCurrentWorkspace(
+/**
+ * The workspace this person is in, or null.
+ *
+ * **Reading never creates one.** This used to be `getOrCreateCurrentWorkspace`,
+ * and it made a workspace whenever it could not find one — from
+ * `readShellSettings`, which runs on every signed-in page load, and from every
+ * newsletter and contacts call. That meant a member who never sees a workspace
+ * still owned one, and any code path that asked at the wrong moment minted a
+ * row. Making one is `startWorkspaceFor`, and it is called on purpose.
+ *
+ * Somebody pointing at nothing is ordinary, not broken: a new account is in
+ * that state, and so is anybody whose workspace was deleted.
+ */
+export async function currentWorkspace(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const current = await findCurrentWorkspace(userId, database)
+  return current ? applyNavigationUpgrade(current, database) : null
+}
+
+/**
+ * The id of the workspace this person is in.
+ *
+ * **The one way to answer that question.** It used to be a private three-line
+ * function copy-pasted into four endpoint files, each calling a read that
+ * created a workspace when it missed — so the same question had four answers
+ * and any of them could mint a row. One definition means one place to change
+ * when a request, rather than a person, starts deciding.
+ *
+ * Throws rather than returning null: every signed-in person is put in a
+ * workspace when they sign in, so being in none here means something upstream
+ * went wrong, and scoping a query to "no workspace" would quietly read nothing.
+ */
+export async function currentWorkspaceId(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<string> {
+  return (await requireCurrentWorkspace(userId, database)).id
+}
+
+/** The same answer as `currentWorkspaceId`, for callers that need the row. */
+export async function requireCurrentWorkspace(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const workspace = await currentWorkspace(userId, database)
+  if (!workspace) {
+    throw new Error("No workspace")
+  }
+  return workspace
+}
+
+/**
+ * Makes sure this person is in a workspace, and makes one if they are not.
+ *
+ * The deliberate counterpart to the read above. Called where a workspace
+ * genuinely should come into being — signing in, and seeding a fresh database —
+ * never from a page load.
+ *
+ * An existing workspace of theirs is adopted before a new one is made, so
+ * somebody whose pointer was emptied (their workspace was deleted) lands back
+ * on one they already had rather than collecting another.
+ */
+export async function startWorkspaceFor(
   userId: string,
   database: CustomShellDb = db
 ) {
@@ -398,20 +504,21 @@ export async function getOrCreateCurrentWorkspace(
 
     if (existingWorkspace) {
       return applyNavigationUpgrade(
-        await setDefaultWorkspace(userId, existingWorkspace.id, tx),
+        await setCurrentWorkspace(userId, existingWorkspace.id, tx),
         tx
       )
     }
 
     const createdAt = now()
+    const id = uuid()
     const [workspace] = await tx
       .insert(customShellWorkspaces)
       .values({
-        id: uuid(),
+        id,
         userId,
         name: DEFAULT_WORKSPACE_NAME,
+        subdomain: await freeSubdomain(DEFAULT_WORKSPACE_NAME, id, tx),
         settings: defaultWorkspaceSettings(),
-        isDefault: true,
         createdAt,
         updatedAt: createdAt,
       })
@@ -421,6 +528,8 @@ export async function getOrCreateCurrentWorkspace(
       throw new Error("Workspace was not created")
     }
 
+    await setCurrentWorkspace(userId, workspace.id, tx)
+    dropWorkspaceCache()
     return workspace
   })
 }
@@ -428,41 +537,192 @@ export async function getOrCreateCurrentWorkspace(
 /** The workspace switcher's list, already serialized for the browser. */
 export async function readWorkspaceList(
   userId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  options: { seesEveryWorkspace?: boolean } = {}
 ) {
   const { workspaces, currentWorkspaceId } = await listUserWorkspaces(
     userId,
-    database
+    database,
+    options
   )
 
   return {
     workspaces: workspaces.map((row) =>
       serializeWorkspace(row, currentWorkspaceId)
     ),
+    baseDomain: workspaceBaseDomain(),
   }
 }
 
-export async function listUserWorkspaces(
+/**
+ * This person's workspaces.
+ *
+ * A workspace now survives the account that made it, which leaves rows nobody
+ * owns — and they are deliberately **not** listed here yet. Everything that
+ * reads this list is reachable by any signed-in member (`loadWorkspacesFn` is
+ * `userGet`, the delete pair is `userPost`, and `/workspaces` has no admin
+ * check), so including them would let a member see and delete a workspace that
+ * is nobody's — taking its contacts, segments and broadcasts with it.
+ *
+ * Reaching an ownerless workspace belongs with the task that makes any admin
+ * able to see any workspace, because that is where the admin check gets made.
+ * Until then an orphan is kept and unreachable, which is the safe way round.
+ */
+/**
+ * An address nobody is using yet, derived from the workspace's name.
+ *
+ * Names are not unique and "My project" is what every workspace starts as, so a
+ * number goes on the end until one is free. The id's first characters stand in
+ * when a name gives nothing usable — "日本語" and "!!!" both do.
+ */
+async function freeSubdomain(name: string, id: string, database: CustomShellDb) {
+  const base =
+    cleanSubdomain(name.replace(/[^a-zA-Z0-9]+/g, "-"))
+      .replace(/^-+|-+$/g, "")
+      .slice(0, MAX_SUBDOMAIN) || `w-${id.slice(0, 8)}`
+
+  const taken = new Set(
+    (
+      await database
+        .select({ subdomain: customShellWorkspaces.subdomain })
+        .from(customShellWorkspaces)
+    ).map((row) => row.subdomain)
+  )
+
+  const atLeastThree = base.length >= MIN_SUBDOMAIN ? base : `${base}-1`
+  if (!taken.has(atLeastThree)) return atLeastThree
+
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${atLeastThree.slice(0, MAX_SUBDOMAIN - 5)}-${n}`
+    if (!taken.has(candidate)) return candidate
+  }
+
+  return `w-${id.slice(0, 8)}`
+}
+
+/** The address half of a workspace, as the form sends it. */
+export type WorkspaceAddress = {
+  subdomain: string
+  customDomain: string
+  status: WorkspaceStatus
+}
+
+/**
+ * The address fields, checked and tidied.
+ *
+ * The same rules the form applies, applied again — the form is a courtesy to
+ * whoever is typing, not a gate. Refusals are sentences because an admin reads
+ * them and there is nothing else to turn them into.
+ */
+function cleanAddress(input: WorkspaceAddress): WorkspaceAddress {
+  const subdomain = cleanSubdomain(input.subdomain)
+  const addressProblem = subdomainProblem(subdomain)
+  if (addressProblem) throw new Error(addressProblem)
+
+  const customDomain = cleanCustomDomain(input.customDomain)
+  const domainProblem = customDomainProblem(customDomain)
+  if (domainProblem) throw new Error(domainProblem)
+
+  if (!WORKSPACE_STATUSES.includes(input.status)) {
+    throw new Error("That is not a state a workspace can be in.")
+  }
+
+  return { subdomain, customDomain, status: input.status }
+}
+
+/**
+ * Turns the database's own complaint about a taken address into the sentence
+ * the check would have given.
+ *
+ * The check before the write makes the message readable; the unique indexes are
+ * what make it true when two admins save the same address in the same instant,
+ * and the loser of that race gets Postgres's words rather than a refusal.
+ */
+function describeAddressClash(error: unknown, values: WorkspaceAddress) {
+  const constraint =
+    error && typeof error === "object" && "constraint" in error
+      ? String((error as { constraint?: unknown }).constraint ?? "")
+      : ""
+
+  if (constraint === "ux_workspaces_subdomain") {
+    return new Error(`Another workspace already answers on ${values.subdomain}.`)
+  }
+  if (constraint === "ux_workspaces_custom_domain") {
+    return new Error(`Another workspace already uses ${values.customDomain}.`)
+  }
+
+  return error
+}
+
+/**
+ * Points somebody at the workspace whose domain they arrived on, if any.
+ *
+ * Called when signing in. Somebody who went to alpha's address to sign in means
+ * to work on alpha, so landing them wherever they were last is a step they then
+ * have to undo. On the deployment's own address, and on an app with no base
+ * domain configured, nothing resolves and their own last choice stands.
+ *
+ * Quiet when it cannot: a workspace that has gone, or a host belonging to
+ * nobody, simply leaves the pointer alone.
+ */
+export async function pointAtWorkspaceForHost(
   userId: string,
   database: CustomShellDb = db
+) {
+  const answer = await answerForRequest(database)
+  if (answer.kind !== "workspace") return
+
+  await database
+    .update(customShellUsers)
+    .set({ currentWorkspaceId: answer.workspace.id, updatedAt: now() })
+    .where(eq(customShellUsers.id, userId))
+}
+
+/** Which workspaces this person may act on: an admin any, anybody else theirs. */
+function reachable(userId: string, seesEveryWorkspace: boolean) {
+  return seesEveryWorkspace ? undefined : eq(customShellWorkspaces.userId, userId)
+}
+
+/**
+ * The workspaces this person may see, and which one they are in.
+ *
+ * An admin sees every workspace on the deployment, because a workspace is a
+ * thing the deployment has rather than one person's property — including the
+ * ones nobody owns, which is how a departed admin's work stays reachable.
+ * Anybody else sees only their own.
+ *
+ * `currentWorkspaceId` comes from the pointer on the person, so it is genuinely
+ * theirs and never somebody else's idea of it.
+ */
+export async function listUserWorkspaces(
+  userId: string,
+  database: CustomShellDb = db,
+  options: { seesEveryWorkspace?: boolean } = {}
 ) {
   const rows = await database
     .select()
     .from(customShellWorkspaces)
-    .where(eq(customShellWorkspaces.userId, userId))
+    .where(reachable(userId, options.seesEveryWorkspace ?? false))
     .orderBy(asc(customShellWorkspaces.createdAt))
 
-  const current =
-    rows.find((workspace) => workspace.isDefault) ?? rows[0] ?? null
+  const [person] = await database
+    .select({ currentWorkspaceId: customShellUsers.currentWorkspaceId })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+    .limit(1)
 
-  return { workspaces: rows, currentWorkspaceId: current?.id ?? null }
+  const pointed = person?.currentWorkspaceId ?? null
+  const current = rows.some((row) => row.id === pointed) ? pointed : null
+
+  return { workspaces: rows, currentWorkspaceId: current }
 }
 
 export async function createUserWorkspace(
   userId: string,
   name: string,
   settings: Partial<WorkspaceSettings> = {},
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  address?: Partial<WorkspaceAddress>
 ) {
   const trimmedName = name.trim()
   if (!trimmedName) {
@@ -471,33 +731,56 @@ export async function createUserWorkspace(
 
   return database.transaction(async (tx) => {
     const createdAt = now()
+    const id = uuid()
     const [workspace] = await tx
       .insert(customShellWorkspaces)
       .values({
-        id: uuid(),
+        id,
         userId,
         name: trimmedName.slice(0, 255),
+        // An address given by the form is checked; one left out is derived from
+        // the name, which is what the switcher's "New workspace" does.
+        ...(address?.subdomain
+          ? cleanAddress({
+              subdomain: address.subdomain,
+              customDomain: address.customDomain ?? "",
+              status: address.status ?? "active",
+            })
+          : { subdomain: await freeSubdomain(trimmedName, id, tx) }),
         settings: cleanWorkspaceSettings(settings),
-        isDefault: false,
         createdAt,
         updatedAt: createdAt,
       })
       .returning()
+      .catch((error) => {
+        throw describeAddressClash(error, {
+          subdomain: cleanSubdomain(address?.subdomain ?? ""),
+          customDomain: cleanCustomDomain(address?.customDomain ?? ""),
+          status: address?.status ?? "active",
+        })
+      })
 
     if (!workspace) {
       throw new Error("Workspace was not created")
     }
 
-    return setDefaultWorkspace(userId, workspace.id, tx)
+    dropWorkspaceCache()
+    return setCurrentWorkspace(userId, workspace.id, tx)
   })
 }
 
 export async function updateUserWorkspace(
   userId: string,
   workspaceId: string,
-  data: { name: string; settings: Partial<WorkspaceSettings> },
-  database: CustomShellDb = db
+  data: {
+    name: string
+    settings: Partial<WorkspaceSettings>
+    address?: WorkspaceAddress
+  },
+  database: CustomShellDb = db,
+  options: { seesEveryWorkspace?: boolean } = {}
 ) {
+  const mayReach = reachable(userId, options.seesEveryWorkspace ?? false)
   const trimmedName = data.name.trim()
   if (!trimmedName) {
     throw new Error("Workspace name is required")
@@ -506,12 +789,7 @@ export async function updateUserWorkspace(
   const [existing] = await database
     .select({ settings: customShellWorkspaces.settings })
     .from(customShellWorkspaces)
-    .where(
-      and(
-        eq(customShellWorkspaces.id, workspaceId),
-        eq(customShellWorkspaces.userId, userId)
-      )
-    )
+    .where(and(eq(customShellWorkspaces.id, workspaceId), mayReach))
     .limit(1)
 
   if (!existing) {
@@ -522,47 +800,62 @@ export async function updateUserWorkspace(
     .update(customShellWorkspaces)
     .set({
       name: trimmedName.slice(0, 255),
+      ...(data.address ? cleanAddress(data.address) : {}),
       settings: cleanWorkspaceSettings({
         ...parseWorkspaceSettings(existing.settings),
         ...data.settings,
       }),
       updatedAt: now(),
     })
-    .where(
-      and(
-        eq(customShellWorkspaces.id, workspaceId),
-        eq(customShellWorkspaces.userId, userId)
-      )
-    )
+    .where(and(eq(customShellWorkspaces.id, workspaceId), mayReach))
     .returning()
+    .catch((error) => {
+      throw data.address ? describeAddressClash(error, data.address) : error
+    })
 
   if (!workspace) {
     throw new Error("Workspace not found")
   }
 
+  // An address or a state that just changed must not keep answering the old way.
+  dropWorkspaceCache()
   return workspace
 }
 
 export async function switchUserWorkspace(
   userId: string,
   workspaceId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  options: { seesEveryWorkspace?: boolean } = {}
 ) {
   return database.transaction((tx) =>
-    setDefaultWorkspace(userId, workspaceId, tx)
+    setCurrentWorkspace(userId, workspaceId, tx, options.seesEveryWorkspace)
   )
 }
 
+/**
+ * Removes a site and everything filed under it.
+ *
+ * "Everything" grew with `0050_custom_shell_workspace_content.sql`: the
+ * contacts, segments, broadcasts and email settings it always took, and now its
+ * announcements, changelog, feedback and media rows too. **The media files
+ * themselves stay in the bucket** — no foreign key reaches outside the
+ * database. They show up on the storage screen as objects nothing points at,
+ * which is the same state a deleted account's files end in, and the same button
+ * clears them.
+ */
 export async function deleteUserWorkspace(
   userId: string,
   workspaceId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  options: { seesEveryWorkspace?: boolean } = {}
 ) {
+  const mayReach = reachable(userId, options.seesEveryWorkspace ?? false)
   return database.transaction(async (tx) => {
     const rows = await tx
       .select()
       .from(customShellWorkspaces)
-      .where(eq(customShellWorkspaces.userId, userId))
+      .where(mayReach)
       .orderBy(asc(customShellWorkspaces.createdAt))
 
     const workspace = rows.find((row) => row.id === workspaceId)
@@ -579,24 +872,21 @@ export async function deleteUserWorkspace(
       throw new Error("At least one workspace is required")
     }
 
-    if (workspace.isDefault) {
-      await setDefaultWorkspace(userId, fallback.id, tx)
-    }
+    // Whoever was in it has to be moved off before it goes. The foreign key
+    // would empty their pointer on its own, but landing on nothing means the
+    // next page load has no workspace to draw — so they are put somewhere real.
+    await moveEveryoneOff(workspaceId, fallback.id, tx)
 
     const [deleted] = await tx
       .delete(customShellWorkspaces)
-      .where(
-        and(
-          eq(customShellWorkspaces.id, workspaceId),
-          eq(customShellWorkspaces.userId, userId)
-        )
-      )
+      .where(and(eq(customShellWorkspaces.id, workspaceId), mayReach))
       .returning({ id: customShellWorkspaces.id })
 
     if (!deleted) {
       throw new Error("Workspace not found")
     }
 
+    dropWorkspaceCache()
     return { workspaceId: deleted.id }
   })
 }
@@ -611,23 +901,34 @@ export async function deleteUserWorkspace(
 export async function deleteUserWorkspaces(
   userId: string,
   workspaceIds: string[],
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  options: { seesEveryWorkspace?: boolean } = {}
 ): Promise<{ deleted: string[]; kept: string[] }> {
+  const mayReach = reachable(userId, options.seesEveryWorkspace ?? false)
   return database.transaction(async (tx) => {
     const rows = await tx
       .select()
       .from(customShellWorkspaces)
-      .where(eq(customShellWorkspaces.userId, userId))
+      .where(mayReach)
       .orderBy(asc(customShellWorkspaces.createdAt))
 
     const requested = new Set(workspaceIds)
     const owned = rows.filter((row) => requested.has(row.id))
     const untouched = rows.filter((row) => !requested.has(row.id))
 
-    // Whatever was not asked for already survives; otherwise the workspace in
-    // use is the one held back, or the oldest when none is marked.
+    const [person] = await tx
+      .select({ currentWorkspaceId: customShellUsers.currentWorkspaceId })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+      .limit(1)
+
+    // Whatever was not asked for already survives; otherwise the one being used
+    // is held back, and the oldest only when none of them is.
     const survivor =
-      untouched[0] ?? owned.find((row) => row.isDefault) ?? owned[0] ?? null
+      untouched[0] ??
+      owned.find((row) => row.id === person?.currentWorkspaceId) ??
+      owned[0] ??
+      null
     const targetIds = owned
       .filter((row) => row.id !== survivor?.id)
       .map((row) => row.id)
@@ -636,22 +937,20 @@ export async function deleteUserWorkspaces(
       return { deleted: [], kept: workspaceIds }
     }
 
-    // Deleting the workspace in use moves the user to the one that survives.
-    if (owned.some((row) => row.isDefault && row.id !== survivor.id)) {
-      await setDefaultWorkspace(userId, survivor.id, tx)
+    // Anybody in one of the workspaces going moves to the one that survives.
+    for (const id of targetIds) {
+      await moveEveryoneOff(id, survivor.id, tx)
     }
 
     const deleted = await tx
       .delete(customShellWorkspaces)
       .where(
-        and(
-          eq(customShellWorkspaces.userId, userId),
-          inArray(customShellWorkspaces.id, targetIds)
-        )
+        and(mayReach, inArray(customShellWorkspaces.id, targetIds))
       )
       .returning({ id: customShellWorkspaces.id })
 
     const deletedIds = deleted.map((row) => row.id)
+    dropWorkspaceCache()
     const wentThrough = new Set(deletedIds)
     return {
       deleted: deletedIds,
@@ -742,6 +1041,9 @@ async function applyNavigationUpgrade(
   // first.
   if (settings.navVersion < 17) {
     sections = addPagesLink(sections)
+  }
+  if (settings.navVersion < 18) {
+    sections = addAutomationTemplatesLink(sections)
   }
 
   const [updated] = await database
@@ -1410,6 +1712,43 @@ export function addSegmentsLink(sections: ShellSection[]): ShellSection[] {
   }))
 }
 
+/** Adds Templates beneath an existing Automations sidebar item. */
+export function addAutomationTemplatesLink(
+  sections: ShellSection[]
+): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isAutomations = (link: { id: string; href?: string }) =>
+    link.id === AUTOMATIONS_LINK_ID || link.href === AUTOMATIONS_HREF
+  const isTemplates = (link: { id: string; href?: string }) =>
+    link.id === AUTOMATION_TEMPLATES_LINK_ID ||
+    link.href === AUTOMATION_TEMPLATES_HREF
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isTemplates(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isTemplates))
+    )
+  )
+  if (alreadyThere) return sections
+  const hasAutomations = sections.some((section) =>
+    section.entries.some((entry) => isShellItem(entry) && isAutomations(entry))
+  )
+  if (!hasAutomations) return sections
+
+  return sections.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) => {
+      if (!isShellItem(entry) || !isAutomations(entry)) return entry
+      const children = entry.children?.length ? [...entry.children] : []
+      return {
+        ...entry,
+        children: [...children, automationTemplatesChildLink()],
+      }
+    }),
+  }))
+}
+
 /**
  * Folds the Feeds section into the Overview: the four links it held become the
  * Overview's children, and the parent goes, because its page has been deleted
@@ -1728,35 +2067,107 @@ export function removeWhatsNewLinks(sections: ShellSection[]): ShellSection[] {
   return changed ? result : sections
 }
 
+/**
+ * The workspace this person is pointing at, or null when they point at none.
+ *
+ * Reads only — it never makes one. Somewhere having to answer "none" is the
+ * whole reason this is separate from `startWorkspaceFor`: it used to create a
+ * workspace whenever it could not find one, and it ran on every signed-in page
+ * load, so a stray call quietly minted rows.
+ */
 async function findCurrentWorkspace(userId: string, database: CustomShellDb) {
-  const [row] = await database
-    .select()
-    .from(customShellWorkspaces)
-    .where(
-      and(
-        eq(customShellWorkspaces.userId, userId),
-        eq(customShellWorkspaces.isDefault, true)
-      )
+  const [pointed] = await database
+    .select({ workspace: customShellWorkspaces })
+    .from(customShellUsers)
+    .innerJoin(
+      customShellWorkspaces,
+      eq(customShellWorkspaces.id, customShellUsers.currentWorkspaceId)
     )
+    .where(eq(customShellUsers.id, userId))
     .limit(1)
 
-  return row ?? null
+  if (pointed) return pointed.workspace
+
+  // Nobody has pointed them anywhere yet, so the oldest workspace they own
+  // stands in. That covers a fresh account, and somebody whose workspace was
+  // deleted out from under them. It is a read: it settles on one, it does not
+  // make one and it does not write the pointer.
+  const [owned] = await database
+    .select()
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.userId, userId))
+    .orderBy(asc(customShellWorkspaces.createdAt))
+    .limit(1)
+
+  return owned ?? null
 }
 
-async function setDefaultWorkspace(
+/**
+ * The same rule as `findCurrentWorkspace`, answering with the id alone.
+ *
+ * Beside it rather than derived from it on purpose: the full read parses the
+ * workspace's settings and brings its sidebar up to date, and a caller that
+ * only wants to know which site to scope a query to should pay for neither. It
+ * runs on every content read and on every signed-in page load, so it is worth
+ * the twenty lines.
+ */
+export async function findCurrentWorkspaceId(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const [pointed] = await database
+    .select({ id: customShellWorkspaces.id })
+    .from(customShellUsers)
+    .innerJoin(
+      customShellWorkspaces,
+      eq(customShellWorkspaces.id, customShellUsers.currentWorkspaceId)
+    )
+    .where(eq(customShellUsers.id, userId))
+    .limit(1)
+
+  if (pointed) return pointed.id
+
+  const [owned] = await database
+    .select({ id: customShellWorkspaces.id })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.userId, userId))
+    .orderBy(asc(customShellWorkspaces.createdAt))
+    .limit(1)
+
+  return owned?.id ?? null
+}
+
+/**
+ * Points this person at a workspace.
+ *
+ * One row written, on the person. The old version wrote across every workspace
+ * with that owner to clear the flag first — which, once a workspace can be
+ * shared, wiped whichever workspace the other admins were in.
+ *
+ * Any workspace may be pointed at, not only one you own. What a person is
+ * allowed to *see* is decided by the caller; this only records where they are.
+ */
+async function setCurrentWorkspace(
   userId: string,
   workspaceId: string,
-  database: Pick<CustomShellDb, "select" | "update">
+  database: Pick<CustomShellDb, "select" | "update">,
+  seesEveryWorkspace = false
 ) {
-  const updatedAt = now()
+  // **The permission check for switching.** Without it any signed-in person
+  // could point themselves at a workspace by id and read its name, icon and
+  // styling through the shell settings — this endpoint is `userPost`, so a
+  // plain member reaches it. An admin may go anywhere; anybody else only into
+  // one they own.
   const [workspace] = await database
     .select()
     .from(customShellWorkspaces)
     .where(
-      and(
-        eq(customShellWorkspaces.id, workspaceId),
-        eq(customShellWorkspaces.userId, userId)
-      )
+      seesEveryWorkspace
+        ? eq(customShellWorkspaces.id, workspaceId)
+        : and(
+            eq(customShellWorkspaces.id, workspaceId),
+            eq(customShellWorkspaces.userId, userId)
+          )
     )
     .limit(1)
 
@@ -1765,26 +2176,30 @@ async function setDefaultWorkspace(
   }
 
   await database
-    .update(customShellWorkspaces)
-    .set({ isDefault: false, updatedAt })
-    .where(eq(customShellWorkspaces.userId, userId))
+    .update(customShellUsers)
+    .set({ currentWorkspaceId: workspaceId, updatedAt: now() })
+    .where(eq(customShellUsers.id, userId))
 
-  const [updated] = await database
-    .update(customShellWorkspaces)
-    .set({ isDefault: true, updatedAt })
-    .where(
-      and(
-        eq(customShellWorkspaces.id, workspaceId),
-        eq(customShellWorkspaces.userId, userId)
-      )
-    )
-    .returning()
+  return workspace
+}
 
-  if (!updated) {
-    throw new Error("Workspace not found")
-  }
-
-  return updated
+/**
+ * Moves everybody pointing at a workspace onto another one.
+ *
+ * Used before a workspace is deleted. The foreign key would empty their pointer
+ * by itself, but somebody pointing at nothing has no sidebar, no settings and
+ * no workspace name on their next page load — so they are moved somewhere real
+ * instead of being left to land on empty.
+ */
+async function moveEveryoneOff(
+  workspaceId: string,
+  fallbackId: string,
+  database: Pick<CustomShellDb, "update">
+) {
+  await database
+    .update(customShellUsers)
+    .set({ currentWorkspaceId: fallbackId, updatedAt: now() })
+    .where(eq(customShellUsers.currentWorkspaceId, workspaceId))
 }
 
 export function serializeWorkspace(
@@ -1797,6 +2212,9 @@ export function serializeWorkspace(
     name: row.name,
     icon: settings.icon,
     favicon: settings.favicon,
+    subdomain: row.subdomain,
+    customDomain: row.customDomain,
+    status: row.status,
     active: row.id === currentWorkspaceId,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -1835,13 +2253,15 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       // A workspace saved before widgets existed has none, and gets the
       // arrangement it was already looking at.
       dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
-      dismissedUrgent: cleanDismissedUrgent(settings.dismissedUrgent),
       automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
         settings.automationFavoriteNodeKeys
       ),
       broadcastBlockDefaults: cleanBroadcastBlockDefaults(
         settings.broadcastBlockDefaults
       ),
+      // A workspace saved before this moved here has none, which normalizes to
+      // an empty map — every page on "everyone", exactly as a fresh site is.
+      pages: normalizePageOverrides(settings.pages),
     }
   }
 
@@ -1873,13 +2293,13 @@ function cleanWorkspaceSettings(
       : fallback.sidebarWidth,
     styling: normalizeStyling(settings.styling),
     dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
-    dismissedUrgent: cleanDismissedUrgent(settings.dismissedUrgent),
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
     broadcastBlockDefaults: cleanBroadcastBlockDefaults(
       settings.broadcastBlockDefaults
     ),
+    pages: normalizePageOverrides(settings.pages),
   }
 }
 
@@ -1889,7 +2309,9 @@ export async function saveWorkspaceAutomationFavorites(
   favoriteNodeKeys: string[],
   database: CustomShellDb = db
 ): Promise<string[]> {
-  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  // A write, so making one is fair — somebody saving a workspace setting means
+  // to have a workspace. It is *reading* that must never create.
+  const workspace = await startWorkspaceFor(userId, database)
   const settings = {
     ...parseWorkspaceSettings(workspace.settings),
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(favoriteNodeKeys),
@@ -1899,47 +2321,6 @@ export async function saveWorkspaceAutomationFavorites(
     .set({ settings, updatedAt: now() })
     .where(eq(customShellWorkspaces.id, workspace.id))
   return settings.automationFavoriteNodeKeys
-}
-
-/**
- * The urgent rows this workspace has waved off.
- *
- * A plain read, never a get-or-create: drawing a page must not write a row, and
- * by the time anything asks this the shell's own settings read has already made
- * the workspace. Somebody who somehow has none has dismissed nothing.
- */
-export async function readWorkspaceDismissedUrgent(
-  userId: string,
-  database: CustomShellDb = db
-): Promise<string[]> {
-  const workspace = await findCurrentWorkspace(userId, database)
-  if (!workspace) return []
-  return parseWorkspaceSettings(workspace.settings).dismissedUrgent
-}
-
-/**
- * Replaces the urgent rows this workspace has waved off, returning the saved
- * list.
- *
- * The whole list rather than one key, the way the starred palette nodes are
- * saved: dismissing and bringing one back are the same write, and a card that
- * sends what it is holding cannot end up out of step with what was stored.
- */
-export async function saveWorkspaceDismissedUrgent(
-  userId: string,
-  dismissedUrgent: string[],
-  database: CustomShellDb = db
-): Promise<string[]> {
-  const workspace = await getOrCreateCurrentWorkspace(userId, database)
-  const settings = {
-    ...parseWorkspaceSettings(workspace.settings),
-    dismissedUrgent: cleanDismissedUrgent(dismissedUrgent),
-  }
-  await database
-    .update(customShellWorkspaces)
-    .set({ settings, updatedAt: now() })
-    .where(eq(customShellWorkspaces.id, workspace.id))
-  return settings.dismissedUrgent
 }
 
 /**
@@ -1961,7 +2342,8 @@ export async function saveWorkspaceBroadcastBlockDefault(
   block: BroadcastBlock,
   database: CustomShellDb = db
 ): Promise<BroadcastBlockDefaults> {
-  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  // Same as the favourites above: a write may bring a workspace into being.
+  const workspace = await startWorkspaceFor(userId, database)
   const current = parseWorkspaceSettings(workspace.settings)
   const settings = {
     ...current,
@@ -1991,9 +2373,10 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     styling: normalizeStyling(undefined),
     dashboardWidgets: createDefaultDashboardWidgets(),
-    dismissedUrgent: [],
     automationFavoriteNodeKeys: [],
     broadcastBlockDefaults: {},
+    // Nothing hidden. A new site shows every page it has.
+    pages: {},
   }
 }
 

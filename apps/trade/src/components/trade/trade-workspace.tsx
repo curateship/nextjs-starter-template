@@ -9,8 +9,10 @@ import {
   AddWalletDialog,
   WalletSettingsDialog,
 } from "@/components/trade/wallet-dialogs"
+import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
 import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
 import { IndicatorsMenu } from "@/components/trade/indicators-menu"
+import { useChartOptions } from "@/components/trade/use-chart-options"
 import {
   MarketHeader,
   type MarketSelection,
@@ -45,6 +47,7 @@ import {
   type MarketCatalog,
   type NetworkId,
 } from "@/lib/protocols/contracts"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
@@ -119,6 +122,7 @@ export function TradeWorkspace({
   network,
   initialFavoriteKeys,
   initialChartView,
+  initialChartOptions,
   initialIndicators,
   initialCardFolds,
   selectedKey,
@@ -133,6 +137,8 @@ export function TradeWorkspace({
   initialFavoriteKeys: string[]
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
+  /** Which supporting parts of the chart this account has visible. */
+  initialChartOptions: ChartOptions
   /** Which indicators this account has on, and what each is set to. */
   initialIndicators: IndicatorSettings
   /** How the trading windows' settings cards were left folded. */
@@ -249,6 +255,7 @@ export function TradeWorkspace({
   // answer. They belong to the account rather than to the market, exactly like
   // the zoom — an indicator is how you read a chart, not a fact about a coin.
   const indicators = useChartIndicators(initialIndicators)
+  const chartOptions = useChartOptions(initialChartOptions)
 
   // The live feed: one watch per catalog, torn down with the page. When the
   // feed recovers from a gap it refetches the loader's snapshot, so figures
@@ -326,6 +333,7 @@ export function TradeWorkspace({
             <>
               <IntervalPicker value={interval} onChange={setInterval} />
               <IndicatorsMenu indicators={indicators} />
+              <ChartOptionsMenu control={chartOptions} />
             </>
           ) : undefined
         }
@@ -340,6 +348,7 @@ export function TradeWorkspace({
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            options={chartOptions.options}
             indicators={indicators.settings}
             market={selection.kind === "market" ? selection.row : null}
             trading={trading}

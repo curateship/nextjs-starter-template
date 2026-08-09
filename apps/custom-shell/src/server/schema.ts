@@ -1210,13 +1210,26 @@ export const customShellAiUsageAlerts = pgTable(
  * frozen in here as each day happens, so the hash rows it was counted from
  * can be thrown away when the day ends.
  */
-export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
-  day: date("day").primaryKey(),
-  views: integer("views").notNull().default(0),
-  memberViews: integer("member_views").notNull().default(0),
-  visitorViews: integer("visitor_views").notNull().default(0),
-  uniqueVisitors: integer("unique_visitors").notNull().default(0),
-})
+export const customShellTrafficDailyTotals = pgTable(
+  "traffic_daily_totals",
+  {
+    /** The site these are the figures for. Part of the key, not beside it. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    views: integer("views").notNull().default(0),
+    memberViews: integer("member_views").notNull().default(0),
+    visitorViews: integer("visitor_views").notNull().default(0),
+    uniqueVisitors: integer("unique_visitors").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "traffic_daily_totals_pkey",
+      columns: [table.workspaceId, table.day],
+    }),
+  ]
+)
 
 /**
  * Per-day view counts by page, referrer site and device, merged into one
@@ -1227,6 +1240,9 @@ export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
 export const customShellTrafficDailyFacts = pgTable(
   "traffic_daily_facts",
   {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     day: date("day").notNull(),
     dimension: varchar("dimension", { length: 20 }).notNull(),
     key: varchar("key", { length: 160 }).notNull(),
@@ -1235,7 +1251,7 @@ export const customShellTrafficDailyFacts = pgTable(
   (table) => [
     primaryKey({
       name: "traffic_daily_facts_pk",
-      columns: [table.day, table.dimension, table.key],
+      columns: [table.workspaceId, table.day, table.dimension, table.key],
     }),
     check(
       "traffic_daily_facts_dimension_check",
@@ -1253,6 +1269,9 @@ export const customShellTrafficVisits = pgTable(
   "traffic_visits",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     path: varchar("path", { length: 160 }).notNull(),
     referrerDomain: varchar("referrer_domain", { length: 100 }).notNull(),
@@ -1268,7 +1287,10 @@ export const customShellTrafficVisits = pgTable(
       "traffic_visits_audience_check",
       sql`${table.audience} in ('member', 'visitor')`
     ),
-    index("ix_traffic_visits_occurred_at").on(table.occurredAt),
+    index("ix_traffic_visits_workspace_occurred").on(
+      table.workspaceId,
+      table.occurredAt
+    ),
   ]
 )
 
@@ -1280,13 +1302,21 @@ export const customShellTrafficVisits = pgTable(
 export const customShellTrafficVisitors = pgTable(
   "traffic_visitors",
   {
+    /**
+     * Per site, so "unique visitors" means unique to this site. One person
+     * reading two of the deployment's sites is one visitor on each, which is
+     * what each site's own figure should say.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     day: date("day").notNull(),
     visitorHash: varchar("visitor_hash", { length: 64 }).notNull(),
   },
   (table) => [
     primaryKey({
       name: "traffic_visitors_pk",
-      columns: [table.day, table.visitorHash],
+      columns: [table.workspaceId, table.day, table.visitorHash],
     }),
   ]
 )
@@ -1294,6 +1324,18 @@ export const customShellTrafficVisitors = pgTable(
 /**
  * The random ingredient in each day's visitor hashes, swept with the day —
  * which is what makes an old hash truly unrecoverable.
+ *
+ * **One salt for the whole deployment, shared across every site, decided
+ * rather than inherited.** Its job is to stop a visitor being followed from one
+ * day to the next, and it does that whether or not sites share it.
+ *
+ * Giving each site its own would mean the same person reading two of the
+ * deployment's sites hashed differently on each. That sounds like more privacy
+ * and buys none: the hash never leaves this deployment and is thrown away
+ * nightly either way. What it would cost is real — each site would count that
+ * person separately, which is exactly right, and it already does, because the
+ * *visitor* rows are per site while the salt is not. Splitting the salt as well
+ * would change nothing a visitor can feel and add a table's worth of rows.
  */
 export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
   day: date("day").primaryKey(),
@@ -1631,31 +1673,49 @@ export const customShellDeliveries = pgTable(
 )
 
 /**
- * The wording of the app's own emails — verify your address, reset your
+ * The wording of a site's own emails — verify your address, reset your
  * password, and the rest.
  *
- * Not workspace-scoped, unlike everything else about email here. A workspace
- * belongs to one person, and somebody clicking "verify my email" has no
- * workspace yet and no account worth speaking of, so there is nothing to scope
- * these to. There is one set of them and it belongs to the app.
+ * **Per site.** This used to say the opposite, and the reason it gave was "a
+ * workspace belongs to one person, and somebody clicking verify-my-email has no
+ * workspace" — true, and beside the point. The email is not sent on the
+ * reader's behalf; it is sent on the site's, the one they registered on, which
+ * is the domain they were looking at. That is a question with an answer, and a
+ * confirmation email that names the wrong business is the plainest way to lose
+ * somebody's trust.
+ *
+ * A site that has never touched these falls back to the shell's built-in
+ * wording, exactly as an app with one site always did.
  *
  * A missing row is the normal state and means "use the built-in wording". One
  * is written the first time somebody opens that email in the editor.
  */
-export const customShellSystemEmails = pgTable("system_emails", {
-  /** One of SYSTEM_EMAIL_KINDS — see src/lib/system-emails/kinds.ts. */
-  kind: varchar("kind", { length: 60 }).primaryKey(),
-  subject: text("subject").notNull().default(""),
-  preheader: text("preheader").notNull().default(""),
-  fromName: varchar("from_name", { length: 255 }),
-  blocks: jsonb("blocks")
-    .notNull()
-    .default(sql`'[]'::jsonb`),
-  /** Kept in step with the blocks on every save, as a broadcast's is. */
-  renderedHtml: text("rendered_html"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const customShellSystemEmails = pgTable(
+  "system_emails",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** One of SYSTEM_EMAIL_KINDS — see src/lib/system-emails/kinds.ts. */
+    kind: varchar("kind", { length: 60 }).notNull(),
+    subject: text("subject").notNull().default(""),
+    preheader: text("preheader").notNull().default(""),
+    fromName: varchar("from_name", { length: 255 }),
+    blocks: jsonb("blocks")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Kept in step with the blocks on every save, as a broadcast's is. */
+    renderedHtml: text("rendered_html"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "system_emails_pkey",
+      columns: [table.workspaceId, table.kind],
+    }),
+  ]
+)
 
 /**
  * Every attempt at one of the app's own emails, sent or failed.
@@ -1670,6 +1730,18 @@ export const customShellSystemEmailSends = pgTable(
   "system_email_sends",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * Which site's email went out, and empty when there was no site yet.
+     *
+     * Optional on purpose: the first person to register on a fresh install is
+     * sent a verification email before any admin has signed in, so before a
+     * site exists. Requiring this would drop the record of exactly the emails
+     * somebody is most likely to chase.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
     kind: varchar("kind", { length: 60 }).notNull(),
     toEmail: varchar("to_email", { length: 255 }).notNull(),
     subject: text("subject").notNull(),
@@ -1714,9 +1786,23 @@ export const customShellEmailSettings = pgTable("email_settings", {
 
 /**
  * The app's Stripe keys: a live set and a sandbox set, and which is in use.
- * One row for the whole app (id is always "stripe") — billing is app-wide,
- * not per workspace. Secrets are encrypted with `encryptSecret` and never
- * read back to the browser; publishable keys are public by design.
+ * One row for the whole app (id is always "stripe"). Secrets are encrypted
+ * with `encryptSecret` and never read back to the browser; publishable keys
+ * are public by design.
+ *
+ * **App-wide is a live decision, revisited when sites arrived, not an
+ * assumption nobody looked at again.** Per-site keys are only worth having when
+ * the sites take their own money into their own Stripe accounts — a deployment
+ * running several brands for one business bills through one account, and
+ * splitting the keys would buy it nothing but a second place to paste a secret
+ * and a second webhook to get wrong.
+ *
+ * What tips it the other way is a deployment where the sites belong to
+ * *different* businesses. Nothing in the shell does that yet: plans and
+ * subscriptions are app-wide too, so per-site keys alone would leave money
+ * arriving against a plan that belongs to everybody. Splitting this table is
+ * the last step of that job, not the first, and doing it early would look
+ * finished while being wrong.
  */
 export const customShellStripeSettings = pgTable("stripe_settings", {
   id: varchar("id", { length: 36 }).primaryKey(),

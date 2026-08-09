@@ -49,6 +49,9 @@ const ROUTE_TITLES: Record<string, string> = {
   "/_authenticated/admin/ai": "AI",
   "/_authenticated/admin/automations": "Automations",
   "/_authenticated/admin/automations/$automationId": "Automation",
+  "/_authenticated/admin/automations/templates": "Automation templates",
+  "/_authenticated/admin/automations/templates/$templateKey":
+    "Automation template",
   "/_authenticated/admin/billing": "Billing",
   "/_authenticated/admin/contacts": "Contacts",
   "/_authenticated/admin/feedback": "Feedback",
@@ -155,17 +158,43 @@ function RootComponent() {
   useDismissErrorToastOnNavigate()
   useTrafficBeacon()
 
+  // A domain belonging to no workspace is a dead end — a subdomain nobody has
+  // taken, or one whose workspace is switched off. Serving the deployment's own
+  // pages under it would read as if the site were still there, just wearing the
+  // wrong clothes.
+  //
+  // Drawn here rather than thrown from the loader: this route's own `<head>`
+  // and document are built from that same loader data, so throwing leaves them
+  // with nothing and the render fails before any not-found page is reached.
+  const { hostIsUnknown } = Route.useLoaderData()
+
   return (
     <RootDocument>
       <ThemeProvider>
         <TooltipProvider>
           <div data-slot="app-canvas">
-            <Outlet />
+            {hostIsUnknown ? <UnknownHost /> : <Outlet />}
           </div>
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>
     </RootDocument>
+  )
+}
+
+/** What a domain nobody has claimed says. Deliberately tells you nothing else. */
+function UnknownHost() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-muted/60 p-6">
+      <Card className="w-full max-w-md">
+        <CardContent className="flex flex-col gap-2 py-8 text-center">
+          <h1 className="text-lg font-semibold">This address is not in use</h1>
+          <p className="text-sm text-muted-foreground">
+            Nothing is set up to answer here. Check the address and try again.
+          </p>
+        </CardContent>
+      </Card>
+    </main>
   )
 }
 

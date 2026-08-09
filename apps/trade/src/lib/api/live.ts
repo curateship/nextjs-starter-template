@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { parseMarketKey, type PlaceOrderOutcome } from "@/lib/protocols/contracts"
 import type { LiveJournalEntry } from "@/lib/trade/live"
+import type { SmartLadder } from "@/lib/trade/dca"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
 import {
@@ -12,6 +13,7 @@ import {
   placeLiveOrder as placeOrderRow,
   setLiveBrackets as setBracketsRow,
 } from "@/server/trade/live-orders"
+import { listActiveLadders } from "@/server/trade/smart-orders"
 import { listWallets } from "@/server/trade/wallets"
 
 import { describeAuthError } from "./error-message"
@@ -72,17 +74,21 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       positions: PaperPosition[]
       orders: PaperOrder[]
       journal: LiveJournalEntry[]
+      ladders: SmartLadder[]
       /** Each live wallet's name, for the Wallet column. */
       wallets: { id: string; label: string }[]
       unreachable: string[]
     }> => {
       const wallets = await listWallets(context.user.id)
       const portfolio = await loadLivePortfolio(context.user.id, wallets)
+      const liveWallets = wallets.filter((wallet) => wallet.kind === "live")
       return {
         ...portfolio,
-        wallets: wallets
-          .filter((wallet) => wallet.kind === "live")
-          .map((wallet) => ({ id: wallet.id, label: wallet.label })),
+        ladders: await listActiveLadders(
+          context.user.id,
+          liveWallets.map((wallet) => wallet.id)
+        ),
+        wallets: liveWallets.map((wallet) => ({ id: wallet.id, label: wallet.label })),
       }
     }
   )
@@ -155,7 +161,7 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_TAKE_PROFIT_SIDE:
     "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
   LIVE_STOP_SIDE:
-    "A stop has to be where the trade loses — below the entry on a long, above it on a short.",
+    "A stop must stay beyond the current price — below it on a long, above it on a short.",
   LIVE_SIZE: "That size is smaller than this market's smallest step.",
   LIVE_PRICE: "That price cannot be used. Pick a level on the chart again.",
   LIVE_ORDER_ID: "That order id is not one the exchange would recognise.",

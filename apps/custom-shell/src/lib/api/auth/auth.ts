@@ -30,6 +30,7 @@ import {
 } from "@/server/people/email-change"
 import { sendAuthEmail } from "@/server/email/send"
 import { enforceDeliverableEmail } from "@/server/email/deliverability"
+import { mayHaveWorkspace } from "@/lib/app-options"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { googleSignInEnabled } from "@/server/auth/google"
@@ -1044,17 +1045,18 @@ export function serializeUser(user: {
 export async function startWorkspaceFor(
   user: Pick<CustomShellUser, "id" | "role">
 ) {
-  // Admins only. Every sign-in used to make one for everybody, and a member has
-  // no use for a workspace and no way to reach one — they never see the
-  // switcher. The shell's own database had seven, all empty, all called "My
-  // project". See `0048_custom_shell_workspaces_are_for_admins.sql`.
+  // Whoever this app says may have one — admins by default. Every sign-in used
+  // to make one for everybody, and the shell's own database had seven, all
+  // empty, all called "My project", belonging to people who never see the
+  // switcher. See `0048_custom_shell_workspaces_are_for_admins.sql` and
+  // `workspaces.whoMayHave` in `src/lib/app-options.ts`.
   //
-  // The role is compared here rather than through `isAdmin`, which lives in
-  // `@/server/auth/security`. This function is top-level in a file the browser
-  // reaches, so importing that module for it pulled `node:crypto` into the
-  // client bundle and broke the app on load. Inside a handler it would be
-  // stripped; out here it is not.
-  if (user.role !== "admin") return
+  // The role is compared inside `mayHaveWorkspace` rather than through
+  // `isAdmin`, which lives in `@/server/auth/security`. This function is
+  // top-level in a file the browser reaches, so importing that module for it
+  // pulled `node:crypto` into the client bundle and broke the app on load.
+  // Inside a handler it would be stripped; out here it is not.
+  if (!mayHaveWorkspace(user)) return
 
   const { startWorkspaceFor: start, pointAtWorkspaceForHost } = await import(
     "@/server/people/workspaces"

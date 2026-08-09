@@ -146,6 +146,9 @@ many are switched on.
   and not the browser — the same rule as the zoom, and for the same reason: an
   indicator is how you read a chart, not a fact about one coin. It carries onto
   the next market, the next timeframe and the other machine.
+- **The eye after Indicators opens View options.** Its three checkboxes show or
+  hide the chart grid, volume bars and crosshair. All three start on, and each
+  choice follows the account onto the next market, visit and machine.
 - **A change is saved once the settings sit still for a moment**, because
   typing "150" into a field is three changes. A save that does not land is said
   in a toast and **does not undo what was just typed** — the chart is already
@@ -170,6 +173,20 @@ Two of its settings only thin out the arrows and never the dashes, which is the
 answer to "why does that level have a dash but no arrow": **Only mark levels
 going the right way** (a base has to be above the base before it) and **Fewest
 candles between arrows**.
+
+### Smart orders on live wallets
+
+The Smart order is the same ladder on practice, testnet, and real wallets. The
+same state machine owns its base or clicked anchor, rung sizes, two-green entry,
+targets, stops, step-down, reclaim, cancellation, and restart recovery. A live
+ladder stores Hyperliquid's order IDs and reconciles exchange fills before it
+takes another action. If only part of a new ladder is accepted, those orders
+are cancelled and no ladder is saved.
+
+A live ladder requires a second press. The confirmation says whether it is
+testnet or real money, names the wallet, counts the buys, and states the most
+money the ladder can use. Mainnet still cannot sign unless the server's funded
+test switch is deliberately enabled.
 
 ### A stop that rests under the base
 
@@ -208,6 +225,11 @@ it is a port of the QFL automation from the old app rather than anything new.
 An order is placed by right-clicking the candles at the price you want, and
 from then on it lives on the chart as its own line with a coloured bar at the
 right-hand end.
+
+A position's stop can be dragged past its entry after price moves in the
+trade's favour. This trailing stop protects profit. It must remain below the
+current price for a long, or above the current price for a short, so setting it
+does not close the position immediately.
 
 - **A waiting order shows its stop and its target too**, in the same green and
   red as a position's but in a finer dash — they are where the trade will get
@@ -389,6 +411,8 @@ working bar streams beside it.
   carry an amber "Real" badge in every table, and the order window's button
   turns into a said-back-in-dollars question ("Real money in <wallet>: buy
   about $X…") that must be pressed a second time before anything is sent.
+  A live Smart order follows the same rule and confirms the ladder's buy count
+  and maximum cost.
   Figures the exchange did not report (a live position's running fees, a live
   order's leverage) show as dashes, never as made-up zeros. The warning is all
   in front of the press; nothing is said afterwards, real or pretend — see

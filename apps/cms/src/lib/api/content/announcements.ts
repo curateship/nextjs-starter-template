@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement } from "@/server/content/announcements"
 import { adminGet, adminPost, userPost } from "@/server/guards"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
 
@@ -66,16 +67,20 @@ const idListSchema = z.object({
 
 const listAdminFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async (): Promise<{ announcements: Announcement[] }> => {
-    const announcements = await listAnnouncements()
+  .handler(async ({ context }): Promise<{ announcements: Announcement[] }> => {
+    const announcements = await listAnnouncements(
+      await workspaceIdForRequest(context.user.id)
+    )
     return { announcements: announcements.map(serializeAnnouncement) }
   })
 
 const createFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(announcementInputSchema)
-  .handler(async ({ data }): Promise<Announcement> => {
-    return serializeAnnouncement(await createAnnouncement(data))
+  .handler(async ({ data, context }): Promise<Announcement> => {
+    return serializeAnnouncement(
+      await createAnnouncement(await workspaceIdForRequest(context.user.id), data)
+    )
   })
 
 const updateFn = createServerFn({ method: "POST" })
@@ -86,24 +91,34 @@ const updateFn = createServerFn({ method: "POST" })
       announcement: announcementInputSchema,
     })
   )
-  .handler(async ({ data }): Promise<Announcement> => {
+  .handler(async ({ data, context }): Promise<Announcement> => {
     return serializeAnnouncement(
-      await updateAnnouncement(data.announcementId, data.announcement)
+      await updateAnnouncement(
+        await workspaceIdForRequest(context.user.id),
+        data.announcementId,
+        data.announcement
+      )
     )
   })
 
 const retireFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(idListSchema)
-  .handler(async ({ data }): Promise<{ count: number }> => {
-    return retireAnnouncements(data.announcementIds)
+  .handler(async ({ data, context }): Promise<{ count: number }> => {
+    return retireAnnouncements(
+      await workspaceIdForRequest(context.user.id),
+      data.announcementIds
+    )
   })
 
 const deleteFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(idListSchema)
-  .handler(async ({ data }): Promise<{ count: number }> => {
-    return deleteAnnouncements(data.announcementIds)
+  .handler(async ({ data, context }): Promise<{ count: number }> => {
+    return deleteAnnouncements(
+      await workspaceIdForRequest(context.user.id),
+      data.announcementIds
+    )
   })
 
 /** Anyone signed in can hide a banner — for themselves and nobody else. */
@@ -111,7 +126,11 @@ const dismissFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ announcementId: z.string().min(1).max(36) }))
   .handler(async ({ data, context }): Promise<{ announcementId: string }> => {
-    return dismissAnnouncement(context.user.id, data.announcementId)
+    return dismissAnnouncement(
+      await workspaceIdForRequest(context.user.id),
+      context.user.id,
+      data.announcementId
+    )
   })
 
 export function loadAdminAnnouncements() {

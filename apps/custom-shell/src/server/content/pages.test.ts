@@ -58,7 +58,7 @@ async function savedPageMap() {
 }
 
 function factRow(day: string, key: string, views: number) {
-  return { day, dimension: "path", key, views }
+  return { workspaceId: site, day, dimension: "path", key, views }
 }
 
 describe("loadPagesOverview", () => {
@@ -102,7 +102,13 @@ describe("loadPagesOverview", () => {
       // The 31st day back — one outside a 30-day window ending today.
       factRow("2026-07-06", "/pricing", 100),
       // Another dimension's counter for a look-alike key stays out of it.
-      { day: "2026-08-05", dimension: "referrer", key: "/pricing", views: 50 },
+      {
+        workspaceId: site,
+        day: "2026-08-05",
+        dimension: "referrer",
+        key: "/pricing",
+        views: 50,
+      },
       // An address the tracker saw but no page declares gets no row at all.
       factRow("2026-08-05", "/no-such-page", 9),
     ])

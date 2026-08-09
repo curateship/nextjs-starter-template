@@ -282,6 +282,24 @@ async function seedAdminUser(url) {
            updated_at = now()`,
       [adminUser.email, adminUser.name, adminUser.role, adminUser.passwordHash]
     )
+
+    // A workspace, and the admin pointed at it. Reading no longer creates one —
+    // it used to appear on the first signed-in page load, which meant a member
+    // who never sees a workspace still owned one. So a fresh database gets its
+    // first workspace here, deliberately, and only if it has none.
+    await client.query(
+      `insert into workspaces (id, user_id, name, settings, created_at, updated_at)
+       select gen_random_uuid()::text, u.id, 'My project', '{}'::jsonb, now(), now()
+       from users u
+       where u.email = $1 and not exists (select 1 from workspaces)`,
+      [adminUser.email]
+    )
+    await client.query(
+      `update users
+       set current_workspace_id = (select id from workspaces order by created_at asc limit 1)
+       where email = $1 and current_workspace_id is null`,
+      [adminUser.email]
+    )
   } finally {
     await client.end()
   }
