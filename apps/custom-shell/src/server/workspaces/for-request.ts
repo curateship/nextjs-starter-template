@@ -20,12 +20,9 @@ import { answerForRequest } from "@/server/workspaces/host"
  * say — it chooses the workspace at sign-in, in `pointAtWorkspaceForHost`, so
  * somebody who signed in at Alpha's address is in Alpha to begin with.
  *
- * **Signed out there is nothing here to read.** None of these four have a page
- * a stranger can reach — announcements, the changelog, the board and the media
- * library all sit behind signing in. The first thing a visitor genuinely reads
- * is a written page, and that arrives with the task that makes pages belong to
- * a workspace; the answer for a visitor is `answerForRequest` on its own, and
- * it can grow a helper here when something actually calls it.
+ * **Signed out, the domain is the only thing there is**, which is exactly what
+ * a visitor reading a written page should get — see `visitorWorkspaceId` at the
+ * bottom.
  */
 
 /**
@@ -86,4 +83,24 @@ export async function workspaceIdForRequest(
   const workspaceId = await findWorkspaceIdForRequest(userId, database)
   if (!workspaceId) throw new Error("No workspace")
   return workspaceId
+}
+
+/**
+ * The site a visitor with no account is reading, or null when there is none.
+ *
+ * **The domain decides, and nothing else.** A public page belongs to the site
+ * whose address was typed, whoever is looking at it — an admin browsing Beta's
+ * `/about` while signed in to Alpha is reading Beta's page, not Alpha's.
+ *
+ * Returns null rather than throwing, because a public page has to be able to
+ * render something. An address belonging to no site never reaches here: the
+ * root route turns that into a dead end before any page runs.
+ */
+export async function visitorWorkspaceId(
+  database: CustomShellDb = db
+): Promise<string | null> {
+  const answer = await answerForRequest(database)
+  if (answer.kind === "workspace") return answer.workspace.id
+
+  return onlyWorkspaceId(database)
 }

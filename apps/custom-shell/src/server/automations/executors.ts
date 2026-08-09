@@ -17,7 +17,7 @@ import {
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
-import { currentWorkspaceId } from "@/server/people/workspaces"
+import { workspaceForRun } from "@/server/automations/runs"
 import type { AutomationTriggerFacts } from "@/lib/automations/run"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
@@ -111,8 +111,7 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     // The run's own workspace, fixed when it started. Only a run that predates
     // that column falls back to its owner's — looking it up every time is how a
     // flow's audience used to change when its owner switched workspace.
-    const workspaceId =
-      run.workspaceId ?? (await currentWorkspaceId(run.userId, database))
+    const workspaceId = await workspaceForRun(run, database)
     await syncContactsFromUsers(workspaceId, database)
 
     // Looked up here as well as inside the count so the run history can say

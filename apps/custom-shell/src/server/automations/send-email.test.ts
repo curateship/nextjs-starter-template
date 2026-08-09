@@ -6,9 +6,9 @@ import { automationCompiledConfigSchema } from "@/lib/automations/compile"
 import { sendEmailDraftSettingsSchema } from "@/lib/automations/nodes/send-email"
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import {
-  createUserAutomation,
+  createWorkspaceAutomation,
   inspectAutomation,
-  saveUserAutomation,
+  saveWorkspaceAutomation,
 } from "@/server/automations/flows"
 import type { CustomShellDb } from "@/server/db"
 import { setEmailProviderFactoryForTests } from "@/server/email/provider"
@@ -23,7 +23,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
 
 const WORKSPACE_ID = "ws-send-email"
 const EMAIL_NODE_ID = "email"
@@ -56,12 +56,15 @@ const UNSUBSCRIBE_FOOTER = {
 
 let client: PGlite
 let db: CustomShellDb
+/** The site every flow in these tests belongs to. */
+let site: string
 let owner: CustomShellUser
 
 beforeEach(async () => {
   const created = await createTestDatabase()
   client = created.client
   db = created.db
+  site = (await insertWorkspace(db)).id
   owner = await insertUser(db, { role: "admin", email: "owner@example.test" })
   const timestamp = now()
   await db.insert(customShellWorkspaces).values({
@@ -121,6 +124,7 @@ async function insertRun(
   const automationId = uuid()
   await db.insert(customShellAutomations).values({
     id: automationId,
+    workspaceId: site,
     userId: owner.id,
     name: `Send ${automationId}`,
     graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
@@ -438,10 +442,8 @@ describe("Send Email executor", () => {
   })
 
   it("cleans builder markup before an automation is stored", async () => {
-    const automation = await createUserAutomation(owner.id, "Clean me", db)
-    const saved = await saveUserAutomation(
-      owner.id,
-      {
+    const automation = await createWorkspaceAutomation(site, owner.id, "Clean me", db)
+    const saved = await saveWorkspaceAutomation(site, {
         id: automation.id,
         name: automation.name,
         graph: {

@@ -16,9 +16,9 @@ import {
 import { runAutomationTick } from "@/server/automations/engine"
 import {
   automationTriggerName,
-  duplicateUserAutomation,
+  duplicateWorkspaceAutomation,
   inspectAutomation,
-  listUserAutomations,
+  listWorkspaceAutomations,
   setAutomationEnabled,
 } from "@/server/automations/flows"
 import { setAutomationPause } from "@/server/automations/pause"
@@ -39,16 +39,19 @@ import {
   customShellUsers,
   type CustomShellUser,
 } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
 import { now, uuid } from "@/server/auth/security"
 
 let client: PGlite
 let database: CustomShellDb
+/** The site every flow in these tests belongs to. */
+let site: string
 
 beforeEach(async () => {
   const created = await createTestDatabase()
   client = created.client
   database = created.db as unknown as CustomShellDb
+  site = (await insertWorkspace(database)).id
 })
 
 afterEach(async () => {
@@ -112,6 +115,7 @@ async function insertAutomation({
     .insert(customShellAutomations)
     .values({
       id: uuid(),
+      workspaceId: site,
       userId: owner.id,
       name,
       graph,
@@ -221,7 +225,7 @@ describe("switching a flow on", () => {
     })
 
     await expect(
-      setAutomationEnabled(owner.id, flow.id, true, database)
+      setAutomationEnabled(site, flow.id, true, database)
     ).rejects.toThrow("NO_TRIGGER")
   })
 
@@ -234,7 +238,7 @@ describe("switching a flow on", () => {
     })
 
     await expect(
-      setAutomationEnabled(owner.id, flow.id, true, database)
+      setAutomationEnabled(site, flow.id, true, database)
     ).rejects.toThrow("NOT_RUNNABLE")
   })
 
@@ -247,7 +251,7 @@ describe("switching a flow on", () => {
       compile: false,
     })
 
-    const off = await setAutomationEnabled(owner.id, flow.id, false, database)
+    const off = await setAutomationEnabled(site, flow.id, false, database)
     expect(off.enabled).toBe(false)
   })
 
@@ -260,7 +264,7 @@ describe("switching a flow on", () => {
       name: "Recovery",
     })
 
-    const copy = await duplicateUserAutomation(owner.id, flow.id, database)
+    const copy = await duplicateWorkspaceAutomation(site, owner.id, flow.id, database)
 
     // The whole point: duplicating a live recovery flow and forgetting about it
     // would send every member two of everything.
@@ -277,7 +281,7 @@ describe("switching a flow on", () => {
 
     expect(automationTriggerName(inspectAutomation(flow))).toBe("Trial ending")
 
-    const [listed] = await listUserAutomations(owner.id, database)
+    const [listed] = await listWorkspaceAutomations(site, database)
     expect(listed.triggerName).toBe("Trial ending")
     expect(listed.enabled).toBe(false)
   })
@@ -397,18 +401,18 @@ describe("a payment that failed", () => {
   })
 
   it("names the moment and the person in the run's history", async () => {
-    const { owner, subscription, flow } = await setUp()
+    const { subscription, flow } = await setUp()
     await applyStripeEvent(invoiceEvent(subscription.stripeCustomerId!), database)
 
     await runAutomationTick(database)
 
-    const [run] = await listRunsForAutomation(owner.id, flow.id, 0, database).then(
+    const [run] = await listRunsForAutomation(site, flow.id, 0, database).then(
       (page) => page.runs
     )
     expect(run.subjectLabel).toBe("Jane Payer (jane@example.test)")
     expect(run.triggerName).toBe("Payment failed")
 
-    const detail = await getAutomationRun(owner.id, run.id, database)
+    const detail = await getAutomationRun(site, run.id, database)
     expect(detail!.steps[0].summary).toContain("Jane Payer")
     expect(detail!.steps[0].summary).toContain("$19")
   })
@@ -462,7 +466,7 @@ describe("a trial about to run out", () => {
   })
 
   it("calls the run by the moment it was set to, not the node's default", async () => {
-    const { owner, member, flow } = await setUp(3)
+    const { member, flow } = await setUp(3)
     await insertSubscription(member, {
       status: "trialing",
       trialEndsAt: inDays(2),
@@ -473,11 +477,11 @@ describe("a trial about to run out", () => {
     // All three moments share one node kind now, so the name can only come from
     // the run's own copy of the settings. Read from the bare kind it would say
     // "Payment failed" here — the node's first choice — for a trial.
-    const [run] = (await listRunsForAutomation(owner.id, flow.id, 0, database))
+    const [run] = (await listRunsForAutomation(site, flow.id, 0, database))
       .runs
     expect(run.triggerName).toBe("Trial ending")
 
-    const detail = await getAutomationRun(owner.id, run.id, database)
+    const detail = await getAutomationRun(site, run.id, database)
     expect(detail!.steps[0].stepName).toBe("Trial ending")
     expect(detail!.steps[0].summary).toContain("free trial has 2 days left")
   })
@@ -691,6 +695,7 @@ describe("a trigger flow started by hand", () => {
     await database.insert(customShellAutomationRuns).values({
       id: uuid(),
       automationId: flow.id,
+      workspaceId: site,
       userId: owner.id,
       status: "active",
       currentNodeId: automationEntryNodeId(inspected.compiledConfig!)!,
@@ -707,7 +712,7 @@ describe("a trigger flow started by hand", () => {
     const [run] = await runsOf(flow.id)
     expect(run.status).toBe("completed")
 
-    const detail = await getAutomationRun(owner.id, run.id, database)
+    const detail = await getAutomationRun(site, run.id, database)
     expect(detail!.steps[0].summary).toContain("Started by hand")
   })
 })

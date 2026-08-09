@@ -1,5 +1,5 @@
 import { loadNewestAccounts, type AccountRow } from "@/server/people/accounts"
-import { listUserAutomations } from "@/server/automations/flows"
+import { listWorkspaceAutomations } from "@/server/automations/flows"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadFeedsSummary, type FeedsSummary } from "@/server/content/feeds"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -48,7 +48,10 @@ export async function loadAdminOverview(
   const [membership, extras] = await Promise.all([
     loadMembershipSummary(database),
     (async () => {
-      const automations = await listUserAutomations(userId, database)
+      const automations = await listWorkspaceAutomations(
+        await workspaceIdForRequest(userId, database),
+        database
+      )
       // The Overview's table shows what plan somebody is on, which needs the
       // default plan for everyone who is not paying for one.
       const defaultPlan = await getDefaultPlan(database)

@@ -14,6 +14,7 @@ import {
   type AutomationRunRow,
 } from "@/server/automations/runs"
 import { adminGet, adminPost } from "@/server/guards"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import type {
   AutomationApprovalDecision,
@@ -136,7 +137,10 @@ const getAutomationRunFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(runIdSchema)
   .handler(async ({ data, context }): Promise<AutomationRunDetailItem> => {
-    const run = await readAutomationRun(context.user.id, data.runId)
+    const run = await readAutomationRun(
+      await workspaceIdForRequest(context.user.id),
+      data.runId
+    )
     if (!run) throw new Error("NOT_FOUND")
 
     return {
@@ -168,7 +172,11 @@ const runAutomationNowFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<{ runId: string }> => {
-    const run = await startAutomationRun(context.user.id, data.automationId)
+    const run = await startAutomationRun(
+      await workspaceIdForRequest(context.user.id),
+      context.user.id,
+      data.automationId
+    )
     // The run is already saved, so a failure in the walk is the ticker's
     // problem to pick up rather than something to fail the button over.
     await runAutomationTick().catch((error) => {
@@ -183,7 +191,10 @@ const decideApprovalFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     // Ownership first: `decideAutomationApproval` is the shared exit used by the
     // deadline sweep too, so it does not ask whose run it is.
-    const run = await readAutomationRun(context.user.id, data.runId)
+    const run = await readAutomationRun(
+      await workspaceIdForRequest(context.user.id),
+      data.runId
+    )
     if (!run) throw new Error("NOT_FOUND")
 
     const decided = await decideAutomationApproval({
@@ -207,7 +218,10 @@ const deleteAutomationRunFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(runIdSchema)
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
-    const result = await deleteAutomationRuns(context.user.id, [data.runId])
+    const result = await deleteAutomationRuns(
+      await workspaceIdForRequest(context.user.id),
+      [data.runId]
+    )
     return { ok: result.deleted.length > 0 }
   })
 

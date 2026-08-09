@@ -17,6 +17,25 @@ import {
   updateChangelogEntry,
 } from "@/server/content/changelog"
 import { loadFeedsSummary } from "@/server/content/feeds"
+import {
+  readPageVisibility,
+  readWrittenPageForViewer,
+  setPageVisibility,
+} from "@/server/content/pages"
+import {
+  createWrittenPage,
+  deleteWrittenPage,
+  findWrittenPage,
+  listWrittenPages,
+  updateWrittenPage,
+} from "@/server/content/written-pages"
+import {
+  createWorkspaceAutomation,
+  deleteWorkspaceAutomations,
+  getWorkspaceAutomation,
+  listWorkspaceAutomations,
+  saveWorkspaceAutomation,
+} from "@/server/automations/flows"
 import { listOwnedMedia } from "@/server/media/library"
 import { loadMemberHome } from "@/server/people/member-home"
 import { now, uuid } from "@/server/auth/security"
@@ -253,5 +272,116 @@ describe("media stays on its own site", () => {
       pageSize: 20,
     })
     expect(mine.media.map((item) => item.filename)).toEqual(["mine.png"])
+  })
+})
+
+describe("written pages stay on their own site", () => {
+  const words = (text: string) => ({
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  })
+
+  it("lets both sites have an /about, each with its own words", async () => {
+    // The whole reason the unique index had to change. Before this, the second
+    // of these threw and a deployment could serve exactly one site.
+    await createWrittenPage(
+      alpha,
+      { path: "/about", title: "About Alpha", body: words("We are Alpha.") },
+      database
+    )
+    await createWrittenPage(
+      beta,
+      { path: "/about", title: "About Beta", body: words("We are Beta.") },
+      database
+    )
+
+    const onAlpha = await findWrittenPage(alpha, "/about", database)
+    const onBeta = await findWrittenPage(beta, "/about", database)
+    expect(onAlpha?.title).toBe("About Alpha")
+    expect(onBeta?.title).toBe("About Beta")
+  })
+
+  it("makes one site's page a dead end on the other's domain", async () => {
+    await createWrittenPage(
+      beta,
+      { path: "/terms", title: "Beta terms", body: words("Beta's rules.") },
+      database
+    )
+
+    expect(await findWrittenPage(alpha, "/terms", database)).toBeNull()
+    expect(
+      await readWrittenPageForViewer(alpha, "/terms", false, database)
+    ).toEqual({ status: "missing" })
+    expect((await listWrittenPages(alpha, database)).length).toBe(0)
+  })
+
+  it("refuses to edit or delete the other site's page", async () => {
+    const theirs = await createWrittenPage(
+      beta,
+      { path: "/terms", title: "Beta terms", body: words("Beta's rules.") },
+      database
+    )
+
+    await expect(
+      updateWrittenPage(alpha, theirs.id, { title: "Mine now" }, database)
+    ).rejects.toThrow("no longer exists")
+    await expect(
+      deleteWrittenPage(alpha, theirs.id, database)
+    ).rejects.toThrow("no longer exists")
+
+    expect((await findWrittenPage(beta, "/terms", database))?.title).toBe(
+      "Beta terms"
+    )
+  })
+
+  it("hides a page on one site without hiding the other's", async () => {
+    await setPageVisibility(alpha, { path: "/pricing", visibility: "off" }, database)
+
+    expect(await readPageVisibility(alpha, "/pricing", database)).toBe("off")
+    expect(await readPageVisibility(beta, "/pricing", database)).toBe("everyone")
+  })
+})
+
+describe("automations stay on their own site", () => {
+  it("lets both sites name a flow the same thing", async () => {
+    // The old rule was one name per person, so one admin could not run the
+    // same welcome flow on two of their sites.
+    await createWorkspaceAutomation(alpha, alphaPerson, "Welcome", database)
+    await createWorkspaceAutomation(beta, alphaPerson, "Welcome", database)
+
+    expect(
+      (await listWorkspaceAutomations(alpha, database)).map((row) => row.name)
+    ).toEqual(["Welcome"])
+    expect(
+      (await listWorkspaceAutomations(beta, database)).map((row) => row.name)
+    ).toEqual(["Welcome"])
+  })
+
+  it("does not list, open, save or delete the other site's flow", async () => {
+    const theirs = await createWorkspaceAutomation(
+      beta,
+      betaPerson,
+      "Beta welcome",
+      database
+    )
+
+    expect(await listWorkspaceAutomations(alpha, database)).toEqual([])
+    expect(
+      await getWorkspaceAutomation(alpha, theirs.id, database)
+    ).toBeNull()
+    expect(
+      await saveWorkspaceAutomation(
+        alpha,
+        { id: theirs.id, name: "Taken", graph: theirs.graph },
+        database
+      )
+    ).toBeNull()
+    expect(
+      await deleteWorkspaceAutomations(alpha, [theirs.id], database)
+    ).toBe(0)
+
+    expect(
+      (await getWorkspaceAutomation(beta, theirs.id, database))?.name
+    ).toBe("Beta welcome")
   })
 })
