@@ -1,5 +1,5 @@
 import * as React from "react"
-import { GripVerticalIcon, Loader2Icon } from "lucide-react"
+import { GripVerticalIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import type { MarketRow } from "@/lib/protocols/contracts"
+import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
+import { bracketPrice } from "@/lib/trade/brackets"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { isMarketable, type PaperSide } from "@/lib/trade/paper"
@@ -51,7 +52,6 @@ export function ChartQuickOrder({
   real,
   /** Cash free to put behind a trade, from the account panel's own figures. */
   free,
-  busy,
   onPlace,
   onClose,
 }: {
@@ -60,7 +60,11 @@ export function ChartQuickOrder({
   wallet: string
   real: boolean
   free: number
-  busy: boolean
+  /**
+   * Sends the order and returns. Nothing here waits on the exchange: the
+   * window shuts on the press, and the chart draws the order while the answer
+   * is still on its way.
+   */
   onPlace: (input: {
     side: PaperSide
     px: number
@@ -69,10 +73,16 @@ export function ChartQuickOrder({
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
-  }) => Promise<boolean>
+  }) => void
   onClose: () => void
 }) {
   const maxLeverage = Math.max(1, Math.floor(market.maxLeverage ?? 1))
+
+  // Whether this is the practice network, straight off the market's own key —
+  // a live wallet can only trade markets on its own network, so the market is
+  // the truth. It only changes the WORDS: a testnet confirm must never read
+  // as real money.
+  const testnet = parseMarketKey(market.key)?.network === "testnet"
 
   // What the market costs right now. An order asking for a price already
   // through it is taken immediately at this instead, so this — not the level
@@ -148,29 +158,19 @@ export function ChartQuickOrder({
           (free * Math.min(amount, 100) * leverage) / 100 / entryPx
 
 
-  // Judged on the price each percentage works out to, not on the percentage
-  // itself. Which side goes through zero depends on the direction of the
-  // trade: a long's stop does, a short's target does — so testing "under a
-  // hundred" against a fixed field refuses good numbers on one side and lets
-  // impossible ones through on the other.
-  const stop = Number(stopPct)
-  const target = Number(targetPct)
-  const priceAt = (pct: number, winning: boolean): number | null => {
-    if (!Number.isFinite(pct) || pct <= 0) return null
-    const up = winning === buy
-    const px = entryPx * (up ? 1 + pct / 100 : 1 - pct / 100)
-    return px > 0 ? px : null
-  }
-
-  const stopPx = bracketOn ? priceAt(stop, false) : null
-  const targetPx = bracketOn ? priceAt(target, true) : null
+  const stopPx = bracketOn
+    ? bracketPrice({ entryPx, percent: stopPct, long: buy, winning: false })
+    : null
+  const targetPx = bracketOn
+    ? bracketPrice({ entryPx, percent: targetPct, long: buy, winning: true })
+    : null
   const badStop = bracketOn && stopPx === null
   const badTarget = bracketOn && targetPx === null
   const bracketBad = badStop || badTarget
 
-  const ready = sizeCoin > 0 && !bracketBad && !busy
+  const ready = sizeCoin > 0 && !bracketBad
 
-  const submit = async () => {
+  const submit = () => {
     if (!ready) return
     // Real money asks first: the same button, now carrying the order said
     // back in dollars. Nothing is sent until it is pressed again.
@@ -178,7 +178,10 @@ export function ChartQuickOrder({
       setConfirming(true)
       return
     }
-    const placed = await onPlace({
+    // Sent and let go of. The window shuts on the press rather than sitting
+    // there spinning through a round trip to the exchange — the order is
+    // already on the chart, and a refusal arrives as a toast if one comes.
+    onPlace({
       side: quick.side,
       px: quick.px,
       sz: sizeCoin,
@@ -187,7 +190,7 @@ export function ChartQuickOrder({
       tpPx: targetPx,
       slPx: stopPx,
     })
-    if (placed) onClose()
+    onClose()
   }
 
   /** Any edit takes the confirm question back — it was about the old order. */
@@ -258,7 +261,7 @@ export function ChartQuickOrder({
                 value={sizeInput}
                 onChange={(event) => setSizeInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") void submit()
+                  if (event.key === "Enter") submit()
                 }}
                 className="flex-1"
                 placeholder="Size"
@@ -392,10 +395,13 @@ export function ChartQuickOrder({
           </div>
 
           {real && confirming ? (
-            // The order said back in dollars — what real money asks for
-            // before it moves. Pressing the button again is the answer.
+            // The order said back in dollars — what a real exchange order asks
+            // for before it moves. Pressing the button again is the answer.
+            // On the practice network the question still gets asked (it is the
+            // rehearsal for the real thing) but says plainly it is pretend.
             <p className="rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400">
-              Real money in {wallet}: {buy ? "buy" : "sell"} about{" "}
+              {testnet ? `Testnet order in ${wallet} — pretend money` : `Real money in ${wallet}`}
+              : {buy ? "buy" : "sell"} about{" "}
               {formatUsd(sizeCoin * entryPx)} of {market.symbol}
               {takenNow
                 ? `, filling straight away at about ${formatPrice(mark)}`
@@ -409,7 +415,7 @@ export function ChartQuickOrder({
 
           <Button
             type="button"
-            onClick={() => void submit()}
+            onClick={submit}
             disabled={!ready}
             className={cn(
               "w-full text-white",
@@ -418,9 +424,10 @@ export function ChartQuickOrder({
                 : "bg-red-600 hover:bg-red-600/90"
             )}
           >
-            {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
             {real && confirming
-              ? `Confirm — ${buy ? "buy" : "sell"} for real`
+              ? testnet
+                ? `Confirm — ${buy ? "buy" : "sell"} on testnet`
+                : `Confirm — ${buy ? "buy" : "sell"} for real`
               : `${buy ? "Buy" : "Sell"} ${market.symbol}`}
           </Button>
         </div>

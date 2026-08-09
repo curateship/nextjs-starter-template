@@ -20,6 +20,7 @@ import {
   movePaperOrder,
   placePaperOrder,
   setPaperBrackets,
+  updatePaperOrder,
 } from "@/lib/api/paper"
 import {
   cancelLadderRest,
@@ -28,7 +29,10 @@ import {
   placeDcaLadder,
   updateLadderExits,
 } from "@/lib/api/smart-orders"
-import type { CandleInterval } from "@/lib/protocols/contracts"
+import {
+  parseMarketKey,
+  type CandleInterval,
+} from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { DcaParams, SmartLadder } from "@/lib/trade/dca"
 import type { LiveJournalEntry } from "@/lib/trade/live"
@@ -65,6 +69,12 @@ import type { TradeWallet } from "@/lib/trade/wallets"
  * Dragging a line is optimistic. The dropped price is held on screen until a
  * fresh read has landed, because a poll already in flight when the drag
  * finished would otherwise snap the line back to where it was for one frame.
+ *
+ * Placing is optimistic too, and for a plainer reason: the exchange and the
+ * database together take a second or two, and an order that shows nothing for
+ * that long reads as an order that did not go. So the order is drawn the
+ * instant it is asked for, marked as still going, and swapped for the real one
+ * the moment a read lands.
  */
 
 const REFRESH_MS = 4_000
@@ -85,6 +95,13 @@ export type Trading = {
   /** Held across every wallet, practice and real alike. */
   positions: PaperPosition[]
   orders: PaperOrder[]
+  /**
+   * Orders asked for whose answer has not come back yet. Kept apart from the
+   * ones that really exist: the chart draws them so a press is seen at once,
+   * and nothing offers to change or cancel something the server has never
+   * heard of.
+   */
+  placing: PaperOrder[]
   journal: PaperJournalEntry[]
   /** The smart-order ladders still working, across every practice wallet. */
   ladders: SmartLadder[]
@@ -92,6 +109,11 @@ export type Trading = {
   walletNames: ReadonlyMap<string, string>
   /** An action is in flight; the buttons that started it stay disabled. */
   busy: boolean
+  /**
+   * Sends an order and returns straight away. Nothing waits on it: the window
+   * that asked for it has already closed, the chart is already drawing it, and
+   * a refusal arrives as an error toast whenever the exchange gets round to it.
+   */
   place: (input: {
     marketKey: string
     side: PaperSide
@@ -101,9 +123,18 @@ export type Trading = {
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
-  }) => Promise<boolean>
+  }) => void
   move: (walletId: string, orderId: string, px: number) => Promise<void>
   cancel: (walletId: string, orderId: string) => Promise<void>
+  /**
+   * From the order window: how much a waiting order is for, and where it gets
+   * out once it fills. Its price is not here — that is the drag on the chart.
+   */
+  editOrder: (
+    walletId: string,
+    orderId: string,
+    changes: { sz: number; tpPx: number | null; slPx: number | null }
+  ) => Promise<boolean>
   /** From the edit window: says so when it saves, and reports a refusal. */
   setBrackets: (
     walletId: string,
@@ -179,6 +210,8 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   const [dropped, setDropped] = React.useState<ReadonlyMap<string, number>>(
     new Map()
   )
+  // Orders asked for whose answer is still on its way.
+  const [placing, setPlacing] = React.useState<PaperOrder[]>([])
   // Keyed by wallet *and* market: two wallets can hold the same coin, and a
   // drag on one must not move the other one's lines while it saves.
   const [droppedBrackets, setDroppedBrackets] = React.useState<
@@ -347,38 +380,72 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   )
 
   const place: Trading["place"] = React.useCallback(
-    async (input) => {
-      if (!walletId || !wallet) return false
-      if (wallet.kind === "paper") {
-        return await run(
-          () => placePaperOrder({ walletId, ...input }),
-          `${input.side === "buy" ? "Buy" : "Sell"} order placed in ${nameOf(walletId)}.`
-        )
+    (input) => {
+      if (!walletId || !wallet) return
+      const kind = wallet.kind
+      // Drawn at once, before anything is sent. Its own id, never the
+      // server's: this order does not exist anywhere else yet.
+      const ghost: PaperOrder = {
+        id: `placing:${crypto.randomUUID()}`,
+        walletId,
+        marketKey: input.marketKey,
+        side: input.side,
+        px: input.px,
+        sz: input.sz,
+        leverage: input.leverage,
+        maxLeverage: input.leverage,
+        reduceOnly: input.reduceOnly,
+        tpPx: input.tpPx,
+        slPx: input.slPx,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        placing: true,
       }
-      // The real road. The outcome is reported exactly: filled, resting, or
-      // — the one that must never fold into a success — placed but not fully
-      // protected.
-      setPending((count) => count + 1)
-      try {
-        const { outcome } = await placeLiveOrder({ walletId, ...input })
-        toast.success(
-          outcome.status === "filled"
-            ? `${input.side === "buy" ? "Bought" : "Sold"} ${outcome.filledSz ?? input.sz} — real order in ${nameOf(walletId)}.`
-            : `Real ${input.side} order resting in ${nameOf(walletId)}.`
-        )
-        if (outcome.protection === "partial" && outcome.protectionNote) {
-          showErrorToast(outcome.protectionNote)
+      setPlacing((held) => [...held, ghost])
+
+      void (async () => {
+        try {
+          if (kind === "paper") {
+            await placePaperOrder({ walletId, ...input })
+          } else {
+            // The one part of the real road that still speaks up: an order
+            // that went on but whose protection did not is the thing that
+            // must never pass quietly.
+            const { outcome } = await placeLiveOrder({ walletId, ...input })
+            if (outcome.protection === "partial" && outcome.protectionNote) {
+              showErrorToast(outcome.protectionNote)
+            }
+          }
+        } catch (error) {
+          showErrorToast(
+            kind === "paper"
+              ? getPaperErrorMessage(error)
+              : getLiveErrorMessage(error)
+          )
+        } finally {
+          // Held until a read has actually landed, so the line never blinks
+          // out between the answer and the order arriving in the next poll.
+          await refreshUntilLanded()
+          setPlacing((held) => held.filter((one) => one.id !== ghost.id))
         }
-        return true
-      } catch (error) {
-        showErrorToast(getLiveErrorMessage(error))
-        return false
-      } finally {
-        setPending((count) => count - 1)
-        void refresh()
-      }
+      })()
     },
-    [walletId, wallet, run, nameOf, refresh]
+    [walletId, wallet, refreshUntilLanded]
+  )
+
+  const editOrder: Trading["editOrder"] = React.useCallback(
+    async (walletId, orderId, changes) => {
+      if (findOrder(orderId)?.live) {
+        // The chart never offers this on a real order; the guard is for any
+        // other path that might.
+        showErrorToast(
+          "A real order cannot be changed in place yet — cancel it and place a new one."
+        )
+        return false
+      }
+      return await run(() => updatePaperOrder({ walletId, orderId, ...changes }))
+    },
+    [run, findOrder]
   )
 
   const move: Trading["move"] = React.useCallback(
@@ -420,23 +487,18 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   const cancel: Trading["cancel"] = React.useCallback(
     async (walletId, orderId) => {
       // Cancelling costs nothing and the × on the chart has to stay instant,
-      // so there is no question asked first. The toast names the wallet
-      // instead: cancelling in the wrong one is then obvious at once.
+      // so there is no question asked first — and nothing is said afterwards
+      // either: the line disappearing is the answer.
       const order = findOrder(orderId)
       if (order?.live) {
-        await runWith(
-          getLiveErrorMessage,
-          () => cancelLiveOrder({ walletId, marketKey: order.marketKey, orderId }),
-          `Real order cancelled in ${nameOf(walletId)}.`
+        await runWith(getLiveErrorMessage, () =>
+          cancelLiveOrder({ walletId, marketKey: order.marketKey, orderId })
         )
         return
       }
-      await run(
-        () => cancelPaperOrder(walletId, orderId),
-        `Order cancelled in ${nameOf(walletId)}.`
-      )
+      await run(() => cancelPaperOrder(walletId, orderId))
     },
-    [run, runWith, nameOf, findOrder]
+    [run, runWith, findOrder]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
@@ -492,10 +554,13 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   const close: Trading["close"] = React.useCallback(
     async (walletId, marketKey) => {
       if (findPosition(walletId, marketKey)?.live) {
+        // The market key names its network, and the words follow it — a
+        // testnet close must never announce itself as real money.
+        const testnet = parseMarketKey(marketKey)?.network === "testnet"
         await runWith(
           getLiveErrorMessage,
           () => closeLivePosition(walletId, marketKey),
-          `Real position closed in ${nameOf(walletId)}.`
+          `${testnet ? "Testnet" : "Real"} position closed in ${nameOf(walletId)}.`
         )
         return
       }
@@ -609,12 +674,14 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     walletNames,
     positions,
     orders,
+    placing,
     journal,
     ladders: paperAnswer?.ladders ?? [],
     busy: pending > 0,
     place,
     move,
     cancel,
+    editOrder,
     setBrackets,
     dragBrackets,
     close,

@@ -15,6 +15,11 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { parseMarketKey } from "@/lib/protocols/contracts"
+import {
+  bracketPercent,
+  bracketPrice,
+  bracketTyped,
+} from "@/lib/trade/brackets"
 import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
 import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
 
@@ -30,12 +35,6 @@ import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
  * Leaving a box empty removes that side. That is the only way to clear one,
  * and it is why the boxes start empty when nothing is set.
  */
-
-/** From a price back to the distance it sits at, for filling the boxes in. */
-function percentFrom(entryPx: number, px: number | null): string {
-  if (px === null || !(entryPx > 0)) return ""
-  return String(Number((Math.abs(px - entryPx) / entryPx * 100).toFixed(4)))
-}
 
 export function BracketsDialog({
   position,
@@ -92,33 +91,29 @@ function BracketsForm({
   onClose: () => void
 }) {
   const [targetPct, setTargetPct] = React.useState(() =>
-    percentFrom(position.entryPx, position.tpPx)
+    bracketPercent(position.entryPx, position.tpPx)
   )
   const [stopPct, setStopPct] = React.useState(() =>
-    percentFrom(position.entryPx, position.slPx)
+    bracketPercent(position.entryPx, position.slPx)
   )
 
   const long = position.szi > 0
   const symbol = parseMarketKey(position.marketKey)?.marketId ?? position.marketKey
 
-  // A percentage far enough the wrong way takes the price through zero, and
-  // which side that happens on depends on the direction of the trade. Testing
-  // the price it works out to covers both without a rule per side.
-  const priceAt = (input: string, winning: boolean): number | null => {
-    const pct = Number(input.trim())
-    if (input.trim() === "" || !Number.isFinite(pct) || pct <= 0) return null
-    const up = winning === long
-    const px = position.entryPx * (up ? 1 + pct / 100 : 1 - pct / 100)
-    return px > 0 ? px : null
-  }
-
-  const tpPx = priceAt(targetPct, true)
-  const slPx = priceAt(stopPct, false)
-
-  const typedButBad = (input: string, px: number | null) =>
-    input.trim() !== "" && px === null
-  const badTarget = typedButBad(targetPct, tpPx)
-  const badStop = typedButBad(stopPct, slPx)
+  const tpPx = bracketPrice({
+    entryPx: position.entryPx,
+    percent: targetPct,
+    long,
+    winning: true,
+  })
+  const slPx = bracketPrice({
+    entryPx: position.entryPx,
+    percent: stopPct,
+    long,
+    winning: false,
+  })
+  const badTarget = bracketTyped(targetPct, tpPx)
+  const badStop = bracketTyped(stopPct, slPx)
 
   const save = async () => {
     if (badTarget || badStop) return

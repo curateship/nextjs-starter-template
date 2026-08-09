@@ -12,6 +12,7 @@ import {
 } from "@/components/trade/chart-quick-order"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
+import { OrderEditDialog } from "@/components/trade/order-edit-dialog"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
@@ -37,6 +38,7 @@ import {
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { SmartLadder } from "@/lib/trade/dca"
+import type { PaperOrder } from "@/lib/trade/paper"
 import {
   indicatorPaint,
   type IndicatorSettings,
@@ -167,6 +169,8 @@ export function ChartPanel({
   // Stopping a ladder cancels every waiting rung at once, so unlike a single
   // order's × it asks first.
   const [cancelFor, setCancelFor] = React.useState<SmartLadder | null>(null)
+  // The waiting order opened from its own bar on the chart.
+  const [editing, setEditing] = React.useState<PaperOrder | null>(null)
   const plotRef = React.useRef<HTMLDivElement | null>(null)
   const surfaceRef = React.useRef<ChartSurface | null>(null)
   const readSurface = React.useCallback((next: ChartSurface) => {
@@ -189,6 +193,7 @@ export function ChartPanel({
     setPreview(null)
     setExitsFor(null)
     setCancelFor(null)
+    setEditing(null)
   }
 
   const openMenu = (event: React.MouseEvent) => {
@@ -220,9 +225,36 @@ export function ChartPanel({
     return ids
   }, [trading.ladders])
   const looseOrders = React.useMemo(
-    () => trading.orders.filter((order) => !ladderOrderIds.has(order.id)),
-    [trading.orders, ladderOrderIds]
+    () => [
+      ...trading.orders.filter((order) => !ladderOrderIds.has(order.id)),
+      // Orders asked for whose answer has not landed yet, so a press shows on
+      // the chart at once instead of a second or two later.
+      ...trading.placing,
+    ],
+    [trading.orders, trading.placing, ladderOrderIds]
   )
+
+  // The open window follows the poll, because the order under it can move: the
+  // line can be dragged to another price, and everything the window works out
+  // is measured from that price. It is compared by what the window actually
+  // reads, so an identical row arriving every four seconds costs nothing.
+  //
+  // An order that has gone — filled, or cancelled in another tab — leaves the
+  // window standing on what it last saw rather than vanishing mid-typing.
+  // Pressing Save then says so plainly, which is the server's own answer.
+  const polled = editing
+    ? (trading.orders.find((one) => one.id === editing.id) ?? null)
+    : null
+  if (
+    polled &&
+    editing &&
+    (polled.px !== editing.px ||
+      polled.sz !== editing.sz ||
+      polled.tpPx !== editing.tpPx ||
+      polled.slPx !== editing.slPx)
+  ) {
+    setEditing(polled)
+  }
 
   /**
    * Dragging a stop or target the ladder was aiming: the drag wins — that is
@@ -385,6 +417,11 @@ export function ChartPanel({
                   onCancelOrder={(walletId, orderId) =>
                     void trading.cancel(walletId, orderId)
                   }
+                  onEditOrder={(orderId) =>
+                    setEditing(
+                      trading.orders.find((one) => one.id === orderId) ?? null
+                    )
+                  }
                   entryBadge={(position) => {
                     const ladder = trading.ladders.find(
                       (one) =>
@@ -476,13 +513,16 @@ export function ChartPanel({
           // the order back in dollars before anything is sent.
           real={trading.wallet?.kind === "live"}
           free={free}
-          busy={trading.busy}
           onClose={() => setQuick(null)}
-          onPlace={(input) =>
-            trading.place({ marketKey: market.key, ...input })
-          }
+          onPlace={(input) => trading.place({ marketKey: market.key, ...input })}
         />
       ) : null}
+      <OrderEditDialog
+        order={editing}
+        busy={trading.busy}
+        onSave={trading.editOrder}
+        onClose={() => setEditing(null)}
+      />
       {smart && market ? (
         <SmartOrderDialog
           state={smart}
