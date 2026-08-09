@@ -54,6 +54,7 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import {
@@ -152,6 +153,10 @@ export function AutomationEditor({
   const togglePalette = usePanelToggle(palettePanelRef)
   const toggleInspector = usePanelToggle(inspectorPanelRef)
   const toggleRuns = usePanelToggle(runsPanelRef)
+
+  // Shut, the runs panel is exactly its own tab row, and that row's line would
+  // sit on top of the panel's bottom edge. See `headerOnly`.
+  const runsShut = usePanelCollapsed(runsPanelRef)
 
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
@@ -784,8 +789,12 @@ export function AutomationEditor({
               // be dragged back open.
               collapsible
               collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+              onResize={runsShut.onResize}
             >
-              <WorkspacePanel onDoubleClick={runsDoubleClick}>
+              <WorkspacePanel
+                onDoubleClick={runsDoubleClick}
+                headerOnly={runsShut.collapsed}
+              >
                 {runsPanel}
               </WorkspacePanel>
             </ResizablePanel>

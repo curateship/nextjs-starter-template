@@ -19,6 +19,31 @@ export function usePanelToggle(
 }
 
 /**
+ * Whether a panel is currently shut, as a value a component can draw with.
+ *
+ * The panel library answers `isCollapsed()` when asked but never says so on its
+ * own — no callback, no attribute — so the only way to draw differently while a
+ * panel is shut is to ask after every resize and remember the answer.
+ *
+ * Spread `onResize` onto the panel and read `collapsed`. The first read happens
+ * on mount as well, because a remembered layout can start collapsed and no
+ * resize ever fires for it.
+ */
+export function usePanelCollapsed(
+  panelRef: React.RefObject<PanelImperativeHandle | null>
+) {
+  const [collapsed, setCollapsed] = React.useState(false)
+
+  const read = React.useCallback(() => {
+    setCollapsed(panelRef.current?.isCollapsed() ?? false)
+  }, [panelRef])
+
+  React.useEffect(read, [read])
+
+  return { collapsed, onResize: read }
+}
+
+/**
  * Things a double-click already means something on, so it must never also
  * shut the panel: anything clickable, anything typed into, and anything
  * dragged. A double-click landing inside one of these is that control's.
