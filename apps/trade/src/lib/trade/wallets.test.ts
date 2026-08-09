@@ -1,6 +1,31 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  cleanAgentKey,
+  describeAgentKeyProblem,
+} from "@/lib/trade/wallets"
+
+describe("cleaning a pasted key", () => {
+  const KEY = "ab".repeat(32)
+
+  it("strips spaces, newlines and invisible characters", () => {
+    expect(cleanAgentKey(` 0x${KEY}\n`)).toBe(`0x${KEY}`)
+    expect(cleanAgentKey(`0x\u200B${KEY}\uFEFF`)).toBe(`0x${KEY}`)
+  })
+
+  it("says exactly what is wrong, without echoing the key", () => {
+    expect(describeAgentKeyProblem(`0x${KEY}`)).toBeNull()
+    expect(describeAgentKeyProblem(`0x\u200B${KEY}`)).toBeNull()
+    expect(describeAgentKeyProblem(`0x0x${KEY}`)).toContain("0x twice")
+    expect(describeAgentKeyProblem(`0x${"ab".repeat(20)}`)).toContain("address")
+    expect(describeAgentKeyProblem(`0x${"ab".repeat(31)}zz`)).toContain('("z")')
+    expect(describeAgentKeyProblem(`0x${"ab".repeat(30)}`)).toContain(
+      "60 characters"
+    )
+  })
+})
+
+import {
   isAgentKey,
   isWalletAddress,
   shortenAddress,

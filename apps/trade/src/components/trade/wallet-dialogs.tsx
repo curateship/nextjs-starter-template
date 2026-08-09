@@ -33,6 +33,8 @@ import {
 } from "@/lib/api/wallets"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
+  cleanAgentKey,
+  describeAgentKeyProblem,
   isAgentKey,
   isWalletAddress,
   MAX_STARTING_BALANCE,
@@ -162,8 +164,11 @@ export function AddWalletDialog({
           : null
         : !isWalletAddress(address.trim())
           ? "Enter the account's address — 0x followed by 40 characters."
-          : !isAgentKey(agentKey.trim())
-            ? "Enter the trading key — 64 characters of hex."
+          : !isAgentKey(cleanAgentKey(agentKey))
+            ? // Precise about WHAT is wrong with the paste — an invisible
+              // character or a stray 0x looks perfect on screen, and "64
+              // characters of hex" alone sends people counting in vain.
+              `That key does not read right. ${describeAgentKeyProblem(agentKey) ?? ""}`
             : null
 
   const handleAdd = async () => {
@@ -189,7 +194,7 @@ export function AddWalletDialog({
               protocol: "hyperliquid",
               network,
               address: address.trim(),
-              agentKey: agentKey.trim(),
+              agentKey: cleanAgentKey(agentKey),
             }
       )
       toast.success(`Added "${wallet.label}".`)
@@ -296,7 +301,8 @@ export function AddWalletDialog({
                           id="wallet-key"
                           value={agentKey}
                           aria-invalid={
-                            (agentKey !== "" && !isAgentKey(agentKey.trim())) ||
+                            (agentKey !== "" &&
+                              !isAgentKey(cleanAgentKey(agentKey))) ||
                             undefined
                           }
                           onChange={(event) => setAgentKey(event.target.value)}
@@ -399,8 +405,8 @@ function WalletSettingsWindow({
       : wallet.kind === "paper" &&
           !(balanceNumber > 0 && balanceNumber <= MAX_STARTING_BALANCE)
         ? "Enter the cash a practice wallet starts with."
-        : agentKey !== "" && !isAgentKey(agentKey.trim())
-          ? "Enter the whole trading key — 64 characters of hex."
+        : agentKey !== "" && !isAgentKey(cleanAgentKey(agentKey))
+          ? `That key does not read right. ${describeAgentKeyProblem(agentKey) ?? ""}`
           : null
 
   const handleSave = async () => {
@@ -420,7 +426,7 @@ function WalletSettingsWindow({
           id: wallet.id,
           ...(label !== wallet.label ? { label: label.trim() } : {}),
           ...(balanceDirty ? { startingBalance: balanceNumber } : {}),
-          ...(agentKey !== "" ? { agentKey: agentKey.trim() } : {}),
+          ...(agentKey !== "" ? { agentKey: cleanAgentKey(agentKey) } : {}),
         })
       }
       if (makeActive) onUse(wallet.id)
@@ -553,7 +559,8 @@ function WalletSettingsWindow({
                             value={agentKey}
                             placeholder="Leave blank to keep the current key"
                             aria-invalid={
-                              (agentKey !== "" && !isAgentKey(agentKey.trim())) ||
+                              (agentKey !== "" &&
+                                !isAgentKey(cleanAgentKey(agentKey))) ||
                               undefined
                             }
                             onChange={(event) => setAgentKey(event.target.value)}

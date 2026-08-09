@@ -6,6 +6,7 @@ import {
   fetchHyperliquidPortfolio,
   formatPx,
   formatSize,
+  venueAssetId,
 } from "@/server/protocols/hyperliquid/orders"
 import {
   assertRealOrdersAllowed,
@@ -17,8 +18,10 @@ import {
 // The portfolio read is tested against fixtures, not the network.
 const clearinghouseState = vi.fn()
 const frontendOpenOrders = vi.fn()
+const perpDexs = vi.fn()
+const meta = vi.fn()
 vi.mock("@/server/protocols/hyperliquid/client", () => ({
-  infoClient: () => ({ clearinghouseState, frontendOpenOrders }),
+  infoClient: () => ({ clearinghouseState, frontendOpenOrders, perpDexs, meta }),
 }))
 
 /** The canonical test key: private key 1, whose address is well known. */
@@ -94,10 +97,25 @@ describe("the signing rules", () => {
   })
 })
 
+describe("the asset-id rule", () => {
+  it("numbers the main venue by position and hosted venues by slot", () => {
+    expect(venueAssetId(0, 3)).toBe(3)
+    // The SDK's own example: the first hosted venue's first asset is 110000.
+    expect(venueAssetId(1, 0)).toBe(110_000)
+    expect(venueAssetId(2, 7)).toBe(120_007)
+  })
+})
+
 describe("reading the portfolio", () => {
   beforeEach(() => {
     clearinghouseState.mockReset()
     frontendOpenOrders.mockReset()
+    perpDexs.mockReset()
+    meta.mockReset()
+    // One main venue unless a test says otherwise. The venue list is cached
+    // between calls inside the module, so answers must stay consistent.
+    perpDexs.mockResolvedValue([null])
+    meta.mockResolvedValue({ universe: [] })
   })
 
   it("folds position-protection triggers into their position, lists the rest", async () => {
@@ -176,6 +194,82 @@ describe("reading the portfolio", () => {
       sz: 2,
       trigger: false,
     })
+  })
+
+  it("folds entry-attached brackets too — reduce-only triggers without the position flag", async () => {
+    clearinghouseState.mockResolvedValue({
+      assetPositions: [
+        {
+          position: {
+            coin: "BTC",
+            szi: "0.5",
+            entryPx: "100000",
+            leverage: { value: 5 },
+            liquidationPx: null,
+            marginUsed: "10000",
+          },
+        },
+      ],
+    })
+    frontendOpenOrders.mockResolvedValue([
+      {
+        coin: "BTC",
+        side: "A",
+        limitPx: "90000",
+        sz: "0.5",
+        oid: 21,
+        isTrigger: true,
+        triggerPx: "90000",
+        isPositionTpsl: false,
+        reduceOnly: true,
+        orderType: "Stop Market",
+      },
+    ])
+
+    const portfolio = await fetchHyperliquidPortfolio("mainnet", TEST_ADDRESS)
+    expect(portfolio.positions[0].slPx).toBe(90_000)
+    expect(portfolio.positions[0].slOrderId).toBe("21")
+    expect(portfolio.orders).toHaveLength(0)
+  })
+
+  it("reads every venue and keeps its markets namespaced", async () => {
+    // Testnet on purpose: the venue list is cached per network for a while,
+    // and the mainnet tests above have already primed theirs as main-only.
+    perpDexs.mockResolvedValue([null, { name: "xyz" }])
+    meta.mockImplementation(async ({ dex }: { dex: string }) =>
+      dex === "xyz"
+        ? { universe: [{ name: "IBM", szDecimals: 2 }] }
+        : { universe: [{ name: "BTC", szDecimals: 5 }] }
+    )
+    clearinghouseState.mockImplementation(async ({ dex }: { dex: string }) =>
+      dex === "xyz"
+        ? {
+            assetPositions: [
+              {
+                position: {
+                  // The venue names its coins prefixed already — the rule
+                  // must not double it into "xyz:xyz:IBM".
+                  coin: "xyz:IBM",
+                  szi: "0.69",
+                  entryPx: "224.82",
+                  leverage: { value: 1 },
+                  liquidationPx: null,
+                  marginUsed: "155",
+                },
+              },
+            ],
+          }
+        : { assetPositions: [] }
+    )
+    frontendOpenOrders.mockResolvedValue([])
+
+    const portfolio = await fetchHyperliquidPortfolio(
+      "testnet",
+      `0x${"9".repeat(40)}`
+    )
+    expect(portfolio.positions).toHaveLength(1)
+    expect(portfolio.positions[0].marketId).toBe("xyz:IBM")
+    expect(portfolio.positions[0].marginUsed).toBe(155)
   })
 
   it("skips flat positions and fails loudly on unreadable figures", async () => {

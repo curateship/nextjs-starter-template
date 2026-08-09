@@ -156,7 +156,7 @@ export const getWalletErrorMessage = createErrorMessage(
     KEY_IS_ACCOUNT:
       "That is the account's MAIN key — the one that can move money out — and it is never stored here. On Hyperliquid, create an API key (a limited trading key) and paste that instead.",
     KEY_NOT_APPROVED:
-      "Hyperliquid does not list that key as approved to trade for this account. Check it is the API key you created for exactly this account.",
+      "Hyperliquid does not list that key as approved for this account. The usual cause: Hyperliquid only shows a key at the moment it is generated, and only the generation you pressed Authorize on counts — if you generated more than once, copy the key and authorize in the same breath, then paste that one.",
     KEY_EXPIRED:
       "That trading key's approval has run out. Create a fresh API key on Hyperliquid and paste it.",
     KEY_CHECK_UNAVAILABLE:

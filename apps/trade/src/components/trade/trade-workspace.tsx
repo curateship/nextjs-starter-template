@@ -43,6 +43,7 @@ import {
   parseMarketKey,
   type CandleInterval,
   type MarketCatalog,
+  type NetworkId,
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -115,6 +116,7 @@ function resolveSelection(
 export function TradeWorkspace({
   catalogs,
   marketsError,
+  network,
   initialFavoriteKeys,
   initialChartView,
   initialIndicators,
@@ -126,6 +128,8 @@ export function TradeWorkspace({
   catalogs: MarketCatalog[]
   /** The exchange call failed at load; the list shows this instead of rows. */
   marketsError: string | null
+  /** Which network the whole page is showing — resolved by the route. */
+  network: NetworkId
   initialFavoriteKeys: string[]
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
@@ -294,6 +298,7 @@ export function TradeWorkspace({
     <MarketListPanel
       catalogs={catalogs}
       marketsError={marketsError}
+      network={network}
       favorites={favorites}
       selectedKey={selectedKey}
       onSelect={onSelectMarket}
