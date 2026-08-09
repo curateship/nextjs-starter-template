@@ -35,6 +35,8 @@ export type ProtocolCapabilities = {
   markets: boolean
   /** Can read what an account at an address holds and is worth. */
   accounts: boolean
+  /** Can sign and place real orders for a live wallet. */
+  orders: boolean
 }
 
 /**
@@ -199,6 +201,91 @@ export type WalletAccountFigures = {
   inTrades: number
   /** What the open positions are up or down right now, in dollars. */
   openProfit: number
+}
+
+/**
+ * One real position a live wallet holds, in the app's own words. Everything
+ * here is the exchange's OWN answer — margin held and the liquidation price
+ * come from the exchange, never re-derived, because for a real account the
+ * exchange's number is the one that will actually be enforced.
+ */
+export type WalletPosition = {
+  /** The exchange's own id for the market. */
+  marketId: string
+  /** How much is held, signed: positive long, negative short. */
+  szi: number
+  entryPx: number
+  leverage: number
+  /** Dollars the exchange says this position is holding as margin. */
+  marginUsed: number
+  /** Where the exchange takes the trade away, or null when it says nothing. */
+  liquidationPx: number | null
+  /** The protection riding on the position, read back from its trigger orders. */
+  tpPx: number | null
+  slPx: number | null
+  /** The exchange's ids for those protection legs — needed to replace them. */
+  tpOrderId: string | null
+  slOrderId: string | null
+}
+
+/** One real order still waiting on the exchange. */
+export type WalletOpenOrder = {
+  /** The exchange's own id for the order. */
+  orderId: string
+  marketId: string
+  side: "buy" | "sell"
+  px: number
+  sz: number
+  reduceOnly: boolean
+  /** Waits at a trigger price rather than resting in the book. */
+  trigger: boolean
+}
+
+/** Everything a live wallet holds and has waiting, in one read. */
+export type WalletPortfolio = {
+  positions: WalletPosition[]
+  orders: WalletOpenOrder[]
+}
+
+/**
+ * What a protocol needs before it may sign anything: the trading key, alive
+ * for this one call only, and the counter that hands out order numbers. The
+ * counter lives with the app's database so two requests — or a future
+ * background worker — can never hand the exchange the same number twice.
+ */
+export type OrderAuth = {
+  agentKey: string
+  /** The next always-rising order number for this signing address. */
+  allocateNonce: (signerAddress: string) => Promise<number>
+}
+
+export type PlaceOrderParams = {
+  marketId: string
+  side: "buy" | "sell"
+  /** "market" fills now at a slippage-capped price; "limit" waits at `px`. */
+  kind: "market" | "limit"
+  px: number
+  sz: number
+  reduceOnly: boolean
+  /** Set when opening fresh; null leaves the account's own setting alone. */
+  leverage: number | null
+  tpPx: number | null
+  slPx: number | null
+}
+
+/**
+ * What actually happened to a placed order. `protection` is the honesty flag
+ * this app's rules require: "partial" means the entry stands but a stop or
+ * take-profit leg was refused — which must be said out loud, never folded
+ * into a success.
+ */
+export type PlaceOrderOutcome = {
+  status: "resting" | "filled"
+  orderId: string | null
+  avgPx: number | null
+  filledSz: number | null
+  protection: "ok" | "partial" | null
+  protectionNote: string | null
 }
 
 /**

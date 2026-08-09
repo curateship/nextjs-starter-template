@@ -360,6 +360,13 @@ working bar streams beside it.
   hover too easy to miss, the labels come back on screen.)
 - **Every icon-only control has a label**, focus stays visible, and every panel
   is reachable with the Tab key alone.
+- **A real dollar never reads as a pretend one.** Rows a live wallet owns
+  carry an amber "Real" badge in every table; real orders say "real" in their
+  toasts; and the order window's button turns into a said-back-in-dollars
+  question ("Real money in <wallet>: buy about $X…") that must be pressed a
+  second time before anything is sent. Figures the exchange did not report
+  (a live position's running fees, a live order's leverage) show as dashes,
+  never as made-up zeros.
 
 ## Where the navigation lives
 

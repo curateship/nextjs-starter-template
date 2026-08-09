@@ -302,9 +302,9 @@ export function AddWalletDialog({
                           onChange={(event) => setAgentKey(event.target.value)}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Stored encrypted and only ever used to sign orders.
-                          Whether it really signs for this account is checked when
-                          you place your first order.
+                          The API key from Hyperliquid — never the account&apos;s
+                          main key. It is checked with Hyperliquid before saving,
+                          stored encrypted, and only ever used to sign orders.
                         </p>
                       </div>
                     </>

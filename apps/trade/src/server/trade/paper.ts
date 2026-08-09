@@ -174,8 +174,13 @@ export type WalletBook = {
   cash: number
   positions: Map<string, PaperPosition>
   orders: PaperOrder[]
-  /** Fills to record, in the order they happened. */
-  fills: PaperJournalEntry[]
+  /**
+   * Fills to record, in the order they happened. Narrower than the display
+   * type on purpose: everything this engine writes IS a fill, with a side
+   * and a fill reason — the nullable/live variants belong to the live
+   * journal, never to this table.
+   */
+  fills: Array<PaperJournalEntry & { side: PaperSide; reason: PaperFillReason }>
   /** Markets whose position row must be rewritten or removed. */
   touchedMarkets: Set<string>
   /** Orders that filled or were cancelled by the engine. */

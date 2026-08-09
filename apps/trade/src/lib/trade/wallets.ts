@@ -33,6 +33,11 @@ export type TradeWallet = {
   address: string | null
   /** A trading key is stored (encrypted, server-side only). */
   hasKey: boolean
+  /**
+   * When the exchange says the stored trading key runs out, epoch ms — asked
+   * at save time. Null on paper wallets and on approvals with no expiry.
+   */
+  keyValidUntil: number | null
 }
 
 /**
@@ -84,8 +89,9 @@ export function isWalletAddress(value: string): boolean {
 
 /**
  * A Hyperliquid agent/API private key: 32 bytes of hex, 0x optional. Only the
- * shape is checkable here — whether it really signs for the account is only
- * provable by placing an order, which a later task does.
+ * shape is checkable here in the browser. Whether it really signs for the
+ * account — and is a limited helper key rather than the account's own — is
+ * proved server-side against the exchange before the key is ever saved.
  */
 export function isAgentKey(value: string): boolean {
   return /^(0x)?[0-9a-fA-F]{64}$/.test(value)

@@ -205,7 +205,9 @@ export function TradeLinesLayer({
       onRemove: badge?.onRemove ?? undefined,
     })
 
-    const liq = liquidationPx(position)
+    // A real position's liquidation price is the exchange's own answer; the
+    // formula is for practice positions, where this app IS the exchange.
+    const liq = position.live ? position.live.liquidationPx : liquidationPx(position)
     if (liq !== null) {
       lines.push({
         id: `liq:${position.id}`,
@@ -264,7 +266,11 @@ export function TradeLinesLayer({
       price: order.px,
       label: () =>
         `${order.side === "buy" ? "Buy" : "Sell"} ${order.sz}${whose(order.walletId)}`,
-      onMove: (price) => onMoveOrder(order.walletId, order.id, price),
+      // A real resting order cannot be dragged to a new price yet — changing
+      // it in place is the edit-orders task. Its × still cancels.
+      onMove: order.live
+        ? undefined
+        : (price) => onMoveOrder(order.walletId, order.id, price),
       onRemove: () => onCancelOrder(order.walletId, order.id),
     })
   }

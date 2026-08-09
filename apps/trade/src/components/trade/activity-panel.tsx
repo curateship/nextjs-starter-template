@@ -7,7 +7,7 @@ import {
   OpenOrdersTable,
   PositionsTable,
 } from "@/components/trade/positions-table"
-import type { PaperTrading } from "@/components/trade/use-paper-trading"
+import type { Trading } from "@/components/trade/use-trading"
 import {
   WorkspacePanelTab,
   WorkspacePanelTabsHeader,
@@ -31,11 +31,11 @@ type ActivityTab = "positions" | "orders" | "journal"
  * rather than to nothing the way the side panels do.
  */
 export function ActivityPanel({
-  paper,
+  trading,
   catalogs,
   onSelectMarket,
 }: {
-  paper: PaperTrading
+  trading: Trading
   catalogs: MarketCatalog[]
   onSelectMarket: (marketKey: string) => void
 }) {
@@ -46,7 +46,7 @@ export function ActivityPanel({
 
   /** Each row says which wallet it is in; the panel shows several at once. */
   const walletName = (walletId: string) =>
-    paper.walletNames.get(walletId) ?? "another wallet"
+    trading.walletNames.get(walletId) ?? "another wallet"
   const marketOf = (marketKey: string) =>
     parseMarketKey(marketKey)?.marketId ?? marketKey
 
@@ -64,7 +64,7 @@ export function ActivityPanel({
   // own stop while its window is open closes the window instead of editing
   // something that is no longer there.
   const editingNow =
-    paper.positions.find((one) => one.id === editing?.id) ?? null
+    trading.positions.find((one) => one.id === editing?.id) ?? null
 
   return (
     <Tabs
@@ -77,27 +77,29 @@ export function ActivityPanel({
           value="positions"
           icon={<LayersIcon className="size-4" />}
           label="Positions"
-          count={paper.positions.length}
+          count={trading.positions.length}
         />
         <WorkspacePanelTab
           value="orders"
           icon={<ScrollTextIcon className="size-4" />}
           label="Open orders"
-          count={paper.orders.length}
+          count={trading.orders.length}
         />
         <WorkspacePanelTab
           value="journal"
           icon={<ReceiptIcon className="size-4" />}
           label="Fill history"
-          count={paper.journal.length}
+          count={trading.journal.length}
         />
-        {paper.positions.length > 0 ? (
+        {/* Close all is the practice engine's sweep; real positions are
+            closed one by one, each with its own question. */}
+        {trading.positions.some((position) => !position.live) ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
             className="ml-auto"
-            disabled={paper.busy}
+            disabled={trading.busy}
             onClick={() => setClosingAll(true)}
           >
             Close all
@@ -108,15 +110,15 @@ export function ActivityPanel({
       <TabsContent value="positions" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <PositionsTable
-            positions={paper.positions}
+            positions={trading.positions}
             markets={markets}
             walletName={walletName}
-            busy={paper.busy}
+            busy={trading.busy}
             onSelectMarket={onSelectMarket}
             onEdit={setEditing}
             onFlip={setFlipping}
             onClose={(position) =>
-              void paper.close(position.walletId, position.marketKey)
+              void trading.close(position.walletId, position.marketKey)
             }
           />
         </ScrollArea>
@@ -125,12 +127,12 @@ export function ActivityPanel({
       <TabsContent value="orders" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <OpenOrdersTable
-            orders={paper.orders}
+            orders={trading.orders}
             markets={markets}
             walletName={walletName}
-            busy={paper.busy}
+            busy={trading.busy}
             onSelectMarket={onSelectMarket}
-            onCancel={(order) => void paper.cancel(order.walletId, order.id)}
+            onCancel={(order) => void trading.cancel(order.walletId, order.id)}
           />
         </ScrollArea>
       </TabsContent>
@@ -138,7 +140,7 @@ export function ActivityPanel({
       <TabsContent value="journal" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <JournalTable
-            journal={paper.journal}
+            journal={trading.journal}
             markets={markets}
             walletName={walletName}
             onSelectMarket={onSelectMarket}
@@ -148,8 +150,8 @@ export function ActivityPanel({
 
       <BracketsDialog
         position={editingNow}
-        busy={paper.busy}
-        onSave={paper.setBrackets}
+        busy={trading.busy}
+        onSave={trading.setBrackets}
         onClose={() => setEditing(null)}
       />
 
@@ -167,7 +169,7 @@ export function ActivityPanel({
         confirmLabel="Turn it around"
         destructive={false}
         onConfirm={() => {
-          if (flipping) void paper.flip(flipping.walletId, flipping.marketKey)
+          if (flipping) void trading.flip(flipping.walletId, flipping.marketKey)
           setFlipping(null)
         }}
       />
@@ -175,11 +177,11 @@ export function ActivityPanel({
       <ConfirmDialog
         open={closingAll}
         onOpenChange={setClosingAll}
-        title="Close every position?"
-        description="All of them are sold at whatever their markets cost right now, and everything they have made or lost is banked. Waiting orders are left alone. This cannot be undone."
+        title="Close every practice position?"
+        description="Every practice position is sold at whatever its market costs right now, and everything made or lost is banked. Real positions and waiting orders are left alone. This cannot be undone."
         confirmLabel="Close all positions"
         onConfirm={() => {
-          void paper.closeAll()
+          void trading.closeAll()
           setClosingAll(false)
         }}
       />

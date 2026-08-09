@@ -173,6 +173,7 @@ beforeEach(async () => {
     startingBalance: 10_000,
     address: null,
     hasKey: false,
+    keyValidUntil: null,
   }
 })
 

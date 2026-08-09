@@ -51,6 +51,7 @@ type WalletFields = Pick<
   | "startingBalance"
   | "address"
   | "agentKeyEncrypted"
+  | "agentValidUntil"
 >
 
 function toWallet(row: WalletFields): TradeWallet {
@@ -63,6 +64,7 @@ function toWallet(row: WalletFields): TradeWallet {
     startingBalance: row.startingBalance,
     address: row.address,
     hasKey: row.agentKeyEncrypted !== null,
+    keyValidUntil: row.agentValidUntil?.getTime() ?? null,
   }
 }
 
@@ -113,6 +115,7 @@ export async function createWallet(
   let startingBalance: number
   let address: string | null = null
   let agentKeyEncrypted: string | null = null
+  let agentValidUntil: Date | null = null
 
   if (input.kind === "paper") {
     if (!input.startingBalance) throw new Error("WALLET_BALANCE_REQUIRED")
@@ -126,6 +129,16 @@ export async function createWallet(
     // add rather than quietly storing nothing.
     agentKeyEncrypted = encryptSecret(input.agentKey)
     address = input.address
+    // The key is proved before it is kept: the exchange must list it as
+    // approved to trade for this account, and the account's own key is
+    // refused outright. Codes travel up as they are — each has its own
+    // sentence in the dialog.
+    const verified = await getProtocol(input.protocol).agent.verify(
+      input.network,
+      input.address,
+      input.agentKey
+    )
+    agentValidUntil = verified.validUntil !== null ? new Date(verified.validUntil) : null
     // Reading the account is both the reachability check and the baseline:
     // "Since it started" measures from the value the account had right now.
     // An address Hyperliquid cannot answer for is refused, not saved broken.
@@ -146,6 +159,7 @@ export async function createWallet(
     startingBalance,
     address,
     agentKeyEncrypted,
+    agentValidUntil,
   }
   await db.insert(tradeWallets).values(row)
   return toWallet(row)
@@ -185,7 +199,17 @@ export async function updateWallet(
     set.startingBalance = input.startingBalance
   }
   if (input.agentKey !== undefined) {
+    // A replacement key is proved exactly like a first one — against the
+    // wallet's own stored address and network, so a key for some other
+    // account can never slide in through the edit window.
+    const verified = await getProtocol(row.protocol).agent.verify(
+      row.network,
+      row.address ?? "",
+      input.agentKey
+    )
     set.agentKeyEncrypted = encryptSecret(input.agentKey)
+    set.agentValidUntil =
+      verified.validUntil !== null ? new Date(verified.validUntil) : null
   }
 
   await db
