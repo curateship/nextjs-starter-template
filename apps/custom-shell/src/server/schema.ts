@@ -1673,31 +1673,49 @@ export const customShellDeliveries = pgTable(
 )
 
 /**
- * The wording of the app's own emails — verify your address, reset your
+ * The wording of a site's own emails — verify your address, reset your
  * password, and the rest.
  *
- * Not workspace-scoped, unlike everything else about email here. A workspace
- * belongs to one person, and somebody clicking "verify my email" has no
- * workspace yet and no account worth speaking of, so there is nothing to scope
- * these to. There is one set of them and it belongs to the app.
+ * **Per site.** This used to say the opposite, and the reason it gave was "a
+ * workspace belongs to one person, and somebody clicking verify-my-email has no
+ * workspace" — true, and beside the point. The email is not sent on the
+ * reader's behalf; it is sent on the site's, the one they registered on, which
+ * is the domain they were looking at. That is a question with an answer, and a
+ * confirmation email that names the wrong business is the plainest way to lose
+ * somebody's trust.
+ *
+ * A site that has never touched these falls back to the shell's built-in
+ * wording, exactly as an app with one site always did.
  *
  * A missing row is the normal state and means "use the built-in wording". One
  * is written the first time somebody opens that email in the editor.
  */
-export const customShellSystemEmails = pgTable("system_emails", {
-  /** One of SYSTEM_EMAIL_KINDS — see src/lib/system-emails/kinds.ts. */
-  kind: varchar("kind", { length: 60 }).primaryKey(),
-  subject: text("subject").notNull().default(""),
-  preheader: text("preheader").notNull().default(""),
-  fromName: varchar("from_name", { length: 255 }),
-  blocks: jsonb("blocks")
-    .notNull()
-    .default(sql`'[]'::jsonb`),
-  /** Kept in step with the blocks on every save, as a broadcast's is. */
-  renderedHtml: text("rendered_html"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const customShellSystemEmails = pgTable(
+  "system_emails",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** One of SYSTEM_EMAIL_KINDS — see src/lib/system-emails/kinds.ts. */
+    kind: varchar("kind", { length: 60 }).notNull(),
+    subject: text("subject").notNull().default(""),
+    preheader: text("preheader").notNull().default(""),
+    fromName: varchar("from_name", { length: 255 }),
+    blocks: jsonb("blocks")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Kept in step with the blocks on every save, as a broadcast's is. */
+    renderedHtml: text("rendered_html"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "system_emails_pkey",
+      columns: [table.workspaceId, table.kind],
+    }),
+  ]
+)
 
 /**
  * Every attempt at one of the app's own emails, sent or failed.
@@ -1712,6 +1730,18 @@ export const customShellSystemEmailSends = pgTable(
   "system_email_sends",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * Which site's email went out, and empty when there was no site yet.
+     *
+     * Optional on purpose: the first person to register on a fresh install is
+     * sent a verification email before any admin has signed in, so before a
+     * site exists. Requiring this would drop the record of exactly the emails
+     * somebody is most likely to chase.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
     kind: varchar("kind", { length: 60 }).notNull(),
     toEmail: varchar("to_email", { length: 255 }).notNull(),
     subject: text("subject").notNull(),
@@ -1756,9 +1786,23 @@ export const customShellEmailSettings = pgTable("email_settings", {
 
 /**
  * The app's Stripe keys: a live set and a sandbox set, and which is in use.
- * One row for the whole app (id is always "stripe") — billing is app-wide,
- * not per workspace. Secrets are encrypted with `encryptSecret` and never
- * read back to the browser; publishable keys are public by design.
+ * One row for the whole app (id is always "stripe"). Secrets are encrypted
+ * with `encryptSecret` and never read back to the browser; publishable keys
+ * are public by design.
+ *
+ * **App-wide is a live decision, revisited when sites arrived, not an
+ * assumption nobody looked at again.** Per-site keys are only worth having when
+ * the sites take their own money into their own Stripe accounts — a deployment
+ * running several brands for one business bills through one account, and
+ * splitting the keys would buy it nothing but a second place to paste a secret
+ * and a second webhook to get wrong.
+ *
+ * What tips it the other way is a deployment where the sites belong to
+ * *different* businesses. Nothing in the shell does that yet: plans and
+ * subscriptions are app-wide too, so per-site keys alone would leave money
+ * arriving against a plan that belongs to everybody. Splitting this table is
+ * the last step of that job, not the first, and doing it early would look
+ * finished while being wrong.
  */
 export const customShellStripeSettings = pgTable("stripe_settings", {
   id: varchar("id", { length: 36 }).primaryKey(),

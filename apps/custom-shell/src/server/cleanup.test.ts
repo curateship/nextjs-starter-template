@@ -20,16 +20,19 @@ import {
   customShellSystemEmailSends,
 } from "@/server/schema"
 import { setSessionPolicy } from "@/server/auth/session-policy"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
 import { uuid } from "@/server/auth/security"
 
 let client: PGlite
 let database: CustomShellDb
+/** The site these emails belong to. */
+let site: string
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db as unknown as CustomShellDb
+  site = (await insertWorkspace(database)).id
   resetCleanupSweepForTests()
 })
 
@@ -102,6 +105,7 @@ async function addEmailSend(
 ) {
   const id = uuid()
   await database.insert(customShellSystemEmailSends).values({
+    workspaceId: site,
     id,
     kind: "password-reset",
     toEmail: "ada@example.test",

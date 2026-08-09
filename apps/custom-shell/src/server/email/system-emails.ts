@@ -1,4 +1,4 @@
-import { desc, eq, gte, sql } from "drizzle-orm"
+import { and, desc, eq, gte, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -34,13 +34,19 @@ function thirtyDaysAgo() {
  * `getOrCreateSystemEmail`, which is the editor opening one.
  */
 export async function getSystemEmail(
+  workspaceId: string,
   kind: SystemEmailKind,
   database: CustomShellDb = db
 ) {
   const [row] = await database
     .select()
     .from(customShellSystemEmails)
-    .where(eq(customShellSystemEmails.kind, kind))
+    .where(
+      and(
+        eq(customShellSystemEmails.workspaceId, workspaceId),
+        eq(customShellSystemEmails.kind, kind)
+      )
+    )
     .limit(1)
   return row ?? null
 }
@@ -58,10 +64,11 @@ export async function getSystemEmail(
  * ordinary thing to do, not an error.
  */
 export async function getOrCreateSystemEmail(
+  workspaceId: string,
   kind: SystemEmailKind,
   database: CustomShellDb = db
 ) {
-  const existing = await getSystemEmail(kind, database)
+  const existing = await getSystemEmail(workspaceId, kind, database)
   if (existing) return existing
 
   const meta = SYSTEM_EMAIL_META[kind]
@@ -71,6 +78,7 @@ export async function getOrCreateSystemEmail(
   await database
     .insert(customShellSystemEmails)
     .values({
+      workspaceId,
       kind,
       subject: meta.defaults.subject,
       preheader: "",
@@ -82,12 +90,13 @@ export async function getOrCreateSystemEmail(
     })
     .onConflictDoNothing()
 
-  const created = await getSystemEmail(kind, database)
+  const created = await getSystemEmail(workspaceId, kind, database)
   if (!created) throw new Error("CREATE_FAILED")
   return created
 }
 
 export async function updateSystemEmail(
+  workspaceId: string,
   kind: SystemEmailKind,
   input: {
     subject?: string
@@ -100,7 +109,7 @@ export async function updateSystemEmail(
   // Created rather than demanded: a save arriving for an email whose row was
   // never written is a tab that was open before this feature existed, not a
   // reason to lose what was typed.
-  const existing = await getOrCreateSystemEmail(kind, database)
+  const existing = await getOrCreateSystemEmail(workspaceId, kind, database)
 
   const values: Partial<typeof customShellSystemEmails.$inferInsert> = {
     updatedAt: now(),
@@ -127,7 +136,12 @@ export async function updateSystemEmail(
   const [updated] = await database
     .update(customShellSystemEmails)
     .set(values)
-    .where(eq(customShellSystemEmails.kind, kind))
+    .where(
+      and(
+        eq(customShellSystemEmails.workspaceId, workspaceId),
+        eq(customShellSystemEmails.kind, kind)
+      )
+    )
     .returning()
   return updated ?? existing
 }
@@ -135,6 +149,8 @@ export async function updateSystemEmail(
 /** One attempt at one of these emails, written whether it worked or not. */
 export async function recordSystemEmailSend(
   entry: {
+    /** Empty when the email went out before any site existed. */
+    workspaceId: string | null
     kind: SystemEmailKind
     toEmail: string
     subject: string
@@ -146,6 +162,7 @@ export async function recordSystemEmailSend(
 ) {
   await database.insert(customShellSystemEmailSends).values({
     id: uuid(),
+    workspaceId: entry.workspaceId,
     kind: entry.kind,
     toEmail: entry.toEmail.slice(0, 255),
     subject: entry.subject,
@@ -164,6 +181,7 @@ export async function recordSystemEmailSend(
  * delivery list uses.
  */
 export async function listSystemEmailSends(
+  workspaceId: string,
   kind: SystemEmailKind,
   options: { limit?: number; offset?: number } = {},
   database: CustomShellDb = db
@@ -174,7 +192,12 @@ export async function listSystemEmailSends(
   const rows = await database
     .select()
     .from(customShellSystemEmailSends)
-    .where(eq(customShellSystemEmailSends.kind, kind))
+    .where(
+      and(
+        eq(customShellSystemEmailSends.workspaceId, workspaceId),
+        eq(customShellSystemEmailSends.kind, kind)
+      )
+    )
     .orderBy(desc(customShellSystemEmailSends.createdAt))
     .limit(limit + 1)
     .offset(offset)
@@ -184,6 +207,7 @@ export async function listSystemEmailSends(
 
 /** Sent and failed counts per kind over the last thirty days. */
 export async function countRecentSystemEmailSends(
+  workspaceId: string,
   database: CustomShellDb = db
 ) {
   const rows = await database
@@ -193,7 +217,12 @@ export async function countRecentSystemEmailSends(
       failed: sql<number>`count(*) filter (where ${customShellSystemEmailSends.status} = 'failed')`,
     })
     .from(customShellSystemEmailSends)
-    .where(gte(customShellSystemEmailSends.createdAt, thirtyDaysAgo()))
+    .where(
+      and(
+        eq(customShellSystemEmailSends.workspaceId, workspaceId),
+        gte(customShellSystemEmailSends.createdAt, thirtyDaysAgo())
+      )
+    )
     .groupBy(customShellSystemEmailSends.kind)
 
   const counts = new Map<string, { sent: number; failed: number }>()
@@ -204,10 +233,16 @@ export async function countRecentSystemEmailSends(
 }
 
 /** Every email, edited or not, with how busy each has been. */
-export async function listSystemEmails(database: CustomShellDb = db) {
+export async function listSystemEmails(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
   const [rows, counts] = await Promise.all([
-    database.select().from(customShellSystemEmails),
-    countRecentSystemEmailSends(database),
+    database
+      .select()
+      .from(customShellSystemEmails)
+      .where(eq(customShellSystemEmails.workspaceId, workspaceId)),
+    countRecentSystemEmailSends(workspaceId, database),
   ])
   const saved = new Map(rows.map((row) => [row.kind, row]))
 
