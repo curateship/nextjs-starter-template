@@ -22,15 +22,23 @@ function LoginRoute() {
   const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
 
   const handleSubmit = React.useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       setError(null)
+      setAttempted(true)
+
+      if (!email.trim() || !password) {
+        setError("Enter your email and password.")
+        return
+      }
+
       setLoading(true)
 
       try {
-        await login(email, password)
+        await login(email.trim(), password)
         await navigate({ to: "/" })
       } catch (loginError) {
         setError(getAuthErrorMessage(loginError))
@@ -45,7 +53,8 @@ function LoginRoute() {
     <main className="grid min-h-screen place-items-center bg-background px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm"
+        noValidate
+        className="w-full max-w-sm p-6"
       >
         <div className="mb-6">
           <h1 className="text-xl font-semibold">Sign in to AI Video</h1>
@@ -62,7 +71,8 @@ function LoginRoute() {
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              required
+              aria-invalid={attempted && !email.trim()}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </div>
           <div className="space-y-2">
@@ -73,10 +83,19 @@ function LoginRoute() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              required
+              aria-invalid={attempted && !password}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? (
+            <p
+              id="login-error"
+              role="alert"
+              className="text-sm text-destructive"
+            >
+              {error}
+            </p>
+          ) : null}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
           </Button>
