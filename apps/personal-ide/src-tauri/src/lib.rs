@@ -189,6 +189,7 @@ struct WorkspaceInfo {
     hidden: bool,
     is_standalone: bool,
     is_tauri: bool,
+    port: Option<u16>,
 }
 
 #[derive(Serialize)]
@@ -652,6 +653,18 @@ fn commit_generated_app_scaffold(app_root: &Path, app_name: &str) -> Result<(), 
     )?;
     run_git(&worktree_root, &["commit", "-m", &message])?;
     Ok(())
+}
+
+// An app's port is read from the worktree it actually runs from, every time the
+// workspace list is built. It used to come from a copy of `local-apps.json`
+// bundled into this app when it was compiled, so a port assigned after the last
+// build was invisible: the app fell through to an invented number that looked
+// official in the address bar and moved whenever the workspaces were reordered.
+// No port at all is the honest answer here — inventing one is what caused that.
+fn local_app_port(worktree_root: &Path, app_name: &str) -> Option<u16> {
+    let contents = fs::read_to_string(worktree_root.join(LOCAL_APPS_FILE)).ok()?;
+    let ports = serde_json::from_str::<serde_json::Value>(&contents).ok()?;
+    u16::try_from(ports.as_object()?.get(app_name)?.as_u64()?).ok()
 }
 
 fn register_local_app_port(app_root: &Path, app_name: &str, app_port: u16) -> Result<u16, String> {
@@ -1984,13 +1997,21 @@ fn workspace_list(state: &State<'_, WorkspaceState>) -> Result<WorkspaceList, St
         workspaces: app_state
             .workspaces
             .iter()
-            .map(|workspace| WorkspaceInfo {
-                id: workspace.id.clone(),
-                name: workspace.name.clone(),
-                app_name: workspace.app_name.clone(),
-                hidden: workspace.hidden,
-                is_standalone: workspace.app_relative_path.is_empty(),
-                is_tauri: workspace.app_root.join("src-tauri").is_dir(),
+            .map(|workspace| {
+                let is_tauri = workspace.app_root.join("src-tauri").is_dir();
+                WorkspaceInfo {
+                    id: workspace.id.clone(),
+                    name: workspace.name.clone(),
+                    app_name: workspace.app_name.clone(),
+                    hidden: workspace.hidden,
+                    is_standalone: workspace.app_relative_path.is_empty(),
+                    is_tauri,
+                    port: if is_tauri {
+                        None
+                    } else {
+                        local_app_port(&workspace.worktree_root, &workspace.app_name)
+                    },
+                }
             })
             .collect(),
     })
@@ -2768,7 +2789,8 @@ mod tests {
         copy_custom_shell_env, delete_workspace_branch, ensure_workspace_branch_can_be_deleted,
         find_custom_shell_scaffold_dir, generate_commit_message, generated_database_port,
         generated_database_port_from_env, git_branch_exists, git_status_lines, has_origin_remote,
-        new_app_repo_target, normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg,
+        local_app_port, new_app_repo_target, normalize_task_status, parse_diff_hunk,
+        parse_skill_tags, path_arg,
         primary_worktree_for, read_git_repo_text_file, register_local_app_port,
         render_task_template, reorder_workspace_records, rewrite_scaffold_metadata, run_git,
         should_skip_scaffold_entry, sync_workspace_branch, validate_editor_settings,
@@ -3473,6 +3495,26 @@ mod tests {
         );
 
         fs::remove_dir_all(root).expect("remove temp generated app commit repo");
+    }
+
+    #[test]
+    fn app_port_is_read_from_the_worktree_and_never_invented() {
+        let root = temp_path("local-app-port");
+        fs::create_dir_all(&root).expect("create temp port registry repo");
+        fs::write(
+            root.join("local-apps.json"),
+            "{\n  \"hub\": 3000,\n  \"trade\": 3014\n}\n",
+        )
+        .expect("write port registry");
+
+        assert_eq!(local_app_port(&root, "trade"), Some(3_014));
+
+        // An app the file has never heard of has no port. Handing it a number
+        // here is what let a made-up port look official in the address bar.
+        assert_eq!(local_app_port(&root, "video"), None);
+        assert_eq!(local_app_port(&root.join("missing"), "trade"), None);
+
+        fs::remove_dir_all(&root).expect("remove temp port registry repo");
     }
 
     #[test]

@@ -96,9 +96,8 @@ export function WorkspacesPanel({
       },
     })
   )
-  const activeServerUrl = activeWorkspace && !activeWorkspace.isTauri
-    ? `http://localhost:${workspacePorts[activeWorkspace.id]}/`
-    : ""
+  const activePort = activeWorkspace ? workspacePorts[activeWorkspace.id] : undefined
+  const activeServerUrl = activePort ? `http://localhost:${activePort}/` : ""
   const canCreateApp = newAppName.trim().length > 0 && !busy
 
   function closeCreateAppForm() {
@@ -247,6 +246,10 @@ export function WorkspacesPanel({
           {activeWorkspace.isTauri ? (
             <span className="min-w-0 truncate text-sm text-muted-foreground">
               Desktop app
+            </span>
+          ) : !activeServerUrl ? (
+            <span className="min-w-0 truncate text-sm text-muted-foreground">
+              No port in local-apps.json
             </span>
           ) : (
             <>
