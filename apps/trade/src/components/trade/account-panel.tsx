@@ -1,5 +1,10 @@
 import * as React from "react"
-import { CreditCardIcon, LayersIcon, PlusIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  CreditCardIcon,
+  LayersIcon,
+  PlusIcon,
+} from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
@@ -213,6 +218,10 @@ function WalletCard({
             <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
             Live
           </span>
+        ) : wallet.status === "inactive" ? (
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">
+            Inactive
+          </span>
         ) : null}
       </div>
       {keyExpiryWarning(wallet.keyValidUntil, Date.now()) ? (
@@ -359,13 +368,21 @@ export function AccountPanel({
   onAddWallet: () => void
   onOpenWallet: (wallet: TradeWallet) => void
 }) {
-  const [tab, setTab] = React.useState<"active" | "all">("active")
+  const [tab, setTab] = React.useState<"active" | "all" | "inactive">(
+    "active"
+  )
   const { wallets, activeWallet, summaryOf, loading, failed, refresh } = account
+  const activeWallets = wallets.filter((wallet) => wallet.status === "active")
+  const inactiveWallets = wallets.filter(
+    (wallet) => wallet.status === "inactive"
+  )
 
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => setTab(value as "active" | "all")}
+      onValueChange={(value) =>
+        setTab(value as "active" | "all" | "inactive")
+      }
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       {/* The tab row is the header — same anatomy as the activity panel's,
@@ -381,6 +398,11 @@ export function AccountPanel({
             value="all"
             icon={<LayersIcon className="size-4" />}
             label="All"
+          />
+          <WorkspacePanelTab
+            value="inactive"
+            icon={<ArchiveIcon className="size-4" />}
+            label="Inactive"
           />
         </TabsList>
         <Button
@@ -409,14 +431,39 @@ export function AccountPanel({
               summary={summaryOf(activeWallet.id)}
               onRetry={() => void refresh()}
             />
-          ) : wallets.length > 0 ? (
+          ) : activeWallets.length > 0 ? (
             <ChooseWalletView
-              wallets={wallets}
+              wallets={activeWallets}
               summaryOf={summaryOf}
               onUseWallet={account.switchWallet}
             />
           ) : (
-            <NoWalletsYet />
+            <NoActiveWallets hasWallets={wallets.length > 0} />
+          )}
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="inactive" className="min-h-0 flex-1">
+        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+          {loading ? (
+            <PanelSkeleton />
+          ) : failed ? (
+            <LoadFailed onRetry={() => void refresh()} />
+          ) : inactiveWallets.length > 0 ? (
+            <AllWalletsView
+              wallets={inactiveWallets}
+              summaryOf={summaryOf}
+              activeWalletId={null}
+              onOpenWallet={onOpenWallet}
+            />
+          ) : (
+            <PanelPlaceholder
+              icon={<ArchiveIcon className="size-4" />}
+              title="No inactive wallets"
+            >
+              Set a wallet to inactive from its settings and it will appear
+              here.
+            </PanelPlaceholder>
           )}
         </ScrollArea>
       </TabsContent>
@@ -480,6 +527,19 @@ function NoWalletsYet() {
     >
       Add one with the + above — a practice wallet with pretend cash, or a live
       Hyperliquid account.
+    </PanelPlaceholder>
+  )
+}
+
+function NoActiveWallets({ hasWallets }: { hasWallets: boolean }) {
+  if (!hasWallets) return <NoWalletsYet />
+  return (
+    <PanelPlaceholder
+      icon={<CreditCardIcon className="size-4" />}
+      title="No active wallets"
+    >
+      Make a wallet active from the Inactive tab before choosing one to trade
+      with.
     </PanelPlaceholder>
   )
 }

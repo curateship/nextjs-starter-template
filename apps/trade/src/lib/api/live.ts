@@ -150,6 +150,7 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_WALLET_KIND: "Only a live wallet trades this way.",
   LIVE_WALLET_KEY:
     "This wallet has no trading key saved. Open its settings and add one.",
+  WALLET_INACTIVE: "Make this wallet active before placing a new order.",
   LIVE_MARKET: "That market is not one this wallet can trade.",
   LIVE_NETWORK_MISMATCH:
     "This wallet and this chart are on different networks — a test-network wallet cannot trade a real-money market, or the reverse.",

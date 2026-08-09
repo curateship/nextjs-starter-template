@@ -22,7 +22,7 @@ import type { DrawingShape } from "@/lib/trade/drawings"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveJournalAction } from "@/lib/trade/live"
 import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
-import type { WalletKind } from "@/lib/trade/wallets"
+import type { WalletKind, WalletStatus } from "@/lib/trade/wallets"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -123,6 +123,10 @@ export const tradeWallets = pgTable(
     id: varchar("id", { length: 36 }).notNull(),
     label: varchar("label", { length: 40 }).notNull(),
     kind: varchar("kind", { length: 8 }).$type<WalletKind>().notNull(),
+    status: varchar("status", { length: 8 })
+      .$type<WalletStatus>()
+      .notNull()
+      .default("active"),
     protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
     network: varchar("network", { length: 10 }).$type<NetworkId>().notNull(),
     // Paper: the pretend cash it began with. Live: the account's value the

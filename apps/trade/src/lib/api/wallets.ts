@@ -14,6 +14,7 @@ import { loadLastWalletId, saveLastWalletId } from "@/server/trade/prefs"
 import {
   createWallet as createWalletRow,
   deleteWallet as deleteWalletRow,
+  findTradingWallet,
   loadWalletSummaries,
   updateWallet as updateWalletRow,
 } from "@/server/trade/wallets"
@@ -73,6 +74,7 @@ const updateWalletSchema = z.object({
     .string()
     .refine(isAgentKey, { message: "Not a trading key." })
     .optional(),
+  status: z.enum(["active", "inactive"]).optional(),
 })
 
 const walletIdSchema = z.object({ id: z.string().max(36) })
@@ -121,6 +123,8 @@ const pickWalletFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(walletIdSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    const wallet = await findTradingWallet(context.user.id, data.id)
+    if (!wallet) throw new Error("WALLET_NOT_FOUND")
     await saveLastWalletId(context.user.id, data.id)
     return { saved: true }
   })
@@ -163,6 +167,7 @@ export const getWalletErrorMessage = createErrorMessage(
       "Hyperliquid could not be reached to check the key, so nothing was saved. Try again in a moment.",
     WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
+    WALLET_INACTIVE: "Make this wallet active before trading with it.",
     WALLET_BALANCE_KIND: "Only a practice wallet's starting cash can be changed.",
     WALLET_KEY_KIND: "Only a live wallet has a trading key.",
     ENCRYPTION_NOT_CONFIGURED:

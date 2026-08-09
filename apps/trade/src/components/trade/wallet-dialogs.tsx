@@ -42,6 +42,7 @@ import {
   WALLET_LABEL_MAX,
   type TradeWallet,
   type WalletKind,
+  type WalletStatus,
 } from "@/lib/trade/wallets"
 import { cn } from "@/lib/utils"
 
@@ -386,6 +387,7 @@ function WalletSettingsWindow({
     String(wallet.startingBalance)
   )
   const [agentKey, setAgentKey] = React.useState("")
+  const [status, setStatus] = React.useState<WalletStatus>(wallet.status)
   // Ticked here, applied on Save with everything else — the tick is part of
   // the form, not a separate action that fires as you touch it.
   const [makeActive, setMakeActive] = React.useState(false)
@@ -397,7 +399,11 @@ function WalletSettingsWindow({
   const balanceDirty =
     wallet.kind === "paper" && balanceNumber !== wallet.startingBalance
   const dirty =
-    label !== wallet.label || balanceDirty || agentKey !== "" || makeActive
+    label !== wallet.label ||
+    balanceDirty ||
+    agentKey !== "" ||
+    status !== wallet.status ||
+    makeActive
 
   const refusal =
     label.trim().length === 0
@@ -421,15 +427,21 @@ function WalletSettingsWindow({
     }
     setSaving(true)
     try {
-      if (label !== wallet.label || balanceDirty || agentKey !== "") {
+      if (
+        label !== wallet.label ||
+        balanceDirty ||
+        agentKey !== "" ||
+        status !== wallet.status
+      ) {
         await updateWallet({
           id: wallet.id,
           ...(label !== wallet.label ? { label: label.trim() } : {}),
           ...(balanceDirty ? { startingBalance: balanceNumber } : {}),
           ...(agentKey !== "" ? { agentKey: cleanAgentKey(agentKey) } : {}),
+          ...(status !== wallet.status ? { status } : {}),
         })
       }
-      if (makeActive) onUse(wallet.id)
+      if (makeActive && status === "active") onUse(wallet.id)
       toast.success("Wallet saved.")
       onChanged()
       onClose()
@@ -491,7 +503,7 @@ function WalletSettingsWindow({
               <DialogBody>
                 <Card size="sm">
                   <CardContent className="grid gap-4">
-                    {active ? null : (
+                    {active || status === "inactive" ? null : (
                       <div className="flex items-start gap-2.5">
                         <Checkbox
                           id="wallet-edit-active"
@@ -510,6 +522,25 @@ function WalletSettingsWindow({
                         </div>
                       </div>
                     )}
+                    <div className="grid gap-2">
+                      <Label htmlFor="wallet-edit-status">Status</Label>
+                      <Select
+                        value={status}
+                        onValueChange={(value) => {
+                          const next = value as WalletStatus
+                          setStatus(next)
+                          if (next === "inactive") setMakeActive(false)
+                        }}
+                      >
+                        <SelectTrigger id="wallet-edit-status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="grid gap-2">
                       <Label htmlFor="wallet-edit-label">Name</Label>
                       <Input
