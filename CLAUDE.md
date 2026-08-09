@@ -118,6 +118,34 @@ hypothetical.
 - Before running `pnpm run dev`, check whether the port is already listening: `lsof -iTCP -sTCP:LISTEN -nP | grep :<port>`. If it is, reuse that instance.
 - All Vite apps set `strictPort: true`, so `pnpm run dev` errors out instead of silently hopping to the next port. Keep it that way.
 
+### A port belongs to whichever worktree got it first
+
+There is one port per app but **many worktrees**, each holding a full copy of
+every app. So the port says which app it is, and **the running process says which
+worktree you are actually looking at**. Those are two different questions and
+only the first is written down anywhere.
+
+- **Always ask who owns the port before you touch it**, and print the answer:
+
+  ```sh
+  P=$(lsof -tiTCP:<port> -sTCP:LISTEN); lsof -a -p $P -d cwd -Fn | grep '^n'
+  ```
+
+- **If it is serving another worktree, it is not yours. Never kill it, and never
+  start a second one.** Killing it takes the app away from whoever is using it,
+  and their uncommitted work is still the only copy of what they are testing.
+- **Say so and stop.** Tell the user which worktree holds the port and what you
+  need, and let them decide. Restarting the app somewhere else is their call, not
+  a step you take on the way to something else.
+- **A merged commit is not a running app.** Merging to `develop` changes nothing
+  on screen until the worktree serving the port pulls it. When a fix "isn't
+  working", check the owner of the port before you re-read the code — that is
+  the more common answer.
+- The same holds for the database behind it: `.env` and `.env.local` are
+  gitignored and per-worktree, so `npm run db:setup` from a worktree that lacks
+  them recreates the container on the wrong port and takes the database away from
+  the server that was using it.
+
 ## Validating Changes
 
 - **After any browser-facing change, run `.agents/skills/validate-app` before calling the work done.** Open the page in a real browser and read the console.
