@@ -7,6 +7,7 @@ import {
   checkAiAllowance,
   loadAiUsageDashboard,
   loadMyAiUsage,
+  recordDeferredAiSuccess,
   recordAiUsage,
   runAiCall,
   setAiAllowanceOverride,
@@ -110,6 +111,23 @@ describe("runAiCall", () => {
     expect(row.costCents).toBe(150)
     expect(row.inputTokens).toBe(0)
     expect(row.metadata.units).toBe(10_000)
+  })
+
+  it("records a completed background job only when its result is ready", async () => {
+    await recordDeferredAiSuccess(
+      {
+        userId: "user-1",
+        provider: "gemini",
+        model: "veo-3.1-generate-preview",
+        feature: "video-generation",
+      },
+      { inputTokens: 0, outputTokens: 0, units: 4 }
+    )
+
+    const [row] = await allRows()
+    expect(row.status).toBe("success")
+    expect(row.costCents).toBe(160)
+    expect(row.metadata.units).toBe(4)
   })
 
   it("writes exactly one failed row when the call throws, then rethrows", async () => {

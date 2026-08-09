@@ -146,6 +146,9 @@ many are switched on.
   and not the browser — the same rule as the zoom, and for the same reason: an
   indicator is how you read a chart, not a fact about one coin. It carries onto
   the next market, the next timeframe and the other machine.
+- **The eye after Indicators opens View options.** Its three checkboxes show or
+  hide the chart grid, volume bars and crosshair. All three start on, and each
+  choice follows the account onto the next market, visit and machine.
 - **A change is saved once the settings sit still for a moment**, because
   typing "150" into a field is three changes. A save that does not land is said
   in a toast and **does not undo what was just typed** — the chart is already

@@ -41,6 +41,14 @@ export const appServerOptions: AppServerOptions = {
             queue.videoRenderTick()
           ),
       },
+      {
+        // Starts and checks durable Veo jobs. A page reload never owns the job.
+        name: "video-generation",
+        tick: () =>
+          import("@/server/video/asset-factories/generations").then(
+            (generations) => generations.videoGenerationTick()
+          ),
+      },
     ],
   },
 }
