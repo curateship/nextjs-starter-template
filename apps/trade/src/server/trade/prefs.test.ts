@@ -2,13 +2,16 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   loadChartView,
+  loadChartOptions,
   loadLastMarketKey,
   saveChartView,
+  saveChartOptions,
   saveLastMarketKey,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
@@ -20,6 +23,31 @@ beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
+})
+
+describe("the remembered chart options", () => {
+  it("shows every chart part on a first visit", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadChartOptions(id)).toEqual(DEFAULT_CHART_OPTIONS)
+  })
+
+  it("comes back as the account left it", async () => {
+    const { id } = await insertUser(database)
+    const options = { grid: false, volume: true, crosshair: false }
+    await saveChartOptions(id, options)
+    expect(await loadChartOptions(id)).toEqual(options)
+  })
+
+  it("keeps each account's choice separate", async () => {
+    const mine = await insertUser(database)
+    const theirs = await insertUser(database)
+    await saveChartOptions(theirs.id, {
+      grid: false,
+      volume: false,
+      crosshair: false,
+    })
+    expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)
+  })
 })
 
 afterEach(async () => {

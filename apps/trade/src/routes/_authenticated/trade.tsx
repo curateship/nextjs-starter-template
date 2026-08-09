@@ -9,9 +9,11 @@ import {
   loadMarkets,
   saveLastMarket,
 } from "@/lib/api/markets"
+import { loadRememberedChartOptions } from "@/lib/api/chart-options"
 import { loadRememberedChartView } from "@/lib/api/chart-view"
 import { loadRememberedFolds } from "@/lib/api/card-folds"
 import { loadIndicatorSettings } from "@/lib/api/indicators"
+import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
@@ -52,7 +54,15 @@ export const Route = createFileRoute("/_authenticated/trade")({
     network: resolveTradeNetwork(search.market, search.network),
   }),
   loader: async ({ deps }) => {
-    const [markets, favorites, lastMarket, chartView, indicators, cardFolds] =
+    const [
+      markets,
+      favorites,
+      lastMarket,
+      chartView,
+      chartOptions,
+      indicators,
+      cardFolds,
+    ] =
       await Promise.all([
         // A dead exchange must not take the page down with it: the workspace
         // still opens, and the list explains itself and offers a retry.
@@ -73,6 +83,11 @@ export const Route = createFileRoute("/_authenticated/trade")({
         loadRememberedChartView().catch(() => ({
           chartView: null as ChartView | null,
         })),
+        // The chart starts with the saved visibility choices. A failed read is
+        // cosmetic, so the safe answer is the familiar all-visible chart.
+        loadRememberedChartOptions().catch(() => ({
+          options: DEFAULT_CHART_OPTIONS,
+        })),
         // Read here too, so the first chart drawn already carries them rather
         // than painting bare candles and popping dashes on a beat later.
         // Losing them only means an unmarked chart, never a broken page.
@@ -90,6 +105,7 @@ export const Route = createFileRoute("/_authenticated/trade")({
       favoriteKeys: favorites.marketKeys,
       lastMarketKey: lastMarket.marketKey,
       chartView: chartView.chartView,
+      chartOptions: chartOptions.options,
       indicators: indicators.indicators,
       cardFolds: cardFolds.folds,
     }
@@ -104,6 +120,7 @@ function TradeRoute() {
     favoriteKeys,
     lastMarketKey,
     chartView,
+    chartOptions,
     indicators,
     cardFolds,
   } = Route.useLoaderData()
@@ -147,6 +164,7 @@ function TradeRoute() {
       network={network}
       initialFavoriteKeys={favoriteKeys}
       initialChartView={chartView}
+      initialChartOptions={chartOptions}
       initialIndicators={indicators}
       initialCardFolds={cardFolds}
       selectedKey={selectedKey}

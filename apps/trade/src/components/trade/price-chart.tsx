@@ -9,6 +9,7 @@ import type {
 } from "lightweight-charts"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import { barOfTime, timeOfBar } from "@/lib/trade/chart-time"
 import { readChartColors, type ChartColors } from "@/lib/trade/chart-theme"
 import {
@@ -176,6 +177,7 @@ function readViewport(
 
 export function PriceChart({
   candles,
+  options,
   viewKey,
   readView,
   onViewChange,
@@ -183,6 +185,8 @@ export function PriceChart({
   overlay,
 }: {
   candles: CandleBar[]
+  /** Supporting chart parts that may be shown or hidden. */
+  options: ChartOptions
   /**
    * What these candles are: a market and a timeframe, as one string. The
    * whole history is framed once per value of it.
@@ -257,6 +261,30 @@ export function PriceChart({
   // remember. Cleared a beat later, because the library reports them after
   // the call rather than during it.
   const framingRef = React.useRef(false)
+  const optionsRef = React.useRef(options)
+  const crosshairModesRef = React.useRef<{
+    normal: number
+    hidden: number
+  } | null>(null)
+
+  React.useEffect(() => {
+    optionsRef.current = options
+    const chart = chartRef.current
+    if (!chart) return
+    chart.applyOptions({
+      grid: {
+        vertLines: { visible: options.grid },
+        horzLines: { visible: options.grid },
+      },
+    })
+    const modes = crosshairModesRef.current
+    if (modes) {
+      chart.applyOptions({
+        crosshair: { mode: options.crosshair ? modes.normal : modes.hidden },
+      })
+    }
+    volumeSeriesRef.current?.applyOptions({ visible: options.volume })
+  }, [options])
 
   React.useEffect(() => {
     readViewRef.current = readView
@@ -422,6 +450,10 @@ export function PriceChart({
       const { createChart, CandlestickSeries, HistogramSeries, CrosshairMode } =
         await import("lightweight-charts")
       if (disposed || !containerRef.current) return
+      crosshairModesRef.current = {
+        normal: CrosshairMode.Normal,
+        hidden: CrosshairMode.Hidden,
+      }
 
       const colors = readChartColors(containerRef.current)
       const chart = createChart(containerRef.current, {
@@ -432,14 +464,18 @@ export function PriceChart({
           attributionLogo: false,
         },
         grid: {
-          vertLines: { color: colors.grid },
-          horzLines: { color: colors.grid },
+          vertLines: { color: colors.grid, visible: optionsRef.current.grid },
+          horzLines: { color: colors.grid, visible: optionsRef.current.grid },
         },
         // The library's default is "magnet": the horizontal line snaps to
         // each candle's price, leaping close-to-close as the mouse crosses
         // bars — which reads as the crosshair skipping all over the place.
         // Normal simply follows the mouse.
-        crosshair: { mode: CrosshairMode.Normal },
+        crosshair: {
+          mode: optionsRef.current.crosshair
+            ? CrosshairMode.Normal
+            : CrosshairMode.Hidden,
+        },
         rightPriceScale: { borderColor: colors.grid },
         timeScale: { borderColor: colors.grid, timeVisible: true },
       })
@@ -459,6 +495,7 @@ export function PriceChart({
         priceFormat: { type: "volume" },
         lastValueVisible: false,
         priceLineVisible: false,
+        visible: optionsRef.current.volume,
       })
       chart
         .priceScale("volume")
@@ -498,8 +535,14 @@ export function PriceChart({
         chart.applyOptions({
           layout: { textColor: next.text },
           grid: {
-            vertLines: { color: next.grid },
-            horzLines: { color: next.grid },
+            vertLines: {
+              color: next.grid,
+              visible: optionsRef.current.grid,
+            },
+            horzLines: {
+              color: next.grid,
+              visible: optionsRef.current.grid,
+            },
           },
           rightPriceScale: { borderColor: next.grid },
           timeScale: { borderColor: next.grid },

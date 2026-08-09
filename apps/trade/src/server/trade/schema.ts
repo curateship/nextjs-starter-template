@@ -15,6 +15,7 @@ import {
 
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import type { CardFolds } from "@/lib/trade/card-folds"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderPlan, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
@@ -67,6 +68,9 @@ export const tradePrefs = pgTable("trade_prefs", {
   // newest one — the one form of it that means the same thing on every
   // market. `chartViewSchema` is the only way in or out.
   chartView: jsonb("chart_view").$type<ChartView>(),
+  // Which supporting parts of the chart are visible. Kept apart from the
+  // numeric zoom and position because switching one does not move the chart.
+  chartOptions: jsonb("chart_options").$type<ChartOptions>(),
   // The wallet the account panel had active. An id and nothing more: a
   // remembered choice, resolved against the wallets that exist at read time,
   // so a deleted wallet leaves a memory that simply matches nothing.

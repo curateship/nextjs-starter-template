@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm"
 
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
+import {
+  readChartOptions,
+  type ChartOptions,
+} from "@/lib/trade/chart-options"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import {
@@ -85,6 +89,30 @@ export async function saveChartView(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { chartView, updatedAt: new Date() },
+    })
+}
+
+/** Which supporting chart parts this person chose to show. */
+export async function loadChartOptions(userId: string): Promise<ChartOptions> {
+  const row = await db
+    .select({ chartOptions: tradePrefs.chartOptions })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readChartOptions(row[0]?.chartOptions ?? null)
+}
+
+/** Remember the complete choice so the three switches can never drift apart. */
+export async function saveChartOptions(
+  userId: string,
+  chartOptions: ChartOptions
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, chartOptions, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { chartOptions, updatedAt: new Date() },
     })
 }
 
