@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Link, useRouter } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
   ChevronsUpDownIcon,
@@ -31,6 +31,7 @@ import {
   type WorkspaceItem,
 } from "@/lib/api/people/workspaces"
 import { renderShellIcon } from "@/lib/custom-shell"
+import { capitalise, workspaceWord } from "@/lib/app-options"
 
 /**
  * The line under a site's name is **its address**, which is the one thing that
@@ -52,10 +53,12 @@ export function WorkspaceSwitcher({
   /** The domain workspaces hang off, for the address field's preview. */
   baseDomain?: string
 }) {
-  const router = useRouter()
   const { isMobile } = useSidebar()
   const activeWorkspace =
     workspaces.find((workspace) => workspace.active) ?? workspaces[0]
+  // Read here rather than at the top of the module: an app's options file can
+  // import its way back to this one.
+  const word = workspaceWord()
   const activeWorkspaceName = activeWorkspace?.name ?? ""
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
 
@@ -87,7 +90,25 @@ export function WorkspaceSwitcher({
     setBusyWorkspaceId(workspaceId)
     try {
       await switchWorkspace(workspaceId)
-      await router.invalidate()
+
+      // **The whole page reloads, rather than the router re-running loaders.**
+      //
+      // Sixteen screens read their loader data once, into `useState(initial…)`,
+      // and a re-run hands them fresh props that `useState` ignores — so after
+      // switching, the Automations list, the media library and a dozen others
+      // went on showing the site you had just left until somebody pressed
+      // reload. Fixing each of them would be sixteen edits, one of which would
+      // be missed, and every screen written afterwards would have to remember.
+      //
+      // Switching site is a rare, deliberate act that changes *everything* on
+      // screen, so throwing the page away is the honest answer rather than a
+      // shortcut: nothing from the site you left should survive it.
+      //
+      // The address is kept. On a list that is exactly right; on a record's own
+      // page — an automation the other site does not have — it lands on
+      // not-found, which is true, and the sidebar is right there.
+      window.location.reload()
+      return
     } catch (error) {
       showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
@@ -128,7 +149,7 @@ export function WorkspaceSwitcher({
                       shades itself while the menu is open (`aria-expanded`). */}
                   <Button variant="ghost" size="icon-sm">
                     <ChevronsUpDownIcon />
-                    <span className="sr-only">Change workspace</span>
+                    <span className="sr-only">Change {word.one}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -138,7 +159,7 @@ export function WorkspaceSwitcher({
                   sideOffset={4}
                 >
                   <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Workspaces
+                    {capitalise(word.many)}
                   </DropdownMenuLabel>
                   {workspaces.map((workspace) => {
                     const displayName = workspace.name
@@ -195,7 +216,7 @@ export function WorkspaceSwitcher({
                       <PlusIcon className="size-4" />
                     </div>
                     <div className="font-medium text-muted-foreground">
-                      New workspace
+                      New {word.one}
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>

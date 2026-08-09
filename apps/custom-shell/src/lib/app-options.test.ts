@@ -9,6 +9,8 @@ import {
   landingPageOverride,
   mayHaveWorkspace,
   whoMayHaveWorkspaces,
+  capitalise,
+  workspaceWord,
 } from "@/lib/app-options"
 import { defineNode } from "@/lib/automations/node-descriptor"
 
@@ -143,5 +145,22 @@ describe("who may have a workspace", () => {
     expect(mayHaveWorkspace(null, { workspaces: { whoMayHave: "everyone" } })).toBe(
       false
     )
+  })
+})
+
+describe("what an app calls a workspace", () => {
+  it("says workspace when the app has not renamed it", () => {
+    expect(workspaceWord({})).toEqual({ one: "workspace", many: "workspaces" })
+  })
+
+  it("uses the app's own word where somebody can see it", () => {
+    const word = workspaceWord({
+      workspaces: { word: { one: "site", many: "sites" } },
+    })
+
+    expect(word.one).toBe("site")
+    // Written lower case and raised where a heading needs it, so an app never
+    // has to write the same word twice in two shapes.
+    expect(capitalise(word.many)).toBe("Sites")
   })
 })
