@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   cappedMarketPx,
   decimalString,
+  fetchHyperliquidOrderFills,
   fetchHyperliquidPortfolio,
   formatPx,
   formatSize,
+  orderTimeInForce,
   venueAssetId,
 } from "@/server/protocols/hyperliquid/orders"
 import {
@@ -20,8 +22,15 @@ const clearinghouseState = vi.fn()
 const frontendOpenOrders = vi.fn()
 const perpDexs = vi.fn()
 const meta = vi.fn()
+const userFillsByTime = vi.fn()
 vi.mock("@/server/protocols/hyperliquid/client", () => ({
-  infoClient: () => ({ clearinghouseState, frontendOpenOrders, perpDexs, meta }),
+  infoClient: () => ({
+    clearinghouseState,
+    frontendOpenOrders,
+    perpDexs,
+    meta,
+    userFillsByTime,
+  }),
 }))
 
 /** The canonical test key: private key 1, whose address is well known. */
@@ -103,6 +112,44 @@ describe("the asset-id rule", () => {
     // The SDK's own example: the first hosted venue's first asset is 110000.
     expect(venueAssetId(1, 0)).toBe(110_000)
     expect(venueAssetId(2, 7)).toBe(120_007)
+  })
+})
+
+describe("order time in force", () => {
+  it("makes Smart rungs post-only while preserving normal order behavior", () => {
+    expect(orderTimeInForce("market")).toBe("Ioc")
+    expect(orderTimeInForce("limit")).toBe("Gtc")
+    expect(orderTimeInForce("postOnly")).toBe("Alo")
+  })
+})
+
+describe("reading order fills", () => {
+  it("keeps the exchange order id and translates its numbers", async () => {
+    userFillsByTime.mockResolvedValue([
+      {
+        coin: "BTC",
+        px: "95000.5",
+        sz: "0.25",
+        side: "B",
+        time: 1234,
+        oid: 77,
+        tid: 88,
+      },
+    ])
+
+    await expect(
+      fetchHyperliquidOrderFills("testnet", TEST_ADDRESS, 1000)
+    ).resolves.toEqual([
+      {
+        fillId: "88",
+        orderId: "77",
+        marketId: "BTC",
+        side: "buy",
+        px: 95000.5,
+        sz: 0.25,
+        at: 1234,
+      },
+    ])
   })
 })
 

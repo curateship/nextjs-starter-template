@@ -9,6 +9,7 @@ import {
   cancelLiveOrder,
   loadLivePortfolio,
   placeLiveOrder,
+  setLiveBrackets,
 } from "@/server/trade/live-orders"
 import { tradeLiveJournal, tradeWallets } from "@/server/trade/schema"
 
@@ -187,6 +188,33 @@ describe("the rails around placing", () => {
     expect(rows[0].sz).toBe(0.5)
   })
 
+  it("uses a post-only order when a Smart rung must stay resting", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+
+    await placeLiveOrder(userId, {
+      ...orderInput(walletId),
+      restingOnly: true,
+    })
+
+    const [, , params] = place.mock.calls[0]
+    expect(params.kind).toBe("postOnly")
+  })
+
+  it("refuses a Smart rung that already crossed the market", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+
+    await expect(
+      placeLiveOrder(userId, {
+        ...orderInput(walletId),
+        px: 110_000,
+        restingOnly: true,
+      })
+    ).rejects.toThrow("LIVE_SMART_ORDER_NOT_RESTING")
+    expect(place).not.toHaveBeenCalled()
+  })
+
   it("sends a click through the price as a capped market order at the mark", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
@@ -275,6 +303,88 @@ describe("cancelling", () => {
       px: 120_000,
       sz: 0.25,
     })
+  })
+})
+
+describe("protecting a position", () => {
+  it("lets a long trail its stop above entry but not beyond the current price", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 90_000,
+          leverage: 5,
+          marginUsed: 18_000,
+          liquidationPx: null,
+          tpPx: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+        },
+      ],
+      orders: [],
+    })
+
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      tpPx: null,
+      slPx: 95_000,
+    })
+    expect(setBrackets).toHaveBeenCalledTimes(1)
+
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        tpPx: null,
+        slPx: 101_000,
+      })
+    ).rejects.toThrow("LIVE_STOP_SIDE")
+    expect(setBrackets).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets a short trail its stop below entry but not beyond the current price", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: -1,
+          entryPx: 110_000,
+          leverage: 5,
+          marginUsed: 22_000,
+          liquidationPx: null,
+          tpPx: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+        },
+      ],
+      orders: [],
+    })
+
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      tpPx: null,
+      slPx: 105_000,
+    })
+    expect(setBrackets).toHaveBeenCalledTimes(1)
+
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        tpPx: null,
+        slPx: 99_000,
+      })
+    ).rejects.toThrow("LIVE_STOP_SIDE")
+    expect(setBrackets).toHaveBeenCalledTimes(1)
   })
 })
 

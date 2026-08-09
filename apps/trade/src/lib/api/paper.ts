@@ -258,7 +258,7 @@ export const getPaperErrorMessage = createErrorMessage(
     PAPER_TAKE_PROFIT_SIDE:
       "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
     PAPER_STOP_SIDE:
-      "A stop has to be where the trade loses — below the entry on a long, above it on a short.",
+      "A stop must stay beyond the current price — below it on a long, above it on a short.",
   },
   "That did not go through. Try it again."
 )

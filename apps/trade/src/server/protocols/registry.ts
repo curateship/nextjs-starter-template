@@ -9,6 +9,7 @@ import type {
   ProtocolCapabilities,
   ProtocolId,
   WalletAccountFigures,
+  WalletOrderFill,
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
@@ -20,6 +21,7 @@ import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
 import {
   cancelHyperliquidOrder,
   closeHyperliquidPosition,
+  fetchHyperliquidOrderFills,
   fetchHyperliquidPortfolio,
   placeHyperliquidOrder,
   setHyperliquidBrackets,
@@ -115,6 +117,11 @@ export type ProtocolEntry = {
     ): Promise<void>
     /** What a live wallet holds and has waiting, from the exchange itself. */
     portfolio(network: NetworkId, address: string): Promise<WalletPortfolio>
+    fills(
+      network: NetworkId,
+      address: string,
+      since: number
+    ): Promise<WalletOrderFill[]>
   }
 }
 
@@ -142,6 +149,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       close: closeHyperliquidPosition,
       setBrackets: setHyperliquidBrackets,
       portfolio: fetchHyperliquidPortfolio,
+      fills: fetchHyperliquidOrderFills,
     },
   },
 }

@@ -147,6 +147,20 @@ async function openLong(sz = 1, leverage = 5) {
   })
 }
 
+/** Opens a short position by selling straight through the market. */
+async function openShort(sz = 1, leverage = 5) {
+  await placePaperOrder(userId, wallet, {
+    marketKey: BTC,
+    side: "sell",
+    px: marks.get("BTC") as number,
+    sz,
+    leverage,
+    reduceOnly: false,
+    tpPx: null,
+    slPx: null,
+  })
+}
+
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
@@ -661,6 +675,46 @@ describe("managing what is open", () => {
     await expect(
       setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: 80, slPx: null })
     ).rejects.toThrow("PAPER_TAKE_PROFIT_SIDE")
+  })
+
+  it("lets a long trail its stop above entry but not beyond the current price", async () => {
+    await openLong()
+    marks.set("BTC", 120)
+
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      tpPx: null,
+      slPx: 110,
+    })
+    expect((await positions())[0].slPx).toBe(110)
+
+    await expect(
+      setPaperBrackets(userId, wallet, {
+        marketKey: BTC,
+        tpPx: null,
+        slPx: 121,
+      })
+    ).rejects.toThrow("PAPER_STOP_SIDE")
+  })
+
+  it("lets a short trail its stop below entry but not beyond the current price", async () => {
+    await openShort()
+    marks.set("BTC", 80)
+
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      tpPx: null,
+      slPx: 90,
+    })
+    expect((await positions())[0].slPx).toBe(90)
+
+    await expect(
+      setPaperBrackets(userId, wallet, {
+        marketKey: BTC,
+        tpPx: null,
+        slPx: 79,
+      })
+    ).rejects.toThrow("PAPER_STOP_SIDE")
   })
 
   it("clears a target and a stop again", async () => {

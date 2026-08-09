@@ -27,6 +27,7 @@ import {
   cancelLadderRung,
   getSmartOrderErrorMessage,
   placeDcaLadder,
+  reconcileLiveSmartOrders,
   updateLadderExits,
 } from "@/lib/api/smart-orders"
 import {
@@ -55,7 +56,7 @@ import type { TradeWallet } from "@/lib/trade/wallets"
  * or the live one. What the screens see is one portfolio. The differences
  * that are kept are the honest ones: live rows carry the exchange's own
  * margin and liquidation figures, a live resting order cannot be dragged yet,
- * and only a practice wallet runs smart-order ladders.
+ * and Smart-order ladders use the same plan on both wallet kinds.
  *
  * It reads **every** wallet, not only the one being traded with: which wallet
  * an order goes to is a choice made when placing it, but what you are holding
@@ -78,6 +79,16 @@ import type { TradeWallet } from "@/lib/trade/wallets"
  */
 
 const REFRESH_MS = 4_000
+
+function getTradingSmartOrderError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "")
+  if (message.includes("LIVE_SMART_")) {
+    return getSmartOrderErrorMessage(error)
+  }
+  return message.includes("LIVE_") || message.includes("SECRET_")
+    ? getLiveErrorMessage(error)
+    : getSmartOrderErrorMessage(error)
+}
 
 /** How a live action reads in the journal's Why column. */
 const LIVE_REASONS: Record<LiveJournalEntry["action"], JournalReason> = {
@@ -103,7 +114,7 @@ export type Trading = {
    */
   placing: PaperOrder[]
   journal: PaperJournalEntry[]
-  /** The smart-order ladders still working, across every practice wallet. */
+  /** The smart-order ladders still working across every wallet. */
   ladders: SmartLadder[]
   /** Each wallet's name, for the Wallet column. */
   walletNames: ReadonlyMap<string, string>
@@ -192,6 +203,7 @@ type LiveAnswer = {
   positions: PaperPosition[]
   orders: PaperOrder[]
   journal: LiveJournalEntry[]
+  ladders: SmartLadder[]
   wallets: { id: string; label: string }[]
   unreachable: string[]
 }
@@ -236,6 +248,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
    */
   const refresh = React.useCallback(async (): Promise<boolean> => {
     const request = ++requestRef.current
+    await reconcileLiveSmartOrders().catch(() => undefined)
     const [paper, live] = await Promise.allSettled([
       loadPaperPortfolio(),
       loadLiveTrading(),
@@ -591,8 +604,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
 
   const placeLadder: Trading["placeLadder"] = React.useCallback(
     async (input) => {
-      // Ladders are the practice engine's; the menu only offers them there.
-      if (!walletId || wallet?.kind !== "paper") return false
+      if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
         const { placed, passed } = await placeDcaLadder({
@@ -609,7 +621,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
         )
         return true
       } catch (error) {
-        showErrorToast(getSmartOrderErrorMessage(error))
+        showErrorToast(getTradingSmartOrderError(error))
         return false
       } finally {
         setPending((count) => count - 1)
@@ -622,7 +634,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   const cancelRung: Trading["cancelRung"] = React.useCallback(
     async (walletId, ladderId, rungIndex) => {
       await runWith(
-        getSmartOrderErrorMessage,
+        getTradingSmartOrderError,
         () => cancelLadderRung({ walletId, ladderId, rungIndex }),
         `Rung ${rungIndex + 1} called off in ${nameOf(walletId)}.`
       )
@@ -633,7 +645,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   const cancelLadder: Trading["cancelLadder"] = React.useCallback(
     async (walletId, ladderId) => {
       await runWith(
-        getSmartOrderErrorMessage,
+        getTradingSmartOrderError,
         () => cancelLadderRest({ walletId, ladderId }),
         `Ladder stopped in ${nameOf(walletId)} — what's bought stays.`
       )
@@ -644,7 +656,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   const setLadderExits: Trading["setLadderExits"] = React.useCallback(
     async (walletId, ladderId, exits) => {
       return await runWith(
-        getSmartOrderErrorMessage,
+        getTradingSmartOrderError,
         () => updateLadderExits({ walletId, ladderId, ...exits }),
         "Exits changed."
       )
@@ -676,7 +688,10 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     orders,
     placing,
     journal,
-    ladders: paperAnswer?.ladders ?? [],
+    ladders: [
+      ...(paperAnswer?.ladders ?? []),
+      ...(liveAnswer?.ladders ?? []),
+    ],
     busy: pending > 0,
     place,
     move,

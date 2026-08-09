@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { loadLadderBase, loadSmartDcaParams } from "@/lib/api/smart-orders"
-import type { CandleInterval, MarketRow } from "@/lib/protocols/contracts"
+import { parseMarketKey, type CandleInterval, type MarketRow } from "@/lib/protocols/contracts"
 import {
   DCA_ANCHOR_HINTS,
   DCA_ANCHOR_LABELS,
@@ -79,6 +79,7 @@ export function SmartOrderDialog({
   state,
   market,
   wallet,
+  real,
   equity,
   free,
   interval,
@@ -91,6 +92,8 @@ export function SmartOrderDialog({
   market: MarketRow
   /** The wallet this ladder will live in. */
   wallet: string
+  /** Live wallet: require a second, explicit confirmation. */
+  real: boolean
   /** What the account is worth — the pot the shares are cut from. */
   equity: number
   /** Cash not already behind something — what the ladder must fit inside. */
@@ -141,6 +144,7 @@ export function SmartOrderDialog({
   // preview measured from somewhere else would not be what gets placed.
   const [basePx, setBasePx] = React.useState<number | null>(null)
   const [baseRead, setBaseRead] = React.useState(false)
+  const [confirmedPlan, setConfirmedPlan] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let stale = false
@@ -340,9 +344,29 @@ export function SmartOrderDialog({
     !busy &&
     refusal === null &&
     plan !== null
+  const planKey = params
+    ? JSON.stringify({
+        wallet,
+        market: market.key,
+        clickPx: state.px,
+        interval,
+        params,
+      })
+    : null
+  const previousPlanKey = React.useRef(planKey)
+  React.useEffect(() => {
+    if (previousPlanKey.current === planKey) return
+    previousPlanKey.current = planKey
+    setConfirmedPlan(null)
+  }, [planKey])
+  const confirming = real && planKey !== null && confirmedPlan === planKey
 
   const submit = async () => {
     if (!ready || !params) return
+    if (real && !confirming) {
+      setConfirmedPlan(planKey)
+      return
+    }
     const placed = await onPlace({ clickPx: state.px, interval, params })
     if (placed) onClose()
   }
@@ -727,6 +751,15 @@ export function SmartOrderDialog({
               {refusal}
             </p>
           ) : null}
+          {real && confirming && plan ? (
+            <p className="mb-3 rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400">
+              {parseMarketKey(market.key)?.network === "testnet"
+                ? `Testnet ladder in ${wallet} — pretend money`
+                : `Real-money ladder in ${wallet}`}
+              : place {plan.rungs.length} buys using up to{" "}
+              {formatUsd(plan.totalCost)}.
+            </p>
+          ) : null}
           <Button
             type="button"
             onClick={() => void submit()}
@@ -736,8 +769,13 @@ export function SmartOrderDialog({
             {busy || !loaded ? (
               <Loader2Icon className="size-4 animate-spin" />
             ) : null}
-            Place{plan ? ` ${plan.rungs.length}` : ""} buy
-            {plan && plan.rungs.length === 1 ? "" : "s"}
+            {real && confirming
+              ? parseMarketKey(market.key)?.network === "testnet"
+                ? "Confirm testnet ladder"
+                : "Confirm real-money ladder"
+              : `Place${plan ? ` ${plan.rungs.length}` : ""} buy${
+                  plan && plan.rungs.length === 1 ? "" : "s"
+                }`}
           </Button>
         </div>
       </div>
