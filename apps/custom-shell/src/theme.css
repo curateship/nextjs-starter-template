@@ -358,8 +358,62 @@ body.app-font {
 [data-content-styling][data-flat="true"] [data-slot="workspace-panel"] {
   border-radius: 0;
 }
+
 [data-content-styling][data-flat="true"] [data-slot="card"] img {
   border-radius: 0;
+}
+
+/*
+ * Flat mode: the handle between two panels draws the line they no longer draw
+ * themselves.
+ *
+ * In card mode each panel is a card with its own outline, and the handle is
+ * only the transparent gutter between them. Take the spacing to zero and the
+ * rule above strips those outlines — correctly, because the outer edges then
+ * sit flush against the page. But the inner edges go with them, and the gutter
+ * is now zero wide and see-through, so the palette, the inspector and the runs
+ * panel run into the canvas with nothing between them.
+ *
+ * The handle stands exactly where those inner edges were, so it is the honest
+ * place for the line. A collapsed handle is left alone: its panel is shut and
+ * the panel beside it already closes the gap.
+ */
+[data-content-styling][data-flat="true"]
+  [data-slot="resizable-handle"][data-gap="true"]:not([data-collapsed="true"]) {
+  /*
+   * Settings → Styling → "Divider lines", the same as every other line that
+   * parts one thing from another. `--border` is what that setting writes; see
+   * the note on `workspace-panel-header.tsx`.
+   */
+  --shell-panel-edge: var(--border);
+  width: 1px;
+  /*
+   * Starts below the panel headers rather than at the very top. Each panel's
+   * header already draws a line along its bottom, and those meet across the
+   * whole workspace; a vertical line carried up through that row crosses it
+   * and reads as a stray tick above the join.
+   *
+   * The top stretch is painted in the panel's own colour rather than left
+   * see-through, because this handle is a real one-pixel column in the layout:
+   * clear, it shows the page behind the panels and still reads as a line, just
+   * a grey one. The height is one header — the `h-[3.15rem]` in
+   * `workspace-panel-header.tsx`, which includes its own hairline.
+   */
+  background-image: linear-gradient(
+    to bottom,
+    var(--card) 0 3.15rem,
+    var(--shell-panel-edge) 3.15rem
+  );
+}
+[data-content-styling][data-flat="true"]
+  [data-slot="resizable-handle"][data-gap="true"][aria-orientation="horizontal"]:not(
+    [data-collapsed="true"]
+  ) {
+  width: 100%;
+  height: 1px;
+  /* Nothing sits beside this one, so it runs the whole way with no inset. */
+  background-image: none;
+  background-color: var(--shell-panel-edge);
 }
 
 /*
