@@ -304,7 +304,7 @@ function ToolRail({
     <nav
       data-screen-label="Tool rail"
       aria-label="Editor panels"
-      className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-foreground/10 py-3"
+      className="flex w-16 shrink-0 flex-col items-center gap-1 border-r py-3"
     >
       {RAIL.map(({ id, label, Icon }) => {
         const on = panel === id
@@ -371,7 +371,7 @@ function StageHeader() {
   }
 
   return (
-    <div className="grid h-[3.15rem] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-foreground/10 px-4 sm:px-5">
+    <div className="grid h-[3.15rem] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b px-4 sm:px-5">
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground" aria-hidden>
           <FilmIcon className="size-4" />

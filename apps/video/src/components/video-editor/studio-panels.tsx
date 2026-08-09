@@ -495,11 +495,11 @@ function MediaPanel() {
                     // Sound has no picture. Drawn as a video it is a black
                     // rectangle that looks like footage that failed to load.
                     <div
-                      className="grid aspect-video place-items-center gap-1 text-muted-foreground"
+                      className="grid aspect-video min-w-0 place-items-center gap-1 overflow-hidden text-muted-foreground"
                       style={{ padding: 8 }}
                     >
                       <AudioLines className="size-5" />
-                      <span className="truncate text-[10px] leading-tight">
+                      <span className="block w-full min-w-0 truncate text-[10px] leading-tight">
                         {item.original_name}
                       </span>
                     </div>
@@ -811,4 +811,3 @@ function BrandPanel() {
     </div>
   )
 }
-
