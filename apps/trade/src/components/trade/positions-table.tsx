@@ -65,6 +65,45 @@ function toneOf(value: number): string {
   return "text-muted-foreground"
 }
 
+/**
+ * Marks a row that lives on the exchange rather than in the practice engine.
+ * Practice, testnet and real rows share these tables, and the two rules point
+ * the same way: a real dollar must never be readable as a pretend one, and a
+ * pretend one never as real — so a testnet exchange row says "Testnet", in
+ * its own colour, never "Real".
+ */
+function RealBadge({ marketKey }: { marketKey: string }) {
+  const testnet = parseMarketKey(marketKey)?.network === "testnet"
+  return (
+    <span
+      className={cn(
+        "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+        testnet
+          ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+          : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      )}
+    >
+      {testnet ? "Testnet" : "Real"}
+    </span>
+  )
+}
+
+/**
+ * A position's margin: the exchange's own answer for a real position, the
+ * formula for a practice one. Same rule for the liquidation distance below —
+ * with real money the exchange's number is the one actually enforced.
+ */
+function marginOf(position: PaperPosition): number {
+  return position.live ? position.live.marginUsed : positionMargin(position)
+}
+
+function liquidationAwayOf(position: PaperPosition, mark: number): number | null {
+  if (!position.live) return liquidationAway(position, mark)
+  const liq = position.live.liquidationPx
+  if (liq === null || !(mark > 0)) return null
+  return Math.abs(mark - liq) / mark
+}
+
 function HeaderCell({
   children,
   sort,
@@ -282,12 +321,12 @@ function PositionRow({
   onFlip: (position: PaperPosition) => void
   onClose: (position: PaperPosition) => void
 }) {
-  const margin = positionMargin(position)
+  const margin = marginOf(position)
   const profit = positionProfit(position, mark)
   // Against the margin actually put up, not the whole value: that is what was
   // risked, so it is what the percentage is worth measuring against.
   const profitShare = margin > 0 ? (profit / margin) * 100 : 0
-  const away = liquidationAway(position, mark)
+  const away = liquidationAwayOf(position, mark)
 
   return (
     <TableRow
@@ -300,7 +339,12 @@ function PositionRow({
       <MarketCell
         marketKey={position.marketKey}
         market={market}
-        badge={<SideBadge position={position} />}
+        badge={
+          <>
+            <SideBadge position={position} />
+            {position.live ? <RealBadge marketKey={position.marketKey} /> : null}
+          </>
+        }
         onSelect={() => onSelectMarket(position.marketKey)}
       />
       <WalletCell wallet={wallet} />
@@ -339,7 +383,9 @@ function PositionRow({
         </span>
       </Cell>
       <Cell className="text-muted-foreground">
-        -{formatUsd(position.feesPaid)}
+        {/* A real position's running fees are the exchange's to know; a dash
+            is honest where a $0.00 would be a lie. */}
+        {position.live ? "—" : `-${formatUsd(position.feesPaid)}`}
       </Cell>
       <Cell>
         <span className={cn("font-medium", toneOf(profit))}>
@@ -352,16 +398,20 @@ function PositionRow({
       </Cell>
       <td data-column="actions" className="px-3 py-2 text-left whitespace-nowrap">
         <span className="flex items-center gap-0.5">
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy}
-            aria-label={`Turn the ${symbolOf(position.marketKey)} position around`}
-            onClick={() => onFlip(position)}
-          >
-            <ArrowLeftRightIcon className="size-4" />
-          </Button>
+          {/* Turning a real position around in one go is not built yet, so
+              the button is not offered rather than offered and refused. */}
+          {position.live ? null : (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              disabled={busy}
+              aria-label={`Turn the ${symbolOf(position.marketKey)} position around`}
+              onClick={() => onFlip(position)}
+            >
+              <ArrowLeftRightIcon className="size-4" />
+            </Button>
+          )}
           <Button
             type="button"
             size="icon-sm"
@@ -431,9 +481,9 @@ export function PositionsTable({
       case "value":
         return positionValue(position, mark)
       case "margin":
-        return positionMargin(position)
+        return marginOf(position)
       case "liquidation":
-        return liquidationAway(position, mark) ?? Number.POSITIVE_INFINITY
+        return liquidationAwayOf(position, mark) ?? Number.POSITIVE_INFINITY
       case "projected":
         return position.tpPx === null
           ? Number.NEGATIVE_INFINITY
@@ -591,11 +641,14 @@ export function OpenOrdersTable({
               market={markets.get(order.marketKey) ?? null}
               onSelect={() => onSelectMarket(order.marketKey)}
               badge={
-                order.reduceOnly ? (
-                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    Reduce only
-                  </span>
-                ) : undefined
+                <>
+                  {order.reduceOnly ? (
+                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      Reduce only
+                    </span>
+                  ) : null}
+                  {order.live ? <RealBadge marketKey={order.marketKey} /> : null}
+                </>
               }
             />
             <WalletCell wallet={walletName(order.walletId)} />
@@ -611,7 +664,11 @@ export function OpenOrdersTable({
             <Cell>{formatPrice(order.px)}</Cell>
             <Cell>{order.sz}</Cell>
             <Cell>{formatUsd(order.px * order.sz)}</Cell>
-            <Cell className="text-muted-foreground">{order.leverage}×</Cell>
+            <Cell className="text-muted-foreground">
+              {/* A real order rides the account's leverage setting, which is
+                  not the order's to say — a dash beats a made-up number. */}
+              {order.live ? "—" : `${order.leverage}×`}
+            </Cell>
             <td className="px-3 py-2 text-left whitespace-nowrap">
               <span className="flex items-center gap-0.5">
                 <Button
@@ -658,7 +715,7 @@ export function JournalTable({
       case "wallet":
         return walletName(entry.walletId)
       case "side":
-        return entry.side
+        return entry.side ?? ""
       case "price":
         return entry.px
       case "size":
@@ -711,6 +768,7 @@ export function JournalTable({
               marketKey={entry.marketKey}
               market={markets.get(entry.marketKey) ?? null}
               onSelect={() => onSelectMarket(entry.marketKey)}
+              badge={entry.live ? <RealBadge marketKey={entry.marketKey} /> : undefined}
             />
             <WalletCell wallet={walletName(entry.walletId)} />
             <Cell className="text-muted-foreground">
@@ -725,21 +783,31 @@ export function JournalTable({
               className={
                 entry.side === "buy"
                   ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-red-400"
+                  : entry.side === "sell"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-muted-foreground"
               }
             >
-              {entry.side === "buy" ? "Buy" : "Sell"}
+              {entry.side === "buy" ? "Buy" : entry.side === "sell" ? "Sell" : "—"}
             </Cell>
-            <Cell>{formatPrice(entry.px)}</Cell>
-            <Cell>{entry.sz}</Cell>
+            {/* A live action row can have nothing to say in a figure column —
+                a protection change carries no price of its own, and the
+                exchange keeps real fees to itself. Dashes, never fake zeros. */}
+            <Cell>{entry.live && entry.px === 0 ? "—" : formatPrice(entry.px)}</Cell>
+            <Cell>{entry.live && entry.sz === 0 ? "—" : entry.sz}</Cell>
             <Cell className="text-muted-foreground">
-              -{formatUsd(entry.fee)}
+              {entry.live ? "—" : `-${formatUsd(entry.fee)}`}
             </Cell>
             <Cell className={toneOf(entry.closedPnl)}>
               {entry.closedPnl === 0 ? "—" : formatSignedUsd(entry.closedPnl)}
             </Cell>
-            <td className="px-3 py-2 text-left text-xs whitespace-nowrap text-muted-foreground">
-              {PAPER_FILL_REASON_LABELS[entry.reason]}
+            <td
+              className="max-w-64 truncate px-3 py-2 text-left text-xs text-muted-foreground"
+              // The note is the whole story on a refusal; the label alone on
+              // everything else. Hover shows the full sentence either way.
+              title={entry.note ?? undefined}
+            >
+              {entry.note ?? PAPER_FILL_REASON_LABELS[entry.reason]}
             </td>
           </tr>
         ))}

@@ -203,6 +203,31 @@ it is a port of the QFL automation from the old app rather than anything new.
   does not. It is capped in dollars rather than coins, so a level reclaimed
   months later costs what the rung was always allowed to spend.
 
+## Orders on the chart
+
+An order is placed by right-clicking the candles at the price you want, and
+from then on it lives on the chart as its own line with a coloured bar at the
+right-hand end.
+
+- **A waiting order shows its stop and its target too**, in the same green and
+  red as a position's but in a finer dash — they are where the trade will get
+  out once the order fills, which is a plan rather than a fact. The bar says
+  what each would pay in dollars if it got there. Neither can be dragged: they
+  hang off the order's price, so the order's own window is where they change.
+- **Pressing a waiting order's bar opens that window** — how much the order is
+  for, and where it gets out. Not its price: the price is the line, and you
+  drag it. The window shows what the size costs in dollars and how much of your
+  own cash is behind it, and the same window is what the ⚙ on the bar means.
+- **Placing an order does not wait for the exchange.** The window shuts on the
+  press and the order is drawn on the chart at once, labelled "sending" until
+  the answer lands — a second or two later. A "sending" line has no × and
+  cannot be dragged; there is nothing on the server yet to change.
+- **Nothing is announced when it works.** No toast for placing an order and
+  none for cancelling one: the line appearing and the line disappearing is the
+  answer, and a toast on every click of a trading screen is noise. Refusals
+  still speak up, and so does the one case that must never pass quietly — a
+  real order that went on without the protection asked for.
+
 ## The market list
 
 The panel is shaped like the automation palette, its sibling on the other
@@ -360,6 +385,14 @@ working bar streams beside it.
   hover too easy to miss, the labels come back on screen.)
 - **Every icon-only control has a label**, focus stays visible, and every panel
   is reachable with the Tab key alone.
+- **A real dollar never reads as a pretend one.** Rows a live wallet owns
+  carry an amber "Real" badge in every table, and the order window's button
+  turns into a said-back-in-dollars question ("Real money in <wallet>: buy
+  about $X…") that must be pressed a second time before anything is sent.
+  Figures the exchange did not report (a live position's running fees, a live
+  order's leverage) show as dashes, never as made-up zeros. The warning is all
+  in front of the press; nothing is said afterwards, real or pretend — see
+  "Orders on the chart".
 
 ## Where the navigation lives
 

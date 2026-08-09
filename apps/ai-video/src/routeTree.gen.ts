@@ -9,52 +9,52 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
-import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
-import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
-import { Route as AuthenticatedAdminHomeRouteImport } from './routes/_authenticated/admin/home'
-import { Route as AuthenticatedAdminFirstFrameRouteImport } from './routes/_authenticated/admin/first-frame'
-import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminExportRouteImport } from './routes/_authenticated/admin/export'
-import { Route as AuthenticatedAdminApiUsageRouteImport } from './routes/_authenticated/admin/api-usage'
-import { Route as AuthenticatedAdminAiGenerationsRouteImport } from './routes/_authenticated/admin/ai-generations'
 import { Route as AuthenticatedAdminActorRouteImport } from './routes/_authenticated/admin/actor'
-import { Route as AuthenticatedAdminViralArchiveIndexRouteImport } from './routes/_authenticated/admin/viral-archive/index'
-import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor/index'
-import { Route as AuthenticatedAdminTemplatesIndexRouteImport } from './routes/_authenticated/admin/templates/index'
-import { Route as AuthenticatedAdminCreatorsIndexRouteImport } from './routes/_authenticated/admin/creators/index'
-import { Route as AuthenticatedAdminCarouselsIndexRouteImport } from './routes/_authenticated/admin/carousels/index'
+import { Route as AuthenticatedAdminAiGenerationsRouteImport } from './routes/_authenticated/admin/ai-generations'
+import { Route as AuthenticatedAdminApiUsageRouteImport } from './routes/_authenticated/admin/api-usage'
+import { Route as AuthenticatedAdminExportRouteImport } from './routes/_authenticated/admin/export'
+import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminFirstFrameRouteImport } from './routes/_authenticated/admin/first-frame'
+import { Route as AuthenticatedAdminHomeRouteImport } from './routes/_authenticated/admin/home'
+import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminAutomationsIndexRouteImport } from './routes/_authenticated/admin/automations/index'
-import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
-import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor/$projectId'
-import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
-import { Route as AuthenticatedAdminCreatorsCreatorIdRouteImport } from './routes/_authenticated/admin/creators/$creatorId'
-import { Route as AuthenticatedAdminCarouselsCarouselIdRouteImport } from './routes/_authenticated/admin/carousels/$carouselId'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations/$automationId'
-import { Route as ApiV1ViralVideosVideoIdThumbnailRouteImport } from './routes/api/v1/viral-videos/$videoId/thumbnail'
-import { Route as ApiV1TemplatesTemplateIdThumbnailRouteImport } from './routes/api/v1/templates/$templateId/thumbnail'
-import { Route as ApiV1ProjectsProjectIdRenderThumbnailRouteImport } from './routes/api/v1/projects/$projectId/render-thumbnail'
-import { Route as ApiV1ProjectsProjectIdRenderRouteImport } from './routes/api/v1/projects/$projectId/render'
-import { Route as ApiV1MediaMediaIdProxyRouteImport } from './routes/api/v1/media/$mediaId/proxy'
-import { Route as ApiV1MediaMediaIdFilmstripRouteImport } from './routes/api/v1/media/$mediaId/filmstrip'
-import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
-import { Route as ApiV1CreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/creators/$creatorId/avatar'
-import { Route as ApiV1ActorsActorIdImageRouteImport } from './routes/api/v1/actors/$actorId/image'
+import { Route as AuthenticatedAdminCarouselsIndexRouteImport } from './routes/_authenticated/admin/carousels/index'
+import { Route as AuthenticatedAdminCarouselsCarouselIdRouteImport } from './routes/_authenticated/admin/carousels/$carouselId'
+import { Route as AuthenticatedAdminCreatorsIndexRouteImport } from './routes/_authenticated/admin/creators/index'
+import { Route as AuthenticatedAdminCreatorsCreatorIdRouteImport } from './routes/_authenticated/admin/creators/$creatorId'
+import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
+import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminTemplatesIndexRouteImport } from './routes/_authenticated/admin/templates/index'
+import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor/index'
+import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor/$projectId'
+import { Route as AuthenticatedAdminViralArchiveIndexRouteImport } from './routes/_authenticated/admin/viral-archive/index'
+import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport } from './routes/_authenticated/admin/video-editor/template/$templateId'
+import { Route as ApiV1ActorsActorIdImageRouteImport } from './routes/api/v1/actors/$actorId/image'
+import { Route as ApiV1CreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/creators/$creatorId/avatar'
+import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1MediaMediaIdFilmstripRouteImport } from './routes/api/v1/media/$mediaId/filmstrip'
+import { Route as ApiV1MediaMediaIdProxyRouteImport } from './routes/api/v1/media/$mediaId/proxy'
+import { Route as ApiV1ProjectsProjectIdRenderRouteImport } from './routes/api/v1/projects/$projectId/render'
+import { Route as ApiV1ProjectsProjectIdRenderThumbnailRouteImport } from './routes/api/v1/projects/$projectId/render-thumbnail'
+import { Route as ApiV1TemplatesTemplateIdThumbnailRouteImport } from './routes/api/v1/templates/$templateId/thumbnail'
+import { Route as ApiV1ViralVideosVideoIdThumbnailRouteImport } from './routes/api/v1/viral-videos/$videoId/thumbnail'
 
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -72,44 +72,15 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminSettingsRoute =
-  AuthenticatedAdminSettingsRouteImport.update({
-    id: '/admin/settings',
-    path: '/admin/settings',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminNotificationsRoute =
-  AuthenticatedAdminNotificationsRouteImport.update({
-    id: '/admin/notifications',
-    path: '/admin/notifications',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
-  id: '/admin/media',
-  path: '/admin/media',
+const AuthenticatedAdminActorRoute = AuthenticatedAdminActorRouteImport.update({
+  id: '/admin/actor',
+  path: '/admin/actor',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminHomeRoute = AuthenticatedAdminHomeRouteImport.update({
-  id: '/admin/home',
-  path: '/admin/home',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedAdminFirstFrameRoute =
-  AuthenticatedAdminFirstFrameRouteImport.update({
-    id: '/admin/first-frame',
-    path: '/admin/first-frame',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminFeedbackRoute =
-  AuthenticatedAdminFeedbackRouteImport.update({
-    id: '/admin/feedback',
-    path: '/admin/feedback',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminExportRoute =
-  AuthenticatedAdminExportRouteImport.update({
-    id: '/admin/export',
-    path: '/admin/export',
+const AuthenticatedAdminAiGenerationsRoute =
+  AuthenticatedAdminAiGenerationsRouteImport.update({
+    id: '/admin/ai-generations',
+    path: '/admin/ai-generations',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminApiUsageRoute =
@@ -118,45 +89,44 @@ const AuthenticatedAdminApiUsageRoute =
     path: '/admin/api-usage',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminAiGenerationsRoute =
-  AuthenticatedAdminAiGenerationsRouteImport.update({
-    id: '/admin/ai-generations',
-    path: '/admin/ai-generations',
+const AuthenticatedAdminExportRoute =
+  AuthenticatedAdminExportRouteImport.update({
+    id: '/admin/export',
+    path: '/admin/export',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminActorRoute = AuthenticatedAdminActorRouteImport.update({
-  id: '/admin/actor',
-  path: '/admin/actor',
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/admin/feedback',
+    path: '/admin/feedback',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminFirstFrameRoute =
+  AuthenticatedAdminFirstFrameRouteImport.update({
+    id: '/admin/first-frame',
+    path: '/admin/first-frame',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminHomeRoute = AuthenticatedAdminHomeRouteImport.update({
+  id: '/admin/home',
+  path: '/admin/home',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminViralArchiveIndexRoute =
-  AuthenticatedAdminViralArchiveIndexRouteImport.update({
-    id: '/admin/viral-archive/',
-    path: '/admin/viral-archive/',
+const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
+  id: '/admin/media',
+  path: '/admin/media',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/admin/notifications',
+    path: '/admin/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminVideoEditorIndexRoute =
-  AuthenticatedAdminVideoEditorIndexRouteImport.update({
-    id: '/admin/video-editor/',
-    path: '/admin/video-editor/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminTemplatesIndexRoute =
-  AuthenticatedAdminTemplatesIndexRouteImport.update({
-    id: '/admin/templates/',
-    path: '/admin/templates/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminCreatorsIndexRoute =
-  AuthenticatedAdminCreatorsIndexRouteImport.update({
-    id: '/admin/creators/',
-    path: '/admin/creators/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminCarouselsIndexRoute =
-  AuthenticatedAdminCarouselsIndexRouteImport.update({
-    id: '/admin/carousels/',
-    path: '/admin/carousels/',
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/admin/settings',
+    path: '/admin/settings',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminAutomationsIndexRoute =
@@ -165,34 +135,16 @@ const AuthenticatedAdminAutomationsIndexRoute =
     path: '/admin/automations/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const ApiV1NotificationsStreamRoute =
-  ApiV1NotificationsStreamRouteImport.update({
-    id: '/api/v1/notifications/stream',
-    path: '/api/v1/notifications/stream',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const AuthenticatedAdminVideoEditorProjectIdRoute =
-  AuthenticatedAdminVideoEditorProjectIdRouteImport.update({
-    id: '/admin/video-editor/$projectId',
-    path: '/admin/video-editor/$projectId',
+const AuthenticatedAdminAutomationsAutomationIdRoute =
+  AuthenticatedAdminAutomationsAutomationIdRouteImport.update({
+    id: '/admin/automations/$automationId',
+    path: '/admin/automations/$automationId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminSettingsTabRoute =
-  AuthenticatedAdminSettingsTabRouteImport.update({
-    id: '/$tab',
-    path: '/$tab',
-    getParentRoute: () => AuthenticatedAdminSettingsRoute,
-  } as any)
-const AuthenticatedAdminFeedbackCommentsRoute =
-  AuthenticatedAdminFeedbackCommentsRouteImport.update({
-    id: '/comments',
-    path: '/comments',
-    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
-  } as any)
-const AuthenticatedAdminCreatorsCreatorIdRoute =
-  AuthenticatedAdminCreatorsCreatorIdRouteImport.update({
-    id: '/admin/creators/$creatorId',
-    path: '/admin/creators/$creatorId',
+const AuthenticatedAdminCarouselsIndexRoute =
+  AuthenticatedAdminCarouselsIndexRouteImport.update({
+    id: '/admin/carousels/',
+    path: '/admin/carousels/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminCarouselsCarouselIdRoute =
@@ -201,50 +153,69 @@ const AuthenticatedAdminCarouselsCarouselIdRoute =
     path: '/admin/carousels/$carouselId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminAutomationsAutomationIdRoute =
-  AuthenticatedAdminAutomationsAutomationIdRouteImport.update({
-    id: '/admin/automations/$automationId',
-    path: '/admin/automations/$automationId',
+const AuthenticatedAdminCreatorsIndexRoute =
+  AuthenticatedAdminCreatorsIndexRouteImport.update({
+    id: '/admin/creators/',
+    path: '/admin/creators/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const ApiV1ViralVideosVideoIdThumbnailRoute =
-  ApiV1ViralVideosVideoIdThumbnailRouteImport.update({
-    id: '/api/v1/viral-videos/$videoId/thumbnail',
-    path: '/api/v1/viral-videos/$videoId/thumbnail',
+const AuthenticatedAdminCreatorsCreatorIdRoute =
+  AuthenticatedAdminCreatorsCreatorIdRouteImport.update({
+    id: '/admin/creators/$creatorId',
+    path: '/admin/creators/$creatorId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminFeedbackCommentsRoute =
+  AuthenticatedAdminFeedbackCommentsRouteImport.update({
+    id: '/comments',
+    path: '/comments',
+    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
+  } as any)
+const AuthenticatedAdminSettingsTabRoute =
+  AuthenticatedAdminSettingsTabRouteImport.update({
+    id: '/$tab',
+    path: '/$tab',
+    getParentRoute: () => AuthenticatedAdminSettingsRoute,
+  } as any)
+const AuthenticatedAdminTemplatesIndexRoute =
+  AuthenticatedAdminTemplatesIndexRouteImport.update({
+    id: '/admin/templates/',
+    path: '/admin/templates/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminVideoEditorIndexRoute =
+  AuthenticatedAdminVideoEditorIndexRouteImport.update({
+    id: '/admin/video-editor/',
+    path: '/admin/video-editor/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminVideoEditorProjectIdRoute =
+  AuthenticatedAdminVideoEditorProjectIdRouteImport.update({
+    id: '/admin/video-editor/$projectId',
+    path: '/admin/video-editor/$projectId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminViralArchiveIndexRoute =
+  AuthenticatedAdminViralArchiveIndexRouteImport.update({
+    id: '/admin/viral-archive/',
+    path: '/admin/viral-archive/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const ApiV1NotificationsStreamRoute =
+  ApiV1NotificationsStreamRouteImport.update({
+    id: '/api/v1/notifications/stream',
+    path: '/api/v1/notifications/stream',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiV1TemplatesTemplateIdThumbnailRoute =
-  ApiV1TemplatesTemplateIdThumbnailRouteImport.update({
-    id: '/api/v1/templates/$templateId/thumbnail',
-    path: '/api/v1/templates/$templateId/thumbnail',
-    getParentRoute: () => rootRouteImport,
+const AuthenticatedAdminVideoEditorTemplateTemplateIdRoute =
+  AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport.update({
+    id: '/admin/video-editor/template/$templateId',
+    path: '/admin/video-editor/template/$templateId',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
-const ApiV1ProjectsProjectIdRenderThumbnailRoute =
-  ApiV1ProjectsProjectIdRenderThumbnailRouteImport.update({
-    id: '/api/v1/projects/$projectId/render-thumbnail',
-    path: '/api/v1/projects/$projectId/render-thumbnail',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiV1ProjectsProjectIdRenderRoute =
-  ApiV1ProjectsProjectIdRenderRouteImport.update({
-    id: '/api/v1/projects/$projectId/render',
-    path: '/api/v1/projects/$projectId/render',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiV1MediaMediaIdProxyRoute = ApiV1MediaMediaIdProxyRouteImport.update({
-  id: '/api/v1/media/$mediaId/proxy',
-  path: '/api/v1/media/$mediaId/proxy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiV1MediaMediaIdFilmstripRoute =
-  ApiV1MediaMediaIdFilmstripRouteImport.update({
-    id: '/api/v1/media/$mediaId/filmstrip',
-    path: '/api/v1/media/$mediaId/filmstrip',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
-  id: '/api/v1/media/$mediaId/file',
-  path: '/api/v1/media/$mediaId/file',
+const ApiV1ActorsActorIdImageRoute = ApiV1ActorsActorIdImageRouteImport.update({
+  id: '/api/v1/actors/$actorId/image',
+  path: '/api/v1/actors/$actorId/image',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1CreatorsCreatorIdAvatarRoute =
@@ -253,16 +224,45 @@ const ApiV1CreatorsCreatorIdAvatarRoute =
     path: '/api/v1/creators/$creatorId/avatar',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiV1ActorsActorIdImageRoute = ApiV1ActorsActorIdImageRouteImport.update({
-  id: '/api/v1/actors/$actorId/image',
-  path: '/api/v1/actors/$actorId/image',
+const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
+  id: '/api/v1/media/$mediaId/file',
+  path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminVideoEditorTemplateTemplateIdRoute =
-  AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport.update({
-    id: '/admin/video-editor/template/$templateId',
-    path: '/admin/video-editor/template/$templateId',
-    getParentRoute: () => AuthenticatedRoute,
+const ApiV1MediaMediaIdFilmstripRoute =
+  ApiV1MediaMediaIdFilmstripRouteImport.update({
+    id: '/api/v1/media/$mediaId/filmstrip',
+    path: '/api/v1/media/$mediaId/filmstrip',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1MediaMediaIdProxyRoute = ApiV1MediaMediaIdProxyRouteImport.update({
+  id: '/api/v1/media/$mediaId/proxy',
+  path: '/api/v1/media/$mediaId/proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ProjectsProjectIdRenderRoute =
+  ApiV1ProjectsProjectIdRenderRouteImport.update({
+    id: '/api/v1/projects/$projectId/render',
+    path: '/api/v1/projects/$projectId/render',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1ProjectsProjectIdRenderThumbnailRoute =
+  ApiV1ProjectsProjectIdRenderThumbnailRouteImport.update({
+    id: '/api/v1/projects/$projectId/render-thumbnail',
+    path: '/api/v1/projects/$projectId/render-thumbnail',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1TemplatesTemplateIdThumbnailRoute =
+  ApiV1TemplatesTemplateIdThumbnailRouteImport.update({
+    id: '/api/v1/templates/$templateId/thumbnail',
+    path: '/api/v1/templates/$templateId/thumbnail',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1ViralVideosVideoIdThumbnailRoute =
+  ApiV1ViralVideosVideoIdThumbnailRouteImport.update({
+    id: '/api/v1/viral-videos/$videoId/thumbnail',
+    path: '/api/v1/viral-videos/$videoId/thumbnail',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -522,18 +522,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -557,60 +557,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/notifications': {
-      id: '/_authenticated/admin/notifications'
-      path: '/admin/notifications'
-      fullPath: '/admin/notifications'
-      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/media': {
-      id: '/_authenticated/admin/media'
-      path: '/admin/media'
-      fullPath: '/admin/media'
-      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/home': {
-      id: '/_authenticated/admin/home'
-      path: '/admin/home'
-      fullPath: '/admin/home'
-      preLoaderRoute: typeof AuthenticatedAdminHomeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/first-frame': {
-      id: '/_authenticated/admin/first-frame'
-      path: '/admin/first-frame'
-      fullPath: '/admin/first-frame'
-      preLoaderRoute: typeof AuthenticatedAdminFirstFrameRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/feedback': {
-      id: '/_authenticated/admin/feedback'
-      path: '/admin/feedback'
-      fullPath: '/admin/feedback'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/export': {
-      id: '/_authenticated/admin/export'
-      path: '/admin/export'
-      fullPath: '/admin/export'
-      preLoaderRoute: typeof AuthenticatedAdminExportRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/api-usage': {
-      id: '/_authenticated/admin/api-usage'
-      path: '/admin/api-usage'
-      fullPath: '/admin/api-usage'
-      preLoaderRoute: typeof AuthenticatedAdminApiUsageRouteImport
+    '/_authenticated/admin/actor': {
+      id: '/_authenticated/admin/actor'
+      path: '/admin/actor'
+      fullPath: '/admin/actor'
+      preLoaderRoute: typeof AuthenticatedAdminActorRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/ai-generations': {
@@ -620,46 +571,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAiGenerationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/actor': {
-      id: '/_authenticated/admin/actor'
-      path: '/admin/actor'
-      fullPath: '/admin/actor'
-      preLoaderRoute: typeof AuthenticatedAdminActorRouteImport
+    '/_authenticated/admin/api-usage': {
+      id: '/_authenticated/admin/api-usage'
+      path: '/admin/api-usage'
+      fullPath: '/admin/api-usage'
+      preLoaderRoute: typeof AuthenticatedAdminApiUsageRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/viral-archive/': {
-      id: '/_authenticated/admin/viral-archive/'
-      path: '/admin/viral-archive'
-      fullPath: '/admin/viral-archive/'
-      preLoaderRoute: typeof AuthenticatedAdminViralArchiveIndexRouteImport
+    '/_authenticated/admin/export': {
+      id: '/_authenticated/admin/export'
+      path: '/admin/export'
+      fullPath: '/admin/export'
+      preLoaderRoute: typeof AuthenticatedAdminExportRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/video-editor/': {
-      id: '/_authenticated/admin/video-editor/'
-      path: '/admin/video-editor'
-      fullPath: '/admin/video-editor/'
-      preLoaderRoute: typeof AuthenticatedAdminVideoEditorIndexRouteImport
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/admin/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/templates/': {
-      id: '/_authenticated/admin/templates/'
-      path: '/admin/templates'
-      fullPath: '/admin/templates/'
-      preLoaderRoute: typeof AuthenticatedAdminTemplatesIndexRouteImport
+    '/_authenticated/admin/first-frame': {
+      id: '/_authenticated/admin/first-frame'
+      path: '/admin/first-frame'
+      fullPath: '/admin/first-frame'
+      preLoaderRoute: typeof AuthenticatedAdminFirstFrameRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/creators/': {
-      id: '/_authenticated/admin/creators/'
-      path: '/admin/creators'
-      fullPath: '/admin/creators/'
-      preLoaderRoute: typeof AuthenticatedAdminCreatorsIndexRouteImport
+    '/_authenticated/admin/home': {
+      id: '/_authenticated/admin/home'
+      path: '/admin/home'
+      fullPath: '/admin/home'
+      preLoaderRoute: typeof AuthenticatedAdminHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/carousels/': {
-      id: '/_authenticated/admin/carousels/'
-      path: '/admin/carousels'
-      fullPath: '/admin/carousels/'
-      preLoaderRoute: typeof AuthenticatedAdminCarouselsIndexRouteImport
+    '/_authenticated/admin/media': {
+      id: '/_authenticated/admin/media'
+      path: '/admin/media'
+      fullPath: '/admin/media'
+      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/admin/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/automations/': {
@@ -669,39 +634,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/v1/notifications/stream': {
-      id: '/api/v1/notifications/stream'
-      path: '/api/v1/notifications/stream'
-      fullPath: '/api/v1/notifications/stream'
-      preLoaderRoute: typeof ApiV1NotificationsStreamRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/admin/video-editor/$projectId': {
-      id: '/_authenticated/admin/video-editor/$projectId'
-      path: '/admin/video-editor/$projectId'
-      fullPath: '/admin/video-editor/$projectId'
-      preLoaderRoute: typeof AuthenticatedAdminVideoEditorProjectIdRouteImport
+    '/_authenticated/admin/automations/$automationId': {
+      id: '/_authenticated/admin/automations/$automationId'
+      path: '/admin/automations/$automationId'
+      fullPath: '/admin/automations/$automationId'
+      preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings/$tab': {
-      id: '/_authenticated/admin/settings/$tab'
-      path: '/$tab'
-      fullPath: '/admin/settings/$tab'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
-      parentRoute: typeof AuthenticatedAdminSettingsRoute
-    }
-    '/_authenticated/admin/feedback/comments': {
-      id: '/_authenticated/admin/feedback/comments'
-      path: '/comments'
-      fullPath: '/admin/feedback/comments'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
-      parentRoute: typeof AuthenticatedAdminFeedbackRoute
-    }
-    '/_authenticated/admin/creators/$creatorId': {
-      id: '/_authenticated/admin/creators/$creatorId'
-      path: '/admin/creators/$creatorId'
-      fullPath: '/admin/creators/$creatorId'
-      preLoaderRoute: typeof AuthenticatedAdminCreatorsCreatorIdRouteImport
+    '/_authenticated/admin/carousels/': {
+      id: '/_authenticated/admin/carousels/'
+      path: '/admin/carousels'
+      fullPath: '/admin/carousels/'
+      preLoaderRoute: typeof AuthenticatedAdminCarouselsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/carousels/$carouselId': {
@@ -711,60 +655,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCarouselsCarouselIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/automations/$automationId': {
-      id: '/_authenticated/admin/automations/$automationId'
-      path: '/admin/automations/$automationId'
-      fullPath: '/admin/automations/$automationId'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
+    '/_authenticated/admin/creators/': {
+      id: '/_authenticated/admin/creators/'
+      path: '/admin/creators'
+      fullPath: '/admin/creators/'
+      preLoaderRoute: typeof AuthenticatedAdminCreatorsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/v1/viral-videos/$videoId/thumbnail': {
-      id: '/api/v1/viral-videos/$videoId/thumbnail'
-      path: '/api/v1/viral-videos/$videoId/thumbnail'
-      fullPath: '/api/v1/viral-videos/$videoId/thumbnail'
-      preLoaderRoute: typeof ApiV1ViralVideosVideoIdThumbnailRouteImport
+    '/_authenticated/admin/creators/$creatorId': {
+      id: '/_authenticated/admin/creators/$creatorId'
+      path: '/admin/creators/$creatorId'
+      fullPath: '/admin/creators/$creatorId'
+      preLoaderRoute: typeof AuthenticatedAdminCreatorsCreatorIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/feedback/comments': {
+      id: '/_authenticated/admin/feedback/comments'
+      path: '/comments'
+      fullPath: '/admin/feedback/comments'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
+      parentRoute: typeof AuthenticatedAdminFeedbackRoute
+    }
+    '/_authenticated/admin/settings/$tab': {
+      id: '/_authenticated/admin/settings/$tab'
+      path: '/$tab'
+      fullPath: '/admin/settings/$tab'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
+      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    }
+    '/_authenticated/admin/templates/': {
+      id: '/_authenticated/admin/templates/'
+      path: '/admin/templates'
+      fullPath: '/admin/templates/'
+      preLoaderRoute: typeof AuthenticatedAdminTemplatesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/video-editor/': {
+      id: '/_authenticated/admin/video-editor/'
+      path: '/admin/video-editor'
+      fullPath: '/admin/video-editor/'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/video-editor/$projectId': {
+      id: '/_authenticated/admin/video-editor/$projectId'
+      path: '/admin/video-editor/$projectId'
+      fullPath: '/admin/video-editor/$projectId'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorProjectIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/viral-archive/': {
+      id: '/_authenticated/admin/viral-archive/'
+      path: '/admin/viral-archive'
+      fullPath: '/admin/viral-archive/'
+      preLoaderRoute: typeof AuthenticatedAdminViralArchiveIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/v1/notifications/stream': {
+      id: '/api/v1/notifications/stream'
+      path: '/api/v1/notifications/stream'
+      fullPath: '/api/v1/notifications/stream'
+      preLoaderRoute: typeof ApiV1NotificationsStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/v1/templates/$templateId/thumbnail': {
-      id: '/api/v1/templates/$templateId/thumbnail'
-      path: '/api/v1/templates/$templateId/thumbnail'
-      fullPath: '/api/v1/templates/$templateId/thumbnail'
-      preLoaderRoute: typeof ApiV1TemplatesTemplateIdThumbnailRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/admin/video-editor/template/$templateId': {
+      id: '/_authenticated/admin/video-editor/template/$templateId'
+      path: '/admin/video-editor/template/$templateId'
+      fullPath: '/admin/video-editor/template/$templateId'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/api/v1/projects/$projectId/render-thumbnail': {
-      id: '/api/v1/projects/$projectId/render-thumbnail'
-      path: '/api/v1/projects/$projectId/render-thumbnail'
-      fullPath: '/api/v1/projects/$projectId/render-thumbnail'
-      preLoaderRoute: typeof ApiV1ProjectsProjectIdRenderThumbnailRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/projects/$projectId/render': {
-      id: '/api/v1/projects/$projectId/render'
-      path: '/api/v1/projects/$projectId/render'
-      fullPath: '/api/v1/projects/$projectId/render'
-      preLoaderRoute: typeof ApiV1ProjectsProjectIdRenderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/media/$mediaId/proxy': {
-      id: '/api/v1/media/$mediaId/proxy'
-      path: '/api/v1/media/$mediaId/proxy'
-      fullPath: '/api/v1/media/$mediaId/proxy'
-      preLoaderRoute: typeof ApiV1MediaMediaIdProxyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/media/$mediaId/filmstrip': {
-      id: '/api/v1/media/$mediaId/filmstrip'
-      path: '/api/v1/media/$mediaId/filmstrip'
-      fullPath: '/api/v1/media/$mediaId/filmstrip'
-      preLoaderRoute: typeof ApiV1MediaMediaIdFilmstripRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/media/$mediaId/file': {
-      id: '/api/v1/media/$mediaId/file'
-      path: '/api/v1/media/$mediaId/file'
-      fullPath: '/api/v1/media/$mediaId/file'
-      preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
+    '/api/v1/actors/$actorId/image': {
+      id: '/api/v1/actors/$actorId/image'
+      path: '/api/v1/actors/$actorId/image'
+      fullPath: '/api/v1/actors/$actorId/image'
+      preLoaderRoute: typeof ApiV1ActorsActorIdImageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/creators/$creatorId/avatar': {
@@ -774,19 +739,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1CreatorsCreatorIdAvatarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/v1/actors/$actorId/image': {
-      id: '/api/v1/actors/$actorId/image'
-      path: '/api/v1/actors/$actorId/image'
-      fullPath: '/api/v1/actors/$actorId/image'
-      preLoaderRoute: typeof ApiV1ActorsActorIdImageRouteImport
+    '/api/v1/media/$mediaId/file': {
+      id: '/api/v1/media/$mediaId/file'
+      path: '/api/v1/media/$mediaId/file'
+      fullPath: '/api/v1/media/$mediaId/file'
+      preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/video-editor/template/$templateId': {
-      id: '/_authenticated/admin/video-editor/template/$templateId'
-      path: '/admin/video-editor/template/$templateId'
-      fullPath: '/admin/video-editor/template/$templateId'
-      preLoaderRoute: typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/api/v1/media/$mediaId/filmstrip': {
+      id: '/api/v1/media/$mediaId/filmstrip'
+      path: '/api/v1/media/$mediaId/filmstrip'
+      fullPath: '/api/v1/media/$mediaId/filmstrip'
+      preLoaderRoute: typeof ApiV1MediaMediaIdFilmstripRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/media/$mediaId/proxy': {
+      id: '/api/v1/media/$mediaId/proxy'
+      path: '/api/v1/media/$mediaId/proxy'
+      fullPath: '/api/v1/media/$mediaId/proxy'
+      preLoaderRoute: typeof ApiV1MediaMediaIdProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/projects/$projectId/render': {
+      id: '/api/v1/projects/$projectId/render'
+      path: '/api/v1/projects/$projectId/render'
+      fullPath: '/api/v1/projects/$projectId/render'
+      preLoaderRoute: typeof ApiV1ProjectsProjectIdRenderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/projects/$projectId/render-thumbnail': {
+      id: '/api/v1/projects/$projectId/render-thumbnail'
+      path: '/api/v1/projects/$projectId/render-thumbnail'
+      fullPath: '/api/v1/projects/$projectId/render-thumbnail'
+      preLoaderRoute: typeof ApiV1ProjectsProjectIdRenderThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/templates/$templateId/thumbnail': {
+      id: '/api/v1/templates/$templateId/thumbnail'
+      path: '/api/v1/templates/$templateId/thumbnail'
+      fullPath: '/api/v1/templates/$templateId/thumbnail'
+      preLoaderRoute: typeof ApiV1TemplatesTemplateIdThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/viral-videos/$videoId/thumbnail': {
+      id: '/api/v1/viral-videos/$videoId/thumbnail'
+      path: '/api/v1/viral-videos/$videoId/thumbnail'
+      fullPath: '/api/v1/viral-videos/$videoId/thumbnail'
+      preLoaderRoute: typeof ApiV1ViralVideosVideoIdThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }

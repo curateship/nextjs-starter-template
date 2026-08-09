@@ -16,7 +16,13 @@ import {
  * where you got in, where you get out with a profit, where you get out with a
  * loss, where the exchange takes the trade off you, and where anything still
  * waiting sits. The two you can change — the target and the stop — and any
- * waiting order can be dragged to a new price or thrown away with the ×.
+ * waiting order can be dragged to a new price, opened for editing by pressing
+ * its bar, or thrown away with the ×.
+ *
+ * A waiting order carries its own target and stop, drawn in a finer dash than
+ * a live one's. They are where the trade will get out once the order fills,
+ * which is a different fact from where a trade already open gets out — so they
+ * are drawn but not draggable. The bar opens the window that changes them.
  *
  * Built the same way as the paint tools rather than as chart price lines: SVG
  * elements over the plot, so every line is something the Tab key can reach and
@@ -41,7 +47,15 @@ type Grab = {
   moved: boolean
 }
 
-type LineKind = "entry" | "take_profit" | "stop_loss" | "liquidation" | "order"
+type LineKind =
+  | "entry"
+  | "take_profit"
+  | "stop_loss"
+  | "liquidation"
+  | "order"
+  /** A waiting order's own target and stop — where it will get out, not where it is. */
+  | "order_take_profit"
+  | "order_stop_loss"
 
 type Line = {
   id: string
@@ -90,14 +104,19 @@ const COLOR: Record<LineKind, string> = {
   stop_loss: "#f23645",
   liquidation: "#f59e0b",
   order: "#6b7280",
+  order_take_profit: "#089981",
+  order_stop_loss: "#f23645",
 }
 
+/** A finer dash on the two that have not started yet — they are a plan, not a fact. */
 const DASHED: Record<LineKind, string | undefined> = {
   entry: undefined,
   take_profit: "6 4",
   stop_loss: "6 4",
   liquidation: "2 4",
   order: "5 4",
+  order_take_profit: "2 3",
+  order_stop_loss: "2 3",
 }
 
 /** How tall a label pill and its price badge are. */
@@ -137,6 +156,7 @@ export function TradeLinesLayer({
   entryBadge,
   onMoveOrder,
   onCancelOrder,
+  onEditOrder,
   onSetBrackets,
   onSurface,
 }: {
@@ -157,6 +177,11 @@ export function TradeLinesLayer({
   entryBadge?: (position: PaperPosition) => EntryBadge | null
   onMoveOrder: (walletId: string, orderId: string, price: number) => void
   onCancelOrder: (walletId: string, orderId: string) => void
+  /**
+   * Pressing a waiting order's bar: its size and where it gets out. Only the
+   * order's id — the window reads the row itself, which carries its wallet.
+   */
+  onEditOrder?: (orderId: string) => void
   onSetBrackets: (
     walletId: string,
     marketKey: string,
@@ -205,7 +230,9 @@ export function TradeLinesLayer({
       onRemove: badge?.onRemove ?? undefined,
     })
 
-    const liq = liquidationPx(position)
+    // A real position's liquidation price is the exchange's own answer; the
+    // formula is for practice positions, where this app IS the exchange.
+    const liq = position.live ? position.live.liquidationPx : liquidationPx(position)
     if (liq !== null) {
       lines.push({
         id: `liq:${position.id}`,
@@ -258,15 +285,62 @@ export function TradeLinesLayer({
   }
 
   for (const order of waiting) {
+    const tag = whose(order.walletId)
+    // An order still on its way to the server has no id anything could act on,
+    // so it is drawn and nothing more. It says so rather than looking stuck.
+    const settled = !order.placing
+    // The trade this order would open, for working out what its own target and
+    // stop would pay. It is not held yet — this is what it would be.
+    const wouldHold = {
+      szi: order.side === "buy" ? order.sz : -order.sz,
+      entryPx: order.px,
+    }
+    // A real resting order can neither be dragged to a new price nor changed
+    // in place yet — both are the edit-orders task. Its × still cancels.
+    const edit =
+      settled && !order.live && onEditOrder
+        ? () => onEditOrder(order.id)
+        : undefined
+
     lines.push({
       id: `order:${order.id}`,
       kind: "order",
       price: order.px,
       label: () =>
-        `${order.side === "buy" ? "Buy" : "Sell"} ${order.sz}${whose(order.walletId)}`,
-      onMove: (price) => onMoveOrder(order.walletId, order.id, price),
-      onRemove: () => onCancelOrder(order.walletId, order.id),
+        `${order.side === "buy" ? "Buy" : "Sell"} ${order.sz}${tag}${
+          settled ? "" : " · sending"
+        }`,
+      onMove:
+        settled && !order.live
+          ? (price) => onMoveOrder(order.walletId, order.id, price)
+          : undefined,
+      onRemove: settled
+        ? () => onCancelOrder(order.walletId, order.id)
+        : undefined,
+      onSettings: edit,
+      hint: edit
+        ? "Change how much this order is for, and where it gets out once it fills."
+        : undefined,
     })
+
+    if (order.tpPx !== null) {
+      lines.push({
+        id: `order-tp:${order.id}`,
+        kind: "order_take_profit",
+        price: order.tpPx,
+        label: (at) =>
+          `Target once filled ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
+      })
+    }
+    if (order.slPx !== null) {
+      lines.push({
+        id: `order-sl:${order.id}`,
+        kind: "order_stop_loss",
+        price: order.slPx,
+        label: (at) =>
+          `Stop once filled ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
+      })
+    }
   }
 
   const beginGrab = (event: React.PointerEvent<SVGElement>, line: Line) => {

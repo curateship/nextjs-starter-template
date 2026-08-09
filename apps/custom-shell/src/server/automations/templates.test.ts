@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
 import { AUTOMATION_TEMPLATES } from "@/lib/automations/templates"
-import { createUserAutomation } from "@/server/automations/flows"
+import { createWorkspaceAutomation } from "@/server/automations/flows"
 import {
   getUserAutomationTemplate,
   listUserAutomationTemplates,
@@ -12,15 +12,18 @@ import {
   saveUserAutomationTemplateGraph,
 } from "@/server/automations/templates"
 import type { CustomShellDb } from "@/server/db"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
 
 let client: PGlite
 let database: CustomShellDb
+/** The site every flow in these tests belongs to. */
+let site: string
 
 beforeEach(async () => {
   const created = await createTestDatabase()
   client = created.client
   database = created.db
+  site = (await insertWorkspace(database)).id
 })
 
 afterEach(async () => {
@@ -32,7 +35,7 @@ describe("creating an automation from a template", () => {
     const owner = await insertUser(database, { role: "admin" })
 
     for (const template of AUTOMATION_TEMPLATES) {
-      const created = await createUserAutomation(
+      const created = await createWorkspaceAutomation(site,
         owner.id,
         template.name,
         database,
@@ -114,7 +117,7 @@ describe("creating an automation from a template", () => {
       builtIn.key,
       database
     )
-    const created = await createUserAutomation(
+    const created = await createWorkspaceAutomation(site,
       owner.id,
       effective.name,
       database,

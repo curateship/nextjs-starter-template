@@ -18,6 +18,7 @@ import {
   movePaperOrder as moveOrderRow,
   placePaperOrder as placeOrderRow,
   setPaperBrackets as setBracketsRow,
+  updatePaperOrder as updateOrderRow,
 } from "@/server/trade/paper"
 import { listActiveLadders } from "@/server/trade/smart-orders"
 import { findWallet, listWallets } from "@/server/trade/wallets"
@@ -61,6 +62,15 @@ const moveSchema = z.object({
 const orderSchema = z.object({
   walletId: z.string().max(36),
   orderId: z.string().max(36),
+})
+
+/** Everything about a waiting order except its price, which the drag owns. */
+const updateSchema = z.object({
+  walletId: z.string().max(36),
+  orderId: z.string().max(36),
+  sz: z.number().positive().finite(),
+  tpPx: z.number().positive().finite().nullable(),
+  slPx: z.number().positive().finite().nullable(),
 })
 
 const bracketsSchema = z.object({
@@ -135,6 +145,15 @@ const movePaperOrderFn = createServerFn({ method: "POST" })
     return { moved: true }
   })
 
+const updatePaperOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(updateSchema)
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    const wallet = await paperWallet(context.user.id, data.walletId)
+    await updateOrderRow(context.user.id, wallet, data)
+    return { saved: true }
+  })
+
 const cancelPaperOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(orderSchema)
@@ -189,6 +208,10 @@ export function placePaperOrder(input: z.infer<typeof placeSchema>) {
 
 export function movePaperOrder(input: z.infer<typeof moveSchema>) {
   return movePaperOrderFn({ data: input })
+}
+
+export function updatePaperOrder(input: z.infer<typeof updateSchema>) {
+  return updatePaperOrderFn({ data: input })
 }
 
 export function cancelPaperOrder(walletId: string, orderId: string) {

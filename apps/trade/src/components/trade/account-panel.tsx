@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { keyExpiryWarning } from "@/lib/trade/live"
 import {
   venueLabel,
   type TradeWallet,
@@ -73,6 +74,20 @@ function FigureRow({
   )
 }
 
+/**
+ * The trading key is running out (or has). Said on the wallet itself, where
+ * the fix is one click away, and only while it is worth saying.
+ */
+function KeyExpiryNotice({ wallet }: { wallet: TradeWallet }) {
+  const warning = keyExpiryWarning(wallet.keyValidUntil, Date.now())
+  if (!warning) return null
+  return (
+    <p className="rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
+      {warning}
+    </p>
+  )
+}
+
 function ActiveWalletView({
   wallet,
   summary,
@@ -115,6 +130,8 @@ function ActiveWalletView({
           />
         </div>
       </div>
+
+      <KeyExpiryNotice wallet={wallet} />
 
       {ok ? (
         <div className="flex flex-col gap-0.5 text-xs">
@@ -198,6 +215,11 @@ function WalletCard({
           </span>
         ) : null}
       </div>
+      {keyExpiryWarning(wallet.keyValidUntil, Date.now()) ? (
+        <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
+          {keyExpiryWarning(wallet.keyValidUntil, Date.now())}
+        </p>
+      ) : null}
     </button>
   )
 }

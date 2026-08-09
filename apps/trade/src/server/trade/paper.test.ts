@@ -18,6 +18,7 @@ import {
   paperWalletFigures,
   placePaperOrder,
   setPaperBrackets,
+  updatePaperOrder,
 } from "@/server/trade/paper"
 import {
   tradePaperJournal,
@@ -173,6 +174,7 @@ beforeEach(async () => {
     startingBalance: 10_000,
     address: null,
     hasKey: false,
+    keyValidUntil: null,
   }
 })
 
@@ -528,6 +530,111 @@ describe("managing what is open", () => {
     const held = await positions()
     expect(held).toHaveLength(1)
     expect(held[0].entryPx).toBe(100)
+  })
+
+  it("changes how much a waiting order is for, and where it gets out", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 90,
+      sz: 1,
+      leverage: 5,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [waiting] = await orders()
+    await updatePaperOrder(userId, wallet, {
+      orderId: waiting.id,
+      sz: 2,
+      tpPx: 120,
+      slPx: 85,
+    })
+
+    const [changed] = await orders()
+    expect(changed.sz).toBe(2)
+    expect(changed.tpPx).toBe(120)
+    expect(changed.slPx).toBe(85)
+    // The price is the chart's to change, never this window's.
+    expect(changed.px).toBe(90)
+  })
+
+  it("refuses a size the account can no longer put up the margin for", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 90,
+      sz: 1,
+      leverage: 5,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [waiting] = await orders()
+    // 1,000 coins at 90 on 5× is 18,000 of margin against 10,000 of cash.
+    await expect(
+      updatePaperOrder(userId, wallet, {
+        orderId: waiting.id,
+        sz: 1_000,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_MARGIN")
+    expect((await orders())[0].sz).toBe(1)
+  })
+
+  it("refuses a target and a stop on the wrong side of the order's price", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 90,
+      sz: 1,
+      leverage: 5,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [waiting] = await orders()
+    await expect(
+      updatePaperOrder(userId, wallet, {
+        orderId: waiting.id,
+        sz: 1,
+        tpPx: 80,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_TAKE_PROFIT_SIDE")
+    await expect(
+      updatePaperOrder(userId, wallet, {
+        orderId: waiting.id,
+        sz: 1,
+        tpPx: null,
+        slPx: 95,
+      })
+    ).rejects.toThrow("PAPER_STOP_SIDE")
+  })
+
+  it("refuses to change an order that has already gone", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 90,
+      sz: 1,
+      leverage: 5,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [waiting] = await orders()
+    // Price reaches it, so the settle inside the edit fills it first.
+    marks.set("BTC", 85)
+    await expect(
+      updatePaperOrder(userId, wallet, {
+        orderId: waiting.id,
+        sz: 2,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_ORDER_NOT_FOUND")
   })
 
   it("cancels a waiting order", async () => {

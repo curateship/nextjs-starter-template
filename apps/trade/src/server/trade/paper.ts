@@ -174,8 +174,13 @@ export type WalletBook = {
   cash: number
   positions: Map<string, PaperPosition>
   orders: PaperOrder[]
-  /** Fills to record, in the order they happened. */
-  fills: PaperJournalEntry[]
+  /**
+   * Fills to record, in the order they happened. Narrower than the display
+   * type on purpose: everything this engine writes IS a fill, with a side
+   * and a fill reason — the nullable/live variants belong to the live
+   * journal, never to this table.
+   */
+  fills: Array<PaperJournalEntry & { side: PaperSide; reason: PaperFillReason }>
   /** Markets whose position row must be rewritten or removed. */
   touchedMarkets: Set<string>
   /** Orders that filled or were cancelled by the engine. */
@@ -1101,6 +1106,83 @@ export async function movePaperOrder(
   await db
     .update(tradePaperOrders)
     .set({ px, updatedAt: new Date(now) })
+    .where(
+      and(
+        eq(tradePaperOrders.userId, userId),
+        eq(tradePaperOrders.walletId, wallet.id),
+        eq(tradePaperOrders.id, input.orderId)
+      )
+    )
+}
+
+/**
+ * Changing a waiting order without moving it: how much it is for, and where it
+ * gets out once it fills.
+ *
+ * Its price is not touched here — that is the drag on the chart — which is what
+ * makes this safe to check against `order.px`: an order that is still waiting
+ * has not been reached, so the price it fills at is the price it is asking for.
+ * Every rule the order had to pass when it was placed is applied again, because
+ * the account it has to fit inside is not the one it was placed into.
+ */
+export async function updatePaperOrder(
+  userId: string,
+  wallet: TradeWallet,
+  input: {
+    orderId: string
+    sz: number
+    tpPx: number | null
+    slPx: number | null
+  }
+): Promise<void> {
+  const book = await settleWallet(userId, wallet)
+  const order = book.orders.find((one) => one.id === input.orderId)
+  if (!order) throw new Error("PAPER_ORDER_NOT_FOUND")
+
+  const ref = parseMarketKey(order.marketKey)
+  if (!ref) throw new Error("PAPER_MARKET")
+  // Placing one refuses a market with no rules, and so does this: without them
+  // the size would round to whole coins and report itself as "too small",
+  // which is a true sentence about the wrong problem.
+  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  if (!rules) throw new Error("PAPER_MARKET")
+  const protocol = getProtocol(wallet.protocol)
+
+  const sz = roundSize(input.sz, rules.sizeDecimals)
+  if (!(sz > 0) || order.px * sz < MIN_ORDER_VALUE_USD) {
+    throw new Error("PAPER_SIZE")
+  }
+
+  const held = book.positions.get(order.marketKey) ?? null
+  if (order.reduceOnly) {
+    const reducible = capReduceOnly(held, order.side, sz)
+    if (reducible === null || reducible <= 0) throw new Error("PAPER_REDUCE_ONLY")
+  } else if ((order.px * sz) / order.leverage > freeCash(book)) {
+    // Waiting orders hold no margin aside, so what this one has to fit inside
+    // is the cash free right now — not what was free when it was placed.
+    throw new Error("PAPER_MARGIN")
+  }
+
+  // A reduce-only order never opens a position, so there is nothing for a stop
+  // or a target to ride on. Dropped at the door, exactly as when placing one.
+  const round = (px: number | null) =>
+    px === null ? null : protocol.markets.roundPx(px, rules.sizeDecimals)
+  const tpPx = order.reduceOnly ? null : round(input.tpPx)
+  const slPx = order.reduceOnly ? null : round(input.slPx)
+  const long = order.side === "buy"
+
+  if (tpPx !== null && (!(tpPx > 0) || (long ? tpPx <= order.px : tpPx >= order.px))) {
+    throw new Error("PAPER_TAKE_PROFIT_SIDE")
+  }
+  if (slPx !== null && (!(slPx > 0) || (long ? slPx >= order.px : slPx <= order.px))) {
+    throw new Error("PAPER_STOP_SIDE")
+  }
+
+  await db
+    .update(tradePaperOrders)
+    // The stamp matters: a bar that opened before this edit no longer applies
+    // to the order, the same rule a drag obeys — see `settleMarket`.
+    .set({ sz, tpPx, slPx, updatedAt: new Date() })
     .where(
       and(
         eq(tradePaperOrders.userId, userId),

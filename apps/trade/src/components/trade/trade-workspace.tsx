@@ -3,7 +3,7 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
 import { ActivityPanel } from "@/components/trade/activity-panel"
-import { usePaperTrading } from "@/components/trade/use-paper-trading"
+import { useTrading } from "@/components/trade/use-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
 import {
   AddWalletDialog,
@@ -43,6 +43,7 @@ import {
   parseMarketKey,
   type CandleInterval,
   type MarketCatalog,
+  type NetworkId,
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -115,6 +116,7 @@ function resolveSelection(
 export function TradeWorkspace({
   catalogs,
   marketsError,
+  network,
   initialFavoriteKeys,
   initialChartView,
   initialIndicators,
@@ -126,6 +128,8 @@ export function TradeWorkspace({
   catalogs: MarketCatalog[]
   /** The exchange call failed at load; the list shows this instead of rows. */
   marketsError: string | null
+  /** Which network the whole page is showing — resolved by the route. */
+  network: NetworkId
   initialFavoriteKeys: string[]
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
@@ -194,10 +198,10 @@ export function TradeWorkspace({
     />
   )
 
-  // ----- Practice trading: one owner for the chart's lines and the panel ----
-  // Only a practice wallet trades this way; a live wallet's own ordering is a
-  // later task, and the hook answers with nothing rather than pretending.
-  const paper = usePaperTrading(account.activeWallet)
+  // ----- Trading: one owner for the chart's lines and the panel ------------
+  // Practice and real wallets flow through the same hook; it is the wallet a
+  // row belongs to that decides which road an action takes.
+  const trading = useTrading(account.activeWallet)
   const activeSummary = account.activeWallet
     ? account.summaryOf(account.activeWallet.id)
     : null
@@ -208,11 +212,11 @@ export function TradeWorkspace({
   // into step: the moment the trading side goes quiet, the wallet figures are
   // read again. In an effect rather than during the render, because it is a
   // request — a render can run twice or be thrown away, and a request must not.
-  const paperBusy = paper.busy
+  const tradingBusy = trading.busy
   const refreshAccount = account.refresh
   React.useEffect(() => {
-    if (!paperBusy) void refreshAccount()
-  }, [paperBusy, refreshAccount])
+    if (!tradingBusy) void refreshAccount()
+  }, [tradingBusy, refreshAccount])
 
   // A divider dragged with the mouse keeps keyboard focus, and its arrow keys
   // would then resize a panel with nothing on screen saying so. Handing focus
@@ -294,6 +298,7 @@ export function TradeWorkspace({
     <MarketListPanel
       catalogs={catalogs}
       marketsError={marketsError}
+      network={network}
       favorites={favorites}
       selectedKey={selectedKey}
       onSelect={onSelectMarket}
@@ -337,7 +342,7 @@ export function TradeWorkspace({
             initialChartView={initialChartView}
             indicators={indicators.settings}
             market={selection.kind === "market" ? selection.row : null}
-            paper={paper}
+            trading={trading}
             free={free}
             equity={equity}
           />
@@ -447,7 +452,7 @@ export function TradeWorkspace({
         >
           <WorkspacePanel onDoubleClick={activityDoubleClick}>
             <ActivityPanel
-              paper={paper}
+              trading={trading}
               catalogs={catalogs}
               onSelectMarket={onSelectMarket}
             />

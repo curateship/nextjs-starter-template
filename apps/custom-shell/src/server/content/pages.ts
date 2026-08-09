@@ -9,12 +9,11 @@ import {
 } from "@/lib/pages/page-visibility"
 import { db, type CustomShellDb } from "@/server/db"
 import {
-  customShellSettings,
   customShellTrafficDailyFacts,
-  DEFAULT_SETTINGS_KEY,
+  customShellWorkspaces,
 } from "@/server/schema"
 import { now } from "@/server/auth/security"
-import { parseShellGlobals, readShellGlobals } from "@/server/shell-settings"
+import { parseWorkspaceSettings } from "@/server/people/workspaces"
 import { OTHER_KEY, trafficDay } from "@/server/traffic"
 import {
   findWrittenPage,
@@ -95,6 +94,7 @@ export type PagesOverview = {
 }
 
 export async function loadPagesOverview(
+  workspaceId: string,
   database: CustomShellDb = db,
   at: Date = now()
 ): Promise<PagesOverview> {
@@ -103,7 +103,7 @@ export async function loadPagesOverview(
   )
   const facts = customShellTrafficDailyFacts
 
-  const [factRows, globals, written] = await Promise.all([
+  const [factRows, overrides, written] = await Promise.all([
     database
       .select({
         key: facts.key,
@@ -112,8 +112,8 @@ export async function loadPagesOverview(
       .from(facts)
       .where(and(eq(facts.dimension, "path"), gte(facts.day, firstDay)))
       .groupBy(facts.key),
-    readShellGlobals(database),
-    listWrittenPages(database),
+    readWorkspacePageOverrides(workspaceId, database),
+    listWrittenPages(workspaceId, database),
   ])
 
   const visitsByPath = new Map(
@@ -133,7 +133,7 @@ export async function loadPagesOverview(
     .map((page) => ({
       ...page,
       visits: visitsByPath.get(page.path) ?? 0,
-      visibility: pageVisibility(globals.pages, page),
+      visibility: pageVisibility(overrides, page),
     }))
     // One order for both kinds, by address, so a written page sits where its
     // address puts it rather than in a second group underneath.
@@ -159,6 +159,7 @@ export async function loadPagesOverview(
  * the router's business, not this setting's.
  */
 export async function readPageVisibility(
+  workspaceId: string,
   path: string,
   database: CustomShellDb = db
 ): Promise<PageVisibility> {
@@ -171,12 +172,14 @@ export async function readPageVisibility(
   // Only worth a second query when the registry did not recognise it: a code
   // page can never be a written one, because a written page cannot claim an
   // address the registry already holds.
-  if (!codePage && !(await findWrittenPage(page.path, database))) {
+  if (!codePage && !(await findWrittenPage(workspaceId, page.path, database))) {
     return "everyone"
   }
 
-  const globals = await readShellGlobals(database)
-  return pageVisibility(globals.pages, page)
+  return pageVisibility(
+    await readWorkspacePageOverrides(workspaceId, database),
+    page
+  )
 }
 
 /**
@@ -198,18 +201,18 @@ export type WrittenPageView =
   | { status: "ok"; page: WrittenPage }
 
 export async function readWrittenPageForViewer(
+  workspaceId: string,
   path: string,
   signedIn: boolean,
   database: CustomShellDb = db
 ): Promise<WrittenPageView> {
-  const page = await findWrittenPage(path, database)
+  const page = await findWrittenPage(workspaceId, path, database)
   if (!page) return { status: "missing" }
 
-  const globals = await readShellGlobals(database)
-  const visibility = pageVisibility(globals.pages, {
-    path: page.path,
-    canSwitchOff: true,
-  })
+  const visibility = pageVisibility(
+    await readWorkspacePageOverrides(workspaceId, database),
+    { path: page.path, canSwitchOff: true }
+  )
 
   // Indistinguishable from an address nobody wrote — a page that admitted to
   // being switched off would be telling the caller it is there.
@@ -228,6 +231,7 @@ export async function readWrittenPageForViewer(
  * lock every admin out of their own app.
  */
 export async function setPageVisibility(
+  workspaceId: string,
   {
     path,
     visibility,
@@ -241,7 +245,9 @@ export async function setPageVisibility(
   // A written page is switchable like any other; it is simply known from a row
   // rather than from a file. Looked up only when the registry does not know
   // the address, because a written page can never have claimed one it does.
-  const written = codePage ? null : await findWrittenPage(path, database)
+  const written = codePage
+    ? null
+    : await findWrittenPage(workspaceId, path, database)
   const page =
     codePage ??
     (written
@@ -259,18 +265,22 @@ export async function setPageVisibility(
 
   return database.transaction(async (tx) => {
     // Read, merge and write with the row locked, the same dance the
-    // maintenance switch and the automations kill switch do: this one row
-    // holds every global, so two saves landing together would each write back
-    // what they read and one would lose its changes.
+    // maintenance switch and the automations kill switch do: the site's
+    // settings are one JSON column, so two saves landing together would each
+    // write back what they read and one would lose its changes.
     const [existing] = await tx
-      .select({ settings: customShellSettings.settings })
-      .from(customShellSettings)
-      .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+      .select({ settings: customShellWorkspaces.settings })
+      .from(customShellWorkspaces)
+      .where(eq(customShellWorkspaces.id, workspaceId))
       .limit(1)
       .for("update")
 
-    const globals = parseShellGlobals(existing?.settings)
-    const pages = { ...globals.pages }
+    if (!existing) {
+      throw new Error("That site no longer exists.")
+    }
+
+    const settings = parseWorkspaceSettings(existing.settings)
+    const pages = { ...settings.pages }
     // Keyed by the address the page actually answers on, not by what arrived:
     // a written page's address is tidied on the way in ("/About" is "/about"),
     // and a key written in the other spelling would be saved but never read.
@@ -283,23 +293,31 @@ export async function setPageVisibility(
       pages[key] = { visibility }
     }
 
-    const settings = { ...globals, pages }
-    const timestamp = now()
-
-    if (existing) {
-      await tx
-        .update(customShellSettings)
-        .set({ settings, updatedAt: timestamp })
-        .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
-    } else {
-      await tx.insert(customShellSettings).values({
-        key: DEFAULT_SETTINGS_KEY,
-        settings,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      })
-    }
+    await tx
+      .update(customShellWorkspaces)
+      .set({ settings: { ...settings, pages }, updatedAt: now() })
+      .where(eq(customShellWorkspaces.id, workspaceId))
 
     return pages
   })
+}
+
+/**
+ * Which pages this site has switched off or made members-only.
+ *
+ * Its own read rather than going through `readShellSettings`, which needs a
+ * person: a signed-out visitor asking whether a page is hidden has no account,
+ * and the answer belongs to the domain they typed rather than to them.
+ */
+async function readWorkspacePageOverrides(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<ShellPageOverrides> {
+  const [row] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+
+  return parseWorkspaceSettings(row?.settings).pages
 }

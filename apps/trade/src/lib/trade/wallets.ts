@@ -33,6 +33,11 @@ export type TradeWallet = {
   address: string | null
   /** A trading key is stored (encrypted, server-side only). */
   hasKey: boolean
+  /**
+   * When the exchange says the stored trading key runs out, epoch ms — asked
+   * at save time. Null on paper wallets and on approvals with no expiry.
+   */
+  keyValidUntil: number | null
 }
 
 /**
@@ -84,11 +89,46 @@ export function isWalletAddress(value: string): boolean {
 
 /**
  * A Hyperliquid agent/API private key: 32 bytes of hex, 0x optional. Only the
- * shape is checkable here — whether it really signs for the account is only
- * provable by placing an order, which a later task does.
+ * shape is checkable here in the browser. Whether it really signs for the
+ * account — and is a limited helper key rather than the account's own — is
+ * proved server-side against the exchange before the key is ever saved.
  */
 export function isAgentKey(value: string): boolean {
   return /^(0x)?[0-9a-fA-F]{64}$/.test(value)
+}
+
+/**
+ * A pasted key, with the junk a web-page copy smuggles in struck out: spaces,
+ * newlines, and the INVISIBLE characters (zero-width spaces, joiners, BOMs)
+ * that make a key look perfect on screen and still fail the shape check.
+ * Only ever removes characters that could never be part of a key.
+ */
+export function cleanAgentKey(value: string): string {
+  return value.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "")
+}
+
+/**
+ * Why a pasted key does not read as one, in words precise enough to act on —
+ * without ever echoing the key itself. Null when the (cleaned) paste is fine.
+ */
+export function describeAgentKeyProblem(raw: string): string | null {
+  const value = cleanAgentKey(raw)
+  if (isAgentKey(value)) return null
+  if (/^0[xX]0[xX]/.test(value)) {
+    return "It starts with 0x twice — delete one of them."
+  }
+  const bare = value.replace(/^0[xX]/, "")
+  if (/^[0-9a-fA-F]{40}$/.test(bare)) {
+    return "That is an address (40 characters) — paste the private key (64 characters) instead."
+  }
+  const bad = bare.match(/[^0-9a-fA-F]/)
+  if (bad) {
+    return `It contains a character that cannot be part of a key ("${bad[0]}").`
+  }
+  if (bare.length !== 64) {
+    return `It is ${bare.length} characters long after the 0x — a key is exactly 64.`
+  }
+  return "It does not read as a key."
 }
 
 /** How an address is shown: enough of each end to recognise, "0x12ab…89cd". */

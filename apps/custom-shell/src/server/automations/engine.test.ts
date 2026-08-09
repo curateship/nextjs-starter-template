@@ -13,7 +13,7 @@ import {
 } from "@/lib/automations/run"
 import { approvalDeadline } from "@/lib/automations/nodes/wait-for-approval"
 import { automationExecutors } from "@/server/automations/executors"
-import { deleteUserAutomations } from "@/server/automations/flows"
+import { deleteWorkspaceAutomations } from "@/server/automations/flows"
 import {
   countHeldAutomationRuns,
   readAutomationsPaused,
@@ -37,17 +37,20 @@ import {
   customShellAutomations,
   customShellNotifications,
 } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
 import { now, uuid } from "@/server/auth/security"
 import { getNotificationPage } from "@/server/notifications/inbox"
 
 let client: PGlite
 let db: CustomShellDb
+/** The site every flow in these tests belongs to. */
+let site: string
 
 beforeEach(async () => {
   const created = await createTestDatabase()
   client = created.client
   db = created.db as unknown as CustomShellDb
+  site = (await insertWorkspace(db)).id
 })
 
 afterEach(async () => {
@@ -86,7 +89,8 @@ const approval = {
 async function insertAutomation(
   userId: string,
   nodes: Array<{ kind: string; settings: AutomationNodeSettings }>,
-  name = `flow-${uuid()}`
+  name = `flow-${uuid()}`,
+  workspaceId = site
 ) {
   const graph = graphOf(nodes)
   const compiled = compileAutomationGraph(graph)
@@ -97,6 +101,7 @@ async function insertAutomation(
     .insert(customShellAutomations)
     .values({
       id: uuid(),
+      workspaceId,
       userId,
       name,
       graph,
@@ -143,10 +148,10 @@ describe("running a flow", () => {
       placeholder,
     ])
 
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
     await runAutomationTick(db)
 
-    const detail = await getAutomationRun(user.id, run.id, db)
+    const detail = await getAutomationRun(site, run.id, db)
     expect(detail?.status).toBe("completed")
     expect(detail?.steps).toHaveLength(2)
     expect(detail?.steps[0].summary).toBe(
@@ -164,6 +169,7 @@ describe("running a flow", () => {
       .insert(customShellAutomations)
       .values({
         id: uuid(),
+        workspaceId: site,
         userId: user.id,
         name: "two starts",
         graph,
@@ -174,7 +180,7 @@ describe("running a flow", () => {
       .returning()
 
     await expect(
-      startAutomationRun(user.id, automation.id, db)
+      startAutomationRun(site, user.id, automation.id, db)
     ).rejects.toThrow("NO_SINGLE_START")
   })
 
@@ -191,10 +197,10 @@ describe("running a flow", () => {
       },
     ])
 
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
     await runAutomationTick(db)
 
-    const detail = await getAutomationRun(user.id, run.id, db)
+    const detail = await getAutomationRun(site, run.id, db)
     expect(detail?.status).toBe("failed")
     expect(detail?.error).toContain("cannot run yet")
     expect(detail?.steps[0].status).toBe("failed")
@@ -203,7 +209,7 @@ describe("running a flow", () => {
   it("never claims a run that is already claimed by a live ticker", async () => {
     const user = await insertUser(db, { role: "admin" })
     const automation = await insertAutomation(user.id, [placeholder])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
 
     // Somebody else's claim, stamped a moment ago.
     await db
@@ -219,7 +225,7 @@ describe("running a flow", () => {
   it("takes back a claim left behind by a process that died", async () => {
     const user = await insertUser(db, { role: "admin" })
     const automation = await insertAutomation(user.id, [placeholder])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
 
     await db
       .update(customShellAutomationRuns)
@@ -267,7 +273,7 @@ describe("running a flow", () => {
         })
         .where(eq(customShellAutomations.id, automation.id))
 
-      const run = await startAutomationRun(user.id, automation.id, db)
+      const run = await startAutomationRun(site, user.id, automation.id, db)
       await runAutomationTick(db)
 
       const row = await readRun(run.id)
@@ -276,7 +282,7 @@ describe("running a flow", () => {
       expect(row.currentNodeId).toBe("n0")
       expect(row.status).toBe("active")
 
-      const detail = await getAutomationRun(user.id, run.id, db)
+      const detail = await getAutomationRun(site, run.id, db)
       // The second step never ran, so it was never walked twice.
       expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0"])
     } finally {
@@ -287,7 +293,7 @@ describe("running a flow", () => {
   it("leaves a run alone until its wake-up time", async () => {
     const user = await insertUser(db, { role: "admin" })
     const automation = await insertAutomation(user.id, [placeholder])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
 
     await db
       .update(customShellAutomationRuns)
@@ -307,7 +313,7 @@ describe("approval checkpoints", () => {
       approval,
       placeholder,
     ])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
     await runAutomationTick(db)
     return { user, automation, runId: run.id }
   }
@@ -342,18 +348,20 @@ describe("approval checkpoints", () => {
   })
 
   it("deletes approval notices with their automation", async () => {
-    const { user, automation } = await parkedRun()
+    const { automation } = await parkedRun()
 
     expect(await db.select().from(customShellNotifications)).toHaveLength(1)
-    expect(await deleteUserAutomations(user.id, [automation.id], db)).toBe(1)
+    expect(await deleteWorkspaceAutomations(site, [automation.id], db)).toBe(1)
     expect(await db.select().from(customShellNotifications)).toHaveLength(0)
   })
 
-  it("cannot delete another owner's automation notices", async () => {
+  it("cannot delete another site's automation notices", async () => {
     const { automation } = await parkedRun()
-    const otherUser = await insertUser(db, { role: "admin" })
+    const otherSite = (await insertWorkspace(db)).id
 
-    expect(await deleteUserAutomations(otherUser.id, [automation.id], db)).toBe(0)
+    // Asked from the wrong site, the flow is simply not there — so nothing is
+    // deleted and its waiting notice is left standing.
+    expect(await deleteWorkspaceAutomations(otherSite, [automation.id], db)).toBe(0)
     expect(await db.select().from(customShellNotifications)).toHaveLength(1)
   })
 
@@ -388,7 +396,7 @@ describe("approval checkpoints", () => {
 
     await runAutomationTick(db)
 
-    const detail = await getAutomationRun(user.id, runId, db)
+    const detail = await getAutomationRun(site, runId, db)
     expect(detail?.status).toBe("completed")
     expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0", "n1", "n2"])
     expect(detail?.steps[1].summary).toBe(
@@ -409,7 +417,7 @@ describe("approval checkpoints", () => {
     })
     await runAutomationTick(db)
 
-    const detail = await getAutomationRun(user.id, runId, db)
+    const detail = await getAutomationRun(site, runId, db)
     expect(detail?.status).toBe("rejected")
     expect(detail?.approvalDecision).toBe("rejected")
     // Two steps, never the third: the step after the checkpoint never ran.
@@ -451,7 +459,7 @@ describe("approval checkpoints", () => {
 
     expect(await sweepExpiredApprovals(db)).toBe(1)
 
-    const detail = await getAutomationRun(user.id, runId, db)
+    const detail = await getAutomationRun(site, runId, db)
     expect(detail?.status).toBe("rejected")
     expect(detail?.approvalDecision).toBe("timed_out")
     expect(detail?.approvalDecidedByName).toBeNull()
@@ -482,7 +490,7 @@ describe("approval checkpoints", () => {
   it("gives a second checkpoint its own decision", async () => {
     const user = await insertUser(db, { role: "admin", name: "Tyler" })
     const automation = await insertAutomation(user.id, [approval, approval])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
 
     await runAutomationTick(db)
     expect((await readRun(run.id)).approvalNodeId).toBe("n0")
@@ -543,12 +551,12 @@ describe("run history", () => {
     const flow = await insertAutomation(user.id, [placeholder, placeholder], "mine")
     const other = await insertAutomation(user.id, [placeholder], "other")
 
-    await startAutomationRun(user.id, other.id, db)
-    const first = await startAutomationRun(user.id, flow.id, db)
-    const second = await startAutomationRun(user.id, flow.id, db)
+    await startAutomationRun(site, user.id, other.id, db)
+    const first = await startAutomationRun(site, user.id, flow.id, db)
+    const second = await startAutomationRun(site, user.id, flow.id, db)
     await runAutomationTick(db)
 
-    const page = await listRunsForAutomation(user.id, flow.id, 0, db)
+    const page = await listRunsForAutomation(site, flow.id, 0, db)
     // The other flow's run is not this flow's history.
     expect(page.total).toBe(2)
     expect(page.runs.map((run) => run.id)).toEqual([second.id, first.id])
@@ -565,11 +573,11 @@ describe("run history", () => {
       placeholder,
       placeholder,
     ])
-    await startAutomationRun(user.id, flow.id, db)
-    await startAutomationRun(user.id, flow.id, db)
+    await startAutomationRun(site, user.id, flow.id, db)
+    await startAutomationRun(site, user.id, flow.id, db)
     await runAutomationTick(db)
 
-    const page = await listRunsForAutomation(user.id, flow.id, 0, db)
+    const page = await listRunsForAutomation(site, flow.id, 0, db)
     expect(page.total).toBe(2)
     expect(page.runs).toHaveLength(2)
     expect(page.runs[0].stepCount).toBe(3)
@@ -580,15 +588,15 @@ describe("run history", () => {
     const flow = await insertAutomation(user.id, [placeholder])
     // One more than a page holds.
     for (let index = 0; index < 26; index += 1) {
-      await startAutomationRun(user.id, flow.id, db)
+      await startAutomationRun(site, user.id, flow.id, db)
     }
 
-    const first = await listRunsForAutomation(user.id, flow.id, 0, db)
+    const first = await listRunsForAutomation(site, flow.id, 0, db)
     expect(first.runs).toHaveLength(25)
     // The count is the whole set, not the page it arrived on.
     expect(first.total).toBe(26)
 
-    const second = await listRunsForAutomation(user.id, flow.id, 25, db)
+    const second = await listRunsForAutomation(site, flow.id, 25, db)
     expect(second.runs).toHaveLength(1)
     expect(second.total).toBe(26)
     // No run appears on both pages.
@@ -600,22 +608,29 @@ describe("run history", () => {
     const user = await insertUser(db, { role: "admin" })
     const flow = await insertAutomation(user.id, [placeholder])
 
-    const page = await listRunsForAutomation(user.id, flow.id, 0, db)
+    const page = await listRunsForAutomation(site, flow.id, 0, db)
     expect(page).toEqual({ runs: [], total: 0 })
   })
 
-  it("keeps one person's runs out of another's list", async () => {
-    const mine = await insertUser(db, { role: "admin" })
+  it("keeps one site's runs out of another site's list", async () => {
+    // Two admins on the *same* site now share everything, on purpose. The line
+    // that matters is between sites, so that is the one this checks.
     const theirs = await insertUser(db, { role: "admin" })
-    const theirFlow = await insertAutomation(theirs.id, [placeholder], "theirs")
-    await startAutomationRun(theirs.id, theirFlow.id, db)
+    const otherSite = (await insertWorkspace(db)).id
+    const theirFlow = await insertAutomation(
+      theirs.id,
+      [placeholder],
+      "theirs",
+      otherSite
+    )
+    await startAutomationRun(otherSite, theirs.id, theirFlow.id, db)
 
-    const page = await listRunsForAutomation(mine.id, theirFlow.id, 0, db)
+    const page = await listRunsForAutomation(site, theirFlow.id, 0, db)
     expect(page.total).toBe(0)
     expect(page.runs).toEqual([])
   })
 
-  it("gathers what is waiting on you across every flow, closest deadline first", async () => {
+  it("gathers what this site is waiting on, closest deadline first", async () => {
     const user = await insertUser(db, { role: "admin" })
     const other = await insertUser(db, { role: "admin" })
     const slow = await insertAutomation(
@@ -628,14 +643,23 @@ describe("run history", () => {
       [{ ...approval, settings: { ...approval.settings, timeoutDays: 1 } }],
       "urgent"
     )
-    const notMine = await insertAutomation(other.id, [approval], "theirs")
+    // On another site, so it is somebody else's queue. A colleague's flow on
+    // *this* site would belong here — the queue is the site's work, not one
+    // person's, which is the change this whole task makes.
+    const otherSite = (await insertWorkspace(db)).id
+    const elsewhere = await insertAutomation(
+      other.id,
+      [approval],
+      "theirs",
+      otherSite
+    )
 
-    await startAutomationRun(user.id, slow.id, db)
-    await startAutomationRun(user.id, urgent.id, db)
-    await startAutomationRun(other.id, notMine.id, db)
+    await startAutomationRun(site, user.id, slow.id, db)
+    await startAutomationRun(site, user.id, urgent.id, db)
+    await startAutomationRun(otherSite, other.id, elsewhere.id, db)
     await runAutomationTick(db)
 
-    const queue = await listRunsAwaitingApproval(user.id, db)
+    const queue = await listRunsAwaitingApproval(site, db)
     expect(queue.total).toBe(2)
     expect(queue.runs.map((run) => run.automationName)).toEqual([
       "urgent",
@@ -646,9 +670,9 @@ describe("run history", () => {
   it("drops a run out of the waiting list once it is decided", async () => {
     const user = await insertUser(db, { role: "admin", name: "Tyler" })
     const flow = await insertAutomation(user.id, [approval])
-    const run = await startAutomationRun(user.id, flow.id, db)
+    const run = await startAutomationRun(site, user.id, flow.id, db)
     await runAutomationTick(db)
-    expect((await listRunsAwaitingApproval(user.id, db)).total).toBe(1)
+    expect((await listRunsAwaitingApproval(site, db)).total).toBe(1)
 
     await decideAutomationApproval({
       runId: run.id,
@@ -658,16 +682,21 @@ describe("run history", () => {
       database: db,
     })
 
-    expect((await listRunsAwaitingApproval(user.id, db)).total).toBe(0)
+    expect((await listRunsAwaitingApproval(site, db)).total).toBe(0)
   })
 
-  it("refuses to hand somebody else's run over", async () => {
-    const mine = await insertUser(db, { role: "admin" })
+  it("refuses to hand another site's run over", async () => {
     const theirs = await insertUser(db, { role: "admin" })
-    const theirFlow = await insertAutomation(theirs.id, [placeholder])
-    const run = await startAutomationRun(theirs.id, theirFlow.id, db)
+    const otherSite = (await insertWorkspace(db)).id
+    const theirFlow = await insertAutomation(
+      theirs.id,
+      [placeholder],
+      `flow-${uuid()}`,
+      otherSite
+    )
+    const run = await startAutomationRun(otherSite, theirs.id, theirFlow.id, db)
 
-    expect(await getAutomationRun(mine.id, run.id, db)).toBeNull()
+    expect(await getAutomationRun(site, run.id, db)).toBeNull()
   })
 
   it("deletes finished runs and refuses the ones still going", async () => {
@@ -675,12 +704,12 @@ describe("run history", () => {
     const done = await insertAutomation(user.id, [placeholder], "done")
     const waiting = await insertAutomation(user.id, [approval], "waiting")
 
-    const doneRun = await startAutomationRun(user.id, done.id, db)
-    const waitingRun = await startAutomationRun(user.id, waiting.id, db)
+    const doneRun = await startAutomationRun(site, user.id, done.id, db)
+    const waitingRun = await startAutomationRun(site, user.id, waiting.id, db)
     await runAutomationTick(db)
 
     const result = await deleteAutomationRuns(
-      user.id,
+      site,
       [doneRun.id, waitingRun.id],
       db
     )
@@ -688,14 +717,19 @@ describe("run history", () => {
     expect(result.kept).toEqual([waitingRun.id])
   })
 
-  it("will not delete another person's run", async () => {
-    const mine = await insertUser(db, { role: "admin" })
+  it("will not delete another site's run", async () => {
     const theirs = await insertUser(db, { role: "admin" })
-    const theirFlow = await insertAutomation(theirs.id, [placeholder])
-    const run = await startAutomationRun(theirs.id, theirFlow.id, db)
+    const otherSite = (await insertWorkspace(db)).id
+    const theirFlow = await insertAutomation(
+      theirs.id,
+      [placeholder],
+      `flow-${uuid()}`,
+      otherSite
+    )
+    const run = await startAutomationRun(otherSite, theirs.id, theirFlow.id, db)
     await runAutomationTick(db)
 
-    const result = await deleteAutomationRuns(mine.id, [run.id], db)
+    const result = await deleteAutomationRuns(site, [run.id], db)
     expect(result.deleted).toEqual([])
     expect(result.kept).toEqual([run.id])
   })
@@ -703,7 +737,7 @@ describe("run history", () => {
   it("takes an approval notice with the run it was about", async () => {
     const user = await insertUser(db, { role: "admin" })
     const automation = await insertAutomation(user.id, [approval])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
     await runAutomationTick(db)
     expect(await db.select().from(customShellNotifications)).toHaveLength(1)
 
@@ -743,7 +777,7 @@ describe("the automations kill switch", () => {
       placeholder,
       placeholder,
     ])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
 
     await pause()
     const result = await runAutomationTick(db)
@@ -756,7 +790,7 @@ describe("the automations kill switch", () => {
     expect(row.status).toBe("active")
     expect(row.currentNodeId).toBe("n0")
     expect(row.claimToken).toBeNull()
-    const detail = await getAutomationRun(user.id, run.id, db)
+    const detail = await getAutomationRun(site, run.id, db)
     expect(detail?.steps).toEqual([])
   })
 
@@ -766,7 +800,7 @@ describe("the automations kill switch", () => {
 
     await pause()
     await expect(
-      startAutomationRun(user.id, automation.id, db)
+      startAutomationRun(site, user.id, automation.id, db)
     ).rejects.toThrow("AUTOMATIONS_PAUSED")
 
     // Nothing was written, so there is no surprise run waiting to fire on
@@ -809,12 +843,12 @@ describe("the automations kill switch", () => {
         })
         .where(eq(customShellAutomations.id, automation.id))
 
-      const run = await startAutomationRun(user.id, automation.id, db)
+      const run = await startAutomationRun(site, user.id, automation.id, db)
       await runAutomationTick(db)
 
       // The step that hit the switch finished and was recorded; the two after
       // it never started.
-      let detail = await getAutomationRun(user.id, run.id, db)
+      let detail = await getAutomationRun(site, run.id, db)
       expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0"])
 
       // Held, not killed: still active, claim handed back, and pointing at the
@@ -836,7 +870,7 @@ describe("the automations kill switch", () => {
       await resume()
       await runAutomationTick(db)
 
-      detail = await getAutomationRun(user.id, run.id, db)
+      detail = await getAutomationRun(site, run.id, db)
       expect(detail?.status).toBe("completed")
       expect(detail?.steps.map((step) => step.nodeId)).toEqual([
         "n0",
@@ -857,7 +891,7 @@ describe("the automations kill switch", () => {
       approval,
       placeholder,
     ])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
     await runAutomationTick(db)
     expect((await readRun(run.id)).status).toBe("waiting_approval")
 
@@ -878,7 +912,7 @@ describe("the automations kill switch", () => {
     // Off again, and the deadline it missed is answered on the next pass.
     await resume()
     expect((await runAutomationTick(db)).expired).toBe(1)
-    const detail = await getAutomationRun(user.id, run.id, db)
+    const detail = await getAutomationRun(site, run.id, db)
     expect(detail?.approvalDecision).toBe("timed_out")
   })
 
@@ -888,7 +922,7 @@ describe("the automations kill switch", () => {
       approval,
       placeholder,
     ])
-    const run = await startAutomationRun(user.id, automation.id, db)
+    const run = await startAutomationRun(site, user.id, automation.id, db)
     await runAutomationTick(db)
     await pause()
 
@@ -907,12 +941,12 @@ describe("the automations kill switch", () => {
     await runAutomationTick(db)
     // The step after the checkpoint waits for the switch like everything else.
     expect((await readRun(run.id)).status).toBe("active")
-    let detail = await getAutomationRun(user.id, run.id, db)
+    let detail = await getAutomationRun(site, run.id, db)
     expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0"])
 
     await resume()
     await runAutomationTick(db)
-    detail = await getAutomationRun(user.id, run.id, db)
+    detail = await getAutomationRun(site, run.id, db)
     expect(detail?.status).toBe("completed")
     expect(detail?.steps.map((step) => step.nodeId)).toEqual(["n0", "n1"])
   })

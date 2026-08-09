@@ -25,6 +25,7 @@ import {
   MARKET_CATEGORIES,
   type MarketCatalog,
   type MarketRow,
+  type NetworkId,
 } from "@/lib/protocols/contracts"
 import { cn } from "@/lib/utils"
 
@@ -96,6 +97,7 @@ const CATEGORY_LABELS: Record<CategoryChoice, string> = {
 export function MarketListPanel({
   catalogs,
   marketsError,
+  network,
   favorites,
   selectedKey,
   onSelect,
@@ -104,6 +106,8 @@ export function MarketListPanel({
   catalogs: MarketCatalog[]
   /** The exchange call failed at load; shown in place of rows. */
   marketsError: string | null
+  /** Which network the whole page is on — testnet wears its label row. */
+  network: NetworkId
   /** Which markets are starred — read only; the star itself is in the header. */
   favorites: ReadonlySet<string>
   selectedKey: string | null
@@ -301,6 +305,21 @@ export function MarketListPanel({
           "Markets you have an alert on. Alerts are not built yet — when they are, this fills in."
         )}
       </TabsContent>
+
+      {/* The practice network has no switch on screen any more — paper
+          wallets are the everyday practice path, and the rehearsal gate the
+          switch existed for has been passed (decided 9 Aug 2026, in
+          `testnet-mode.md`). The door is the address (`?network=testnet`, or
+          any testnet market's link — a testnet row in the bottom panel still
+          works). While the page IS on testnet, this row says so, always —
+          the labelling rule outlives the switch. */}
+      {network === "testnet" ? (
+        <div className="shrink-0 border-t border-foreground/10 bg-amber-500/10 px-3 py-1.5">
+          <span className="block truncate text-xs font-medium text-amber-700 dark:text-amber-400">
+            Testnet — practice network, pretend money.
+          </span>
+        </div>
+      ) : null}
 
       {/* The bottom bar: the kind-of-market filter and the search. The
           search placeholder names the exchange, so what the list covers is

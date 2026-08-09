@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start"
 import { adminGet, adminPost } from "@/server/guards"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import {
-  listUserAutomations,
-  getUserAutomation,
-  createUserAutomation,
-  saveUserAutomation,
-  duplicateUserAutomation,
-  deleteUserAutomations,
+  listWorkspaceAutomations,
+  getWorkspaceAutomation,
+  createWorkspaceAutomation,
+  saveWorkspaceAutomation,
+  duplicateWorkspaceAutomation,
+  deleteWorkspaceAutomations,
   inspectAutomation,
   automationTriggerName,
   setAutomationEnabled,
@@ -139,7 +140,7 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<AutomationsPage> => {
     const [rows, templates] = await Promise.all([
-      listUserAutomations(context.user.id),
+      listWorkspaceAutomations(await workspaceIdForRequest(context.user.id)),
       listUserAutomationTemplates(context.user.id),
     ])
     return {
@@ -169,7 +170,10 @@ const getAutomationFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
-    const row = await getUserAutomation(context.user.id, data.automationId)
+    const row = await getWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
+      data.automationId
+    )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
@@ -183,7 +187,13 @@ const createAutomationFn = createServerFn({ method: "POST" })
           .graph
       : undefined
     return serializeDetail(
-      await createUserAutomation(context.user.id, data.name, undefined, graph)
+      await createWorkspaceAutomation(
+        await workspaceIdForRequest(context.user.id),
+        context.user.id,
+        data.name,
+        undefined,
+        graph
+      )
     )
   })
 
@@ -191,11 +201,14 @@ const saveAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(saveSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
-    const row = await saveUserAutomation(context.user.id, {
-      id: data.automationId,
-      name: data.name,
-      graph: data.graph,
-    })
+    const row = await saveWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
+      {
+        id: data.automationId,
+        name: data.name,
+        graph: data.graph,
+      }
+    )
     if (!row) throw new Error("NOT_FOUND")
     return serializeDetail(row)
   })
@@ -204,7 +217,8 @@ const duplicateAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
-    const row = await duplicateUserAutomation(
+    const row = await duplicateWorkspaceAutomation(
+      await workspaceIdForRequest(context.user.id),
       context.user.id,
       data.automationId
     )
@@ -222,7 +236,7 @@ const setAutomationEnabledFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
     return serializeDetail(
       await setAutomationEnabled(
-        context.user.id,
+        await workspaceIdForRequest(context.user.id),
         data.automationId,
         data.enabled
       )
@@ -234,7 +248,10 @@ const deleteAutomationsFn = createServerFn({ method: "POST" })
   .inputValidator(idListSchema)
   .handler(async ({ data, context }): Promise<{ count: number }> => {
     return {
-      count: await deleteUserAutomations(context.user.id, data.automationIds),
+      count: await deleteWorkspaceAutomations(
+        await workspaceIdForRequest(context.user.id),
+        data.automationIds
+      ),
     }
   })
 

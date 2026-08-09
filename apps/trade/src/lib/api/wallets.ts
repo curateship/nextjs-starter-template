@@ -153,6 +153,14 @@ export const getWalletErrorMessage = createErrorMessage(
       "A live wallet needs its address and its trading key.",
     WALLET_UNREACHABLE:
       "Hyperliquid did not answer for that address. Check the address and try again.",
+    KEY_IS_ACCOUNT:
+      "That is the account's MAIN key — the one that can move money out — and it is never stored here. On Hyperliquid, create an API key (a limited trading key) and paste that instead.",
+    KEY_NOT_APPROVED:
+      "Hyperliquid does not list that key as approved for this account. The usual cause: Hyperliquid only shows a key at the moment it is generated, and only the generation you pressed Authorize on counts — if you generated more than once, copy the key and authorize in the same breath, then paste that one.",
+    KEY_EXPIRED:
+      "That trading key's approval has run out. Create a fresh API key on Hyperliquid and paste it.",
+    KEY_CHECK_UNAVAILABLE:
+      "Hyperliquid could not be reached to check the key, so nothing was saved. Try again in a moment.",
     WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     WALLET_BALANCE_KIND: "Only a practice wallet's starting cash can be changed.",

@@ -726,9 +726,27 @@ export const customShellAutomations = pgTable(
   "automations",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
+    /**
+     * The site whose flow this is.
+     *
+     * A run reads it when it starts, rather than asking the author which site
+     * they are in — which is what used to happen, and meant an admin switching
+     * site changed what a flow already under way would do.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /**
+     * Who wrote it, and empty once they are gone.
+     *
+     * Deliberately not the thing that owns it — the workspace above is. This
+     * used to cascade, so deleting one admin's account deleted their flows and
+     * every run those flows had ever done. A flow is a thing the site has.
+     */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
     name: varchar("name", { length: 80 }).notNull(),
     /** The editor's draft: nodes, edges, viewport — saved as the user drew it. */
     graph: jsonb("graph").$type<AutomationGraph>().notNull(),
@@ -751,8 +769,14 @@ export const customShellAutomations = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("automations_user_name_unique").on(table.userId, table.name),
-    index("ix_automations_user_updated").on(table.userId, table.updatedAt),
+    unique("automations_workspace_name_unique").on(
+      table.workspaceId,
+      table.name
+    ),
+    index("ix_automations_workspace_updated").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
   ]
 )
 
@@ -819,9 +843,11 @@ export const customShellAutomationRuns = pgTable(
     automationId: varchar("automation_id", { length: 36 })
       .notNull()
       .references(() => customShellAutomations.id, { onDelete: "cascade" }),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Who wrote the flow, and empty once they are gone — as on the flow. */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
     /**
      * Which workspace this run is for, fixed when it started.
      *
@@ -905,7 +931,10 @@ export const customShellAutomationRuns = pgTable(
       sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
-    index("ix_automation_runs_user_started").on(table.userId, table.startedAt),
+    index("ix_automation_runs_workspace_started").on(
+      table.workspaceId,
+      table.startedAt
+    ),
     index("ix_automation_runs_automation").on(table.automationId),
   ]
 )
@@ -958,6 +987,10 @@ export const customShellWrittenPages = pgTable(
   "written_pages",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site this page is part of. Its address is only its own within that. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     /** The address it answers on, always starting with "/". */
     path: varchar("path", { length: 160 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
@@ -966,10 +999,15 @@ export const customShellWrittenPages = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    // Two written pages cannot claim one address even if both saves land at
-    // the same moment. A clash with a code page is refused in the server,
-    // which is the only place that knows both lists.
-    uniqueIndex("written_pages_path_key").on(table.path),
+    // Two written pages **on one site** cannot claim one address even if both
+    // saves land at the same moment. Alpha and Beta each having an `/about` is
+    // ordinary, and is the reason the workspace leads this index. A clash with
+    // a code page is refused in the server, which is the only place that knows
+    // both lists.
+    uniqueIndex("ux_written_pages_workspace_path").on(
+      table.workspaceId,
+      table.path
+    ),
   ]
 )
 

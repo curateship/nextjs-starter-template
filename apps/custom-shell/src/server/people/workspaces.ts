@@ -37,6 +37,10 @@ import {
   subdomainProblem,
 } from "@/lib/workspaces/addresses"
 import {
+  normalizePageOverrides,
+  type ShellPageOverrides,
+} from "@/lib/pages/page-visibility"
+import {
   WORKSPACE_STATUSES,
   type WorkspaceStatus,
 } from "@/lib/workspaces/status"
@@ -408,6 +412,15 @@ export type WorkspaceSettings = {
   automationFavoriteNodeKeys: string[]
   // How each kind of newsletter block starts out, saved per-workspace.
   broadcastBlockDefaults: BroadcastBlockDefaults
+  /**
+   * Which public pages are switched off or members-only, on this site.
+   *
+   * It used to live in the one app-wide settings row, keyed by the bare
+   * address — so one site hiding its `/pricing` hid every site's, and two sites
+   * with an `/about` each could not disagree about it. It is a per-site
+   * decision, so it is saved per site.
+   */
+  pages: ShellPageOverrides
 }
 
 /**
@@ -2246,6 +2259,9 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       broadcastBlockDefaults: cleanBroadcastBlockDefaults(
         settings.broadcastBlockDefaults
       ),
+      // A workspace saved before this moved here has none, which normalizes to
+      // an empty map — every page on "everyone", exactly as a fresh site is.
+      pages: normalizePageOverrides(settings.pages),
     }
   }
 
@@ -2283,6 +2299,7 @@ function cleanWorkspaceSettings(
     broadcastBlockDefaults: cleanBroadcastBlockDefaults(
       settings.broadcastBlockDefaults
     ),
+    pages: normalizePageOverrides(settings.pages),
   }
 }
 
@@ -2358,6 +2375,8 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     dashboardWidgets: createDefaultDashboardWidgets(),
     automationFavoriteNodeKeys: [],
     broadcastBlockDefaults: {},
+    // Nothing hidden. A new site shows every page it has.
+    pages: {},
   }
 }
 

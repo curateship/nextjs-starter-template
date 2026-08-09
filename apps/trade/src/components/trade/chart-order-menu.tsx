@@ -25,11 +25,14 @@ const MENU_HEIGHT = 164
 
 export function ChartOrderMenu({
   menu,
+  smartOrders,
   onPick,
   onPickSmart,
   onClose,
 }: {
   menu: ChartMenuState
+  /** Whether the smart-order presets apply to the active wallet at all. */
+  smartOrders: boolean
   onPick: (side: PaperSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
   onClose: () => void
@@ -73,32 +76,36 @@ export function ChartOrderMenu({
           price={menu.price}
           onPick={() => onPick("sell")}
         />
-        <div
-          role="presentation"
-          className="mx-2 my-1 border-t border-foreground/10"
-        />
-        {/* A labelled group, not a stray heading: everything inside a menu has
-            to be a menu item or a group, or the heading reads as one. */}
-        <div role="group" aria-label="Smart order">
-          <p
-            role="presentation"
-            className="px-2 pb-0.5 text-[11px] font-medium text-muted-foreground"
-          >
-            Smart order
-          </p>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => onPickSmart("dca")}
-            className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-          >
-            <LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="font-medium">DCA ladder</span>
-            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-              {formatPrice(menu.price)}
-            </span>
-          </button>
-        </div>
+        {smartOrders ? (
+          <>
+            <div
+              role="presentation"
+              className="mx-2 my-1 border-t border-foreground/10"
+            />
+            {/* A labelled group, not a stray heading: everything inside a menu
+                has to be a menu item or a group, or the heading reads as one. */}
+            <div role="group" aria-label="Smart order">
+              <p
+                role="presentation"
+                className="px-2 pb-0.5 text-[11px] font-medium text-muted-foreground"
+              >
+                Smart order
+              </p>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => onPickSmart("dca")}
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+              >
+                <LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-medium">DCA ladder</span>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {formatPrice(menu.price)}
+                </span>
+              </button>
+            </div>
+          </>
+        ) : null}
       </div>
     </>
   )

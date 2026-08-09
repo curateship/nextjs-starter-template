@@ -12,6 +12,7 @@ import {
 } from "@/components/trade/chart-quick-order"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
+import { OrderEditDialog } from "@/components/trade/order-edit-dialog"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
@@ -24,7 +25,7 @@ import {
   type SmartOrderState,
 } from "@/components/trade/smart-order-dialog"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
-import type { PaperTrading } from "@/components/trade/use-paper-trading"
+import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
@@ -37,6 +38,7 @@ import {
 } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { SmartLadder } from "@/lib/trade/dca"
+import type { PaperOrder } from "@/lib/trade/paper"
 import {
   indicatorPaint,
   type IndicatorSettings,
@@ -92,7 +94,7 @@ export function ChartPanel({
   initialChartView,
   indicators,
   market,
-  paper,
+  trading,
   free,
   equity,
 }: {
@@ -108,10 +110,11 @@ export function ChartPanel({
   /** The market on screen, for the rules an order has to obey. */
   market: MarketRow | null
   /**
-   * Practice trading. Always present; it is `paper.wallet` that is null when
-   * no practice wallet has been picked to trade with.
+   * Trading, practice and real together. Always present; it is
+   * `trading.wallet` that is null when no wallet has been picked to trade
+   * with (or the picked live wallet has no key).
    */
-  paper: PaperTrading
+  trading: Trading
   /** Cash free to put behind a trade, from the account's own figures. */
   free: number
   /** What the account is worth — the pot a DCA ladder's shares are cut from. */
@@ -166,6 +169,8 @@ export function ChartPanel({
   // Stopping a ladder cancels every waiting rung at once, so unlike a single
   // order's × it asks first.
   const [cancelFor, setCancelFor] = React.useState<SmartLadder | null>(null)
+  // The waiting order opened from its own bar on the chart.
+  const [editing, setEditing] = React.useState<PaperOrder | null>(null)
   const plotRef = React.useRef<HTMLDivElement | null>(null)
   const surfaceRef = React.useRef<ChartSurface | null>(null)
   const readSurface = React.useCallback((next: ChartSurface) => {
@@ -188,12 +193,13 @@ export function ChartPanel({
     setPreview(null)
     setExitsFor(null)
     setCancelFor(null)
+    setEditing(null)
   }
 
   const openMenu = (event: React.MouseEvent) => {
     // A tool in hand is drawing, not trading; the browser's own menu is the
     // honest answer when there is nothing here to offer.
-    if (paint.tool || !paper.wallet || !market) return
+    if (paint.tool || !trading.wallet || !market) return
     const surface = surfaceRef.current
     const box = plotRef.current?.getBoundingClientRect()
     if (!surface || !box) return
@@ -210,18 +216,45 @@ export function ChartPanel({
   // order lines must not draw them a second time (or offer to drag them).
   const ladderOrderIds = React.useMemo(() => {
     const ids = new Set<string>()
-    for (const ladder of paper.ladders) {
+    for (const ladder of trading.ladders) {
       for (const rung of ladder.plan.rungs) {
         if (rung.orderId) ids.add(rung.orderId)
         if (rung.sellOrderId) ids.add(rung.sellOrderId)
       }
     }
     return ids
-  }, [paper.ladders])
+  }, [trading.ladders])
   const looseOrders = React.useMemo(
-    () => paper.orders.filter((order) => !ladderOrderIds.has(order.id)),
-    [paper.orders, ladderOrderIds]
+    () => [
+      ...trading.orders.filter((order) => !ladderOrderIds.has(order.id)),
+      // Orders asked for whose answer has not landed yet, so a press shows on
+      // the chart at once instead of a second or two later.
+      ...trading.placing,
+    ],
+    [trading.orders, trading.placing, ladderOrderIds]
   )
+
+  // The open window follows the poll, because the order under it can move: the
+  // line can be dragged to another price, and everything the window works out
+  // is measured from that price. It is compared by what the window actually
+  // reads, so an identical row arriving every four seconds costs nothing.
+  //
+  // An order that has gone — filled, or cancelled in another tab — leaves the
+  // window standing on what it last saw rather than vanishing mid-typing.
+  // Pressing Save then says so plainly, which is the server's own answer.
+  const polled = editing
+    ? (trading.orders.find((one) => one.id === editing.id) ?? null)
+    : null
+  if (
+    polled &&
+    editing &&
+    (polled.px !== editing.px ||
+      polled.sz !== editing.sz ||
+      polled.tpPx !== editing.tpPx ||
+      polled.slPx !== editing.slPx)
+  ) {
+    setEditing(polled)
+  }
 
   /**
    * Dragging a stop or target the ladder was aiming: the drag wins — that is
@@ -233,7 +266,7 @@ export function ChartPanel({
     marketKey: string,
     brackets: { tpPx: number | null; slPx: number | null }
   ) => {
-    const ladder = paper.ladders.find(
+    const ladder = trading.ladders.find(
       (one) => one.walletId === walletId && one.marketKey === marketKey
     )
     if (ladder) {
@@ -255,7 +288,7 @@ export function ChartPanel({
         )
       }
     }
-    void paper.dragBrackets(walletId, marketKey, brackets)
+    void trading.dragBrackets(walletId, marketKey, brackets)
   }
 
   // The candles on screen right now: an answer whose tag does not match what
@@ -373,19 +406,24 @@ export function ChartPanel({
                   // Every wallet's, not just the active one's: a row in the
                   // table below is a link to its own market, and it would be a
                   // dead end if the chart then showed nothing.
-                  positions={paper.positions}
+                  positions={trading.positions}
                   orders={looseOrders}
                   walletName={(walletId) =>
-                    paper.walletNames.get(walletId) ?? "Another wallet"
+                    trading.walletNames.get(walletId) ?? "Another wallet"
                   }
                   onMoveOrder={(walletId, orderId, price) =>
-                    void paper.move(walletId, orderId, price)
+                    void trading.move(walletId, orderId, price)
                   }
                   onCancelOrder={(walletId, orderId) =>
-                    void paper.cancel(walletId, orderId)
+                    void trading.cancel(walletId, orderId)
+                  }
+                  onEditOrder={(orderId) =>
+                    setEditing(
+                      trading.orders.find((one) => one.id === orderId) ?? null
+                    )
                   }
                   entryBadge={(position) => {
-                    const ladder = paper.ladders.find(
+                    const ladder = trading.ladders.find(
                       (one) =>
                         one.walletId === position.walletId &&
                         one.marketKey === position.marketKey &&
@@ -414,14 +452,14 @@ export function ChartPanel({
                 <SmartLadderLayer
                   surface={surface}
                   marketKey={selectedKey}
-                  ladders={paper.ladders}
+                  ladders={trading.ladders}
                   preview={preview}
                   tool={paint.tool}
                   walletName={(walletId) =>
-                    paper.walletNames.get(walletId) ?? "Another wallet"
+                    trading.walletNames.get(walletId) ?? "Another wallet"
                   }
                   onCancelRung={(walletId, ladderId, rungIndex) =>
-                    void paper.cancelRung(walletId, ladderId, rungIndex)
+                    void trading.cancelRung(walletId, ladderId, rungIndex)
                   }
                   onCancelLadder={setCancelFor}
                   onEditExits={setExitsFor}
@@ -452,6 +490,9 @@ export function ChartPanel({
       {menu ? (
         <ChartOrderMenu
           menu={menu}
+          // The ladders are the practice engine's; on a real wallet the menu
+          // offers plain orders only rather than a row that would refuse.
+          smartOrders={trading.wallet?.kind === "paper"}
           onClose={() => setMenu(null)}
           onPick={(side) => {
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
@@ -467,28 +508,34 @@ export function ChartPanel({
         <ChartQuickOrder
           quick={quick}
           market={market}
-          wallet={paper.wallet?.label ?? ""}
+          wallet={trading.wallet?.label ?? ""}
+          // Real money asks first — the window adds a confirm step that says
+          // the order back in dollars before anything is sent.
+          real={trading.wallet?.kind === "live"}
           free={free}
-          busy={paper.busy}
           onClose={() => setQuick(null)}
-          onPlace={(input) =>
-            paper.place({ marketKey: market.key, ...input })
-          }
+          onPlace={(input) => trading.place({ marketKey: market.key, ...input })}
         />
       ) : null}
+      <OrderEditDialog
+        order={editing}
+        busy={trading.busy}
+        onSave={trading.editOrder}
+        onClose={() => setEditing(null)}
+      />
       {smart && market ? (
         <SmartOrderDialog
           state={smart}
           market={market}
-          wallet={paper.wallet?.label ?? ""}
+          wallet={trading.wallet?.label ?? ""}
           equity={equity}
           free={free}
           interval={interval}
-          busy={paper.busy}
+          busy={trading.busy}
           onPreview={setPreview}
           onClose={() => setSmart(null)}
           onPlace={(input) =>
-            paper.placeLadder({ marketKey: market.key, ...input })
+            trading.placeLadder({ marketKey: market.key, ...input })
           }
         />
       ) : null}
@@ -496,16 +543,16 @@ export function ChartPanel({
         ladder={exitsFor}
         position={
           exitsFor
-            ? (paper.positions.find(
+            ? (trading.positions.find(
                 (one) =>
                   one.walletId === exitsFor.walletId &&
                   one.marketKey === exitsFor.marketKey
               ) ?? null)
             : null
         }
-        busy={paper.busy}
+        busy={trading.busy}
         onSave={(ladder, exits) =>
-          paper.setLadderExits(ladder.walletId, ladder.id, exits)
+          trading.setLadderExits(ladder.walletId, ladder.id, exits)
         }
         onClose={() => setExitsFor(null)}
       />
@@ -531,7 +578,7 @@ export function ChartPanel({
         confirmLabel="Stop the ladder"
         onConfirm={() => {
           if (cancelFor) {
-            void paper.cancelLadder(cancelFor.walletId, cancelFor.id)
+            void trading.cancelLadder(cancelFor.walletId, cancelFor.id)
           }
           setCancelFor(null)
         }}

@@ -12,7 +12,7 @@ import {
   type AutomationAudienceContact,
 } from "@/server/automations/audience"
 import { syncContactsFromUsers } from "@/server/people/contacts"
-import { currentWorkspaceId } from "@/server/people/workspaces"
+import { workspaceForRun } from "@/server/automations/runs"
 import type { CustomShellDb } from "@/server/db"
 import { getEmailProvider, type EmailProvider } from "@/server/email/provider"
 import { composeFromAddress } from "@/server/email/send"
@@ -291,8 +291,7 @@ export async function executeSendEmailNode({
 }: SendEmailContext) {
   const settings = readSendEmailSettings(rawSettings)
   // The run's own workspace, fixed when it started. See executors.ts.
-  const workspaceId =
-    run.workspaceId ?? (await currentWorkspaceId(run.userId, database))
+  const workspaceId = await workspaceForRun(run, database)
   await syncContactsFromUsers(workspaceId, database)
 
   const audience = await audienceForRun(run, nodeId, database)

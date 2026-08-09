@@ -11,7 +11,6 @@ import {
   normalizeTopLeftNavLimit,
   type ShellConfig,
 } from "@/lib/custom-shell"
-import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
@@ -136,6 +135,9 @@ export async function readShellSettings(
     sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
     styling: workspaceSettings.styling,
     dashboardWidgets: workspaceSettings.dashboardWidgets,
+    // Which pages are hidden is a per-site decision — Alpha closing its
+    // pricing page must not close Beta's.
+    pages: workspaceSettings.pages,
   }
 }
 
@@ -210,10 +212,6 @@ export function parseShellGlobals(value: unknown) {
     // they did.
     automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
-    // Rows saved before this setting existed have none, which normalizes to an
-    // empty map — every page on "everyone", exactly as the app behaved before
-    // pages could be switched off.
-    pages: normalizePageOverrides(settings.pages),
   }
 }
 
@@ -243,7 +241,6 @@ export function pickShellGlobals(
     | "maintenance"
     | "automationPause"
     | "sessionPolicy"
-    | "pages"
   >
 ) {
   return {
@@ -264,6 +261,5 @@ export function pickShellGlobals(
     maintenance: settings.maintenance,
     automationPause: settings.automationPause,
     sessionPolicy: settings.sessionPolicy,
-    pages: settings.pages,
   }
 }
