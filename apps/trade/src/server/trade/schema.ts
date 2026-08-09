@@ -1,15 +1,28 @@
 import {
+  bigint,
+  boolean,
   doublePrecision,
+  foreignKey,
   index,
   jsonb,
   pgTable,
   primaryKey,
+  text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import type { CardFolds } from "@/lib/trade/card-folds"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
+import type { DcaParams, LadderPlan, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
+import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
+import type { LiveJournalAction } from "@/lib/trade/live"
+import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
+import type { WalletKind, WalletStatus } from "@/lib/trade/wallets"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -55,14 +68,144 @@ export const tradePrefs = pgTable("trade_prefs", {
   // newest one — the one form of it that means the same thing on every
   // market. `chartViewSchema` is the only way in or out.
   chartView: jsonb("chart_view").$type<ChartView>(),
-  // The wallet the account panel was last showing. Just a memory: a wallet
-  // that has since been deleted resolves to "none picked", never to somebody
-  // else's.
+  // Which supporting parts of the chart are visible. Kept apart from the
+  // numeric zoom and position because switching one does not move the chart.
+  chartOptions: jsonb("chart_options").$type<ChartOptions>(),
+  // The wallet the account panel had active. An id and nothing more: a
+  // remembered choice, resolved against the wallets that exist at read time,
+  // so a deleted wallet leaves a memory that simply matches nothing.
   lastWalletId: varchar("last_wallet_id", { length: 36 }),
+  // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
+  // or out, so a value written by an older build falls back to the defaults.
+  smartDca: jsonb("smart_dca").$type<DcaParams>(),
+  // Which indicators are switched on, what each is set to, and how each one's
+  // part of the menu was left folded — against the account rather than the
+  // market, the same choice as the zoom above and for the same reason: however
+  // you set the chart up is how every chart opens. `readIndicatorSettings` is
+  // the only way in or out, so an indicator this build no longer has is
+  // dropped rather than half-drawn.
+  indicators: jsonb("indicators").$type<IndicatorSettings>(),
+  // Which settings cards on the trading windows were left folded away. Layout
+  // and nothing else — deliberately not inside `smart_dca` above, which is the
+  // shape the placement endpoint validates, and has no business carrying an
+  // answer about what somebody could be bothered to look at.
+  cardFolds: jsonb("card_folds").$type<CardFolds>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 })
+
+/**
+ * The wallets a person trades from — practice ones with pretend cash, and
+ * live Hyperliquid accounts added by address.
+ *
+ * There is deliberately no balance column. A paper wallet's worth is derived
+ * from what it started with plus what its orders did (the engine that folds
+ * that returns in a later task); a live wallet's worth is whatever the
+ * exchange says when asked. A stored balance would be a second copy of one of
+ * those, and second copies drift.
+ *
+ * `agent_key_encrypted` is the one secret this app keeps: the trading key of
+ * a live wallet, stored only as `encryptSecret` ciphertext (`iv.tag.data`),
+ * decrypted only at the moment an order needs signing — which no code in this
+ * task does yet. It never leaves the server; list reads say `hasKey: true`.
+ *
+ * The key is the person and the wallet together, same as the drawings table:
+ * every write is scoped by it, so a request carrying somebody else's wallet
+ * id can only ever touch a row of its own.
+ */
+export const tradeWallets = pgTable(
+  "trade_wallets",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    id: varchar("id", { length: 36 }).notNull(),
+    label: varchar("label", { length: 40 }).notNull(),
+    kind: varchar("kind", { length: 8 }).$type<WalletKind>().notNull(),
+    status: varchar("status", { length: 8 })
+      .$type<WalletStatus>()
+      .notNull()
+      .default("active"),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    network: varchar("network", { length: 10 }).$type<NetworkId>().notNull(),
+    // Paper: the pretend cash it began with. Live: the account's value the
+    // moment it was added — the baseline "Since it started" measures from.
+    startingBalance: doublePrecision("starting_balance").notNull(),
+    // Live wallets only: the public account address, 0x + 40 hex.
+    address: varchar("address", { length: 42 }),
+    agentKeyEncrypted: text("agent_key_encrypted"),
+    // When the exchange says the trading key's approval runs out, recorded at
+    // save time so the wallet card can warn BEFORE orders start being refused.
+    // Null: paper wallets, and approvals the exchange gave no expiry for.
+    agentValidUntil: timestamp("agent_valid_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.id] })]
+)
+
+/**
+ * The order-number counter for real orders, one row per signing address and
+ * network. The exchange requires every signed action's number to be higher
+ * than the last; this row is bumped in ONE atomic statement
+ * (`greatest(last + 1, now)`), so two tabs — or a future background worker —
+ * can never hand the exchange the same number twice. Keyed by the signing
+ * address rather than the wallet because that is what the exchange keys on:
+ * the same key added as two wallets still shares one counter.
+ */
+export const tradeWalletNonces = pgTable(
+  "trade_wallet_nonces",
+  {
+    address: varchar("address", { length: 42 }).notNull(),
+    network: varchar("network", { length: 10 }).$type<NetworkId>().notNull(),
+    lastNonce: bigint("last_nonce", { mode: "number" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.address, table.network] })]
+)
+
+/**
+ * Everything ever asked of the exchange with real money, and what it said
+ * back — orders, cancels, closes, protection changes, and refusals alike.
+ * Facts only, in plain figures, and NEVER a secret: every note written here
+ * has already been through the scrubber. Nothing is ever removed; this is
+ * the record the recovery tools and the Journal tab read.
+ */
+export const tradeLiveJournal = pgTable(
+  "trade_live_journal",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    // What was done: fill | placed | cancelled | close | brackets | refused.
+    action: varchar("action", { length: 16 }).$type<LiveJournalAction>().notNull(),
+    // Null on the refusals that never got as far as having a side.
+    side: varchar("side", { length: 4 }).$type<PaperSide>(),
+    px: doublePrecision("px").notNull().default(0),
+    sz: doublePrecision("sz").notNull().default(0),
+    // The plain-word sentence — what the exchange answered, or why it refused.
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_live_journal_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.createdAt
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
 
 /**
  * The lines people draw on the chart, one row each, tied to the market they
@@ -101,32 +244,47 @@ export const tradeChartDrawings = pgTable(
 )
 
 /**
- * Paper wallets: a name, a starting balance, and which exchange's prices they
- * trade at. Pretend money, so there is no address here and no secret of any
- * kind — a paper wallet cannot spend anything by construction.
+ * The practice trading engine's four tables.
  *
- * The balance itself is deliberately not a column. It is the starting figure
- * folded through every fill (`foldPaperAccount`), so there is one number that
- * can be wrong rather than two that drift apart and no way to tell which one
- * lied. Resetting a wallet is simply throwing its orders away.
- *
- * `kind` is here for the wallets that come next — watching a real address, and
- * later a testnet one. They are the same idea with a different source of
- * truth, and they belong in this table rather than a parallel one.
+ * They share one shape: keyed by the person, hung off `trade_wallets` by the
+ * pair (user_id, wallet_id) so a deleted wallet takes its whole history with
+ * it, and holding only facts. Cash, margin, liquidation prices and open profit
+ * are all arithmetic on these rows plus today's price — worked out on read by
+ * `@/lib/trade/paper`, never stored, because a stored copy of a derived figure
+ * is a second answer that drifts from the first.
  */
-export const tradeWallets = pgTable(
-  "trade_wallets",
-  {
+
+/** Everything each engine table needs to name its owner and its wallet. */
+function paperOwner() {
+  return {
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+  }
+}
+
+/**
+ * What a paper wallet is holding, one row per market. `szi` is signed —
+ * positive is long, negative is short — because every sum built from it wants
+ * the direction anyway.
+ */
+export const tradePaperPositions = pgTable(
+  "trade_paper_positions",
+  {
+    ...paperOwner(),
     id: varchar("id", { length: 36 }).notNull(),
-    label: varchar("label", { length: 60 }).notNull(),
-    /** "paper" today. */
-    kind: varchar("kind", { length: 16 }).notNull(),
-    protocol: varchar("protocol", { length: 32 }).notNull(),
-    network: varchar("network", { length: 16 }).notNull(),
-    startingBalance: doublePrecision("starting_balance").notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    szi: doublePrecision("szi").notNull(),
+    entryPx: doublePrecision("entry_px").notNull(),
+    // Fixed when the position opened; anything added to it inherits this.
+    leverage: doublePrecision("leverage").notNull(),
+    // The market's own limit, copied at that moment — the liquidation estimate
+    // is built from it and the exchange's answer can change underneath.
+    maxLeverage: doublePrecision("max_leverage").notNull(),
+    tpPx: doublePrecision("tp_px"),
+    slPx: doublePrecision("sl_px"),
+    feesPaid: doublePrecision("fees_paid").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -134,53 +292,148 @@ export const tradeWallets = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.id] })]
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    uniqueIndex("trade_paper_positions_market_idx").on(
+      table.userId,
+      table.walletId,
+      table.marketKey
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
 )
 
 /**
- * Every paper order ever placed: the ones still waiting and the ones that
- * traded, in one table, because a filled order *is* the trade. A separate
- * fills table would be the same rows written twice.
- *
- * Money is stored as plain double precision rather than an exact decimal.
- * This is pretend money whose whole job is to be read on a screen, and every
- * figure it produces is a fold of prices that arrived as decimal strings from
- * an exchange anyway — exactness here would be a costume, not a guarantee.
- *
- * Keyed on the person and the order together, so a request carrying somebody
- * else's order id can only ever touch a row of its own.
+ * Orders still waiting to fill, and only those: filling or cancelling one
+ * deletes the row. The journal is where history lives, and a second history
+ * would drift from it.
  */
 export const tradePaperOrders = pgTable(
   "trade_paper_orders",
   {
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    ...paperOwner(),
     id: varchar("id", { length: 36 }).notNull(),
-    walletId: varchar("wallet_id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
-    /** "buy" or "sell". */
-    side: varchar("side", { length: 4 }).notNull(),
-    /** "market" or "limit". */
-    kind: varchar("kind", { length: 8 }).notNull(),
-    /** In coins. */
-    size: doublePrecision("size").notNull(),
-    /** What a limit is waiting for; null on a market order. */
-    limitPrice: doublePrecision("limit_price"),
+    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    px: doublePrecision("px").notNull(),
+    sz: doublePrecision("sz").notNull(),
     leverage: doublePrecision("leverage").notNull(),
-    /** "resting", "filled" or "cancelled". */
-    status: varchar("status", { length: 10 }).notNull(),
-    placedAt: timestamp("placed_at", { withTimezone: true })
+    maxLeverage: doublePrecision("max_leverage").notNull(),
+    reduceOnly: boolean("reduce_only").notNull().default(false),
+    // The brackets to hand the position this order opens, once it fills.
+    tpPx: doublePrecision("tp_px"),
+    slPx: doublePrecision("sl_px"),
+    createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    /** When it actually traded — the candle's own time, not the sweep's. */
-    filledAt: timestamp("filled_at", { withTimezone: true }),
-    fillPrice: doublePrecision("fill_price"),
-    /** The rate charged as a fraction; the dollars are worked out from it. */
-    feeRate: doublePrecision("fee_rate"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.id] }),
     index("trade_paper_orders_wallet_idx").on(table.userId, table.walletId),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * Every fill that ever happened, and why it happened. Both the trade history
+ * the Journal tab shows and the ledger the wallet's cash is added up from,
+ * which is why nothing is ever removed from it.
+ */
+export const tradePaperJournal = pgTable(
+  "trade_paper_journal",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    px: doublePrecision("px").notNull(),
+    sz: doublePrecision("sz").notNull(),
+    fee: doublePrecision("fee").notNull(),
+    closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    reason: varchar("reason", { length: 16 })
+      .$type<PaperFillReason>()
+      .notNull(),
+    fillTime: timestamp("fill_time", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_paper_journal_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.fillTime
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * The smart-order ladders the engine keeps working on — one row per placed
+ * ladder. The percentages from the window die at placement; what lives here is
+ * concrete prices and sizes in one jsonb plan, read only through
+ * `ladderPlanSchema` so a row an older build wrote is ignored, never
+ * half-obeyed. Finished ladders flip to `done` and stay for the record.
+ */
+export const tradeSmartLadders = pgTable(
+  "trade_smart_ladders",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    status: varchar("status", { length: 8 }).$type<LadderStatus>().notNull(),
+    plan: jsonb("plan").$type<LadderPlan>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_smart_ladders_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.status
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * How far the engine has replayed each wallet. Nothing runs in the background:
+ * reading an account replays the candles since this moment first, so a wallet
+ * left alone for a day catches up the moment somebody looks at it.
+ */
+export const tradePaperState = pgTable(
+  "trade_paper_state",
+  {
+    ...paperOwner(),
+    settledTo: timestamp("settled_to", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId] }),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
   ]
 )

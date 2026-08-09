@@ -6,14 +6,14 @@ import { z } from "zod"
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { PasswordInput } from "@/components/ui/password-input"
 import {
   getAuthErrorMessage,
   loadCurrentUser,
   PASSWORD_RULE_HINT,
   resetPassword,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 
 export const Route = createFileRoute("/reset-password")({
   validateSearch: z.object({ token: z.string().optional() }),

@@ -9,9 +9,12 @@ import type {
 } from "lightweight-charts"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import { barOfTime, timeOfBar } from "@/lib/trade/chart-time"
 import { readChartColors, type ChartColors } from "@/lib/trade/chart-theme"
 import {
+  DEFAULT_MARGIN_BOTTOM,
+  DEFAULT_MARGIN_TOP,
   frameOf,
   sameView,
   viewOf,
@@ -46,10 +49,29 @@ import {
 export type ChartSurface = {
   width: number
   height: number
+  /**
+   * How wide the price axis to the right of the plot is.
+   *
+   * Everything else here measures the plot alone, and drawing stops at its
+   * edge. This one number is what lets a layer put a price on the axis beside
+   * the line it belongs to — the axis is still not somewhere the chart draws,
+   * it is only somewhere it can now say how far away.
+   */
+  axisWidth: number
   /** Epoch milliseconds to a horizontal position, off the ends included. */
   xOf(time: number): number
   /** A horizontal position back to epoch milliseconds. */
   timeAt(x: number): number
+  /**
+   * Epoch milliseconds as a position in candles — 0 is the oldest, 1 the next.
+   *
+   * For anything counting bars rather than measuring pixels. It is the same
+   * number `xOf` works from, so "how many candles apart are these two times?"
+   * is one subtraction and never a guess at how long a candle is. Fractional
+   * between candles, and past either end it carries on at the spacing of the
+   * nearest pair.
+   */
+  barAt(time: number): number
   /** A price to a vertical position, or null before the scale exists. */
   yOf(price: number): number | null
   /** A vertical position back to a price. */
@@ -64,6 +86,7 @@ export type ChartSurface = {
 type Viewport = {
   width: number
   height: number
+  axisWidth: number
   /** Where bar 0 sits and how wide a bar is: the whole sideways mapping. */
   barZeroX: number
   barWidth: number
@@ -77,6 +100,7 @@ function sameViewport(a: Viewport | null, b: Viewport | null): boolean {
   return (
     a.width === b.width &&
     a.height === b.height &&
+    a.axisWidth === b.axisWidth &&
     a.barZeroX === b.barZeroX &&
     a.barWidth === b.barWidth &&
     a.topPrice === b.topPrice &&
@@ -118,7 +142,9 @@ function highLowBetween(
 
 function readViewport(
   chart: IChartApi,
-  series: ISeriesApi<"Candlestick">
+  series: ISeriesApi<"Candlestick">,
+  /** The whole chart including its axes, for working out how wide they are. */
+  totalWidth: number
 ): Viewport | null {
   const pane = chart.paneSize()
   if (pane.width <= 0 || pane.height <= 0) return null
@@ -141,6 +167,7 @@ function readViewport(
   return {
     width: pane.width,
     height: pane.height,
+    axisWidth: Math.max(0, totalWidth - pane.width),
     barZeroX,
     barWidth: barOneX - barZeroX,
     topPrice,
@@ -150,6 +177,7 @@ function readViewport(
 
 export function PriceChart({
   candles,
+  options,
   viewKey,
   readView,
   onViewChange,
@@ -157,6 +185,8 @@ export function PriceChart({
   overlay,
 }: {
   candles: CandleBar[]
+  /** Supporting chart parts that may be shown or hidden. */
+  options: ChartOptions
   /**
    * What these candles are: a market and a timeframe, as one string. The
    * whole history is framed once per value of it.
@@ -231,6 +261,30 @@ export function PriceChart({
   // remember. Cleared a beat later, because the library reports them after
   // the call rather than during it.
   const framingRef = React.useRef(false)
+  const optionsRef = React.useRef(options)
+  const crosshairModesRef = React.useRef<{
+    normal: number
+    hidden: number
+  } | null>(null)
+
+  React.useEffect(() => {
+    optionsRef.current = options
+    const chart = chartRef.current
+    if (!chart) return
+    chart.applyOptions({
+      grid: {
+        vertLines: { visible: options.grid },
+        horzLines: { visible: options.grid },
+      },
+    })
+    const modes = crosshairModesRef.current
+    if (modes) {
+      chart.applyOptions({
+        crosshair: { mode: options.crosshair ? modes.normal : modes.hidden },
+      })
+    }
+    volumeSeriesRef.current?.applyOptions({ visible: options.volume })
+  }, [options])
 
   React.useEffect(() => {
     readViewRef.current = readView
@@ -277,6 +331,27 @@ export function PriceChart({
     setTimeout(() => {
       framingRef.current = false
     }, 200)
+  }, [])
+
+  /**
+   * Back to the whole history, both directions: every candle across the width
+   * and the library's own share of the height above and below them.
+   *
+   * Deliberately not routed through `frameChart` — that one *applies* a
+   * remembered view and hushes the reporting while it does it. This one throws
+   * the remembered view away, so the reporting has to run: whatever the chart
+   * settles at is what gets written down, and reopening the page shows the
+   * reset rather than the zoom it replaced.
+   */
+  const resetChart = React.useCallback(() => {
+    const chart = chartRef.current
+    const series = priceSeriesRef.current
+    if (!chart || !series) return
+    series.priceScale().applyOptions({
+      autoScale: true,
+      scaleMargins: { top: DEFAULT_MARGIN_TOP, bottom: DEFAULT_MARGIN_BOTTOM },
+    })
+    chart.timeScale().fitContent()
   }, [])
 
   /**
@@ -334,7 +409,10 @@ export function PriceChart({
   const refreshSurface = React.useCallback(() => {
     const chart = chartRef.current
     const series = priceSeriesRef.current
-    const next = chart && series ? readViewport(chart, series) : null
+    const next =
+      chart && series
+        ? readViewport(chart, series, containerRef.current?.clientWidth ?? 0)
+        : null
     if (sameViewport(viewportRef.current, next)) return
     viewportRef.current = next
     // The one honest moment to notice the view moved, and it covers both
@@ -348,11 +426,13 @@ export function PriceChart({
     setSurface({
       width: next.width,
       height: next.height,
+      axisWidth: next.axisWidth,
       // The bar list is read as the answer is asked for, not captured here:
       // a live bar appending itself changes what lies to the right of the
       // last candle without moving anything already on screen.
       xOf: (time) => next.barZeroX + barOfTime(timesRef.current, time) * next.barWidth,
       timeAt: (x) => timeOfBar(timesRef.current, (x - next.barZeroX) / next.barWidth),
+      barAt: (time) => barOfTime(timesRef.current, time),
       yOf: (price) => series.priceToCoordinate(price),
       priceAt: (y) => series.coordinateToPrice(y),
     })
@@ -370,6 +450,10 @@ export function PriceChart({
       const { createChart, CandlestickSeries, HistogramSeries, CrosshairMode } =
         await import("lightweight-charts")
       if (disposed || !containerRef.current) return
+      crosshairModesRef.current = {
+        normal: CrosshairMode.Normal,
+        hidden: CrosshairMode.Hidden,
+      }
 
       const colors = readChartColors(containerRef.current)
       const chart = createChart(containerRef.current, {
@@ -380,14 +464,18 @@ export function PriceChart({
           attributionLogo: false,
         },
         grid: {
-          vertLines: { color: colors.grid },
-          horzLines: { color: colors.grid },
+          vertLines: { color: colors.grid, visible: optionsRef.current.grid },
+          horzLines: { color: colors.grid, visible: optionsRef.current.grid },
         },
         // The library's default is "magnet": the horizontal line snaps to
         // each candle's price, leaping close-to-close as the mouse crosses
         // bars — which reads as the crosshair skipping all over the place.
         // Normal simply follows the mouse.
-        crosshair: { mode: CrosshairMode.Normal },
+        crosshair: {
+          mode: optionsRef.current.crosshair
+            ? CrosshairMode.Normal
+            : CrosshairMode.Hidden,
+        },
         rightPriceScale: { borderColor: colors.grid },
         timeScale: { borderColor: colors.grid, timeVisible: true },
       })
@@ -407,6 +495,7 @@ export function PriceChart({
         priceFormat: { type: "volume" },
         lastValueVisible: false,
         priceLineVisible: false,
+        visible: optionsRef.current.volume,
       })
       chart
         .priceScale("volume")
@@ -446,8 +535,14 @@ export function PriceChart({
         chart.applyOptions({
           layout: { textColor: next.text },
           grid: {
-            vertLines: { color: next.grid },
-            horzLines: { color: next.grid },
+            vertLines: {
+              color: next.grid,
+              visible: optionsRef.current.grid,
+            },
+            horzLines: {
+              color: next.grid,
+              visible: optionsRef.current.grid,
+            },
           },
           rightPriceScale: { borderColor: next.grid },
           timeScale: { borderColor: next.grid },
@@ -536,11 +631,21 @@ export function PriceChart({
 
   return (
     <div className="relative h-full min-h-0 w-full">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* Double-click puts the chart back to its whole history. On this box
+          rather than the one around it, because everything drawn on top —
+          lines, orders, ladders — is a sibling of it: a double-click meant for
+          a drawn line, or a second click of a tool, never reaches here. */}
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+        onDoubleClick={resetChart}
+      />
       {overlay && surface ? (
-        // Sized to the plot area alone, so nothing can be drawn over the price
-        // or time axis. Clicks fall through to the chart unless whatever is
-        // drawn in here asks for them.
+        // As tall as the plot and as wide as the plot plus the price axis. The
+        // extra strip is there for one thing only — a price badge sitting on
+        // the axis beside the line it belongs to, the way every trading chart
+        // shows one. Everything the surface measures still stops at the plot,
+        // so nothing drifts over the time axis below.
         //
         // The z-index is load-bearing: the library stacks its own canvases at
         // 1 and 2, so without it this sits underneath them — visible, because
@@ -548,7 +653,10 @@ export function PriceChart({
         // on the canvas instead.
         <div
           className="pointer-events-none absolute top-0 left-0 z-10 overflow-hidden"
-          style={{ width: surface.width, height: surface.height }}
+          style={{
+            width: surface.width + surface.axisWidth,
+            height: surface.height,
+          }}
         >
           {overlay(surface)}
         </div>

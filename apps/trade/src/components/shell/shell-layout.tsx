@@ -13,11 +13,11 @@ import { AnnouncementBanners } from "@/components/shell/announcement-banner"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
+import { AppSidebar } from "@/components/shell/sidebar/sidebar"
 import {
   StickyHeader,
   type SaveStatus,
-} from "@/pages/dashboard/sticky-header/sticky-header"
+} from "@/components/shell/sticky-header/sticky-header"
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
@@ -42,16 +42,18 @@ import {
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { resolveAppName } from "@/lib/branding"
 import type { UserAnnouncement } from "@/lib/announcement"
-import type { AuthUser } from "@/lib/api/auth"
-import { logout } from "@/lib/api/auth"
-import type { PlanSummary } from "@/lib/api/billing"
+import type { AuthUser } from "@/lib/api/auth/auth"
+import { logout } from "@/lib/api/auth/auth"
+import type { PlanSummary } from "@/lib/api/billing/billing"
 import {
   getAutomationPauseErrorMessage,
   saveAutomationPause,
   type AutomationPauseState,
-} from "@/lib/api/automation-pause"
+} from "@/lib/api/automations/automation-pause"
 import {
   getMaintenanceErrorMessage,
   saveMaintenance,
@@ -59,19 +61,19 @@ import {
 import {
   getSessionPolicyErrorMessage,
   saveSessionPolicy,
-} from "@/lib/api/session-policy"
+} from "@/lib/api/auth/session-policy"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
   saveSidebarWidth,
 } from "@/lib/api/shell-settings"
-import type { WorkspaceListResponse } from "@/lib/api/workspaces"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { normalizeDashboardWidgets } from "@/lib/dashboard-widgets"
-import { clampSidebarWidth } from "@/lib/sidebar-width"
-import { setToastSeconds } from "@/lib/toast-duration"
-import { plural } from "@/lib/plural"
-import { clampToastSeconds } from "@/lib/toast-seconds"
+import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
+import { setToastSeconds } from "@/lib/toast/toast-duration"
+import { plural } from "@/lib/format/plural"
+import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 
 // Debounce window before an edit on the settings page is auto-saved.
 const CONFIG_SAVE_DEBOUNCE_MS = 700
@@ -418,7 +420,7 @@ export function ShellLayout({
   }, [])
 
   // The Toaster lives above the router outlet and can't see the config, so
-  // hand it the saved duration whenever it changes. See lib/toast-duration.ts.
+  // hand it the saved duration whenever it changes. See lib/toast/toast-duration.ts.
   React.useEffect(() => {
     setToastSeconds(config.toastSeconds)
   }, [config.toastSeconds])
@@ -621,6 +623,7 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
     favicon: settings.favicon ?? fallback.favicon,
     logo: settings.logo ?? fallback.logo,
+    logoDark: settings.logoDark ?? fallback.logoDark,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
     ),
@@ -638,9 +641,13 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     // Only an explicit `false` turns the live bell off, so a config saved
     // before this setting existed keeps it on.
     liveNotifications: settings.liveNotifications !== false,
+    notificationTypes: normalizeNotificationTypeVisibility(
+      settings.notificationTypes
+    ),
     maintenance: normalizeMaintenance(settings.maintenance),
     automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+    pages: normalizePageOverrides(settings.pages),
     styling: normalizeStyling(settings.styling),
     dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
   }

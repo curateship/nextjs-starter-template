@@ -67,19 +67,19 @@ import {
   retireAdminAnnouncements,
   updateAdminAnnouncement,
   type Announcement,
-} from "@/lib/api/announcements"
+} from "@/lib/api/content/announcements"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { formatUtcDate } from "@/lib/format-time"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { formatUtcDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
   useListSort,
   useSearchBoxText,
-} from "@/lib/list-search"
-import { quoteOneLine } from "@/lib/quote-text"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useOpenFromLink } from "@/lib/use-open-from-link"
-import { useSelection } from "@/lib/use-selection"
+} from "@/lib/nav/list-search"
+import { quoteOneLine } from "@/lib/format/quote-text"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
+import { useSelection } from "@/lib/hooks/use-selection"
 
 const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
 
@@ -177,7 +177,7 @@ export function AdminAnnouncementsDashboard({
   const router = useRouter()
   const navigate = useNavigate()
   // Search, sort and page live in the address, so Back returns this exact
-  // list — see `lib/list-search.ts`.
+  // list — see `lib/nav/list-search.ts`.
   const listSearch = announcementsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""

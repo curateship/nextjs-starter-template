@@ -6,17 +6,12 @@ import {
   type AdminOverview,
   type OverviewAutomation,
 } from "@/server/admin-overview"
-import type { FeedsAnnouncementRow, FeedsSummary } from "@/server/feeds"
 import { adminGet } from "@/server/guards"
-import type { MembershipSummary } from "@/server/membership"
+import type { MembershipSummary } from "@/server/people/membership"
 
-// The feeds and membership types come out through here now that the Overview is
-// the only page reading them. Browser code reaches a server type through a
-// `lib/api` module and nowhere else, so they need a door on this side.
+// Browser code reaches server types through this API module, never directly.
 export type {
   AdminOverview,
-  FeedsAnnouncementRow,
-  FeedsSummary,
   MembershipSummary,
   OverviewAutomation,
 }

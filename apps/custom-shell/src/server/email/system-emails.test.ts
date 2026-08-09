@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
 import { customShellSystemEmails } from "@/server/schema"
-import { createTestDatabase } from "@/server/test-support"
+import { createTestDatabase, insertWorkspace } from "@/server/test-support"
 import {
   getOrCreateSystemEmail,
   getSystemEmail,
@@ -24,11 +24,14 @@ import { composeFromAddress, composeSystemEmail } from "@/server/email/send"
 
 let client: PGlite
 let database: CustomShellDb
+/** The site these emails belong to. */
+let site: string
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db as unknown as CustomShellDb
+  site = (await insertWorkspace(database)).id
 })
 
 afterEach(async () => {
@@ -37,9 +40,9 @@ afterEach(async () => {
 
 describe("system email wording", () => {
   it("has no row until somebody saves a change", async () => {
-    expect(await getSystemEmail("password-reset", database)).toBeNull()
+    expect(await getSystemEmail(site, "password-reset", database)).toBeNull()
 
-    const listed = await listSystemEmails(database)
+    const listed = await listSystemEmails(site, database)
     const reset = listed.find((item) => item.kind === "password-reset")
     expect(reset?.edited).toBe(false)
     // Still the built-in subject, so the list is not blank before anybody
@@ -48,7 +51,7 @@ describe("system email wording", () => {
   })
 
   it("writes the built-in wording out on the first save", async () => {
-    const created = await getOrCreateSystemEmail("password-reset", database)
+    const created = await getOrCreateSystemEmail(site, "password-reset", database)
 
     expect(created.subject).toBe("Reset your password")
     // The words that were going out a second ago, so opening the editor
@@ -57,7 +60,7 @@ describe("system email wording", () => {
     expect(created.renderedHtml).toContain("{{action_url}}")
 
     // Saving again is the same row, not a second one.
-    const again = await getOrCreateSystemEmail("password-reset", database)
+    const again = await getOrCreateSystemEmail(site, "password-reset", database)
     expect(again.createdAt.getTime()).toBe(created.createdAt.getTime())
     const rows = await database
       .select()
@@ -67,10 +70,10 @@ describe("system email wording", () => {
   })
 
   it("keeps the sendable HTML in step with the words", async () => {
-    await getOrCreateSystemEmail("verify-email", database)
+    await getOrCreateSystemEmail(site, "verify-email", database)
     const blocks = createSystemEmailBlocks("verify-email")
 
-    const saved = await updateSystemEmail(
+    const saved = await updateSystemEmail(site,
       "verify-email",
       { subject: "Please confirm", blocks },
       database
@@ -83,7 +86,7 @@ describe("system email wording", () => {
   it("creates the row on a save for an email nobody had opened", async () => {
     // A save is allowed to be the first thing that ever touches an email, so
     // nothing is lost by a tab that was open before the row existed.
-    const saved = await updateSystemEmail(
+    const saved = await updateSystemEmail(site,
       "sign-in-link",
       { subject: "Something else entirely" },
       database
@@ -248,6 +251,7 @@ describe("the record of what went out", () => {
   it("keeps every attempt, including the ones that failed", async () => {
     await recordSystemEmailSend(
       {
+        workspaceId: site,
         kind: "password-reset",
         toEmail: "ada@example.com",
         subject: "Reset your password",
@@ -258,6 +262,7 @@ describe("the record of what went out", () => {
     )
     await recordSystemEmailSend(
       {
+        workspaceId: site,
         kind: "password-reset",
         toEmail: "ada@example.com",
         subject: "Reset your password",
@@ -269,6 +274,7 @@ describe("the record of what went out", () => {
     // A different email entirely, which must not show up in the list below.
     await recordSystemEmailSend(
       {
+        workspaceId: site,
         kind: "verify-email",
         toEmail: "grace@example.com",
         subject: "Verify your email",
@@ -277,7 +283,7 @@ describe("the record of what went out", () => {
       database
     )
 
-    const page = await listSystemEmailSends("password-reset", {}, database)
+    const page = await listSystemEmailSends(site, "password-reset", {}, database)
     expect(page.sends).toHaveLength(2)
     expect(page.hasMore).toBe(false)
     // The same person can ask for as many reset links as they like — the whole
@@ -287,7 +293,7 @@ describe("the record of what went out", () => {
       true
     )
 
-    const counted = await listSystemEmails(database)
+    const counted = await listSystemEmails(site, database)
     const reset = counted.find((item) => item.kind === "password-reset")
     expect(reset?.recentSent).toBe(1)
     expect(reset?.recentFailed).toBe(1)
@@ -297,6 +303,7 @@ describe("the record of what went out", () => {
     for (let index = 0; index < 4; index += 1) {
       await recordSystemEmailSend(
         {
+          workspaceId: site,
           kind: "new-account",
           toEmail: `person-${index}@example.com`,
           subject: "Set your password",
@@ -306,11 +313,11 @@ describe("the record of what went out", () => {
       )
     }
 
-    const first = await listSystemEmailSends("new-account", { limit: 2 }, database)
+    const first = await listSystemEmailSends(site, "new-account", { limit: 2 }, database)
     expect(first.sends).toHaveLength(2)
     expect(first.hasMore).toBe(true)
 
-    const last = await listSystemEmailSends(
+    const last = await listSystemEmailSends(site,
       "new-account",
       { limit: 2, offset: 2 },
       database

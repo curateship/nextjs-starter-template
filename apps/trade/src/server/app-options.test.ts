@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { appAutomationExecutors } from "@/server/app-options"
+import { appAutomationExecutors, appBackgroundWorkers } from "@/server/app-options"
 
 /**
  * The server-side half of app options, checked the same way as the other half
@@ -19,6 +19,10 @@ describe("an option nobody set means what the shell always did", () => {
   it("adds no automation executors of its own", () => {
     expect(appAutomationExecutors({})).toEqual({})
   })
+
+  it("runs no background workers of its own", () => {
+    expect(appBackgroundWorkers({})).toEqual([])
+  })
 })
 
 describe("an app's answer wins", () => {
@@ -29,6 +33,11 @@ describe("an app's answer wins", () => {
     expect(appAutomationExecutors({ automations: { executors } })).toBe(
       executors
     )
+  })
+
+  it("hands over the app's own background workers", () => {
+    const workers = [{ name: "video-media", tick: async () => {} }]
+    expect(appBackgroundWorkers({ background: { workers } })).toBe(workers)
   })
 })
 

@@ -4,7 +4,7 @@ import { AutomationsListPage } from "@/components/automations/automations-list-p
 import {
   getAutomationLoadErrorMessage,
   loadAutomationsPage,
-} from "@/lib/api/automations"
+} from "@/lib/api/automations/automations"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 export const Route = createFileRoute("/_authenticated/admin/automations")({

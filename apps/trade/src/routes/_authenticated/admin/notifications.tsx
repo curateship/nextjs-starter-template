@@ -11,7 +11,7 @@ import {
   readOneOf,
   readPage,
   readSearchText,
-} from "@/lib/list-search"
+} from "@/lib/nav/list-search"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 export const NOTIFICATION_READ_FILTERS = ["all", "unread", "read"] as const

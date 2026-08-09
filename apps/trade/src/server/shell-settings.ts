@@ -11,21 +11,23 @@ import {
   normalizeTopLeftNavLimit,
   type ShellConfig,
 } from "@/lib/custom-shell"
-import { clampToastSeconds } from "@/lib/toast-seconds"
+import { normalizePageOverrides } from "@/lib/pages/page-visibility"
+import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
+import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellSettings,
   DEFAULT_SETTINGS_KEY,
   type CustomShellUser,
 } from "@/server/schema"
-import { isAdmin } from "@/server/security"
+import { isAdmin } from "@/server/auth/security"
 import {
   getOrCreateCurrentWorkspace,
   parseWorkspaceSettings,
-} from "@/server/workspaces"
+} from "@/server/people/workspaces"
 
 /** The app-wide globals row, already parsed and defaulted. */
-export async function readShellGlobals(database: CustomShellDb) {
+export async function readShellGlobals(database: CustomShellDb = db) {
   const [row] = await database
     .select()
     .from(customShellSettings)
@@ -58,9 +60,13 @@ export async function readDashboardRowsPerPage(
  */
 export async function readBranding(
   database: CustomShellDb = db
-): Promise<{ appName: string; logo: string }> {
+): Promise<{ appName: string; logo: string; logoDark: string }> {
   const globals = await readShellGlobals(database)
-  return { appName: globals.appName, logo: globals.logo }
+  return {
+    appName: globals.appName,
+    logo: globals.logo,
+    logoDark: globals.logoDark,
+  }
 }
 
 /**
@@ -114,6 +120,13 @@ export function parseShellGlobals(value: unknown) {
     // Guarded for the same reason as the app name: the logo is drawn on the
     // signed-out pages, so a junk value in the row must not reach an <img>.
     logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
+    // Same guard, same reason. A row saved before this setting existed has no
+    // value at all, which reads as "no dark logo" — so the one logo keeps being
+    // shown on both backgrounds, exactly as before.
+    logoDark:
+      typeof settings.logoDark === "string"
+        ? settings.logoDark
+        : fallback.logoDark,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
     dashboardRowsPerPage:
@@ -151,12 +164,19 @@ export function parseShellGlobals(value: unknown) {
     // Rows saved before this setting existed have no value, and the feature is
     // meant to be on — so only an explicit `false` turns it off.
     liveNotifications: settings.liveNotifications !== false,
+    notificationTypes: normalizeNotificationTypeVisibility(
+      settings.notificationTypes
+    ),
     maintenance: normalizeMaintenance(settings.maintenance),
     // Rows saved before this switch existed have no value, and the default is
     // running — so an existing install's automations keep going exactly as
     // they did.
     automationPause: normalizeAutomationPause(settings.automationPause),
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+    // Rows saved before this setting existed have none, which normalizes to an
+    // empty map — every page on "everyone", exactly as the app behaved before
+    // pages could be switched off.
+    pages: normalizePageOverrides(settings.pages),
   }
 }
 
@@ -171,6 +191,7 @@ export function pickShellGlobals(
     ShellConfig,
     | "appName"
     | "logo"
+    | "logoDark"
     | "workspaceName"
     | "workspacePlan"
     | "dashboardRowsPerPage"
@@ -181,14 +202,17 @@ export function pickShellGlobals(
     | "memberSections"
     | "memberTopRightNavigation"
     | "liveNotifications"
+    | "notificationTypes"
     | "maintenance"
     | "automationPause"
     | "sessionPolicy"
+    | "pages"
   >
 ) {
   return {
     appName: settings.appName,
     logo: settings.logo,
+    logoDark: settings.logoDark,
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
@@ -199,8 +223,10 @@ export function pickShellGlobals(
     memberSections: settings.memberSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,
     liveNotifications: settings.liveNotifications,
+    notificationTypes: settings.notificationTypes,
     maintenance: settings.maintenance,
     automationPause: settings.automationPause,
     sessionPolicy: settings.sessionPolicy,
+    pages: settings.pages,
   }
 }

@@ -3,7 +3,7 @@ import {
   safeLinkUrl,
   type BroadcastBlock,
 } from "@/lib/broadcasts/blocks"
-import { escapeHtml } from "@/lib/escape-html"
+import { escapeHtml } from "@/lib/email/escape-html"
 
 /**
  * Renders broadcast blocks into table-based, inline-styled email HTML that

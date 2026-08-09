@@ -175,6 +175,7 @@ function VisitorsChart({ daily }: { daily: TrafficSummary["daily"] }) {
           <Area
             dataKey="views"
             type="natural"
+            isAnimationActive={false}
             stroke="var(--color-views)"
             strokeWidth={2}
             fill="var(--color-views)"

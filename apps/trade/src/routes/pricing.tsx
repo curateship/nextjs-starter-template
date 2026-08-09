@@ -1,25 +1,34 @@
 import * as React from "react"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { authLinkClassName } from "@/components/shell/auth-shell"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
-import { loadCurrentUser, type AuthUser } from "@/lib/api/auth"
+import { loadCurrentUser, type AuthUser } from "@/lib/api/auth/auth"
 import {
   getBillingErrorMessage,
   loadBillingOverview,
   loadPublicPricing,
   openPlanChange,
   type PlanOption,
-} from "@/lib/api/billing"
+} from "@/lib/api/billing/billing"
+import { requirePageVisible } from "@/lib/api/content/pages"
 
 export const Route = createFileRoute("/pricing")({
   loader: async () => {
-    const user = await loadCurrentUser()
+    // An admin can hide this page or make it members-only. Asked alongside the
+    // session rather than before it: the answer has to arrive before the page
+    // draws, not before the page starts fetching, and a public page should not
+    // pay for an extra round trip in a row on every visit. A hidden page
+    // rejects here and nothing it fetched is ever shown.
+    const [, user] = await Promise.all([
+      requirePageVisible("/pricing"),
+      loadCurrentUser(),
+    ])
     // Plans are public; the overview needs the session, so only ask when signed
     // in, and run both together rather than one after the other.
     const [pricing, overview] = await Promise.all([

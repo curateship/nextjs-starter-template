@@ -1,14 +1,29 @@
 import * as React from "react"
-import { Loader2Icon, PlusIcon, Trash2Icon, UsersIcon } from "lucide-react"
+import { getRouteApi, useRouter } from "@tanstack/react-router"
+import {
+  ListFilterIcon,
+  Loader2Icon,
+  PlusIcon,
+  Trash2Icon,
+  UsersIcon,
+  UsersRoundIcon,
+  XIcon,
+} from "lucide-react"
 import { toast } from "sonner"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
-import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -36,20 +51,43 @@ import {
 import {
   deleteContacts,
   getContactErrorMessage,
-  loadContactsPage,
   saveContact,
   setContactsStatus,
   type ContactItem,
   type ContactSortColumn,
   type ContactsPage as ContactsPageData,
-} from "@/lib/api/contacts"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { formatDate } from "@/lib/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
-import { useLastValue } from "@/lib/use-last-value"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useSelection } from "@/lib/use-selection"
-import { useTableSort } from "@/lib/use-table-sort"
+} from "@/lib/api/people/contacts"
+import {
+  addContactsToWorkspaceSegment,
+  getSegmentErrorMessage,
+} from "@/lib/api/people/contact-segments"
+import { contactFilterOptions } from "@/lib/api/people/contacts"
+import {
+  describeSegmentCondition,
+  segmentConditionIsComplete,
+  type SegmentCondition,
+  type SegmentRuleOptions,
+} from "@/lib/contacts/contact-segments"
+import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
+import { formatDate } from "@/lib/format/format-time"
+import {
+  useListSearchNavigate,
+  useListSort,
+  useSearchBoxText,
+} from "@/lib/nav/list-search"
+import { quoteOneLine } from "@/lib/format/quote-text"
+import { useLastValue } from "@/lib/hooks/use-last-value"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useSelection } from "@/lib/hooks/use-selection"
+
+const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
+
+/** One shared empty list, so "no filters" is the same object every render. */
+const EMPTY_CONDITIONS: SegmentCondition[] = []
 
 function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
@@ -73,16 +111,104 @@ function contactStatusLabel(status: ContactItem["status"]) {
   }
 }
 
-/** Everyone a newsletter can go to, and the tags that split them into groups. */
-export function ContactsPage({ initial }: { initial: ContactsPageData }) {
-  const { config } = useShellRuntime()
-  const [data, setData] = React.useState(initial)
-  const [search, setSearch] = React.useState("")
-  const [tag, setTag] = React.useState<string | null>(null)
-  const { sort, direction, toggleSort } = useTableSort<ContactSortColumn>("created", "desc", (column) => column === "created" ? "desc" : "asc")
-  const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [loading, setLoading] = React.useState(false)
+/**
+ * Everyone a newsletter can go to, and the filters that narrow them down.
+ *
+ * The filters are written in exactly the rules a segment is — one builder for
+ * both, so "the list I filtered down to" and "the segment I saved" describe
+ * people in the same words rather than two languages that drift.
+ *
+ * Search, sort, page and the filters all live in the address, so a reload keeps
+ * them and a filtered list is a link you can hand to somebody.
+ */
+export function ContactsPage({ data }: { data: ContactsPageData }) {
+  const router = useRouter()
+  const listSearch = contactsRoute.useSearch()
+  const setListSearch = useListSearchNavigate()
+  const searchQuery = listSearch.q ?? ""
+  const conditions = listSearch.filter?.conditions ?? EMPTY_CONDITIONS
+  const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
+    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
+  )
+  const sort: ContactSortColumn = listSearch.sort ?? "created"
+  const direction = listSearch.direction ?? "desc"
+  const toggleSort = useListSort<ContactSortColumn>(
+    { sort, direction },
+    (column) => (column === "created" ? "desc" : "asc")
+  )
+  const page = listSearch.page ?? 1
+  const setPage = React.useCallback(
+    (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
+    [setListSearch]
+  )
+  const [filtersOpen, setFiltersOpen] = React.useState(false)
+  const pageSize = data.pageSize
+
+  /** Writing filters back to the address always returns to the first page. */
+  const setConditions = React.useCallback(
+    (next: SegmentCondition[]) =>
+      setListSearch({
+        filter: next.length ? { conditions: next } : undefined,
+        page: undefined,
+      }),
+    [setListSearch]
+  )
+
+  /** Names for the "not in…" chips, so a rule reads as a name not an id. */
+  const segmentNames = React.useMemo(
+    () =>
+      Object.fromEntries(
+        data.segments.map((segment) => [segment.id, segment.name])
+      ),
+    [data.segments]
+  )
+
+  /** Every tag a rule is currently filtering on, so a row chip can light up. */
+  const filteredTags = React.useMemo(() => {
+    const tags = new Set<string>()
+    for (const condition of conditions) {
+      if (condition.type === "tag" && condition.operator === "includes") {
+        condition.tags.forEach((tag) => tags.add(tag))
+      }
+    }
+    return tags
+  }, [conditions])
+
+  /**
+   * Clicking a tag on a row adds or removes it from the one "tagged any of"
+   * rule, rather than starting a second filter of its own.
+   */
+  const toggleTagRule = React.useCallback(
+    (tag: string) => {
+      const at = conditions.findIndex(
+        (condition) =>
+          condition.type === "tag" && condition.operator === "includes"
+      )
+      if (at < 0) {
+        setConditions([
+          ...conditions,
+          { type: "tag", operator: "includes", tags: [tag] },
+        ])
+        return
+      }
+      const existing = conditions[at]
+      if (existing.type !== "tag") return
+      const tags = existing.tags.includes(tag)
+        ? existing.tags.filter((entry) => entry !== tag)
+        : [...existing.tags, tag]
+      setConditions(
+        tags.length
+          ? conditions.map((condition, index) =>
+              index === at ? { ...existing, tags } : condition
+            )
+          : // The rule held only that tag, so taking it off takes the rule with
+            // it — an empty tag rule would match nobody, which is not what
+            // clicking a lit chip off means.
+            conditions.filter((_, index) => index !== at)
+      )
+    },
+    [conditions, setConditions]
+  )
   const [addOpen, setAddOpen] = React.useState(false)
   const [runSave, saving] = useAsyncAction(getContactErrorMessage)
   const [form, setForm] = React.useState({
@@ -100,45 +226,29 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
   const closingDeleteTarget = useLastValue(deleteTarget)
   const selection = useSelection()
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
+  /** Which hand-picked segment the ticked people would go into. */
+  const [segmentTarget, setSegmentTarget] = React.useState("")
+  const [runAdd, adding] = useAsyncAction(getSegmentErrorMessage)
 
-  const refresh = React.useCallback(
-    async (next: { search?: string; tag?: string | null; page?: number } = {}) => {
-      const nextPage = next.page ?? page
-      const nextSearch = next.search ?? search
-      const nextTag = next.tag === undefined ? tag : next.tag
-      setLoading(true)
-      try {
-        const fresh = await loadContactsPage({
-          search: nextSearch || undefined,
-          tag: nextTag ?? undefined,
-          sort,
-          direction,
-          limit: pageSize,
-          offset: (nextPage - 1) * pageSize,
-        })
-        setData(fresh)
-        dismissErrorToast()
-      } catch (error) {
-        showErrorToast(getContactErrorMessage(error))
-      } finally {
-        setLoading(false)
-      }
-    },
-    [direction, page, pageSize, search, sort, tag]
+  // Every value that changes which rows are on screen. Without this, ticking
+  // five people and then changing a filter leaves "Delete (5)" meaning five
+  // rows you can no longer see.
+  useClearSelectionOnListChange(
+    selection.setSelected,
+    `${searchQuery}|${sort}|${direction}|${page}|${pageSize}|${JSON.stringify(conditions)}`
   )
 
-  // The list is paged on the server, so every change to what is being asked
-  // for goes back for a fresh page rather than filtering what is already here.
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setPage(1)
-      void refresh({ page: 1 })
-    }, 250)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, tag, pageSize, sort, direction])
+  // Re-running the route loader is the refresh: it is what fetched these rows
+  // in the first place, so asking it again is the one way to get fresh ones.
+  const refresh = React.useCallback(async () => {
+    try {
+      await router.invalidate()
+      dismissErrorToast()
+    } catch (error) {
+      showErrorToast(getContactErrorMessage(error))
+    }
+  }, [router])
 
-  /** Same column flips the arrow; a new column starts ascending. */
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize))
 
   const handleAdd = async () => {
@@ -179,6 +289,40 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
     }
   }
 
+  /**
+   * Puts the ticked people into a hand-picked segment.
+   *
+   * The sentence afterwards counts honestly: somebody who was already in the
+   * segment is said so rather than being reported as added, because a number
+   * that quietly includes them is one nobody can check.
+   */
+  const handleAddToSegment = async () => {
+    if (adding || !selectedCount) return
+    if (!segmentTarget) {
+      showErrorToast("Pick the segment these people should go into.")
+      return
+    }
+    const name =
+      data.segments.find((segment) => segment.id === segmentTarget)?.name ??
+      "that segment"
+
+    await runAdd(async () => {
+      const { added, alreadyThere } = await addContactsToWorkspaceSegment(
+        segmentTarget,
+        [...selection.selected]
+      )
+      selection.clear()
+      setSegmentTarget("")
+      toast.success(
+        added === 0
+          ? `Everybody picked was already in ${quoteOneLine(name)}.`
+          : alreadyThere
+            ? `${added} ${plural(added, "person", "people")} added to ${quoteOneLine(name)}. ${alreadyThere} ${alreadyThere === 1 ? "was" : "were"} already in it.`
+            : `${added} ${plural(added, "person", "people")} added to ${quoteOneLine(name)}.`
+      )
+    })
+  }
+
   /** Both the single row and the selection go through here. */
   const removeMany = async (ids: string[], done: () => void) => {
     if (deleting || ids.length === 0) return
@@ -217,18 +361,96 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                 Delete ({selectedCount})
               </DashboardToolbarButton>
             ) : null}
+            {/* Only with people ticked, and only when there is a hand-picked
+                segment to put them in — a dropdown with nothing in it is worse
+                than no dropdown. */}
+            {selectedCount && data.segments.length ? (
+              <>
+                <Select
+                  value={segmentTarget}
+                  onValueChange={setSegmentTarget}
+                >
+                  <DashboardToolbarSelectTrigger
+                    aria-label="Segment to add these people to"
+                    // Fixed rather than content-width: the toolbar would
+                    // otherwise jump every time a different segment is picked,
+                    // moving the button you are about to press.
+                    className="w-44"
+                  >
+                    <SelectValue placeholder="Pick a segment…" />
+                  </DashboardToolbarSelectTrigger>
+                  <SelectContent>
+                    {data.segments.map((segment) => (
+                      <SelectItem key={segment.id} value={segment.id}>
+                        {segment.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={adding}
+                  onClick={() => void handleAddToSegment()}
+                >
+                  {adding ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <UsersRoundIcon className="size-4" />
+                  )}
+                  Add to segment ({selectedCount})
+                </DashboardToolbarButton>
+              </>
+            ) : null}
             <DashboardToolbarSearch
               name="contact-search"
               aria-label="Search contacts"
               placeholder="Search contacts…"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
             />
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              onClick={() => setFiltersOpen(true)}
+            >
+              <ListFilterIcon className="size-4" />
+              Filters{conditions.length ? ` (${conditions.length})` : ""}
+            </DashboardToolbarButton>
             <DashboardToolbarButton onClick={() => setAddOpen(true)}>
               <PlusIcon className="size-4" />
               Add someone
             </DashboardToolbarButton>
           </>
+        }
+        filters={
+          conditions.length ? (
+            <>
+              {conditions.map((condition, index) => (
+                <Badge key={index} variant="secondary" className="gap-1 pr-1">
+                  {describeSegmentCondition(condition, segmentNames)}
+                  <button
+                    type="button"
+                    className={cn("rounded-sm p-0.5 hover:bg-muted", focusRing)}
+                    aria-label={`Take off the rule: ${describeSegmentCondition(condition, segmentNames)}`}
+                    onClick={() => setConditions(conditions.filter((_, at) => at !== index))}
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </Badge>
+              ))}
+              <button
+                type="button"
+                className={cn(
+                  "rounded-sm text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground",
+                  focusRing
+                )}
+                onClick={() => setConditions([])}
+              >
+                Clear all
+              </button>
+            </>
+          ) : null
         }
         header={
           <TableHeader>
@@ -284,7 +506,7 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
         }
         isEmpty={data.contacts.length === 0}
         emptyText={
-          search.trim() || tag
+          searchQuery.trim() || conditions.length
             ? "Nobody matches that."
             : "Nobody on the list yet. Everyone who signs up lands here."
         }
@@ -295,15 +517,10 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
           pageSize,
           total: data.total,
           totalPages,
-          onPageChange: (next) => {
-            const clamped = Math.max(1, Math.min(next, totalPages))
-            setPage(clamped)
-            void refresh({ page: clamped })
-          },
-          onPageSizeChange: (next) => {
-            setPage(1)
-            setPageSize(next)
-          },
+          onPageChange: (next) =>
+            setPage(Math.max(1, Math.min(next, totalPages))),
+          onPageSizeChange: (next) =>
+            setListSearch({ size: next, page: undefined }),
         }}
       >
         {data.contacts.map((contact) => (
@@ -335,22 +552,27 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
                 <span className="text-muted-foreground">—</span>
               ) : (
                 <span className="flex flex-wrap gap-1">
-                  {contact.tags.map((entry) => (
-                    <button
-                      key={entry}
-                      type="button"
-                      onClick={() => setTag(tag === entry ? null : entry)}
-                      title={
-                        tag === entry
-                          ? "Show everyone again"
-                          : `Show only people tagged ${entry}`
-                      }
-                    >
-                      <Badge variant={tag === entry ? "default" : "outline"}>
-                        {entry}
-                      </Badge>
-                    </button>
-                  ))}
+                  {contact.tags.map((entry) => {
+                    const on = filteredTags.has(entry)
+                    return (
+                      <button
+                        key={entry}
+                        type="button"
+                        // Clicking a tag is the quick way to the same rule the
+                        // Filters window writes — not a second kind of filter.
+                        onClick={() => toggleTagRule(entry)}
+                        title={
+                          on
+                            ? `Stop filtering by ${entry}`
+                            : `Show only people tagged ${entry}`
+                        }
+                      >
+                        <Badge variant={on ? "default" : "outline"}>
+                          {entry}
+                        </Badge>
+                      </button>
+                    )
+                  })}
                 </span>
               )}
             </TableCell>
@@ -390,19 +612,6 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
           </TableRow>
         ))}
       </DashboardTable>
-
-      {tag ? (
-        <p className="mt-2 text-sm text-muted-foreground">
-          Showing only people tagged “{tag}”.{" "}
-          <button
-            type="button"
-            className="underline underline-offset-2"
-            onClick={() => setTag(null)}
-          >
-            Show everyone
-          </button>
-        </p>
-      ) : null}
 
       {/* FormDialog, not Dialog: this holds typed work, so Escape, the X and
           the backdrop all ask before throwing it away. */}
@@ -556,7 +765,113 @@ export function ContactsPage({ initial }: { initial: ContactsPageData }) {
         }
       />
 
-      {loading ? <span className="sr-only">Loading contacts…</span> : null}
+      <ContactFiltersDialog
+        // Fresh per opening, so Cancel really does leave the list as it was.
+        key={filtersOpen ? "open" : "closed"}
+        open={filtersOpen}
+        conditions={conditions}
+        options={contactFilterOptions(data)}
+        total={data.total}
+        onClose={() => setFiltersOpen(false)}
+        onApply={(next) => {
+          setConditions(next)
+          setFiltersOpen(false)
+        }}
+      />
+
     </>
+  )
+}
+
+/**
+ * The list's filters, written with the very same builder the segment window
+ * uses. Nothing is applied until Apply — a list that reordered itself on every
+ * half-typed rule would be unusable.
+ */
+function ContactFiltersDialog({
+  open,
+  conditions,
+  options,
+  total,
+  onClose,
+  onApply,
+}: {
+  open: boolean
+  conditions: SegmentCondition[]
+  options: SegmentRuleOptions
+  /** How many people the list is showing behind this window. */
+  total: number
+  onClose: () => void
+  onApply: (conditions: SegmentCondition[]) => void
+}) {
+  const [draft, setDraft] = React.useState(conditions)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(conditions)
+  const unfinished = draft.some(
+    (condition) => !segmentConditionIsComplete(condition)
+  )
+
+  const apply = () => {
+    if (unfinished) {
+      showErrorToast(
+        "One of the rules is not finished. Fill it in or take it out."
+      )
+      return
+    }
+    onApply(draft)
+  }
+
+  return (
+    <FormDialog open={open} dirty={dirty} onClose={onClose}>
+      {(requestClose) => (
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Filter contacts</DialogTitle>
+            <DialogDescription>
+              Every rule has to be true. These are the same rules a segment is
+              written in, so a list you filter down to can be saved as one.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              apply()
+            }}
+          >
+            <DialogBody>
+              <SegmentRuleBuilder
+                conditions={draft}
+                onChange={setDraft}
+                options={options}
+                idPrefix="contact-filter"
+                title="Rules"
+                description={
+                  conditions.length
+                    ? `${total.toLocaleString()} ${plural(total, "person", "people")} match the filters on the list now.`
+                    : "Nothing is filtered, so the list is showing everybody."
+                }
+                emptyText="No rules yet, so the list shows every contact you have."
+              />
+            </DialogBody>
+            <DialogFooter>
+              {draft.length ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mr-auto"
+                  onClick={() => setDraft([])}
+                >
+                  Clear all
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" onClick={requestClose}>
+                Cancel
+              </Button>
+              <Button type="submit">Apply</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      )}
+    </FormDialog>
   )
 }

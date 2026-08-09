@@ -9,6 +9,7 @@ import {
   type TrafficSummary,
 } from "@/server/traffic"
 import { adminGet } from "@/server/guards"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 export type { TrafficDayPoint, TrafficKeyCount, TrafficSummary }
 
@@ -59,8 +60,11 @@ const loadTrafficSummaryFn = createServerFn({ method: "GET" })
       ]),
     })
   )
-  .handler(async ({ data }): Promise<TrafficSummary> => {
-    return loadTrafficSummaryQuery(data.days)
+  .handler(async ({ data, context }): Promise<TrafficSummary> => {
+    return loadTrafficSummaryQuery(
+      await workspaceIdForRequest(context.user.id),
+      data.days
+    )
   })
 
 export function loadTrafficSummary(days: TrafficRange) {

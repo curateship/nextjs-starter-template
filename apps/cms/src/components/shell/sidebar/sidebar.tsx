@@ -28,6 +28,7 @@ import {
   type ShellConfig,
   type ShellSection,
 } from "@/lib/custom-shell"
+import { whoMayHaveWorkspaces } from "@/lib/app-options"
 import { useBlankSpaceDoubleClick } from "@/lib/layout/panel-collapse"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
@@ -38,6 +39,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user: AuthUser
   plan: PlanSummary
   workspaces: WorkspaceItem[]
+  baseDomain?: string
   /** True while an admin is looking at the app as this member. */
   viewingAsMember: boolean
   onLogout: () => void
@@ -125,6 +127,7 @@ export function AppSidebar({
   user,
   plan,
   workspaces,
+  baseDomain,
   viewingAsMember,
   onLogout,
   ...props
@@ -154,12 +157,17 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="pb-3">
-        <WorkspaceSwitcher
-          workspaces={workspaces}
-          workspaceName={config.workspaceName}
-          workspaceSubheader={config.workspacePlan}
-          favicon={config.favicon}
-        />
+        {/* An app that is one site and always will be draws no switcher at
+            all — see `workspaces.whoMayHave`. Read inside the component, never
+            at module level, because an app's options file can import its way
+            back to this one. */}
+        {whoMayHaveWorkspaces() === "off" ? null : (
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            baseDomain={baseDomain}
+            favicon={config.favicon}
+          />
+        )}
       </SidebarHeader>
       <SidebarContent onDoubleClick={handleDoubleClick}>
         {sections.length ? (

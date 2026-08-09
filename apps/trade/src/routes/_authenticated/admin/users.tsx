@@ -4,14 +4,14 @@ import { AdminUsersDashboard } from "@/components/admin/admin-users-dashboard"
 import {
   getAdminUserErrorMessage,
   loadAdminUsersPage,
-} from "@/lib/api/admin-users"
+} from "@/lib/api/people/admin-users"
 import {
   readDirection,
   readOneOf,
   readPage,
   readSearchText,
-} from "@/lib/list-search"
-import { readOpenSearch } from "@/lib/use-open-from-link"
+} from "@/lib/nav/list-search"
+import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 const authenticatedRoute = getRouteApi("/_authenticated")

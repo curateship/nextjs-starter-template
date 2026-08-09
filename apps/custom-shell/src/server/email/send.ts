@@ -7,6 +7,7 @@ import {
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
 import { getAppEmailApiKey } from "@/server/email/settings"
+import { visitorWorkspaceId } from "@/server/workspaces/for-request"
 import {
   getSystemEmail,
   recordSystemEmailSend,
@@ -144,21 +145,30 @@ function fromAddress(fromName: string | null) {
  * way the attempt is written down, so "the link never arrived" has an answer.
  */
 export async function sendAuthEmail(email: AuthEmail) {
+  // Which site is sending. Resolved from the domain the request arrived on —
+  // somebody registering on Alpha gets Alpha's words from Alpha's sender, and
+  // that is a question about the site, not about them. A deployment with no
+  // site at all falls through to the built-in wording, as it always did.
+  const workspaceId = await visitorWorkspaceId().catch(() => null)
+
   // A database that will not answer must not stop a password reset, so a
   // failure here falls through to the built-in wording rather than throwing.
-  const saved = await getSystemEmail(email.kind).catch(() => null)
+  const saved = workspaceId
+    ? await getSystemEmail(workspaceId, email.kind).catch(() => null)
+    : null
   const { subject, html, fromName } = composeSystemEmail(email, saved)
 
   // The key an admin saved under Settings → Email, and the environment
   // variable as the fallback. Reading only the variable is what used to make
   // this quietly do nothing on a server where somebody had filled the tab in.
   const apiKey =
-    (await getAppEmailApiKey().catch(() => null)) ||
-    process.env.CUSTOM_SHELL_RESEND_API_KEY
+    (await getAppEmailApiKey(undefined, workspaceId ?? undefined).catch(
+      () => null
+    )) || process.env.CUSTOM_SHELL_RESEND_API_KEY
 
   if (!apiKey) {
     if (isProduction()) {
-      await logSend(email, subject, {
+      await logSend(workspaceId, email, subject, {
         status: "failed",
         error: "No Resend key is saved under Settings → Email.",
       })
@@ -168,7 +178,7 @@ export async function sendAuthEmail(email: AuthEmail) {
     console.info(
       `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`
     )
-    await logSend(email, subject, {
+    await logSend(workspaceId, email, subject, {
       status: "failed",
       error: "Email is not set up on this server, so it was only logged.",
     })
@@ -199,7 +209,7 @@ export async function sendAuthEmail(email: AuthEmail) {
       .then((body: { message?: string }) => body?.message ?? "")
       .catch(() => "")
 
-    await logSend(email, subject, {
+    await logSend(workspaceId, email, subject, {
       status: "failed",
       error: reason
         ? `The email service refused it (${response.status}): ${reason}`
@@ -211,7 +221,7 @@ export async function sendAuthEmail(email: AuthEmail) {
   const body = (await response.json().catch(() => null)) as {
     id?: string
   } | null
-  await logSend(email, subject, {
+  await logSend(workspaceId, email, subject, {
     status: "sent",
     providerMessageId: body?.id ?? null,
   })
@@ -227,6 +237,7 @@ export async function sendAuthEmail(email: AuthEmail) {
  * somebody getting back into their account.
  */
 async function logSend(
+  workspaceId: string | null,
   email: AuthEmail,
   subject: string,
   outcome: {
@@ -237,6 +248,7 @@ async function logSend(
 ) {
   try {
     await recordSystemEmailSend({
+      workspaceId,
       kind: email.kind,
       toEmail: email.to,
       subject,

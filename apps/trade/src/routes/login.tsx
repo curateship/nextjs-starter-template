@@ -17,12 +17,12 @@ import {
   messageForAuthCode,
   resendVerification,
   SIGN_IN_ERROR_CODES,
-} from "@/lib/api/auth"
+} from "@/lib/api/auth/auth"
 import { useAppName } from "@/lib/branding"
-import { carriedEmail } from "@/lib/carried-email"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { safeRedirectPath } from "@/lib/redirect-path"
+import { carriedEmail } from "@/lib/email/carried-email"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { safeRedirectPath } from "@/lib/nav/redirect-path"
 
 /**
  * A Google sign-in that failed comes back here as `?error=<code>`, and only a

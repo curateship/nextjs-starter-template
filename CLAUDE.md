@@ -76,6 +76,19 @@ him respond.
 `apps/custom-shell` is the base every future app is copied from. Updates flow
 one way: shell → app, via git merge. For any app built on top of the shell:
 
+**Only three apps are built on: `apps/cms`, `apps/trade` and `apps/video`.**
+Every other app in `apps/` is kept as **reference only** — read it to see how a
+feature already works when porting one, but never work in it, never fix it, and
+never merge the shell into it. Do not delete them either; they are the only
+record of how several features behave.
+
+A shell change therefore only has to merge cleanly into those three, and must
+not be weighed against the rest. Those three are also the only ones still in
+sync with the shell: nine of the others put their own tables inside the shell's
+`src/server/schema.ts` and have drifted so far that they can no longer take a
+shell update at all. That is what the rule below prevents, and it is not
+hypothetical.
+
 - **App code goes in the app's own files and folders.** Never edit a
   shell-origin file inside an app's copy — not even a one-line tweak. An edited
   shell file is a fork, and every future shell merge will conflict on it.
@@ -96,6 +109,7 @@ one way: shell → app, via git merge. For any app built on top of the shell:
 
 ## Dev Servers
 
+- **Each agent may have only one shell session open at a time. Finish or close it before opening another.**
 - **Never start a dev server (foreground or background). Always use the server already running on the app's configured port.**
 - Every new app must receive one unused port under its app key in `local-apps.json` when the app is created.
 - **`local-apps.json` is the only place where an app port may be assigned. Never duplicate or hardcode the port in app code, scripts, tests, environment defaults, Dockerfiles, or documentation; those consumers must read it from `local-apps.json`.**
@@ -103,6 +117,34 @@ one way: shell → app, via git merge. For any app built on top of the shell:
 - **Never start a new dev server if one is already running.** If an app's configured port is taken, that running server IS the one to use — do not spawn another on a fallback port. Running duplicate servers on scattered ports mucks everything up and confuses which URL is real.
 - Before running `pnpm run dev`, check whether the port is already listening: `lsof -iTCP -sTCP:LISTEN -nP | grep :<port>`. If it is, reuse that instance.
 - All Vite apps set `strictPort: true`, so `pnpm run dev` errors out instead of silently hopping to the next port. Keep it that way.
+
+### A port belongs to whichever worktree got it first
+
+There is one port per app but **many worktrees**, each holding a full copy of
+every app. So the port says which app it is, and **the running process says which
+worktree you are actually looking at**. Those are two different questions and
+only the first is written down anywhere.
+
+- **Always ask who owns the port before you touch it**, and print the answer:
+
+  ```sh
+  P=$(lsof -tiTCP:<port> -sTCP:LISTEN); lsof -a -p $P -d cwd -Fn | grep '^n'
+  ```
+
+- **If it is serving another worktree, it is not yours. Never kill it, and never
+  start a second one.** Killing it takes the app away from whoever is using it,
+  and their uncommitted work is still the only copy of what they are testing.
+- **Say so and stop.** Tell the user which worktree holds the port and what you
+  need, and let them decide. Restarting the app somewhere else is their call, not
+  a step you take on the way to something else.
+- **A merged commit is not a running app.** Merging to `develop` changes nothing
+  on screen until the worktree serving the port pulls it. When a fix "isn't
+  working", check the owner of the port before you re-read the code — that is
+  the more common answer.
+- The same holds for the database behind it: `.env` and `.env.local` are
+  gitignored and per-worktree, so `npm run db:setup` from a worktree that lacks
+  them recreates the container on the wrong port and takes the database away from
+  the server that was using it.
 
 ## Validating Changes
 

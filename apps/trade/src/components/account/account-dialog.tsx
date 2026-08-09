@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountProfilePage } from "@/components/account/account-profile-page"
 import { AccountBillingPage } from "@/components/account/account-billing-page"
 import { AccountSecurityPage } from "@/components/account/account-security-page"
-import type { AuthUser } from "@/lib/api/auth"
+import type { AuthUser } from "@/lib/api/auth/auth"
 import {
   getBillingErrorMessage,
   loadBillingPage,
@@ -24,7 +24,7 @@ import {
   type BillingOverview,
   type CardExpiryWarning,
   type PlanSummary,
-} from "@/lib/api/billing"
+} from "@/lib/api/billing/billing"
 
 export const ACCOUNT_TABS = ["profile", "billing", "security"] as const
 export type AccountTab = (typeof ACCOUNT_TABS)[number]
@@ -310,6 +310,9 @@ function BillingTab() {
       overview={data.overview}
       invoices={data.invoices}
       cardWarning={data.cardWarning}
+      // Pausing changes the plan, the badges and the buttons all at once, so
+      // the tab re-reads itself rather than trying to patch what it is showing.
+      onChanged={() => setReloads((count) => count + 1)}
     />
   )
 }

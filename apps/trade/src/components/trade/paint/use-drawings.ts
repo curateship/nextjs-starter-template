@@ -9,7 +9,7 @@ import {
   loadDrawings,
   saveDrawing,
 } from "@/lib/api/drawings"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import type { Drawing, DrawingShape } from "@/lib/trade/drawings"
 
 /** Which tool the pointer is holding, or none. */

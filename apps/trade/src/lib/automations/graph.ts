@@ -59,6 +59,7 @@ export type AutomationValidationError = {
     | "invalid_edge"
     | "invalid_settings"
     | "unknown_node"
+    | "multiple_triggers"
     | "cycle"
     | "fan_out"
     | "empty"

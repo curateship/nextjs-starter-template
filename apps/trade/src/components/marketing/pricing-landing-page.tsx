@@ -6,12 +6,12 @@ import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { definePublicPage } from "@/lib/app-options"
-import { loadCurrentUser } from "@/lib/api/auth"
+import { loadCurrentUser } from "@/lib/api/auth/auth"
 import {
   loadBillingOverview,
   loadPublicPricing,
   type PlanOption,
-} from "@/lib/api/billing"
+} from "@/lib/api/billing/billing"
 import { useAppName } from "@/lib/branding"
 
 type LandingData = {

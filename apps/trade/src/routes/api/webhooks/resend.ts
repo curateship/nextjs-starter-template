@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { handleResendWebhook } from "@/server/resend-webhook"
+import { handleResendWebhook } from "@/server/email/resend-webhook"
 
 /**
  * Resend webhook receiver: bounces and spam complaints come in here and take

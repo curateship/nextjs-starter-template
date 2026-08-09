@@ -33,6 +33,13 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
       join("lib", "protocols", "hyperliquid"),
     ],
   },
+  {
+    // The signing library. Only the exchange's server folder may touch it: it
+    // exists to turn a stored trading key into signatures, and anywhere else
+    // it appears is a place a key could leak toward.
+    pkg: "viem",
+    homes: [join("server", "protocols", "hyperliquid")],
+  },
 ]
 
 /** Where naming a concrete protocol id is legitimate. */

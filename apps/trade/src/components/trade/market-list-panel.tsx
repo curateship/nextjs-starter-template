@@ -18,13 +18,14 @@ import {
 } from "@/components/ui/select"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { formatChange } from "@/lib/trade/format"
+import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import {
   MARKET_CATEGORIES,
   type MarketCatalog,
   type MarketRow,
+  type NetworkId,
 } from "@/lib/protocols/contracts"
 import { cn } from "@/lib/utils"
 
@@ -37,16 +38,11 @@ import { cn } from "@/lib/utils"
  */
 type MarketTab = "fav" | "all" | "watch"
 
-type SortKey = "vol" | "type" | "change"
+type SortKey = "vol" | "change"
 
-/**
- * Which way a column starts when you first click it: biggest first for the two
- * numbers, A to Z for the kind of market — nobody wants a list of kinds
- * backwards.
- */
+/** Which way a column starts when you first click it: biggest first, both. */
 const SORT_STARTS_DESC: Record<SortKey, boolean> = {
   vol: true,
-  type: false,
   change: true,
 }
 
@@ -56,17 +52,18 @@ const SORT_STARTS_DESC: Record<SortKey, boolean> = {
  * whole point is that the two agree; two copies would drift apart the first
  * time either was touched.
  *
- * The rows sit in a container with its own `p-1`, so their buttons carry 8px
- * to reach the header's 12px.
+ * 16px each side, the same gutter the other panels' headers use, so the list
+ * sits in from the card's edge rather than up against it. The rows are inside
+ * a container with its own `p-1`, so their buttons carry 12px to reach it.
  */
-const ROW_COLUMNS = "gap-1 px-2"
-const ROW_COLUMNS_INSIDE_LIST = "gap-1 px-1"
+const ROW_COLUMNS = "gap-1 px-4"
+const ROW_COLUMNS_INSIDE_LIST = "gap-1 px-3"
 
 /**
  * The width the day's-move column reserves. Set by the widest thing in it,
  * which is the "Change 24h" header rather than any pill — with the column
- * fixed, the pills line up under that label and the kind of market lines up
- * under "Type" without either needing a width of its own.
+ * fixed, the pills line up under that label without needing a width of their
+ * own.
  */
 const CHANGE_COLUMN = "w-[5.5rem]"
 
@@ -100,6 +97,7 @@ const CATEGORY_LABELS: Record<CategoryChoice, string> = {
 export function MarketListPanel({
   catalogs,
   marketsError,
+  network,
   favorites,
   selectedKey,
   onSelect,
@@ -108,6 +106,8 @@ export function MarketListPanel({
   catalogs: MarketCatalog[]
   /** The exchange call failed at load; shown in place of rows. */
   marketsError: string | null
+  /** Which network the whole page is on — testnet wears its label row. */
+  network: NetworkId
   /** Which markets are starred — read only; the star itself is in the header. */
   favorites: ReadonlySet<string>
   selectedKey: string | null
@@ -162,17 +162,6 @@ export function MarketListPanel({
 
     const direction = sort.desc ? -1 : 1
     return [...list].sort((a, b) => {
-      if (sort.key === "type") {
-        // By what the column actually says, so the order matches what you read.
-        const compared = CATEGORY_LABELS[a.category].localeCompare(
-          CATEGORY_LABELS[b.category]
-        )
-        // Within one kind, biggest first — a block of markets in no order at
-        // all would be worse than the volume sort it replaced.
-        return compared === 0
-          ? b.volume24hUsd - a.volume24hUsd
-          : compared * direction
-      }
       const [va, vb] =
         sort.key === "vol"
           ? [a.volume24hUsd, b.volume24hUsd]
@@ -291,14 +280,6 @@ export function MarketListPanel({
           24h Vol
         </TableSortButton>
         <TableSortButton
-          active={sort.key === "type"}
-          direction={sort.desc ? "desc" : "asc"}
-          onClick={() => toggleSort("type")}
-          className="shrink-0 gap-1 whitespace-nowrap sm:text-xs"
-        >
-          Type
-        </TableSortButton>
-        <TableSortButton
           active={sort.key === "change"}
           direction={sort.desc ? "desc" : "asc"}
           onClick={() => toggleSort("change")}
@@ -324,6 +305,21 @@ export function MarketListPanel({
           "Markets you have an alert on. Alerts are not built yet — when they are, this fills in."
         )}
       </TabsContent>
+
+      {/* The practice network has no switch on screen any more — paper
+          wallets are the everyday practice path, and the rehearsal gate the
+          switch existed for has been passed (decided 9 Aug 2026, in
+          `testnet-mode.md`). The door is the address (`?network=testnet`, or
+          any testnet market's link — a testnet row in the bottom panel still
+          works). While the page IS on testnet, this row says so, always —
+          the labelling rule outlives the switch. */}
+      {network === "testnet" ? (
+        <div className="shrink-0 border-t border-foreground/10 bg-amber-500/10 px-3 py-1.5">
+          <span className="block truncate text-xs font-medium text-amber-700 dark:text-amber-400">
+            Testnet — practice network, pretend money.
+          </span>
+        </div>
+      ) : null}
 
       {/* The bottom bar: the kind-of-market filter and the search. The
           search placeholder names the exchange, so what the list covers is
@@ -391,6 +387,7 @@ function MarketRowLine({
   // that catches up on the next refetch.
   const live = useLiveFigures(row.key)
   const change24h = live?.change24h ?? row.change24h
+  const volume24hUsd = live?.volume24hUsd ?? row.volume24hUsd
 
   return (
     <button
@@ -405,18 +402,18 @@ function MarketRowLine({
     >
       {/* The name gives way first, and carries its full self in a title —
           a long sub-exchange symbol must not push the day's move off the
-          panel. */}
-      <span
-        title={row.symbol}
-        className="min-w-0 flex-1 truncate text-sm font-medium"
-      >
-        {row.symbol}
-      </span>
-      {/* What kind of thing this is, so a list of hundreds can be grouped into
-          coins, shares and the rest. Quiet on purpose: it is what you sort and
-          scan by, not what you read the row for. */}
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {CATEGORY_LABELS[row.category]}
+          panel. The day's volume sits beside it, quiet, because it is what
+          the list is sorted by: the order stops being a mystery. */}
+      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+        <span
+          title={row.symbol}
+          className="min-w-0 truncate text-sm font-medium"
+        >
+          {row.symbol}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
+          {formatCompactUsd(volume24hUsd)}
+        </span>
       </span>
       {/* Just the day's move, in a soft pill of its colour — the price
           belongs to the market header. A market with no yesterday price

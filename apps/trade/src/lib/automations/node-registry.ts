@@ -13,6 +13,7 @@ import type {
 } from "./node-descriptor"
 import { aiStepNode } from "./nodes/ai-step"
 import { audienceNode } from "./nodes/audience"
+import { billingMomentNode } from "./nodes/billing-moment"
 import { placeholderNode } from "./nodes/placeholder"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
 
@@ -26,6 +27,7 @@ export type {
 const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
   audienceNode,
+  billingMomentNode,
   placeholderNode,
   waitForApprovalNode,
 ]
@@ -147,6 +149,21 @@ export function isSupportedNode(node: AutomationNode): boolean {
   return automationRegistry().byKind.has(node.kind)
 }
 
+/**
+ * Whether a step is a trigger — one that starts a flow when something happens,
+ * rather than one a flow reaches.
+ *
+ * Read off `hasInput` rather than a second flag saying the same thing. "Nothing
+ * can connect into it" and "it is where a flow begins" are one property, and
+ * two of them could disagree.
+ *
+ * A kind nothing recognises is not a trigger. That is the safe way round: an
+ * unreadable node must not become the start of a flow that then runs.
+ */
+export function automationKindIsTrigger(kind: string): boolean {
+  return automationRegistry().byKind.get(kind)?.hasInput === false
+}
+
 function descriptorForPaletteKey(key: string): AutomationNodeDescriptor {
   const descriptor = automationRegistry().descriptors.find(
     (item) => item.palette?.key === key
@@ -249,6 +266,13 @@ export function automationNodeConnectionError(
   }
   if (!automationNodeSourcePortIsValid(source, sourcePort)) {
     return "Connection uses an invalid output."
+  }
+  // Asked here rather than in every node's own `connectionError`: a trigger is
+  // where a flow begins, so nothing may feed into one, and that is true whoever
+  // is doing the connecting. One place means the canvas refuses to draw it and
+  // the compiler refuses to accept it from the same rule.
+  if (!automationNodeHasInput(target)) {
+    return `"${automationNodeName(target)}" starts a flow, so nothing can connect into it.`
   }
   return descriptor.connectionError(sourcePort, target)
 }

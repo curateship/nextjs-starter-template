@@ -10,7 +10,7 @@ import {
   customShellTrafficVisitors,
   customShellTrafficVisits,
 } from "@/server/schema"
-import { createTestDatabase } from "@/server/test-support"
+import { createTestDatabase, insertWorkspace } from "@/server/test-support"
 import {
   classifyDevice,
   FACT_KEY_CAPS,
@@ -31,11 +31,14 @@ import {
 
 let client: PGlite
 let database: CustomShellDb
+/** The site every visit in these tests is counted against. */
+let site: string
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db as unknown as CustomShellDb
+  site = (await insertWorkspace(database)).id
   resetTrafficSweepForTests()
 })
 
@@ -47,6 +50,7 @@ const NOON = new Date("2026-08-02T12:00:00Z")
 
 function visit(overrides: Partial<VisitInput> = {}): VisitInput {
   return {
+    workspaceId: site,
     path: "/pricing",
     referrerDomain: "direct",
     device: "computer",
@@ -199,6 +203,7 @@ describe("recording visits", () => {
     // Fill the day to its cap with distinct paths, cheaply: straight inserts.
     await database.insert(customShellTrafficDailyFacts).values(
       Array.from({ length: FACT_KEY_CAPS.path }, (_, index) => ({
+        workspaceId: site,
         day: trafficDay(NOON),
         dimension: "path",
         key: `/page-${index}`,
@@ -229,6 +234,7 @@ describe("recording visits", () => {
   it("caps referrer sites the same way", async () => {
     await database.insert(customShellTrafficDailyFacts).values(
       Array.from({ length: FACT_KEY_CAPS.referrer }, (_, index) => ({
+        workspaceId: site,
         day: trafficDay(NOON),
         dimension: "referrer",
         key: `site-${index}.example`,
@@ -321,13 +327,14 @@ describe("the summary the dashboard reads", () => {
     await recordVisit(visit({ visitorHash: "hash-b" }), database, NOON)
     // A hand-planted overflow bucket that would otherwise sort first.
     await database.insert(customShellTrafficDailyFacts).values({
+      workspaceId: site,
       day: trafficDay(NOON),
       dimension: "referrer",
       key: OTHER_KEY,
       views: 99,
     })
 
-    const summary = await loadTrafficSummary(7, database, NOON)
+    const summary = await loadTrafficSummary(site, 7, database, NOON)
 
     expect(summary.totals).toEqual({
       views: 2,
@@ -361,7 +368,7 @@ describe("the summary the dashboard reads", () => {
     await recordVisit(visit(), database, new Date("2026-07-01T12:00:00Z"))
     await recordVisit(visit({ visitorHash: "hash-b" }), database, NOON)
 
-    const summary = await loadTrafficSummary(7, database, NOON)
+    const summary = await loadTrafficSummary(site, 7, database, NOON)
 
     expect(summary.totals.views).toBe(1)
     expect(summary.daily).toHaveLength(7)

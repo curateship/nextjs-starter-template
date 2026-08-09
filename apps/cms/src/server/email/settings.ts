@@ -362,18 +362,36 @@ export async function testEmailApiKey(
  * the environment variable or to log instead of send.
  */
 export async function getAppEmailApiKey(
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  workspaceId?: string
 ): Promise<string | null> {
+  // **This site's key first, then any other site's.** A site that has saved its
+  // own sender sends on it; one that has not falls back to the deployment's,
+  // which on an app with one site is the only key there has ever been. Said
+  // here rather than hidden in a helper, because "whose key sent that" is the
+  // question somebody asks when an email arrives from the wrong business.
+  //
   // The `is not null` belongs in the query, not after it. Taking the newest row
   // and then checking would hand back nothing whenever the most recently
   // touched workspace is one that only ever set a from-address.
   const rows = await database
-    .select({ encrypted: customShellEmailSettings.resendApiKeyEncrypted })
+    .select({
+      workspaceId: customShellEmailSettings.workspaceId,
+      encrypted: customShellEmailSettings.resendApiKeyEncrypted,
+    })
     .from(customShellEmailSettings)
     .where(isNotNull(customShellEmailSettings.resendApiKeyEncrypted))
     .orderBy(desc(customShellEmailSettings.updatedAt))
 
-  for (const row of rows) {
+  // This site's rows to the front, everything else in the order it came.
+  const ordered = workspaceId
+    ? [
+        ...rows.filter((row) => row.workspaceId === workspaceId),
+        ...rows.filter((row) => row.workspaceId !== workspaceId),
+      ]
+    : rows
+
+  for (const row of ordered) {
     if (!row.encrypted) continue
     try {
       return decryptSecret(row.encrypted)

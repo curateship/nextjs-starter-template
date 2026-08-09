@@ -1,7 +1,7 @@
 import * as React from "react"
 import { SendIcon } from "lucide-react"
 import { toast } from "sonner"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 import {
   EmailBlockEditor,
@@ -15,7 +15,7 @@ import {
   sendSystemEmailTest,
   updateSystemEmail,
   type SystemEmailDetail,
-} from "@/lib/api/system-emails"
+} from "@/lib/api/email/system-emails"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import { SYSTEM_EMAIL_META } from "@/lib/system-emails/kinds"
 

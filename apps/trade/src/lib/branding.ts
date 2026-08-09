@@ -35,3 +35,19 @@ export function useBrandLogo() {
     select: (data) => data.logo?.trim() ?? "",
   })
 }
+
+/**
+ * The logo drawn instead of the one above while the visitor is in dark mode, or
+ * "" when none is set. A separate hook rather than an object beside the light
+ * one so each stays a plain string: `useLoaderData` compares what `select`
+ * returns, and a fresh object every time compares as changed every time.
+ *
+ * Which of the two is actually shown is decided in CSS, not here — see
+ * `BrandLogo`.
+ */
+export function useBrandLogoDark() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.logoDark?.trim() ?? "",
+  })
+}

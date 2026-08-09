@@ -4,7 +4,12 @@ import { PGlite } from "@electric-sql/pglite"
 import { drizzle } from "drizzle-orm/pglite"
 
 import { setDbForTests, type CustomShellDb } from "@/server/db"
-import { customShellUsers, type CustomShellUser } from "@/server/schema"
+import {
+  customShellUsers,
+  customShellWorkspaces,
+  type CustomShellUser,
+  type CustomShellWorkspace,
+} from "@/server/schema"
 import * as schema from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
 
@@ -70,4 +75,33 @@ export async function insertUser(
     .returning()
 
   return user
+}
+
+/**
+ * One saved workspace — a site.
+ *
+ * Every subdomain has to be different from every other, so it is generated
+ * rather than defaulted; a test that cares what the address is passes its own.
+ * Content tables point at a workspace now, so almost anything that writes a row
+ * needs one of these first.
+ */
+export async function insertWorkspace(
+  db: CustomShellDb,
+  overrides: Partial<typeof customShellWorkspaces.$inferInsert> = {}
+): Promise<CustomShellWorkspace> {
+  const timestamp = now()
+  const [workspace] = await db
+    .insert(customShellWorkspaces)
+    .values({
+      id: uuid(),
+      name: "Test site",
+      subdomain: `w-${uuid().slice(0, 8)}`,
+      settings: {},
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      ...overrides,
+    })
+    .returning()
+
+  return workspace
 }

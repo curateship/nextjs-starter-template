@@ -245,19 +245,48 @@ export const broadcastAudienceFilterSchema = z.union([
     kind: z.literal("tags"),
     tags: z.array(z.string().trim().min(1).max(100)).min(1).max(25),
   }),
+  z.object({
+    kind: z.literal("segment"),
+    segmentId: z.string().trim().min(1).max(36),
+  }),
 ])
 
 export type BroadcastAudienceFilter = z.infer<
   typeof broadcastAudienceFilterSchema
 >
 
+/**
+ * Reads the stored audience, falling back to "everyone" when it cannot.
+ *
+ * That fallback is only safe because it is about the *shape* of the setting. A
+ * segment that has since been deleted parses perfectly well here — it is the
+ * send path that looks the segment up and refuses, so "we could not read who
+ * this was for" never turns into "send it to everybody".
+ */
 export function parseAudienceFilter(value: unknown): BroadcastAudienceFilter {
   const parsed = broadcastAudienceFilterSchema.safeParse(value)
   return parsed.success ? parsed.data : { kind: "all" }
 }
 
-export function describeAudienceFilter(filter: BroadcastAudienceFilter) {
-  return filter.kind === "all"
-    ? "All subscribed contacts"
-    : `Tagged: ${filter.tags.join(", ")}`
+/**
+ * Who an email is going to, in one line.
+ *
+ * A segment is only a stored id, so the names have to come from whoever already
+ * loaded them. An id that is not among them is a segment somebody deleted, and
+ * saying so is the point — every screen that shows this passes the real list.
+ */
+export function describeAudienceFilter(
+  filter: BroadcastAudienceFilter,
+  segmentNames: Record<string, string> = {}
+) {
+  switch (filter.kind) {
+    case "all":
+      return "All subscribed contacts"
+    case "tags":
+      return `Tagged: ${filter.tags.join(", ")}`
+    case "segment": {
+      const name = segmentNames[filter.segmentId]
+      return name ? `Segment: ${name}` : "A segment that has since been deleted"
+    }
+  }
 }

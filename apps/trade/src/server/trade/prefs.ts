@@ -1,6 +1,16 @@
 import { eq } from "drizzle-orm"
 
+import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
+import {
+  readChartOptions,
+  type ChartOptions,
+} from "@/lib/trade/chart-options"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
+import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
+import {
+  readIndicatorSettings,
+  type IndicatorSettings,
+} from "@/lib/trade/indicators/registry"
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -25,6 +35,30 @@ export async function saveLastMarketKey(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { lastMarketKey, updatedAt: new Date() },
+    })
+}
+
+/** The wallet the account panel last had active, or null before any choice. */
+export async function loadLastWalletId(userId: string): Promise<string | null> {
+  const row = await db
+    .select({ lastWalletId: tradePrefs.lastWalletId })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return row[0]?.lastWalletId ?? null
+}
+
+/** Remember it. */
+export async function saveLastWalletId(
+  userId: string,
+  lastWalletId: string
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, lastWalletId, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { lastWalletId, updatedAt: new Date() },
     })
 }
 
@@ -58,31 +92,113 @@ export async function saveChartView(
     })
 }
 
-/** The wallet the account panel was last showing, or null on a first visit. */
-export async function loadLastWalletId(
-  userId: string
-): Promise<string | null> {
+/** Which supporting chart parts this person chose to show. */
+export async function loadChartOptions(userId: string): Promise<ChartOptions> {
   const row = await db
-    .select({ lastWalletId: tradePrefs.lastWalletId })
+    .select({ chartOptions: tradePrefs.chartOptions })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
-  return row[0]?.lastWalletId ?? null
+  return readChartOptions(row[0]?.chartOptions ?? null)
 }
 
-/**
- * Remember it. Null clears the memory, which is what deleting the wallet that
- * was showing does — a memory pointing at nothing is worse than none.
- */
-export async function saveLastWalletId(
+/** Remember the complete choice so the three switches can never drift apart. */
+export async function saveChartOptions(
   userId: string,
-  lastWalletId: string | null
+  chartOptions: ChartOptions
 ): Promise<void> {
   await db
     .insert(tradePrefs)
-    .values({ userId, lastWalletId, updatedAt: new Date() })
+    .values({ userId, chartOptions, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { lastWalletId, updatedAt: new Date() },
+      set: { chartOptions, updatedAt: new Date() },
+    })
+}
+
+/**
+ * The DCA window's last-used settings, or null on a first use. Read back
+ * through the same validator they went in through, so a value an older build
+ * wrote falls back to the defaults instead of half-filling the window.
+ */
+export async function loadSmartDca(userId: string): Promise<DcaParams | null> {
+  const row = await db
+    .select({ smartDca: tradePrefs.smartDca })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  const parsed = dcaParamsSchema.safeParse(row[0]?.smartDca ?? null)
+  return parsed.success ? parsed.data : null
+}
+
+/** Remember them — saved after a successful place, never on every keystroke. */
+export async function saveSmartDca(
+  userId: string,
+  smartDca: DcaParams
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, smartDca, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { smartDca, updatedAt: new Date() },
+    })
+}
+
+/**
+ * Which indicators are on and what each is set to.
+ *
+ * Never null: a first visit and a row this build cannot read both come back as
+ * everything off at its own defaults, which is a working chart either way.
+ */
+export async function loadIndicators(
+  userId: string
+): Promise<IndicatorSettings> {
+  const row = await db
+    .select({ indicators: tradePrefs.indicators })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readIndicatorSettings(row[0]?.indicators ?? null)
+}
+
+/** Remember them — saved once the chart has been left alone for a moment. */
+export async function saveIndicators(
+  userId: string,
+  indicators: IndicatorSettings
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, indicators, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { indicators, updatedAt: new Date() },
+    })
+}
+
+/**
+ * Which settings cards were left folded away. Empty for somebody who has never
+ * folded one, which every card reads as "open me the way you always did".
+ */
+export async function loadCardFolds(userId: string): Promise<CardFolds> {
+  const row = await db
+    .select({ cardFolds: tradePrefs.cardFolds })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readCardFolds(row[0]?.cardFolds ?? null)
+}
+
+/** Remember them — saved once the window has been left alone for a moment. */
+export async function saveCardFolds(
+  userId: string,
+  cardFolds: CardFolds
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, cardFolds, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { cardFolds, updatedAt: new Date() },
     })
 }

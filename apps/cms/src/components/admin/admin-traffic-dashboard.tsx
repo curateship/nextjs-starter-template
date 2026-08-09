@@ -65,7 +65,12 @@ export function AdminTrafficDashboard({
       key: "views",
       label: "Page views",
       value: data.totals.views.toLocaleString(),
-      footer: `last ${TRAFFIC_RANGE_LABELS[range]}`,
+      // The site is named here rather than in a heading: it sits under the
+      // headline number, so a screenshot of these figures can never be
+      // mistaken for another site's.
+      footer: data.siteName
+        ? `last ${TRAFFIC_RANGE_LABELS[range]} on ${data.siteName}`
+        : `last ${TRAFFIC_RANGE_LABELS[range]}`,
     },
     {
       key: "unique",

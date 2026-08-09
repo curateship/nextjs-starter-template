@@ -23,17 +23,17 @@ import {
   deleteWorkspaces,
   getWorkspaceErrorMessage,
   type WorkspaceItem,
-} from "@/lib/api/workspaces"
-import { describeBulkResult } from "@/lib/bulk-result"
-import { plural } from "@/lib/plural"
+} from "@/lib/api/people/workspaces"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { plural } from "@/lib/format/plural"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useClientPage } from "@/lib/use-client-page"
-import { useSelection } from "@/lib/use-selection"
-import { useTableSort } from "@/lib/use-table-sort"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 type WorkspaceSortColumn = "name" | "status"

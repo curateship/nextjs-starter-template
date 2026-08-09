@@ -11,11 +11,6 @@ import type { AppServerOptions } from "@/server/app-options"
  * what each one does. Anything not offered there is a compile error, on
  * purpose: the shell always knows every way an app can deviate from it.
  *
- * This file belongs to the app, not the shell. **In custom-shell itself it
- * stays empty forever.** The moment the shell puts a value here, every app ever
- * copied from it conflicts on this file on every future merge — which is the
- * exact problem the file exists to avoid.
- *
  * New server functions still go in `src/lib/api/`, never here: the guard test
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.

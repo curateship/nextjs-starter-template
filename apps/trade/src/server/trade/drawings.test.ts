@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { DRAWINGS_FULL, MAX_DRAWINGS_PER_MARKET } from "@/lib/trade/drawings"
 import { type CustomShellDb } from "@/server/db"
-import { uuid } from "@/server/security"
+import { uuid } from "@/server/auth/security"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   clearChartDrawings,

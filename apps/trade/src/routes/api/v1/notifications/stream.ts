@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { subscribeToUserNotifications } from "@/server/notification-events"
-import { findSessionContext } from "@/server/security"
+import { subscribeToUserNotifications } from "@/server/notifications/events"
+import { findSessionContext } from "@/server/auth/security"
 import { readShellGlobals } from "@/server/shell-settings"
 import { db } from "@/server/db"
 

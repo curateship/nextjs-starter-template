@@ -15,6 +15,7 @@ import { aiStepNode } from "./nodes/ai-step"
 import { audienceNode } from "./nodes/audience"
 import { billingMomentNode } from "./nodes/billing-moment"
 import { placeholderNode } from "./nodes/placeholder"
+import { sendEmailNode } from "./nodes/send-email"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
 
 export type {
@@ -29,6 +30,7 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   audienceNode,
   billingMomentNode,
   placeholderNode,
+  sendEmailNode,
   waitForApprovalNode,
 ]
 

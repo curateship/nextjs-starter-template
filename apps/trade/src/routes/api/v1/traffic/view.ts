@@ -2,14 +2,14 @@ import { createFileRoute } from "@tanstack/react-router"
 import { getRequestHeader } from "@tanstack/react-start/server"
 
 import { isAdminHref } from "@/lib/custom-shell"
-import { requireAppOrigin } from "@/server/origin"
-import { enforceRateLimit } from "@/server/rate-limit"
+import { requireAppOrigin } from "@/server/auth/origin"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
 import {
   describeRequestOrigin,
   findSessionContext,
   isAdmin,
   now,
-} from "@/server/security"
+} from "@/server/auth/security"
 import {
   classifyDevice,
   getDaySalt,

@@ -19,6 +19,29 @@ export function formatPrice(price: number): string {
   return `$${PRICE.format(price)}`
 }
 
+const USD = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+/**
+ * Money someone owns, to the cent: "$9,999.78". Wallet values and the account
+ * rows use this — a balance wants its cents, where a price wants its digits.
+ */
+export function formatUsd(value: number): string {
+  return `$${USD.format(value)}`
+}
+
+/**
+ * A gain or loss, sign always shown: "+$412.65", "-$18.90". In a column of
+ * outcomes the sign is the reading, so it is never dropped — except on true
+ * zero, which is neither.
+ */
+export function formatSignedUsd(value: number): string {
+  if (value === 0) return "$0.00"
+  return `${value > 0 ? "+" : "-"}$${USD.format(Math.abs(value))}`
+}
+
 /**
  * Big dollar figures — volume, open interest — said the way traders say
  * them: $1.24b, $88.6m, $532k. Not for prices; a price wants its digits.

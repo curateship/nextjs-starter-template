@@ -8,7 +8,7 @@ import {
   getAiErrorMessage,
   loadAiUsageDashboard,
 } from "@/lib/api/ai"
-import { readOneOf, readSearchText } from "@/lib/list-search"
+import { readOneOf, readSearchText } from "@/lib/nav/list-search"
 
 export const Route = createFileRoute("/_authenticated/admin/ai")({
   // The range and the person search live in the address, so the page can be

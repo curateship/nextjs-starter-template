@@ -171,14 +171,54 @@ something leaked and the fence test should have caught it.
   under 00xx and the runner applies the folder in filename order, so the gap
   means a shell merge can never collide with an app migration or run after one
   it should have preceded.
+- **The practice engine settles when it is read, not on a clock.** Its four
+  tables (`trade_paper_positions`, `trade_paper_orders`, `trade_paper_journal`
+  and a per-wallet watermark) hold only facts. A wallet's cash is its starting
+  balance plus every journal row's profit less its fee, worked out on read;
+  margin, liquidation prices and open profit are arithmetic on the position's
+  own figures. Nothing derived is ever stored, because a stored second answer
+  drifts from the first. Reading an account replays the candles since the last
+  look and then checks every level against today's price — both halves are
+  safe to run twice, which is what lets two tabs poll at once.
+
+## Real orders
+
+Live wallets trade for real through the same chart flow the practice engine
+uses (task `Trading/real-orders.md`). The security rules, in the order they
+bite:
+
+- **A pasted trading key is proved before it is saved.** The account's own
+  main key is refused outright (`KEY_IS_ACCOUNT` — it can move money out, and
+  is never stored), and the exchange must list the key as approved to trade
+  for that account. The approval's expiry is recorded and the wallet card
+  warns inside two weeks of it.
+- **The key never leaves the server.** Ciphertext in the row, decrypted for
+  one signing call inside `src/server/protocols/hyperliquid/`, never cached,
+  and every error message is scrubbed of anything key-shaped before it
+  travels. The fence test also keeps `viem` (the signing library) inside that
+  one folder.
+- **Real money is blocked server-side.** Testnet signs freely; mainnet
+  signing throws until `TRADE_ENABLE_MAINNET=true` is deliberately set —
+  the funded testnet run in the task file is the condition for setting it.
+  A wallet can only ever trade a market on its OWN network.
+- **Order numbers cannot collide.** One `trade_wallet_nonces` row per signing
+  address, bumped atomically (`greatest(last + 1, now)`), shared by every
+  producer.
+- **Everything is written down.** Every ask, answer and refusal lands in
+  `trade_live_journal` (never a secret; notes are pre-scrubbed), and a partly
+  accepted order — entry stood, protection refused — is reported exactly,
+  never folded into a success.
+- **Market orders are capped**: sent as immediate-or-cancel limits 3% through
+  the price, so a thin book cannot fill one far from what was on screen.
+
+Not yet: dragging a live resting order to a new price (`edit-open-orders.md`),
+the recovery view (`recovery-tools.md`), sub-exchange markets, and automations
+trading real money. Smart-order ladders stay practice-only.
 
 ## Deliberately not built yet
 
 - **Live streaming prices.** The list is fetched on page load. Reconnects and
   stale-data handling come as their own piece.
-- **Accounts, orders, positions.** Those panels are empty states. The account
-  and order adapters get designed with the panels that need them — a contract
-  written before its consumer is a guess.
 - **Alerts**, which is what the market list's Watch tab is waiting for. When
   they arrive they attach to a drawn line through the chart's surface, not
   through the chart.

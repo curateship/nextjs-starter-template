@@ -9,7 +9,7 @@ import {
   customShellTrafficVisitors,
   customShellTrafficVisits,
 } from "@/server/schema"
-import { createSecretToken, hashToken, now, uuid } from "@/server/security"
+import { createSecretToken, hashToken, now, uuid } from "@/server/auth/security"
 
 /**
  * The traffic tracker's engine room. The beacon route
@@ -276,7 +276,7 @@ export async function recordVisit(
 // ---------------------------------------------------------------------------
 // The read path.
 
-export type TrafficRangeDays = 7 | 30 | 90
+export type TrafficRangeDays = 1 | 7 | 30 | 90 | 365
 
 export type TrafficDayPoint = {
   day: string

@@ -20,7 +20,7 @@ import {
   APPROVAL_TIMEOUT_CHOICES,
   APPROVAL_TIMEOUT_DAYS,
 } from "@/lib/automations/nodes/wait-for-approval"
-import { plural } from "@/lib/plural"
+import { plural } from "@/lib/format/plural"
 
 export default function WaitForApprovalFields({
   node,

@@ -1,5 +1,6 @@
-import { runAutomationTick } from "@/server/automation-engine"
-import { processDueBroadcasts } from "@/server/broadcast-send"
+import { appBackgroundWorkers } from "@/server/app-options"
+import { runAutomationTick } from "@/server/automations/engine"
+import { processDueBroadcasts } from "@/server/email/broadcast-send"
 
 /**
  * The one background loop in this app, and the two jobs riding on it.
@@ -35,6 +36,14 @@ export function ensureBackgroundTicker() {
     void processDueBroadcasts().catch((error) => {
       console.error("Broadcast tick failed", error)
     })
+    // The app's own workers ride the same loop, each as isolated as the two
+    // jobs above. Read inside the tick, never at module top level — the app's
+    // answers may still be loading while this module is first imported.
+    for (const worker of appBackgroundWorkers()) {
+      void worker.tick().catch((error) => {
+        console.error(`${worker.name} tick failed`, error)
+      })
+    }
   }
   tick()
   setInterval(tick, TICK_MS)

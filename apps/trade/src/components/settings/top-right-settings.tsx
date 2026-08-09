@@ -88,7 +88,7 @@ function SortableBuiltInChip({
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <span className="flex h-9 max-w-56 items-center gap-2 px-3 text-sm font-medium">
+        <span className="flex h-8 max-w-56 items-center gap-2 px-3 text-sm font-medium">
           <Icon className="h-4 w-4 shrink-0" />
           <span className="truncate">{meta.label}</span>
           {/* A switched-off built-in stays right here wearing this pill — that
@@ -100,7 +100,7 @@ function SortableBuiltInChip({
           ) : null}
         </span>
         <label
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md"
           title={item.visible ? "Visible" : "Hidden"}
         >
           <Checkbox
@@ -154,7 +154,7 @@ function SortableLinkChip({
           type="button"
           variant="ghost"
           onClick={() => onDialogOpenChange(true)}
-          className="h-9 max-w-56 justify-start gap-2 px-3 text-sm font-medium"
+          className="max-w-56 justify-start gap-2 px-3 text-sm font-medium"
           aria-label={`Edit settings for ${itemName}`}
           title={isNamed ? `${item.label} settings` : "Menu link settings"}
         >
@@ -174,7 +174,7 @@ function SortableLinkChip({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 shrink-0"
+          className="shrink-0"
           onClick={onDelete}
           aria-label={`Delete ${itemName}`}
         >

@@ -2,8 +2,8 @@ import { createMiddleware } from "@tanstack/react-start"
 
 import { ensureBackgroundTicker } from "@/server/ticker"
 import { maybeCleanUpOldData } from "@/server/cleanup"
-import { requireAppOrigin } from "@/server/origin"
-import { requireAdmin, requireUser } from "@/server/security"
+import { requireAppOrigin } from "@/server/auth/origin"
+import { requireAdmin, requireUser } from "@/server/auth/security"
 
 /**
  * The door checks, done once instead of at the top of every handler.

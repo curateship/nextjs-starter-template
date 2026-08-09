@@ -4,7 +4,7 @@ import { MediaLibraryPage } from "@/components/media/media-library-page"
 import {
   getAdminMediaErrorMessage,
   loadAdminMediaPage,
-} from "@/lib/api/admin-media"
+} from "@/lib/api/media/admin-media"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 const authenticatedRoute = getRouteApi("/_authenticated")

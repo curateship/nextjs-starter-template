@@ -110,16 +110,19 @@ export function BroadcastEditor({
     const waiting =
       nextBatchAt !== null &&
       new Date(nextBatchAt).getTime() - Date.now() > 60_000
-    const timer = setInterval(() => {
-      getBroadcast(broadcast.id)
-        .then((detail) => {
-          if (EDITABLE_STATUSES.has(detail.status)) setBroadcast(detail)
-          else adoptDetail(detail)
-        })
-        .catch(() => {
-          // A blip; the next poll tries again.
-        })
-    }, waiting ? SLEEPING_POLL_MS : POLL_MS)
+    const timer = setInterval(
+      () => {
+        getBroadcast(broadcast.id)
+          .then((detail) => {
+            if (EDITABLE_STATUSES.has(detail.status)) setBroadcast(detail)
+            else adoptDetail(detail)
+          })
+          .catch(() => {
+            // A blip; the next poll tries again.
+          })
+      },
+      waiting ? SLEEPING_POLL_MS : POLL_MS
+    )
     return () => clearInterval(timer)
   }, [adoptDetail, broadcast.id, broadcast.status, nextBatchAt])
 
@@ -147,7 +150,9 @@ export function BroadcastEditor({
             <Button
               type="button"
               onClick={() => {
-                void saveNow().then(() => setSendOpen(true))
+                void saveNow().then((saved) => {
+                  if (saved) setSendOpen(true)
+                })
               }}
             >
               <SendIcon className="size-4" />

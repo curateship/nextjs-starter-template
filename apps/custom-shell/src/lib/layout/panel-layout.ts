@@ -70,6 +70,8 @@ export const panelLayoutKey = {
   // follow you into an email you cannot send.
   systemEmailEditorHorizontal: "system-email-editor-horizontal",
   systemEmailEditorVertical: "system-email-editor-vertical",
+  automationEmailEditorHorizontal: "automation-email-editor-horizontal",
+  automationEmailEditorVertical: "automation-email-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: string) =>
     `custom-shell-${page}-${side}-${cards}`,

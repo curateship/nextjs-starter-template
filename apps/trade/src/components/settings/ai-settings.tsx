@@ -20,8 +20,8 @@ import {
   type AiKeyTestResult,
   type AiProvider,
 } from "@/lib/api/ai"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 const PROVIDERS: {
   id: AiProvider
@@ -53,7 +53,7 @@ const SAVED_SENTINEL = "••••••••••••"
 
 /**
  * Settings → AI. One key per provider for the whole app, saved encrypted
- * through server/ai-keys.ts. The browser only ever sees a masked tail.
+ * through server/ai/keys.ts. The browser only ever sees a masked tail.
  * Saving is automatic and reports through the sticky header's Saving…/Saved
  * indicator, like every other auto-save in the app — no Save button, no toast.
  */

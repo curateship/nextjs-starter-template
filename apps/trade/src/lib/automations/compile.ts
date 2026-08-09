@@ -9,6 +9,7 @@ import type {
 } from "./graph"
 import type { AutomationNodeSettings } from "./node-descriptor"
 import {
+  automationKindIsTrigger,
   automationNodeConnectionError,
   automationNodeSourcePortIsValid,
   descriptorForNode,
@@ -116,6 +117,19 @@ export function compileAutomationGraph(
     } else {
       parsedSettings.set(node.id, parsed.data)
     }
+  }
+
+  // One start, and this is the only rule about triggers the compiler has. Two
+  // of them is not a flow that begins twice; it is a flow the engine would have
+  // to pick a start for, and it would run half of what was drawn.
+  const triggers = nodes.filter((node) => automationKindIsTrigger(node.kind))
+  for (const extra of triggers.slice(1)) {
+    addError({
+      code: "multiple_triggers",
+      nodeId: extra.id,
+      message:
+        "A flow can only start in one place. Delete this trigger or the other one.",
+    })
   }
 
   const outgoing = new Map<string, AutomationEdge[]>()

@@ -1,6 +1,8 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
+  ArrowLeftIcon,
+  LayoutTemplateIcon,
   Loader2Icon,
   PauseIcon,
   PlayIcon,
@@ -13,6 +15,7 @@ import { AutomationRunsPanel } from "@/components/automations/automation-runs-pa
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
+import { SendEmailEditor } from "@/components/automations/nodes/send-email-editor"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
@@ -29,6 +32,7 @@ import {
 } from "@/components/ui/resizable"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
+import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import {
   automationKindIsTrigger,
   automationNodeName,
@@ -50,6 +54,7 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import {
@@ -69,13 +74,19 @@ export function AutomationEditor({
   initial,
   initialFavoriteNodeKeys,
   initialRuns,
+  initialBlockDefaults,
   openRunId,
+  mode = "automation",
+  onSaveTemplateGraph,
 }: {
-  initial: AutomationDetail
+  initial: Pick<AutomationDetail, "id" | "name" | "graph" | "enabled">
   initialFavoriteNodeKeys: string[]
-  initialRuns: AutomationRunsPanelData
+  initialRuns?: AutomationRunsPanelData
+  initialBlockDefaults: BroadcastBlockDefaults
   /** The run a bell notice linked to, opened in the bottom panel on arrival. */
   openRunId?: string
+  mode?: "automation" | "template"
+  onSaveTemplateGraph?: (graph: AutomationGraph) => Promise<unknown>
 }) {
   const navigate = useNavigate()
   const {
@@ -95,6 +106,9 @@ export function AutomationEditor({
   const [previewNode, setPreviewNode] = React.useState<AutomationNode | null>(
     null
   )
+  const [editingEmailNodeId, setEditingEmailNodeId] = React.useState<
+    string | null
+  >(null)
   const [draggedNodeKey, setDraggedNodeKey] = React.useState<string | null>(
     null
   )
@@ -110,6 +124,11 @@ export function AutomationEditor({
   const [live, setLive] = React.useState(initial.enabled)
   const [savingLive, setSavingLive] = React.useState(false)
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
+  const templateMode = mode === "template"
+  const saveTemplateGraphRef = React.useRef(onSaveTemplateGraph)
+  React.useEffect(() => {
+    saveTemplateGraphRef.current = onSaveTemplateGraph
+  }, [onSaveTemplateGraph])
   // Known before the first render on both sides, so the editor opens in the
   // layout it is going to keep instead of painting the phone version — a
   // full-width canvas with no palette and no inspector — and rebuilding itself.
@@ -134,6 +153,10 @@ export function AutomationEditor({
   const togglePalette = usePanelToggle(palettePanelRef)
   const toggleInspector = usePanelToggle(inspectorPanelRef)
   const toggleRuns = usePanelToggle(runsPanelRef)
+
+  // Shut, the runs panel is exactly its own tab row, and that row's line would
+  // sit on top of the panel's bottom edge. See `headerOnly`.
+  const runsShut = usePanelCollapsed(runsPanelRef)
 
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
@@ -167,10 +190,10 @@ export function AutomationEditor({
     }
     const snapshot = latestRef.current
     const serialized = serialize(snapshot.name, snapshot.graph)
-    if (serialized === lastSavedRef.current) return
+    if (serialized === lastSavedRef.current) return true
     if (!snapshot.name.trim()) {
       setSaveStatus("blocked")
-      return
+      return false
     }
 
     const version = saveVersionRef.current + 1
@@ -180,11 +203,13 @@ export function AutomationEditor({
     const save = saveQueueRef.current
       .catch(() => undefined)
       .then(() =>
-        saveAutomation({
-          automationId: initial.id,
-          name: snapshot.name,
-          graph: snapshot.graph,
-        })
+        templateMode && saveTemplateGraphRef.current
+          ? saveTemplateGraphRef.current(snapshot.graph)
+          : saveAutomation({
+              automationId: initial.id,
+              name: snapshot.name,
+              graph: snapshot.graph,
+            })
       )
     saveQueueRef.current = save.then(
       () => undefined,
@@ -197,13 +222,15 @@ export function AutomationEditor({
       if (version === saveVersionRef.current) {
         setSaveStatus("saved")
       }
+      return true
     } catch (error) {
       if (version === saveVersionRef.current) {
         setSaveStatus("idle")
         showErrorToast(getAutomationErrorMessage(error))
       }
+      return false
     }
-  }, [initial.id, serialize])
+  }, [initial.id, serialize, templateMode])
 
   const scheduleSave = React.useCallback(() => {
     dismissErrorToast()
@@ -238,13 +265,17 @@ export function AutomationEditor({
       const snapshot = latestRef.current
       const serialized = serialize(snapshot.name, snapshot.graph)
       if (serialized === lastSavedRef.current || !snapshot.name.trim()) return
-      void saveAutomation({
-        automationId: initial.id,
-        name: snapshot.name,
-        graph: snapshot.graph,
-      }).catch(() => undefined)
+      const save =
+        templateMode && saveTemplateGraphRef.current
+          ? saveTemplateGraphRef.current(snapshot.graph)
+          : saveAutomation({
+              automationId: initial.id,
+              name: snapshot.name,
+              graph: snapshot.graph,
+            })
+      void save.catch(() => undefined)
     }
-  }, [initial.id, serialize])
+  }, [initial.id, serialize, templateMode])
 
   // The "Saved" badge clears itself the way the shared header's does.
   React.useEffect(() => {
@@ -292,7 +323,7 @@ export function AutomationEditor({
     if (savingLive) return
     setSavingLive(true)
     try {
-      if (next) await saveNow()
+      if (next && !(await saveNow())) return
       const saved = await setAutomationLive(initial.id, next)
       dismissErrorToast()
       setLive(saved.enabled)
@@ -314,7 +345,8 @@ export function AutomationEditor({
     try {
       await saveNow()
       const current = latestRef.current
-      if (serialize(current.name, current.graph) !== lastSavedRef.current) return
+      if (serialize(current.name, current.graph) !== lastSavedRef.current)
+        return
 
       const { runId } = await runAutomationNow(initial.id)
       dismissErrorToast()
@@ -457,6 +489,7 @@ export function AutomationEditor({
   const inspector = (
     <AutomationInspector
       selectedNode={selectedNode}
+      graph={graph}
       errors={compiled.errors}
       favorite={
         selectedPaletteKey
@@ -465,6 +498,7 @@ export function AutomationEditor({
       }
       savingFavorite={savingFavorites}
       onNodeChange={updateNode}
+      onOpenNodeEditor={setEditingEmailNodeId}
       onToggleFavorite={
         selectedPaletteKey
           ? () => void toggleFavoriteNode(selectedPaletteKey)
@@ -474,6 +508,38 @@ export function AutomationEditor({
       onDeleteNode={deleteNode}
     />
   )
+
+  const runsPanel =
+    !templateMode && initialRuns ? (
+      <AutomationRunsPanel
+        key={`${initial.id}:${openRunId ?? "runs"}`}
+        automationId={initial.id}
+        initial={initialRuns}
+        openRunId={openRunId}
+      />
+    ) : null
+  const editingEmailNode = editingEmailNodeId
+    ? (graph.nodes.find((node) => node.id === editingEmailNodeId) ?? null)
+    : null
+
+  if (editingEmailNode?.kind === "sendEmail") {
+    return (
+      <SendEmailEditor
+        key={editingEmailNode.id}
+        automationName={name}
+        node={editingEmailNode}
+        graph={graph}
+        initialBlockDefaults={initialBlockDefaults}
+        onSave={async (nextNode) => {
+          updateNode(nextNode)
+          return saveNow()
+        }}
+        onBack={() => setEditingEmailNodeId(null)}
+        bottomPanel={runsPanel}
+      />
+    )
+  }
+
   const canvas = (
     <AutomationFlowCanvas
       graph={graph}
@@ -496,81 +562,101 @@ export function AutomationEditor({
   )
   const canvasHeader = (
     <WorkspacePanelHeader
-      icon={<WorkflowIcon className="size-4" />}
+      icon={
+        templateMode ? (
+          <LayoutTemplateIcon className="size-4" />
+        ) : (
+          <WorkflowIcon className="size-4" />
+        )
+      }
       title={name}
+      meta={templateMode ? "Template" : undefined}
       action={
-        <div className="flex items-center gap-2">
-          {triggerName ? (
-            <DisabledReason
-              disabled={!compiled.config && !live}
-              reason="Fix the steps marked in red before switching this flow on."
-            >
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={live}
-                  disabled={savingLive || (!compiled.config && !live)}
-                  aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
-                  onCheckedChange={(next) => void handleLiveChange(next)}
-                />
-                {/* On, but edited since into something that cannot run. The
-                    switch alone would read as "this is happening". */}
-                <span
-                  className={
-                    live && !compiled.config
-                      ? "text-destructive"
-                      : "text-muted-foreground"
-                  }
-                >
-                  {!live
-                    ? "Off"
-                    : compiled.config
-                      ? `On — ${triggerName}`
-                      : "On, but not running"}
-                </span>
-              </label>
-            </DisabledReason>
-          ) : null}
+        templateMode ? (
           <Button
             type="button"
             variant="outline"
-            disabled={automationPauseBusy}
             onClick={() =>
-              paused
-                ? void handlePauseChange(false)
-                : setConfirmPauseOpen(true)
+              void navigate({ to: "/admin/automations/templates" })
             }
           >
-            {automationPauseBusy ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : paused ? (
-              <PlayIcon className="size-4" />
-            ) : (
-              <PauseIcon className="size-4" />
-            )}
-            {paused ? "Resume all" : "Pause all"}
+            <ArrowLeftIcon className="size-4" />
+            Templates
           </Button>
-          <DisabledReason
-            disabled={paused || !compiled.config}
-            reason={
-              paused
-                ? "Every automation is paused. Resume them to start this flow."
-                : "Fix the steps marked in red before running this automation."
-            }
-          >
+        ) : (
+          <div className="flex items-center gap-2">
+            {triggerName ? (
+              <DisabledReason
+                disabled={!compiled.config && !live}
+                reason="Fix the steps marked in red before switching this flow on."
+              >
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={live}
+                    disabled={savingLive || (!compiled.config && !live)}
+                    aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
+                    onCheckedChange={(next) => void handleLiveChange(next)}
+                  />
+                  {/* On, but edited since into something that cannot run. The
+                    switch alone would read as "this is happening". */}
+                  <span
+                    className={
+                      live && !compiled.config
+                        ? "text-destructive"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {!live
+                      ? "Off"
+                      : compiled.config
+                        ? `On — ${triggerName}`
+                        : "On, but not running"}
+                  </span>
+                </label>
+              </DisabledReason>
+            ) : null}
             <Button
               type="button"
-              disabled={paused || !compiled.config || running}
-              onClick={() => void handleRunNow()}
+              variant="outline"
+              disabled={automationPauseBusy}
+              onClick={() =>
+                paused
+                  ? void handlePauseChange(false)
+                  : setConfirmPauseOpen(true)
+              }
             >
-              {running ? (
+              {automationPauseBusy ? (
                 <Loader2Icon className="size-4 animate-spin" />
-              ) : (
+              ) : paused ? (
                 <PlayIcon className="size-4" />
+              ) : (
+                <PauseIcon className="size-4" />
               )}
-              Run
+              {paused ? "Resume all" : "Pause all"}
             </Button>
-          </DisabledReason>
-        </div>
+            <DisabledReason
+              disabled={paused || !compiled.config}
+              reason={
+                paused
+                  ? "Every automation is paused. Resume them to start this flow."
+                  : "Fix the steps marked in red before running this automation."
+              }
+            >
+              <Button
+                type="button"
+                disabled={paused || !compiled.config || running}
+                onClick={() => void handleRunNow()}
+              >
+                {running ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PlayIcon className="size-4" />
+                )}
+                Run
+              </Button>
+            </DisabledReason>
+          </div>
+        )
       }
     />
   )
@@ -612,10 +698,18 @@ export function AutomationEditor({
           <div className="relative flex min-h-0 flex-1">
             {canvas}
             {paletteCollapsed ? (
-              <PanelReopenTab side="left" label="Show node palette" onClick={togglePalette} />
+              <PanelReopenTab
+                side="left"
+                label="Show node palette"
+                onClick={togglePalette}
+              />
             ) : null}
             {inspectorCollapsed ? (
-              <PanelReopenTab side="right" label="Show inspector" onClick={toggleInspector} />
+              <PanelReopenTab
+                side="right"
+                label="Show inspector"
+                onClick={toggleInspector}
+              />
             ) : null}
           </div>
         </WorkspacePanel>
@@ -665,55 +759,60 @@ export function AutomationEditor({
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <ResizablePanelGroup
-          key={verticalLayout.layoutKey}
-          orientation="vertical"
-          className="min-h-0 flex-1"
-          defaultLayout={verticalLayout.defaultLayout}
-          onLayoutChanged={verticalLayout.onLayoutChanged}
-        >
-          <ResizablePanel id="workspace" defaultSize="72%" minSize="40%">
-            <div className="flex h-full min-h-0">{workspace}</div>
-          </ResizablePanel>
-          {/* Keeps its gap even while the panel is collapsed — the collapsed
+        {templateMode ? (
+          <div className="flex h-full min-h-0">{workspace}</div>
+        ) : (
+          <ResizablePanelGroup
+            key={verticalLayout.layoutKey}
+            orientation="vertical"
+            className="min-h-0 flex-1"
+            defaultLayout={verticalLayout.defaultLayout}
+            onLayoutChanged={verticalLayout.onLayoutChanged}
+          >
+            <ResizablePanel id="workspace" defaultSize="72%" minSize="40%">
+              <div className="flex h-full min-h-0">{workspace}</div>
+            </ResizablePanel>
+            {/* Keeps its gap even while the panel is collapsed — the collapsed
               tab row is still a panel on screen, and this handle is what makes
               it draggable back open. */}
-          <ResizableHandle gap />
-          <ResizablePanel
-            id="runs"
-            panelRef={runsPanelRef}
-            // A shade taller than the old canvas log: this one holds rows that
-            // open, and a run's steps need somewhere to land.
-            defaultSize="28%"
-            minSize="12%"
-            maxSize="60%"
-            // Dragging the divider all the way down collapses the panel to its
-            // own tab row, counts and all. It never unmounts, so it can always
-            // be dragged back open.
-            collapsible
-            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-          >
-            <WorkspacePanel onDoubleClick={runsDoubleClick}>
-              <AutomationRunsPanel
-                key={`${initial.id}:${openRunId ?? "runs"}`}
-                automationId={initial.id}
-                initial={initialRuns}
-                openRunId={openRunId}
-              />
-            </WorkspacePanel>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            <ResizableHandle gap />
+            <ResizablePanel
+              id="runs"
+              panelRef={runsPanelRef}
+              // A shade taller than the old canvas log: this one holds rows that
+              // open, and a run's steps need somewhere to land.
+              defaultSize="28%"
+              minSize="12%"
+              maxSize="60%"
+              // Dragging the divider all the way down collapses the panel to its
+              // own tab row, counts and all. It never unmounts, so it can always
+              // be dragged back open.
+              collapsible
+              collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+              onResize={runsShut.onResize}
+            >
+              <WorkspacePanel
+                onDoubleClick={runsDoubleClick}
+                headerOnly={runsShut.collapsed}
+              >
+                {runsPanel}
+              </WorkspacePanel>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
 
-      <ConfirmDialog
-        open={confirmPauseOpen}
-        onOpenChange={setConfirmPauseOpen}
-        title="Pause every automation?"
-        description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
-        confirmLabel="Pause automations"
-        loading={automationPauseBusy}
-        onConfirm={() => void handlePauseChange(true)}
-      />
+      {!templateMode ? (
+        <ConfirmDialog
+          open={confirmPauseOpen}
+          onOpenChange={setConfirmPauseOpen}
+          title="Pause every automation?"
+          description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
+          confirmLabel="Pause automations"
+          loading={automationPauseBusy}
+          onConfirm={() => void handlePauseChange(true)}
+        />
+      ) : null}
     </div>
   )
 }

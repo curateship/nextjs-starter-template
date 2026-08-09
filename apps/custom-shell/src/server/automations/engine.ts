@@ -535,6 +535,7 @@ export async function sweepExpiredApprovals(database: CustomShellDb = db) {
  * afterwards changes nothing about a run already in flight.
  */
 export async function startAutomationRun(
+  workspaceId: string,
   userId: string,
   automationId: string,
   database: CustomShellDb = db
@@ -554,7 +555,7 @@ export async function startAutomationRun(
     .where(
       and(
         eq(customShellAutomations.id, automationId),
-        eq(customShellAutomations.userId, userId)
+        eq(customShellAutomations.workspaceId, workspaceId)
       )
     )
     .limit(1)
@@ -574,7 +575,11 @@ export async function startAutomationRun(
     .values({
       id: uuid(),
       automationId: automation.id,
+      // Who pressed Run, for the record, and the flow's own site — not
+      // whichever site they happen to be looking at. A run's audience is fixed
+      // the moment it starts and cannot drift afterwards.
       userId,
+      workspaceId: automation.workspaceId,
       status: "active",
       currentNodeId: entryNodeId,
       configSnapshot: inspected.compiledConfig,
@@ -597,12 +602,20 @@ export async function startAutomationRun(
  * the runs page says the same thing without it — so a failure here is logged
  * and the caller carries on.
  */
+/**
+ * "This run is waiting on you." Sent to whoever wrote the flow — and to nobody
+ * when they have since left, which is the one case where there is no answer.
+ */
 async function notifyApproval(
   database: CustomShellDb,
-  userId: string,
+  userId: string | null,
   runId: string,
   state: "pending" | "timed_out"
 ) {
+  // Nobody left to ask. The run still waits in the list where any admin on the
+  // site can answer it; there is simply no tray to drop a notice into.
+  if (!userId) return
+
   try {
     await database.insert(customShellNotifications).values({
       id: uuid(),
@@ -626,7 +639,7 @@ async function notifyApproval(
 
 /** Deletes finished runs. A run still going or waiting is refused, not killed. */
 export async function deleteAutomationRuns(
-  userId: string,
+  workspaceId: string,
   runIds: string[],
   database: CustomShellDb = db
 ): Promise<{ deleted: string[]; kept: string[] }> {
@@ -634,7 +647,7 @@ export async function deleteAutomationRuns(
     .delete(customShellAutomationRuns)
     .where(
       and(
-        eq(customShellAutomationRuns.userId, userId),
+        eq(customShellAutomationRuns.workspaceId, workspaceId),
         inArray(customShellAutomationRuns.id, runIds),
         inArray(customShellAutomationRuns.status, [
           "completed",

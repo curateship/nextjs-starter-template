@@ -20,9 +20,9 @@ import {
   cancelAccountSubscription,
   getAdminUserErrorMessage,
   type CancelSubscriptionMode,
-} from "@/lib/api/admin-users"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { formatDate } from "@/lib/format-time"
+} from "@/lib/api/people/admin-users"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { formatDate } from "@/lib/format/format-time"
 
 /** Just the fields the cancel needs, so any screen with a row can open it. */
 export type CancelableAccount = {

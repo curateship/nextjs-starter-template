@@ -25,6 +25,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
+import type { WorkspaceStatus } from "@/lib/workspaces/status"
 
 export const customShellUsers = pgTable(
   "users",
@@ -70,6 +71,17 @@ export const customShellUsers = pgTable(
      * moderation decision.
      */
     deletedBy: varchar("deleted_by", { length: 36 }),
+    /**
+     * The workspace this person is looking at, or empty when they have not
+     * picked one.
+     *
+     * On the person, not on the workspace. It used to be `is_default` on the
+     * workspace row, which could only hold one person's opinion of it — so two
+     * admins sharing a workspace cleared each other's choice every time either
+     * of them switched. Empty is an ordinary state: a new account is in it
+     * until it picks one.
+     */
+    currentWorkspaceId: varchar("current_workspace_id", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -153,17 +165,53 @@ export const customShellWorkspaces = pgTable(
   "workspaces",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * Who made this workspace, and empty once they are gone.
+     *
+     * Deliberately not the thing that owns it. A workspace holds contacts,
+     * segments, broadcasts and email settings, and while this cascaded, deleting
+     * one account took all of that with it — silently, from the schema, with
+     * nothing in `account-deletion.ts` saying so. It sets to null instead, so a
+     * workspace outlives the person who made it.
+     */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
     name: varchar("name", { length: 255 }).notNull(),
+    /** The label this workspace answers on, in front of the base domain. */
+    subdomain: varchar("subdomain", { length: 63 }).notNull(),
+    /**
+     * A domain of its own, stored bare — no scheme, no port, no `www.` —
+     * because that is the shape an incoming host is reduced to before it is
+     * matched. Empty means it answers only on its subdomain.
+     */
+    customDomain: varchar("custom_domain", { length: 253 })
+      .notNull()
+      .default(""),
+    /**
+     * `active` and `draft` both answer a visitor; `inactive` looks like the
+     * workspace never existed. Draft answers on purpose — it is how a site is
+     * looked at before anybody is told about it.
+     */
+    status: varchar("status", { length: 20 })
+      .$type<WorkspaceStatus>()
+      .notNull()
+      .default("active"),
     settings: jsonb("settings").notNull(),
-    isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("ix_workspaces_user_id").on(table.userId),
+    uniqueIndex("ux_workspaces_subdomain").on(table.subdomain),
+    uniqueIndex("ux_workspaces_custom_domain")
+      .on(table.customDomain)
+      .where(sql`${table.customDomain} <> ''`),
+    check(
+      "workspaces_status_check",
+      sql`${table.status} in ('active', 'inactive', 'draft')`
+    ),
   ]
 )
 
@@ -171,6 +219,13 @@ export const customShellFeedback = pgTable(
   "feedback",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site it was left on. Feedback about one site is that site's roadmap,
+     * and its votes and replies follow it through the parent row.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -209,7 +264,8 @@ export const customShellFeedback = pgTable(
       sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
-    index("ix_feedback_type").on(table.type),
+    index("ix_feedback_workspace_created").on(table.workspaceId, table.createdAt),
+    index("ix_feedback_workspace_type").on(table.workspaceId, table.type),
     index("ix_feedback_attachment_media_id").on(table.attachmentMediaId),
   ]
 )
@@ -339,6 +395,10 @@ export const customShellAnnouncements = pgTable(
   "announcements",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site this banner is for. Another site's visitors never see it. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     /** How loud the banner looks: info, warning or critical. */
@@ -370,7 +430,11 @@ export const customShellAnnouncements = pgTable(
       "announcements_channel_check",
       sql`${table.showBanner} or ${table.notify}`
     ),
-    index("ix_announcements_window").on(table.startsAt, table.endsAt),
+    index("ix_announcements_workspace_window").on(
+      table.workspaceId,
+      table.startsAt,
+      table.endsAt
+    ),
   ]
 )
 
@@ -396,6 +460,18 @@ export const customShellMedia = pgTable(
   "media",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site this file belongs to, which is the site it was uploaded on.
+     *
+     * The library and the picker read by this and nothing else, so a photo
+     * uploaded for one site is never offered to another. `userId` stays beside
+     * it and still means the person who uploaded it — it is what an avatar and
+     * a feedback screenshot are checked against, and those are personal rather
+     * than the site's.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -412,14 +488,14 @@ export const customShellMedia = pgTable(
   (table) => [
     check(
       "media_file_type_check",
-      sql`${table.fileType} in ('image', 'video')`
+      sql`${table.fileType} in ('image', 'video', 'audio')`
     ),
     index("ix_media_user_id").on(table.userId),
     index("ix_media_file_type").on(table.fileType),
     index("ix_media_created_at").on(table.createdAt),
-    index("ix_media_user_type_created").on(
+    index("ix_media_workspace_user_created").on(
+      table.workspaceId,
       table.userId,
-      table.fileType,
       table.createdAt
     ),
   ]
@@ -650,9 +726,27 @@ export const customShellAutomations = pgTable(
   "automations",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
+    /**
+     * The site whose flow this is.
+     *
+     * A run reads it when it starts, rather than asking the author which site
+     * they are in — which is what used to happen, and meant an admin switching
+     * site changed what a flow already under way would do.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /**
+     * Who wrote it, and empty once they are gone.
+     *
+     * Deliberately not the thing that owns it — the workspace above is. This
+     * used to cascade, so deleting one admin's account deleted their flows and
+     * every run those flows had ever done. A flow is a thing the site has.
+     */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
     name: varchar("name", { length: 80 }).notNull(),
     /** The editor's draft: nodes, edges, viewport — saved as the user drew it. */
     graph: jsonb("graph").$type<AutomationGraph>().notNull(),
@@ -675,8 +769,47 @@ export const customShellAutomations = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("automations_user_name_unique").on(table.userId, table.name),
-    index("ix_automations_user_updated").on(table.userId, table.updatedAt),
+    unique("automations_workspace_name_unique").on(
+      table.workspaceId,
+      table.name
+    ),
+    index("ix_automations_workspace_updated").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
+  ]
+)
+
+/**
+ * One admin's saved version of a built-in automation template.
+ *
+ * No row means "use the built-in". Resetting a template deletes its row, so
+ * the code constant remains the single reset point and never has to be copied
+ * into every database just to say nothing changed.
+ */
+export const customShellAutomationTemplateOverrides = pgTable(
+  "automation_template_overrides",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    templateKey: varchar("template_key", { length: 64 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    description: varchar("description", { length: 300 }).notNull(),
+    graph: jsonb("graph").$type<AutomationGraph>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("automation_template_overrides_user_key_unique").on(
+      table.userId,
+      table.templateKey
+    ),
+    index("ix_automation_template_overrides_user_updated").on(
+      table.userId,
+      table.updatedAt
+    ),
   ]
 )
 
@@ -710,9 +843,22 @@ export const customShellAutomationRuns = pgTable(
     automationId: varchar("automation_id", { length: 36 })
       .notNull()
       .references(() => customShellAutomations.id, { onDelete: "cascade" }),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Who wrote the flow, and empty once they are gone — as on the flow. */
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    /**
+     * Which workspace this run is for, fixed when it started.
+     *
+     * The engine used to work it out from the owner's *current* workspace every
+     * time it woke, so switching workspace silently changed who a running flow
+     * would email. Empty only on runs that predate this column.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
     status: varchar("status", { length: 20 })
       .$type<AutomationRunStatus>()
       .notNull(),
@@ -785,7 +931,10 @@ export const customShellAutomationRuns = pgTable(
       sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
-    index("ix_automation_runs_user_started").on(table.userId, table.startedAt),
+    index("ix_automation_runs_workspace_started").on(
+      table.workspaceId,
+      table.startedAt
+    ),
     index("ix_automation_runs_automation").on(table.automationId),
   ]
 )
@@ -838,6 +987,10 @@ export const customShellWrittenPages = pgTable(
   "written_pages",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site this page is part of. Its address is only its own within that. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     /** The address it answers on, always starting with "/". */
     path: varchar("path", { length: 160 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
@@ -846,10 +999,15 @@ export const customShellWrittenPages = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    // Two written pages cannot claim one address even if both saves land at
-    // the same moment. A clash with a code page is refused in the server,
-    // which is the only place that knows both lists.
-    uniqueIndex("written_pages_path_key").on(table.path),
+    // Two written pages **on one site** cannot claim one address even if both
+    // saves land at the same moment. Alpha and Beta each having an `/about` is
+    // ordinary, and is the reason the workspace leads this index. A clash with
+    // a code page is refused in the server, which is the only place that knows
+    // both lists.
+    uniqueIndex("ux_written_pages_workspace_path").on(
+      table.workspaceId,
+      table.path
+    ),
   ]
 )
 
@@ -857,6 +1015,10 @@ export const customShellChangelogEntries = pgTable(
   "changelog_entries",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site whose updates these are. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     /** Null while the entry is a draft. Only published entries reach members. */
@@ -865,7 +1027,10 @@ export const customShellChangelogEntries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_changelog_entries_published_at").on(table.publishedAt),
+    index("ix_changelog_entries_workspace_published").on(
+      table.workspaceId,
+      table.publishedAt
+    ),
   ]
 )
 
@@ -1045,13 +1210,26 @@ export const customShellAiUsageAlerts = pgTable(
  * frozen in here as each day happens, so the hash rows it was counted from
  * can be thrown away when the day ends.
  */
-export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
-  day: date("day").primaryKey(),
-  views: integer("views").notNull().default(0),
-  memberViews: integer("member_views").notNull().default(0),
-  visitorViews: integer("visitor_views").notNull().default(0),
-  uniqueVisitors: integer("unique_visitors").notNull().default(0),
-})
+export const customShellTrafficDailyTotals = pgTable(
+  "traffic_daily_totals",
+  {
+    /** The site these are the figures for. Part of the key, not beside it. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    views: integer("views").notNull().default(0),
+    memberViews: integer("member_views").notNull().default(0),
+    visitorViews: integer("visitor_views").notNull().default(0),
+    uniqueVisitors: integer("unique_visitors").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "traffic_daily_totals_pkey",
+      columns: [table.workspaceId, table.day],
+    }),
+  ]
+)
 
 /**
  * Per-day view counts by page, referrer site and device, merged into one
@@ -1062,6 +1240,9 @@ export const customShellTrafficDailyTotals = pgTable("traffic_daily_totals", {
 export const customShellTrafficDailyFacts = pgTable(
   "traffic_daily_facts",
   {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     day: date("day").notNull(),
     dimension: varchar("dimension", { length: 20 }).notNull(),
     key: varchar("key", { length: 160 }).notNull(),
@@ -1070,7 +1251,7 @@ export const customShellTrafficDailyFacts = pgTable(
   (table) => [
     primaryKey({
       name: "traffic_daily_facts_pk",
-      columns: [table.day, table.dimension, table.key],
+      columns: [table.workspaceId, table.day, table.dimension, table.key],
     }),
     check(
       "traffic_daily_facts_dimension_check",
@@ -1088,6 +1269,9 @@ export const customShellTrafficVisits = pgTable(
   "traffic_visits",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     path: varchar("path", { length: 160 }).notNull(),
     referrerDomain: varchar("referrer_domain", { length: 100 }).notNull(),
@@ -1103,7 +1287,10 @@ export const customShellTrafficVisits = pgTable(
       "traffic_visits_audience_check",
       sql`${table.audience} in ('member', 'visitor')`
     ),
-    index("ix_traffic_visits_occurred_at").on(table.occurredAt),
+    index("ix_traffic_visits_workspace_occurred").on(
+      table.workspaceId,
+      table.occurredAt
+    ),
   ]
 )
 
@@ -1115,13 +1302,21 @@ export const customShellTrafficVisits = pgTable(
 export const customShellTrafficVisitors = pgTable(
   "traffic_visitors",
   {
+    /**
+     * Per site, so "unique visitors" means unique to this site. One person
+     * reading two of the deployment's sites is one visitor on each, which is
+     * what each site's own figure should say.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
     day: date("day").notNull(),
     visitorHash: varchar("visitor_hash", { length: 64 }).notNull(),
   },
   (table) => [
     primaryKey({
       name: "traffic_visitors_pk",
-      columns: [table.day, table.visitorHash],
+      columns: [table.workspaceId, table.day, table.visitorHash],
     }),
   ]
 )
@@ -1129,6 +1324,18 @@ export const customShellTrafficVisitors = pgTable(
 /**
  * The random ingredient in each day's visitor hashes, swept with the day —
  * which is what makes an old hash truly unrecoverable.
+ *
+ * **One salt for the whole deployment, shared across every site, decided
+ * rather than inherited.** Its job is to stop a visitor being followed from one
+ * day to the next, and it does that whether or not sites share it.
+ *
+ * Giving each site its own would mean the same person reading two of the
+ * deployment's sites hashed differently on each. That sounds like more privacy
+ * and buys none: the hash never leaves this deployment and is thrown away
+ * nightly either way. What it would cost is real — each site would count that
+ * person separately, which is exactly right, and it already does, because the
+ * *visitor* rows are per site while the salt is not. Splitting the salt as well
+ * would change nothing a visitor can feel and add a table's worth of rows.
  */
 export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
   day: date("day").primaryKey(),
@@ -1194,6 +1401,58 @@ export const customShellContacts = pgTable(
       .on(table.workspaceId, table.userId)
       .where(sql`${table.userId} is not null`),
     index("ix_contacts_workspace_created").on(table.workspaceId, table.createdAt),
+  ]
+)
+
+/**
+ * One person one Send Email step tried to reach.
+ *
+ * A row is reserved before the provider call, and the unique address rule is
+ * the retry safety: if a worker dies after Resend accepts a message, the next
+ * attempt finds this row and does not send the same message again. The copied
+ * address and subject keep the useful part of the paper trail when a contact
+ * or account is later deleted.
+ */
+export const customShellAutomationDeliveries = pgTable(
+  "automation_deliveries",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    runId: varchar("run_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomationRuns.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 64 }).notNull(),
+    contactId: varchar("contact_id", { length: 36 }).references(
+      () => customShellContacts.id,
+      { onDelete: "set null" }
+    ),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    subject: text("subject").notNull(),
+    /** Resend's id, retained for the later open/click tracking task. */
+    providerMessageId: varchar("provider_message_id", { length: 255 }),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_deliveries_status_check",
+      sql`${table.status} in ('sent', 'failed')`
+    ),
+    index("ix_automation_deliveries_run").on(table.runId, table.createdAt),
+    index("ix_automation_deliveries_contact").on(table.contactId),
+    index("ix_automation_deliveries_user").on(table.userId),
+    uniqueIndex("ux_automation_deliveries_run_node_contact")
+      .on(table.runId, table.nodeId, table.contactId)
+      .where(sql`${table.contactId} is not null`),
+    uniqueIndex("ux_automation_deliveries_run_node_email").on(
+      table.runId,
+      table.nodeId,
+      sql`lower(${table.toEmail})`
+    ),
   ]
 )
 
@@ -1414,31 +1673,49 @@ export const customShellDeliveries = pgTable(
 )
 
 /**
- * The wording of the app's own emails — verify your address, reset your
+ * The wording of a site's own emails — verify your address, reset your
  * password, and the rest.
  *
- * Not workspace-scoped, unlike everything else about email here. A workspace
- * belongs to one person, and somebody clicking "verify my email" has no
- * workspace yet and no account worth speaking of, so there is nothing to scope
- * these to. There is one set of them and it belongs to the app.
+ * **Per site.** This used to say the opposite, and the reason it gave was "a
+ * workspace belongs to one person, and somebody clicking verify-my-email has no
+ * workspace" — true, and beside the point. The email is not sent on the
+ * reader's behalf; it is sent on the site's, the one they registered on, which
+ * is the domain they were looking at. That is a question with an answer, and a
+ * confirmation email that names the wrong business is the plainest way to lose
+ * somebody's trust.
+ *
+ * A site that has never touched these falls back to the shell's built-in
+ * wording, exactly as an app with one site always did.
  *
  * A missing row is the normal state and means "use the built-in wording". One
  * is written the first time somebody opens that email in the editor.
  */
-export const customShellSystemEmails = pgTable("system_emails", {
-  /** One of SYSTEM_EMAIL_KINDS — see src/lib/system-emails/kinds.ts. */
-  kind: varchar("kind", { length: 60 }).primaryKey(),
-  subject: text("subject").notNull().default(""),
-  preheader: text("preheader").notNull().default(""),
-  fromName: varchar("from_name", { length: 255 }),
-  blocks: jsonb("blocks")
-    .notNull()
-    .default(sql`'[]'::jsonb`),
-  /** Kept in step with the blocks on every save, as a broadcast's is. */
-  renderedHtml: text("rendered_html"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const customShellSystemEmails = pgTable(
+  "system_emails",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** One of SYSTEM_EMAIL_KINDS — see src/lib/system-emails/kinds.ts. */
+    kind: varchar("kind", { length: 60 }).notNull(),
+    subject: text("subject").notNull().default(""),
+    preheader: text("preheader").notNull().default(""),
+    fromName: varchar("from_name", { length: 255 }),
+    blocks: jsonb("blocks")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** Kept in step with the blocks on every save, as a broadcast's is. */
+    renderedHtml: text("rendered_html"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "system_emails_pkey",
+      columns: [table.workspaceId, table.kind],
+    }),
+  ]
+)
 
 /**
  * Every attempt at one of the app's own emails, sent or failed.
@@ -1453,6 +1730,18 @@ export const customShellSystemEmailSends = pgTable(
   "system_email_sends",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * Which site's email went out, and empty when there was no site yet.
+     *
+     * Optional on purpose: the first person to register on a fresh install is
+     * sent a verification email before any admin has signed in, so before a
+     * site exists. Requiring this would drop the record of exactly the emails
+     * somebody is most likely to chase.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
     kind: varchar("kind", { length: 60 }).notNull(),
     toEmail: varchar("to_email", { length: 255 }).notNull(),
     subject: text("subject").notNull(),
@@ -1497,9 +1786,23 @@ export const customShellEmailSettings = pgTable("email_settings", {
 
 /**
  * The app's Stripe keys: a live set and a sandbox set, and which is in use.
- * One row for the whole app (id is always "stripe") — billing is app-wide,
- * not per workspace. Secrets are encrypted with `encryptSecret` and never
- * read back to the browser; publishable keys are public by design.
+ * One row for the whole app (id is always "stripe"). Secrets are encrypted
+ * with `encryptSecret` and never read back to the browser; publishable keys
+ * are public by design.
+ *
+ * **App-wide is a live decision, revisited when sites arrived, not an
+ * assumption nobody looked at again.** Per-site keys are only worth having when
+ * the sites take their own money into their own Stripe accounts — a deployment
+ * running several brands for one business bills through one account, and
+ * splitting the keys would buy it nothing but a second place to paste a secret
+ * and a second webhook to get wrong.
+ *
+ * What tips it the other way is a deployment where the sites belong to
+ * *different* businesses. Nothing in the shell does that yet: plans and
+ * subscriptions are app-wide too, so per-site keys alone would leave money
+ * arriving against a plan that belongs to everybody. Splitting this table is
+ * the last step of that job, not the first, and doing it early would look
+ * finished while being wrong.
  */
 export const customShellStripeSettings = pgTable("stripe_settings", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -1534,6 +1837,8 @@ export type CustomShellAutomationRun =
   typeof customShellAutomationRuns.$inferSelect
 export type CustomShellAutomationRunStep =
   typeof customShellAutomationRunSteps.$inferSelect
+export type CustomShellAutomationDelivery =
+  typeof customShellAutomationDeliveries.$inferSelect
 export type CustomShellAnnouncement =
   typeof customShellAnnouncements.$inferSelect
 export type CustomShellContact = typeof customShellContacts.$inferSelect

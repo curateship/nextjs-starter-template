@@ -28,14 +28,22 @@ const MAX_BARS = 100_000
 /** Past this the candles would be a line at the edge, which is nobody's intent. */
 const MAX_MARGIN = 0.9
 
+/**
+ * The library's own share of the height above and below the candles. Named
+ * here because two places need the same pair: a view saved before the
+ * up-and-down half existed, and a chart put back to how it started.
+ */
+export const DEFAULT_MARGIN_TOP = 0.2
+export const DEFAULT_MARGIN_BOTTOM = 0.1
+
 export const chartViewSchema = z.object({
   bars: z.number().min(MIN_BARS).max(MAX_BARS),
   gap: z.number().min(-MAX_BARS).max(MAX_BARS),
   // Defaulted rather than required: a view saved before the up-and-down half
   // existed still gives its zoom and position back, and gets the library's own
   // margins for the rest.
-  marginTop: z.number().min(0).max(MAX_MARGIN).default(0.2),
-  marginBottom: z.number().min(0).max(MAX_MARGIN).default(0.1),
+  marginTop: z.number().min(0).max(MAX_MARGIN).default(DEFAULT_MARGIN_TOP),
+  marginBottom: z.number().min(0).max(MAX_MARGIN).default(DEFAULT_MARGIN_BOTTOM),
 })
 
 export type ChartView = z.infer<typeof chartViewSchema>

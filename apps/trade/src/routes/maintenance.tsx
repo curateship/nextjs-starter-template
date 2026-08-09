@@ -4,11 +4,11 @@ import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
 import { Button } from "@/components/ui/button"
-import { getAuthErrorMessage, logout } from "@/lib/api/auth"
+import { getAuthErrorMessage, logout } from "@/lib/api/auth/auth"
 import { loadMaintenance } from "@/lib/api/maintenance"
-import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/view-as"
+import { getViewAsErrorMessage, stopViewingAsMember } from "@/lib/api/people/view-as"
 import { resolveMaintenanceMessage } from "@/lib/custom-shell"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * Where everyone but an admin lands while maintenance mode is on. It is a

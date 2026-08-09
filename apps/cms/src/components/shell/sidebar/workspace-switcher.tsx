@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Link, useRouter } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
   ChevronsUpDownIcon,
@@ -31,33 +31,49 @@ import {
   type WorkspaceItem,
 } from "@/lib/api/people/workspaces"
 import { renderShellIcon } from "@/lib/custom-shell"
+import { capitalise, workspaceWord } from "@/lib/app-options"
 
 /**
- * The line under a workspace's name is the workspace subheader an admin writes
- * in Settings — the same words for every row in the list, because that setting
- * is one value for the whole app rather than one per workspace. It used to be
- * the reader's billing plan on the row they were in and the literal word
- * "Project" on all the others, which made one list say two different things
- * about neighbouring rows.
+ * The line under a site's name is **its address**, which is the one thing that
+ * genuinely tells two sites apart.
+ *
+ * It used to be a single subheader an admin typed in Settings, so every row in
+ * the list said the same words — three sites read as three copies of one. Before
+ * that it was the reader's billing plan on the active row and the literal word
+ * "Project" on the others, which made one list say two different kinds of thing
+ * about neighbouring rows. Both are gone, along with the setting behind them.
  */
 export function WorkspaceSwitcher({
   workspaces,
-  workspaceName,
-  workspaceSubheader,
   favicon,
+  baseDomain = "",
 }: {
   workspaces: WorkspaceItem[]
-  workspaceName: string
-  workspaceSubheader: string
   favicon: string
+  /** The domain workspaces hang off, for the address field's preview. */
+  baseDomain?: string
 }) {
-  const router = useRouter()
   const { isMobile } = useSidebar()
   const activeWorkspace =
     workspaces.find((workspace) => workspace.active) ?? workspaces[0]
-  const activeWorkspaceName = workspaceName.trim() || activeWorkspace?.name || ""
-  const subheader = workspaceSubheader.trim() || "Project"
+  // Read here rather than at the top of the module: an app's options file can
+  // import its way back to this one.
+  const word = workspaceWord()
+  const activeWorkspaceName = activeWorkspace?.name ?? ""
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
+
+  /**
+   * What a site answers on. Its own domain when it has one, otherwise its name
+   * in front of the deployment's base domain — the same wording the address
+   * field previews while it is being typed.
+   *
+   * Falls back to the site's name where no base domain is configured, because
+   * on an app that is one site there is no address to show and repeating the
+   * name reads better than an empty line.
+   */
+  const addressOf = (workspace: WorkspaceItem) =>
+    workspace.customDomain ||
+    (baseDomain ? `${workspace.subdomain}.${baseDomain}` : workspace.name)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [busyWorkspaceId, setBusyWorkspaceId] = React.useState<string | null>(
     null
@@ -74,7 +90,25 @@ export function WorkspaceSwitcher({
     setBusyWorkspaceId(workspaceId)
     try {
       await switchWorkspace(workspaceId)
-      await router.invalidate()
+
+      // **The whole page reloads, rather than the router re-running loaders.**
+      //
+      // Sixteen screens read their loader data once, into `useState(initial…)`,
+      // and a re-run hands them fresh props that `useState` ignores — so after
+      // switching, the Automations list, the media library and a dozen others
+      // went on showing the site you had just left until somebody pressed
+      // reload. Fixing each of them would be sixteen edits, one of which would
+      // be missed, and every screen written afterwards would have to remember.
+      //
+      // Switching site is a rare, deliberate act that changes *everything* on
+      // screen, so throwing the page away is the honest answer rather than a
+      // shortcut: nothing from the site you left should survive it.
+      //
+      // The address is kept. On a list that is exactly right; on a record's own
+      // page — an automation the other site does not have — it lands on
+      // not-found, which is true, and the sidebar is right there.
+      window.location.reload()
+      return
     } catch (error) {
       showErrorToast(getWorkspaceErrorMessage(error))
     } finally {
@@ -106,7 +140,7 @@ export function WorkspaceSwitcher({
                   {activeWorkspaceName}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {subheader}
+                  {addressOf(activeWorkspace)}
                 </span>
               </Link>
               <DropdownMenu>
@@ -115,7 +149,7 @@ export function WorkspaceSwitcher({
                       shades itself while the menu is open (`aria-expanded`). */}
                   <Button variant="ghost" size="icon-sm">
                     <ChevronsUpDownIcon />
-                    <span className="sr-only">Change workspace</span>
+                    <span className="sr-only">Change {word.one}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -125,12 +159,10 @@ export function WorkspaceSwitcher({
                   sideOffset={4}
                 >
                   <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Workspaces
+                    {capitalise(word.many)}
                   </DropdownMenuLabel>
                   {workspaces.map((workspace) => {
-                    const displayName = workspace.active
-                      ? activeWorkspaceName
-                      : workspace.name
+                    const displayName = workspace.name
                     const workspaceFavicon = workspace.active
                       ? activeFavicon
                       : workspace.favicon
@@ -153,7 +185,7 @@ export function WorkspaceSwitcher({
                         <div className="flex-1">
                           <div className="font-medium">{displayName}</div>
                           <div className="text-xs text-muted-foreground">
-                            {subheader}
+                            {addressOf(workspace)}
                           </div>
                         </div>
                         {busy ? (
@@ -184,7 +216,7 @@ export function WorkspaceSwitcher({
                       <PlusIcon className="size-4" />
                     </div>
                     <div className="font-medium text-muted-foreground">
-                      New workspace
+                      New {word.one}
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -195,6 +227,7 @@ export function WorkspaceSwitcher({
       </SidebarMenu>
 
       <WorkspaceFormDialog
+        baseDomain={baseDomain}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />

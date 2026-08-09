@@ -3,13 +3,24 @@ import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
 import { ActivityPanel } from "@/components/trade/activity-panel"
+import { useTrading } from "@/components/trade/use-trading"
+import { useTradeAccount } from "@/components/trade/use-trade-account"
+import {
+  AddWalletDialog,
+  WalletSettingsDialog,
+} from "@/components/trade/wallet-dialogs"
+import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
 import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
+import { IndicatorsMenu } from "@/components/trade/indicators-menu"
+import { useChartOptions } from "@/components/trade/use-chart-options"
 import {
   MarketHeader,
   type MarketSelection,
 } from "@/components/trade/market-header"
+import { CardFolds } from "@/components/trade/card-folds"
+import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
+import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketListPanel } from "@/components/trade/market-list-panel"
-import { OrderPanel } from "@/components/trade/order-panel"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -28,14 +39,17 @@ import {
   getMarketFavoritesErrorMessage,
   saveMarketFavorites,
 } from "@/lib/api/markets"
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   CANDLE_INTERVALS,
   parseMarketKey,
   type CandleInterval,
   type MarketCatalog,
+  type NetworkId,
 } from "@/lib/protocols/contracts"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
+import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
   CHART_INTERVAL_STORAGE_KEY,
   DEFAULT_CHART_INTERVAL,
@@ -45,10 +59,19 @@ import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
-} from "@/lib/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/panel-layout"
+} from "@/lib/layout/panel-collapse"
+import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
-import { useWideScreen } from "@/lib/wide-screen"
+import { useWideScreen } from "@/lib/layout/wide-screen"
+
+/**
+ * No focus ring on a panel divider.
+ *
+ * The shell's divider draws one when it has keyboard focus, which is a line
+ * the full height of the app appearing the moment any key goes down. Merged
+ * last, so it beats the shell's own class without editing a shell file.
+ */
+const NO_RING = "focus-visible:ring-0"
 
 /** Which side panel a narrow screen has slid open, if any. */
 type OpenSheet = "markets" | "account" | null
@@ -81,56 +104,6 @@ function resolveSelection(
 }
 
 /**
- * A side panel, split into two rows with a divider between them.
- *
- * The rows drag against each other; the panel as a whole is what shuts, which
- * is why both rows are handed the same collapsed flag and the same double-click.
- * A row with no width still paints its left and right borders, so both cards
- * have to be taken away together or the shut panel leaves a stray line behind.
- */
-function SideColumn({
-  id,
-  layoutKey,
-  topSize,
-  collapsed,
-  onDoubleClick,
-  top,
-  bottom,
-}: {
-  id: string
-  layoutKey: string
-  topSize: string
-  collapsed: boolean
-  onDoubleClick: (event: React.MouseEvent) => void
-  top: React.ReactNode
-  bottom: React.ReactNode
-}) {
-  const layout = useRememberedPanelLayout(layoutKey)
-
-  return (
-    <ResizablePanelGroup
-      key={layout.layoutKey}
-      orientation="vertical"
-      className="min-h-0 flex-1"
-      defaultLayout={layout.defaultLayout}
-      onLayoutChanged={layout.onLayoutChanged}
-    >
-      <ResizablePanel id={`${id}-top`} defaultSize={topSize} minSize="15%">
-        <WorkspacePanel collapsed={collapsed} onDoubleClick={onDoubleClick}>
-          {top}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={collapsed} />
-      <ResizablePanel id={`${id}-bottom`} minSize="15%">
-        <WorkspacePanel collapsed={collapsed} onDoubleClick={onDoubleClick}>
-          {bottom}
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  )
-}
-
-/**
  * The Trade workspace: markets on the left, the market you picked in the
  * middle, the account on the right, and what you are holding along the bottom.
  *
@@ -146,8 +119,12 @@ function SideColumn({
 export function TradeWorkspace({
   catalogs,
   marketsError,
+  network,
   initialFavoriteKeys,
   initialChartView,
+  initialChartOptions,
+  initialIndicators,
+  initialCardFolds,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -155,9 +132,17 @@ export function TradeWorkspace({
   catalogs: MarketCatalog[]
   /** The exchange call failed at load; the list shows this instead of rows. */
   marketsError: string | null
+  /** Which network the whole page is showing — resolved by the route. */
+  network: NetworkId
   initialFavoriteKeys: string[]
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
+  /** Which supporting parts of the chart this account has visible. */
+  initialChartOptions: ChartOptions
+  /** Which indicators this account has on, and what each is set to. */
+  initialIndicators: IndicatorSettings
+  /** How the trading windows' settings cards were left folded. */
+  initialCardFolds: CardFoldsValue
   /** The picked market's key, carried in the address bar. */
   selectedKey: string | null
   onSelectMarket: (key: string) => void
@@ -200,6 +185,63 @@ export function TradeWorkspace({
 
   const selection = resolveSelection(catalogs, selectedKey)
 
+  // ----- Wallets: one owner, shared by the desktop column and the sheet ----
+  const account = useTradeAccount()
+  const [addingWallet, setAddingWallet] = React.useState(false)
+  const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
+    null
+  )
+  // Resolved against the live list on every render, so a wallet deleted in
+  // another tab closes its own window instead of editing a ghost.
+  const editingWallet =
+    account.wallets.find((wallet) => wallet.id === editingWalletId) ?? null
+
+  const accountPanel = (
+    <AccountPanel
+      account={account}
+      onAddWallet={() => setAddingWallet(true)}
+      onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
+    />
+  )
+
+  // ----- Trading: one owner for the chart's lines and the panel ------------
+  // Practice and real wallets flow through the same hook; it is the wallet a
+  // row belongs to that decides which road an action takes.
+  const trading = useTrading(account.activeWallet)
+  const activeSummary = account.activeWallet
+    ? account.summaryOf(account.activeWallet.id)
+    : null
+  const free = activeSummary?.state === "ok" ? activeSummary.free : 0
+  const equity = activeSummary?.state === "ok" ? activeSummary.equity : 0
+
+  // A trade changes what the account is worth, so the two polls are nudged
+  // into step: the moment the trading side goes quiet, the wallet figures are
+  // read again. In an effect rather than during the render, because it is a
+  // request — a render can run twice or be thrown away, and a request must not.
+  const tradingBusy = trading.busy
+  const refreshAccount = account.refresh
+  React.useEffect(() => {
+    if (!tradingBusy) void refreshAccount()
+  }, [tradingBusy, refreshAccount])
+
+  // A divider dragged with the mouse keeps keyboard focus, and its arrow keys
+  // would then resize a panel with nothing on screen saying so. Handing focus
+  // back when the drag lets go is what stops that. Tabbing to one is untouched
+  // — that fires no pointerup.
+  React.useEffect(() => {
+    const onPointerUp = () => {
+      const active = document.activeElement
+      if (
+        active instanceof HTMLElement &&
+        active.getAttribute("role") === "separator"
+      ) {
+        active.blur()
+      }
+    }
+    window.addEventListener("pointerup", onPointerUp)
+    return () => window.removeEventListener("pointerup", onPointerUp)
+  }, [])
+
   // The chart's timeframe, owned here so the header's picker and the chart's
   // fetch read the same choice.
   const [interval, setInterval] = useRememberedChoice<CandleInterval>(
@@ -207,6 +249,13 @@ export function TradeWorkspace({
     DEFAULT_CHART_INTERVAL,
     CANDLE_INTERVALS
   )
+
+  // The indicators, owned here for the same reason: the header's menu switches
+  // them on and the chart below draws them, so both have to be reading one
+  // answer. They belong to the account rather than to the market, exactly like
+  // the zoom — an indicator is how you read a chart, not a fact about a coin.
+  const indicators = useChartIndicators(initialIndicators)
+  const chartOptions = useChartOptions(initialChartOptions)
 
   // The live feed: one watch per catalog, torn down with the page. When the
   // feed recovers from a gap it refetches the loader's snapshot, so figures
@@ -256,10 +305,10 @@ export function TradeWorkspace({
     <MarketListPanel
       catalogs={catalogs}
       marketsError={marketsError}
+      network={network}
       favorites={favorites}
       selectedKey={selectedKey}
       onSelect={onSelectMarket}
-      onToggleFavorite={(key) => void toggleFavorite(key)}
       onRetry={onRetryMarkets}
     />
   )
@@ -270,11 +319,22 @@ export function TradeWorkspace({
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
       <MarketHeader
         selection={selection}
-        // The chart's timeframe lives in the header row; it only makes sense
-        // once there is a market to chart.
+        // One star, on the market you are looking at, rather than one per row
+        // hiding until hover.
+        favorite={selectedKey !== null && favorites.has(selectedKey)}
+        onToggleFavorite={() => {
+          if (selectedKey) void toggleFavorite(selectedKey)
+        }}
+        // The chart's own controls live in the header row; they only make
+        // sense once there is a market to chart. Indicators sit to the right
+        // of the timeframe: which candles first, then what to draw on them.
         toolbar={
           selection.kind === "market" ? (
-            <IntervalPicker value={interval} onChange={setInterval} />
+            <>
+              <IntervalPicker value={interval} onChange={setInterval} />
+              <IndicatorsMenu indicators={indicators} />
+              <ChartOptionsMenu control={chartOptions} />
+            </>
           ) : undefined
         }
         // On a wide screen both panels are already on screen, so the buttons
@@ -288,6 +348,12 @@ export function TradeWorkspace({
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            options={chartOptions.options}
+            indicators={indicators.settings}
+            market={selection.kind === "market" ? selection.row : null}
+            trading={trading}
+            free={free}
+            equity={equity}
           />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
@@ -335,11 +401,11 @@ export function TradeWorkspace({
           {marketList}
         </WorkspacePanel>
       </ResizablePanel>
-      <ResizableHandle gap collapsed={marketsCollapsed} />
+      <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
       <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
         {middle}
       </ResizablePanel>
-      <ResizableHandle gap collapsed={accountCollapsed} />
+      <ResizableHandle gap collapsed={accountCollapsed} className={NO_RING} />
       <ResizablePanel
         id="account"
         panelRef={accountPanelRef}
@@ -350,15 +416,12 @@ export function TradeWorkspace({
         maxSize="36%"
         onResize={(size) => setAccountCollapsed(size.asPercentage < 0.5)}
       >
-        <SideColumn
-          id="account"
-          layoutKey={tradePanelLayoutKey.accountColumn}
-          topSize="35%"
+        <WorkspacePanel
           collapsed={accountCollapsed}
           onDoubleClick={accountDoubleClick}
-          top={<AccountPanel />}
-          bottom={<OrderPanel />}
-        />
+        >
+          {accountPanel}
+        </WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
@@ -366,6 +429,10 @@ export function TradeWorkspace({
   )
 
   return (
+    // One memory of which settings cards are folded, for every window under
+    // here — the ladder window and a live ladder's exits both draw the same
+    // cards, and folding one in one place should mean it is folded in both.
+    <CardFolds initial={initialCardFolds}>
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
         key={verticalLayout.layoutKey}
@@ -380,7 +447,7 @@ export function TradeWorkspace({
         {/* Keeps its gap even while the panel below is collapsed — that
             collapsed tab row is still a panel on screen, and this handle is
             what makes it draggable back open. */}
-        <ResizableHandle gap />
+        <ResizableHandle gap className={NO_RING} />
         <ResizablePanel
           id="activity"
           panelRef={activityPanelRef}
@@ -393,7 +460,11 @@ export function TradeWorkspace({
           collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
         >
           <WorkspacePanel onDoubleClick={activityDoubleClick}>
-            <ActivityPanel />
+            <ActivityPanel
+              trading={trading}
+              catalogs={catalogs}
+              onSelectMarket={onSelectMarket}
+            />
           </WorkspacePanel>
         </ResizablePanel>
       </ResizablePanelGroup>
@@ -412,22 +483,34 @@ export function TradeWorkspace({
             </SheetTitle>
           </SheetHeader>
           {openSheet === "account" ? (
-            // Both rows, stacked, sharing the height. A divider between them
-            // would be a third way to size the same thing on a screen with no
-            // room to spare, so here they simply split it.
-            <div className="flex min-h-0 flex-1 flex-col divide-y divide-foreground/10">
-              <div className="min-h-0 flex-1">
-                <AccountPanel />
-              </div>
-              <div className="min-h-0 flex-1">
-                <OrderPanel />
-              </div>
-            </div>
+            <div className="min-h-0 flex-1">{accountPanel}</div>
           ) : (
             <div className="min-h-0 flex-1">{marketList}</div>
           )}
         </SheetContent>
       </Sheet>
+
+      {/* One instance of each wallet window, owned here beside the one
+          account state, so the sheet and the desktop column share them. */}
+      <AddWalletDialog
+        open={addingWallet}
+        onClose={() => setAddingWallet(false)}
+        onAdded={(wallet) => {
+          // Only when nothing was being traded with yet. Adding a second
+          // wallet must never move the one an order would go to — that is a
+          // switch, and switching is its own deliberate act.
+          if (!account.activeWallet) account.switchWallet(wallet.id)
+          void account.refresh()
+        }}
+      />
+      <WalletSettingsDialog
+        wallet={editingWallet}
+        active={editingWallet?.id === account.activeWallet?.id}
+        onClose={() => setEditingWalletId(null)}
+        onChanged={() => void account.refresh()}
+        onUse={account.switchWallet}
+      />
     </div>
+    </CardFolds>
   )
 }

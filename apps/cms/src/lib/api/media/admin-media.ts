@@ -34,7 +34,7 @@ export type {
 const listQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
   ownerId: z.string().trim().max(36).default("all"),
-  fileType: z.enum(["all", "image", "video", "svg"]).default("all"),
+  fileType: z.enum(["all", "image", "video", "audio", "svg"]).default("all"),
   page: z.number().int().min(1).default(1),
   // Left out by the route loader, which cannot know the configured
   // rows-per-page; the handler reads it in that case.

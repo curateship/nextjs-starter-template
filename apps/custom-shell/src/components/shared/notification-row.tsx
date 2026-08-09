@@ -109,14 +109,7 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
   // The flow's name is the useful half — "Weekly changelog email" says more
   // about what is waiting than the word "approval" ever could.
   if (item.type === "automation_approval") {
-    return (
-      <>
-        <strong>{item.automation_name}</strong>
-        {approvalState(item) === "timed_out"
-          ? " stopped — nobody approved it in time"
-          : " is waiting for your approval"}
-      </>
-    )
+    return <strong>{item.automation_name?.replace(/\s*—\s*/g, " ")}</strong>
   }
 
   if (item.type === "feedback_vote") {
@@ -174,13 +167,17 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
  * or the feedback it is about.
  */
 function notificationPreview(item: NotificationItem) {
+  const approvalText = automationApprovalNotificationText[approvalState(item)]
+  const approvalSummary = item.automation_approval_summary?.trim()
   const text =
     item.type === "changelog"
       ? (item.changelog_title ?? "")
       : item.type === "announcement"
         ? (item.announcement_body ?? "")
         : item.type === "automation_approval"
-          ? automationApprovalNotificationText[approvalState(item)].detail
+          ? approvalSummary
+            ? `${approvalText.message}. ${approvalSummary}`
+            : approvalText.detail
           : isAiLimitNotification(item.type)
             ? aiLimitNotificationText[item.type].detail
             : (item.feedback_message ?? "")

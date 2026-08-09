@@ -14,6 +14,7 @@ import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
+  AutomationGraph,
   AutomationNode,
   AutomationValidationError,
 } from "@/lib/automations/graph"
@@ -29,20 +30,24 @@ import { cn } from "@/lib/utils"
 export function AutomationInspector({
   className,
   selectedNode,
+  graph,
   errors,
   favorite,
   savingFavorite,
   onNodeChange,
+  onOpenNodeEditor,
   onToggleFavorite,
   onAddNode,
   onDeleteNode,
 }: {
   className?: string
   selectedNode: AutomationNode | null
+  graph: AutomationGraph
   errors: AutomationValidationError[]
   favorite?: boolean
   savingFavorite?: boolean
   onNodeChange: (node: AutomationNode) => void
+  onOpenNodeEditor?: (nodeId: string) => void
   onToggleFavorite?: () => void
   onAddNode?: (node: AutomationNode) => void
   onDeleteNode: (nodeId: string) => void
@@ -90,7 +95,9 @@ export function AutomationInspector({
               {savingFavorite ? (
                 <Loader2Icon className="size-4 animate-spin" />
               ) : (
-                <StarIcon className={cn("size-4", favorite && "fill-current")} />
+                <StarIcon
+                  className={cn("size-4", favorite && "fill-current")}
+                />
               )}
             </Button>
           ) : undefined
@@ -112,7 +119,9 @@ export function AutomationInspector({
               >
                 <div className="mb-1 flex items-center gap-1.5 font-medium">
                   <AlertCircleIcon className="size-3.5" />
-                  {selectedNode ? "Fix this node" : "Automation needs attention"}
+                  {selectedNode
+                    ? "Fix this node"
+                    : "Automation needs attention"}
                 </div>
                 <ul className="grid gap-1">
                   {nodeErrors.map((error, index) => (
@@ -127,7 +136,16 @@ export function AutomationInspector({
             ) : null}
 
             {selectedNode ? (
-              <NodeFields node={selectedNode} onChange={onNodeChange} />
+              <NodeFields
+                node={selectedNode}
+                graph={graph}
+                onChange={onNodeChange}
+                onOpenEditor={
+                  onOpenNodeEditor
+                    ? () => onOpenNodeEditor(selectedNode.id)
+                    : undefined
+                }
+              />
             ) : null}
 
             {selectedNode ? (
@@ -172,13 +190,7 @@ export function AutomationInspector({
 }
 
 /** One edge's fade, painted over the scrolling content in the panel's colour. */
-function ScrollFade({
-  edge,
-  show,
-}: {
-  edge: "top" | "bottom"
-  show: boolean
-}) {
+function ScrollFade({ edge, show }: { edge: "top" | "bottom"; show: boolean }) {
   return (
     <div
       aria-hidden
@@ -243,10 +255,14 @@ function useScrollFades() {
  */
 function NodeFields({
   node,
+  graph,
   onChange,
+  onOpenEditor,
 }: {
   node: AutomationNode
+  graph: AutomationGraph
   onChange: (node: AutomationNode) => void
+  onOpenEditor?: () => void
 }) {
   if (!isSupportedNode(node)) {
     return (
@@ -268,7 +284,13 @@ function NodeFields({
   // components made during a render cannot tell those two apart.
   return (
     <React.Suspense fallback={null}>
-      {React.createElement(fields, { node, onChange })}
+      {React.createElement(fields, {
+        key: node.id,
+        node,
+        graph,
+        onChange,
+        onOpenEditor,
+      })}
     </React.Suspense>
   )
 }

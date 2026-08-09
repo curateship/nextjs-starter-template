@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
-import { showErrorToast } from "@/lib/error-toast"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 // What the sidebar editor and the top-right menu editor share: both edit
 // draggable lists of links an admin typed addresses into, so the grab handle,

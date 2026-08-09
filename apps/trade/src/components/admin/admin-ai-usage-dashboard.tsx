@@ -2,20 +2,16 @@ import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CpuIcon,
-  HashIcon,
   LineChartIcon,
-  TriangleAlertIcon,
   UsersIcon,
-  WalletIcon,
   WorkflowIcon,
-  ZapIcon,
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { chartHeightClassName, ChartCard, EmptyChart } from "@/components/shared/chart-card"
+import { chartHeightClassName, ChartCard, EmptyChart } from "@/components/shared/dashboard/chart-card"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { StatStrip, type StatFigure } from "@/components/shared/stat-strip"
+import { StatStrip, type StatFigure } from "@/components/shared/dashboard/stat-strip"
 import {
   ChartContainer,
   ChartTooltip,
@@ -33,14 +29,14 @@ import type {
   AiUsagePersonRow,
   AiUsageRange,
 } from "@/lib/api/ai"
-import { useListSearchNavigate, useSearchBoxText } from "@/lib/list-search"
-import { formatDate } from "@/lib/format-time"
-import { formatMoney } from "@/lib/money"
-import { formatSharePercent, formatTokenCount } from "@/lib/format-number"
-import { describeCode } from "@/lib/code-label"
-import { pageGutter } from "@/lib/shell-gutter"
-import { useClientPage } from "@/lib/use-client-page"
-import { useTableSort } from "@/lib/use-table-sort"
+import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
+import { formatDate } from "@/lib/format/format-time"
+import { formatMoney } from "@/lib/format/money"
+import { formatSharePercent, formatTokenCount } from "@/lib/format/format-number"
+import { describeCode } from "@/lib/format/code-label"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 /**
  * Settings → the sidebar's AI usage page: what AI cost, who spent it, and
@@ -75,28 +71,24 @@ export function AdminAiUsageDashboard({
   const figures: StatFigure[] = [
     {
       key: "spend",
-      icon: WalletIcon,
       label: "Spend",
       value: formatMoney(data.totals.costCents),
       footer: RANGE_LABELS[range].toLowerCase(),
     },
     {
       key: "calls",
-      icon: ZapIcon,
       label: "AI calls",
       value: data.totals.calls.toLocaleString(),
       footer: RANGE_LABELS[range].toLowerCase(),
     },
     {
       key: "tokens",
-      icon: HashIcon,
       label: "Tokens",
       value: formatTokenCount(data.totals.tokens),
       footer: "in and out together",
     },
     {
       key: "failed",
-      icon: TriangleAlertIcon,
       label: "Failed calls",
       value: data.totals.failed.toLocaleString(),
       footer: data.totals.failed ? "recorded, never dropped" : "none recorded",

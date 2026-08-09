@@ -6,7 +6,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { focusRingInset } from "@/lib/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import {
   collapseStorageKey,
   useRememberedCollapse,
@@ -51,7 +51,7 @@ export function InspectorCard({
   // parts you type into. Setting that here, once, means a node task writing new
   // fields gets it for free and cannot forget.
   const shell = cn(
-    "grid gap-3 rounded-xl border border-foreground/5 bg-muted/60 p-3",
+    "grid gap-3 rounded-lg border border-foreground/5 bg-muted/60 p-3",
     "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
   )
   if (!title) return <section className={shell}>{children}</section>

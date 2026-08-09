@@ -4,8 +4,8 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
-import { getAuthErrorMessage, revokePendingEmailChange } from "@/lib/api/auth"
-import { showErrorToast } from "@/lib/error-toast"
+import { getAuthErrorMessage, revokePendingEmailChange } from "@/lib/api/auth/auth"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The landing for the "this wasn't me" link in the warning sent to the old

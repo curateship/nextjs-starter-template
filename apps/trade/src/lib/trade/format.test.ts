@@ -5,6 +5,8 @@ import {
   formatCompactUsd,
   formatFunding,
   formatPrice,
+  formatSignedUsd,
+  formatUsd,
 } from "@/lib/trade/format"
 
 describe("trade figures", () => {
@@ -29,5 +31,17 @@ describe("trade figures", () => {
 
   it("prints funding in its fourth decimal", () => {
     expect(formatFunding(0.0000125)).toBe("0.0013%")
+  })
+
+  it("prints money someone owns to the cent", () => {
+    expect(formatUsd(9999.78)).toBe("$9,999.78")
+    expect(formatUsd(0)).toBe("$0.00")
+    expect(formatUsd(1_240)).toBe("$1,240.00")
+  })
+
+  it("always signs a gain or a loss, but never a plain zero", () => {
+    expect(formatSignedUsd(412.65)).toBe("+$412.65")
+    expect(formatSignedUsd(-18.9)).toBe("-$18.90")
+    expect(formatSignedUsd(0)).toBe("$0.00")
   })
 })

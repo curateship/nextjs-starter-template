@@ -4,14 +4,14 @@ import { AdminAnnouncementsDashboard } from "@/components/admin/admin-announceme
 import {
   getAnnouncementErrorMessage,
   loadAdminAnnouncements,
-} from "@/lib/api/announcements"
+} from "@/lib/api/content/announcements"
 import {
   readDirection,
   readOneOf,
   readPage,
   readSearchText,
-} from "@/lib/list-search"
-import { readOpenSearch } from "@/lib/use-open-from-link"
+} from "@/lib/nav/list-search"
+import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 export const ANNOUNCEMENT_SORT_COLUMNS = [

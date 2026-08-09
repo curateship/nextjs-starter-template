@@ -1,7 +1,7 @@
 import { SparklesIcon } from "lucide-react"
 import { z } from "zod"
 
-import { AI_PROVIDERS, DEFAULT_AI_MODEL } from "@/lib/ai/ai-models"
+import { AI_TEXT_PROVIDERS, DEFAULT_AI_MODEL } from "@/lib/ai/ai-models"
 
 import { defineNode } from "../node-descriptor"
 
@@ -33,7 +33,9 @@ export const aiStepNode = defineNode({
   // enum of today's list, so a saved flow outlives a model list change; the
   // dropdown keeps new flows on the list.
   settingsSchema: z.object({
-    provider: z.enum(AI_PROVIDERS),
+    // Only the ones that can answer in words — a voice provider has
+    // nothing to say back to a flow.
+    provider: z.enum(AI_TEXT_PROVIDERS),
     model: z.string().trim().min(1, "Choose a model.").max(120),
     instructions: z
       .string()

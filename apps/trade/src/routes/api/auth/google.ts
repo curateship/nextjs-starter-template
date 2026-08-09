@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { safeRedirectPath } from "@/lib/redirect-path"
+import { safeRedirectPath } from "@/lib/nav/redirect-path"
 import {
   browserRedirect,
   googleSignInEnabled,
   rememberGoogleHandshake,
   startGoogleSignIn,
-} from "@/server/google-auth"
+} from "@/server/auth/google"
 
 /**
  * "Continue with Google", step one: send the browser to Google.

@@ -516,6 +516,7 @@ export function ShellLayout({
             user={user}
             plan={plan}
             workspaces={workspaces.workspaces}
+            baseDomain={workspaces.baseDomain}
             viewingAsMember={Boolean(viewedBy)}
             onLogout={handleLogout}
           />
@@ -608,7 +609,6 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
   return {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
-    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
     dashboardRowsPerPage: DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
       settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )

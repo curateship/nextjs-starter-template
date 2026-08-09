@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
+import { appGuardedDeeper, appOpenEndpoints } from "@/app/open-endpoints"
 import { getFeedbackErrorMessage } from "@/lib/api/feedback"
 import { getMediaErrorMessage } from "@/lib/api/media/media"
 import { getWorkspaceErrorMessage } from "@/lib/api/people/workspaces"
@@ -17,6 +18,11 @@ import { getWorkspaceErrorMessage } from "@/lib/api/people/workspaces"
  * The two lists below are the exceptions, and they are the real content of
  * this test: adding to one is the only way to ship an endpoint without a guard
  * on it, which is the point — it cannot happen by forgetting.
+ *
+ * An app built on this shell has its own two lists in `src/app/open-endpoints.ts`,
+ * merged in below. They exist because a public page an app adds needs an
+ * endpoint anybody may call, and the app cannot write that down here — this is
+ * a shell file. Every check in this file applies to those entries too.
  */
 
 const API_DIR = join(process.cwd(), "src/lib/api")
@@ -139,7 +145,12 @@ function isGuarded({ body }: ServerFn) {
 
 describe("every server function is guarded", () => {
   const serverFns = collectServerFns()
-  const excused = { ...GUARDED_DEEPER, ...OPEN_TO_EVERYONE }
+  const excused = {
+    ...GUARDED_DEEPER,
+    ...OPEN_TO_EVERYONE,
+    ...appGuardedDeeper,
+    ...appOpenEndpoints,
+  }
 
   it("finds the server functions to check", () => {
     // A parser that quietly matched nothing would make every test below pass.
@@ -150,7 +161,11 @@ describe("every server function is guarded", () => {
     // The count is the whole point of this one. The endpoint files were sorted
     // into subfolders, and a walker that only read the top of the folder would
     // still pass every test above while checking a fraction of the doors.
-    expect(apiFiles()).toHaveLength(34)
+    //
+    // A floor rather than an exact count, so an app built on this shell can
+    // add endpoint files of its own without editing a shell test — a shallow
+    // walker still reads far fewer than the shell's own 34 and fails.
+    expect(apiFiles().length).toBeGreaterThanOrEqual(34)
   })
 
   it("locks every door that is not listed as an exception", () => {

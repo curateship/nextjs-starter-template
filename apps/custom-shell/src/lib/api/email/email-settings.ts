@@ -16,7 +16,7 @@ import {
   type EmailSettingsStatus,
 } from "@/server/email/settings"
 import { adminGet, adminPost } from "@/server/guards"
-import { getOrCreateCurrentWorkspace } from "@/server/people/workspaces"
+import { currentWorkspaceId } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "../error-message"
 
@@ -39,9 +39,6 @@ export const getEmailSettingsErrorMessage = createErrorMessage(
   "We could not load or save the email settings. Please try again."
 )
 
-async function currentWorkspaceId(userId: string) {
-  return (await getOrCreateCurrentWorkspace(userId)).id
-}
 
 const loadEmailSettingsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])

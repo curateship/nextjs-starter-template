@@ -370,8 +370,13 @@ export const topRightBuiltInMeta: Record<
 
 export type ShellConfig = {
   appName: string
+  /**
+   * The name of the site the reader is in — read from that site's own row and
+   * written back to it, so this is how a site is renamed from Settings. It is
+   * *not* an app-wide value that overrides anything; the switcher draws every
+   * row from its own name.
+   */
   workspaceName: string
-  workspacePlan: string
   dashboardRowsPerPage: number
   /** How many seconds a success message stays on screen. Failures ignore it. */
   toastSeconds: number
@@ -932,7 +937,6 @@ export function createDefaultShellConfig(): ShellConfig {
   return {
     appName: "",
     workspaceName: "",
-    workspacePlan: "",
     dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     toastSeconds: DEFAULT_TOAST_SECONDS,
     topLeftNavLimit: DEFAULT_TOP_LEFT_NAV_LIMIT,

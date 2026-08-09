@@ -11,11 +11,13 @@ import {
   type AutomationGraph,
   type AutomationValidationError,
 } from "@/lib/automations/graph"
+import { sendEmailDraftSettingsSchema } from "@/lib/automations/nodes/send-email"
 import {
   automationKindIsTrigger,
   automationNodeName,
 } from "@/lib/automations/node-registry"
 import { db, type CustomShellDb } from "@/server/db"
+import { sanitizeBlocks } from "@/server/email/broadcasts"
 import {
   customShellAutomationRuns,
   customShellAutomations,
@@ -113,19 +115,24 @@ export function automationTriggerName(
   const triggers = inspected.graph.nodes.filter((node) =>
     automationKindIsTrigger(node.kind)
   )
-  return triggers.length === 1
-    ? automationNodeName(triggers[0])
-    : null
+  return triggers.length === 1 ? automationNodeName(triggers[0]) : null
 }
 
-export async function listUserAutomations(
-  userId: string,
+/**
+ * A site's flows.
+ *
+ * Scoped by site rather than by the person who wrote each one. That is the
+ * whole change: a flow is a thing the site has, so every admin working on that
+ * site sees the same list, and one of them leaving does not take it away.
+ */
+export async function listWorkspaceAutomations(
+  workspaceId: string,
   database: CustomShellDb = db
 ): Promise<AutomationListRow[]> {
   const rows = await database
     .select()
     .from(customShellAutomations)
-    .where(eq(customShellAutomations.userId, userId))
+    .where(eq(customShellAutomations.workspaceId, workspaceId))
     .orderBy(desc(customShellAutomations.updatedAt))
 
   return rows.map((row) => {
@@ -157,12 +164,12 @@ export async function listUserAutomations(
  * switch was off is not chased when it goes back on; only what happens next is.
  */
 export async function setAutomationEnabled(
-  userId: string,
+  workspaceId: string,
   automationId: string,
   enabled: boolean,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomation> {
-  const row = await getUserAutomation(userId, automationId, database)
+  const row = await getWorkspaceAutomation(workspaceId, automationId, database)
   if (!row) throw new Error("NOT_FOUND")
 
   if (enabled) {
@@ -179,7 +186,7 @@ export async function setAutomationEnabled(
     .where(
       and(
         eq(customShellAutomations.id, automationId),
-        eq(customShellAutomations.userId, userId)
+        eq(customShellAutomations.workspaceId, workspaceId)
       )
     )
     .returning()
@@ -187,8 +194,8 @@ export async function setAutomationEnabled(
   return updated
 }
 
-export async function getUserAutomation(
-  userId: string,
+export async function getWorkspaceAutomation(
+  workspaceId: string,
   automationId: string,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomation | null> {
@@ -198,20 +205,27 @@ export async function getUserAutomation(
     .where(
       and(
         eq(customShellAutomations.id, automationId),
-        eq(customShellAutomations.userId, userId)
+        eq(customShellAutomations.workspaceId, workspaceId)
       )
     )
     .limit(1)
   return row ?? null
 }
 
-export async function createUserAutomation(
+export async function createWorkspaceAutomation(
+  workspaceId: string,
   userId: string,
   name: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  sourceGraph: AutomationGraph = EMPTY_AUTOMATION_GRAPH
 ): Promise<CustomShellAutomation> {
   const trimmed = name.trim().slice(0, NAME_MAX_LENGTH)
   if (!trimmed) throw new Error("NAME_REQUIRED")
+
+  const graph = sanitizeAutomationEmailBlocks(
+    automationGraphSchema.parse(sourceGraph)
+  )
+  const compiled = compileAutomationGraph(graph)
 
   const createdAt = now()
   try {
@@ -219,10 +233,14 @@ export async function createUserAutomation(
       .insert(customShellAutomations)
       .values({
         id: uuid(),
+        workspaceId,
+        // Who wrote it, kept for the record. The site above is what owns it.
         userId,
         name: trimmed,
-        graph: EMPTY_AUTOMATION_GRAPH,
-        compiledConfig: null,
+        graph,
+        compiledConfig: compiled.config,
+        // A template is a starting point, never permission to contact people.
+        enabled: false,
         createdAt,
         updatedAt: createdAt,
       })
@@ -234,14 +252,16 @@ export async function createUserAutomation(
   }
 }
 
-export async function saveUserAutomation(
-  userId: string,
+export async function saveWorkspaceAutomation(
+  workspaceId: string,
   input: { id: string; name: string; graph: AutomationGraph },
   database: CustomShellDb = db
 ): Promise<CustomShellAutomation | null> {
   const trimmed = input.name.trim().slice(0, NAME_MAX_LENGTH)
   if (!trimmed) throw new Error("NAME_REQUIRED")
-  const graph = automationGraphSchema.parse(input.graph)
+  const graph = sanitizeAutomationEmailBlocks(
+    automationGraphSchema.parse(input.graph)
+  )
   // Compile on every save: only a fresh, server-verified compile may write
   // compiled_config, and an invalid draft stores null there — never a stale
   // or client-supplied config.
@@ -259,7 +279,7 @@ export async function saveUserAutomation(
       .where(
         and(
           eq(customShellAutomations.id, input.id),
-          eq(customShellAutomations.userId, userId)
+          eq(customShellAutomations.workspaceId, workspaceId)
         )
       )
       .returning()
@@ -269,12 +289,34 @@ export async function saveUserAutomation(
   }
 }
 
-export async function duplicateUserAutomation(
+/** Cleans builder markup before an automation graph ever reaches storage. */
+export function sanitizeAutomationEmailBlocks(
+  graph: AutomationGraph
+): AutomationGraph {
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => {
+      if (node.kind !== "sendEmail") return node
+      const parsed = sendEmailDraftSettingsSchema.safeParse(node.settings)
+      if (!parsed.success) return node
+      return {
+        ...node,
+        settings: {
+          ...parsed.data,
+          blocks: sanitizeBlocks(parsed.data.blocks),
+        },
+      }
+    }),
+  }
+}
+
+export async function duplicateWorkspaceAutomation(
+  workspaceId: string,
   userId: string,
   automationId: string,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomation | null> {
-  const source = await getUserAutomation(userId, automationId, database)
+  const source = await getWorkspaceAutomation(workspaceId, automationId, database)
   if (!source) return null
 
   for (let copyNumber = 1; copyNumber <= 100; copyNumber += 1) {
@@ -284,6 +326,7 @@ export async function duplicateUserAutomation(
         .insert(customShellAutomations)
         .values({
           id: uuid(),
+          workspaceId,
           userId,
           name: copyName(source.name, copyNumber),
           graph: source.graph,
@@ -302,9 +345,9 @@ export async function duplicateUserAutomation(
   throw new Error("COPY_LIMIT")
 }
 
-/** Deletes only the rows this person owns; ids belonging to others are ignored. */
-export async function deleteUserAutomations(
-  userId: string,
+/** Deletes only this site's rows; ids belonging to another site are ignored. */
+export async function deleteWorkspaceAutomations(
+  workspaceId: string,
   automationIds: string[],
   database: CustomShellDb = db
 ): Promise<number> {
@@ -315,7 +358,7 @@ export async function deleteUserAutomations(
       .where(
         and(
           inArray(customShellAutomations.id, automationIds),
-          eq(customShellAutomations.userId, userId)
+          eq(customShellAutomations.workspaceId, workspaceId)
         )
       )
 

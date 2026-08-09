@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { SIGN_IN_ERROR_CODES, startWorkspaceFor } from "@/lib/api/auth"
+import { SIGN_IN_ERROR_CODES, startWorkspaceFor } from "@/lib/api/auth/auth"
 import {
   browserRedirect,
   exchangeGoogleCode,
   signInWithGoogle,
   takeGoogleHandshake,
-} from "@/server/google-auth"
-import { clearRateLimit, enforceRateLimit } from "@/server/rate-limit"
-import { describeRequestOrigin, setSessionCookie } from "@/server/security"
+} from "@/server/auth/google"
+import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
+import { describeRequestOrigin, setSessionCookie } from "@/server/auth/security"
 
 /**
  * "Continue with Google", step two: Google sends the browser back here.

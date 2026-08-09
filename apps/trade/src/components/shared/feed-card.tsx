@@ -73,6 +73,66 @@ function SampleBadge({ className }: { className?: string }) {
   )
 }
 
+/**
+ * A card header whose right-hand side is a tab strip. `CardTop` centres what
+ * it is handed, and an underline tab needs the full height of the row for its
+ * line to land on the card's hairline — so this is the same header laid out to
+ * stretch instead. Same icon, heading, count and gutters, so a row of cards
+ * still lines up whether or not its header carries tabs.
+ */
+export function CardHeaderRow({
+  icon: Icon,
+  title,
+  meta,
+  metaClassName,
+  iconClassName,
+  children,
+  className,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  meta?: string
+  /** For hiding the count on widths where it would squeeze the tabs. */
+  metaClassName?: string
+  iconClassName?: string
+  /** The right-hand side — the tab strip. */
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-[3.15rem] shrink-0 items-stretch gap-2.5 border-b border-foreground/10 px-4 sm:px-5",
+        className
+      )}
+    >
+      <span
+        className={cn(
+          "flex shrink-0 items-center text-muted-foreground",
+          iconClassName
+        )}
+        aria-hidden
+      >
+        <Icon className="size-4" />
+      </span>
+      <h2 className="font-heading flex min-w-0 items-center truncate text-[0.99rem] leading-snug font-medium">
+        {title}
+      </h2>
+      {meta ? (
+        <div
+          className={cn(
+            "flex min-w-0 items-center truncate text-xs text-muted-foreground",
+            metaClassName
+          )}
+        >
+          {meta}
+        </div>
+      ) : null}
+      <div className="ml-auto flex shrink-0 items-stretch">{children}</div>
+    </div>
+  )
+}
+
 export function EmptyRow({
   children,
   className,

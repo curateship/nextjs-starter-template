@@ -72,16 +72,23 @@ export function toCandleBars(
   return bars.sort((a, b) => a.openTime - b.openTime)
 }
 
-/** The recent price history for one market at one timeframe. */
+/**
+ * The recent price history for one market at one timeframe.
+ *
+ * `since` (epoch ms) asks for everything from a moment instead of the recent
+ * slice — what the practice engine uses to catch up on the price it missed
+ * while nobody was watching. Without it the chart's own window applies.
+ */
 export async function fetchHyperliquidCandles(
   network: NetworkId,
   marketId: string,
-  interval: CandleInterval
+  interval: CandleInterval,
+  since?: number
 ): Promise<CandleBar[]> {
   const response = await infoClient(network).candleSnapshot({
     coin: marketId,
     interval,
-    startTime: Date.now() - INTERVAL_MS[interval] * CANDLE_COUNT,
+    startTime: since ?? Date.now() - INTERVAL_MS[interval] * CANDLE_COUNT,
   })
   return toCandleBars(candlesSchema.parse(response))
 }

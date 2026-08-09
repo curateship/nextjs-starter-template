@@ -1,0 +1,351 @@
+import { PGlite } from "@electric-sql/pglite"
+import { and, eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { type CustomShellDb } from "@/server/db"
+import { createTestDatabase, insertUser } from "@/server/test-support"
+import { tradeWallets } from "@/server/trade/schema"
+import {
+  createWallet,
+  deleteWallet,
+  findTradingWallet,
+  listWallets,
+  loadWalletSummaries,
+  updateWallet,
+} from "@/server/trade/wallets"
+
+// The exchange is a mock: these tests are about the store, and a real
+// network call would make them flaky and slow. The mock answers like the
+// adapter does — figures, or a rejection for an address it cannot reach —
+// and the key check answers approved unless a test says otherwise.
+const fetchAccount = vi.fn()
+const verifyAgent = vi.fn()
+vi.mock("@/server/protocols/registry", () => ({
+  getProtocol: () => ({
+    account: { fetch: fetchAccount },
+    agent: { verify: verifyAgent },
+  }),
+}))
+
+const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
+const KEY = "ab".repeat(32)
+const CIPHERTEXT_SHAPE = /^[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+$/
+
+let client: PGlite
+let database: CustomShellDb
+
+beforeEach(async () => {
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
+  process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "a test-only secret"
+  fetchAccount.mockReset()
+  fetchAccount.mockResolvedValue({
+    equity: 24_000,
+    free: 20_000,
+    inTrades: 4_000,
+    openProfit: 150,
+  })
+  verifyAgent.mockReset()
+  verifyAgent.mockResolvedValue({ validUntil: null })
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+async function person() {
+  return (await insertUser(database)).id
+}
+
+function paperInput(label = "Practice") {
+  return {
+    label,
+    kind: "paper" as const,
+    protocol: "hyperliquid" as const,
+    network: "mainnet" as const,
+    startingBalance: 10_000,
+  }
+}
+
+function liveInput(label = "Live") {
+  return {
+    label,
+    kind: "live" as const,
+    protocol: "hyperliquid" as const,
+    network: "mainnet" as const,
+    address: ADDRESS,
+    agentKey: KEY,
+  }
+}
+
+describe("adding wallets", () => {
+  it("saves a practice wallet with its starting cash and no key", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, paperInput())
+
+    expect(wallet.kind).toBe("paper")
+    expect(wallet.status).toBe("active")
+    expect(wallet.startingBalance).toBe(10_000)
+    expect(wallet.hasKey).toBe(false)
+    expect(wallet.address).toBeNull()
+    expect(await listWallets(userId)).toEqual([wallet])
+  })
+
+  it("records a live wallet's value at add time as its baseline", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    expect(wallet.startingBalance).toBe(24_000)
+    expect(wallet.hasKey).toBe(true)
+  })
+
+  it("stores the trading key only as ciphertext, and never answers with it", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+
+    const rows = await database
+      .select()
+      .from(tradeWallets)
+      .where(eq(tradeWallets.userId, userId))
+    expect(rows[0].agentKeyEncrypted).toMatch(CIPHERTEXT_SHAPE)
+    expect(rows[0].agentKeyEncrypted).not.toContain(KEY)
+
+    // The answer says a key exists and nothing more.
+    expect(JSON.stringify(wallet)).not.toContain(KEY)
+    expect(JSON.stringify(await listWallets(userId))).not.toContain(KEY)
+  })
+
+  it("refuses a key the exchange does not approve of, saving nothing", async () => {
+    const userId = await person()
+    verifyAgent.mockRejectedValue(new Error("KEY_IS_ACCOUNT"))
+
+    await expect(createWallet(userId, liveInput())).rejects.toThrow(
+      "KEY_IS_ACCOUNT"
+    )
+    expect(await listWallets(userId)).toEqual([])
+  })
+
+  it("records the key's expiry when the exchange reports one", async () => {
+    const userId = await person()
+    const expiry = Date.now() + 90 * 86_400_000
+    verifyAgent.mockResolvedValue({ validUntil: expiry })
+
+    const wallet = await createWallet(userId, liveInput())
+    expect(wallet.keyValidUntil).toBe(expiry)
+  })
+
+  it("refuses an address the exchange cannot answer for, saving nothing", async () => {
+    const userId = await person()
+    fetchAccount.mockRejectedValue(new Error("no such account"))
+
+    await expect(createWallet(userId, liveInput())).rejects.toThrow(
+      "WALLET_UNREACHABLE"
+    )
+    expect(await listWallets(userId)).toEqual([])
+  })
+
+  it("refuses to store a key when secret storage is not set up", async () => {
+    const userId = await person()
+    delete process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+
+    await expect(createWallet(userId, liveInput())).rejects.toThrow(
+      "ENCRYPTION_NOT_CONFIGURED"
+    )
+    expect(await listWallets(userId)).toEqual([])
+  })
+
+  it("stops at the cap", async () => {
+    const userId = await person()
+    for (let i = 0; i < 20; i++) {
+      await createWallet(userId, paperInput(`Wallet ${i}`))
+    }
+    await expect(createWallet(userId, paperInput("One more"))).rejects.toThrow(
+      "WALLET_LIMIT"
+    )
+  })
+})
+
+describe("editing wallets", () => {
+  it("moves a wallet between active and inactive", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, paperInput())
+
+    const inactive = await updateWallet(userId, {
+      id: wallet.id,
+      status: "inactive",
+    })
+    expect(inactive.status).toBe("inactive")
+    expect((await listWallets(userId))[0].status).toBe("inactive")
+    await expect(findTradingWallet(userId, wallet.id)).rejects.toThrow(
+      "WALLET_INACTIVE"
+    )
+
+    const active = await updateWallet(userId, {
+      id: wallet.id,
+      status: "active",
+    })
+    expect(active.status).toBe("active")
+    expect(await findTradingWallet(userId, wallet.id)).toEqual(active)
+  })
+
+  it("renames, and changes a practice wallet's starting cash", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, paperInput())
+    const saved = await updateWallet(userId, {
+      id: wallet.id,
+      label: "Scalper",
+      startingBalance: 5_000,
+    })
+    expect(saved.label).toBe("Scalper")
+    expect(saved.startingBalance).toBe(5_000)
+  })
+
+  it("refuses a starting-cash change on a live wallet — that would rewrite its history", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    await expect(
+      updateWallet(userId, { id: wallet.id, startingBalance: 1 })
+    ).rejects.toThrow("WALLET_BALANCE_KIND")
+  })
+
+  it("refuses a trading key on a practice wallet", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, paperInput())
+    await expect(
+      updateWallet(userId, { id: wallet.id, agentKey: KEY })
+    ).rejects.toThrow("WALLET_KEY_KIND")
+  })
+
+  it("proves a replacement key too, keeping the old one on refusal", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    const before = (
+      await database
+        .select()
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+    )[0].agentKeyEncrypted
+
+    verifyAgent.mockRejectedValue(new Error("KEY_NOT_APPROVED"))
+    await expect(
+      updateWallet(userId, { id: wallet.id, agentKey: "cd".repeat(32) })
+    ).rejects.toThrow("KEY_NOT_APPROVED")
+
+    const after = (
+      await database
+        .select()
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+    )[0].agentKeyEncrypted
+    expect(after).toBe(before)
+  })
+
+  it("replaces a key with fresh ciphertext", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    const before = (
+      await database
+        .select()
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+    )[0].agentKeyEncrypted
+
+    await updateWallet(userId, { id: wallet.id, agentKey: "cd".repeat(32) })
+    const after = (
+      await database
+        .select()
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+    )[0].agentKeyEncrypted
+
+    expect(after).toMatch(CIPHERTEXT_SHAPE)
+    expect(after).not.toBe(before)
+  })
+
+  it("cannot reach another person's wallet", async () => {
+    const mine = await person()
+    const theirs = await person()
+    const wallet = await createWallet(theirs, paperInput())
+
+    await expect(
+      updateWallet(mine, { id: wallet.id, label: "Taken" })
+    ).rejects.toThrow("WALLET_NOT_FOUND")
+
+    await deleteWallet(mine, wallet.id)
+    expect(await listWallets(theirs)).toHaveLength(1)
+  })
+
+  it("deletes a wallet and everything it stored", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    await deleteWallet(userId, wallet.id)
+    expect(await listWallets(userId)).toEqual([])
+  })
+})
+
+describe("the figures sweep", () => {
+  it("derives a practice wallet from its starting cash alone", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, paperInput())
+    const { summaries } = await loadWalletSummaries(userId)
+
+    expect(summaries).toEqual([
+      {
+        walletId: wallet.id,
+        state: "ok",
+        equity: 10_000,
+        free: 10_000,
+        inTrades: 0,
+        openProfit: 0,
+        settled: 0,
+        sinceStart: 0,
+      },
+    ])
+  })
+
+  it("derives a live wallet's journey from its baseline", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    // The account moved since it was added.
+    fetchAccount.mockResolvedValue({
+      equity: 24_500,
+      free: 19_000,
+      inTrades: 5_500,
+      openProfit: 300,
+    })
+
+    const { summaries } = await loadWalletSummaries(userId)
+    expect(summaries).toEqual([
+      {
+        walletId: wallet.id,
+        state: "ok",
+        equity: 24_500,
+        free: 19_000,
+        inTrades: 5_500,
+        openProfit: 300,
+        sinceStart: 500,
+        settled: 200,
+      },
+    ])
+  })
+
+  it("lets one unreachable wallet stay its own problem", async () => {
+    const userId = await person()
+    await createWallet(userId, paperInput())
+    const live = await createWallet(userId, liveInput())
+    fetchAccount.mockRejectedValue(new Error("down"))
+
+    const { summaries } = await loadWalletSummaries(userId)
+    expect(summaries).toHaveLength(2)
+    expect(summaries[0].state).toBe("ok")
+    expect(summaries[1]).toEqual({ walletId: live.id, state: "unreachable" })
+  })
+})

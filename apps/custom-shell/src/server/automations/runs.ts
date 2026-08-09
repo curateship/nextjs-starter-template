@@ -6,6 +6,7 @@ import {
   type AutomationRunStatus,
 } from "@/lib/automations/run"
 import { db, type CustomShellDb } from "@/server/db"
+import { currentWorkspaceId } from "@/server/people/workspaces"
 import {
   customShellAutomationRuns,
   customShellAutomationRunSteps,
@@ -108,14 +109,40 @@ function runQuery(database: CustomShellDb) {
 }
 
 /** One flow's runs, newest first — the editor's Runs tab. */
+/**
+ * The site a run belongs to.
+ *
+ * Almost always the value written when it started, which is the whole point —
+ * a run's audience is fixed the moment it begins and cannot drift afterwards.
+ *
+ * The fallback covers runs saved before that column existed: for those, the
+ * person who wrote the flow is the only clue there is. A run with neither says
+ * so out loud rather than guessing, because guessing here means emailing the
+ * wrong site's customers.
+ */
+export async function workspaceForRun(
+  run: Pick<CustomShellAutomationRun, "id" | "workspaceId" | "userId">,
+  database: CustomShellDb = db
+): Promise<string> {
+  if (run.workspaceId) return run.workspaceId
+  if (!run.userId) {
+    throw new Error(
+      `Run ${run.id} has no site and nobody left to ask which it was for.`
+    )
+  }
+  return currentWorkspaceId(run.userId, database)
+}
+
 export async function listRunsForAutomation(
-  userId: string,
+  workspaceId: string,
   automationId: string,
   offset = 0,
   database: CustomShellDb = db
 ): Promise<{ runs: AutomationRunRow[]; total: number }> {
+  // The site's runs, not one person's. Two admins working on the same site see
+  // the same history, and a departed admin's runs stay where they belong.
   const owned = and(
-    eq(customShellAutomationRuns.userId, userId),
+    eq(customShellAutomationRuns.workspaceId, workspaceId),
     eq(customShellAutomationRuns.automationId, automationId)
   )
 
@@ -132,16 +159,16 @@ export async function listRunsForAutomation(
 }
 
 /**
- * Every run waiting on a decision, across every flow this person owns — the
+ * Every run waiting on a decision, across every flow on this site — the
  * Waiting tab. Oldest first: the one closest to its deadline is the one that
  * needs answering.
  */
 export async function listRunsAwaitingApproval(
-  userId: string,
+  workspaceId: string,
   database: CustomShellDb = db
 ): Promise<{ runs: AutomationRunRow[]; total: number }> {
   const waiting = and(
-    eq(customShellAutomationRuns.userId, userId),
+    eq(customShellAutomationRuns.workspaceId, workspaceId),
     eq(customShellAutomationRuns.status, "waiting_approval")
   )
 
@@ -171,9 +198,9 @@ function toPage(
   }
 }
 
-/** One run and everything it did, or null when it is not this person's. */
+/** One run and everything it did, or null when it is not this site's. */
 export async function getAutomationRun(
-  userId: string,
+  workspaceId: string,
   runId: string,
   database: CustomShellDb = db
 ): Promise<AutomationRunDetail | null> {
@@ -195,7 +222,7 @@ export async function getAutomationRun(
     .where(
       and(
         eq(customShellAutomationRuns.id, runId),
-        eq(customShellAutomationRuns.userId, userId)
+        eq(customShellAutomationRuns.workspaceId, workspaceId)
       )
     )
     .limit(1)

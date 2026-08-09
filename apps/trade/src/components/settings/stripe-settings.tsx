@@ -23,10 +23,10 @@ import {
   type StripeSecretStatus,
   type StripeSettingsStatus,
   type StripeTextField,
-} from "@/lib/api/stripe-settings"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
-import type { SaveStatus } from "@/pages/dashboard/sticky-header/sticky-header"
+} from "@/lib/api/billing/stripe-settings"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
 // An edit saves itself this long after the last keystroke; leaving the field
 // (or pressing Enter) saves straight away. Same rhythm as the Email tab.
@@ -106,7 +106,7 @@ const SECRET_NAMES: Record<StripeSecretField, string> = {
  * Settings → Payments. The Stripe keys everything billing does runs on: a
  * live set and a sandbox set, with one switch saying which is in use — the
  * same shape as the Directory app's Stripe card. Secrets are saved encrypted
- * through server/stripe-settings.ts and the browser only ever sees a masked
+ * through server/billing/settings.ts and the browser only ever sees a masked
  * tail. Saving is automatic and reports through the sticky header's
  * Saving…/Saved indicator, like every other auto-save in the app.
  */

@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { AutomationEditor } from "@/components/automations/automation-editor"
-import { loadAutomationRunsPanel } from "@/lib/api/automation-runs"
+import { loadAutomationRunsPanel } from "@/lib/api/automations/automation-runs"
 import {
   getAutomation,
   getAutomationLoadErrorMessage,
   loadAutomationFavorites,
-} from "@/lib/api/automations"
+} from "@/lib/api/automations/automations"
 import { routeErrorComponent } from "@/components/shell/route-error"
 
 /**

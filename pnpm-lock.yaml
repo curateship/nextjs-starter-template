@@ -198,6 +198,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/router-core':
+        specifier: 1.171.15
+        version: 1.171.15
       argon2:
         specifier: ^0.44.0
         version: 0.44.0
@@ -2235,6 +2238,9 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
+      viem:
+        specifier: 2.54.3
+        version: 2.54.3(typescript@5.9.3)(zod@4.4.3)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2468,6 +2474,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
       '@simplewebauthn/browser':
         specifier: ^13.3.0
         version: 13.3.0

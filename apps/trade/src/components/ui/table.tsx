@@ -7,7 +7,7 @@ import {
   ChevronsUpDownIcon,
 } from "lucide-react"
 
-import { focusRingInset } from "@/lib/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 type TableHeadProps = React.ComponentProps<"th"> & {

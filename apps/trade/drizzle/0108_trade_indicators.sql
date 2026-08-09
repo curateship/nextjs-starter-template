@@ -1,0 +1,17 @@
+-- Trade's own migrations number from 0100 — see 0100_trade_market_favorites.
+--
+-- Which indicators are switched on, what each is set to, and how each one's
+-- part of the menu was left folded — remembered per person. One jsonb rather
+-- than a column per indicator: the library decides what an indicator holds, and
+-- a seventh setting on the Base indicator should be a line in a field list, not
+-- a migration.
+--
+-- The folds live here beside the settings rather than in the browser's own
+-- storage, because this app runs inside an embedded preview where those writes
+-- are quietly dropped — a fold remembered there would be one that never sticks.
+--
+-- Read only through `readIndicatorSettings`, so a row written by a build that
+-- had an indicator this one does not simply loses that entry, and a setting
+-- outside the range the field offers is held to it. Nothing here is ever
+-- half-obeyed.
+ALTER TABLE "trade_prefs" ADD COLUMN IF NOT EXISTS "indicators" jsonb;

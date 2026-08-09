@@ -1,3 +1,4 @@
+import { capitalise, workspaceWord } from "@/lib/app-options"
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
@@ -46,9 +47,15 @@ const workspacesRoute = getRouteApi("/_authenticated/workspaces")
 
 export function WorkspacesDashboard({
   initialWorkspaces: workspaces,
+  baseDomain = "",
 }: {
   initialWorkspaces: WorkspaceItem[]
+  /** The domain workspaces hang off, for the address field's preview. */
+  baseDomain?: string
 }) {
+  // Read inside the component, never at module level — an app's options file
+  // can import its way back here.
+  const word = workspaceWord()
   const router = useRouter()
   const navigate = useNavigate()
   const { open: openWorkspaceId } = workspacesRoute.useSearch()
@@ -179,7 +186,7 @@ export function WorkspacesDashboard({
   return (
     <>
       <DashboardTable
-        title="Workspaces"
+        title={capitalise(word.many)}
         icon={renderShellIcon("briefcaseBusiness", "text-muted-foreground")}
         count={sortedWorkspaces.length}
         selectedCount={selectedIds.size}
@@ -323,6 +330,7 @@ export function WorkspacesDashboard({
       />
 
       <WorkspaceFormDialog
+        baseDomain={baseDomain}
         open={formOpen}
         editing={editing}
         onClose={() => {

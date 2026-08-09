@@ -23,8 +23,8 @@ import {
   type ShellConfig,
   type ShellMaintenance,
 } from "@/lib/custom-shell"
-import { showErrorToast } from "@/lib/error-toast"
-import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast-seconds"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -210,8 +210,8 @@ export function GeneralSettings({
 
         <ToastSecondsField config={config} onConfigChange={onConfigChange} />
 
-        {/* The app's two pictures sit together: both are small, so a row of
-            them is shorter than two stacked and reads as one decision. */}
+        {/* The app's pictures sit together: they are all small, so a row of
+            them is shorter than a stack and reads as one decision. */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <ImageUpload
             label="Favicon"
@@ -220,7 +220,7 @@ export function GeneralSettings({
             aspect="square"
             fit="contain"
             emptyLabel="Select favicon"
-            className="max-w-20"
+            className="max-w-24"
           />
 
           <ImageUpload
@@ -231,7 +231,18 @@ export function GeneralSettings({
             fit="contain"
             emptyLabel="Select logo"
             hint="Shown above the signed-out pages — sign in, register, verify, reset password and pricing. Everyone sees the same one. Leave it empty for the app name on its own."
-            className="max-w-20"
+            className="max-w-24"
+          />
+
+          <ImageUpload
+            label="Dark logo"
+            value={config.logoDark}
+            onChange={(url) => onConfigChange({ ...config, logoDark: url })}
+            aspect="square"
+            fit="contain"
+            emptyLabel="Select logo"
+            hint="Optional. Shown in place of the logo while a visitor has their device in dark mode, so a logo drawn in near-black does not disappear on a dark page. Leave it empty and the one logo above is used on both."
+            className="max-w-24"
           />
         </div>
       </CollapsibleSettingsCard>

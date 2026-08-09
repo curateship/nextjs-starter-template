@@ -32,7 +32,7 @@ import {
   type DashboardWidgetId,
   type DashboardWidgetLayout,
   type DashboardWidgetSlot,
-} from "@/lib/dashboard-widgets"
+} from "@/lib/dashboard/dashboard-widgets"
 import { cn } from "@/lib/utils"
 
 /**
@@ -254,7 +254,7 @@ export function WidgetSettings({
         open={resetOpen}
         onOpenChange={setResetOpen}
         title="Reset the dashboard?"
-        description="Every widget goes back to where it started: the headline figures across the top, Needs you and Latest activity down the left, and People, Traffic and Automations down the right. This cannot be undone."
+        description="Every widget goes back to where it started: the headline figures across the top, Activity down the left, and People, Traffic and Automations down the right. This cannot be undone."
         confirmLabel="Reset dashboard"
         onConfirm={() => {
           setResetOpen(false)

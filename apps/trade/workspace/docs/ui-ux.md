@@ -25,10 +25,11 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
   replaced by the Fav tab — two homes for one list is duplication.)
 - **Middle — the market you picked.** One header row, nothing more: the
   market's own logo (carried as data on the row, with a first-letter circle
-  when an exchange has no art), its name, an info icon, and the timeframe
-  picker on the right (1m–1d, remembered per browser, 4h the default). The
-  live figures — price, day's move, volume, funding, open interest, and which
-  exchange and network — live behind the info icon, click or hover. Below,
+  when an exchange has no art), its name, and on the right the timeframe
+  picker (1m–1d, remembered per browser, 4h the default) with the Indicators
+  dropdown after it. The live figures — price, day's move, volume, funding,
+  open interest, and which exchange and network — live behind the market's own
+  name, click or hover. Below,
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Loading, no-history and failed-fetch
@@ -50,7 +51,8 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
   remembered view is reset.
   **The chart is feature-blind by rule:** candles in, candles drawn. Paint
   tools, alerts, indicators and orders arrive as their own modules against a
-  small surface the chart offers — the chart never learns what a line means.
+  small surface the chart offers — the chart never learns what a line means,
+  and has never heard the word "indicator".
   Decided in `workspace/tasks/Platform/plain-price-chart.md`.
 - **Right, top — Account.** Which account you are trading with.
 - **Right, bottom — Order.** The form. Below the account, because the account is
@@ -104,8 +106,149 @@ timeframe, and the rail says what the pointer is holding.
   one; the question is asked before it runs instead.
 - **The chart underneath still pans, zooms and shows its crosshair.** Only a
   line itself takes the pointer, plus the whole chart while a tool is held.
-- Out of scope by the standing decision: alerts on lines, orders on lines,
-  indicators. Each attaches to the same surface in its own task.
+- Out of scope by the standing decision: alerts on lines and orders on lines.
+  Each attaches to the same surface in its own task. Indicators now do —
+  see below.
+
+## Indicators
+
+**An indicator is a chart control, so it lives in the chart's controls.** There
+is no indicators page and no dashboard behind them. The **Indicators** dropdown
+sits in the market header beside the timeframe, and the number in it says how
+many are switched on.
+
+- **A row per indicator: a checkbox to switch it on, and its name to open its
+  settings.** One thing per job — the box switches it on, the name unfolds it —
+  because a name that did both is how somebody ends up with an indicator they
+  only wanted to look at.
+- **Settings unfold inside the menu, split across two cards** in the same grey
+  the DCA window uses for its advanced settings. **Settings** holds the rules
+  that decide where the levels are; **Visibility** holds the ones that only
+  decide which of them you are shown. That line is the answer to "why has that
+  level got a dash but no arrow?" — it is always something on the second card.
+- **Each card folds on its own, and both start open.** Folding one is for
+  getting it out of the way while you work on the other, never for hiding a
+  setting somebody then has to go looking for.
+- **Every fold in the menu is remembered** — which indicator is unfolded and
+  which of its cards are shut — against the account, beside the settings
+  themselves. Left shut is still shut after a reload and on the other machine.
+  Not in the browser's own storage: this app runs inside an embedded preview
+  where those writes are quietly dropped, so a fold remembered there would be
+  a fold that never sticks.
+- **Back to the defaults leaves the folds alone.** They are how the menu is
+  arranged, not one of the indicator's settings.
+- Every setting explains itself through the info icon beside its label, and
+  **Back to the defaults** undoes a session of fiddling in one press.
+- **One indicator's settings are open at a time.** Every one unfolded at once
+  would be a menu longer than the screen, and nobody sets up two at the
+  same moment.
+- **Which indicators are on is remembered against the account**, not the market
+  and not the browser — the same rule as the zoom, and for the same reason: an
+  indicator is how you read a chart, not a fact about one coin. It carries onto
+  the next market, the next timeframe and the other machine.
+- **The eye after Indicators opens View options.** Its three checkboxes show or
+  hide the chart grid, volume bars and crosshair. All three start on, and each
+  choice follows the account onto the next market, visit and machine.
+- **A change is saved once the settings sit still for a moment**, because
+  typing "150" into a field is three changes. A save that does not land is said
+  in a toast and **does not undo what was just typed** — the chart is already
+  drawing it, so what is lost is the memory, not the setting.
+- **The layer takes no clicks.** An indicator is something to look at: the
+  chart underneath still pans, zooms and shows its crosshair straight through
+  it, and a drawn line or a stop sitting under a dash is still what the pointer
+  finds. It also draws first, so nothing somebody put on the chart themselves
+  ever ends up behind it.
+- **Levels are worked out from closed candles only.** The bar the feed is still
+  filling in cannot confirm a level anyway, and redoing every level on every
+  tick would be work for an answer that cannot have changed.
+
+**Base** is the first one, ported from the old Trading app with the same six
+settings. It marks the floors price keeps bouncing off (a teal dash and a green
+arrow up) and the ceilings it keeps getting turned away from (a red dash and a
+red arrow down). The arrow lands on the candle that finished the wait, which is
+usually well above the level itself — timing an entry near a level is a
+different job.
+
+Two of its settings only thin out the arrows and never the dashes, which is the
+answer to "why does that level have a dash but no arrow": **Only mark levels
+going the right way** (a base has to be above the base before it) and **Fewest
+candles between arrows**.
+
+### Smart orders on live wallets
+
+The Smart order is the same ladder on practice, testnet, and real wallets. The
+same state machine owns its base or clicked anchor, rung sizes, two-green entry,
+targets, stops, step-down, reclaim, cancellation, and restart recovery. A live
+ladder stores Hyperliquid's order IDs and reconciles exchange fills before it
+takes another action. If only part of a new ladder is accepted, those orders
+are cancelled and no ladder is saved.
+
+A live ladder requires a second press. The confirmation says whether it is
+testnet or real money, names the wallet, counts the buys, and states the most
+money the ladder can use. Mainnet still cannot sign unless the server's funded
+test switch is deliberately enabled.
+
+### A stop that rests under the base
+
+A DCA ladder can put its stop on the confirmed base instead of a fixed distance
+below the entry. It is on the Stop loss part of both the window that places a
+ladder and the one that edits a live ladder's exits, in its own grey card, and
+it is a port of the QFL automation from the old app rather than anything new.
+
+- **Bases are read off the 4h**, whatever chart the ladder was placed from. Not
+  a setting: the rule was measured on the 4h, and a base found on the 5m is a
+  different thing wearing the same name.
+- **The base's own two numbers are frozen when the ladder is placed**, so
+  nudging the indicator on the chart changes the chart and leaves every live
+  stop exactly where it is.
+- **There is always a stop.** Until a base has confirmed below what the ladder
+  is holding, the plain percent stands. Setting that percent to 100 means price
+  would have to reach zero, which is how you say "nothing until the base
+  arrives" — and it writes no stop at all rather than one resting at zero.
+- **A level above what is held is refused.** That is a place to take profit, not
+  a place to give up, and a stop there would close winners as losses.
+- **Being stopped is one rung failing, not the ladder failing.** Everything
+  sells, every waiting rung comes off the book, and the next rung down is placed
+  on its own with a fresh stop under whatever base is there by then. From the
+  first stop onwards only one rung rests at a time.
+- **The last rung stopping out ends it for good** — nothing is armed and nothing
+  is remembered. A ladder whose bets double needs that full stop, or a long
+  enough losing run outgrows the pot.
+- **Buy back after a reclaim** puts the same rung back for the same money if
+  price closes back above where the stop cut and keeps closing above it for the
+  chosen number of days. A close back under starts the wait again; a wick under
+  does not. It is capped in dollars rather than coins, so a level reclaimed
+  months later costs what the rung was always allowed to spend.
+
+## Orders on the chart
+
+An order is placed by right-clicking the candles at the price you want, and
+from then on it lives on the chart as its own line with a coloured bar at the
+right-hand end.
+
+A position's stop can be dragged past its entry after price moves in the
+trade's favour. This trailing stop protects profit. It must remain below the
+current price for a long, or above the current price for a short, so setting it
+does not close the position immediately.
+
+- **A waiting order shows its stop and its target too**, in the same green and
+  red as a position's but in a finer dash — they are where the trade will get
+  out once the order fills, which is a plan rather than a fact. The bar says
+  what each would pay in dollars if it got there. Neither can be dragged: they
+  hang off the order's price, so the order's own window is where they change.
+- **Pressing a waiting order's bar opens that window** — how much the order is
+  for, and where it gets out. Not its price: the price is the line, and you
+  drag it. The window shows what the size costs in dollars and how much of your
+  own cash is behind it, and the same window is what the ⚙ on the bar means.
+- **Placing an order does not wait for the exchange.** The window shuts on the
+  press and the order is drawn on the chart at once, labelled "sending" until
+  the answer lands — a second or two later. A "sending" line has no × and
+  cannot be dragged; there is nothing on the server yet to change.
+- **Nothing is announced when it works.** No toast for placing an order and
+  none for cancelling one: the line appearing and the line disappearing is the
+  answer, and a toast on every click of a trading screen is noise. Refusals
+  still speak up, and so does the one case that must never pass quietly — a
+  real order that went on without the protection asked for.
 
 ## The market list
 
@@ -264,6 +407,16 @@ working bar streams beside it.
   hover too easy to miss, the labels come back on screen.)
 - **Every icon-only control has a label**, focus stays visible, and every panel
   is reachable with the Tab key alone.
+- **A real dollar never reads as a pretend one.** Rows a live wallet owns
+  carry an amber "Real" badge in every table, and the order window's button
+  turns into a said-back-in-dollars question ("Real money in <wallet>: buy
+  about $X…") that must be pressed a second time before anything is sent.
+  A live Smart order follows the same rule and confirms the ladder's buy count
+  and maximum cost.
+  Figures the exchange did not report (a live position's running fees, a live
+  order's leverage) show as dashes, never as made-up zeros. The warning is all
+  in front of the press; nothing is said afterwards, real or pretend — see
+  "Orders on the chart".
 
 ## Where the navigation lives
 

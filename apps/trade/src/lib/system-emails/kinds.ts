@@ -5,7 +5,7 @@ import {
   type BroadcastBlock,
   type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
-import { escapeHtml } from "@/lib/escape-html"
+import { escapeHtml } from "@/lib/email/escape-html"
 
 /**
  * The emails the app sends for itself, as opposed to the newsletters somebody

@@ -10,13 +10,15 @@ import {
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
+  type NotificationItem,
+} from "@/lib/api/notification"
+import {
   aiLimitNotificationText,
   automationApprovalNotificationText,
   isAiLimitNotification,
-  type NotificationItem,
-} from "@/lib/api/notification"
-import { focusRing } from "@/lib/focus-ring"
-import { formatDateTime, formatRelativeTime } from "@/lib/format-time"
+} from "@/lib/notification-types"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
 /**

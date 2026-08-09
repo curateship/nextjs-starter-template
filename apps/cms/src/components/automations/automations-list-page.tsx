@@ -1,8 +1,12 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
+  CircleDashedIcon,
   CopyIcon,
+  CreditCardIcon,
   Loader2Icon,
+  MailIcon,
+  NewspaperIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -32,7 +36,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -67,6 +70,16 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { cn } from "@/lib/utils"
+import { focusRing } from "@/lib/layout/focus-ring"
+import type { AutomationTemplateKey } from "@/lib/automations/templates"
+
+type CreateChoice = "blank" | AutomationTemplateKey
+
+const TEMPLATE_ICONS = {
+  "welcome-members": MailIcon,
+  "changelog-approval": NewspaperIcon,
+  "payment-recovery": CreditCardIcon,
+} satisfies Record<AutomationTemplateKey, typeof MailIcon>
 
 type SortColumn = "name" | "trigger" | "status" | "updated"
 
@@ -95,6 +108,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
+  const [createChoice, setCreateChoice] = React.useState<CreateChoice>("blank")
   const [runCreate, creating] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
@@ -169,6 +183,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const closeCreate = () => {
     setCreateOpen(false)
     setCreateName("")
+    setCreateChoice("blank")
+  }
+
+  const chooseCreateStart = (choice: CreateChoice) => {
+    setCreateChoice(choice)
+    setCreateName(
+      choice === "blank"
+        ? ""
+        : (initial.templates.find((item) => item.key === choice)?.name ?? "")
+    )
   }
 
   const handleCreate = async () => {
@@ -178,10 +202,14 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       return
     }
     await runCreate(async () => {
-      const created = await createAutomation(createName)
+      const created = await createAutomation(
+        createName,
+        createChoice === "blank" ? null : createChoice
+      )
       toast.success(`Created "${created.name}".`)
       setCreateOpen(false)
       setCreateName("")
+      setCreateChoice("blank")
       await openEditor(created.id)
     })
   }
@@ -504,41 +532,71 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
 
       <FormDialog
         open={createOpen}
-        dirty={Boolean(createName.trim())}
+        dirty={Boolean(createName.trim()) || createChoice !== "blank"}
         busy={creating}
         onClose={closeCreate}
       >
         {(requestClose) => (
-          <DialogContent variant="admin" className="sm:max-w-lg">
+          <DialogContent variant="admin" className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>New automation</DialogTitle>
               <DialogDescription>
-                Name it, then build the flow on the canvas.
+                Start with a ready-to-edit flow or a blank canvas.
               </DialogDescription>
             </DialogHeader>
-            <DialogBody>
-              <Card size="sm">
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="automation-name">Name</Label>
-                    <Input
-                      id="automation-name"
-                      value={createName}
-                      maxLength={80}
-                      autoFocus
-                      placeholder="Weekly changelog email"
-                      onChange={(event) => setCreateName(event.target.value)}
-                      aria-invalid={!createName.trim() || undefined}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault()
-                          void handleCreate()
-                        }
-                      }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+            <DialogBody className="grid gap-5">
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium">Starting point</legend>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                  <TemplateChoiceCard
+                    selected={createChoice === "blank"}
+                    icon={<CircleDashedIcon className="size-4" />}
+                    name="Blank canvas"
+                    description="Build your own flow one step at a time."
+                    steps={["No steps yet"]}
+                    onClick={() => chooseCreateStart("blank")}
+                  />
+                  {initial.templates.map((template) => {
+                    const Icon = TEMPLATE_ICONS[template.key]
+                    return (
+                      <TemplateChoiceCard
+                        key={template.key}
+                        selected={createChoice === template.key}
+                        icon={<Icon className="size-4" />}
+                        name={template.name}
+                        description={template.description}
+                        steps={template.steps}
+                        onClick={() => chooseCreateStart(template.key)}
+                      />
+                    )
+                  })}
+                </div>
+              </fieldset>
+
+              <div className="grid gap-2">
+                <Label htmlFor="automation-name">Name</Label>
+                <Input
+                  id="automation-name"
+                  value={createName}
+                  maxLength={80}
+                  placeholder="Weekly changelog email"
+                  onChange={(event) => setCreateName(event.target.value)}
+                  aria-invalid={!createName.trim() || undefined}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      void handleCreate()
+                    }
+                  }}
+                />
+              </div>
+
+              {createChoice !== "blank" ? (
+                <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                  This flow starts turned off. Review its audience and email
+                  before you turn it on or run it.
+                </p>
+              ) : null}
             </DialogBody>
             <DialogFooter>
               <Button
@@ -600,6 +658,48 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         onConfirm={() => void handlePauseChange(true)}
       />
     </>
+  )
+}
+
+function TemplateChoiceCard({
+  selected,
+  icon,
+  name,
+  description,
+  steps,
+  onClick,
+}: {
+  selected: boolean
+  icon: React.ReactNode
+  name: string
+  description: string
+  steps: readonly string[]
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        "flex aspect-square min-h-0 flex-col items-start overflow-hidden rounded-xl border bg-card p-2.5 text-left transition-colors hover:border-primary/40 hover:bg-muted/30",
+        focusRing,
+        selected
+          ? "border-primary ring-3 ring-primary/15"
+          : "border-foreground/10"
+      )}
+    >
+      <span className="mb-1.5 flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        {icon}
+      </span>
+      <span className="line-clamp-2 text-xs font-medium">{name}</span>
+      <span className="mt-1 line-clamp-3 text-xs leading-4 text-muted-foreground">
+        {description}
+      </span>
+      <span className="mt-auto line-clamp-2 pt-2 text-[10px] leading-4 text-muted-foreground">
+        {steps.join(" → ")}
+      </span>
+    </button>
   )
 }
 

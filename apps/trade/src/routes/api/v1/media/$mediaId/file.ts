@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { getOwnedMedia } from "@/server/media"
+import { getOwnedMedia } from "@/server/media/library"
 import {
   getFromR2,
   R2StorageNotConfiguredError,
-} from "@/server/media-storage"
-import { findCurrentUser } from "@/server/security"
+} from "@/server/media/storage"
+import { findCurrentUser } from "@/server/auth/security"
 
 export const Route = createFileRoute("/api/v1/media/$mediaId/file")({
   server: {

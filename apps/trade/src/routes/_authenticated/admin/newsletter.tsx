@@ -5,7 +5,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import {
   getBroadcastLoadErrorMessage,
   loadBroadcastsPage,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
 
 export const Route = createFileRoute("/_authenticated/admin/newsletter")({
   loader: () => loadBroadcastsPage(),

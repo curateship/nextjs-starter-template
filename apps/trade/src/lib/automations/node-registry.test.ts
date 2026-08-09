@@ -62,7 +62,9 @@ describe("an app that adds nothing", () => {
   it("gets exactly the shell's own steps", async () => {
     const { automationPaletteItems } = await freshRegistry()
 
+    // Grouped, in the order the palette shows the groups: triggers first.
     expect(automationPaletteItems().map((item) => item.key)).toEqual([
+      "trigger-billing-moment",
       "flow-audience",
       "flow-approval",
       "step-ai",

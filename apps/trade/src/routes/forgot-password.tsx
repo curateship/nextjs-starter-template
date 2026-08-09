@@ -21,9 +21,9 @@ import {
   loadCurrentUser,
   loadSignInOptions,
   requestPasswordReset,
-} from "@/lib/api/auth"
-import { carriedEmail } from "@/lib/carried-email"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+} from "@/lib/api/auth/auth"
+import { carriedEmail } from "@/lib/email/carried-email"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 export const Route = createFileRoute("/forgot-password")({
   loader: async () => {

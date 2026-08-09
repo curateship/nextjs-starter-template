@@ -13,7 +13,8 @@ import {
   getBroadcast,
   updateBroadcast,
   type BroadcastDetail,
-} from "@/lib/api/broadcasts"
+} from "@/lib/api/email/broadcasts"
+import type { SegmentChoice } from "@/lib/api/people/contact-segments"
 import {
   describeAudienceFilter,
   type BroadcastBlockDefaults,
@@ -45,13 +46,21 @@ function fieldsFromDetail(detail: BroadcastDetail): EmailEditableFields {
  */
 export function BroadcastEditor({
   initial,
+  segments,
   initialBlockDefaults,
 }: {
   initial: BroadcastDetail
+  /** Every saved segment, so this email can be aimed at one by name. */
+  segments: SegmentChoice[]
   initialBlockDefaults: BroadcastBlockDefaults
 }) {
   const [broadcast, setBroadcast] = React.useState(initial)
   const [sendOpen, setSendOpen] = React.useState(false)
+  // Name by id, so an audience stored as an id can be said out loud.
+  const segmentNames = React.useMemo(
+    () => Object.fromEntries(segments.map((one) => [one.id, one.name])),
+    [segments]
+  )
   const [fields, setFields] = React.useState<EmailEditableFields>(() =>
     fieldsFromDetail(initial)
   )
@@ -126,7 +135,7 @@ export function BroadcastEditor({
         settingsExtra={
           <InspectorCard title="Who gets it">
             <p className="text-[15px]">
-              {describeAudienceFilter(broadcast.audienceFilter)}
+              {describeAudienceFilter(broadcast.audienceFilter, segmentNames)}
             </p>
             <p className="text-sm leading-relaxed text-muted-foreground">
               Change this on the way out, in Review and send.
@@ -147,7 +156,11 @@ export function BroadcastEditor({
           ) : null
         }
         bottomPanel={
-          <BroadcastStatusPanel broadcast={broadcast} onUpdated={adoptDetail} />
+          <BroadcastStatusPanel
+            broadcast={broadcast}
+            segmentNames={segmentNames}
+            onUpdated={adoptDetail}
+          />
         }
       />
 
@@ -155,6 +168,7 @@ export function BroadcastEditor({
         open={sendOpen}
         onOpenChange={setSendOpen}
         broadcast={broadcast}
+        segments={segments}
         onUpdated={adoptDetail}
       />
     </>

@@ -12,14 +12,14 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import type { SystemEmailListItem } from "@/lib/api/system-emails"
+import type { SystemEmailListItem } from "@/lib/api/email/system-emails"
 import {
   RECENT_SEND_DAYS,
   SYSTEM_EMAIL_META,
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
-import { formatDate } from "@/lib/format-time"
-import { useTableSort } from "@/lib/use-table-sort"
+import { formatDate } from "@/lib/format/format-time"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "subject" | "sends" | "edited"
 

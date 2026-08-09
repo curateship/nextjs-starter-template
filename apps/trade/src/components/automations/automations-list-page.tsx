@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FormDialog } from "@/components/ui/form-dialog"
@@ -44,28 +45,40 @@ import {
 import {
   getAutomationRunErrorMessage,
   runAutomationNow,
-} from "@/lib/api/automation-runs"
+} from "@/lib/api/automations/automation-runs"
 import {
   createAutomation,
   deleteAutomations,
   duplicateAutomation,
   getAutomationErrorMessage,
+  setAutomationLive,
   toAutomationListItem,
   type AutomationListItem,
   type AutomationsPage,
-} from "@/lib/api/automations"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { useAsyncAction } from "@/lib/use-async-action"
-import { formatDate } from "@/lib/format-time"
-import { quoteOneLine } from "@/lib/quote-text"
-import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
-import { useClientPage } from "@/lib/use-client-page"
-import { useLastValue } from "@/lib/use-last-value"
-import { useSelection } from "@/lib/use-selection"
-import { useTableSort } from "@/lib/use-table-sort"
+} from "@/lib/api/automations/automations"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { formatDate } from "@/lib/format/format-time"
+import { quoteOneLine } from "@/lib/format/quote-text"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useClientPage } from "@/lib/hooks/use-client-page"
+import { useLastValue } from "@/lib/hooks/use-last-value"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { useShellRuntime } from "@/components/shell/shell-layout"
+import { cn } from "@/lib/utils"
 
-type SortColumn = "name" | "status" | "updated"
+type SortColumn = "name" | "trigger" | "status" | "updated"
+
+/**
+ * How the Trigger column sorts: the flows that act on their own first when you
+ * ask for it, then the ones that could, then the ones that only ever wait for
+ * somebody to press Run.
+ */
+function triggerRank(automation: AutomationListItem): number {
+  if (automation.enabled) return 2
+  return automation.trigger_name ? 1 : 0
+}
 
 /**
  * The flows list: open, create, duplicate, delete. Deliberately small — the
@@ -85,6 +98,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [runCreate, creating] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
+  const [liveId, setLiveId] = React.useState<string | null>(null)
   const [deleteTargets, setDeleteTargets] = React.useState<
     AutomationListItem[] | null
   >(null)
@@ -109,6 +123,13 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       )
       .sort((left, right) => {
         if (sort === "name") return factor * left.name.localeCompare(right.name)
+        if (sort === "trigger") {
+          return (
+            factor *
+            (triggerRank(left) - triggerRank(right) ||
+              (left.trigger_name ?? "").localeCompare(right.trigger_name ?? ""))
+          )
+        }
         if (sort === "status") return factor * left.summary.localeCompare(right.summary)
         return factor * left.updated_at.localeCompare(right.updated_at)
       })
@@ -202,6 +223,39 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       showErrorToast(getAutomationRunErrorMessage(error))
     } finally {
       setRunningId(null)
+    }
+  }
+
+  /**
+   * Switches one flow's trigger on or off.
+   *
+   * Nothing is caught up on the way back on, and the toast says so — a payment
+   * that failed while this was off is not chased when it goes back on. That is
+   * the promise that makes switching a flow on safe to do at any moment.
+   */
+  const handleToggleLive = async (
+    automation: AutomationListItem,
+    next: boolean
+  ) => {
+    if (liveId) return
+    setLiveId(automation.id)
+    try {
+      const saved = await setAutomationLive(automation.id, next)
+      dismissErrorToast()
+      setAutomations((current) =>
+        current.map((item) =>
+          item.id === saved.id ? toAutomationListItem(saved) : item
+        )
+      )
+      toast.success(
+        next
+          ? `"${automation.name}" is on. Its "${saved.trigger_name}" step starts it from now on — nothing from before is caught up.`
+          : `"${automation.name}" is off. Nothing starts it on its own any more.`
+      )
+    } catch (error) {
+      showErrorToast(getAutomationErrorMessage(error))
+    } finally {
+      setLiveId(null)
     }
   }
 
@@ -306,6 +360,15 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   Name
                 </TableSortButton>
               </TableHead>
+              <TableHead column="meta">
+                <TableSortButton
+                  active={sort === "trigger"}
+                  direction={direction}
+                  onClick={() => toggleSort("trigger")}
+                >
+                  Trigger
+                </TableSortButton>
+              </TableHead>
               <TableHead column="meta" className="hidden sm:table-cell">
                 <TableSortButton
                   active={sort === "status"}
@@ -334,7 +397,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             ? "No automations match that search."
             : "No automations yet. Create the first one."
         }
-        emptyColSpan={5}
+        emptyColSpan={6}
         footer={footer}
       >
         {visible.map((automation) => (
@@ -359,6 +422,14 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               >
                 {automation.name}
               </Link>
+            </TableCell>
+            <TableCell column="meta">
+              <LiveCell
+                automation={automation}
+                busy={liveId === automation.id}
+                disabled={liveId !== null}
+                onChange={(next) => void handleToggleLive(automation, next)}
+              />
             </TableCell>
             <TableCell column="meta" className="hidden sm:table-cell">
               <Badge variant={automation.isValid ? "secondary" : "outline"}>
@@ -529,5 +600,69 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         onConfirm={() => void handlePauseChange(true)}
       />
     </>
+  )
+}
+
+/**
+ * Whether one flow acts on its own, and what it acts on.
+ *
+ * Three states, and the switch only appears in the two where it means
+ * something. A flow with nothing in the Triggers group on it cannot be switched
+ * on at all, so it says what it is instead of offering a control that would
+ * only ever refuse.
+ *
+ * A flow that is already on can always be switched off, whatever is wrong with
+ * it — getting out is never blocked. Switching one *on* needs a flow that
+ * compiles, because a trigger is read from the compiled copy and a broken draft
+ * has none.
+ */
+function LiveCell({
+  automation,
+  busy,
+  disabled,
+  onChange,
+}: {
+  automation: AutomationListItem
+  busy: boolean
+  disabled: boolean
+  onChange: (next: boolean) => void
+}) {
+  if (!automation.trigger_name) {
+    return (
+      <span className="text-xs text-muted-foreground">Runs by hand</span>
+    )
+  }
+
+  const blocked = !automation.isValid && !automation.enabled
+  // Switched on, but edited since into something that cannot run. It fires
+  // nothing in that state, so the switch must not be the only thing on screen —
+  // an "on" beside a trigger's name reads as "this is happening".
+  const stalled = automation.enabled && !automation.isValid
+
+  return (
+    <div className="flex items-center gap-2">
+      <DisabledReason
+        disabled={blocked}
+        reason="This flow has something to fix before it can go live. Open it and check the steps marked in red."
+      >
+        <Switch
+          checked={automation.enabled}
+          disabled={blocked || disabled}
+          aria-label={`${automation.enabled ? "Stop" : "Start"} ${automation.name} reacting to ${automation.trigger_name}`}
+          onCheckedChange={onChange}
+        />
+      </DisabledReason>
+      {busy ? (
+        <Loader2Icon className="size-3.5 animate-spin text-muted-foreground" />
+      ) : null}
+      <span
+        className={cn(
+          "truncate text-xs",
+          stalled ? "text-destructive" : "text-muted-foreground"
+        )}
+      >
+        {stalled ? "On, but not running" : automation.trigger_name}
+      </span>
+    </div>
   )
 }

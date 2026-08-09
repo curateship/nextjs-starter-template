@@ -14,7 +14,7 @@ import {
   useRememberedChoice,
 } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
-import { focusRingInset } from "@/lib/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 
 import {
   canConnectNodes,

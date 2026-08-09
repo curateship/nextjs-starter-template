@@ -14,6 +14,7 @@ import {
   purgeExpiredDeletions,
   restoreOwnAccount,
 } from "@/server/people/account-deletion"
+import { notifyAppAuthEvent } from "@/server/app-options"
 import { appUrlFor } from "@/server/app-url"
 import { cancelSubscriptionsForDeletion } from "@/server/billing/stripe"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
@@ -29,10 +30,15 @@ import {
 } from "@/server/people/email-change"
 import { sendAuthEmail } from "@/server/email/send"
 import { enforceDeliverableEmail } from "@/server/email/deliverability"
+import { mayHaveWorkspace } from "@/lib/app-options"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { googleSignInEnabled } from "@/server/auth/google"
-import { customShellSessions, customShellUsers } from "@/server/schema"
+import {
+  customShellSessions,
+  customShellUsers,
+  type CustomShellUser,
+} from "@/server/schema"
 import { consumeSignInLink, createSignInLinkToken } from "@/server/auth/sign-in-link"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import {
@@ -302,7 +308,7 @@ const registerFn = createServerFn({ method: "POST" })
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
-    const token = await db.transaction(async (tx) => {
+    const { userId, token } = await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(customShellUsers)
         .values({
@@ -317,8 +323,16 @@ const registerFn = createServerFn({ method: "POST" })
         })
         .returning({ id: customShellUsers.id })
 
-      return createAuthToken(user.id, "verify_email", tx)
+      return {
+        userId: user.id,
+        token: await createAuthToken(user.id, "verify_email", tx),
+      }
     })
+
+    // Told here rather than at the first sign-in because this is the only
+    // moment the request that made the account is still in hand, and no
+    // session exists yet to carry it — verification comes first.
+    await notifyAppAuthEvent({ kind: "register", userId })
 
     await sendVerificationEmail(data.email, token)
     return { ok: true }
@@ -408,7 +422,7 @@ const loginFn = createServerFn({ method: "POST" })
     await purgeExpiredDeletions()
 
     const token = await startSessionWithAlert(user, describeRequestOrigin())
-    await startWorkspaceFor(user.id)
+    await startWorkspaceFor(user)
 
     setSessionCookie(token)
     return serializeUser(user)
@@ -486,7 +500,7 @@ const consumeSignInLinkFn = createServerFn({ method: "POST" })
       describeRequestOrigin()
     )
     await clearRateLimit(rateLimitKey)
-    await startWorkspaceFor(user.id)
+    await startWorkspaceFor(user)
 
     setSessionCookie(sessionToken)
     return serializeUser(user)
@@ -1028,9 +1042,32 @@ export function serializeUser(user: {
  * The import stays dynamic: workspaces.ts is a thousand lines of navigation
  * defaults that only the sign-in handlers ever need.
  */
-export async function startWorkspaceFor(userId: string) {
-  const { getOrCreateCurrentWorkspace } = await import("@/server/people/workspaces")
-  await getOrCreateCurrentWorkspace(userId)
+export async function startWorkspaceFor(
+  user: Pick<CustomShellUser, "id" | "role">
+) {
+  // Whoever this app says may have one — admins by default. Every sign-in used
+  // to make one for everybody, and the shell's own database had seven, all
+  // empty, all called "My project", belonging to people who never see the
+  // switcher. See `0048_custom_shell_workspaces_are_for_admins.sql` and
+  // `workspaces.whoMayHave` in `src/lib/app-options.ts`.
+  //
+  // The role is compared inside `mayHaveWorkspace` rather than through
+  // `isAdmin`, which lives in `@/server/auth/security`. This function is
+  // top-level in a file the browser reaches, so importing that module for it
+  // pulled `node:crypto` into the client bundle and broke the app on load.
+  // Inside a handler it would be stripped; out here it is not.
+  if (!mayHaveWorkspace(user)) return
+
+  const { startWorkspaceFor: start, pointAtWorkspaceForHost } = await import(
+    "@/server/people/workspaces"
+  )
+  await start(user.id)
+
+  // Signing in on a workspace's own domain puts you in that workspace. Somebody
+  // who went to alpha's address to sign in means to work on alpha, and making
+  // them pick it again from the switcher is a needless step. On the
+  // deployment's own address nothing moves, so an admin's last choice survives.
+  await pointAtWorkspaceForHost(user.id)
 }
 
 function sendVerificationEmail(email: string, token: string) {

@@ -1,9 +1,15 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { format } from "date-fns"
-import { BanIcon, HardDriveIcon, Loader2Icon } from "lucide-react"
+import {
+  BanIcon,
+  HardDriveIcon,
+  Loader2Icon,
+  PauseIcon,
+  PlayIcon,
+} from "lucide-react"
 import { toast } from "sonner"
-import { describeCode } from "@/lib/code-label"
+import { describeCode } from "@/lib/format/code-label"
 
 import { CancelSubscriptionDialog } from "@/components/admin/cancel-subscription-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -48,22 +54,26 @@ import {
   getAdminUserErrorMessage,
   grantAccountPlan,
   loadAdminAccountDetail,
+  setAccountPlanPaused,
   updateAccountRole,
   updateAccountStatus,
   type AccountDetail,
   type AssignablePlan,
-} from "@/lib/api/admin-users"
+} from "@/lib/api/people/admin-users"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { pauseRefusalCode, pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { saveAiAllowanceOverride } from "@/lib/api/ai"
-import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
-import { formatFileSize } from "@/lib/format-bytes"
-import { formatDate, formatDateTime, formatUtcDate } from "@/lib/format-time"
-import { formatMoney } from "@/lib/money"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { formatFileSize } from "@/lib/format/format-bytes"
+import { formatDate, formatDateTime, formatUtcDate } from "@/lib/format/format-time"
+import { formatMoney } from "@/lib/format/money"
 import {
   BILLING_HISTORY_START,
   describeSubscriptionEvent,
   SUBSCRIPTION_EVENT_LIMIT,
   type SubscriptionEvent,
-} from "@/lib/subscription-events"
+} from "@/lib/billing/subscription-events"
 
 /**
  * Everything about one person, in one window opened from the Users table.
@@ -114,6 +124,8 @@ export function AdminAccountDialog({
     saving: false,
   })
   const [cancellingPlan, setCancellingPlan] = React.useState(false)
+  const [confirmingPause, setConfirmingPause] = React.useState(false)
+  const [runPause, pausing] = useAsyncAction(getAdminUserErrorMessage)
   // Bumped by Retry. The load lives in the effect rather than in a callback the
   // effect calls, so a reply that lands after the window moved on is dropped
   // instead of overwriting whoever is on screen now.
@@ -143,6 +155,29 @@ export function AdminAccountDialog({
   // Nothing has answered yet. Derived rather than a flag set on the way in, so
   // there is no state to keep in step with the request.
   const loading = Boolean(userId) && !detail && !loadError
+
+  // Both directions of pause live here rather than in the Edit tab, for the
+  // same reason cancel does: the plan this window opened with is not the plan
+  // afterwards, so it closes and the list behind it re-reads.
+  const setPaused = React.useCallback(
+    async (paused: boolean) => {
+      if (!detail) return
+
+      const name = detail.profile.name
+      const worked = await runPause(
+        () => setAccountPlanPaused(detail.profile.id, paused),
+        paused
+          ? `${name}'s plan is paused. They are not being billed and are back on the free plan.`
+          : `${name}'s plan is running again. Billing starts from today.`
+      )
+
+      if (worked) {
+        setConfirmingPause(false)
+        await onSaved()
+      }
+    },
+    [detail, onSaved, runPause]
+  )
 
   return (
     <>
@@ -221,6 +256,9 @@ export function AdminAccountDialog({
                       plans={loaded.plans}
                       onStatusChange={setStatus}
                       onCancelPlan={() => setCancellingPlan(true)}
+                      onPausePlan={() => setConfirmingPause(true)}
+                      onResumePlan={() => void setPaused(false)}
+                      pausing={pausing}
                       onSaved={onSaved}
                     />
                   </TabsContent>
@@ -272,6 +310,25 @@ export function AdminAccountDialog({
         )}
       </FormDialog>
 
+      <ConfirmDialog
+        open={confirmingPause}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingPause(false)
+        }}
+        title="Pause their plan?"
+        // Reversible, so it is not dressed as a red one-way door — but it does
+        // take their paid features away, so it still asks first.
+        destructive={false}
+        description={
+          detail
+            ? `${detail.profile.name} stops being billed now and goes back to the free plan, so anything ${detail.subscription.planName} unlocks stops working for them. The time they have already paid for is not refunded — refund that separately in Stripe if you mean to. Starting it again puts them straight back on it and starts the billing again.`
+            : null
+        }
+        confirmLabel="Pause their plan"
+        loading={pausing}
+        onConfirm={() => void setPaused(true)}
+      />
+
       <CancelSubscriptionDialog
         // Remounts per opening so the when-it-ends choice never carries over.
         key={cancellingPlan ? "cancel-open" : "cancel-closed"}
@@ -280,7 +337,11 @@ export function AdminAccountDialog({
             ? {
                 id: detail.profile.id,
                 name: detail.profile.name,
-                planName: detail.subscription.planName,
+                // A paused plan reads as the free plan everywhere else, and a
+                // confirmation offering to cancel "Free" would be a lie.
+                planName:
+                  detail.subscription.pausedPlanName ??
+                  detail.subscription.planName,
                 subscriptionSource: detail.subscription.source,
                 currentPeriodEnd: detail.subscription.currentPeriodEnd,
                 cancelAtPeriodEnd: detail.subscription.cancelAtPeriodEnd,
@@ -363,18 +424,30 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
         <CardHeader>
           <CardTitle>Plan</CardTitle>
           <CardDescription>
-            {subscription.isPaid
-              ? "What they are on and until when."
-              : "Nobody is billing this account."}
+            {/* "Nobody is billing this account" is true of a paused plan and
+                still the wrong thing to say: it reads as somebody who never
+                paid, when they have a plan sitting there waiting. */}
+            {subscription.paused
+              ? "Their plan is on hold, so nothing is being billed."
+              : subscription.isPaid
+                ? "What they are on and until when."
+                : "Nobody is billing this account."}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
           <DetailRow
             label="Plan"
             value={
-              <Badge variant={subscription.isPaid ? "default" : "secondary"}>
-                {subscription.planName}
-              </Badge>
+              <span className="flex flex-wrap items-center justify-end gap-2">
+                <Badge variant={subscription.isPaid ? "default" : "secondary"}>
+                  {subscription.planName}
+                </Badge>
+                {subscription.paused ? (
+                  <Badge variant="outline">
+                    {pausedPlanLabel(subscription.pausedPlanName)}
+                  </Badge>
+                ) : null}
+              </span>
             }
           />
           <DetailRow
@@ -390,23 +463,30 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
           <DetailRow
             label="Billing status"
             value={
-              subscription.isPaid
-                ? `${subscriptionStatusText(subscription.status)}${
-                    subscription.interval
-                      ? `, billed ${subscription.interval}`
-                      : ""
-                  }`
-                : "—"
+              subscription.paused
+                ? "Paused — nothing is being billed"
+                : subscription.isPaid
+                  ? `${subscriptionStatusText(subscription.status)}${
+                      subscription.interval
+                        ? `, billed ${subscription.interval}`
+                        : ""
+                    }`
+                  : "—"
             }
           />
           <DetailRow
             label={subscription.cancelAtPeriodEnd ? "Ends on" : "Renews on"}
             value={
-              subscription.currentPeriodEnd
-                ? formatDate(subscription.currentPeriodEnd)
-                : subscription.isPaid
-                  ? "No end date"
-                  : "—"
+              // A paused plan has no renewal date to give: Stripe is not going
+              // to charge it, and the date on the row is only the period it was
+              // paused in the middle of.
+              subscription.paused
+                ? "Not while it is paused"
+                : subscription.currentPeriodEnd
+                  ? formatDate(subscription.currentPeriodEnd)
+                  : subscription.isPaid
+                    ? "No end date"
+                    : "—"
             }
           />
           <DetailRow
@@ -514,15 +594,27 @@ function AccountEditPanel({
   plans,
   onStatusChange,
   onCancelPlan,
+  onPausePlan,
+  onResumePlan,
+  pausing,
   onSaved,
 }: {
   detail: AccountDetail
   plans: AssignablePlan[]
   onStatusChange: (status: EditStatus) => void
   onCancelPlan: () => void
+  onPausePlan: () => void
+  onResumePlan: () => void
+  /** A pause or a resume is running, so nothing on the plan card may be fired. */
+  pausing: boolean
   onSaved: () => Promise<void>
 }) {
   const { profile, subscription } = detail
+
+  // Why this plan cannot be paused, if it cannot. The button is shown either
+  // way and answers the click with the reason — an admin looking at somebody
+  // who is plainly on Pro should never have to guess why Pause is missing.
+  const pauseRefusal = pauseRefusalCode(subscription)
 
   const grantedPlanId =
     subscription.source === "manual"
@@ -754,32 +846,51 @@ function AccountEditPanel({
         </CardContent>
       </Card>
 
-      {/* Only accounts actually on a paid plan have something to cancel; for
-          everyone else this card would be a button with nothing to do, so it is
-          not shown at all. */}
-      {subscription.isPaid ? (
+      {/* Only accounts with a plan Stripe still holds have anything to do here;
+          for everyone else this card would be buttons with nothing to press, so
+          it is not shown at all. A paused plan counts — it is exactly the one
+          that needs starting again. */}
+      {subscription.isPaid || subscription.paused ? (
         <Card size="sm">
           <CardHeader>
             <CardTitle>Paid plan</CardTitle>
             <CardDescription>
-              {profile.name} is on {subscription.planName}
-              {subscription.source === "manual"
-                ? ", granted by an admin."
-                : ", paid through Stripe."}
-              {subscription.cancelAtPeriodEnd
-                ? ` It is already set to end${
-                    subscription.currentPeriodEnd
-                      ? ` on ${formatDate(subscription.currentPeriodEnd)}`
-                      : ""
-                  } and will not renew.`
-                : ""}
+              {planCardSummary(profile.name, subscription)}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-wrap items-center gap-2">
+            {subscription.paused ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit"
+                disabled={pausing}
+                onClick={onResumePlan}
+              >
+                <PlayIcon className="size-4" />
+                Start their plan again
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit"
+                disabled={pausing}
+                onClick={() =>
+                  pauseRefusal
+                    ? showErrorToast(getAdminUserErrorMessage(pauseRefusal))
+                    : onPausePlan()
+                }
+              >
+                <PauseIcon className="size-4" />
+                Pause their plan
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
               className="w-fit text-destructive hover:text-destructive"
+              disabled={pausing}
               onClick={onCancelPlan}
             >
               <BanIcon className="size-4" />
@@ -821,6 +932,35 @@ function AccountEditPanel({
       </Card>
     </form>
   )
+}
+
+/**
+ * Where this person's paid plan stands, in one sentence — what it is, who is
+ * paying for it, and whether it is on hold or on its way out.
+ */
+function planCardSummary(
+  name: string,
+  subscription: AccountDetail["subscription"]
+) {
+  if (subscription.paused) {
+    return `${name} has ${
+      subscription.pausedPlanName ?? "a paid plan"
+    } paused. Nothing is being billed and they are on the free plan until it starts again.`
+  }
+
+  const paidBy =
+    subscription.source === "manual"
+      ? ", granted by an admin."
+      : ", paid through Stripe."
+  const ending = subscription.cancelAtPeriodEnd
+    ? ` It is already set to end${
+        subscription.currentPeriodEnd
+          ? ` on ${formatDate(subscription.currentPeriodEnd)}`
+          : ""
+      } and will not renew.`
+    : ""
+
+  return `${name} is on ${subscription.planName}${paidBy}${ending}`
 }
 
 /** A label and its value on one line, the way a spec sheet reads. */
