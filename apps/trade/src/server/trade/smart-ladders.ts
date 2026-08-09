@@ -39,6 +39,17 @@ import type { WalletBook } from "@/server/trade/paper"
  * engine that imports it.
  */
 
+export type LadderOrderInput = {
+  marketKey: string
+  side: PaperSide
+  px: number
+  sz: number
+  leverage: number
+  maxLeverage: number
+  reduceOnly: boolean
+  now: number
+}
+
 export type LadderEngineDeps = {
   fill: (
     book: WalletBook,
@@ -56,6 +67,12 @@ export type LadderEngineDeps = {
   ) => void
   dropOrder: (book: WalletBook, orderId: string) => void
   freeCash: (book: WalletBook) => number
+  insertOrder?: (input: LadderOrderInput) => Promise<string>
+  saveLadder?: (
+    row: LadderRow,
+    status: "active" | "done",
+    now: number
+  ) => Promise<void>
 }
 
 /** What the exchange charges a buy at market — it takes the price that is there. */
@@ -93,7 +110,7 @@ function nearNullable(a: number | null, b: number | null): boolean {
   return near(a, b)
 }
 
-type LadderRow = {
+export type LadderRow = {
   id: string
   marketKey: string
   plan: LadderPlan
@@ -225,7 +242,7 @@ export async function advanceLadders(
   }
 }
 
-async function advanceOne(
+export async function advanceOne(
   input: {
     tx: CustomShellDb
     userId: string
@@ -339,7 +356,7 @@ async function advanceOne(
       rung.sellOrderId = null
       if (rung.status === "waiting") rung.status = "cancelled"
     }
-    await saveLadder(tx, userId, row, "done", now)
+    await persistLadder(input, deps, row, "done")
     return
   }
 
@@ -366,16 +383,27 @@ async function advanceOne(
       const exits = ladderExitLevels(plan)
       for (const [index, rung] of plan.rungs.entries()) {
         if (rung.status !== "filled" || rung.sellOrderId) continue
-        rung.sellOrderId = await insertLadderOrder(tx, userId, book, {
-          marketKey: row.marketKey,
-          side: "sell",
-          px: roundPx(exits[index]),
-          sz: rung.sz,
-          leverage: held.leverage,
-          maxLeverage: plan.maxLeverage,
-          reduceOnly: true,
-          now,
-        })
+        rung.sellOrderId = deps.insertOrder
+          ? await deps.insertOrder({
+              marketKey: row.marketKey,
+              side: "sell",
+              px: roundPx(exits[index]),
+              sz: rung.sz,
+              leverage: held.leverage,
+              maxLeverage: plan.maxLeverage,
+              reduceOnly: true,
+              now,
+            })
+          : await insertLadderOrder(tx, userId, book, {
+              marketKey: row.marketKey,
+              side: "sell",
+              px: roundPx(exits[index]),
+              sz: rung.sz,
+              leverage: held.leverage,
+              maxLeverage: plan.maxLeverage,
+              reduceOnly: true,
+              now,
+            })
         changed = true
       }
     }
@@ -388,9 +416,9 @@ async function advanceOne(
   }
   // Reviving a dead rung inserts its order back; do it after the dead pass so
   // one advance never both drops and re-adds the same rung.
-  if (await reviveRungs(plan, input, row)) changed = true
+  if (await reviveRungs(plan, input, deps, row)) changed = true
 
-  if (changed) await saveLadder(tx, userId, row, "active", now)
+  if (changed) await persistLadder(input, deps, row, "active")
 }
 
 /**
@@ -537,6 +565,7 @@ async function reviveRungs(
     marks: ReadonlyMap<string, number>
     now: number
   },
+  deps: LadderEngineDeps,
   row: LadderRow
 ): Promise<boolean> {
   if (plan.twoGreen) return false
@@ -549,16 +578,27 @@ async function reviveRungs(
       rung.status = "skipped"
       continue
     }
-    rung.orderId = await insertLadderOrder(input.tx, input.userId, input.book, {
-      marketKey: row.marketKey,
-      side: "buy",
-      px: rung.px,
-      sz: rung.sz,
-      leverage: 1,
-      maxLeverage: plan.maxLeverage,
-      reduceOnly: false,
-      now: input.now,
-    })
+    rung.orderId = deps.insertOrder
+      ? await deps.insertOrder({
+          marketKey: row.marketKey,
+          side: "buy",
+          px: rung.px,
+          sz: rung.sz,
+          leverage: 1,
+          maxLeverage: plan.maxLeverage,
+          reduceOnly: false,
+          now: input.now,
+        })
+      : await insertLadderOrder(input.tx, input.userId, input.book, {
+          marketKey: row.marketKey,
+          side: "buy",
+          px: rung.px,
+          sz: rung.sz,
+          leverage: 1,
+          maxLeverage: plan.maxLeverage,
+          reduceOnly: false,
+          now: input.now,
+        })
     if (plan.steppedDown > 0) break
   }
   return changed
@@ -914,16 +954,7 @@ async function insertLadderOrder(
   tx: CustomShellDb,
   userId: string,
   book: WalletBook,
-  input: {
-    marketKey: string
-    side: PaperSide
-    px: number
-    sz: number
-    leverage: number
-    maxLeverage: number
-    reduceOnly: boolean
-    now: number
-  }
+  input: LadderOrderInput
 ): Promise<string> {
   const id = randomUUID()
   await tx.insert(tradePaperOrders).values({
@@ -958,4 +989,17 @@ async function saveLadder(
     .where(
       and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, row.id))
     )
+}
+
+async function persistLadder(
+  input: { tx: CustomShellDb; userId: string; now: number },
+  deps: LadderEngineDeps,
+  row: LadderRow,
+  status: "active" | "done"
+): Promise<void> {
+  if (deps.saveLadder) {
+    await deps.saveLadder(row, status, input.now)
+    return
+  }
+  await saveLadder(input.tx, input.userId, row, status, input.now)
 }

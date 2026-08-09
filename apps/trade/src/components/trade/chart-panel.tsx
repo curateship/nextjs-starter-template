@@ -495,9 +495,7 @@ export function ChartPanel({
       {menu ? (
         <ChartOrderMenu
           menu={menu}
-          // The ladders are the practice engine's; on a real wallet the menu
-          // offers plain orders only rather than a row that would refuse.
-          smartOrders={trading.wallet?.kind === "paper"}
+          smartOrders={trading.wallet !== null}
           onClose={() => setMenu(null)}
           onPick={(side) => {
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
@@ -533,6 +531,7 @@ export function ChartPanel({
           state={smart}
           market={market}
           wallet={trading.wallet?.label ?? ""}
+          real={trading.wallet?.kind === "live"}
           equity={equity}
           free={free}
           interval={interval}

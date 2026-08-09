@@ -44,7 +44,7 @@ import {
   ladderBarsKey,
   ladderCandleNeeds,
   type LadderBars,
-} from "@/server/trade/smart-ladders"
+} from "./smart-ladders"
 
 /**
  * The practice trading engine: what a paper wallet does when price moves.
@@ -1213,9 +1213,9 @@ export async function cancelPaperOrder(
 /**
  * Setting or clearing a position's target and stop.
  *
- * Both are checked against the direction of the trade: a stop above a long is
- * not a stop, it is a target written down wrong, and taking it would close the
- * trade the instant it was set.
+ * A target stays on the winning side of the entry. A stop stays beyond the
+ * current price so it cannot fire the instant it is set; after price moves in
+ * the trade's favour, that lets the stop cross the entry and protect profit.
  */
 export async function setPaperBrackets(
   userId: string,
@@ -1225,6 +1225,7 @@ export async function setPaperBrackets(
   const book = await settleWallet(userId, wallet)
   const held = book.positions.get(input.marketKey)
   if (!held) throw new Error("PAPER_POSITION_NOT_FOUND")
+  const mark = await markOf(wallet, input.marketKey)
 
   const ref = parseMarketKey(input.marketKey)
   const rules = ref
@@ -1250,7 +1251,7 @@ export async function setPaperBrackets(
   }
   if (
     slPx !== null &&
-    (!(slPx > 0) || (long ? slPx >= held.entryPx : slPx <= held.entryPx))
+    (!(slPx > 0) || (long ? slPx >= mark : slPx <= mark))
   ) {
     throw new Error("PAPER_STOP_SIDE")
   }

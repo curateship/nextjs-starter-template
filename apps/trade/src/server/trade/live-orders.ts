@@ -169,6 +169,8 @@ export async function placeLiveOrder(
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
+    /** Smart rungs must rest; they may never turn into an untracked instant fill. */
+    restingOnly?: boolean
   }
 ): Promise<PlaceOrderOutcome> {
   const row = await liveWallet(userId, input.walletId)
@@ -183,6 +185,9 @@ export async function placeLiveOrder(
     const mark = prices.get(ref.marketId)
     if (mark === undefined) throw new Error("LIVE_NO_PRICE")
     const marketable = isMarketable(input.side, input.px, mark)
+    if (input.restingOnly && marketable) {
+      throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
+    }
     const entryPx = marketable ? mark : input.px
 
     // Protection must sit on the winning/losing side of the price the order
@@ -205,7 +210,7 @@ export async function placeLiveOrder(
     const outcome = await protocol.orders.place(row.network, authFor(row), {
       marketId: ref.marketId,
       side: input.side,
-      kind: marketable ? "market" : "limit",
+      kind: input.restingOnly ? "postOnly" : marketable ? "market" : "limit",
       px: marketable ? mark : input.px,
       sz: input.sz,
       reduceOnly: input.reduceOnly,
@@ -269,6 +274,35 @@ export async function cancelLiveOrder(
   }
 }
 
+/**
+ * Cancels an exchange order this app has just placed and already knows by id.
+ * Used to roll back a partly accepted multi-order action; unlike the normal
+ * cancel path it does not depend on the next portfolio read seeing the order.
+ */
+export async function rollbackLiveOrder(
+  userId: string,
+  input: { walletId: string; marketKey: string; orderId: string }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  const protocol = getProtocol(row.protocol)
+  const side: PaperSide | null = null
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    await protocol.orders.cancel(row.network, authFor(row), {
+      marketId: ref.marketId,
+      orderId: input.orderId,
+    })
+    await journal(userId, row.id, input.marketKey, {
+      action: "cancelled",
+      side,
+      note: "A partly placed Smart order was rolled back.",
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, side, error)
+  }
+}
+
 export async function closeLivePosition(
   userId: string,
   input: { walletId: string; marketKey: string }
@@ -323,15 +357,17 @@ export async function setLiveBrackets(
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "buy" : "sell"
 
-    // The same side rules every bracket obeys, against the position's entry.
     const long = held.szi > 0
     if (input.tpPx !== null) {
       const winning = long ? input.tpPx > held.entryPx : input.tpPx < held.entryPx
       if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
     }
     if (input.slPx !== null) {
-      const losing = long ? input.slPx < held.entryPx : input.slPx > held.entryPx
-      if (!losing) throw new Error("LIVE_STOP_SIDE")
+      const prices = await protocol.markets.prices(row.network, [ref.marketId])
+      const mark = prices.get(ref.marketId)
+      if (mark === undefined) throw new Error("LIVE_NO_PRICE")
+      const ahead = long ? input.slPx < mark : input.slPx > mark
+      if (!ahead) throw new Error("LIVE_STOP_SIDE")
     }
 
     await protocol.orders.setBrackets(row.network, authFor(row), {

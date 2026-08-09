@@ -32,7 +32,7 @@ import {
   saveBook,
   settleWallet,
 } from "@/server/trade/paper"
-import { wantedStopPx } from "@/server/trade/smart-ladders"
+import { wantedStopPx } from "./smart-ladders"
 import {
   tradePaperOrders,
   tradePaperPositions,
@@ -300,14 +300,14 @@ export async function placeDcaLadder(
 
 // ----- Steering a live ladder -------------------------------------------
 
-type LadderRowRecord = {
+export type LadderRowRecord = {
   id: string
   marketKey: string
   status: "active" | "done"
   plan: LadderPlan
 }
 
-async function activeLadder(
+export async function activeLadder(
   userId: string,
   walletId: string,
   marketKey: string
@@ -330,7 +330,7 @@ async function activeLadder(
   return plan ? { id: row.id, marketKey: row.marketKey, status: row.status, plan } : null
 }
 
-async function ladderById(
+export async function ladderById(
   userId: string,
   walletId: string,
   ladderId: string
@@ -352,7 +352,7 @@ async function ladderById(
   return { id: row.id, marketKey: row.marketKey, status: row.status, plan }
 }
 
-async function saveLadderPlan(
+export async function saveLadderPlan(
   userId: string,
   ladderId: string,
   plan: LadderPlan,
