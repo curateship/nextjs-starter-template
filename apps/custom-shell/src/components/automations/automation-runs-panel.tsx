@@ -119,9 +119,17 @@ export function AutomationRunsPanel({
   // the panel is still holding the list from before the run existed — it opened
   // on a run it could not draw, and showed nothing at all. One read puts the
   // new run at the top where it belongs.
+  //
+  // Once per run id, and no more. A read always hands back a fresh list, so
+  // "still not there, read again" is a loop that never ends — and a link to a
+  // run of another flow is never in this flow's list, so it would hammer the
+  // server for as long as the page stayed open.
+  const chased = React.useRef<string | null>(null)
   React.useEffect(() => {
     if (!openRunId) return
     if (runs.some((run) => run.id === openRunId)) return
+    if (chased.current === openRunId) return
+    chased.current = openRunId
     void refresh()
   }, [openRunId, runs, refresh])
 
@@ -314,18 +322,34 @@ function RunRow({
     }
   }, [run.id])
 
+  /**
+   * The run as freshly as this row knows it.
+   *
+   * Open, the row re-reads itself every few seconds and the list behind it does
+   * not, so the row's own reading is the newer one — a run that finishes while
+   * it is open still reads "Running" in the list, so the badge said the wrong
+   * thing and the poll below, judged on that, never stopped.
+   *
+   * Shut, the row stops reading and its last answer freezes, so the list is the
+   * newer one again.
+   */
+  const current = expanded && detail ? detail : run
+
   React.useEffect(() => {
     if (!expanded) return
     void load()
+  }, [expanded, load])
 
-    // A run that has not finished is still growing steps. Read once and it
-    // stays as it was the instant it was opened — press Run and the row opens
-    // on a run with no steps at all, then never draws the ones that arrive a
-    // second later. A finished run never changes again, so this stops.
-    if (finalStatuses.has(run.status)) return
+  // A run that has not finished is still growing steps. Read once and it stays
+  // as it was the instant it was opened — press Run and the row opens on a run
+  // with no steps at all, then never draws the ones that arrive a second later.
+  // A finished run never changes again, so this stops.
+  React.useEffect(() => {
+    if (!expanded) return
+    if (finalStatuses.has(current.status)) return
     const timer = window.setInterval(() => void load(), STILL_GOING_MS)
     return () => window.clearInterval(timer)
-  }, [expanded, load, run.status])
+  }, [expanded, load, current.status])
 
   async function decide(decision: "approved" | "rejected") {
     if (deciding) return
@@ -351,8 +375,8 @@ function RunRow({
     }
   }
 
-  const waiting = run.status === "waiting_approval"
-  const finished = !waiting && run.status !== "active"
+  const waiting = current.status === "waiting_approval"
+  const finished = !waiting && current.status !== "active"
 
   return (
     <div className="rounded-lg border border-foreground/10 bg-muted/20">
@@ -374,11 +398,15 @@ function RunRow({
           />
           <Badge
             variant={
-              waiting ? "default" : run.status === "failed" ? "destructive" : "secondary"
+              waiting
+                ? "default"
+                : current.status === "failed"
+                  ? "destructive"
+                  : "secondary"
             }
             className="shrink-0"
           >
-            {automationRunStatusLabel(run.status, run.approval_decision)}
+            {automationRunStatusLabel(current.status, current.approval_decision)}
           </Badge>
           {showFlow ? (
             <span className="min-w-0 truncate text-xs font-medium" title={run.automation_name}>
