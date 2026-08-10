@@ -555,20 +555,6 @@ export async function readWorkspaceList(
 }
 
 /**
- * This person's workspaces.
- *
- * A workspace now survives the account that made it, which leaves rows nobody
- * owns — and they are deliberately **not** listed here yet. Everything that
- * reads this list is reachable by any signed-in member (`loadWorkspacesFn` is
- * `userGet`, the delete pair is `userPost`, and `/workspaces` has no admin
- * check), so including them would let a member see and delete a workspace that
- * is nobody's — taking its contacts, segments and broadcasts with it.
- *
- * Reaching an ownerless workspace belongs with the task that makes any admin
- * able to see any workspace, because that is where the admin check gets made.
- * Until then an orphan is kept and unreachable, which is the safe way round.
- */
-/**
  * An address nobody is using yet, derived from the workspace's name.
  *
  * Names are not unique and "My project" is what every workspace starts as, so a
