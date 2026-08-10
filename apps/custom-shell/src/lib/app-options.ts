@@ -145,6 +145,12 @@ type AutomationOptions = {
    * the engine reads these descriptors, and a panel with a dropdown in it
    * reaches the database. Nothing to remember: that pointer is the only thing
    * the type will accept.
+   *
+   * A step with a result richer than one sentence uses the matching
+   * `runResult: () => import("./send-sms-result")` pointer. Its executor returns
+   * a small JSON `output`, and the shell keeps that app-owned view inside the
+   * ordinary run row with the status, retries and errors still around it.
+   * Large reports stay in an app-owned table; the output carries their id.
    */
   nodes?: readonly AutomationNodeDescriptor[]
 }

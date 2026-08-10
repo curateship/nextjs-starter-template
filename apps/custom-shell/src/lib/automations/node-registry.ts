@@ -9,6 +9,7 @@ import type {
   AutomationNodeFieldsProps,
   AutomationNodeIcon,
   AutomationNodePort,
+  AutomationNodeRunResultProps,
   AutomationPaletteGroup,
 } from "./node-descriptor"
 import { aiStepNode } from "./nodes/ai-step"
@@ -16,6 +17,7 @@ import { audienceNode } from "./nodes/audience"
 import { billingMomentNode } from "./nodes/billing-moment"
 import { placeholderNode } from "./nodes/placeholder"
 import { sendEmailNode } from "./nodes/send-email"
+import { timeActivateNode } from "./nodes/time-activate"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
 import { webhookNode } from "./nodes/webhook"
 
@@ -30,6 +32,7 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
   audienceNode,
   billingMomentNode,
+  timeActivateNode,
   placeholderNode,
   sendEmailNode,
   waitForApprovalNode,
@@ -238,6 +241,31 @@ export function automationNodeFields(
 
   const component = lazy(descriptor.fields)
   lazyFields.set(descriptor.kind, component)
+  return component
+}
+
+/**
+ * The rich run-history view a node brings with it, when it has one.
+ *
+ * Kept lazy for the same server/browser boundary as settings panels, and kept
+ * by kind so opening another run does not rebuild the app's component.
+ */
+const lazyRunResults = new Map<
+  string,
+  ComponentType<AutomationNodeRunResultProps>
+>()
+
+export function automationNodeRunResult(
+  kind: string
+): ComponentType<AutomationNodeRunResultProps> | null {
+  const descriptor = automationRegistry().byKind.get(kind)
+  if (!descriptor?.runResult) return null
+
+  const cached = lazyRunResults.get(kind)
+  if (cached) return cached
+
+  const component = lazy(descriptor.runResult)
+  lazyRunResults.set(kind, component)
   return component
 }
 

@@ -8,7 +8,9 @@ import {
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
+import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
 import { webhookNode } from "@/lib/automations/nodes/webhook"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
@@ -22,6 +24,10 @@ import { workspaceForRun } from "@/server/automations/runs"
 import type { AutomationTriggerFacts } from "@/lib/automations/run"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import {
+  formatScheduledInstant,
+  readAutomationSchedule,
+} from "@/lib/automations/schedule"
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import { executeWebhookNode } from "@/server/automations/webhook"
 
@@ -45,9 +51,9 @@ export type AutomationExecutorContext = {
 
 export type AutomationExecutorResult =
   /** Done — carry on to whatever this step feeds into. */
-  | { type: "next"; summary: string }
+  | { type: "next"; summary: string; output?: AutomationRunOutput }
   /** Done, and deliberately the end of the flow. */
-  | { type: "complete"; summary: string }
+  | { type: "complete"; summary: string; output?: AutomationRunOutput }
   /**
    * Stop and wait for a person. The engine hands the claim back, so the run
    * occupies nothing while it waits, and auto-rejects it at `deadlineAt`.
@@ -92,6 +98,26 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       }
     }
     return { type: "next", summary: billingMomentLine(settings, facts, who) }
+  },
+
+  [timeActivateNode.kind]: async ({ run, settings }) => {
+    const schedule = readAutomationSchedule(settings)
+    const scheduledAt = run.triggerFacts?.scheduledAt
+    if (
+      schedule &&
+      typeof scheduledAt === "string" &&
+      Number.isFinite(new Date(scheduledAt).getTime())
+    ) {
+      return {
+        type: "next",
+        summary: `Started on schedule at ${formatScheduledInstant(new Date(scheduledAt), schedule.timezone)}.`,
+      }
+    }
+    return {
+      type: "next",
+      summary:
+        "Started by hand. The saved schedule was not changed, and its next automatic run stays where it was.",
+    }
   },
 
   /**
