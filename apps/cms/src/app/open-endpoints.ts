@@ -28,7 +28,14 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "directory/public.ts:readDirectoryBrowseFn":
+    "The directory a site publishes is a public page, so its list of published listings has to be readable by somebody with no account.",
+  "directory/public.ts:readDirectoryListingFn":
+    "A listing's own page is public. It answers with published listings on the visited site only, so a draft is missing rather than merely hidden.",
+  "directory/public.ts:readDirectoryCategoryFn":
+    "A category page is public, and it reads the same published listings the browse page does, scoped to the site whose address was typed.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The
