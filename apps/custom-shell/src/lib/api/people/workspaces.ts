@@ -204,7 +204,7 @@ export function deleteWorkspaces(workspaceIds: string[]) {
  * with "Cannot read properties of undefined". The role is already on the user
  * the guard put in context, so comparing it costs nothing.
  */
-function seesEveryWorkspace(user: Pick<CustomShellUser, "role">) {
+export function seesEveryWorkspace(user: Pick<CustomShellUser, "role">) {
   return user.role === "admin"
 }
 

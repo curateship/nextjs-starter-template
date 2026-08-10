@@ -61,7 +61,7 @@ import {
 } from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { formatDate } from "@/lib/format/format-time"
+import { formatDate, formatDateTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useClientPage } from "@/lib/hooks/use-client-page"
@@ -81,7 +81,7 @@ const TEMPLATE_ICONS = {
   "payment-recovery": CreditCardIcon,
 } satisfies Record<AutomationTemplateKey, typeof MailIcon>
 
-type SortColumn = "name" | "trigger" | "status" | "updated"
+type SortColumn = "name" | "trigger" | "status" | "nextRun" | "updated"
 
 /**
  * How the Trigger column sorts: the flows that act on their own first when you
@@ -145,6 +145,12 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
           )
         }
         if (sort === "status") return factor * left.summary.localeCompare(right.summary)
+        if (sort === "nextRun") {
+          if (left.next_run_at === null)
+            return right.next_run_at === null ? 0 : 1
+          if (right.next_run_at === null) return -1
+          return factor * left.next_run_at.localeCompare(right.next_run_at)
+        }
         return factor * left.updated_at.localeCompare(right.updated_at)
       })
   }, [automations, direction, search, sort])
@@ -401,9 +407,18 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                 <TableSortButton
                   active={sort === "status"}
                   direction={direction}
-                onClick={() => toggleSort("status")}
+                  onClick={() => toggleSort("status")}
                 >
                   Status
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
+                <TableSortButton
+                  active={sort === "nextRun"}
+                  direction={direction}
+                  onClick={() => toggleSort("nextRun")}
+                >
+                  Next run
                 </TableSortButton>
               </TableHead>
               <TableHead column="meta">
@@ -425,7 +440,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             ? "No automations match that search."
             : "No automations yet. Create the first one."
         }
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={footer}
       >
         {visible.map((automation) => (
@@ -463,6 +478,11 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               <Badge variant={automation.isValid ? "secondary" : "outline"}>
                 {automation.summary}
               </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {automation.next_run_at
+                ? formatDateTime(automation.next_run_at)
+                : "—"}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden md:table-cell">
               {formatDate(automation.updated_at)}

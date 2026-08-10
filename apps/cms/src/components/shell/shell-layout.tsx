@@ -624,6 +624,14 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     favicon: settings.favicon ?? fallback.favicon,
     logo: settings.logo ?? fallback.logo,
     logoDark: settings.logoDark ?? fallback.logoDark,
+    publicNavigation: Array.isArray(settings.publicNavigation)
+      ? settings.publicNavigation
+      : fallback.publicNavigation,
+    publicFooter: Array.isArray(settings.publicFooter)
+      ? settings.publicFooter
+      : fallback.publicFooter,
+    publicFooterCopyright:
+      settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
     ),

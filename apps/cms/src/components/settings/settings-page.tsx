@@ -5,6 +5,7 @@ import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
+import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
@@ -45,13 +46,20 @@ const memberSettingsTabs = [
   { id: "member-top-right", label: "Top right menu" },
 ] as const
 
+/** Settings for the pages a site's visitors see before signing in. */
+const publicSettingsTabs = [
+  { id: "public-navigation", label: "Navigation" },
+] as const
+
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
   | (typeof memberSettingsTabs)[number]["id"]
+  | (typeof publicSettingsTabs)[number]["id"]
 
 const allSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
   ...memberSettingsTabs.map((tab) => tab.id),
+  ...publicSettingsTabs.map((tab) => tab.id),
 ]
 
 export function getSettingsTabFromPath(path: string): SettingsTabId {
@@ -102,6 +110,13 @@ export function SettingsPage({
           tabs={memberSettingsTabs}
           activeTab={activeTab}
         />
+
+        <SettingsTabGroup
+          storageId="settings-rail-public"
+          title="Public"
+          tabs={publicSettingsTabs}
+          activeTab={activeTab}
+        />
       </div>
 
       <div className="min-w-0 flex-1">
@@ -111,6 +126,23 @@ export function SettingsPage({
             onConfigChange={onConfigChange}
             onMaintenanceChange={onMaintenanceChange}
             maintenanceBusy={maintenanceBusy}
+          />
+        ) : null}
+        {activeTab === "public-navigation" ? (
+          <PublicSiteSettings
+            navigation={config.publicNavigation}
+            footer={config.publicFooter}
+            footerCopyright={config.publicFooterCopyright}
+            onNavigationChange={(publicNavigation) =>
+              onConfigChange({ ...config, publicNavigation })
+            }
+            onFooterChange={(publicFooter) =>
+              onConfigChange({ ...config, publicFooter })
+            }
+            onFooterCopyrightChange={(publicFooterCopyright) =>
+              onConfigChange({ ...config, publicFooterCopyright })
+            }
+            onSaveConfig={onSaveConfig}
           />
         ) : null}
         {activeTab === "sidebar" ? (

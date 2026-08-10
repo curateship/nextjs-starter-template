@@ -11,6 +11,14 @@ import {
   type ShellConfig,
 } from "@/lib/custom-shell"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationLinks,
+  MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH,
+  MAX_PUBLIC_NAVIGATION_HREF_LENGTH,
+  MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
+  MAX_PUBLIC_NAVIGATION_LINKS,
+} from "@/lib/pages/public-navigation"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -112,6 +120,16 @@ const shellStylingSchema = z.object({
   modal: shellModalStylingSchema,
 })
 
+const publicNavigationLinkSchema = z.object({
+  label: z.string().max(MAX_PUBLIC_NAVIGATION_LABEL_LENGTH),
+  href: z.string().max(MAX_PUBLIC_NAVIGATION_HREF_LENGTH),
+})
+
+const publicNavigationSchema = z
+  .array(publicNavigationLinkSchema)
+  .max(MAX_PUBLIC_NAVIGATION_LINKS)
+  .transform(cleanPublicNavigationLinks)
+
 /**
  * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
  * the handler is what decides which ids survive, and it drops anything no
@@ -157,6 +175,12 @@ const shellConfigSchema = z.object({
   favicon: z.string(),
   logo: z.string(),
   logoDark: z.string(),
+  publicNavigation: publicNavigationSchema,
+  publicFooter: publicNavigationSchema,
+  publicFooterCopyright: z
+    .string()
+    .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
+    .transform(cleanPublicFooterCopyright),
   topRightNavigation: z.array(shellTopRightItemSchema),
   memberTopRightNavigation: z.array(shellTopRightItemSchema),
   sections: z.array(shellSectionSchema),
@@ -205,6 +229,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
+            publicNavigation: data.publicNavigation,
+            publicFooter: data.publicFooter,
+            publicFooterCopyright: data.publicFooterCopyright,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,

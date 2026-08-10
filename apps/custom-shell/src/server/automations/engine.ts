@@ -1,13 +1,16 @@
 import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm"
 
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
+import { automationSettingValueSchema } from "@/lib/automations/graph"
 import { automationNodeName } from "@/lib/automations/node-registry"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import {
   automationEntryNodeId,
   automationNextNodeId,
   type AutomationApprovalDecision,
 } from "@/lib/automations/run"
 import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
+import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
 import { readAutomationsPaused } from "@/server/automations/pause"
 import {
   automationExecutorFor,
@@ -45,16 +48,17 @@ const CLAIM_BATCH_SIZE = 20
  * inside* still finishes, and the new owner starts that same step again. Two
  * executions of one step is the failure this window trades against.
  *
- * Today both executors return instantly, so it cannot happen. The first node
- * that does real work for real time — an HTTP call, an AI call, a large send —
- * needs the claim extended while it runs (a heartbeat), not a bigger number
- * here. That belongs to the engine task, and it should land with that node.
+ * The webhook executor is capped at ten seconds, safely inside this window.
+ * Any future step allowed to run for minutes needs the claim extended while it
+ * works (a heartbeat), not a bigger timeout here.
  */
 const CLAIM_TIMEOUT_MINUTES = 5
 /** A cap on one run's share of a pass, so a long flow cannot starve the rest. */
 const NODE_BUDGET_PER_TICK = 25
 const MAX_ATTEMPTS = 3
 const RETRY_BACKOFF_MS = 30_000
+/** Rich history data stays a pointer or compact view model, not a report dump. */
+const MAX_STEP_OUTPUT_JSON_LENGTH = 50_000
 
 /**
  * One pass: look for the moments that start a flow, claim the runs that are
@@ -73,7 +77,13 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   // Before anything is claimed, so a run a trigger starts this instant is
   // walked in this same pass rather than sitting still for fifteen seconds.
   // Never throws — a scan that falls over must not stop the runs already going.
-  const { started } = await runBillingTriggerScans(database)
+  let started = 0
+  try {
+    started += await runTimeActivateTriggers(database)
+  } catch (error) {
+    console.error("Time trigger scan failed", error)
+  }
+  started += (await runBillingTriggerScans(database)).started
 
   const claimToken = uuid()
 
@@ -204,6 +214,7 @@ async function processRun(
     }
 
     let result: AutomationExecutorResult
+    let output: AutomationRunOutput | null = null
     try {
       result = await executor({
         database,
@@ -212,6 +223,7 @@ async function processRun(
         settings: node.settings,
         now,
       })
+      if (result.type !== "park") output = readStepOutput(result.output)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       attempts += 1
@@ -266,6 +278,7 @@ async function processRun(
       status: "completed",
       attempts: attempts + 1,
       summary: result.summary,
+      output,
       startedAt,
     })
 
@@ -679,6 +692,7 @@ async function recordStep(
     status: "completed" | "failed"
     attempts: number
     summary: string
+    output?: AutomationRunOutput | null
     error?: string
     startedAt: Date
   }
@@ -691,8 +705,23 @@ async function recordStep(
     status: step.status,
     attempts: step.attempts,
     summary: step.summary,
+    output: step.output ?? null,
     error: step.error ?? null,
     startedAt: step.startedAt,
     finishedAt: now(),
   })
+}
+
+/** Refuses output an app could not safely store or send back to the browser. */
+function readStepOutput(value: AutomationRunOutput | undefined) {
+  if (value === undefined) return null
+
+  const parsed = automationSettingValueSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error("Automation step output must contain valid JSON values.")
+  }
+  if (JSON.stringify(parsed.data).length > MAX_STEP_OUTPUT_JSON_LENGTH) {
+    throw new Error("Automation step output must stay under 50,000 characters.")
+  }
+  return parsed.data
 }

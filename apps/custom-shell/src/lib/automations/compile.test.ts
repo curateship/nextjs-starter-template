@@ -56,6 +56,20 @@ function sendEmail(id: string, settings: AutomationNodeSettings = {}) {
   }
 }
 
+function webhook(id: string, settings: AutomationNodeSettings = {}) {
+  return {
+    id,
+    kind: "webhook",
+    x: 0,
+    y: 0,
+    settings: {
+      url: "https://hooks.example.com/automation",
+      secret: "shared-secret",
+      ...settings,
+    },
+  }
+}
+
 function edge(id: string, from: string, to: string, sourcePort = "then") {
   return { id, from, sourcePort, to }
 }
@@ -208,6 +222,31 @@ describe("compileAutomationGraph", () => {
     expect(result.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: "invalid_settings", nodeId: "email" }),
+      ])
+    )
+  })
+
+  it("compiles a webhook and refuses an internal address", () => {
+    const clean = compileAutomationGraph({
+      nodes: [webhook("hook")],
+      edges: [],
+      viewport,
+    })
+    expect(clean.errors).toEqual([])
+    expect(clean.config?.nodes.hook.settings).toEqual({
+      url: "https://hooks.example.com/automation",
+      secret: "shared-secret",
+    })
+
+    const blocked = compileAutomationGraph({
+      nodes: [webhook("hook", { url: "https://localhost/hook" })],
+      edges: [],
+      viewport,
+    })
+    expect(blocked.config).toBeNull()
+    expect(blocked.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "invalid_settings", nodeId: "hook" }),
       ])
     )
   })

@@ -75,6 +75,14 @@
   box-sizing: border-box;
 }
 
+/* The studios already separate their workspace from the navigation with the
+   content gutter. The shell sidebar's own right rule becomes a stray full-
+   height line beside that gutter, so hide it only while a studio is open. */
+[data-slot="sidebar-wrapper"]:has(.studio-root)
+  [data-slot="sidebar-container"][data-side="left"] {
+  border-right-width: 0;
+}
+
 /* Flat mode removes card chrome, but the editor still needs one clear line
    where its side and bottom panels meet the canvas. The side borders sit on
    the stage body, below its shared header, so they never cut through header

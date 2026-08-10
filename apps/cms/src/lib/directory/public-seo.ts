@@ -1,0 +1,147 @@
+/**
+ * What a public directory page tells a browser and a search engine about
+ * itself: the tab title, the description under it in a result, and the JSON-LD
+ * block a search engine reads instead of guessing.
+ *
+ * Plain functions over plain values, so they can be checked without a browser
+ * — `public-seo.test.ts` is most of the proof that a page says the right thing
+ * about the right site.
+ *
+ * **Everything here is per site.** The site's own name is the only thing the
+ * shell holds per site today, so it is what the titles are built from; there
+ * is no per-site tagline or default description field yet, and adding one is a
+ * change to the shell rather than to this app.
+ */
+
+/** The separator the shell's own titles use, so every tab reads the same. */
+const TITLE_SEPARATOR = " · "
+
+/** How long a description may be before a search engine cuts it anyway. */
+const MAX_DESCRIPTION = 160
+
+/**
+ * A page's title: what the page is, then the site it belongs to. Blank parts
+ * drop out, so a site with no name still gets a title rather than a stray
+ * separator.
+ */
+export function directoryTitle(...parts: (string | null | undefined)[]) {
+  return parts
+    .map((part) => part?.trim() ?? "")
+    .filter(Boolean)
+    .join(TITLE_SEPARATOR)
+}
+
+/**
+ * The description meta tag, cut at a length a result can show. The first
+ * non-empty of what it is handed wins, so a listing's own line beats the
+ * fallback the page would otherwise use.
+ */
+export function directoryDescription(
+  ...candidates: (string | null | undefined)[]
+) {
+  const chosen =
+    candidates.map((value) => value?.trim() ?? "").find(Boolean) ?? ""
+  return chosen.length > MAX_DESCRIPTION
+    ? `${chosen.slice(0, MAX_DESCRIPTION - 1).trimEnd()}…`
+    : chosen
+}
+
+/** The meta tags a public page adds, in the shape a route's `head` wants. */
+export function directoryHead(title: string, description: string) {
+  return {
+    meta: [
+      { title },
+      ...(description
+        ? [
+            { name: "description", content: description },
+            { property: "og:title", content: title },
+            { property: "og:description", content: description },
+            { name: "twitter:card", content: "summary" },
+          ]
+        : []),
+    ],
+  }
+}
+
+/** An absolute address on this site, for anything a search engine reads. */
+export function siteUrlFor(siteUrl: string, path: string) {
+  return `${siteUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`
+}
+
+type JsonLdNode = Record<string, unknown>
+
+/**
+ * The JSON-LD for one listing: who runs the site, and what this page is.
+ *
+ * Two things rather than one, matching the directory app — the Organization
+ * block is what ties every page on a site together, and the WebPage block is
+ * this page. A listing is described as a WebPage rather than a LocalBusiness
+ * because a listing here is a plain record: it has no opening hours, no
+ * geographic coordinates and no price, and claiming a business schema without
+ * them describes the page worse, not better.
+ */
+export function listingJsonLd(input: {
+  siteName: string
+  siteUrl: string
+  title: string
+  slug: string
+  description: string
+  image: string
+  createdAt: Date | string
+  updatedAt: Date | string
+}): JsonLdNode {
+  const page: JsonLdNode = {
+    "@type": "WebPage",
+    name: input.title,
+    url: siteUrlFor(input.siteUrl, `/directory/${input.slug}`),
+  }
+  if (input.description) page.description = input.description
+  if (input.image) page.image = input.image
+  page.datePublished = asDate(input.createdAt)
+  page.dateModified = asDate(input.updatedAt)
+
+  return graph([organisationJsonLd(input.siteName, input.siteUrl), page])
+}
+
+/** The same for a category page: the site, and the list this page is. */
+export function categoryJsonLd(input: {
+  siteName: string
+  siteUrl: string
+  name: string
+  slug: string
+  description: string
+}): JsonLdNode {
+  const page: JsonLdNode = {
+    "@type": "CollectionPage",
+    name: input.name,
+    url: siteUrlFor(input.siteUrl, `/directory/category/${input.slug}`),
+  }
+  if (input.description) page.description = input.description
+
+  return graph([organisationJsonLd(input.siteName, input.siteUrl), page])
+}
+
+function organisationJsonLd(siteName: string, siteUrl: string): JsonLdNode {
+  return { "@type": "Organization", name: siteName, url: siteUrl }
+}
+
+function graph(nodes: JsonLdNode[]): JsonLdNode {
+  return { "@context": "https://schema.org", "@graph": nodes }
+}
+
+function asDate(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : value
+}
+
+/**
+ * The JSON-LD as the text of a `<script>` tag.
+ *
+ * `<` is escaped because that is the one character that could end the script
+ * tag early and turn data into markup — a listing whose title contained
+ * `</script><img onerror=…>` would otherwise be running code rather than
+ * describing a page. JSON escaping alone does not do it, because `<` is a
+ * perfectly legal character in a JSON string.
+ */
+export function jsonLdText(data: JsonLdNode) {
+  return JSON.stringify(data).replace(/</g, "\\u003c")
+}

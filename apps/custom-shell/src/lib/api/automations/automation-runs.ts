@@ -21,6 +21,7 @@ import type {
   AutomationRunStatus,
   AutomationRunStepStatus,
 } from "@/lib/automations/run"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { createErrorMessage } from "../error-message"
 
 export type AutomationRunItem = {
@@ -43,9 +44,11 @@ export type AutomationRunItem = {
 export type AutomationRunStepItem = {
   id: string
   node_id: string
+  kind: string
   step_name: string
   status: AutomationRunStepStatus
   summary: string
+  output: AutomationRunOutput | null
   error: string | null
   started_at: string
   finished_at: string
@@ -122,8 +125,9 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(runListSchema)
   .handler(async ({ data, context }) => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const page = await readRunsForAutomation(
-      await workspaceIdForRequest(context.user.id),
+      workspaceId,
       data.automationId,
       data.offset
     )
@@ -158,9 +162,11 @@ const getAutomationRunFn = createServerFn({ method: "GET" })
       steps: run.steps.map((step) => ({
         id: step.id,
         node_id: step.nodeId,
+        kind: step.kind,
         step_name: step.stepName,
         status: step.status as AutomationRunStepStatus,
         summary: step.summary,
+        output: step.output,
         error: step.error,
         started_at: step.startedAt.toISOString(),
         finished_at: step.finishedAt.toISOString(),

@@ -7,6 +7,7 @@ import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
+import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
@@ -48,14 +49,21 @@ const memberSettingsTabs = [
   { id: "member-top-right", label: "Top right menu" },
 ] as const
 
+/** Settings for the pages a site's visitors see before signing in. */
+const publicSettingsTabs = [
+  { id: "public-navigation", label: "Navigation" },
+] as const
+
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
   | (typeof memberSettingsTabs)[number]["id"]
+  | (typeof publicSettingsTabs)[number]["id"]
 
 /** Every id the shell itself owns — what an app's tab may not be called. */
 const shellSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
   ...memberSettingsTabs.map((tab) => tab.id),
+  ...publicSettingsTabs.map((tab) => tab.id),
 ]
 
 /**
@@ -119,9 +127,17 @@ export function SettingsPage({
           activeTab={activeTab}
         />
 
-        {/* The app's own, in their own card so it is obvious at a glance which
-            settings belong to this app rather than to the shell. Nothing is
-            drawn when an app has none, which is every app by default. */}
+        <SettingsTabGroup
+          storageId="settings-rail-public"
+          title="Public"
+          tabs={publicSettingsTabs}
+          activeTab={activeTab}
+        />
+
+        {/* The app's own, last and in their own card, so it is obvious at a
+            glance which settings belong to this app rather than to the shell.
+            Nothing is drawn when an app has none, which is every app by
+            default. */}
         {extraTabs().length > 0 ? (
           <SettingsTabGroup
             storageId="settings-rail-app"
@@ -142,6 +158,23 @@ export function SettingsPage({
             onConfigChange={onConfigChange}
             onMaintenanceChange={onMaintenanceChange}
             maintenanceBusy={maintenanceBusy}
+          />
+        ) : null}
+        {activeTab === "public-navigation" ? (
+          <PublicSiteSettings
+            navigation={config.publicNavigation}
+            footer={config.publicFooter}
+            footerCopyright={config.publicFooterCopyright}
+            onNavigationChange={(publicNavigation) =>
+              onConfigChange({ ...config, publicNavigation })
+            }
+            onFooterChange={(publicFooter) =>
+              onConfigChange({ ...config, publicFooter })
+            }
+            onFooterCopyrightChange={(publicFooterCopyright) =>
+              onConfigChange({ ...config, publicFooterCopyright })
+            }
+            onSaveConfig={onSaveConfig}
           />
         ) : null}
         {activeTab === "sidebar" ? (

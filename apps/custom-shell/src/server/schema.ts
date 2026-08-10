@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm"
 
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import type { AutomationGraph } from "@/lib/automations/graph"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import type {
   AutomationApprovalDecision,
   AutomationRunStatus,
@@ -765,6 +766,8 @@ export const customShellAutomations = pgTable(
      * its own.
      */
     enabled: boolean("enabled").notNull().default(false),
+    /** The next scheduled occurrence, null while off or without a Time trigger. */
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -777,6 +780,9 @@ export const customShellAutomations = pgTable(
       table.workspaceId,
       table.updatedAt
     ),
+    index("ix_automations_next_run")
+      .on(table.nextRunAt)
+      .where(sql`${table.nextRunAt} is not null`),
   ]
 )
 
@@ -955,6 +961,8 @@ export const customShellAutomationRunSteps = pgTable(
     attempts: integer("attempts").notNull().default(1),
     /** What the step did, in the words a person would use. Always present. */
     summary: text("summary").notNull(),
+    /** Small JSON-only data for a node's optional rich run-history view. */
+    output: jsonb("output").$type<AutomationRunOutput>(),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),

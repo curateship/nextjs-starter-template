@@ -32,8 +32,10 @@ import {
   listWaitingRuns,
   type AutomationRunDetailItem,
   type AutomationRunItem,
+  type AutomationRunStepItem,
   type AutomationRunsPanelData,
 } from "@/lib/api/automations/automation-runs"
+import { automationNodeRunResult } from "@/lib/automations/node-registry"
 import {
   automationRunStatusLabel,
   automationRunStepStatusLabels,
@@ -479,6 +481,7 @@ function RunRow({
                       {step.error ? (
                         <p className="text-destructive">{step.error}</p>
                       ) : null}
+                      <StepRunResult runId={detail.id} step={step} />
                     </div>
                   ))}
                 </div>
@@ -498,6 +501,32 @@ function RunRow({
           )}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/** The node's own result UI, kept inside the shell's status and error frame. */
+function StepRunResult({
+  runId,
+  step,
+}: {
+  runId: string
+  step: AutomationRunStepItem
+}) {
+  if (step.output === null) return null
+  const result = automationNodeRunResult(step.kind)
+  if (!result) return null
+
+  return (
+    <div className="pt-2">
+      <React.Suspense fallback={null}>
+        {React.createElement(result, {
+          runId,
+          stepId: step.id,
+          nodeId: step.node_id,
+          output: step.output,
+        })}
+      </React.Suspense>
     </div>
   )
 }

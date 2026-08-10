@@ -5,11 +5,11 @@ import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
   ChevronsUpDownIcon,
+  ExternalLinkIcon,
   Loader2Icon,
   PlusIcon,
 } from "lucide-react"
 
-import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { WorkspaceFormDialog } from "@/components/shared/workspace-form-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,12 +26,16 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import {
-  getWorkspaceErrorMessage,
-  switchWorkspace,
-  type WorkspaceItem,
-} from "@/lib/api/people/workspaces"
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import type { WorkspaceItem } from "@/lib/api/people/workspaces"
+import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { capitalise, workspaceWord } from "@/lib/app-options"
+
+const subscribeToBrowserOrigin = () => () => {}
 
 /**
  * The line under a site's name is **its address**, which is the one thing that
@@ -61,6 +65,11 @@ export function WorkspaceSwitcher({
   const word = workspaceWord()
   const activeWorkspaceName = activeWorkspace?.name ?? ""
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
+  const browserOrigin = React.useSyncExternalStore(
+    subscribeToBrowserOrigin,
+    () => window.location.origin,
+    () => ""
+  )
 
   /**
    * What a site answers on. Its own domain when it has one, otherwise its name
@@ -74,10 +83,25 @@ export function WorkspaceSwitcher({
   const addressOf = (workspace: WorkspaceItem) =>
     workspace.customDomain ||
     (baseDomain ? `${workspace.subdomain}.${baseDomain}` : workspace.name)
+  const publicUrlOf = (workspace: WorkspaceItem) => {
+    const address = addressOf(workspace)
+    if (!baseDomain && !workspace.customDomain) return "/"
+
+    const currentOrigin = browserOrigin ? new URL(browserOrigin) : null
+    const protocol = workspace.customDomain
+      ? "https:"
+      : (currentOrigin?.protocol ??
+        (baseDomain === "localhost" ? "http:" : "https:"))
+    const port =
+      !workspace.customDomain && currentOrigin?.port
+        ? `:${currentOrigin.port}`
+        : ""
+    return `${protocol}//${address}${port}`
+  }
   const [createOpen, setCreateOpen] = React.useState(false)
-  const [busyWorkspaceId, setBusyWorkspaceId] = React.useState<string | null>(
-    null
-  )
+  // The switch itself lives in `useSwitchWorkspace`, because the workspaces
+  // dashboard does the same thing and the two must not drift apart.
+  const { switchToWorkspace, busyWorkspaceId } = useSwitchWorkspace()
 
   if (!activeWorkspace) {
     return null
@@ -85,35 +109,7 @@ export function WorkspaceSwitcher({
 
   const handleSwitch = async (workspaceId: string) => {
     if (workspaceId === activeWorkspace.id) return
-
-    dismissErrorToast()
-    setBusyWorkspaceId(workspaceId)
-    try {
-      await switchWorkspace(workspaceId)
-
-      // **The whole page reloads, rather than the router re-running loaders.**
-      //
-      // Sixteen screens read their loader data once, into `useState(initial…)`,
-      // and a re-run hands them fresh props that `useState` ignores — so after
-      // switching, the Automations list, the media library and a dozen others
-      // went on showing the site you had just left until somebody pressed
-      // reload. Fixing each of them would be sixteen edits, one of which would
-      // be missed, and every screen written afterwards would have to remember.
-      //
-      // Switching site is a rare, deliberate act that changes *everything* on
-      // screen, so throwing the page away is the honest answer rather than a
-      // shortcut: nothing from the site you left should survive it.
-      //
-      // The address is kept. On a list that is exactly right; on a record's own
-      // page — an automation the other site does not have — it lands on
-      // not-found, which is true, and the sidebar is right there.
-      window.location.reload()
-      return
-    } catch (error) {
-      showErrorToast(getWorkspaceErrorMessage(error))
-    } finally {
-      setBusyWorkspaceId(null)
-    }
+    await switchToWorkspace(workspaceId)
   }
 
   return (
@@ -169,31 +165,54 @@ export function WorkspaceSwitcher({
                     const busy = busyWorkspaceId === workspace.id
 
                     return (
-                      <DropdownMenuItem
-                        key={workspace.id}
-                        disabled={Boolean(busyWorkspaceId)}
-                        onSelect={() => void handleSwitch(workspace.id)}
-                        className="gap-2 p-2"
-                      >
-                        <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
-                          <WorkspaceLogo
-                            favicon={workspaceFavicon}
-                            icon={workspace.icon}
-                            name={displayName}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium">{displayName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {addressOf(workspace)}
+                      <div key={workspace.id} className="flex items-center">
+                        <DropdownMenuItem
+                          disabled={Boolean(busyWorkspaceId)}
+                          onSelect={() => void handleSwitch(workspace.id)}
+                          className="min-w-0 flex-1 gap-2 p-2"
+                        >
+                          <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
+                            <WorkspaceLogo
+                              favicon={workspaceFavicon}
+                              icon={workspace.icon}
+                              name={displayName}
+                            />
                           </div>
-                        </div>
-                        {busy ? (
-                          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                        ) : workspace.active ? (
-                          <CheckIcon className="size-4 text-muted-foreground" />
-                        ) : null}
-                      </DropdownMenuItem>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium">
+                              {displayName}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {addressOf(workspace)}
+                            </div>
+                          </div>
+                          {busy ? (
+                            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                          ) : workspace.active ? (
+                            <CheckIcon className="size-4 text-muted-foreground" />
+                          ) : null}
+                        </DropdownMenuItem>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              asChild
+                              className="size-8 shrink-0 p-0"
+                            >
+                              <a
+                                href={publicUrlOf(workspace)}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Open ${displayName} site in a new tab`}
+                              >
+                                <ExternalLinkIcon className="size-4" />
+                              </a>
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            Open site in a new tab
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     )
                   })}
                   <DropdownMenuSeparator />

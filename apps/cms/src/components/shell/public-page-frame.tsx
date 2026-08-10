@@ -1,7 +1,23 @@
 import * as React from "react"
+import { MenuIcon } from "lucide-react"
 
 import { BrandLogo } from "@/components/shell/brand-logo"
-import { useAppName, useBrandLogo, useBrandLogoDark } from "@/lib/branding"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  useAppName,
+  useBrandLogo,
+  useBrandLogoDark,
+  usePublicFooter,
+  usePublicFooterCopyright,
+  usePublicNavigation,
+} from "@/lib/branding"
+import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
 import { cn } from "@/lib/utils"
 
 /**
@@ -24,19 +40,133 @@ export function PublicPageFrame({
   const appName = useAppName()
   const logo = useBrandLogo()
   const logoDark = useBrandLogoDark()
+  const navigation = usePublicNavigation()
+  const footer = usePublicFooter()
+  const footerCopyright = usePublicFooterCopyright()
+  const hasSiteFrame = Boolean(
+    navigation.length || footer.length || footerCopyright
+  )
+
+  // Empty settings preserve the original markup and classes exactly. Existing
+  // apps therefore keep their centred, bare public frame until an admin adds
+  // something to it.
+  if (!hasSiteFrame) {
+    return (
+      <main
+        className={cn(
+          "grid min-h-screen place-items-center bg-muted/60 px-4 py-10",
+          className
+        )}
+      >
+        <div className="flex w-full flex-col items-center gap-2 md:gap-3">
+          <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
+          <p className="text-sm font-medium text-foreground">{appName}</p>
+          {children}
+        </div>
+      </main>
+    )
+  }
 
   return (
-    <main
+    <div className="flex min-h-screen flex-col bg-muted/60">
+      <header className="border-b bg-background">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4">
+          <a href="/" className="flex min-w-0 items-center gap-2">
+            <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
+            <span className="truncate text-sm font-medium text-foreground">
+              {appName}
+            </span>
+          </a>
+          {navigation.length ? (
+            <>
+              <nav aria-label="Main navigation" className="hidden md:block">
+                <ul className="flex items-center gap-1">
+                  {navigation.map((link, index) => (
+                    <li key={`${link.label}-${link.href}-${index}`}>
+                      <PublicLink link={link} className="px-2.5 py-1.5" />
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="md:hidden"
+                    aria-label="Open navigation menu"
+                  >
+                    <MenuIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-48">
+                  {navigation.map((link, index) => (
+                    <DropdownMenuItem
+                      key={`${link.label}-${link.href}-${index}`}
+                      asChild
+                    >
+                      <a href={link.href}>{link.label}</a>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : null}
+        </div>
+      </header>
+      <main
+        className={cn(
+          "grid flex-1 place-items-center px-4 py-10",
+          className
+        )}
+      >
+        <div className="flex w-full flex-col items-center gap-2 md:gap-3">
+          {children}
+        </div>
+      </main>
+      {footer.length || footerCopyright ? (
+        <footer className="border-t bg-background">
+          <div className="mx-auto grid w-full max-w-6xl gap-2 px-3 py-4 md:px-4">
+            {footer.length ? (
+              <nav aria-label="Footer navigation">
+                <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {footer.map((link, index) => (
+                    <li key={`${link.label}-${link.href}-${index}`}>
+                      <PublicLink link={link} />
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ) : null}
+            {footerCopyright ? (
+              <p className="text-center text-xs text-muted-foreground">
+                {footerCopyright}
+              </p>
+            ) : null}
+          </div>
+        </footer>
+      ) : null}
+    </div>
+  )
+}
+
+function PublicLink({
+  link,
+  className,
+}: {
+  link: PublicNavigationLink
+  className?: string
+}) {
+  return (
+    <a
+      href={link.href}
       className={cn(
-        "grid min-h-screen place-items-center bg-muted/60 px-4 py-10",
+        "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className
       )}
     >
-      <div className="flex w-full flex-col items-center gap-2 md:gap-3">
-        <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
-        <p className="text-sm font-medium text-foreground">{appName}</p>
-        {children}
-      </div>
-    </main>
+      {link.label}
+    </a>
   )
 }

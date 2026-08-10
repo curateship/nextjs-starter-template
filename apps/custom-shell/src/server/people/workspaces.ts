@@ -41,6 +41,11 @@ import {
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
 import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationLinks,
+  type PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
+import {
   WORKSPACE_STATUSES,
   type WorkspaceStatus,
 } from "@/lib/workspaces/status"
@@ -398,6 +403,9 @@ export const NAVIGATION_VERSION = 18
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  publicNavigation: PublicNavigationLink[]
+  publicFooter: PublicNavigationLink[]
+  publicFooterCopyright: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   /** How far this workspace's saved sidebar has been brought forward. */
@@ -554,20 +562,6 @@ export async function readWorkspaceList(
   }
 }
 
-/**
- * This person's workspaces.
- *
- * A workspace now survives the account that made it, which leaves rows nobody
- * owns — and they are deliberately **not** listed here yet. Everything that
- * reads this list is reachable by any signed-in member (`loadWorkspacesFn` is
- * `userGet`, the delete pair is `userPost`, and `/workspaces` has no admin
- * check), so including them would let a member see and delete a workspace that
- * is nobody's — taking its contacts, segments and broadcasts with it.
- *
- * Reaching an ownerless workspace belongs with the task that makes any admin
- * able to see any workspace, because that is where the admin check gets made.
- * Until then an orphan is kept and unreachable, which is the safe way round.
- */
 /**
  * An address nobody is using yet, derived from the workspace's name.
  *
@@ -2231,6 +2225,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+      publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+      publicFooterCopyright: cleanPublicFooterCopyright(
+        settings.publicFooterCopyright
+      ),
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -2278,6 +2277,11 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -2365,6 +2369,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    publicNavigation: [],
+    publicFooter: [],
+    publicFooterCopyright: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     // The defaults above are already the current shape, so a new workspace has

@@ -11,7 +11,10 @@ import type { UserAnnouncement } from "@/lib/announcement"
 import { serializeUser, type AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
-import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
+import {
+  seesEveryWorkspace,
+  type WorkspaceListResponse,
+} from "@/lib/api/people/workspaces"
 
 export type ShellBootstrap = {
   user: AuthUser | null
@@ -63,7 +66,23 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     const [settings, workspaces, { entitlements }, unreadCount, announcements] =
       await Promise.all([
         settingsPromise,
-        readWorkspaceList(user.id),
+        // **The same list the workspaces dashboard shows**, which means an
+        // admin sees every workspace here too — including one another admin
+        // made, and one nobody owns because the admin who made it is gone.
+        //
+        // It used to be this person's own, and the two screens disagreed: a
+        // workspace was on the dashboard and missing from the switcher, so it
+        // could be seen and never worked in. Worse, switching to one from the
+        // dashboard left the sidebar naming a different workspace as the
+        // current one, because the one you had moved to was not in its list at
+        // all.
+        //
+        // A member is unchanged — `seesEveryWorkspace` is false for them — and
+        // while an admin is viewing the app as a member, `user` *is* that
+        // member, so the view stays honest.
+        readWorkspaceList(user.id, undefined, {
+          seesEveryWorkspace: seesEveryWorkspace(user),
+        }),
         loadEntitlements(user.id),
         settingsPromise.then((value) =>
           countUnreadNotifications(
@@ -134,6 +153,9 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     appName: string
     logo: string
     logoDark: string
+    publicNavigation: ShellConfig["publicNavigation"]
+    publicFooter: ShellConfig["publicFooter"]
+    publicFooterCopyright: string
     hostIsUnknown: boolean
   }> => {
     try {
@@ -144,7 +166,15 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
       // default", so this goes through the one place that decides what that is.
       // And never a dead end on a failure — a database that could not be read
       // must not turn every address into a 404.
-      return { appName: "", logo: "", logoDark: "", hostIsUnknown: false }
+      return {
+        appName: "",
+        logo: "",
+        logoDark: "",
+        publicNavigation: [],
+        publicFooter: [],
+        publicFooterCopyright: "",
+        hostIsUnknown: false,
+      }
     }
   }
 )

@@ -159,11 +159,9 @@ export function MeasureLayer({
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Only the left button draws one. A right-click is handled below.
     if (event.button !== 0) return
-    // Shift is held while this is armed, and shift-drag is also the browser's
-    // own "extend the selection" gesture — so without this, dragging a ruler
-    // selected every word from the chart to wherever the pointer went, right
-    // across the panels beside it. Refusing the default stops the selection
-    // being started at all.
+    // Shift-click normally extends the browser's text selection from wherever
+    // it last started. This press belongs to the ruler, so keep page text out
+    // of the gesture without disabling ordinary selection elsewhere.
     event.preventDefault()
     if (measure?.stage === "locked") {
       setMeasure(null)
