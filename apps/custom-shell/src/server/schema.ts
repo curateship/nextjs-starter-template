@@ -766,6 +766,8 @@ export const customShellAutomations = pgTable(
      * its own.
      */
     enabled: boolean("enabled").notNull().default(false),
+    /** The next scheduled occurrence, null while off or without a Time trigger. */
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -778,6 +780,9 @@ export const customShellAutomations = pgTable(
       table.workspaceId,
       table.updatedAt
     ),
+    index("ix_automations_next_run")
+      .on(table.nextRunAt)
+      .where(sql`${table.nextRunAt} is not null`),
   ]
 )
 

@@ -17,6 +17,7 @@ import { audienceNode } from "./nodes/audience"
 import { billingMomentNode } from "./nodes/billing-moment"
 import { placeholderNode } from "./nodes/placeholder"
 import { sendEmailNode } from "./nodes/send-email"
+import { timeActivateNode } from "./nodes/time-activate"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
 import { webhookNode } from "./nodes/webhook"
 
@@ -31,6 +32,7 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
   audienceNode,
   billingMomentNode,
+  timeActivateNode,
   placeholderNode,
   sendEmailNode,
   waitForApprovalNode,

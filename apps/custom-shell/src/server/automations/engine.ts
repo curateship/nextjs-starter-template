@@ -10,6 +10,7 @@ import {
   type AutomationApprovalDecision,
 } from "@/lib/automations/run"
 import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
+import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
 import { readAutomationsPaused } from "@/server/automations/pause"
 import {
   automationExecutorFor,
@@ -76,7 +77,13 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   // Before anything is claimed, so a run a trigger starts this instant is
   // walked in this same pass rather than sitting still for fifteen seconds.
   // Never throws — a scan that falls over must not stop the runs already going.
-  const { started } = await runBillingTriggerScans(database)
+  let started = 0
+  try {
+    started += await runTimeActivateTriggers(database)
+  } catch (error) {
+    console.error("Time trigger scan failed", error)
+  }
+  started += (await runBillingTriggerScans(database)).started
 
   const claimToken = uuid()
 
