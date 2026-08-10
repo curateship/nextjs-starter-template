@@ -12,6 +12,7 @@ import {
   automationRunStatusLabel,
 } from "@/lib/automations/run"
 import { approvalDeadline } from "@/lib/automations/nodes/wait-for-approval"
+import { webhookNode } from "@/lib/automations/nodes/webhook"
 import { automationExecutors } from "@/server/automations/executors"
 import { deleteWorkspaceAutomations } from "@/server/automations/flows"
 import {
@@ -204,6 +205,52 @@ describe("running a flow", () => {
     expect(detail?.status).toBe("failed")
     expect(detail?.error).toContain("cannot run yet")
     expect(detail?.steps[0].status).toBe("failed")
+  })
+
+  it("retries a failed webhook three times before failing the run", async () => {
+    const user = await insertUser(db, { role: "admin" })
+    const automation = await insertAutomation(user.id, [
+      {
+        kind: webhookNode.kind,
+        settings: {
+          url: "https://hooks.example.com/automation",
+          secret: "",
+        },
+      },
+    ])
+    const original = automationExecutors[webhookNode.kind]
+    automationExecutors[webhookNode.kind] = async () => {
+      throw new Error("Webhook returned HTTP 500 after 5 ms.")
+    }
+
+    try {
+      const run = await startAutomationRun(site, user.id, automation.id, db)
+      await runAutomationTick(db)
+      expect((await readRun(run.id)).attempts).toBe(1)
+
+      await db
+        .update(customShellAutomationRuns)
+        .set({ wakeAt: new Date(0) })
+        .where(eq(customShellAutomationRuns.id, run.id))
+      await runAutomationTick(db)
+      expect((await readRun(run.id)).attempts).toBe(2)
+
+      await db
+        .update(customShellAutomationRuns)
+        .set({ wakeAt: new Date(0) })
+        .where(eq(customShellAutomationRuns.id, run.id))
+      await runAutomationTick(db)
+
+      const finished = await readRun(run.id)
+      expect(finished.status).toBe("failed")
+      expect(finished.attempts).toBe(3)
+      const detail = await getAutomationRun(site, run.id, db)
+      expect(detail?.steps).toHaveLength(3)
+      expect(detail?.steps.every((step) => step.status === "failed")).toBe(true)
+      expect(detail?.error).toBe("Webhook returned HTTP 500 after 5 ms.")
+    } finally {
+      automationExecutors[webhookNode.kind] = original
+    }
   })
 
   it("never claims a run that is already claimed by a live ticker", async () => {

@@ -8,6 +8,7 @@ import {
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
+import { webhookNode } from "@/lib/automations/nodes/webhook"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
@@ -22,6 +23,7 @@ import type { AutomationTriggerFacts } from "@/lib/automations/run"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { executeSendEmailNode } from "@/server/automations/send-email"
+import { executeWebhookNode } from "@/server/automations/webhook"
 
 /**
  * What a step is handed, and what it may answer with.
@@ -37,6 +39,8 @@ export type AutomationExecutorContext = {
   /** The node's settings, already strict-parsed at compile time. */
   settings: Record<string, unknown>
   now: () => Date
+  /** The dry-run task sets this so outside effects can describe, not happen. */
+  dryRun?: boolean
 }
 
 export type AutomationExecutorResult =
@@ -145,6 +149,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
   },
 
   [sendEmailNode.kind]: executeSendEmailNode,
+
+  [webhookNode.kind]: executeWebhookNode,
 
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =

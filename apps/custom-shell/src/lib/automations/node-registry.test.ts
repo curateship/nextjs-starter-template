@@ -66,6 +66,7 @@ describe("an app that adds nothing", () => {
     expect(automationPaletteItems().map((item) => item.key)).toEqual([
       "trigger-billing-moment",
       "action-send-email",
+      "action-webhook",
       "flow-audience",
       "flow-approval",
       "step-ai",

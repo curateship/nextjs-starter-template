@@ -17,6 +17,7 @@ import { billingMomentNode } from "./nodes/billing-moment"
 import { placeholderNode } from "./nodes/placeholder"
 import { sendEmailNode } from "./nodes/send-email"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
+import { webhookNode } from "./nodes/webhook"
 
 export type {
   AutomationNodeIcon,
@@ -32,6 +33,7 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   placeholderNode,
   sendEmailNode,
   waitForApprovalNode,
+  webhookNode,
 ]
 
 export const AUTOMATION_PALETTE_GROUPS: readonly AutomationPaletteGroup[] = [

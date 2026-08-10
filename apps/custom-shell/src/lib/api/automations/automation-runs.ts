@@ -102,9 +102,10 @@ const loadRunsPanelFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<AutomationRunsPanelData> => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const [flow, waiting] = await Promise.all([
-      readRunsForAutomation(context.user.id, data.automationId),
-      readRunsAwaitingApproval(context.user.id),
+      readRunsForAutomation(workspaceId, data.automationId),
+      readRunsAwaitingApproval(workspaceId),
     ])
     return {
       runs: flow.runs.map(serializeRun),
@@ -118,8 +119,9 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(runListSchema)
   .handler(async ({ data, context }) => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const page = await readRunsForAutomation(
-      context.user.id,
+      workspaceId,
       data.automationId,
       data.offset
     )
@@ -129,7 +131,9 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
 const listWaitingRunsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }) => {
-    const waiting = await readRunsAwaitingApproval(context.user.id)
+    const waiting = await readRunsAwaitingApproval(
+      await workspaceIdForRequest(context.user.id)
+    )
     return { runs: waiting.runs.map(serializeRun), total: waiting.total }
   })
 

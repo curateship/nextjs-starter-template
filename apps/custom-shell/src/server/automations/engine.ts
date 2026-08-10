@@ -45,10 +45,9 @@ const CLAIM_BATCH_SIZE = 20
  * inside* still finishes, and the new owner starts that same step again. Two
  * executions of one step is the failure this window trades against.
  *
- * Today both executors return instantly, so it cannot happen. The first node
- * that does real work for real time — an HTTP call, an AI call, a large send —
- * needs the claim extended while it runs (a heartbeat), not a bigger number
- * here. That belongs to the engine task, and it should land with that node.
+ * The webhook executor is capped at ten seconds, safely inside this window.
+ * Any future step allowed to run for minutes needs the claim extended while it
+ * works (a heartbeat), not a bigger timeout here.
  */
 const CLAIM_TIMEOUT_MINUTES = 5
 /** A cap on one run's share of a pass, so a long flow cannot starve the rest. */
