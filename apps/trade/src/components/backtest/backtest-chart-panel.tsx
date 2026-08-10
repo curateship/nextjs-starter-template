@@ -255,18 +255,10 @@ export function BacktestChartPanel({
                       placed is something that happened, and that should never
                       end up behind a dash. */}
                   <IndicatorLayer surface={surface} paint={indicators} />
-                  <BacktestMarksLayer
-                    surface={surface}
-                    fills={fills}
-                    barMs={barMs}
-                  />
+                  <BacktestMarksLayer surface={surface} fills={fills} />
                   {/* Over the arrows: a picked trade is what you are looking
                       at, and its box has to be readable through them. */}
-                  <BacktestFocusLayer
-                    surface={surface}
-                    trade={focusTrade}
-                    barMs={barMs}
-                  />
+                  <BacktestFocusLayer surface={surface} trade={focusTrade} />
                   <PaintLayer
                     surface={surface}
                     drawings={paint.drawings}

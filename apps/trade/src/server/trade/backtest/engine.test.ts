@@ -351,12 +351,15 @@ describe("a crash that bounces inside one candle", () => {
     )
 
     const fills = result.coins[0].fills
-    const crashClose = crash.openTime + FOUR_HOURS
+    // A fill is stamped with the OPEN of the bar it happened in — the moment
+    // that names that candle everywhere else in the app. It used to carry the
+    // bar's close, which is the same instant as the next candle's open, so
+    // every trade read four hours later than it happened.
     const boughtInCrash = fills.filter(
-      (one) => one.side === "buy" && one.fillTime === crashClose
+      (one) => one.side === "buy" && one.fillTime === crash.openTime
     )
     const soldInCrash = fills.filter(
-      (one) => one.side === "sell" && one.fillTime === crashClose
+      (one) => one.side === "sell" && one.fillTime === crash.openTime
     )
 
     expect(boughtInCrash.length).toBeGreaterThan(1)

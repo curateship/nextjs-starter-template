@@ -397,9 +397,19 @@ export async function runBacktest(
           }
         }
       }
+      // Stamped with the bar's OPEN time, not the close time the engine runs
+      // on. A candle is named by the moment it opened everywhere else in the
+      // app, so a fill stamped with the close lands on the NEXT candle — a 4h
+      // run puts every trade four hours after it happened. The chart used to
+      // hide this by taking a bar back off again in two separate places; the
+      // trades table did not, and printed the wrong time.
+      //
+      // The engine still WORKS on the close time and must keep doing so: a bar
+      // is only settled once it has finished, and reading it earlier would let
+      // a trade see inside a candle that had not happened yet.
       fillsByMarket
         .get(one.marketKey)
-        ?.push({ ...one, rung: rung >= 0 ? rung : null })
+        ?.push({ ...one, fillTime: time, rung: rung >= 0 ? rung : null })
     }
     book.fills = []
     book.touchedMarkets.clear()
@@ -412,7 +422,11 @@ export async function runBacktest(
       positions: held,
       marks,
     })
-    equity.push({ t: closeTime, usd: figures.equity })
+    // The bar's own name again, for the reason on the fills above. This is the
+    // pot once this bar has finished, and that belongs to THIS bar — stamping
+    // it with the close puts the whole curve one candle to the right, and
+    // drags the dates on "worst dip" and "most in play" along with it.
+    equity.push({ t: time, usd: figures.equity })
     inPlay.push(
       held.reduce((sum, position) => sum + positionMargin(position), 0)
     )

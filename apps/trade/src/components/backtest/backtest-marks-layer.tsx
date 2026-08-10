@@ -76,19 +76,9 @@ type Hovered = { mark: BacktestFillMark; x: number; y: number }
 export function BacktestMarksLayer({
   surface,
   fills,
-  barMs,
 }: {
   surface: ChartSurface
   fills: readonly BacktestFillMark[]
-  /**
-   * How long one candle lasts.
-   *
-   * The engine stamps a fill at the **close** of the bar it happened in, which
-   * is the same instant as the NEXT bar's open — so asking the chart where
-   * that moment is puts every arrow one candle to the right of the candle it
-   * belongs to. Stepping back one bar puts it on its own candle.
-   */
-  barMs: number
 }) {
   const [hovered, setHovered] = React.useState<Hovered | null>(null)
 
@@ -111,7 +101,7 @@ export function BacktestMarksLayer({
         {fills.map((fill, index) => {
           const y = surface.yOf(fill.px)
           if (y === null) return null
-          const x = surface.xOf(fill.at - barMs)
+          const x = surface.xOf(fill.at)
           if (x < -OFF_SCREEN || x > surface.width + OFF_SCREEN) return null
 
           return (

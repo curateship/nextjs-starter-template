@@ -18,13 +18,10 @@ import type { BacktestTrade } from "@/lib/trade/backtest/result"
 export function BacktestFocusLayer({
   surface,
   trade,
-  barMs,
 }: {
   surface: ChartSurface
   /** The picked trade, or null when nothing is picked. */
   trade: BacktestTrade | null
-  /** A fill is stamped at its bar's close — see the marks layer. */
-  barMs: number
 }) {
   if (!trade || trade.exitAt === null || trade.exitPx === null) return null
 
@@ -40,9 +37,9 @@ export function BacktestFocusLayer({
       aria-hidden="true"
     >
       <line
-        x1={surface.xOf(trade.entryAt - barMs)}
+        x1={surface.xOf(trade.entryAt)}
         y1={entryY}
-        x2={surface.xOf(trade.exitAt - barMs)}
+        x2={surface.xOf(trade.exitAt)}
         y2={exitY}
         // Green when it made money, red when it lost — the candles' own pair,
         // so the line says which way it went without a label.
