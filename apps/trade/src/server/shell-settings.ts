@@ -70,6 +70,11 @@ export async function readBranding(
   appName: string
   logo: string
   logoDark: string
+  publicNavigation: ReturnType<
+    typeof parseWorkspaceSettings
+  >["publicNavigation"]
+  publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
+  publicFooterCopyright: string
   /**
    * True when the domain belongs to no workspace at all — a subdomain nobody
    * has taken, or one whose workspace is switched off. The root route turns
@@ -86,9 +91,14 @@ export async function readBranding(
       appName: globals.appName,
       logo: globals.logo,
       logoDark: globals.logoDark,
+      publicNavigation: [],
+      publicFooter: [],
+      publicFooterCopyright: "",
       hostIsUnknown: answer.kind === "unknown",
     }
   }
+
+  const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
 
   return {
     appName: answer.workspace.name || globals.appName,
@@ -97,6 +107,9 @@ export async function readBranding(
     // is shown, which beats a site with no mark at all.
     logo: globals.logo,
     logoDark: globals.logoDark,
+    publicNavigation: workspaceSettings.publicNavigation,
+    publicFooter: workspaceSettings.publicFooter,
+    publicFooterCopyright: workspaceSettings.publicFooterCopyright,
     hostIsUnknown: false,
   }
 }
@@ -129,6 +142,9 @@ export async function readShellSettings(
     workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
+    publicNavigation: workspaceSettings.publicNavigation,
+    publicFooter: workspaceSettings.publicFooter,
+    publicFooterCopyright: workspaceSettings.publicFooterCopyright,
     // Same rule as the sidebar below: an admin sees and edits their own row,
     // everybody else gets the one an admin built for them.
     topRightNavigation: isAdmin(user)
