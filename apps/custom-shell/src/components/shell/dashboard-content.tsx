@@ -17,7 +17,7 @@ export function DashboardContent({
         data-scroll-restoration-id="dashboard-content"
         tabIndex={-1}
         className={cn(
-          "flex min-w-0 w-full flex-1 flex-col overflow-auto bg-muted/60",
+          "flex min-w-0 w-full flex-1 flex-col overflow-auto bg-muted/60 outline-none",
           className
         )}
         style={{ padding: pageGutter, gap: pageGutter }}
@@ -40,7 +40,7 @@ export function DashboardContent({
       data-content-styling=""
       data-flat={isFlat ? "true" : undefined}
       className={cn(
-        "flex min-w-0 w-full flex-1 flex-col overflow-auto",
+        "flex min-w-0 w-full flex-1 flex-col overflow-auto outline-none",
         // Only fall back to the muted canvas when no explicit color is resolved.
         background ? undefined : "bg-muted/60",
         className
