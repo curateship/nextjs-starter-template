@@ -5,6 +5,7 @@ import {
   InspectorNote,
 } from "@/components/automations/inspector-card"
 import { TradeNumberField } from "@/components/automations/nodes/trade-number-field"
+import { defaultCascade } from "@/lib/trade/cascade"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -64,6 +65,7 @@ export default function TradeDcaFields({
 
   const stop = params.stopLoss
   const baseStop = stop?.base ?? null
+  const crash = params.cascade ?? null
 
   return (
     <>
@@ -255,6 +257,75 @@ export default function TradeDcaFields({
                 }
               />
             ) : null}
+          </>
+        ) : null}
+      </InspectorCard>
+
+      {/* Directly under Take profit because that is the only thing it changes:
+          it pauses the "sell at previous rung" exits and nothing else. */}
+      <InspectorCard title="Market crash">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={`dca-${node.id}-cascade-on`}
+            checked={crash !== null}
+            onCheckedChange={(next) =>
+              setParams({ cascade: next === true ? defaultCascade() : null })
+            }
+          />
+          <FieldLabel
+            htmlFor={`dca-${node.id}-cascade-on`}
+            className="text-xs"
+            hint="When many coins collapse together, hold instead of selling at the previous rung. The ladder's deepest rung is its biggest bet, and the rung above it is barely off the floor."
+          >
+            Hold through a market-wide crash
+          </FieldLabel>
+        </div>
+
+        {crash ? (
+          <>
+            <TradeNumberField
+              id={`dca-${node.id}-cascade-fall`}
+              label="Each coin falls at least"
+              hint="Measured from any high to a later low. In six years of Binance history, at most one coin ever fell 50% this fast on a day that was not a real market-wide crash."
+              value={crash.fallPct}
+              min={20}
+              max={95}
+              suffix="%"
+              onChange={(fallPct) => setParams({ cascade: { ...crash, fallPct } })}
+            />
+            <TradeNumberField
+              id={`dca-${node.id}-cascade-within`}
+              label="Within"
+              hint="October 2025 fell that far in 8 minutes, but May 2021 took nearer four hours. An hour would have half-missed May."
+              value={crash.withinHours}
+              min={0.25}
+              max={24}
+              suffix="hours"
+              onChange={(withinHours) =>
+                setParams({ cascade: { ...crash, withinHours } })
+              }
+            />
+            <TradeNumberField
+              id={`dca-${node.id}-cascade-coins`}
+              label="Coins doing it at once"
+              hint="The half that matters. One coin falling 70% is a catastrophe that may never come back; ten unrelated coins falling together is the order book emptying, and that refills."
+              value={crash.minCoins}
+              min={2}
+              max={500}
+              onChange={(minCoins) => setParams({ cascade: { ...crash, minCoins } })}
+            />
+            <TradeNumberField
+              id={`dca-${node.id}-cascade-hold`}
+              label="Hold for"
+              hint="How long before it goes back to selling normally. Long enough to read the news and decide, not a bet that the market recovers."
+              value={crash.holdHours}
+              min={0.25}
+              max={720}
+              suffix="hours"
+              onChange={(holdHours) =>
+                setParams({ cascade: { ...crash, holdHours } })
+              }
+            />
           </>
         ) : null}
       </InspectorCard>

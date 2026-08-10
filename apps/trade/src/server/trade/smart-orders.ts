@@ -272,6 +272,11 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     awaitingSteppedRung: false,
     baseWatch: null,
     reclaim: null,
+    // Frozen onto the ladder at placement, like every other rule here: editing
+    // the strategy tomorrow must not change what a ladder already trading is
+    // doing in the middle of a crash.
+    cascade: params.cascade ?? null,
+    cascadeSeenAt: null,
   }
 
   return { plan, rungs, totalCost }

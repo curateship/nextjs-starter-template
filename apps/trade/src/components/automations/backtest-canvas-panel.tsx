@@ -126,9 +126,13 @@ export default function BacktestCanvasPanel({
       style={{ boxShadow: "0 18px 40px -12px rgb(0 0 0 / 0.35)" }}
     >
     <Card
-      className="relative cursor-pointer gap-0 py-0"
+      // Not while it is still running. The run page reads a finished result,
+      // so opening it mid-run shows a half-filled report that rearranges
+      // itself underneath you — and the progress you actually wanted to watch
+      // is on this card. It becomes clickable the moment the run lands.
+      className={cn("relative gap-0 py-0", !running && "cursor-pointer")}
       onClick={() => {
-        if (!run) return
+        if (!run || running) return
         void navigate({
           to: "/backtests/$groupId",
           params: { groupId: run.id },
@@ -137,7 +141,7 @@ export default function BacktestCanvasPanel({
     >
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <FlaskConicalIcon className="size-4 shrink-0" />
-        {run ? (
+        {run && !running ? (
           <Link
             to="/backtests/$groupId"
             params={{ groupId: run.id }}
@@ -149,6 +153,13 @@ export default function BacktestCanvasPanel({
             {run.name ?? "Backtest"}
             <span className="sr-only"> — open the chart and every trade</span>
           </Link>
+        ) : run ? (
+          // Plain text while it runs, for the same reason the card is not
+          // clickable. A link left here would be the one way a keyboard could
+          // still reach the half-finished run page.
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            {run.name ?? "Backtest"}
+          </span>
         ) : (
           <span className="min-w-0 flex-1 truncate text-sm font-medium">
             Backtest

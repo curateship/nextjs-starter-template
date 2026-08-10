@@ -275,6 +275,9 @@ function ladderPlan(
     awaitingSteppedRung: false,
     baseWatch: null,
     reclaim: null,
+    // Same as the practice ladder: frozen at placement, see `smart-orders.ts`.
+    cascade: input.params.cascade ?? null,
+    cascadeSeenAt: null,
   }
 }
 

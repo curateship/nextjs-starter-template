@@ -136,6 +136,8 @@ describe("ladder plans", () => {
     anchorPx: 100,
     anchor: "click",
     rungEntry: "limit",
+    cascade: null,
+    cascadeSeenAt: null,
     startedAt: 0,
     sizeDecimals: 3,
     maxLeverage: 50,

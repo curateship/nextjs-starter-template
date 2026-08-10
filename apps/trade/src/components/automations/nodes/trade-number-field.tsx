@@ -86,6 +86,21 @@ export function TradeNumberField({
           </span>
         ) : null}
       </div>
+      {/* Says WHY, rather than just turning red.
+          A red box with no words is indistinguishable from a broken panel:
+          typing 750 into a field that stops at 730 looked like the step had
+          failed, when it had simply refused a number too big. The limit is in
+          the hint behind the little icon, which is not where somebody is
+          looking while they type. */}
+      {valid ? null : (
+        <p className="text-xs text-destructive">
+          {text.trim() === ""
+            ? "This needs a number."
+            : `Between ${min.toLocaleString()} and ${max.toLocaleString()}${
+                suffix ? ` ${suffix}` : ""
+              }. Anything else is not saved.`}
+        </p>
+      )}
     </div>
   )
 }

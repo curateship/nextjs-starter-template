@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { CandleInterval } from "@/lib/protocols/contracts"
+import { cascadeSchema } from "@/lib/trade/cascade"
 import { BASE_FIELDS } from "@/lib/trade/indicators/base"
 import { defaultIndicatorParams } from "@/lib/trade/indicators/contract"
 
@@ -236,6 +237,12 @@ export const dcaParamsSchema = z.object({
       pct: z.number().positive().max(999),
     })
     .nullable(),
+  /**
+   * Stop selling while the whole market is falling off a cliff. Null is off,
+   * which is what every ladder saved before this carries — see `cascade.ts`
+   * for what it is and why the numbers are what they are.
+   */
+  cascade: cascadeSchema.nullable().default(null),
   stopLoss: z
     .object({
       /**
@@ -269,6 +276,9 @@ export function defaultDcaParams(): DcaParams {
     rungEntry: "limit",
     takeProfit: { mode: "average", pct: DEFAULT_DCA_TAKE_PROFIT_PCT },
     stopLoss: null,
+    // Off. The rule only ever fires twice in six years of history, so a ladder
+    // that did not ask for it must behave exactly as it did before.
+    cascade: null,
   }
 }
 
@@ -496,6 +506,17 @@ export const ladderPlanSchema = z.object({
   rungs: z.array(ladderRungStateSchema).min(1).max(20),
   takeProfit: ladderTakeProfitSchema.nullable(),
   stopLoss: ladderStopLossSchema.nullable(),
+  /** The market-crash rule this ladder was placed with. Null is off. */
+  cascade: cascadeSchema.nullable().default(null),
+  /**
+   * The moment a market-wide crash was last seen, or null.
+   *
+   * On the plan rather than worked out fresh each pass because the hold has to
+   * survive a restart. The engine can go down mid-crash — that is exactly when
+   * it is under load — and a ladder that forgot it was holding would come back
+   * up and sell the whole ladder into the hole it was waiting out.
+   */
+  cascadeSeenAt: z.number().nullable().default(null),
   /**
    * The brackets the ladder last wrote onto the position. When the position
    * carries something else, a hand moved it — the ladder stops following and

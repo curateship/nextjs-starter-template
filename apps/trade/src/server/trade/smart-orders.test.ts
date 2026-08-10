@@ -129,6 +129,7 @@ let wallet: TradeWallet
 function params(over: Partial<DcaParams> = {}): DcaParams {
   return {
     rungs: [{ deviation: 5 }, { deviation: 8 }],
+    cascade: null,
     maxPositionPct: 20,
     sizeMultiplier: 2,
     maxOrderVolPct: 0,

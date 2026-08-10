@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { BacktestChartPanel } from "@/components/backtest/backtest-chart-panel"
-import { BacktestRenameDialog } from "@/components/backtest/backtest-rename-dialog"
 import { BacktestMarketsPanel } from "@/components/backtest/backtest-markets-panel"
 import { BacktestStatsPanel } from "@/components/backtest/backtest-stats-panel"
 import { BacktestTradesPanel } from "@/components/backtest/backtest-trades-panel"
@@ -18,7 +17,6 @@ import {
 import {
   getBacktestErrorMessage,
   loadBacktestCoin,
-  pinBacktests,
 } from "@/lib/api/backtests"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type {
@@ -94,8 +92,6 @@ export function BacktestRunPage({
 }) {
   const navigate = useNavigate()
   const desktop = useWideScreen()
-  const [renaming, setRenaming] = React.useState(false)
-  const [pinned, setPinned] = React.useState(run.pinned)
 
   const horizontalLayout = useRememberedPanelLayout(
     tradePanelLayoutKey.backtestHorizontal
@@ -203,13 +199,6 @@ export function BacktestRunPage({
       error={chartError}
       live={!done}
       automationId={run.automationId}
-      pinned={pinned}
-      onTogglePin={() => {
-        const next = !pinned
-        setPinned(next)
-        void pinBacktests([run.id], next)
-      }}
-      onRename={() => setRenaming(true)}
       onRetry={() => void load()}
     />
   )
@@ -337,15 +326,6 @@ export function BacktestRunPage({
         </ResizablePanel>
       </ResizablePanelGroup>
 
-      {renaming ? (
-        <BacktestRenameDialog
-          run={run}
-          onOpenChange={(open) => {
-            if (!open) setRenaming(false)
-          }}
-          onSaved={() => setRenaming(false)}
-        />
-      ) : null}
     </div>
   )
 }

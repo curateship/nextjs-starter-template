@@ -11,15 +11,28 @@ export const DEFAULT_BACKTEST_DAYS = 30
 /**
  * The longest window this step will accept.
  *
- * Two years. The prices come from Binance, which serves as far back as a market
- * has existed and is read in pages, so the old worry — an exchange that only
- * keeps about 5,000 bars — does not apply to where these candles actually come
- * from. A coin younger than the window is not a failure: it is reported as
- * skipped, with its gaps recorded.
+ * As far back as the prices go, and no further.
  *
- * This cap only stops somebody typing 99999 and waiting.
+ * **The window is what you choose; the coin count is what follows.** Days is
+ * the number somebody actually has in mind — "test two years" — so it is the
+ * one that must not argue back. How many coins fit is then arithmetic, handed
+ * out by `coinsAllowedFor` from the shared candle budget. That is the way round
+ * the app this is a port of does it, and the reason: a market costs its window
+ * of candles, so a longer window simply buys fewer coins. Nothing is refused
+ * that could have been answered with a number.
+ *
+ * Ten years because Binance listed its first USDT perpetuals in September 2019
+ * and this has to keep working as that recedes. It is a guard against somebody
+ * typing 99999 and waiting, not a view about how long a useful test is. A coin
+ * younger than the window is not a failure either: it comes back as skipped,
+ * with its gaps recorded.
+ *
+ * It used to be 730, which was the old worry about an exchange keeping only
+ * 5,000 bars — a limit that belongs to live charts and never applied to where
+ * these candles come from. All it did was turn the field red on a number
+ * nothing was actually going to refuse.
  */
-export const MAX_BACKTEST_DAYS = 730
+export const MAX_BACKTEST_DAYS = 3_650
 
 /**
  * A hard ceiling on the LIST, and nothing to do with the work.

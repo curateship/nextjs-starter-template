@@ -149,14 +149,45 @@ describe("how many coins one run may take on", () => {
     expect(read.success).toBe(false)
   })
 
-  it("allows two years and no more", () => {
-    expect(MAX_BACKTEST_DAYS).toBe(730)
+  it("lets the window go back further than any price data exists for", () => {
+    // The window is what somebody chooses; the coin count is what follows from
+    // it. So the day limit must not be an opinion about how long a useful test
+    // is — it is only here to stop somebody typing 99999 and waiting.
+    //
+    // It used to be 730, which turned the field red on perfectly answerable
+    // windows. Ten years is past anything Binance holds — its first USDT
+    // perpetuals listed in September 2019 — so what actually bounds a run is
+    // the history that exists, and a coin younger than the window comes back
+    // as skipped rather than refused.
+    expect(MAX_BACKTEST_DAYS).toBeGreaterThan(8 * 365)
+    expect(
+      tradeMarketsSettingsSchema.safeParse({
+        marketKeys: ["hyperliquid:mainnet:BTC"],
+        days: 3 * 365,
+      }).success
+    ).toBe(true)
     expect(
       tradeMarketsSettingsSchema.safeParse({
         marketKeys: ["hyperliquid:mainnet:BTC"],
         days: MAX_BACKTEST_DAYS + 1,
       }).success
     ).toBe(false)
+  })
+
+  it("hands out fewer coins the further back the window goes", () => {
+    // The rule the panel lives by, and the thing that replaced the flat cap:
+    // a coin costs its window of candles, so a longer window simply buys
+    // fewer coins. Nothing is refused that could be answered with a number.
+    const oneYear = coinsAllowedFor("4h", 365)
+    const threeYears = coinsAllowedFor("4h", 3 * 365)
+    const tenYears = coinsAllowedFor("4h", 10 * 365)
+
+    expect(oneYear).toBeGreaterThan(threeYears)
+    expect(threeYears).toBeGreaterThan(tenYears)
+    expect(tenYears).toBeGreaterThanOrEqual(1)
+    // Two years of 4h candles must still leave room for the whole list, which
+    // is the run this was all built for.
+    expect(coinsAllowedFor("4h", 730)).toBe(MAX_BACKTEST_MARKETS)
   })
 
   it("still says how much reading a choice comes to", () => {

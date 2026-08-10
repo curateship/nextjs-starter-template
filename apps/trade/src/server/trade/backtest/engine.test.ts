@@ -371,3 +371,115 @@ describe("a crash that bounces inside one candle", () => {
     }
   })
 })
+
+describe("holding through a market-wide crash", () => {
+  /**
+   * Twelve coins that sit flat, all collapse 80% inside the same four-hour
+   * candle, and are back near where they started by the next one. That is the
+   * shape of 10 October 2025, and the shape the rule exists for.
+   */
+  function crashingMarket(): BacktestCoin[] {
+    return Array.from({ length: 12 }, (_, index) => {
+      const shape: CandleBar[] = []
+      for (let bar = 0; bar < 3; bar += 1) {
+        shape.push({
+          openTime: START + bar * FOUR_HOURS,
+          open: 100,
+          high: 101,
+          low: 99,
+          close: 100,
+          volume: 1_000_000,
+        })
+      }
+      // The crash: opens at 100, wipes out to 20, closes back at 95.
+      shape.push({
+        openTime: START + 3 * FOUR_HOURS,
+        open: 100,
+        high: 100,
+        low: 20,
+        close: 95,
+        volume: 5_000_000,
+      })
+      for (let bar = 4; bar < 12; bar += 1) {
+        shape.push({
+          openTime: START + bar * FOUR_HOURS,
+          open: 95,
+          high: 100,
+          low: 94,
+          close: 98,
+          volume: 1_000_000,
+        })
+      }
+      return coin(`hyperliquid:mainnet:C${String(index).padStart(2, "0")}`, shape)
+    })
+  }
+
+  const laddered = { takeProfit: { mode: "prevRung" as const, pct: 2 } }
+
+  it("sells the deepest rung at the rung above it when the rule is off", async () => {
+    const result = await runBacktest(
+      inputFor(crashingMarket(), { params: params(laddered) })
+    )
+    const fills = result.coins[0].fills
+    const buys = fills.filter((one) => one.side === "buy")
+    expect(buys.length).toBeGreaterThan(1)
+
+    // The deepest buy is the biggest one, and it gets sold in the same candle
+    // for barely more than it paid. That is the behaviour being changed.
+    const deepest = buys.reduce((low, one) => (one.px < low.px ? one : low))
+    const sold = fills.find(
+      (one) => one.side === "sell" && Math.abs(one.sz - deepest.sz) < 1e-9
+    )
+    expect(sold).toBeDefined()
+    expect(sold!.fillTime).toBe(deepest.fillTime)
+  })
+
+  it("does not sell the deepest rung into the crash when the rule is on", async () => {
+    const result = await runBacktest(
+      inputFor(crashingMarket(), {
+        params: params({
+          ...laddered,
+          cascade: { fallPct: 50, withinHours: 4, minCoins: 10, holdHours: 4 },
+        }),
+      })
+    )
+    const fills = result.coins[0].fills
+    const buys = fills.filter((one) => one.side === "buy")
+    expect(buys.length).toBeGreaterThan(1)
+
+    const deepest = buys.reduce((low, one) => (one.px < low.px ? one : low))
+    const sameCandle = fills.filter(
+      (one) =>
+        one.side === "sell" &&
+        one.fillTime === deepest.fillTime &&
+        Math.abs(one.sz - deepest.sz) < 1e-9
+    )
+    expect(sameCandle).toHaveLength(0)
+  })
+
+  it("leaves an ordinary one-coin crash alone", async () => {
+    // The same 80% collapse, but only this coin has it. One coin falling is a
+    // catastrophe that may never come back; the rule must not touch it.
+    const market = crashingMarket().map((one, index) =>
+      index === 0
+        ? one
+        : coin(one.marketKey, bars(12, 100))
+    )
+    const result = await runBacktest(
+      inputFor(market, {
+        params: params({
+          ...laddered,
+          cascade: { fallPct: 50, withinHours: 4, minCoins: 10, holdHours: 4 },
+        }),
+      })
+    )
+    const fills = result.coins[0].fills
+    const buys = fills.filter((one) => one.side === "buy")
+    const deepest = buys.reduce((low, one) => (one.px < low.px ? one : low))
+    const sold = fills.find(
+      (one) => one.side === "sell" && Math.abs(one.sz - deepest.sz) < 1e-9
+    )
+    expect(sold).toBeDefined()
+    expect(sold!.fillTime).toBe(deepest.fillTime)
+  })
+})

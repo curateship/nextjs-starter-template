@@ -16,6 +16,11 @@ import {
   rungBudget,
   type LadderPlan,
 } from "@/lib/trade/dca"
+import {
+  holdUntil,
+  marketIsCascading,
+  type CascadeSettings,
+} from "@/lib/trade/cascade"
 import { baseInForce } from "@/lib/trade/indicators/base"
 import { slippedPx, type PaperSide } from "@/lib/trade/paper"
 import { db, type CustomShellDb } from "@/server/db"
@@ -109,6 +114,15 @@ export type LadderAdvanceInput = {
   marks: ReadonlyMap<string, number>
   ladderBars: LadderBars
   now: number
+  /**
+   * The whole market is falling off a cliff right now.
+   *
+   * Worked out ONCE by the caller and handed to every ladder, because the
+   * question is about the market rather than this coin — and because a run
+   * watching 400 coins must not answer it 400 times a bar. Undefined means
+   * nobody is watching for it, which is every caller that has not asked.
+   */
+  cascading?: boolean
 }
 
 const DAY_MS = 86_400_000
@@ -276,6 +290,46 @@ export async function advanceLadders(
   }
 }
 
+/**
+ * The crash signal, read off the candles a live pass already has.
+ *
+ * **What this can and cannot see.** The replay holds every coin in the run;
+ * a live pass only holds candles for markets that currently have a ladder
+ * working. So the count is "how many of the coins I am trading are collapsing",
+ * not "how many coins exist". For the flow this was built for — a ladder on
+ * every coin in the list — those are the same thing. For somebody running five
+ * ladders they are not, and a `minCoins` of ten can never be reached. That is
+ * the honest limit of asking the question from here, and it fails SAFE: the
+ * rule does not fire, and the ladder sells exactly as it always did.
+ *
+ * Answered once per pass and remembered against the candle map, because every
+ * ladder in the same pass is asking the identical question of the identical
+ * candles.
+ */
+const cascadeAnswers = new WeakMap<object, Map<string, boolean>>()
+
+function cascadingFromLadderBars(
+  settings: CascadeSettings,
+  input: LadderAdvanceInput
+): boolean {
+  const memo = cascadeAnswers.get(input.ladderBars) ?? new Map<string, boolean>()
+  cascadeAnswers.set(input.ladderBars, memo)
+  const stamp = `${input.now}:${settings.fallPct}:${settings.withinHours}:${settings.minCoins}`
+  const seen = memo.get(stamp)
+  if (seen !== undefined) return seen
+
+  const coins = new Map<string, readonly CandleBar[]>()
+  for (const [key, feed] of input.ladderBars) {
+    // Only the ladder's own timeframe. The 4h base feed is the same market
+    // again, and counting it twice would let five coins look like ten.
+    if (!key.startsWith("green:")) continue
+    coins.set(key.slice("green:".length), feed.bars)
+  }
+  const answer = marketIsCascading({ settings, coins, now: input.now })
+  memo.set(stamp, answer)
+  return answer
+}
+
 export async function advanceOne(
   input: LadderAdvanceInput,
   deps: LadderEngineDeps,
@@ -286,6 +340,30 @@ export async function advanceOne(
   const roundPx = (px: number) =>
     getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals)
   let changed = false
+
+  // ----- Is the market falling off a cliff? ------------------------------
+  //
+  // Worked out here when the caller did not, which is what makes this work for
+  // real money and not only in a replay. The replay knows every coin in the
+  // run and says so; the practice and live engines each call straight into
+  // here with the candles they already hold, and neither had any way to pass
+  // an answer. Left as it was, the whole rule was a backtest feature.
+  //
+  // Remembered on the plan the moment it is seen, so the hold survives a
+  // restart. The engine going down mid-crash is not a hypothetical — that is
+  // when it is busiest — and a ladder that forgot would come back up and sell
+  // the whole thing into the hole it was deliberately waiting out.
+  const cascading =
+    input.cascading ??
+    (plan.cascade ? cascadingFromLadderBars(plan.cascade, input) : false)
+  if (plan.cascade && cascading) {
+    plan.cascadeSeenAt = now
+    changed = true
+  }
+  const holdingOut =
+    plan.cascade !== null &&
+    plan.cascadeSeenAt !== null &&
+    now < holdUntil(plan.cascade, plan.cascadeSeenAt)
 
   // ----- What just happened to the ladder's orders -----------------------
 
@@ -317,7 +395,15 @@ export async function advanceOne(
       // The exit that rode along with the buy is already on the book, or has
       // already filled. Claiming it here is what stops the block below from
       // placing a second sell at the same price.
-      if (rung.status === "filled" && plan.takeProfit?.mode === "prevRung") {
+      // Mid-crash there IS no exit riding along — it was withheld — so
+      // claiming one here would leave the rung pointing at an order that does
+      // not exist, and block the real sell from ever being placed once the
+      // hold ends.
+      if (
+        rung.status === "filled" &&
+        plan.takeProfit?.mode === "prevRung" &&
+        !holdingOut
+      ) {
         rung.sellOrderId = exitId
       }
       changed = true
@@ -443,14 +529,34 @@ export async function advanceOne(
 
     // "Sell at previous rung": every bought rung gets its own sell, resting
     // at the price of the rung above it — the first at the click itself.
-    if (plan.takeProfit?.mode === "prevRung") {
+    //
+    // Not while the market is falling off a cliff. This is the whole point of
+    // the crash rule: the ladder's biggest bet is its deepest rung, and the
+    // rung above it is barely off the floor, so selling there hands the
+    // largest slice of the trade the smallest part of the bounce. The sells
+    // are not moved or cancelled, just not placed yet — when the hold ends
+    // this block runs as it always did.
+    if (plan.takeProfit?.mode === "prevRung" && !holdingOut) {
       const exits = ladderExitLevels(plan)
+      const mark = input.marks.get(row.marketKey) ?? null
       for (const [index, rung] of plan.rungs.entries()) {
         if (rung.status !== "filled" || rung.sellOrderId) continue
+        // At the rung above, or at the market if price is already past it.
+        //
+        // A sell resting BELOW the market is a sale that has already happened
+        // everywhere except here: a real exchange fills it instantly at the
+        // better price. This engine only fills an order when price crosses it,
+        // so one left at a stale level simply waits for the market to come
+        // back down — which after a crash it does not. That stranded the three
+        // biggest lots of every held ladder, open forever.
+        //
+        // Below the market it is untouched, which is every ordinary sale.
         rung.sellOrderId = await deps.insertOrder({
           marketKey: row.marketKey,
           side: "sell",
-          px: roundPx(exits[index]),
+          px: roundPx(
+            mark !== null && mark > exits[index] ? mark : exits[index]
+          ),
           sz: rung.sz,
           leverage: held.leverage,
           maxLeverage: plan.maxLeverage,
@@ -469,7 +575,7 @@ export async function advanceOne(
   }
   // Reviving a dead rung inserts its order back; do it after the dead pass so
   // one advance never both drops and re-adds the same rung.
-  if (await reviveRungs(plan, input, deps, row)) changed = true
+  if (await reviveRungs(plan, input, deps, row, holdingOut)) changed = true
 
   if (changed) await persistLadder(input, deps, row, "active")
 }
@@ -617,7 +723,9 @@ async function reviveRungs(
     now: number
   },
   deps: LadderEngineDeps,
-  row: LadderRow
+  row: LadderRow,
+  /** The market is falling off a cliff, so exits do not ride along with buys. */
+  holdingOut: boolean
 ): Promise<boolean> {
   // Nothing rests when the rungs buy at market: there is no order to revive.
   if (plan.twoGreen || plan.rungEntry === "market") return false
@@ -641,8 +749,14 @@ async function reviveRungs(
       now: input.now,
       // "Sell at the rung above" is known before the buy happens, so it rides
       // along and rests the moment the buy fills.
+      //
+      // Except mid-crash. This is the one that matters most in a replay: the
+      // whole ladder buys and sells inside a single four-hour candle, so an
+      // exit riding along with the buy is the ONLY way the deepest rung ever
+      // gets sold at the floor. Withholding it here is what actually lets the
+      // biggest slice ride the bounce.
       exitPx:
-        plan.takeProfit?.mode === "prevRung"
+        plan.takeProfit?.mode === "prevRung" && !holdingOut
           ? ladderExitLevels(plan)[plan.rungs.indexOf(rung)]
           : null,
     })

@@ -251,6 +251,10 @@ export function SmartOrderDialog({
     if (deviations.some((one) => one === null)) return null
     const candidate: DcaParams = {
       rungs: deviations.map((deviation) => ({ deviation: deviation as number })),
+      // A ladder placed by hand from the chart. The crash rule needs to watch
+      // a whole list of coins at once, which only a flow has, so there is
+      // nothing sensible to offer here.
+      cascade: null,
       maxPositionPct: parsed(maxPositionPct) ?? -1,
       sizeMultiplier: parsed(sizeMultiplier) ?? -1,
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,

@@ -3,8 +3,6 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   ChevronLeftIcon,
-  PinIcon,
-  SettingsIcon,
   SlidersHorizontalIcon,
 } from "lucide-react"
 
@@ -62,9 +60,6 @@ export function BacktestChartPanel({
   error,
   live,
   automationId,
-  pinned,
-  onTogglePin,
-  onRename,
   onRetry,
 }: {
   coins: readonly BacktestCoinRow[]
@@ -80,9 +75,6 @@ export function BacktestChartPanel({
   live: boolean
   /** The flow this run came from — where the back arrow goes. */
   automationId: string
-  pinned: boolean
-  onTogglePin: () => void
-  onRename: () => void
   onRetry: () => void
 }) {
   const chartable = coins.filter((coin) => coin.summary)
@@ -205,14 +197,6 @@ export function BacktestChartPanel({
                 <SlidersHorizontalIcon className="size-4" />
                 Parameter settings
               </Link>
-            </Button>
-            <Button type="button" variant="outline" onClick={onTogglePin}>
-              <PinIcon className="size-4" />
-              {pinned ? "Unpin" : "Pin"}
-            </Button>
-            <Button type="button" variant="outline" onClick={onRename}>
-              <SettingsIcon className="size-4" />
-              Name it
             </Button>
           </div>
         }

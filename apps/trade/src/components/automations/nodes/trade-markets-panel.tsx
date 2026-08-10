@@ -56,6 +56,32 @@ const VOLUME_BANDS = [
 
 const DEFAULT_SAMPLE = 20
 
+/** Extra goes at the coin list before the failure is worth telling anybody about. */
+const RETRIES = 2
+/** Grows with each go: 400ms, then 800ms. Long enough for a hiccup to pass. */
+const RETRY_PAUSE_MS = 400
+
+/**
+ * The coin list, kept for the tab rather than fetched every time the panel is
+ * drawn.
+ *
+ * Selecting the step, clicking away and selecting it again asked two exchanges
+ * for the same list all over again, and the panel sat empty each time. The list
+ * changes when an exchange lists a new perp — a fortnightly event — so ten
+ * minutes is instant to use and never meaningfully stale. The same span the
+ * server keeps its own copy for, and for the same reason.
+ *
+ * Module scope, not a hook: it has to outlive the panel being unmounted, which
+ * is the whole case it exists for. Lost on reload, which is the right time to
+ * ask again.
+ */
+const LIST_CACHE_MS = 10 * 60 * 1000
+let listCache: {
+  at: number
+  rows: MarketRow[]
+  hidden: number
+} | null = null
+
 export default function TradeMarketsFields({
   node,
   onChange,
@@ -77,24 +103,55 @@ export default function TradeMarketsFields({
     ? (parsedSettings.data.days ?? fallback.days)
     : fallback.days
 
-  const [markets, setMarkets] = React.useState<MarketRow[] | null>(null)
+  // Straight from the cache, so re-opening the step draws the full list on the
+  // first paint rather than showing an empty panel and filling it in after.
+  //
+  // Whether the cache is STALE is deliberately not asked here: the clock is not
+  // something a render may read, and there is nothing to gain by asking. A list
+  // ten minutes old is still the right list to show while `load` below checks
+  // and replaces it.
+  const [markets, setMarkets] = React.useState<MarketRow[] | null>(
+    listCache?.rows ?? null
+  )
   /** How many of the exchange's coins Binance has no history for. */
-  const [hidden, setHidden] = React.useState(0)
+  const [hidden, setHidden] = React.useState(listCache?.hidden ?? 0)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
   const [sampleSize, setSampleSize] = React.useState(DEFAULT_SAMPLE)
 
-  const load = React.useCallback(async () => {
+  const load = React.useCallback(async (force = false) => {
+    // Warm cache: nothing to do at all. The list is already on screen — the
+    // state above starts from the same cache — so this returns without
+    // touching state rather than setting it to what it already holds.
+    const fresh =
+      listCache && Date.now() - listCache.at < LIST_CACHE_MS ? listCache : null
+    if (fresh && !force) return
     setError(null)
-    try {
-      // Only coins Binance has history for. Picking from the full catalogue
-      // is what made a hundred coins come back as fifty-three tested.
-      const { rows, hidden: without } = await loadTestableMarkets(NETWORK)
-      setMarkets(rows)
-      setHidden(without)
-    } catch (loadError) {
-      setMarkets(null)
-      setError(getMarketsErrorMessage(loadError))
+    // Two goes before complaining, and this is not belt-and-braces: opening
+    // this panel asks two different exchanges for a list at once, and either
+    // one hiccuping threw the whole thing. The failure was common, always
+    // fixed by pressing Try again, and the retry is exactly what pressing it
+    // did — so the banner was reporting a problem that had already solved
+    // itself. A real outage still fails all three goes and still says so.
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        // Only coins Binance has history for. Picking from the full catalogue
+        // is what made a hundred coins come back as fifty-three tested.
+        const { rows, hidden: without } = await loadTestableMarkets(NETWORK)
+        listCache = { at: Date.now(), rows, hidden: without }
+        setMarkets(rows)
+        setHidden(without)
+        return
+      } catch (loadError) {
+        if (attempt >= RETRIES) {
+          setMarkets(null)
+          setError(getMarketsErrorMessage(loadError))
+          return
+        }
+        await new Promise((resolve) =>
+          setTimeout(resolve, RETRY_PAUSE_MS * (attempt + 1))
+        )
+      }
     }
   }, [])
 
@@ -168,7 +225,7 @@ export default function TradeMarketsFields({
 
       <InspectorCard title="Coins">
         {error ? (
-          <ErrorBanner message={error} onRetry={() => void load()} />
+          <ErrorBanner message={error} onRetry={() => void load(true)} />
         ) : null}
 
         {markets === null && !error ? (

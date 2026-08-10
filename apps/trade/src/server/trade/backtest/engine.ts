@@ -10,6 +10,7 @@ import {
   ladderExitLevels,
   type DcaParams,
 } from "@/lib/trade/dca"
+import { marketIsCascading } from "@/lib/trade/cascade"
 import { baseInForce } from "@/lib/trade/indicators/base"
 import {
   paperAccountFigures,
@@ -250,6 +251,14 @@ export async function runBacktest(
   let stoppedEarly = false
   let reachedTo = input.from
 
+  // The crash rule, and the candles it reads. Null when the flow did not ask
+  // for it, which skips the whole check rather than running it and ignoring
+  // the answer.
+  const cascadeRule = input.params.cascade ?? null
+  const cascadeBars: ReadonlyMap<string, readonly CandleBar[]> = new Map(
+    coins.map((coin) => [coin.marketKey, coin.bars])
+  )
+
   for (const [index, time] of times.entries()) {
     if (index % CHUNK_BARS === 0) {
       await hooks.onProgress?.(times.length === 0 ? 1 : index / times.length)
@@ -261,6 +270,34 @@ export async function runBacktest(
 
     const closeTime = time + barMs
     reachedTo = closeTime
+
+    // ----- Is the whole market falling off a cliff on this bar? ------------
+    //
+    // Once per bar for every coin at once, not once per coin: the question is
+    // about the market, and a run watching 400 coins would otherwise ask it
+    // 400 times a bar. Judged as of the bar's CLOSE, matching everything else
+    // the engine does — a bar that has not finished cannot have confirmed
+    // anything.
+    const cascading =
+      cascadeRule !== null &&
+      marketIsCascading({
+        settings: cascadeRule,
+        coins: cascadeBars,
+        now: closeTime,
+      })
+
+    // Rungs that were already resting when the crash arrived are the normal
+    // case, not the exception: the ladder placed them days ago, each with its
+    // exit riding along. Withholding the exit only on orders placed DURING the
+    // crash would leave every one of those to sell itself at the floor, which
+    // is the whole thing being prevented. The exit is dropped rather than
+    // moved — once the hold ends, `advanceOne` places it again as it always
+    // does, from the rung's own status.
+    if (cascading) {
+      for (const order of book.orders) {
+        if (order.side === "buy" && order.exitPx != null) order.exitPx = null
+      }
+    }
 
     // ----- The bars ------------------------------------------------------
     for (const coin of coins) {
@@ -300,7 +337,11 @@ export async function runBacktest(
     for (const marketKey of [...ladders.keys()].sort()) {
       const row = ladders.get(marketKey)
       if (!row) continue
-      await advanceOne({ book, marks, ladderBars, now: closeTime }, deps, row)
+      await advanceOne(
+        { book, marks, ladderBars, now: closeTime, cascading },
+        deps,
+        row
+      )
     }
 
     // ----- Arming a fresh ladder where there is none ----------------------
@@ -358,8 +399,15 @@ export async function runBacktest(
           slPx: null,
           // Where this rung sells, riding along with the buy so it rests the
           // instant the buy fills rather than when the candle finishes.
+          //
+          // Withheld while the market is falling off a cliff — see the same
+          // decision in `reviveRungs`. A ladder armed INSIDE the crash bar is
+          // the common case on a day like this, so the test has to be here as
+          // well as there.
           exitPx:
-            outcome.plan.takeProfit?.mode === "prevRung" ? exits[index] : null,
+            outcome.plan.takeProfit?.mode === "prevRung" && !cascading
+              ? exits[index]
+              : null,
           createdAt: closeTime,
           updatedAt: closeTime,
         })
