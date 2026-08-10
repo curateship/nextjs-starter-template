@@ -8,7 +8,7 @@ import {
 } from "@/components/shared/workspace-panel-header"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
-  AUTOMATION_PALETTE_GROUPS,
+  automationPaletteGroups,
   automationPaletteItems,
   type AutomationPaletteItem,
 } from "@/lib/automations/node-registry"
@@ -17,15 +17,15 @@ import { focusRingInset, focusRing } from "@/lib/layout/focus-ring"
 
 import { AutomationNodeIcon } from "./automation-node-icon"
 
-// Read inside the call, never at the top of the file: the list includes any
-// steps the app added, and those are not there yet while modules are loading.
+// Read inside the call, never at the top of the file: both lists include what
+// the app added, and that is not there yet while modules are loading.
 function paletteGroupsFor(
   view: "fav" | "all",
   favoriteNodeKeys: readonly string[]
 ) {
   const items = automationPaletteItems()
   const favorites = new Set(favoriteNodeKeys)
-  return AUTOMATION_PALETTE_GROUPS.map((label) => ({
+  return automationPaletteGroups().map((label) => ({
     label,
     items: items.filter(
       (item) =>

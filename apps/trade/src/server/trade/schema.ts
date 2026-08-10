@@ -13,7 +13,11 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
-import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import type {
+  CandleInterval,
+  NetworkId,
+  ProtocolId,
+} from "@/lib/protocols/contracts"
 import type { CardFolds } from "@/lib/trade/card-folds"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
@@ -22,6 +26,15 @@ import type { DrawingShape } from "@/lib/trade/drawings"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveJournalAction } from "@/lib/trade/live"
 import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
+import type {
+  BacktestCoinSummary,
+  BacktestFill,
+  BacktestResult,
+  BacktestSpecSnapshot,
+  BacktestStatus,
+  BacktestSummary,
+  BacktestTrade,
+} from "@/lib/trade/backtest/result"
 import type { WalletKind, WalletStatus } from "@/lib/trade/wallets"
 import { customShellUsers } from "@/server/schema"
 
@@ -436,4 +449,272 @@ export const tradePaperState = pgTable(
       foreignColumns: [tradeWallets.userId, tradeWallets.id],
     }).onDelete("cascade"),
   ]
+)
+
+/**
+ * Stored price history — the same bars the exchange serves, kept so a backtest
+ * can walk months of them without asking twenty times for the same week.
+ *
+ * Shared, with no owner. A candle is a public fact about a market: two people
+ * testing the same coin over the same days are asking the same question, and a
+ * copy each would be the same rows twice and twice the fetching.
+ *
+ * The market key carries the network — `"hyperliquid:testnet:BTC"` is not
+ * `"hyperliquid:mainnet:BTC"` and their prices have nothing to do with each
+ * other, so the key keeps them apart without a column saying so.
+ *
+ * Open time is the bar's own identity, so writing the same bar again changes
+ * nothing. That is what makes asking twice cost nothing the second time.
+ */
+export const tradeCandles = pgTable(
+  "trade_candles",
+  {
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    interval: varchar("interval", { length: 8 })
+      .$type<CandleInterval>()
+      .notNull(),
+    openTime: bigint("open_time", { mode: "number" }).notNull(),
+    open: doublePrecision("open").notNull(),
+    high: doublePrecision("high").notNull(),
+    low: doublePrecision("low").notNull(),
+    close: doublePrecision("close").notNull(),
+    volume: doublePrecision("volume").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.marketKey, table.interval, table.openTime],
+    }),
+  ]
+)
+
+/**
+ * How much history is already stored for one market and timeframe — the span
+ * that has been **asked for**, not the span that came back.
+ *
+ * Those are different on purpose. Asking again for a stretch the exchange has
+ * no bars for would fetch nothing, slowly, forever; recording the ask means the
+ * second run reads straight from the table. What was missing is not forgotten,
+ * it is written down in `trade_candle_gaps` instead.
+ */
+export const tradeCandleCoverage = pgTable(
+  "trade_candle_coverage",
+  {
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    interval: varchar("interval", { length: 8 })
+      .$type<CandleInterval>()
+      .notNull(),
+    /** Epoch ms of the oldest bar this store has looked for. */
+    fromTime: bigint("from_time", { mode: "number" }).notNull(),
+    /** Epoch ms just past the newest bar this store has looked for. */
+    toTime: bigint("to_time", { mode: "number" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.marketKey, table.interval] })]
+)
+
+/**
+ * A stretch of time the exchange had no bars for, written down rather than
+ * papered over.
+ *
+ * A coin listed three weeks ago has no price from ninety days ago, and the
+ * honest answer to "how did this ladder do over ninety days" is that it could
+ * not be asked. A backtest reads these to skip a coin with a plain reason, and
+ * to warn on the results page when a hole sits in the middle of a window.
+ *
+ * Keyed by where it starts, so re-running the same ask records the same gap
+ * rather than a second copy of it.
+ */
+export const tradeCandleGaps = pgTable(
+  "trade_candle_gaps",
+  {
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    interval: varchar("interval", { length: 8 })
+      .$type<CandleInterval>()
+      .notNull(),
+    /** Epoch ms of the first bar that should have been there and was not. */
+    fromTime: bigint("from_time", { mode: "number" }).notNull(),
+    /** Epoch ms just past the last missing bar. */
+    toTime: bigint("to_time", { mode: "number" }).notNull(),
+    /** Plain words for the results page: "the exchange has nothing before…". */
+    reason: text("reason").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.marketKey, table.interval, table.fromTime],
+    }),
+  ]
+)
+
+/**
+ * One backtest — the group. A run tests many coins at once against one shared
+ * pot, so the things that belong to the whole run live here and the per-coin
+ * rows below point at it.
+ *
+ * Name, pinned and archived are the whole run's, not one coin's: nobody pins a
+ * coin. The frozen spec is here too, for the same reason — the flow that ran is
+ * one flow however many coins it touched.
+ */
+export const tradeBacktestGroups = pgTable(
+  "trade_backtest_groups",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    id: varchar("id", { length: 36 }).notNull(),
+    /** The flow this came from — what "the same flow's next run" means. */
+    automationId: varchar("automation_id", { length: 36 }).notNull(),
+    automationName: text("automation_name").notNull(),
+    /**
+     * The canvas run that started this one.
+     *
+     * Here so pressing Run is safe to retry: a step that ran twice — because
+     * the engine picked it up again after a wobble — finds this row and starts
+     * nothing, rather than leaving two identical backtests behind.
+     */
+    automationRunId: varchar("automation_run_id", { length: 36 }),
+    /** Null until somebody names it, which is also what protects it. */
+    name: text("name"),
+    pinned: boolean("pinned").notNull().default(false),
+    archived: boolean("archived").notNull().default(false),
+    /**
+     * The flow and its settings **exactly as they ran**, frozen. Editing the
+     * strategy tomorrow must not rewrite what yesterday's result says it
+     * tested; a run that could change its own past is worse than no record.
+     */
+    spec: jsonb("spec").$type<BacktestSpecSnapshot>().notNull(),
+    /** The few numbers a list row prints, written once when the run finishes. */
+    summary: jsonb("summary").$type<BacktestSummary | null>(),
+    /** The heavy half — the pot over time and the per-coin table. */
+    result: jsonb("result").$type<BacktestResult | null>(),
+    /** Somebody pressed Stop. Checked between chunks; safe to press twice. */
+    stopRequested: boolean("stop_requested").notNull().default(false),
+    /**
+     * Held by whichever pass is working on it, so two overlapping ticks never
+     * both run the same group. Cleared when it finishes; a claim older than the
+     * orphan window is taken back after a restart.
+     */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    /** How many times this has been picked up. Three failures and it gives up. */
+    attempts: doublePrecision("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_backtest_groups_flow_idx").on(
+      table.userId,
+      table.automationId
+    ),
+    // One backtest per canvas run, which is what makes pressing Run again
+    // after a failure safe.
+    uniqueIndex("trade_backtest_groups_run_unique").on(table.automationRunId),
+  ]
+)
+
+/**
+ * One coin inside a backtest.
+ *
+ * A row per coin rather than one blob, so the run page can show a coin that was
+ * skipped as a **skipped row** with its reason rather than as an absence — a
+ * coin that quietly vanished from a result is the difference between "twenty
+ * coins made this" and "the twelve that had history made this".
+ *
+ * The small summary is its own column so a list page never loads the trades.
+ */
+export const tradeBacktests = pgTable(
+  "trade_backtests",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    id: varchar("id", { length: 36 }).notNull(),
+    groupId: varchar("group_id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    symbol: varchar("symbol", { length: 60 }).notNull(),
+    status: varchar("status", { length: 10 })
+      .$type<BacktestStatus>()
+      .notNull()
+      .default("waiting"),
+    /** How far through, 0 to 1. */
+    progress: doublePrecision("progress").notNull().default(0),
+    /** What it is doing, in plain words: "loading candles". */
+    progressNote: text("progress_note").notNull().default("Waiting to start"),
+    /** Why this coin could not be tested. Only ever set on a skipped row. */
+    skipReason: text("skip_reason"),
+    error: text("error"),
+    /** The candles are in the store and this coin is ready to be walked. */
+    candlesReady: boolean("candles_ready").notNull().default(false),
+    summary: jsonb("summary").$type<BacktestCoinSummary | null>(),
+    /** Every round trip this coin made. The heavy column; loaded on demand. */
+    trades: jsonb("trades").$type<BacktestTrade[] | null>(),
+    /**
+     * Every fill, for the arrows on the chart.
+     *
+     * Kept beside the round trips rather than derived from them: a ladder that
+     * bought five times and sold once is five arrows at five prices, and one
+     * blended entry per round trip would hide the shape of the ladder.
+     */
+    fills: jsonb("fills").$type<BacktestFill[] | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_backtests_group_idx").on(table.userId, table.groupId),
+    foreignKey({
+      columns: [table.userId, table.groupId],
+      foreignColumns: [tradeBacktestGroups.userId, tradeBacktestGroups.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * The trading engine's on/off and pause switches — one row, because there is
+ * one engine.
+ *
+ * Not per user. This is the machinery, not a setting: pausing it stops the
+ * server working anybody's ladders, which is what you want when something
+ * looks wrong and you would rather nothing traded until you have looked.
+ */
+export const tradeWorkerControls = pgTable("trade_worker_controls", {
+  kind: varchar("kind", { length: 30 }).primaryKey(),
+  /** Off means do not run at all. Survives a restart, unlike a pause. */
+  enabled: boolean("enabled").notNull().default(true),
+  /** Paused means running but not trading — meant to be switched back on. */
+  paused: boolean("paused").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * One row per running copy, rewritten every few seconds.
+ *
+ * Whether the engine is alive cannot be asked of the engine — a dead one
+ * answers nothing. So it says so itself while it can, and anything older than
+ * the window in `workers/status.ts` is treated as gone. Rows are kept for a
+ * few days so "when did it last run" has an answer after an outage.
+ */
+export const tradeWorkerHeartbeats = pgTable(
+  "trade_worker_heartbeats",
+  {
+    /** The process's own id, made when it starts. */
+    id: varchar("id", { length: 36 }).primaryKey(),
+    kind: varchar("kind", { length: 30 }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    /** Leader is the copy that holds the lock and trades; standby waits. */
+    role: varchar("role", { length: 10 }).notNull(),
+    /** What it was doing at the last beat, and anything it wants to report. */
+    meta: jsonb("meta").$type<Record<string, unknown> | null>(),
+  },
+  (table) => [index("trade_worker_heartbeats_seen_idx").on(table.lastSeenAt)]
 )

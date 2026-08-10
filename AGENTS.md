@@ -78,6 +78,28 @@ those apps can no longer take shell updates at all. Only CMS, Trade and Video
 are still in sync, and keeping them that way is the whole reason for the rule
 that an app never edits a shell file.
 
+## Copying A Pattern Means Copying Every Layer Of It
+
+"Copy the pattern from X" means the whole thing, not the layer you happened to
+open. Read all four before writing a line:
+
+- **What it looks like** — screen, panels, labels.
+- **What it does** — rules, maths, edge cases.
+- **How it runs** — a page, a background job, or a program of its own; what
+  starts it and how often.
+- **What holds it up** — tables, locks, heartbeat, restart behaviour, deploy.
+
+A layer you did not open is a layer you got wrong. The Trade app copied
+`apps/trading`'s screens and not its plumbing, so live ladders were driven by
+the browser — close the tab and no rung bought and no stop fired, with real
+money in the trade. `apps/trading/worker/` had the answer all along: a separate
+program, a database lock so only one copy trades, a heartbeat, and an open
+socket to the exchange so it is told each price rather than asking.
+
+Before reusing an existing pattern for something new, state what is different
+about the new case. Name the layers you actually read in your reply; if you
+read one, say one.
+
 ## Root Commands
 
 Common root commands:
@@ -119,7 +141,14 @@ Repo-local agent skills live in `.agents/skills/`.
 
 Use `.agents/` for agent workflows and instructions. Do not put app runtime code there.
 
-**After any browser-facing change, run `.agents/skills/validate-app` before reporting the work as done.** Load the page in a real browser and check the console, not just the HTTP status. A build that succeeds, a passing type check and a `curl` returning 200 all say nothing about whether the page crashes once its JavaScript runs — a server-rendered page can return 200 while hydration throws. Use the browser controller or `playwright` (already installed at the repo root). This does not require starting anything: point it at the server already running on the app's port, or at the deployed URL.
+**After any browser-facing change, run `.agents/skills/validate-app` before reporting the work as done.** Load the page in a real browser and check the console, not just the HTTP status. A build that succeeds, a passing type check and a `curl` returning 200 all say nothing about whether the page crashes once its JavaScript runs — a server-rendered page can return 200 while hydration throws. This does not require starting anything: point the browser at the server already running on the app's port, or at the deployed URL.
+
+**Use Playwright, not the Chrome extension.** The extension times out and leaves you guessing, and a guess about a layout costs a whole conversation. Playwright always answers, and it answers with numbers.
+
+- Import it by path — it lives under `node_modules/.pnpm/`, so a bare `import "playwright"` fails even from the repo root: `node_modules/.pnpm/playwright@<version>/node_modules/playwright/index.mjs`.
+- Sign in at `/login` (not `/sign-in`, which 404s): fill `input[type="email"]` and `input[type="password"]`, click `button[type="submit"]`.
+- Never wait for `networkidle` on a page that polls — it never fires. Use `domcontentloaded`, then `waitForSelector` on something the page draws.
+- **Measure, don't eyeball.** For anything about width, position, overlap or clipping, print `getBoundingClientRect()` and compare `scrollWidth` against `clientWidth`. A screenshot showing "roughly right" has been wrong more often than right, and the numbers say which element is at fault.
 
 App-specific docs live in each app's `workspace/docs/` folder.
 

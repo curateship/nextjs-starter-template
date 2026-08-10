@@ -81,6 +81,9 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     sizeMultiplier: 2,
     maxOrderVolPct: 0,
     twoGreen: false,
+    // These suites are about rungs that REST on the book, which is still a
+    // mode. The default is now market-on-confirmation, like the old app.
+    rungEntry: "limit",
     anchor: "click",
     takeProfit: null,
     stopLoss: null,

@@ -5,6 +5,9 @@ import { z } from "zod"
 
 import {
   appAutomationNodes,
+  appCanvasPanel,
+  appPaletteGroups,
+  appSettingsTabs,
   catchAllOverride,
   landingPageOverride,
   mayHaveWorkspace,
@@ -162,5 +165,85 @@ describe("what an app calls a workspace", () => {
     // Written lower case and raised where a heading needs it, so an app never
     // has to write the same word twice in two shapes.
     expect(capitalise(word.many)).toBe("Sites")
+  })
+})
+
+describe("the app's own palette headings", () => {
+  it("are none unless an app asks for them", () => {
+    expect(appPaletteGroups({})).toEqual([])
+  })
+
+  it("hands back what the app asked for", () => {
+    const paletteGroups = ["Trading"]
+    expect(appPaletteGroups({ automations: { paletteGroups } })).toBe(
+      paletteGroups
+    )
+  })
+})
+
+describe("the app's own Settings tabs", () => {
+  const panel = async () => ({ default: () => null })
+
+  it("are none unless an app asks for them", () => {
+    expect(appSettingsTabs({})).toEqual([])
+  })
+
+  it("refuses a tab named after one of the shell's own", () => {
+    expect(() =>
+      appSettingsTabs({ settings: { tabs: [{ id: "general", label: "G", panel }] } }, [
+        "general",
+      ])
+    ).toThrow(/shell's own Settings tabs/)
+  })
+
+  it("refuses two tabs with the same id", () => {
+    expect(() =>
+      appSettingsTabs({
+        settings: {
+          tabs: [
+            { id: "engine", label: "Engine", panel },
+            { id: "engine", label: "Again", panel },
+          ],
+        },
+      })
+    ).toThrow(/both call themselves/)
+  })
+
+  it("hands back what the app asked for", () => {
+    const tabs = [{ id: "engine", label: "Engine", panel }]
+    expect(appSettingsTabs({ settings: { tabs } })).toBe(tabs)
+  })
+})
+
+
+describe("the app's own canvas panel", () => {
+  it("is nothing unless an app asks for one", () => {
+    expect(appCanvasPanel({})).toBeNull()
+  })
+
+  it("hands back what the app asked for", () => {
+    const canvasPanel = {
+      label: "Backtest",
+      panel: async () => ({ default: () => null }),
+    }
+    expect(appCanvasPanel({ automations: { canvasPanel } })).toBe(canvasPanel)
+  })
+})
+
+describe("a canvas panel that only suits some flows", () => {
+  const canvasPanel = {
+    label: "Backtest",
+    appliesTo: (kinds: readonly string[]) => kinds.includes("tradeDca"),
+    panel: async () => ({ default: () => null }),
+  }
+
+  it("is offered to a flow holding the step it is about", () => {
+    const asked = appCanvasPanel({ automations: { canvasPanel } })
+    expect(asked?.appliesTo?.(["tradeWallet", "tradeDca"])).toBe(true)
+  })
+
+  it("is not offered to a flow without it", () => {
+    const asked = appCanvasPanel({ automations: { canvasPanel } })
+    expect(asked?.appliesTo?.(["sendEmail"])).toBe(false)
   })
 })

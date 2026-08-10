@@ -92,3 +92,8 @@ export async function fetchHyperliquidCandles(
   })
   return toCandleBars(candlesSchema.parse(response))
 }
+
+/** How long one bar of a timeframe lasts, in milliseconds. */
+export function candleIntervalMs(interval: CandleInterval): number {
+  return INTERVAL_MS[interval]
+}

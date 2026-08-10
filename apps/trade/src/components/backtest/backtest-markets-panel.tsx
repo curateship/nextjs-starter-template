@@ -1,0 +1,266 @@
+import * as React from "react"
+import { ListOrderedIcon } from "lucide-react"
+
+import { toneClass } from "@/components/backtest/backtest-kpi"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { BACKTEST_STATUS_LABELS } from "@/lib/trade/backtest/result"
+import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { cn } from "@/lib/utils"
+
+import type { BacktestCoinRow } from "./backtest-run-page"
+
+/**
+ * Every coin the run tested — the same table the old app puts down the right of
+ * its backtest screen: the coin, what it made, how far it fell, how often it
+ * won, and how many trades it took to get there. Clicking one charts it.
+ *
+ * Sorted biggest-first on whichever figure you pick, with the totals pinned at
+ * the bottom — a list of fifty coins is only readable from its ends, and the
+ * total is the one number that says whether the strategy worked at all.
+ *
+ * Right-aligned columns flip their sort button so the arrow hugs the number,
+ * exactly as `sortHead` does in the old app.
+ */
+type Column = "coin" | "net" | "dip" | "win" | "trades"
+
+export function BacktestMarketsPanel({
+  coins,
+  openCoin,
+  onOpenCoin,
+}: {
+  coins: readonly BacktestCoinRow[]
+  openCoin: string | null
+  onOpenCoin: (marketKey: string) => void
+}) {
+  const { sort, direction, toggleSort } = useTableSort<Column>("net", "desc")
+
+  const sorted = React.useMemo(() => {
+    const way = direction === "asc" ? 1 : -1
+    return [...coins].sort((left, right) => {
+      // Three bands, always in this order however the column is sorted.
+      //
+      // The ones that traded come first — winners AND losers together, because
+      // a coin that lost money is a result and belongs beside the ones that
+      // made it. Under them, the coins that never traded: their $0.00 is an
+      // absence, not a score, and letting it outrank every loser buries the
+      // real news. At the bottom, the ones that could not be tested at all.
+      if (bandOf(left) !== bandOf(right)) return bandOf(left) - bandOf(right)
+
+      if (sort === "coin") return way * left.symbol.localeCompare(right.symbol)
+      const pick: (row: BacktestCoinRow) => number =
+        sort === "dip"
+          ? (row) => row.summary?.worstDipUsd ?? 0
+          : sort === "win"
+            ? (row) => wonShare(row)
+            : sort === "trades"
+              ? (row) => row.summary?.trades ?? 0
+              : (row) => row.summary?.madeOrLost ?? 0
+      return way * (pick(left) - pick(right))
+    })
+  }, [coins, sort, direction])
+
+  const tested = sorted.filter((coin) => coin.summary)
+  const total = (pick: (coin: BacktestCoinRow) => number) =>
+    tested.reduce((sum, coin) => sum + pick(coin), 0)
+  const wonTotal = total((coin) => coin.summary?.won ?? 0)
+  const closedTotal = total((coin) => coin.summary?.closed ?? 0)
+
+  const head = (label: string, column: Column, width: string, right = false) => (
+    <TableHead
+      column="meta"
+      className={cn(width, right && "text-right")}
+    >
+      <TableSortButton
+        active={sort === column}
+        direction={direction}
+        onClick={() => toggleSort(column)}
+        // The shared heading is 14px with an 8px gap before its sort arrow,
+        // while the figures under it are 12px — so every heading was wider
+        // than its own column and "Trades" came out as "Trade". Matched to the
+        // figures, which is the size that decides how wide the column has to
+        // be anyway.
+        className={cn(
+          "gap-1 text-xs sm:text-xs",
+          right && "ml-auto flex-row-reverse"
+        )}
+      >
+        {label}
+      </TableSortButton>
+    </TableHead>
+  )
+
+  return (
+    <>
+      <WorkspacePanelHeader
+        icon={<ListOrderedIcon />}
+        title="Results"
+        meta={`${tested.length} of ${coins.length} tested`}
+      />
+      {/* The scroll box's own inner element is `display: table`, which sizes
+          itself to its CONTENTS. A table set to `w-full` inside it therefore
+          measures 100% of ITSELF and grows as wide as its widest row, so the
+          panel simply clipped whatever did not fit — the last columns
+          disappeared off the right edge with no scrollbar to reach them.
+          Making that element a plain block ties the width back to the panel,
+          and the fixed column widths below then share out the panel's width
+          instead of ignoring it. */}
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="[&>div]:block!"
+      >
+        {/* The old app's exact table type and padding: small text, 8px between
+            columns and 12px at the two outside edges. The shared cell padding
+            is a dashboard rule — 20px each side — and at this width it pushed
+            the numbers so far right that a coin's name and its result were at
+            opposite ends of the panel. Tightened here rather than in the
+            primitive, which every dashboard table depends on. */}
+        {/* `table-fixed` with the five widths as PERCENTAGES adding up to 100.
+            
+            Everything else was tried and each failed the same way. Left to
+            itself, a table hands the spare width to whichever column has the
+            widest content — the coin names — so a ticker sat a hand's width
+            from its own result. `w-full` on that column was worse: it means
+            "this column wants the whole table" and the browser adds the others
+            ON TOP, so the table outgrew the panel and Trades fell off the
+            edge. Fixed widths in PIXELS fail too: when their total is more
+            than the panel, a fixed-layout table grows to fit the total rather
+            than shrinking the columns.
+            
+            Percentages cannot do any of that. They always add up to the panel,
+            whatever width it is dragged to, so nothing is ever clipped and the
+            columns stay evenly spread instead of one of them hogging the room.
+            The old app's type and spacing — small text, 8px between columns,
+            12px at the outside edges — because the shared dashboard padding is
+            20px a side and this panel does not have that to give. */}
+        <Table className="table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:overflow-hidden [&_td]:px-1.5 [&_td]:text-ellipsis [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:overflow-hidden [&_th]:px-1.5">
+          <TableHeader>
+            <TableRow>
+              {head("Coin", "coin", "w-[21%]")}
+              {head("Net", "net", "w-[23%]", true)}
+              {head("Dip", "dip", "w-[18%]", true)}
+              {head("Win", "win", "w-[15%]", true)}
+              {head("Trades", "trades", "w-[23%]", true)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sorted.map((coin) => (
+              <TableRow
+                key={coin.id}
+                data-state={coin.marketKey === openCoin ? "selected" : undefined}
+                rowAction={
+                  coin.summary ? () => onOpenCoin(coin.marketKey) : undefined
+                }
+              >
+                <TableCell column="meta" className="whitespace-nowrap">
+                  <span
+                    className={cn(
+                      "font-medium",
+                      coin.marketKey === openCoin && "underline underline-offset-4"
+                    )}
+                  >
+                    {coin.symbol}
+                  </span>
+                  {coin.summary ? null : (
+                    <span
+                      className="ml-2 text-[10px] text-muted-foreground"
+                      title={coin.skipReason ?? coin.error ?? undefined}
+                    >
+                      {BACKTEST_STATUS_LABELS[coin.status]}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell
+                  column="meta"
+                  className={cn(
+                    "text-right tabular-nums",
+                    toneClass(coin.summary?.madeOrLost)
+                  )}
+                >
+                  {coin.summary ? formatSignedUsd(coin.summary.madeOrLost) : "—"}
+                </TableCell>
+                <TableCell column="meta" className="text-right tabular-nums">
+                  {coin.summary ? formatUsd(coin.summary.worstDipUsd) : "—"}
+                </TableCell>
+                <TableCell column="meta" className="text-right tabular-nums">
+                  {coin.summary
+                    ? `${coin.summary.won}/${coin.summary.closed}`
+                    : "—"}
+                </TableCell>
+                <TableCell column="meta" className="text-right tabular-nums">
+                  {coin.summary ? coin.summary.trades : "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+            {/* The totals as the last row of the body: this table primitive
+                has no footer, and a total that scrolled away with the rows
+                would be the one number nobody could find. */}
+            {tested.length > 0 ? (
+              <TableRow className="border-t-2">
+                <TableCell column="meta" className="font-medium whitespace-nowrap">
+                  {tested.length} tested
+                </TableCell>
+                <TableCell
+                  column="meta"
+                  className={cn(
+                    "text-right font-medium tabular-nums",
+                    toneClass(total((coin) => coin.summary?.madeOrLost ?? 0))
+                  )}
+                >
+                  {formatSignedUsd(total((coin) => coin.summary?.madeOrLost ?? 0))}
+                </TableCell>
+                {/* No total for the dip: adding up each coin's worst moment
+                    would describe a day that never happened. The run's own dip
+                    is on the left, measured on the one combined line. */}
+                <TableCell
+                  column="meta"
+                  className="text-right text-muted-foreground"
+                >
+                  —
+                </TableCell>
+                <TableCell
+                  column="meta"
+                  className="text-right font-medium tabular-nums"
+                >
+                  {wonTotal}/{closedTotal}
+                </TableCell>
+                <TableCell
+                  column="meta"
+                  className="text-right font-medium tabular-nums"
+                >
+                  {total((coin) => coin.summary?.trades ?? 0)}
+                </TableCell>
+              </TableRow>
+            ) : null}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </>
+  )
+}
+
+/**
+ * Which band a coin sorts into: 0 it traded, 1 it did not, 2 it could not be
+ * tested. Kept apart from the column sort so the bands never interleave.
+ */
+function bandOf(coin: BacktestCoinRow): number {
+  if (!coin.summary) return 2
+  return coin.summary.trades > 0 ? 0 : 1
+}
+
+/** How much of a coin's closed trades won, for the sort. */
+function wonShare(coin: BacktestCoinRow): number {
+  const summary = coin.summary
+  if (!summary || summary.closed === 0) return -1
+  return summary.won / summary.closed
+}

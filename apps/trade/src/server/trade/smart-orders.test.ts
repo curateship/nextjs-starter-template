@@ -133,6 +133,9 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     sizeMultiplier: 2,
     maxOrderVolPct: 0,
     twoGreen: false,
+    // These suites are about rungs that REST on the book, which is still a
+    // mode. The default is now market-on-confirmation, like the old app.
+    rungEntry: "limit",
     anchor: "base",
     takeProfit: null,
     stopLoss: null,
@@ -480,9 +483,13 @@ describe("the ladder at work", () => {
 
     const held = await positions()
     expect(held).toHaveLength(1)
-    // Bought at the confirming candle's close, not at the rung's line.
+    // Bought at the confirming candle's close, not at the rung's line — and
+    // sized so the rung spends its DOLLARS at that price rather than carrying
+    // a coin count fixed at a price it never filled at. The rung's budget is
+    // 95 × 7.017 = $666.62, and $666.62 at 96 is 6.943 coins.
     expect(held[0].entryPx).toBeCloseTo(96, 9)
-    expect(held[0].szi).toBeCloseTo(7.017, 9)
+    expect(held[0].szi).toBeCloseTo(6.943, 3)
+    expect(held[0].szi * held[0].entryPx).toBeCloseTo(95 * 7.017, 0)
     const ladder = await onlyLadder()
     expect(ladder.plan.rungs[0].status).toBe("filled")
     expect(ladder.plan.rungs[1].status).toBe("waiting")

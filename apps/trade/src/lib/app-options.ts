@@ -1,7 +1,12 @@
 import type { ComponentType } from "react"
 
 import { appOptions } from "@/app/options"
-import type { AutomationNodeDescriptor } from "@/lib/automations/node-descriptor"
+import type {
+  AutomationNodeDescriptor,
+  AutomationPaletteGroup,
+} from "@/lib/automations/node-descriptor"
+import type { AutomationCanvasPanel } from "@/lib/automations/canvas-panel"
+import type { AppSettingsTab } from "@/lib/settings-tab"
 
 /**
  * Everything an app built from this shell is allowed to change about it.
@@ -31,6 +36,25 @@ export type AppOptions = {
   pages?: PagesOptions
   automations?: AutomationOptions
   workspaces?: WorkspaceOptions
+  settings?: SettingsOptions
+}
+
+type SettingsOptions = {
+  /**
+   * Extra tabs on the Settings screen, after the shell's own.
+   *
+   * For the app's own machinery — the things an admin switches on and off
+   * while the app runs, which have nowhere else sensible to live. Trade's
+   * trading engine is the first: it runs as its own program, and "is it
+   * running, and pause it" is a settings question even though the answer comes
+   * off a server rather than out of the config.
+   *
+   * A tab id the shell already uses is refused out loud, and so is an id an
+   * app used twice — the second would simply be unreachable, which looks
+   * exactly like one that was never written. Each tab points at its panel's
+   * file rather than carrying the component; the reason is on the type.
+   */
+  tabs?: readonly AppSettingsTab[]
 }
 
 /** What an app calls a workspace, singular and plural, in lower case. */
@@ -147,6 +171,30 @@ type AutomationOptions = {
    * the type will accept.
    */
   nodes?: readonly AutomationNodeDescriptor[]
+  /**
+   * Extra headings in the step palette, under the shell's own.
+   *
+   * An app whose steps are a family of their own — Trade's wallet, coins and
+   * ladder — wants them together under a heading that says what they are, not
+   * scattered through Actions and Flow. Burying them under Steps means nobody
+   * finds them.
+   *
+   * A heading the shell already uses is refused out loud, and so is a step
+   * naming a heading that appears in neither list: a step under a heading
+   * nothing declares would simply not be drawn, and a step you cannot find
+   * looks exactly like one that was never written.
+   */
+  paletteGroups?: readonly AutomationPaletteGroup[]
+  /**
+   * One panel of the app's own on the canvas, under the Run button.
+   *
+   * For what this app's runs actually produce — a report, a render, a batch —
+   * drawn by the app, in the place somebody is already looking when they press
+   * Run. The shell's run history stays the same in every app.
+   *
+   * See the type for why it is a pointer to a file rather than a component.
+   */
+  canvasPanel?: AutomationCanvasPanel
 }
 
 type LandingOptions = {
@@ -294,6 +342,75 @@ export function appAutomationNodes(
   options: AppOptions = appOptions
 ): readonly AutomationNodeDescriptor[] {
   return options.automations?.nodes ?? []
+}
+
+/**
+ * The app's own palette headings, or none.
+ *
+ * Handed back as they are: whether a heading clashes with one of the shell's is
+ * decided in `node-registry.ts`, where the shell's own list lives, so there is
+ * one place that knows every heading rather than two that half do.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appPaletteGroups(
+  options: AppOptions = appOptions
+): readonly AutomationPaletteGroup[] {
+  return options.automations?.paletteGroups ?? []
+}
+
+/**
+ * The app's own canvas panel, or none.
+ *
+ * Nothing is drawn when an app has not asked for one, which is every app by
+ * default.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appCanvasPanel(
+  options: AppOptions = appOptions
+): AutomationCanvasPanel | null {
+  return options.automations?.canvasPanel ?? null
+}
+
+/**
+ * The app's own Settings tabs, or none.
+ *
+ * The refusals live here rather than on the screen because they are about the
+ * answers themselves, not about drawing them: a tab calling itself `general`
+ * would silently replace the shell's, and two app tabs sharing an id would
+ * leave one of them unreachable. Both are said out loud on the first read.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appSettingsTabs(
+  options: AppOptions = appOptions,
+  shellIds: readonly string[] = []
+): readonly AppSettingsTab[] {
+  const tabs = options.settings?.tabs ?? []
+
+  const seen = new Set<string>()
+  for (const tab of tabs) {
+    if (shellIds.includes(tab.id)) {
+      throw new Error(
+        `"${tab.id}" is one of the shell's own Settings tabs. An app's own tab needs an id the shell isn't already using.`
+      )
+    }
+    if (seen.has(tab.id)) {
+      throw new Error(
+        `Two Settings tabs both call themselves "${tab.id}". Each one needs its own id.`
+      )
+    }
+    seen.add(tab.id)
+  }
+
+  return tabs
 }
 
 /**

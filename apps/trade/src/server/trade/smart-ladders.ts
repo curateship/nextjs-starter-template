@@ -11,17 +11,17 @@ import {
   DUST_ORDER_USD,
   floorSize,
   ladderExitLevels,
-  ladderGreenInterval,
+  ladderWatchInterval,
   readLadderPlan,
   rungBudget,
   type LadderPlan,
 } from "@/lib/trade/dca"
 import { baseInForce } from "@/lib/trade/indicators/base"
-import type { PaperSide } from "@/lib/trade/paper"
+import { slippedPx, type PaperSide } from "@/lib/trade/paper"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
-import type { WalletBook } from "@/server/trade/paper"
+import { exitOrderIdOf, type WalletBook } from "@/server/trade/paper"
 
 /**
  * What a placed DCA ladder does as price moves — the half of the practice
@@ -48,6 +48,17 @@ export type LadderOrderInput = {
   maxLeverage: number
   reduceOnly: boolean
   now: number
+  /**
+   * Where this slice sells itself, resting from the instant the buy fills.
+   *
+   * Only the replay reads it. A practice or real wallet settles seconds after
+   * a fill, so placing the exit afterwards costs nothing there; a replay only
+   * gets to look once a four-hour candle has finished, and a crash that
+   * bounces inside one candle leaves every exit behind. Deliberately not a
+   * column on the orders table for that reason — nothing outside a run needs
+   * to remember it.
+   */
+  exitPx?: number | null
 }
 
 export type LadderEngineDeps = {
@@ -67,16 +78,38 @@ export type LadderEngineDeps = {
   ) => void
   dropOrder: (book: WalletBook, orderId: string) => void
   freeCash: (book: WalletBook) => number
-  insertOrder?: (input: LadderOrderInput) => Promise<string>
-  saveLadder?: (
+  /**
+   * Writes one order down and answers with its id.
+   *
+   * Required, like the three above it. This used to be optional with the
+   * practice tables as a fallback, and that made "where does this order go?"
+   * a question with two answers and no way to see which one applied. Now the
+   * caller says: the practice wallet writes rows, the live wallet asks the
+   * exchange, and a backtest keeps it in memory and writes nothing.
+   */
+  insertOrder: (input: LadderOrderInput) => Promise<string>
+  /** Writes the ladder's plan and status down, for the same reason. */
+  saveLadder: (
     row: LadderRow,
     status: "active" | "done",
     now: number
   ) => Promise<void>
 }
 
-/** What the exchange charges a buy at market — it takes the price that is there. */
-const TWO_GREEN_FEE_RATE = 0.00045
+/**
+ * What one advance works on: a book in memory, today's prices, the candles the
+ * ladders are watching, and the moment it is all as of.
+ *
+ * No database. Everything that would touch one is in `deps`, which is what
+ * lets a backtest replay months through this same code without a row being
+ * written anywhere.
+ */
+export type LadderAdvanceInput = {
+  book: WalletBook
+  marks: ReadonlyMap<string, number>
+  ladderBars: LadderBars
+  now: number
+}
 
 const DAY_MS = 86_400_000
 
@@ -165,7 +198,7 @@ export async function ladderCandleNeeds(
     const plan = readLadderPlan(row.plan)
     if (!plan) continue
 
-    const interval = ladderGreenInterval(plan)
+    const interval = ladderWatchInterval(plan)
     if (interval && plan.rungs.some((rung) => rung.status === "waiting")) {
       const since = plan.green?.seenTo ?? row.createdAt.getTime()
       // Only when a fresh bar could have closed since the last one read.
@@ -209,15 +242,8 @@ export type LadderBars = ReadonlyMap<string, { bars: CandleBar[]; barMs: number 
  * and a half-advanced ladder can never reach the database.
  */
 export async function advanceLadders(
-  input: {
-    tx: CustomShellDb
-    userId: string
-    book: WalletBook
-    marks: ReadonlyMap<string, number>
-    ladderBars: LadderBars
-    now: number
-  },
-  deps: LadderEngineDeps
+  input: LadderAdvanceInput & { tx: CustomShellDb; userId: string },
+  deps: Omit<LadderEngineDeps, "insertOrder" | "saveLadder">
 ): Promise<void> {
   const rows = await input.tx
     .select({
@@ -234,27 +260,28 @@ export async function advanceLadders(
       )
     )
 
+  const withDatabase: LadderEngineDeps = {
+    ...deps,
+    insertOrder: (order) =>
+      insertLadderOrder(input.tx, input.userId, input.book, order),
+    saveLadder: (row, status, now) =>
+      saveLadderRow(input.tx, input.userId, row, status, now),
+  }
+
   for (const raw of rows) {
     const plan = readLadderPlan(raw.plan)
     if (!plan) continue
     const row: LadderRow = { id: raw.id, marketKey: raw.marketKey, plan }
-    await advanceOne(input, deps, row)
+    await advanceOne(input, withDatabase, row)
   }
 }
 
 export async function advanceOne(
-  input: {
-    tx: CustomShellDb
-    userId: string
-    book: WalletBook
-    marks: ReadonlyMap<string, number>
-    ladderBars: LadderBars
-    now: number
-  },
+  input: LadderAdvanceInput,
   deps: LadderEngineDeps,
   row: LadderRow
 ): Promise<void> {
-  const { tx, userId, book, now } = input
+  const { book, now } = input
   const plan = row.plan
   const roundPx = (px: number) =>
     getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals)
@@ -284,8 +311,15 @@ export async function advanceOne(
     if (rung.status === "waiting" && rung.orderId && !liveOrderIds.has(rung.orderId)) {
       // The rung's order is gone: it bought, or the engine dropped it — a
       // cancel by hand, or a buy the account could no longer afford.
+      const exitId = exitOrderIdOf(rung.orderId)
       rung.orderId = null
       rung.status = fillFor("buy", rung.px, rung.sz) ? "filled" : "skipped"
+      // The exit that rode along with the buy is already on the book, or has
+      // already filled. Claiming it here is what stops the block below from
+      // placing a second sell at the same price.
+      if (rung.status === "filled" && plan.takeProfit?.mode === "prevRung") {
+        rung.sellOrderId = exitId
+      }
       changed = true
     }
     if (rung.sellOrderId && !liveOrderIds.has(rung.sellOrderId)) {
@@ -310,9 +344,11 @@ export async function advanceOne(
 
   if (reanchorToBase(plan, input, deps, roundPx)) changed = true
 
-  // ----- Two-green mode: watch the candles, buy on confirmation ----------
+  // ----- Watching the candles, buying on confirmation --------------------
 
-  if (plan.twoGreen) {
+  // Every ladder whose rungs buy at market watches; two-green is one flavour
+  // of that rather than the only reason to look at candles.
+  if (plan.twoGreen || plan.rungEntry === "market") {
     if (watchCandles(plan, input, deps, row.marketKey)) changed = true
   }
 
@@ -330,10 +366,13 @@ export async function advanceOne(
   const anySellResting = plan.rungs.some((rung) => rung.sellOrderId !== null)
 
   // Flat and finished, versus flat between rungs. A base-stop ladder that has
-  // stepped down is flat ON PURPOSE: it sold at a stop and the next rung has
-  // not bought yet. Without this the very next settle would read "sold
+  // just stepped down is flat ON PURPOSE: it sold at a stop and the next rung
+  // has not bought yet. Without this the very next settle would read "sold
   // everything, holding nothing" and close the ladder it just stepped.
-  const betweenRungs = plan.steppedDown > 0 && anyWaiting
+  //
+  // It has to be "just" stepped, not "ever" stepped — see the note on
+  // `awaitingSteppedRung`.
+  const betweenRungs = plan.awaitingSteppedRung && anyWaiting
 
   const over =
     // The trade exited — stop, target, closed by hand, liquidated, or every
@@ -368,7 +407,32 @@ export async function advanceOne(
 
   // Re-read: a buy-back a moment ago opened the position this aims at.
   const held = book.positions.get(row.marketKey) ?? null
+
+  // Nothing held means nothing to remember aiming at.
+  //
+  // `aimBrackets` below reads a stop that is not the one it last wrote as "a
+  // hand moved this", and from then on it leaves that side alone forever. A
+  // position that has closed and been replaced by a fresh one looks exactly
+  // like that: the plan still remembers the old stop while the new position
+  // carries none. The ladder then decided its stop had been taken off by hand
+  // and never aimed one again — on YGG that was six rungs bought all the way
+  // down an 80% fall with no stop behind any of them. A stop-out already
+  // cleared these; a take-profit exit did not, which is the whole difference.
+  if (!held || held.szi <= 0) {
+    if (plan.aimedTpPx !== null || plan.aimedSlPx !== null) {
+      plan.aimedTpPx = null
+      plan.aimedSlPx = null
+      changed = true
+    }
+  }
+
   if (held && held.szi > 0) {
+    // Something is held again, so whatever the stop took has been replaced.
+    if (plan.awaitingSteppedRung) {
+      plan.awaitingSteppedRung = false
+      changed = true
+    }
+
     if (aimBrackets(plan, held, roundPx)) {
       // The aim changed the position row, so the save has to know — and the
       // stamp moves so a bracket cannot be fired by candles older than itself.
@@ -383,27 +447,16 @@ export async function advanceOne(
       const exits = ladderExitLevels(plan)
       for (const [index, rung] of plan.rungs.entries()) {
         if (rung.status !== "filled" || rung.sellOrderId) continue
-        rung.sellOrderId = deps.insertOrder
-          ? await deps.insertOrder({
-              marketKey: row.marketKey,
-              side: "sell",
-              px: roundPx(exits[index]),
-              sz: rung.sz,
-              leverage: held.leverage,
-              maxLeverage: plan.maxLeverage,
-              reduceOnly: true,
-              now,
-            })
-          : await insertLadderOrder(tx, userId, book, {
-              marketKey: row.marketKey,
-              side: "sell",
-              px: roundPx(exits[index]),
-              sz: rung.sz,
-              leverage: held.leverage,
-              maxLeverage: plan.maxLeverage,
-              reduceOnly: true,
-              now,
-            })
+        rung.sellOrderId = await deps.insertOrder({
+          marketKey: row.marketKey,
+          side: "sell",
+          px: roundPx(exits[index]),
+          sz: rung.sz,
+          leverage: held.leverage,
+          maxLeverage: plan.maxLeverage,
+          reduceOnly: true,
+          now,
+        })
         changed = true
       }
     }
@@ -559,8 +612,6 @@ function reconcileDeadRungs(
 async function reviveRungs(
   plan: LadderPlan,
   input: {
-    tx: CustomShellDb
-    userId: string
     book: WalletBook
     marks: ReadonlyMap<string, number>
     now: number
@@ -568,7 +619,8 @@ async function reviveRungs(
   deps: LadderEngineDeps,
   row: LadderRow
 ): Promise<boolean> {
-  if (plan.twoGreen) return false
+  // Nothing rests when the rungs buy at market: there is no order to revive.
+  if (plan.twoGreen || plan.rungEntry === "market") return false
   const mark = input.marks.get(row.marketKey) ?? null
   let changed = false
   for (const rung of plan.rungs) {
@@ -578,27 +630,22 @@ async function reviveRungs(
       rung.status = "skipped"
       continue
     }
-    rung.orderId = deps.insertOrder
-      ? await deps.insertOrder({
-          marketKey: row.marketKey,
-          side: "buy",
-          px: rung.px,
-          sz: rung.sz,
-          leverage: 1,
-          maxLeverage: plan.maxLeverage,
-          reduceOnly: false,
-          now: input.now,
-        })
-      : await insertLadderOrder(input.tx, input.userId, input.book, {
-          marketKey: row.marketKey,
-          side: "buy",
-          px: rung.px,
-          sz: rung.sz,
-          leverage: 1,
-          maxLeverage: plan.maxLeverage,
-          reduceOnly: false,
-          now: input.now,
-        })
+    rung.orderId = await deps.insertOrder({
+      marketKey: row.marketKey,
+      side: "buy",
+      px: rung.px,
+      sz: rung.sz,
+      leverage: 1,
+      maxLeverage: plan.maxLeverage,
+      reduceOnly: false,
+      now: input.now,
+      // "Sell at the rung above" is known before the buy happens, so it rides
+      // along and rests the moment the buy fills.
+      exitPx:
+        plan.takeProfit?.mode === "prevRung"
+          ? ladderExitLevels(plan)[plan.rungs.indexOf(rung)]
+          : null,
+    })
     if (plan.steppedDown > 0) break
   }
   return changed
@@ -793,6 +840,7 @@ function stepDownAfterStop(
   }
 
   plan.steppedDown += 1
+  plan.awaitingSteppedRung = true
   plan.aimedTpPx = null
   plan.aimedSlPx = null
   plan.reclaim =
@@ -859,9 +907,11 @@ function reclaimRung(
   deps.fill(input.book, {
     marketKey: row.marketKey,
     side: "buy",
-    px: mark,
+    // A buy-back is a market order, so it pays the book's slippage. Zero for a
+    // practice wallet, which is where this number came in.
+    px: slippedPx(mark, "buy", input.book.costs.slippageRate),
     sz,
-    feeRate: TWO_GREEN_FEE_RATE,
+    feeRate: input.book.costs.takerFeeRate,
     leverage: 1,
     maxLeverage: plan.maxLeverage,
     reason: "order",
@@ -895,7 +945,26 @@ function watchCandles(
   const feed = input.ladderBars.get(ladderBarsKey("green", marketKey))
   if (!feed || feed.bars.length === 0) return false
 
-  const seenTo = plan.green?.seenTo ?? 0
+  // A ladder that has never watched starts HERE, not at the beginning of time.
+  //
+  // With no mark of where it had read to, the first pass walked every candle
+  // the feed holds — the whole history — and bought a rung on each of the
+  // earliest bars, long before the ladder existed. On a chart that is a column
+  // of buys in one spot, in the wrong order, at prices from months earlier.
+  // The first pass now only writes down where it is; buying starts with the
+  // next candle to close, which is the first one this ladder was alive for.
+  // KNOWN BUG, not yet fixed: with no record of where it has read to, a
+  // ladder's first watching pass walks every candle the feed holds — the whole
+  // history — and buys a rung on each of the earliest bars, months before the
+  // ladder existed. On a chart that is a column of buys in one spot, in the
+  // wrong order, at prices from long ago.
+  //
+  // The fix is to remember WHEN the ladder started and begin from there. That
+  // moment is not on the plan today, and seeding it from the newest candle
+  // instead breaks two-green mode, which needs the two bars before it. See the
+  // hand-over notes.
+  // From the moment this ladder existed, never from the start of the feed.
+  const seenTo = plan.green?.seenTo ?? plan.startedAt
   let lastGreen = plan.green?.lastGreen ?? false
   let newest = seenTo
   let changed = false
@@ -919,28 +988,58 @@ function watchCandles(
     const green = bar.close > bar.open
     const twoGreenNow = lastGreen && green
     lastGreen = green
-    if (!twoGreenNow) continue
+    // Two-green mode adds a condition; it is not the condition itself.
+    if (plan.twoGreen && !twoGreenNow) continue
 
-    // Confirmation: buy the shallowest reached rung, one per candle. A rung
-    // the account cannot afford right now is left reached — it says so on the
-    // chart and buys on a later confirmation if cash frees up.
+    // What triggers a rung is PRICE REACHING IT, not a candle closing there.
+    //
+    // The live app watches the price as it moves and buys the moment it hits
+    // the level. It has no idea what a candle will close at, and waiting for
+    // one would invent a delay that does not exist in real trading — a drop
+    // through the level and back inside four hours really did trade there, and
+    // the live app really would have bought.
+    //
+    // A replay only has the bar's low to see that with, so the low is what it
+    // reads. Two-green mode keeps its own test, where the two green closes are
+    // the confirmation rather than the level itself.
     const next = plan.rungs.find(
-      (rung) => rung.status === "waiting" && rung.touched && !rung.dead
+      (rung) =>
+        rung.status === "waiting" &&
+        !rung.dead &&
+        (plan.twoGreen ? rung.touched : bar.low <= rung.px)
     )
     if (!next) continue
-    if (next.px * next.sz > deps.freeCash(input.book) + 1e-9) continue
+
+    // Bought at the level, at market — so it pays the spread, where a resting
+    // limit would not have. And it spends the rung's DOLLARS, rather than a
+    // coin count fixed at a price it may not have got.
+    //
+    // **Never better than where the bar opened.** Setting a buy at a level does
+    // not mean getting it: on a dump that gapped clean past the rung, the
+    // first price anyone could actually deal at was the open, well below the
+    // level. Paying the level there would be inventing a fill nobody got, and
+    // it flatters every crash — which is exactly where a ladder does most of
+    // its buying. Inside a bar that traded down THROUGH the level the level is
+    // fair, because price really did pass it on the way.
+    const reached = plan.twoGreen ? bar.close : Math.min(next.px, bar.open)
+    const px = slippedPx(reached, "buy", input.book.costs.slippageRate)
+    const sz = floorSize(rungBudget(next) / px, plan.sizeDecimals)
+    if (sz <= 0) continue
+    if (px * sz > deps.freeCash(input.book) + 1e-9) continue
 
     deps.fill(input.book, {
       marketKey,
       side: "buy",
-      px: bar.close,
-      sz: next.sz,
-      feeRate: TWO_GREEN_FEE_RATE,
+      // Confirmation buys at market, so it pays the book's slippage too.
+      px,
+      sz,
+      feeRate: input.book.costs.takerFeeRate,
       leverage: 1,
       maxLeverage: plan.maxLeverage,
       reason: "order",
       at: bar.openTime + feed.barMs,
     })
+    next.sz = sz
     next.status = "filled"
   }
 
@@ -976,7 +1075,7 @@ async function insertLadderOrder(
   return id
 }
 
-async function saveLadder(
+async function saveLadderRow(
   tx: CustomShellDb,
   userId: string,
   row: LadderRow,
@@ -992,14 +1091,10 @@ async function saveLadder(
 }
 
 async function persistLadder(
-  input: { tx: CustomShellDb; userId: string; now: number },
+  input: { now: number },
   deps: LadderEngineDeps,
   row: LadderRow,
   status: "active" | "done"
 ): Promise<void> {
-  if (deps.saveLadder) {
-    await deps.saveLadder(row, status, input.now)
-    return
-  }
-  await saveLadder(input.tx, input.userId, row, status, input.now)
+  await deps.saveLadder(row, status, input.now)
 }

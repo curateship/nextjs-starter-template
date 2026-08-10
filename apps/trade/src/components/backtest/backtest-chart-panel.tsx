@@ -1,0 +1,303 @@
+
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import {
+  ChevronLeftIcon,
+  PinIcon,
+  SettingsIcon,
+  SlidersHorizontalIcon,
+} from "lucide-react"
+
+import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
+import { BacktestMarksLayer } from "@/components/backtest/backtest-marks-layer"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { IndicatorLayer } from "@/components/trade/indicator-layer"
+import { MeasureLayer } from "@/components/trade/measure-layer"
+import { PaintLayer } from "@/components/trade/paint/paint-layer"
+import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
+import { useChartDrawings } from "@/components/trade/paint/use-drawings"
+import { PriceChart } from "@/components/trade/price-chart"
+import { Button } from "@/components/ui/button"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
+import type { CandleBar } from "@/lib/protocols/contracts"
+import type {
+  BacktestFillMark,
+  BacktestTrade,
+} from "@/lib/trade/backtest/result"
+import {
+  DEFAULT_MARGIN_BOTTOM,
+  DEFAULT_MARGIN_TOP,
+  type ChartView,
+} from "@/lib/trade/chart-view"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
+import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
+import {
+  defaultParamsOf,
+  indicatorPaint,
+} from "@/lib/trade/indicators/registry"
+
+import type { BacktestCoinRow } from "./backtest-run-page"
+
+/**
+ * The middle panel: one coin's candles with the run's buys and sells on them.
+ *
+ * The candles come from the store rather than the exchange, so what is drawn is
+ * exactly what the run walked — asking the exchange again could answer with a
+ * revised bar and put a mark where the trade never happened.
+ *
+ * The marks are a layer over the chart, the same idiom the indicators use.
+ * `price-chart.tsx` is not edited to make this work: it is handed a function
+ * and a surface, and has never heard the word "backtest".
+ */
+export function BacktestChartPanel({
+  coins,
+  openCoin,
+  bars,
+  fills,
+  focusTrade,
+  interval,
+  loading,
+  error,
+  live,
+  automationId,
+  pinned,
+  onTogglePin,
+  onRename,
+  onRetry,
+}: {
+  coins: readonly BacktestCoinRow[]
+  openCoin: string | null
+  bars: readonly CandleBar[]
+  fills: readonly BacktestFillMark[]
+  /** The trade picked in the list below, joined up on the chart. */
+  focusTrade: BacktestTrade | null
+  interval: string
+  loading: boolean
+  error: string | null
+  /** The run has not finished, so more marks may still appear. */
+  live: boolean
+  /** The flow this run came from — where the back arrow goes. */
+  automationId: string
+  pinned: boolean
+  onTogglePin: () => void
+  onRename: () => void
+  onRetry: () => void
+}) {
+  const chartable = coins.filter((coin) => coin.summary)
+  // The same drawings, tools and ruler as the trading chart, saved against the
+  // same market key — a line drawn on ETH while reading a backtest is still a
+  // line on ETH, and having two sets of them per market would be two answers to
+  // one question.
+  const paint = useChartDrawings(openCoin)
+
+  // The base levels, always on.
+  //
+  // Not a switch, on purpose: the whole strategy hangs off the base — a ladder
+  // arms when one is confirmed and its stop rests under it — so a backtest
+  // chart without them is a chart of the trades with the reason for them left
+  // out. The trading chart's own indicator menu is a place to browse; this one
+  // is a place to check working, and there is only one thing to check it
+  // against.
+  //
+  // The same detection the run itself used, drawn by the same layer, so a level
+  // on this chart is a level the run really saw.
+  const base = React.useMemo(
+    () =>
+      indicatorPaint(
+        {
+          base: {
+            on: true,
+            // `open` and `shutCards` are about the indicator MENU, which this
+            // chart does not have. They are here because the shape wants them.
+            open: false,
+            shutCards: [],
+            params: defaultParamsOf("base"),
+          },
+        },
+        [...bars]
+      ),
+    [bars]
+  )
+
+  // The levels, but **not the indicator's own signal arrows**. The base draws an
+  // arrow at each candle that confirmed a level, and on this chart that reads as
+  // an order — which is exactly what the arrows beside it already are. Two
+  // different things in one shape is worse than one of them being missing, and
+  // the one worth keeping is the one that says what the run actually did.
+  const indicators = React.useMemo(
+    () => ({ dashes: base.dashes, marks: [] }),
+    [base]
+  )
+
+  /**
+   * Where the chart sits when a trade is picked: zoomed to that round trip,
+   * with room either side to see what price did around it.
+   *
+   * A dotted line joining two points is no use if both are off screen — a
+   * ninety-day chart is a thousand candles wide and one trade is four of them.
+   * So picking a row moves the chart to it, and picking it again puts the whole
+   * run back.
+   *
+   * Measured in candles rather than time, because that is what a view is:
+   * `bars` is how many fit across, `gap` is how far behind the newest one the
+   * right edge sits. The bar length comes off the candles themselves, so no
+   * timeframe has to be written down twice.
+   */
+  // Off the candles themselves, so no timeframe is written down twice.
+  const barMs = bars.length > 1 ? bars[1].openTime - bars[0].openTime : 0
+
+  const focusView = React.useMemo<ChartView | null>(() => {
+    if (!focusTrade || !(barMs > 0)) return null
+
+    const newest = bars[bars.length - 1].openTime
+    const endsAt = focusTrade.exitAt ?? newest
+    const spanBars = Math.max(1, (endsAt - focusTrade.entryAt) / barMs)
+    // Room either side, and never so tight that a four-candle trade fills the
+    // screen — the point is to see the trade IN its market, not on its own.
+    const pad = Math.max(10, spanBars * 0.75)
+    return {
+      bars: Math.round(spanBars + pad * 2),
+      gap: Math.round((newest - endsAt) / barMs - pad),
+      marginTop: DEFAULT_MARGIN_TOP,
+      marginBottom: DEFAULT_MARGIN_BOTTOM,
+    }
+  }, [focusTrade, bars, barMs])
+
+  return (
+    <>
+      <WorkspacePanelHeader
+        // Back to the canvas this run came from, in the panel's own icon slot.
+        // The one place anybody wants to go from a result is the flow that
+        // produced it, so it is the first thing on the row rather than a
+        // separate strip above the panels.
+        icon={
+          <Link
+            to="/admin/automations/$automationId"
+            params={{ automationId }}
+            aria-label="Back to the automation this run came from"
+            className={cn(
+              "flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
+              focusRing
+            )}
+          >
+            <ChevronLeftIcon className="size-4" />
+          </Link>
+        }
+        title={
+          coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
+          "No coin picked"
+        }
+        meta={`${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`}
+        action={
+          <div className="flex items-center gap-2">
+            {/* Straight back to the settings this run was made from, with
+                the ladder step already chosen. Picking a coin lives in the
+                Coins tab below, where the whole list is; a dropdown up here
+                was a second way to do the same thing, from a shorter list. */}
+            <Button asChild type="button" variant="outline">
+              <Link
+                to="/admin/automations/$automationId"
+                params={{ automationId }}
+                search={{ node: "tradeDca" }}
+              >
+                <SlidersHorizontalIcon className="size-4" />
+                Parameter settings
+              </Link>
+            </Button>
+            <Button type="button" variant="outline" onClick={onTogglePin}>
+              <PinIcon className="size-4" />
+              {pinned ? "Unpin" : "Pin"}
+            </Button>
+            <Button type="button" variant="outline" onClick={onRename}>
+              <SettingsIcon className="size-4" />
+              Name it
+            </Button>
+          </div>
+        }
+      />
+
+      {live ? (
+        <div className="shrink-0 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 sm:px-5 dark:text-amber-400">
+          This run is still going, so more marks may appear on this chart.
+        </div>
+      ) : null}
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        {error ? (
+          <div className="p-4 sm:p-5">
+            <ErrorBanner message={error} onRetry={onRetry} />
+          </div>
+        ) : !openCoin ? (
+          <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+            {chartable.length === 0
+              ? "No coin was tested, so there is nothing to chart."
+              : "Pick a coin above, or click a row in the Coins tab below."}
+          </p>
+        ) : loading ? (
+          <div className="p-4 sm:p-5">
+            <LoadingRow label="Loading the candles…" />
+          </div>
+        ) : (
+          <div className="relative min-h-0 flex-1">
+            <PriceChart
+              candles={[...bars]}
+              options={DEFAULT_CHART_OPTIONS}
+              // The picked trade is part of the key: changing it re-frames the
+              // chart, which is what moves it to the trade and back again.
+              viewKey={`${openCoin}:${interval}:${focusTrade?.n ?? "all"}`}
+              readView={() => focusView}
+              overlay={(surface) => (
+                <>
+                  {/* First, so everything else sits over it. The base is the
+                      chart's own reading of the candles; an order the run
+                      placed is something that happened, and that should never
+                      end up behind a dash. */}
+                  <IndicatorLayer surface={surface} paint={indicators} />
+                  <BacktestMarksLayer
+                    surface={surface}
+                    fills={fills}
+                    barMs={barMs}
+                  />
+                  {/* Over the arrows: a picked trade is what you are looking
+                      at, and its box has to be readable through them. */}
+                  <BacktestFocusLayer
+                    surface={surface}
+                    trade={focusTrade}
+                    barMs={barMs}
+                  />
+                  <PaintLayer
+                    surface={surface}
+                    drawings={paint.drawings}
+                    tool={paint.tool}
+                    selectedId={paint.selectedId}
+                    onSelect={paint.setSelectedId}
+                    onCreate={paint.create}
+                    onMove={paint.move}
+                    onDelete={paint.remove}
+                  />
+                  {/* Last, so while Shift is held its sheet is over everything
+                      and a drag across an arrow measures rather than being
+                      swallowed by it. Keyed on the coin, because a reading
+                      belongs to the candles it was taken on. */}
+                  <MeasureLayer
+                    key={`${openCoin}:${interval}`}
+                    surface={surface}
+                    tool={paint.tool}
+                  />
+                </>
+              )}
+            />
+            <PaintToolbar
+              tool={paint.tool}
+              onPickTool={paint.setTool}
+              drawingCount={paint.drawings.length}
+              onClearAll={() => void paint.clearAll()}
+            />
+          </div>
+        )}
+      </div>
+    </>
+  )
+}

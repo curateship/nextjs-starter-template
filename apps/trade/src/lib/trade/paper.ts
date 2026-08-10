@@ -24,6 +24,59 @@ import type { CandleBar, WalletAccountFigures } from "@/lib/protocols/contracts"
 export const TAKER_FEE_RATE = 0.00045
 export const MAKER_FEE_RATE = 0.00015
 
+/**
+ * What trading costs, as fractions — 0.00045 is 4.5 cents on every hundred
+ * dollars traded.
+ *
+ * The two constants above are the exchange's real rates and are what every
+ * practice wallet uses. This exists because a backtest has to be able to ask
+ * "what if it cost more?" without changing what the practice engine charges,
+ * and because slippage is a cost the live engine has no opinion about: a
+ * practice order fills at a price the engine already knows, while a replayed
+ * one has to guess how much worse a market order would really have gone.
+ *
+ * Every wallet book carries a set of these. Fill it with `defaultPaperCosts()`
+ * and the arithmetic is the same to the penny as it was before this existed.
+ */
+export type PaperCosts = {
+  /** Charged when an order takes a price that was already there. */
+  takerFeeRate: number
+  /** Charged when an order sat and waited for somebody else to take it. */
+  makerFeeRate: number
+  /**
+   * How much worse than the asked-for price a market order really fills, as a
+   * fraction. Zero is what the practice engine does today: it fills at the
+   * price it was looking at.
+   */
+  slippageRate: number
+}
+
+/** Today's numbers — the exchange's real fees, and no slippage. */
+export function defaultPaperCosts(): PaperCosts {
+  return {
+    takerFeeRate: TAKER_FEE_RATE,
+    makerFeeRate: MAKER_FEE_RATE,
+    slippageRate: 0,
+  }
+}
+
+/**
+ * Where a market order really fills once slippage is counted: worse for
+ * whoever is in a hurry, always.
+ *
+ * A buy pays a little more than it meant to and a sell takes a little less.
+ * Getting that sign wrong would make a backtest *better* the more it slipped,
+ * which is the one direction it must never go.
+ */
+export function slippedPx(
+  px: number,
+  side: PaperSide,
+  slippageRate: number
+): number {
+  if (!(slippageRate > 0)) return px
+  return side === "buy" ? px * (1 + slippageRate) : px * (1 - slippageRate)
+}
+
 /** Below this many coins a position counts as flat — see `applyPaperFill`. */
 const POSITION_DUST = 1e-9
 
@@ -121,6 +174,18 @@ export type PaperOrder = {
   /** Applied to the position this order opens, once it fills. */
   tpPx: number | null
   slPx: number | null
+  /**
+   * The price this slice sells itself at, resting from the instant this order
+   * fills — not from the end of the candle it filled in.
+   *
+   * A ladder rung's exit used to be placed by the ladder afterwards, and the
+   * ladder only gets to look once a candle has finished. On 10 October KAS
+   * fell from 7.1c to 0.9c and came back to 5.5c inside one four-hour candle:
+   * every rung bought, and by the time the ladder could place their sells the
+   * price was already back above four of them. Those four were never sold.
+   * A real exchange has the exit sitting there the moment the buy fills.
+   */
+  exitPx?: number | null
   createdAt: number
   updatedAt: number
   /**

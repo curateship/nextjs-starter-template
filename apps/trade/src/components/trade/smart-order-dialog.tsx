@@ -256,6 +256,10 @@ export function SmartOrderDialog({
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
       twoGreen,
       anchor,
+      // A ladder placed by hand on a chart rests its rungs: you can see them,
+      // drag them, and cancel them. Watching for a close instead would hide
+      // the ladder you just drew. The automation step uses the other mode.
+      rungEntry: "limit",
       takeProfit: tpOn ? { mode: tpMode, pct: parsed(tpPct) ?? -1 } : null,
       stopLoss: slOn
         ? {

@@ -159,6 +159,12 @@ export function MeasureLayer({
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Only the left button draws one. A right-click is handled below.
     if (event.button !== 0) return
+    // Shift is held while this is armed, and shift-drag is also the browser's
+    // own "extend the selection" gesture — so without this, dragging a ruler
+    // selected every word from the chart to wherever the pointer went, right
+    // across the panels beside it. Refusing the default stops the selection
+    // being started at all.
+    event.preventDefault()
     if (measure?.stage === "locked") {
       setMeasure(null)
       return
@@ -209,7 +215,10 @@ export function MeasureLayer({
       // past its edges — a box dragged off the side stops at the candles. It
       // covers the plot so the chart never sees the drag, and the crosshair
       // is what says the pointer is holding a ruler.
-      className="absolute inset-y-0 left-0 cursor-crosshair overflow-hidden"
+      // `select-none` for the same reason as the preventDefault above: a
+      // selection cannot begin in an element that is not selectable, which
+      // covers the ways a drag can start that never reach the handler.
+      className="absolute inset-y-0 left-0 cursor-crosshair overflow-hidden select-none"
       style={{ width: surface.width, pointerEvents: "all", touchAction: "none" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

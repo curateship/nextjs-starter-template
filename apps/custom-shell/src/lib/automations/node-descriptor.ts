@@ -8,8 +8,22 @@ import type {
   AutomationSourcePort,
 } from "./graph"
 
-export type AutomationPaletteGroup =
-  "Triggers" | "Actions" | "Flow" | "AI" | "Steps"
+/**
+ * The heading a step sits under in the palette.
+ *
+ * Deliberately a plain string rather than the shell's own five names. An app
+ * that adds steps of its own usually wants a heading of its own too — Trade's
+ * backtest steps are not Actions or Flow — and a fixed list here could never
+ * gain one without editing a shell file, which is the exact fork this whole
+ * arrangement exists to avoid.
+ *
+ * Nothing is lost by widening it. The registry still knows the full list at
+ * run time, since it is the shell's own headings plus the ones the app declared
+ * in `automations.paletteGroups`, and a step naming a heading that is in
+ * neither is refused out loud rather than quietly vanishing from the palette.
+ * A typo was a compile error before and is a loud throw now.
+ */
+export type AutomationPaletteGroup = string
 
 /**
  * A node's icon — the component itself, imported by the node's own file.

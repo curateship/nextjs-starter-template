@@ -1,4 +1,5 @@
 import * as React from "react"
+import type { ComponentType } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
   ArrowLeftIcon,
@@ -64,6 +65,8 @@ import {
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
+import { appCanvasPanel } from "@/lib/app-options"
+import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
 // Same debounce as the shell's settings auto-save, so editing an automation
@@ -76,6 +79,7 @@ export function AutomationEditor({
   initialRuns,
   initialBlockDefaults,
   openRunId,
+  openNode,
   mode = "automation",
   onSaveTemplateGraph,
 }: {
@@ -85,6 +89,15 @@ export function AutomationEditor({
   initialBlockDefaults: BroadcastBlockDefaults
   /** The run a bell notice linked to, opened in the bottom panel on arrival. */
   openRunId?: string
+  /**
+   * A step to arrive with already selected, by its id or by its kind.
+   *
+   * For a page built out of one step's work — a backtest report, say — sending
+   * somebody back to "the settings that produced this" rather than to the
+   * canvas with nothing chosen. A kind is accepted because the sender usually
+   * knows what the step is without knowing this flow's copy of it.
+   */
+  openNode?: string
   mode?: "automation" | "template"
   onSaveTemplateGraph?: (graph: AutomationGraph) => Promise<unknown>
 }) {
@@ -101,11 +114,25 @@ export function AutomationEditor({
   const [name] = React.useState(initial.name)
   const [graph, setGraph] = React.useState(initial.graph)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
-    null
+    // Worked out here rather than in an effect: selecting after the first draw
+    // would flash the empty settings panel first, and an effect that ran again
+    // would drag somebody back to this step every time they picked another.
+    () => {
+      if (!openNode) return null
+      const found =
+        initial.graph.nodes.find((node) => node.id === openNode) ??
+        initial.graph.nodes.find((node) => node.kind === openNode)
+      return found?.id ?? null
+    }
   )
   const [previewNode, setPreviewNode] = React.useState<AutomationNode | null>(
     null
   )
+  // The run this canvas started, and whether the app's own panel is open.
+  // Opened by pressing Run, and stays until it is closed by hand — a panel
+  // that vanished when the run finished would take the result with it.
+  const [startedRunId, setStartedRunId] = React.useState<string | null>(null)
+  const [appPanelShut, setAppPanelShut] = React.useState(false)
   const [editingEmailNodeId, setEditingEmailNodeId] = React.useState<
     string | null
   >(null)
@@ -342,6 +369,10 @@ export function AutomationEditor({
   const handleRunNow = async () => {
     if (running || paused || !compiled.config) return
     setRunning(true)
+    // Opened on the press, not on the answer. Saving and starting take a
+    // moment, and a panel that appears afterwards makes the button feel like
+    // it did nothing.
+    setAppPanelShut(false)
     try {
       await saveNow()
       const current = latestRef.current
@@ -349,9 +380,11 @@ export function AutomationEditor({
         return
 
       const { runId } = await runAutomationNow(initial.id)
+      setStartedRunId(runId)
+      // No toast for starting: the canvas panel opens on the press and shows
+      // the run happening, which says it better than a message that covers
+      // part of the screen to repeat what you just did.
       dismissErrorToast()
-      toast.success(`Started "${name}".`)
-      runsPanelRef.current?.expand()
       await navigate({
         to: "/admin/automations/$automationId",
         params: { automationId: initial.id },
@@ -697,6 +730,14 @@ export function AutomationEditor({
           {canvasHeader}
           <div className="relative flex min-h-0 flex-1">
             {canvas}
+            <AppCanvasPanel
+              automationId={initial.id}
+              nodeKinds={graph.nodes.map((node) => node.kind)}
+              runId={startedRunId}
+              shut={appPanelShut}
+              onShut={() => setAppPanelShut(true)}
+              onOpen={() => setAppPanelShut(false)}
+            />
             {paletteCollapsed ? (
               <PanelReopenTab
                 side="left"
@@ -813,6 +854,84 @@ export function AutomationEditor({
           onConfirm={() => void handlePauseChange(true)}
         />
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * The app's own panel on the canvas, and the button that brings it back.
+ *
+ * Drawn over the canvas at the top right, under the Run button, because that is
+ * where somebody is looking when a flow starts. Nothing at all when the app has
+ * not asked for one.
+ *
+ * Each panel is wrapped once and kept: `React.lazy` returns a new component
+ * type every call, and one made during a render loses its state on every
+ * render.
+ */
+const lazyCanvasPanels = new Map<
+  string,
+  React.LazyExoticComponent<ComponentType<AutomationCanvasPanelProps>>
+>()
+
+function AppCanvasPanel({
+  automationId,
+  nodeKinds,
+  runId,
+  shut,
+  onShut,
+  onOpen,
+}: {
+  automationId: string
+  nodeKinds: readonly string[]
+  runId: string | null
+  shut: boolean
+  onShut: () => void
+  onOpen: () => void
+}) {
+  const declared = appCanvasPanel()
+  // Nothing at all — not even the button — on a flow this panel is not about.
+  const asked =
+    declared && (declared.appliesTo?.(nodeKinds) ?? true) ? declared : null
+
+  // Fetched as soon as the editor is drawn, not when the panel is first shown.
+  // It is a lazy import, so without this the first open waits on a download —
+  // which is exactly the moment somebody has just pressed Run and is watching.
+  React.useEffect(() => {
+    if (asked) void asked.panel()
+  }, [asked])
+
+  if (!asked) return null
+
+  if (shut) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="absolute top-3 right-3 z-10 shadow-sm"
+        onClick={onOpen}
+      >
+        {asked.label}
+      </Button>
+    )
+  }
+
+  let panel = lazyCanvasPanels.get(asked.label)
+  if (!panel) {
+    panel = React.lazy(asked.panel)
+    lazyCanvasPanels.set(asked.label, panel)
+  }
+
+  return (
+    <div className="absolute top-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)]">
+      <React.Suspense fallback={null}>
+        {React.createElement(panel as ComponentType<AutomationCanvasPanelProps>, {
+          automationId,
+          runId,
+          onClose: onShut,
+        })}
+      </React.Suspense>
     </div>
   )
 }

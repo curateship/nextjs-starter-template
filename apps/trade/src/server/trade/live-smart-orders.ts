@@ -15,10 +15,11 @@ import {
   type DcaParams,
 } from "@/lib/trade/dca"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import type {
-  PaperFillReason,
-  PaperOrder,
-  PaperPosition,
+import {
+  defaultPaperCosts,
+  type PaperFillReason,
+  type PaperOrder,
+  type PaperPosition,
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
@@ -247,6 +248,8 @@ function ladderPlan(
   return {
     anchorPx,
     anchor: input.params.anchor,
+    rungEntry: input.params.rungEntry,
+    startedAt: Date.now(),
     sizeDecimals,
     maxLeverage,
     rungs,
@@ -269,6 +272,7 @@ function ladderPlan(
     greenInterval: input.params.twoGreen ? input.interval : null,
     green: null,
     steppedDown: 0,
+    awaitingSteppedRung: false,
     baseWatch: null,
     reclaim: null,
   }
@@ -563,6 +567,10 @@ async function reconcileLiveLaddersOnce(
   }
   const book: WalletBook = {
     wallet,
+    // A real wallet pays the exchange's real fees, which is what the default
+    // says. Nothing here reads them — the exchange charged them already — but
+    // the shape the engine works in wants them.
+    costs: defaultPaperCosts(),
     cash:
       account.free +
       [...positions.values()].reduce(
@@ -604,6 +612,7 @@ async function reconcileLiveLaddersOnce(
     }),
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    addedOrders: [],
   }
 
   const needs = await ladderCandleNeeds(userId, wallet.id, now)
@@ -698,8 +707,6 @@ async function reconcileLiveLaddersOnce(
     const pendingCancels = new Set<string>()
     await advanceOne(
       {
-        tx: db,
-        userId,
         book,
         marks,
         ladderBars: ladderBars as LadderBars,

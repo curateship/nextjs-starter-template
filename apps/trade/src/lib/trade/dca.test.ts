@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   dcaAllocationPcts,
+  DEFAULT_DCA_RUNGS,
+  nextDcaRung,
   dcaLadderPlan,
   dcaLevels,
   dcaParamsSchema,
@@ -133,6 +135,8 @@ describe("ladder plans", () => {
   const plan: LadderPlan = {
     anchorPx: 100,
     anchor: "click",
+    rungEntry: "limit",
+    startedAt: 0,
     sizeDecimals: 3,
     maxLeverage: 50,
     rungs: [
@@ -165,6 +169,7 @@ describe("ladder plans", () => {
     greenInterval: null,
     green: null,
     steppedDown: 0,
+    awaitingSteppedRung: false,
     baseWatch: null,
     reclaim: null,
   }
@@ -256,5 +261,32 @@ describe("the stop that rests under the base", () => {
     expect(dcaParamsSchema.safeParse(asked).success).toBe(true)
     asked.stopLoss = { pct: 101, base: null }
     expect(dcaParamsSchema.safeParse(asked).success).toBe(false)
+  })
+})
+
+describe("adding a rung to a ladder", () => {
+  it("keeps getting deeper instead of repeating the last step", () => {
+    // Copying the last rung gave 5, 8, 11, 14, 17, 17, 17 — the ladder stopped
+    // deepening exactly where the deep rungs matter most.
+    const rungs = [...DEFAULT_DCA_RUNGS]
+    for (let i = 0; i < 3; i += 1) rungs.push(nextDcaRung(rungs))
+    const added = rungs.slice(5).map((r) => r.deviation)
+
+    expect(added).toEqual([21, 26, 32])
+    // Every gap wider than the one before it — that is what "exponential" buys.
+    const gaps = rungs.map((r, i) => (i === 0 ? 0 : r.deviation - rungs[i - 1].deviation))
+    expect(gaps.at(-1)).toBeGreaterThan(gaps.at(-2)!)
+  })
+
+  it("uses the default ladder's own first step when there is only one rung", () => {
+    expect(nextDcaRung([{ deviation: 5 }])).toEqual({ deviation: 8 })
+  })
+
+  it("still deepens a ladder whose rungs are all the same", () => {
+    expect(nextDcaRung([{ deviation: 10 }, { deviation: 10 }]).deviation).toBeGreaterThan(10)
+  })
+
+  it("never sends a rung past 99 percent below", () => {
+    expect(nextDcaRung([{ deviation: 60 }, { deviation: 90 }]).deviation).toBe(99)
   })
 })

@@ -1,4 +1,15 @@
+import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
+import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
+import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
+import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
+import { plural } from "@/lib/format/plural"
 import type { AppServerOptions } from "@/server/app-options"
+import { startBacktestForRun } from "@/server/trade/backtest/start"
+import { backtestTick } from "@/server/trade/backtest/worker"
+import {
+  ensureLadderLoop,
+  LADDER_WORKER_NAME,
+} from "@/server/trade/ladder-worker"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -20,4 +31,72 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+export const appServerOptions: AppServerOptions = {
+  automations: {
+    executors: {
+      /**
+       * The wallet and the coins carry on. Neither does anything by itself —
+       * everything they hold is read off the saved flow when the ladder step
+       * starts the run — so all they do here is say what they are set to, which
+       * is what the run history is for.
+       */
+      [tradeWalletNode.kind]: async ({ settings }) => ({
+        type: "next",
+        summary: tradeWalletNode.description(settings as AutomationNodeSettings),
+      }),
+      [tradeMarketsNode.kind]: async ({ settings }) => ({
+        type: "next",
+        summary: tradeMarketsNode.description(
+          settings as AutomationNodeSettings
+        ),
+      }),
+
+      /**
+       * The ladder step is where a backtest actually starts, and it is the end
+       * of the flow.
+       *
+       * It hands over only which run this is; the starter re-reads the saved
+       * flow and works the whole test out from all three steps. A flow missing
+       * one of them completes with the plain sentence saying which, rather than
+       * failing as broken — nothing went wrong, the flow just is not a backtest
+       * yet.
+       */
+      [tradeDcaNode.kind]: async ({ run, now }) => {
+        const outcome = await startBacktestForRun(run, now().getTime())
+        if (!outcome.started) {
+          return { type: "complete", summary: outcome.problem }
+        }
+        return {
+          type: "complete",
+          summary: `Backtest started over ${outcome.coins} ${plural(outcome.coins, "coin", "coins")}. It carries on in the background; the result appears on this step when it finishes.`,
+        }
+      },
+    },
+  },
+  background: {
+    workers: [
+      {
+        name: "trade-backtests",
+        /**
+         * One pass claims one run and does a bounded piece of it — a few coins'
+         * candles, or the whole walk once they are all in. Riding the shell's
+         * one ticker rather than a timer of its own means there is one place to
+         * look when something is ticking.
+         */
+        tick: () => backtestTick(),
+      },
+      {
+        name: LADDER_WORKER_NAME,
+        /**
+         * Starts the trading engine's own loop, and nothing else.
+         *
+         * Trading does NOT ride this ticker. It runs on its own timer at four
+         * seconds, because fifteen is a price paid in a fall — a rung's level
+         * can come and go inside one of them. All this does is start that
+         * timer once; every tick after the first returns immediately.
+         */
+        tick: async () => ensureLadderLoop(),
+      },
+    ],
+  },
+}

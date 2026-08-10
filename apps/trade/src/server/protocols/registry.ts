@@ -16,7 +16,10 @@ import type {
 import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
 import { fetchHyperliquidAccount } from "@/server/protocols/hyperliquid/account"
 import { verifyHyperliquidAgentKey } from "@/server/protocols/hyperliquid/agent"
-import { fetchHyperliquidCandles } from "@/server/protocols/hyperliquid/candles"
+import {
+  candleIntervalMs,
+  fetchHyperliquidCandles,
+} from "@/server/protocols/hyperliquid/candles"
 import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
 import {
   cancelHyperliquidOrder,
@@ -52,6 +55,8 @@ export type ProtocolEntry = {
       /** Epoch ms to read from, instead of the recent slice a chart draws. */
       since?: number
     ): Promise<CandleBar[]>
+    /** How long one bar of a timeframe lasts, in milliseconds. */
+    intervalMs(interval: CandleInterval): number
     /**
      * Today's price for these markets and nothing else — the cheap read the
      * practice engine settles against, where `fetch` is the whole catalogue.
@@ -134,6 +139,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     markets: {
       fetch: fetchHyperliquidMarkets,
       candles: fetchHyperliquidCandles,
+      intervalMs: candleIntervalMs,
       prices: fetchHyperliquidPrices,
       roundPx: roundOrderPx,
     },

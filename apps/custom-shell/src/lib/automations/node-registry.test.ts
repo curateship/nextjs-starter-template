@@ -19,10 +19,12 @@ import {
 
 const appNodes = vi.hoisted(() => ({
   current: [] as readonly AutomationNodeDescriptor[],
+  groups: [] as readonly string[],
 }))
 
 vi.mock("@/lib/app-options", () => ({
   appAutomationNodes: () => appNodes.current,
+  appPaletteGroups: () => appNodes.groups,
 }))
 
 /** The least a node can be and still be one. */
@@ -56,9 +58,22 @@ async function freshRegistry() {
 
 beforeEach(() => {
   appNodes.current = []
+  appNodes.groups = []
 })
 
 describe("an app that adds nothing", () => {
+  it("gets exactly the shell's own headings", async () => {
+    const { automationPaletteGroups } = await freshRegistry()
+
+    expect(automationPaletteGroups()).toEqual([
+      "Triggers",
+      "Actions",
+      "Flow",
+      "AI",
+      "Steps",
+    ])
+  })
+
   it("gets exactly the shell's own steps", async () => {
     const { automationPaletteItems } = await freshRegistry()
 
@@ -156,6 +171,46 @@ describe("an app that adds a step of its own", () => {
         settings: {},
       })
     ).toBeNull()
+  })
+})
+
+describe("an app that adds a palette heading of its own", () => {
+  it("puts it after the shell's, with its steps under it", async () => {
+    appNodes.groups = ["Trading"]
+    appNodes.current = [
+      testNode("tradeWallet", {
+        palette: { key: "trade-wallet", group: "Trading", description: "" },
+      }),
+    ]
+    const { automationPaletteGroups, automationPaletteItems } =
+      await freshRegistry()
+
+    expect(automationPaletteGroups().at(-1)).toBe("Trading")
+    // Last in the palette too, since items are sorted by their heading's place.
+    expect(automationPaletteItems().at(-1)).toMatchObject({
+      key: "trade-wallet",
+      group: "Trading",
+    })
+  })
+
+  it("refuses a heading the shell already uses", async () => {
+    appNodes.groups = ["Actions"]
+    const { automationPaletteItems } = await freshRegistry()
+
+    expect(() => automationPaletteItems()).toThrow(/"Actions"/)
+  })
+
+  it("refuses a step under a heading nothing declares", async () => {
+    // Otherwise the step is simply not drawn, which looks exactly like a step
+    // that was never written.
+    appNodes.current = [
+      testNode("tradeWallet", {
+        palette: { key: "trade-wallet", group: "Trading", description: "" },
+      }),
+    ]
+    const { automationPaletteItems } = await freshRegistry()
+
+    expect(() => automationPaletteItems()).toThrow(/"Trading"/)
   })
 })
 

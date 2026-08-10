@@ -15,15 +15,16 @@ import {
   bracketsTie,
   candleLegs,
   capReduceOnly,
+  defaultPaperCosts,
   isMarketable,
   liquidationPx,
-  MAKER_FEE_RATE,
   nextEventOnLeg,
   paperAccountFigures,
   positionMargin,
-  TAKER_FEE_RATE,
+  slippedPx,
   type PaperFillReason,
   type PaperJournalEntry,
+  type PaperCosts,
   type PaperOrder,
   type PaperPosition,
   type PaperSide,
@@ -170,6 +171,17 @@ function toJournalEntry(row: JournalRow): PaperJournalEntry {
  */
 export type WalletBook = {
   wallet: TradeWallet
+  /**
+   * What trading costs this book. Filled with `defaultPaperCosts()` for a real
+   * practice wallet, which is the exchange's own fees and no slippage — the
+   * same arithmetic, to the penny, as when these were read off the two
+   * constants directly.
+   *
+   * On the book rather than read from the constants because a backtest is
+   * allowed to ask "what if it cost more?", and the answer has to reach every
+   * fill without a second copy of the engine to keep in step.
+   */
+  costs: PaperCosts
   /** Starting balance plus everything banked — the cash the account has. */
   cash: number
   positions: Map<string, PaperPosition>
@@ -185,6 +197,17 @@ export type WalletBook = {
   touchedMarkets: Set<string>
   /** Orders that filled or were cancelled by the engine. */
   goneOrderIds: Set<string>
+  /**
+   * Orders the engine itself put on the book — today only the exits that ride
+   * on a rung's buy. Everything else here is written down when it is asked
+   * for, so this is the one list that has to be saved after the fact.
+   */
+  addedOrders: PaperOrder[]
+}
+
+/** The id an order's own exit carries, so the ladder can find it again. */
+export function exitOrderIdOf(orderId: string): string {
+  return `${orderId}:exit`
 }
 
 /** Everything written down; nothing left to save. */
@@ -192,6 +215,7 @@ function markSaved(book: WalletBook): void {
   book.fills = []
   book.touchedMarkets.clear()
   book.goneOrderIds.clear()
+  book.addedOrders = []
 }
 
 /** Cash not held as margin by anything open. */
@@ -286,7 +310,17 @@ function dropOrder(book: WalletBook, orderId: string): void {
 function fillOrder(
   book: WalletBook,
   order: PaperOrder,
-  input: { px: number; feeRate: number; at: number }
+  input: {
+    px: number
+    feeRate: number
+    at: number
+    /**
+     * Whether this fill takes what is there rather than waiting for somebody to
+     * come to it. A taker fill pays the book's slippage; an order that sat and
+     * waited gets the price it asked for.
+     */
+    slip?: boolean
+    }
 ): void {
   const held = book.positions.get(order.marketKey) ?? null
   let sz = order.sz
@@ -306,7 +340,9 @@ function fillOrder(
   fill(book, {
     marketKey: order.marketKey,
     side: order.side,
-    px: input.px,
+    px: input.slip
+      ? slippedPx(input.px, order.side, book.costs.slippageRate)
+      : input.px,
     sz,
     feeRate: input.feeRate,
     leverage: order.leverage,
@@ -315,6 +351,34 @@ function fillOrder(
     at: input.at,
     brackets: { tpPx: order.tpPx, slPx: order.slPx },
   })
+
+  // The exit goes on the book here, not after the candle finishes — see
+  // `exitPx`. It is stamped with the buy's own time so the same candle walk
+  // can reach it, and that walk only ever looks at prices AHEAD of where the
+  // buy filled, so it can never sell into the move that bought it.
+  if (!order.reduceOnly && order.exitPx !== null && order.exitPx !== undefined) {
+    if (order.exitPx > 0) {
+      const exit: PaperOrder = {
+        id: exitOrderIdOf(order.id),
+        walletId: order.walletId,
+        marketKey: order.marketKey,
+        side: order.side === "buy" ? "sell" : "buy",
+        px: order.exitPx,
+        sz,
+        leverage: order.leverage,
+        maxLeverage: order.maxLeverage,
+        reduceOnly: true,
+        tpPx: null,
+        slPx: null,
+        exitPx: null,
+        createdAt: order.updatedAt,
+        updatedAt: order.updatedAt,
+      }
+      book.orders.push(exit)
+      book.addedOrders.push(exit)
+    }
+  }
+
   dropOrder(book, order.id)
 }
 
@@ -322,12 +386,20 @@ function fillOrder(
 function closeAt(
   book: WalletBook,
   position: PaperPosition,
-  input: { px: number; feeRate: number; reason: PaperFillReason; at: number }
+  input: {
+    px: number
+    feeRate: number
+    reason: PaperFillReason
+    at: number
+    /** A stop or a liquidation takes what is there, so it pays slippage. */
+    slip?: boolean
+  }
 ): void {
+  const side: PaperSide = position.szi > 0 ? "sell" : "buy"
   fill(book, {
     marketKey: position.marketKey,
-    side: position.szi > 0 ? "sell" : "buy",
-    px: input.px,
+    side,
+    px: input.slip ? slippedPx(input.px, side, book.costs.slippageRate) : input.px,
     sz: Math.abs(position.szi),
     feeRate: input.feeRate,
     leverage: position.leverage,
@@ -377,8 +449,13 @@ function passedLevels(
 /**
  * Walks the candles of one market, then checks the price right now. Everything
  * that should have happened to this wallet in this market happens here.
+ *
+ * Exported because a backtest is exactly this, over and over: hand it a book in
+ * memory, a bar, and **no price right now**, and it becomes a candles-only
+ * replay. That is the whole seam — the tested ladder and the practice one are
+ * the same code, so they cannot drift into two strategies with one name.
  */
-function settleMarket(
+export function settleMarket(
   book: WalletBook,
   marketKey: string,
   input: { bars: CandleBar[]; barMs: number; mark: number | null; now: number }
@@ -416,7 +493,11 @@ function settleMarket(
         if (event.kind === "order") {
           const order = eligibleOrders.find((one) => one.id === event.orderId)
           if (order) {
-            fillOrder(book, order, { px: event.px, feeRate: MAKER_FEE_RATE, at })
+            fillOrder(book, order, {
+              px: event.px,
+              feeRate: book.costs.makerFeeRate,
+              at,
+            })
           }
         } else if (eligibleHeld) {
           closeAt(book, eligibleHeld, {
@@ -424,7 +505,12 @@ function settleMarket(
             // A target is a limit sitting at your price; a stop and a
             // liquidation are market orders that take what is there.
             feeRate:
-              event.kind === "take_profit" ? MAKER_FEE_RATE : TAKER_FEE_RATE,
+              event.kind === "take_profit"
+                ? book.costs.makerFeeRate
+                : book.costs.takerFeeRate,
+            // A stop and a liquidation are market orders and pay slippage; a
+            // target is a limit sitting at your price and does not.
+            slip: event.kind !== "take_profit",
             reason: event.kind,
             at,
           })
@@ -447,7 +533,7 @@ function settleMarket(
       // was sitting there as price went past, so that is where it was taken.
       fillOrder(book, waiting, {
         px: waiting.px,
-        feeRate: MAKER_FEE_RATE,
+        feeRate: book.costs.makerFeeRate,
         at: input.now,
       })
       continue
@@ -467,7 +553,10 @@ function settleMarket(
           ? level.px
           : worseOf(held.szi, level.px, mark),
       feeRate:
-        level.reason === "take_profit" ? MAKER_FEE_RATE : TAKER_FEE_RATE,
+        level.reason === "take_profit"
+          ? book.costs.makerFeeRate
+          : book.costs.takerFeeRate,
+      slip: level.reason !== "take_profit",
       reason: level.reason,
       at: input.now,
     })
@@ -529,12 +618,14 @@ async function readBook(
 
   return {
     wallet,
+    costs: defaultPaperCosts(),
     cash: wallet.startingBalance + banked,
     positions: new Map(positions.map((row) => [row.marketKey, toPosition(row)])),
     orders: orders.map(toOrder),
     fills: [],
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    addedOrders: [],
   }
 }
 
@@ -550,6 +641,32 @@ export async function saveBook(
   book: WalletBook,
   settledTo: Date | null
 ): Promise<void> {
+  // Written before the deletes: an exit that filled in the same pass is in
+  // both lists, and it has to exist before it can be removed.
+  if (book.addedOrders.length > 0) {
+    await database
+      .insert(tradePaperOrders)
+      .values(
+        book.addedOrders.map((order) => ({
+          userId,
+          id: order.id,
+          walletId: book.wallet.id,
+          marketKey: order.marketKey,
+          side: order.side,
+          px: order.px,
+          sz: order.sz,
+          leverage: order.leverage,
+          maxLeverage: order.maxLeverage,
+          reduceOnly: order.reduceOnly,
+          tpPx: order.tpPx,
+          slPx: order.slPx,
+          createdAt: new Date(order.createdAt),
+          updatedAt: new Date(order.updatedAt),
+        }))
+      )
+      .onConflictDoNothing()
+  }
+
   if (book.goneOrderIds.size > 0) {
     await database
       .delete(tradePaperOrders)
@@ -1042,7 +1159,7 @@ export async function placePaperOrder(
       side: input.side,
       px: mark,
       sz: reducible ?? sz,
-      feeRate: TAKER_FEE_RATE,
+      feeRate: book.costs.takerFeeRate,
       leverage: input.leverage,
       maxLeverage,
       reason: "order",
@@ -1098,7 +1215,11 @@ export async function movePaperOrder(
   const now = Date.now()
 
   if (isMarketable(order.side, px, mark)) {
-    fillOrder(book, order, { px: mark, feeRate: TAKER_FEE_RATE, at: now })
+    fillOrder(book, order, {
+      px: mark,
+      feeRate: book.costs.takerFeeRate,
+      at: now,
+    })
     await db.transaction((tx) => saveBook(tx, userId, book, new Date(now)))
     return
   }
@@ -1281,7 +1402,7 @@ export async function closePaperPosition(
   const now = Date.now()
   closeAt(book, held, {
     px: mark,
-    feeRate: TAKER_FEE_RATE,
+    feeRate: book.costs.takerFeeRate,
     reason: "manual",
     at: now,
   })
@@ -1316,7 +1437,7 @@ export async function flipPaperPosition(
     side: held.szi > 0 ? "sell" : "buy",
     px: mark,
     sz: size * 2,
-    feeRate: TAKER_FEE_RATE,
+    feeRate: book.costs.takerFeeRate,
     leverage: held.leverage,
     maxLeverage: held.maxLeverage,
     reason: "manual",
@@ -1355,7 +1476,7 @@ export async function closeAllPaperPositions(
       if (mark === undefined || !(mark > 0)) continue
       closeAt(book, position, {
         px: mark,
-        feeRate: TAKER_FEE_RATE,
+        feeRate: book.costs.takerFeeRate,
         reason: "manual",
         at: now,
       })

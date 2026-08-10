@@ -35,6 +35,34 @@ export const DEFAULT_DCA_RUNGS: DcaRung[] = [
   { deviation: 17 },
 ]
 
+/** A ladder may hold this many rungs. */
+export const MAX_DCA_RUNGS = 20
+
+/**
+ * The next rung to add below a ladder, in percent.
+ *
+ * It carries on the ladder's OWN shape rather than repeating its last step.
+ * Copying the last rung gave 5, 8, 11, 14, 17, 17, 17 — the ladder stopped
+ * getting deeper exactly where the deep rungs matter most, and every added
+ * rung sat the same distance below the one above it.
+ *
+ * So it keeps the ratio between the last two: 14 to 17 is a step of about
+ * 1.21, so the next is 21, then 25, then 31 — each gap wider than the last,
+ * which is the point of a ladder. A ladder with one rung has no ratio to read,
+ * so it uses 1.6, the shape of the default ladder's own first step (5 to 8).
+ *
+ * Capped at 99: a rung cannot sit a hundred percent below anything, and it
+ * always deepens by at least one so a flat ladder still grows.
+ */
+export function nextDcaRung(rungs: readonly DcaRung[]): DcaRung {
+  const last = rungs.at(-1)
+  if (!last) return { deviation: 5 }
+  const before = rungs.at(-2)
+  const ratio = before && before.deviation > 0 ? last.deviation / before.deviation : 1.6
+  const grown = Math.round(last.deviation * (ratio > 1 ? ratio : 1.6))
+  return { deviation: Math.min(99, Math.max(last.deviation + 1, grown)) }
+}
+
 /** Most of the account the whole ladder may ever spend, in percent. */
 export const DEFAULT_DCA_MAX_POSITION_PCT = 25
 
@@ -182,6 +210,25 @@ export const dcaParamsSchema = z.object({
    * before this existed gets the rule the QFL automation uses.
    */
   anchor: z.enum(DCA_ANCHORS).default("base"),
+  /**
+   * How a rung buys.
+   *
+   * **"limit" (the default):** the order is set at the rung's price and fills
+   * there the moment price touches it, wick or not. The rung locks in a price
+   * and a coin count.
+   *
+   * On a 4h replay this is the only assumption that can be stated plainly:
+   * "you got the price you asked for". The alternatives all need to know what
+   * happened INSIDE the candle, which a 4h bar cannot say. Real life pays a
+   * little slippage most of the time and occasionally fills far better on a
+   * violent dump; those two roughly cancel, and neither can be measured until
+   * the replay reads minute candles.
+   *
+   * **"market":** the rung is a level being watched, not an order. When a
+   * candle closes at or below the level it buys at market, so a wick that
+   * stabs through three rungs and springs straight back buys nothing.
+   */
+  rungEntry: z.enum(["market", "limit"]).default("limit"),
   takeProfit: z
     .object({
       mode: z.enum(DCA_TP_MODES),
@@ -219,6 +266,7 @@ export function defaultDcaParams(): DcaParams {
     maxOrderVolPct: 0,
     twoGreen: false,
     anchor: "base",
+    rungEntry: "limit",
     takeProfit: { mode: "average", pct: DEFAULT_DCA_TAKE_PROFIT_PCT },
     stopLoss: null,
   }
@@ -430,6 +478,18 @@ export const ladderPlanSchema = z.object({
    * existed was hung on a click, which is what the default says.
    */
   anchor: z.enum(DCA_ANCHORS).default("click"),
+  /** How this ladder's rungs buy — see `rungEntry` on the window's params. */
+  rungEntry: z.enum(["market", "limit"]).default("limit"),
+  /**
+   * When this ladder came into existence, in epoch milliseconds.
+   *
+   * A ladder that watches candles has to know where to start reading, and the
+   * answer is "the moment it existed". Without it the first pass read the WHOLE
+   * feed — a year of candles — and bought a rung on each of the earliest bars,
+   * months before this ladder was created: a column of buys in one spot with
+   * its rungs out of order. Zero is a ladder saved before this was recorded.
+   */
+  startedAt: z.number().default(0),
   /** The market's rules, frozen at placement — the engine re-aims from these. */
   sizeDecimals: z.number().nullable(),
   maxLeverage: z.number().positive(),
@@ -456,6 +516,20 @@ export const ladderPlanSchema = z.object({
    * always worked here and what you see when you place one.
    */
   steppedDown: z.number().int().min(0).max(100).default(0),
+  /**
+   * The stop just took a rung and the next one has not bought yet.
+   *
+   * Being flat normally ends a ladder. Being flat for these few hours does
+   * not — it sold at a stop on purpose and the next rung is still waiting.
+   *
+   * This used to be read off `steppedDown > 0`, which is a count that never
+   * goes back down: once a ladder had been stopped even once, EVERY later flat
+   * moment looked like this one. So a ladder that sold its last slice at a
+   * profit stayed open instead of finishing, and went on buying rungs down the
+   * same fall — YGG bought six more rungs from 8.5c to 1.7c on a ladder that
+   * should have closed months earlier and gone back to hunting a base break.
+   */
+  awaitingSteppedRung: z.boolean().default(false),
   /**
    * The 4h base the stop is riding, and how far the watch has read. Kept so a
    * settle four seconds after the last one costs no candles: the level can
@@ -524,9 +598,17 @@ export function ladderExitLevels(plan: Pick<LadderPlan, "anchorPx" | "rungs">): 
   )
 }
 
-/** The candle interval two-green mode watches, or null when it is off. */
-export function ladderGreenInterval(plan: LadderPlan): CandleInterval | null {
-  if (!plan.twoGreen || !plan.greenInterval) return null
+/**
+ * The candle interval this ladder has to WATCH, or null when it rests orders
+ * and needs no candles of its own.
+ *
+ * Two things want candles now, not one: two-green mode, and every ladder whose
+ * rungs buy at market — those rungs are levels being watched rather than
+ * orders on a book, so without bars nothing would ever buy.
+ */
+export function ladderWatchInterval(plan: LadderPlan): CandleInterval | null {
+  const watching = plan.twoGreen || plan.rungEntry === "market"
+  if (!watching || !plan.greenInterval) return null
   return plan.greenInterval as CandleInterval
 }
 

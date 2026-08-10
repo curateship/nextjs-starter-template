@@ -1,0 +1,255 @@
+import * as React from "react"
+import { ListIcon } from "lucide-react"
+
+import { toneClass } from "@/components/backtest/backtest-kpi"
+import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
+import type { BacktestTrade } from "@/lib/trade/backtest/result"
+import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { cn } from "@/lib/utils"
+
+/**
+ * Every round trip the charted coin made — the old app's trade list, column for
+ * column: # · Side · Entry · Exit · Amount · P&L · Return · Cum. P&L.
+ *
+ * One row per **round trip**, not per fill. A list of fills is twice as long
+ * and cannot answer the only question anybody has of it, which is how many of
+ * these actually worked. The running total down the right is what makes that
+ * readable — a row of winners means nothing if the losers between them were
+ * bigger.
+ *
+ * The cycle still open is pinned after the sorted rows rather than sorted among
+ * them: it has no exit, no return and no place in a running total, and letting
+ * it float would put a row of dashes in the middle of the numbers.
+ */
+type Column =
+  | "n"
+  | "entry"
+  | "exit"
+  | "amount"
+  | "pnl"
+  | "returnPct"
+  | "cumPnl"
+
+/** The old app's `fmtTradeDate` — 24-hour, so a list of them lines up. */
+function tradeDate(ms: number): string {
+  return new Date(ms).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+}
+
+export function BacktestTradesPanel({
+  symbol,
+  trades,
+  loading,
+  selected,
+  onSelect,
+}: {
+  /** The coin on the chart, or null when none is picked. */
+  symbol: string | null
+  trades: readonly BacktestTrade[]
+  loading: boolean
+  selected: number | null
+  onSelect: (n: number | null) => void
+}) {
+  const { sort, direction, toggleSort } = useTableSort<Column>("n", "asc")
+
+  // The running total, worked out in the order the trades actually CLOSED —
+  // which is not the order they opened in, so it cannot just accumulate down
+  // whatever order the table happens to be sorted in.
+  const cumulative = React.useMemo(() => {
+    const totals = new Map<number, number>()
+    let running = 0
+    for (const trade of [...trades]
+      .filter((one) => one.exitAt !== null)
+      .sort((left, right) => (left.exitAt ?? 0) - (right.exitAt ?? 0))) {
+      running += trade.pnl
+      totals.set(trade.n, running)
+    }
+    return totals
+  }, [trades])
+
+  const closed = React.useMemo(() => {
+    const way = direction === "asc" ? 1 : -1
+    const value = (trade: BacktestTrade): number => {
+      switch (sort) {
+        case "entry":
+          return trade.entryAt
+        case "exit":
+          return trade.exitAt ?? 0
+        case "amount":
+          return trade.amountUsd
+        case "pnl":
+          return trade.pnl
+        case "returnPct":
+          return trade.returnPct
+        case "cumPnl":
+          return cumulative.get(trade.n) ?? 0
+        default:
+          return trade.n
+      }
+    }
+    return trades
+      .filter((trade) => trade.exitAt !== null)
+      .slice()
+      .sort((left, right) => way * (value(left) - value(right)))
+  }, [trades, sort, direction, cumulative])
+
+  const open = trades.filter((trade) => trade.exitAt === null)
+
+  const head = (label: string, column: Column, right = false) => (
+    <TableHead column="meta" className={cn(right && "text-right")}>
+      <TableSortButton
+        active={sort === column}
+        direction={direction}
+        onClick={() => toggleSort(column)}
+        className={cn(right && "ml-auto flex-row-reverse")}
+      >
+        {label}
+      </TableSortButton>
+    </TableHead>
+  )
+
+  return (
+    <>
+      <WorkspacePanelHeader
+        icon={<ListIcon />}
+        title={symbol ? `Trades — ${symbol}` : "Trades"}
+        meta={
+          symbol
+            ? `${closed.length} closed${open.length > 0 ? `, ${open.length} open` : ""}`
+            : undefined
+        }
+      />
+      {/* Same reason as the Results panel: the scroll box's inner element
+          is `display: table` and would let this table outgrow the panel. */}
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="[&>div]:block!"
+      >
+        {!symbol ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">
+            Pick a coin in Results to see its trades.
+          </p>
+        ) : loading ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">
+            Loading…
+          </p>
+        ) : trades.length === 0 ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">
+            This coin never traded in the window.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {head("#", "n")}
+                <TableHead column="meta">Side</TableHead>
+                {head("Entry", "entry")}
+                {head("Exit", "exit")}
+                {head("Amount", "amount", true)}
+                {head("P&L", "pnl", true)}
+                {head("Return", "returnPct", true)}
+                {head("Cum. P&L", "cumPnl", true)}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {closed.map((trade) => (
+                <Row
+                  key={trade.n}
+                  trade={trade}
+                  cumPnl={cumulative.get(trade.n) ?? null}
+                  selected={selected === trade.n}
+                  onSelect={() => onSelect(selected === trade.n ? null : trade.n)}
+                />
+              ))}
+              {open.map((trade) => (
+                <Row
+                  key={`open-${trade.n}`}
+                  trade={trade}
+                  cumPnl={null}
+                  selected={selected === trade.n}
+                  onSelect={() => onSelect(selected === trade.n ? null : trade.n)}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ScrollArea>
+    </>
+  )
+}
+
+function Row({
+  trade,
+  cumPnl,
+  selected,
+  onSelect,
+}: {
+  trade: BacktestTrade
+  cumPnl: number | null
+  selected: boolean
+  onSelect: () => void
+}) {
+  const open = trade.exitAt === null
+
+  return (
+    <TableRow
+      data-state={selected ? "selected" : undefined}
+      rowAction={onSelect}
+      className={cn(open && "text-muted-foreground")}
+    >
+      <TableCell column="meta" className="tabular-nums">
+        {open ? "—" : trade.n}
+      </TableCell>
+      {/* Always a buy: the ladder only ever goes long. Written out rather than
+          left off, because the column is the old app's and a short strategy
+          would need it the day one exists. */}
+      <TableCell column="meta" className="text-teal-600 dark:text-teal-400">
+        Long
+      </TableCell>
+      <TableCell column="meta" className="tabular-nums">
+        {tradeDate(trade.entryAt)}
+      </TableCell>
+      <TableCell column="meta" className="tabular-nums">
+        {open ? "still open" : tradeDate(trade.exitAt!)}
+      </TableCell>
+      <TableCell column="meta" className="text-right tabular-nums">
+        {formatUsd(trade.amountUsd)}
+      </TableCell>
+      <TableCell
+        column="meta"
+        className={cn("text-right tabular-nums", toneClass(open ? 0 : trade.pnl))}
+      >
+        {open ? "—" : formatSignedUsd(trade.pnl)}
+      </TableCell>
+      <TableCell
+        column="meta"
+        className={cn("text-right tabular-nums", toneClass(open ? 0 : trade.pnl))}
+      >
+        {open ? "—" : `${trade.returnPct.toFixed(2)}%`}
+      </TableCell>
+      <TableCell
+        column="meta"
+        className={cn("text-right tabular-nums", toneClass(cumPnl ?? 0))}
+      >
+        {cumPnl === null ? "—" : formatSignedUsd(cumPnl)}
+      </TableCell>
+    </TableRow>
+  )
+}

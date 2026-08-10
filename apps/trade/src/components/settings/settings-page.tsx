@@ -1,3 +1,5 @@
+import * as React from "react"
+import type { ComponentType } from "react"
 import { Link } from "@tanstack/react-router"
 import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -11,6 +13,7 @@ import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
+import { appSettingsTabs } from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -49,16 +52,29 @@ export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
   | (typeof memberSettingsTabs)[number]["id"]
 
-const allSettingsTabIds: readonly string[] = [
+/** Every id the shell itself owns — what an app's tab may not be called. */
+const shellSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
   ...memberSettingsTabs.map((tab) => tab.id),
 ]
 
+/**
+ * The app's own tabs, worked out on first use rather than at import.
+ *
+ * An app's options file imports its own components, which import shell
+ * components, which can import this one — a real circle. A list built while
+ * this module loads would be built before the app's answers exist.
+ */
+function extraTabs() {
+  return appSettingsTabs(undefined, shellSettingsTabIds)
+}
+
 export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
-  return allSettingsTabIds.includes(segment)
-    ? (segment as SettingsTabId)
-    : "general"
+  const known =
+    shellSettingsTabIds.includes(segment) ||
+    extraTabs().some((tab) => tab.id === segment)
+  return known ? (segment as SettingsTabId) : "general"
 }
 
 export function SettingsPage({
@@ -102,6 +118,21 @@ export function SettingsPage({
           tabs={memberSettingsTabs}
           activeTab={activeTab}
         />
+
+        {/* The app's own, in their own card so it is obvious at a glance which
+            settings belong to this app rather than to the shell. Nothing is
+            drawn when an app has none, which is every app by default. */}
+        {extraTabs().length > 0 ? (
+          <SettingsTabGroup
+            storageId="settings-rail-app"
+            title="This app"
+            tabs={extraTabs().map((tab) => ({
+              id: tab.id as SettingsTabId,
+              label: tab.label,
+            }))}
+            activeTab={activeTab}
+          />
+        ) : null}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -220,8 +251,48 @@ export function SettingsPage({
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
         {activeTab === "ai" ? <AiSettings /> : null}
+        <AppSettingsPanel activeTab={activeTab} />
       </div>
     </div>
+  )
+}
+
+/**
+ * Each app panel wrapped once, outside any render.
+ *
+ * `React.lazy` makes a new component type every time it is called, and a
+ * component type made during a render resets its state on every render. Made
+ * here and remembered, so a tab keeps whatever it is holding.
+ */
+const lazyPanels = new Map<string, React.LazyExoticComponent<ComponentType>>()
+
+function lazyPanelFor(
+  id: string
+): React.LazyExoticComponent<ComponentType> | null {
+  const found = lazyPanels.get(id)
+  if (found) return found
+  const tab = extraTabs().find((one) => one.id === id)
+  if (!tab) return null
+  const made = React.lazy(tab.panel)
+  lazyPanels.set(id, made)
+  return made
+}
+
+/**
+ * Whichever of the app's own tabs is open, loaded when it is drawn.
+ *
+ * The tab holds a pointer to its file rather than the component, so nothing the
+ * panel imports is loaded until a browser asks for it — see `AppSettingsTab`.
+ */
+function AppSettingsPanel({ activeTab }: { activeTab: SettingsTabId }) {
+  const panel = lazyPanelFor(activeTab)
+  if (!panel) return null
+  // Built with `createElement` rather than as `<Panel />` so it is plain that
+  // the component comes from the cache above and is not made here.
+  return (
+    <React.Suspense fallback={null}>
+      {React.createElement(panel)}
+    </React.Suspense>
   )
 }
 

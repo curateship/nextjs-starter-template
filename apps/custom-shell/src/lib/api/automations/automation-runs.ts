@@ -102,9 +102,13 @@ const loadRunsPanelFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<AutomationRunsPanelData> => {
+    // The SITE's runs, not the person's. These read by workspace, and passing
+    // a user id here matched no rows at all — every flow's Runs tab said it had
+    // never run while the runs sat in the table.
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const [flow, waiting] = await Promise.all([
-      readRunsForAutomation(context.user.id, data.automationId),
-      readRunsAwaitingApproval(context.user.id),
+      readRunsForAutomation(workspaceId, data.automationId),
+      readRunsAwaitingApproval(workspaceId),
     ])
     return {
       runs: flow.runs.map(serializeRun),
@@ -119,7 +123,7 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
   .inputValidator(runListSchema)
   .handler(async ({ data, context }) => {
     const page = await readRunsForAutomation(
-      context.user.id,
+      await workspaceIdForRequest(context.user.id),
       data.automationId,
       data.offset
     )
@@ -129,7 +133,9 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
 const listWaitingRunsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }) => {
-    const waiting = await readRunsAwaitingApproval(context.user.id)
+    const waiting = await readRunsAwaitingApproval(
+      await workspaceIdForRequest(context.user.id)
+    )
     return { runs: waiting.runs.map(serializeRun), total: waiting.total }
   })
 

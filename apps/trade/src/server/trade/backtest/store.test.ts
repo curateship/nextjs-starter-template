@@ -1,0 +1,425 @@
+import { PGlite } from "@electric-sql/pglite"
+import { and, eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import type { BacktestSpec } from "@/lib/trade/backtest/flow"
+import { defaultDcaParams } from "@/lib/trade/dca"
+import type { CustomShellDb } from "@/server/db"
+import { createTestDatabase, insertUser } from "@/server/test-support"
+import {
+  backtestWindow,
+  claimBacktestGroup,
+  createBacktest,
+  failBacktestGroup,
+  listBacktests,
+  readBacktestGroup,
+  releaseBacktestGroup,
+  replaceUnnamedRuns,
+  saveBacktestResult,
+} from "@/server/trade/backtest/store"
+import {
+  tradeBacktestGroups,
+  tradeBacktests,
+} from "@/server/trade/schema"
+
+/**
+ * Where runs are kept, and how one is picked up to be worked on.
+ *
+ * Everything here is about a run surviving something going wrong: two passes
+ * racing for the same run, a restart leaving one claimed forever, three
+ * failures in a row, and Stop. A backtest that quietly sat at "running" after a
+ * deploy would be indistinguishable from one that was simply slow.
+ */
+
+const FOUR_HOURS = 14_400_000
+const NOW = 1_700_000_000_000
+
+vi.mock("@/server/protocols/registry", () => ({
+  getProtocol: () => ({ markets: { intervalMs: () => FOUR_HOURS } }),
+}))
+
+function specOf(marketKeys: string[]): BacktestSpec {
+  return {
+    wallet: {
+      startingUsd: 10_000,
+      takerFeePct: 0.045,
+      makerFeePct: 0.015,
+      slippagePct: 0.05,
+    },
+    markets: { marketKeys, days: 30 },
+    dca: { params: defaultDcaParams(), interval: "4h" },
+  }
+}
+
+let client: PGlite
+let db: CustomShellDb
+let userId: string
+
+beforeEach(async () => {
+  ;({ client, db } = await createTestDatabase())
+  userId = (await insertUser(db)).id
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+async function makeRun(
+  keys = ["hyperliquid:mainnet:AAA", "hyperliquid:mainnet:BBB"],
+  automationId = "flow-1"
+) {
+  return createBacktest(
+    userId,
+    {
+      automationId,
+      automationName: "My strategy",
+      spec: specOf(keys),
+      now: NOW,
+    },
+    db
+  )
+}
+
+describe("writing a run down", () => {
+  it("makes one row per coin, in alphabetical order", async () => {
+    const { groupId, coins } = await makeRun([
+      "hyperliquid:mainnet:ZZZ",
+      "hyperliquid:mainnet:AAA",
+    ])
+
+    expect(coins).toBe(2)
+    const found = await readBacktestGroup(userId, groupId, db)
+    expect(found?.coins.map((coin) => coin.symbol)).toEqual(["AAA", "ZZZ"])
+    expect(found?.coins.every((coin) => coin.status === "waiting")).toBe(true)
+  })
+
+  it("freezes the window it will walk, not just the number of days", async () => {
+    // A run started a minute later must cover the same ground, or two results
+    // could differ for a reason nobody could see.
+    const { groupId } = await makeRun()
+    const found = await readBacktestGroup(userId, groupId, db)
+    const window = backtestWindow(NOW, 30, FOUR_HOURS)
+
+    expect(found?.group.spec.from).toBe(window.from)
+    expect(found?.group.spec.to).toBe(window.to)
+  })
+})
+
+describe("claiming a run", () => {
+  it("hands it to one pass and not the other", async () => {
+    await makeRun()
+
+    const first = await claimBacktestGroup(NOW, db)
+    const second = await claimBacktestGroup(NOW, db)
+
+    expect(first).not.toBeNull()
+    expect(second).toBeNull()
+  })
+
+  it("takes back one a restart left claimed forever", async () => {
+    await makeRun()
+    await claimBacktestGroup(NOW, db)
+
+    // Nothing released it, because the process holding it went away. Six
+    // minutes on, it is fair game again.
+    const later = await claimBacktestGroup(NOW + 6 * 60_000, db)
+    expect(later).not.toBeNull()
+  })
+
+  it("lets go without finishing, so the next pass carries on", async () => {
+    const { groupId } = await makeRun()
+    await claimBacktestGroup(NOW, db)
+    await releaseBacktestGroup(userId, groupId, db)
+
+    expect(await claimBacktestGroup(NOW, db)).not.toBeNull()
+  })
+
+  it("gives up after three passes that never came back", async () => {
+    // A pass that dies takes the process with it, so it never releases its
+    // claim — the only mark it leaves is the count the claim put there. Three
+    // of those in a row and the run is broken rather than unlucky.
+    await makeRun()
+
+    const ORPHAN = 6 * 60_000
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      expect(await claimBacktestGroup(NOW + attempt * ORPHAN, db)).not.toBeNull()
+    }
+
+    expect(await claimBacktestGroup(NOW + 3 * ORPHAN, db)).toBeNull()
+  })
+
+  it("forgets the count as soon as a pass finishes its slice", async () => {
+    // The bug this is here for: a run lets go of its claim every few coins on
+    // purpose, so counting those as tries abandoned any run with more coins
+    // than the limit allows — silently, half done.
+    await makeRun()
+
+    for (let pass = 0; pass < 10; pass += 1) {
+      const claimed = await claimBacktestGroup(NOW, db)
+      expect(claimed, `pass ${pass + 1} should still be claimable`).not.toBeNull()
+      await releaseBacktestGroup(userId, claimed!.groupId, db)
+    }
+  })
+
+  it("never picks up one that already finished", async () => {
+    const { groupId } = await makeRun()
+    await db
+      .update(tradeBacktestGroups)
+      .set({ finishedAt: new Date(NOW) })
+      .where(
+        and(
+          eq(tradeBacktestGroups.userId, userId),
+          eq(tradeBacktestGroups.id, groupId)
+        )
+      )
+
+    expect(await claimBacktestGroup(NOW, db)).toBeNull()
+  })
+})
+
+describe("a run that keeps failing", () => {
+  it("says so on every coin instead of sitting at running", async () => {
+    const { groupId } = await makeRun()
+    await failBacktestGroup(userId, groupId, "the exchange said no", NOW, db)
+
+    const found = await readBacktestGroup(userId, groupId, db)
+    expect(found?.coins.every((coin) => coin.status === "error")).toBe(true)
+    expect(found?.coins[0].error).toBe("the exchange said no")
+    expect(found?.group.finishedAt).not.toBeNull()
+  })
+})
+
+describe("saving what a run found", () => {
+  const summary = {
+    startingUsd: 10_000,
+    endingUsd: 11_000,
+    madeOrLost: 1_000,
+    madeOrLostPct: 10,
+    worstDipUsd: 200,
+    worstDipAt: NOW,
+    worstDipPct: 1.8,
+    worstDipPeakUsd: 11_200,
+    coinsTested: 1,
+    coinsSkipped: 1,
+    coinsThatMadeMoney: 1,
+    peakInPlayUsd: 2_000,
+    peakInPlayAt: NOW,
+    peakInPlayHeldMs: 3_600_000,
+    typicalInPlayUsd: 1_000,
+    potAtWorstDipUsd: 9_800,
+    coinsOpenAtEnd: 0,
+    openAtEndUsd: 0,
+    buyAndHold: 500,
+    trades: 4,
+    tradesClosed: 3,
+    tradesWon: 2,
+    warnings: [],
+  }
+
+  it("keeps a skipped coin as a skipped row, never as an absence", async () => {
+    // A coin that quietly vanished is the difference between "two coins made
+    // this" and "the one that had history made this".
+    const { groupId } = await makeRun()
+
+    await saveBacktestResult(
+      userId,
+      groupId,
+      {
+        summary,
+        result: { equity: [], coins: [], skipped: [] },
+        coins: [
+          {
+            marketKey: "hyperliquid:mainnet:AAA",
+            status: "done",
+            skipReason: null,
+            summary: null,
+            trades: [],
+            fills: [],
+          },
+          {
+            marketKey: "hyperliquid:mainnet:BBB",
+            status: "skipped",
+            skipReason: "Listed last week.",
+            summary: null,
+            trades: null,
+            fills: null,
+          },
+        ],
+        now: NOW,
+      },
+      db
+    )
+
+    const found = await readBacktestGroup(userId, groupId, db)
+    expect(found?.coins).toHaveLength(2)
+    const skipped = found?.coins.find((coin) => coin.symbol === "BBB")
+    expect(skipped?.status).toBe("skipped")
+    expect(skipped?.skipReason).toBe("Listed last week.")
+  })
+
+  it("lets go of the claim so nothing picks it up again", async () => {
+    const { groupId } = await makeRun()
+    await claimBacktestGroup(NOW, db)
+    await saveBacktestResult(
+      userId,
+      groupId,
+      {
+        summary,
+        result: { equity: [], coins: [], skipped: [] },
+        coins: [],
+        now: NOW,
+      },
+      db
+    )
+
+    expect(await claimBacktestGroup(NOW, db)).toBeNull()
+  })
+})
+
+describe("replacing an unnamed run", () => {
+  async function finish(groupId: string) {
+    await db
+      .update(tradeBacktestGroups)
+      .set({ finishedAt: new Date(NOW) })
+      .where(
+        and(
+          eq(tradeBacktestGroups.userId, userId),
+          eq(tradeBacktestGroups.id, groupId)
+        )
+      )
+  }
+
+  it("clears the flow's last unnamed run when the next one finishes", async () => {
+    // Tuning a strategy makes a run a minute, and a list of forty near-identical
+    // ones is a list nobody reads.
+    const older = await makeRun()
+    await finish(older.groupId)
+    const newer = await makeRun()
+    await finish(newer.groupId)
+
+    await replaceUnnamedRuns(userId, "flow-1", newer.groupId, db)
+
+    const left = await listBacktests(userId, {}, db)
+    expect(left.map((run) => run.id)).toEqual([newer.groupId])
+  })
+
+  it("never touches a named one", async () => {
+    const kept = await makeRun()
+    await finish(kept.groupId)
+    await db
+      .update(tradeBacktestGroups)
+      .set({ name: "The good one" })
+      .where(
+        and(
+          eq(tradeBacktestGroups.userId, userId),
+          eq(tradeBacktestGroups.id, kept.groupId)
+        )
+      )
+
+    const newer = await makeRun()
+    await finish(newer.groupId)
+    await replaceUnnamedRuns(userId, "flow-1", newer.groupId, db)
+
+    const left = await listBacktests(userId, {}, db)
+    expect(left).toHaveLength(2)
+  })
+
+  it("never touches a pinned one", async () => {
+    const kept = await makeRun()
+    await finish(kept.groupId)
+    await db
+      .update(tradeBacktestGroups)
+      .set({ pinned: true })
+      .where(
+        and(
+          eq(tradeBacktestGroups.userId, userId),
+          eq(tradeBacktestGroups.id, kept.groupId)
+        )
+      )
+
+    const newer = await makeRun()
+    await finish(newer.groupId)
+    await replaceUnnamedRuns(userId, "flow-1", newer.groupId, db)
+
+    expect(await listBacktests(userId, {}, db)).toHaveLength(2)
+  })
+
+  it("never reaches across to another flow's runs", async () => {
+    const other = await makeRun(["hyperliquid:mainnet:AAA"], "flow-2")
+    await finish(other.groupId)
+    const mine = await makeRun(["hyperliquid:mainnet:AAA"], "flow-1")
+    await finish(mine.groupId)
+
+    await replaceUnnamedRuns(userId, "flow-1", mine.groupId, db)
+
+    expect(await listBacktests(userId, {}, db)).toHaveLength(2)
+  })
+
+  it("never touches one that has not finished", async () => {
+    const running = await makeRun()
+    const newer = await makeRun()
+    await finish(newer.groupId)
+
+    await replaceUnnamedRuns(userId, "flow-1", newer.groupId, db)
+
+    const left = await listBacktests(userId, {}, db)
+    expect(left.map((run) => run.id).sort()).toEqual(
+      [running.groupId, newer.groupId].sort()
+    )
+  })
+})
+
+describe("the list", () => {
+  it("floats pinned runs to the top and hides archived ones", async () => {
+    const pinned = await makeRun()
+    const plain = await makeRun()
+    const archived = await makeRun()
+    await db
+      .update(tradeBacktestGroups)
+      .set({ pinned: true })
+      .where(eq(tradeBacktestGroups.id, pinned.groupId))
+    await db
+      .update(tradeBacktestGroups)
+      .set({ archived: true })
+      .where(eq(tradeBacktestGroups.id, archived.groupId))
+
+    const shown = await listBacktests(userId, {}, db)
+    expect(shown[0].id).toBe(pinned.groupId)
+    expect(shown.map((run) => run.id)).not.toContain(archived.groupId)
+
+    const withArchived = await listBacktests(
+      userId,
+      { includeArchived: true },
+      db
+    )
+    expect(withArchived).toHaveLength(3)
+    expect(withArchived.map((run) => run.id)).toContain(plain.groupId)
+  })
+
+  it("says how many coins are done without loading the heavy result", async () => {
+    const { groupId } = await makeRun()
+    await db
+      .update(tradeBacktests)
+      .set({ status: "done", progress: 1 })
+      .where(
+        and(
+          eq(tradeBacktests.userId, userId),
+          eq(tradeBacktests.marketKey, "hyperliquid:mainnet:AAA")
+        )
+      )
+
+    const [row] = await listBacktests(userId, { automationId: "flow-1" }, db)
+    expect(row.id).toBe(groupId)
+    expect(row.coinsDone).toBe(1)
+    expect(row.coinsTotal).toBe(2)
+  })
+
+  it("shows only the flow that was asked about", async () => {
+    await makeRun(["hyperliquid:mainnet:AAA"], "flow-1")
+    await makeRun(["hyperliquid:mainnet:AAA"], "flow-2")
+
+    const mine = await listBacktests(userId, { automationId: "flow-2" }, db)
+    expect(mine).toHaveLength(1)
+    expect(mine[0].automationId).toBe("flow-2")
+  })
+})

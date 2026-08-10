@@ -1,7 +1,3 @@
-import { appBackgroundWorkers } from "@/server/app-options"
-import { runAutomationTick } from "@/server/automations/engine"
-import { processDueBroadcasts } from "@/server/email/broadcast-send"
-
 /**
  * The one background loop in this app, and the two jobs riding on it.
  *
@@ -27,7 +23,22 @@ export function ensureBackgroundTicker() {
   if (globalThis.__customShellBackgroundTicker) return
   globalThis.__customShellBackgroundTicker = true
 
-  const tick = () => {
+  const tick = async () => {
+    // Fetched on every pass, never imported at the top of this file.
+    //
+    // The interval below is created ONCE and then outlives every reload. A
+    // normal import would hand it the versions of these jobs that existed at
+    // boot, and it would go on calling those forever — so editing a worker
+    // did nothing until the whole server was restarted, which is a miserable
+    // way to work and easy to mistake for the edit not working. Asking for
+    // them here gets whatever the module graph holds right now.
+    const [{ runAutomationTick }, { processDueBroadcasts }, { appBackgroundWorkers }] =
+      await Promise.all([
+        import("@/server/automations/engine"),
+        import("@/server/email/broadcast-send"),
+        import("@/server/app-options"),
+      ])
+
     // Kept apart on purpose: a thrown automation pass must not stop the
     // broadcast pass, and the other way round.
     void runAutomationTick().catch((error) => {
@@ -45,6 +56,12 @@ export function ensureBackgroundTicker() {
       })
     }
   }
-  tick()
-  setInterval(tick, TICK_MS)
+
+  const safeTick = () => {
+    void tick().catch((error) => {
+      console.error("Background tick failed to start", error)
+    })
+  }
+  safeTick()
+  setInterval(safeTick, TICK_MS)
 }

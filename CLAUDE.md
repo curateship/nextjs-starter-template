@@ -71,6 +71,35 @@ him respond.
 - **Hold one position across the conversation.** If your earlier answer
   contradicts your current one, say so plainly and pick one.
 
+## Copying a Pattern Means Copying Every Layer of It
+
+When Tyler says "copy the pattern from X", he means the whole thing, not the
+part you happen to be looking at. Read every layer before writing a line:
+
+- **What it looks like** — the screen, the panels, the labels, the arrows.
+- **What it does** — the rules, the maths, the edge cases.
+- **How it runs** — where the code lives, what starts it, how often, whether
+  it is a page, a background job or a program of its own.
+- **What holds it up** — its database tables, its locks, its heartbeat, its
+  restart behaviour, its deploy.
+
+**A layer you did not open is a layer you got wrong.** This is not
+hypothetical. The Trade app's screens were copied from `apps/trading` while its
+plumbing was not, so live ladders ended up driven by the browser: close the tab
+and no rung bought and no stop fired, with real money in the trade. The answer
+was sitting in `apps/trading/worker/` the whole time — a separate program, a
+database lock so only one copy trades, a heartbeat, and an open socket to the
+exchange so it is *told* each price instead of asking every few seconds.
+
+- **Say what is different before reusing anything.** "Practice trading, nobody
+  watching" and "real money, nobody watching" are not the same problem. One
+  sentence out loud catches this.
+- **Name the layers you read, in the reply.** If you only read one, say so
+  rather than implying the port is complete.
+- **The old app is the specification.** `apps/trading`, `apps/directory` and
+  the rest are reference-only, but reference means read them, and read all of
+  them, not the file that matches the ticket title.
+
 ## Custom Shell Is the Template — Apps Never Edit Shell Files
 
 `apps/custom-shell` is the base every future app is copied from. Updates flow
@@ -149,7 +178,11 @@ only the first is written down anywhere.
 ## Validating Changes
 
 - **After any browser-facing change, run `.agents/skills/validate-app` before calling the work done.** Open the page in a real browser and read the console.
-- The "never start a server" rule above does **not** rule this out. Point the browser at the server already running on the app's port, or at the deployed URL. Neither needs a new process.
+- **Use Playwright. Not the Chrome extension.** The extension times out and leaves you guessing, and guessing at a layout wastes a whole conversation. Playwright always answers, and it answers with numbers.
+- The "never start a server" rule above does **not** rule this out. Point Playwright at the server already running on the app's port, or at the deployed URL. Neither needs a new process.
 - A green build, a clean type check and a `curl` returning 200 are not evidence the page works. Server-rendered HTML returns 200 while the client JavaScript crashes on hydration; only a browser sees that.
-- `playwright` is installed at the repo root. Scripts using it must be run from the repo root so the import resolves.
+- **A screenshot alone is not evidence either. Measure the thing being asked about**, and print the number: `getBoundingClientRect()` for anything about width, position or overlap. "It looks fine" has been wrong more often than it has been right.
+- Signing in: go to `/login` (not `/sign-in`, which 404s), fill `input[type="email"]` and `input[type="password"]`, and click `button[type="submit"]`.
+- Do not wait for `networkidle` on a page that polls — it never fires. Use `domcontentloaded`, then `waitForSelector` on something the page draws.
+- `playwright` is installed at the repo root, but only under `node_modules/.pnpm/`, so a bare `import "playwright"` fails even from the root. Import it by path: `node_modules/.pnpm/playwright@<version>/node_modules/playwright/index.mjs`.
 - Anything that changes bundling or code splitting (chunking config, `dynamic()`/`lazy` imports, moving code across a `"use client"` boundary) can only be proven in a production build, since dev does not chunk. Do not treat chunk counts or file sizes as verification. Ask before running a production build locally, and check the deployed URL's console straight after the deploy.

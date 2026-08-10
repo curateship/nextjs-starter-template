@@ -25,6 +25,7 @@ import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedBacktestsRouteImport } from './routes/_authenticated/backtests'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
@@ -48,6 +49,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedBacktestsGroupIdRouteImport } from './routes/_authenticated/backtests_.$groupId'
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
@@ -142,6 +144,11 @@ const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedBacktestsRoute = AuthenticatedBacktestsRouteImport.update({
+  id: '/backtests',
+  path: '/backtests',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
@@ -272,6 +279,12 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedBacktestsGroupIdRoute =
+  AuthenticatedBacktestsGroupIdRouteImport.update({
+    id: '/backtests_/$groupId',
+    path: '/backtests/$groupId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedChangelogIndexRoute =
   AuthenticatedChangelogIndexRouteImport.update({
     id: '/',
@@ -379,6 +392,7 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/backtests': typeof AuthenticatedBacktestsRoute
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/trade': typeof AuthenticatedTradeRoute
@@ -401,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -434,6 +449,7 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
+  '/backtests': typeof AuthenticatedBacktestsRoute
   '/home': typeof AuthenticatedHomeRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -455,6 +471,7 @@ export interface FileRoutesByTo {
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -491,6 +508,7 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/backtests': typeof AuthenticatedBacktestsRoute
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
@@ -513,6 +531,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/backtests_/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -549,6 +568,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/account'
     | '/admin'
+    | '/backtests'
     | '/changelog'
     | '/home'
     | '/trade'
@@ -571,6 +591,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
+    | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -604,6 +625,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
+    | '/backtests'
     | '/home'
     | '/trade'
     | '/workspaces'
@@ -625,6 +647,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
+    | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -660,6 +683,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/_authenticated/account'
     | '/_authenticated/admin'
+    | '/_authenticated/backtests'
     | '/_authenticated/changelog'
     | '/_authenticated/home'
     | '/_authenticated/trade'
@@ -682,6 +706,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/system-emails'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
+    | '/_authenticated/backtests_/$groupId'
     | '/_authenticated/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -837,6 +862,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/backtests': {
+      id: '/_authenticated/backtests'
+      path: '/backtests'
+      fullPath: '/backtests'
+      preLoaderRoute: typeof AuthenticatedBacktestsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/changelog': {
@@ -999,6 +1031,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users'
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/backtests_/$groupId': {
+      id: '/_authenticated/backtests_/$groupId'
+      path: '/backtests/$groupId'
+      fullPath: '/backtests/$groupId'
+      preLoaderRoute: typeof AuthenticatedBacktestsGroupIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/changelog/': {
       id: '/_authenticated/changelog/'
@@ -1222,19 +1261,23 @@ const AuthenticatedChangelogRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRouteWithChildren
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedBacktestsRoute: typeof AuthenticatedBacktestsRoute
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
+  AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRouteWithChildren,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedBacktestsRoute: AuthenticatedBacktestsRoute,
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
+  AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

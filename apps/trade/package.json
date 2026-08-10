@@ -61,7 +61,8 @@
     "typescript-eslint": "^8.57.1",
     "vite": "^8.0.16",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.6",
+    "esbuild": "^0.28.1"
   },
   "name": "trade",
   "private": true,
@@ -76,7 +77,9 @@
     "preview": "vite preview",
     "start": "node .output/server/index.mjs",
     "test": "vitest run --config vitest.config.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "build:worker": "node scripts/build-worker.mjs",
+    "worker": "node worker/dist/trade.mjs"
   },
   "type": "module",
   "version": "0.0.1"

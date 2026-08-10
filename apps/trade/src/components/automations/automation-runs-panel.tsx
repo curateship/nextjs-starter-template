@@ -68,7 +68,13 @@ export function AutomationRunsPanel({
 }) {
   const [tab, setTab] = React.useState<PanelTab>(
     // A link to a run of another flow belongs in Waiting, where it actually is.
-    openRunId && !initial.runs.some((run) => run.id === openRunId)
+    //
+    // Judged by whether the run IS in the waiting list, not by whether it is
+    // missing from this flow's first page. Pressing Run opens the panel at the
+    // brand-new run, and a run created a moment ago is in neither list yet —
+    // so "not in Runs" sent every single Run press to Waiting on you, which is
+    // the one tab it certainly is not in.
+    openRunId && initial.waiting.some((run) => run.id === openRunId)
       ? "waiting"
       : "runs"
   )
@@ -77,7 +83,10 @@ export function AutomationRunsPanel({
   const [waiting, setWaiting] = React.useState(initial.waiting)
   const [waitingTotal, setWaitingTotal] = React.useState(initial.waiting_total)
   const [expandedId, setExpandedId] = React.useState<string | null>(
-    openRunId ?? null
+    // The newest run open on arrival, unless a link asked for another. The
+    // panel exists to answer "what did that just do", and the answer is almost
+    // always the run at the top.
+    openRunId ?? initial.runs[0]?.id ?? null
   )
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -101,6 +110,18 @@ export function AutomationRunsPanel({
       setError(getAutomationRunErrorMessage(refreshError))
     }
   }, [automationId])
+
+  // A run the address asks for that the list has never heard of.
+  //
+  // Pressing Run adds `?run=<id>` without the route's loader running again, so
+  // the panel is still holding the list from before the run existed — it opened
+  // on a run it could not draw, and showed nothing at all. One read puts the
+  // new run at the top where it belongs.
+  React.useEffect(() => {
+    if (!openRunId) return
+    if (runs.some((run) => run.id === openRunId)) return
+    void refresh()
+  }, [openRunId, runs, refresh])
 
   async function loadMore() {
     if (loadingMore) return
@@ -248,6 +269,12 @@ export function AutomationRunsPanel({
   )
 }
 
+/** How often an unfinished run is re-read while it is open. */
+const STILL_GOING_MS = 3_000
+
+/** Statuses that never change again. Anything else is still moving. */
+const finalStatuses = new Set(["completed", "failed", "rejected"])
+
 /**
  * One run: a line you can click open. Shut, it is the status and when. Open, it
  * loads its own steps — and, when it is waiting on somebody, the sentence the
@@ -288,7 +315,15 @@ function RunRow({
   React.useEffect(() => {
     if (!expanded) return
     void load()
-  }, [expanded, load])
+
+    // A run that has not finished is still growing steps. Read once and it
+    // stays as it was the instant it was opened — press Run and the row opens
+    // on a run with no steps at all, then never draws the ones that arrive a
+    // second later. A finished run never changes again, so this stops.
+    if (finalStatuses.has(run.status)) return
+    const timer = window.setInterval(() => void load(), STILL_GOING_MS)
+    return () => window.clearInterval(timer)
+  }, [expanded, load, run.status])
 
   async function decide(decision: "approved" | "rejected") {
     if (deciding) return
