@@ -9,6 +9,7 @@ import {
 } from "@/lib/automations/nodes/wait-for-approval"
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { webhookNode } from "@/lib/automations/nodes/webhook"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
@@ -45,9 +46,9 @@ export type AutomationExecutorContext = {
 
 export type AutomationExecutorResult =
   /** Done — carry on to whatever this step feeds into. */
-  | { type: "next"; summary: string }
+  | { type: "next"; summary: string; output?: AutomationRunOutput }
   /** Done, and deliberately the end of the flow. */
-  | { type: "complete"; summary: string }
+  | { type: "complete"; summary: string; output?: AutomationRunOutput }
   /**
    * Stop and wait for a person. The engine hands the claim back, so the run
    * occupies nothing while it waits, and auto-rejects it at `deadlineAt`.

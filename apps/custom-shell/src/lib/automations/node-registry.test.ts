@@ -158,6 +158,42 @@ describe("an app that adds a step of its own", () => {
       })
     ).toBeNull()
   })
+
+  it("does not load a rich run result until React draws it", async () => {
+    let opened = false
+    appNodes.current = [
+      testNode("sendSms", {
+        runResult: async () => {
+          opened = true
+          return { default: () => null }
+        },
+      }),
+    ]
+    const { automationNodeRunResult } = await freshRegistry()
+
+    expect(automationNodeRunResult("sendSms")).not.toBeNull()
+    expect(opened).toBe(false)
+  })
+
+  it("keeps one rich result component per node kind", async () => {
+    appNodes.current = [
+      testNode("sendSms", {
+        runResult: async () => ({ default: () => null }),
+      }),
+    ]
+    const { automationNodeRunResult } = await freshRegistry()
+
+    expect(automationNodeRunResult("sendSms")).toBe(
+      automationNodeRunResult("sendSms")
+    )
+  })
+
+  it("uses the plain summary when a node has no rich run result", async () => {
+    appNodes.current = [testNode("sendSms")]
+    const { automationNodeRunResult } = await freshRegistry()
+
+    expect(automationNodeRunResult("sendSms")).toBeNull()
+  })
 })
 
 describe("an app cannot take over one of the shell's steps", () => {

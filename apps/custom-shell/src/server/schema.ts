@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm"
 
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import type { AutomationGraph } from "@/lib/automations/graph"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import type {
   AutomationApprovalDecision,
   AutomationRunStatus,
@@ -955,6 +956,8 @@ export const customShellAutomationRunSteps = pgTable(
     attempts: integer("attempts").notNull().default(1),
     /** What the step did, in the words a person would use. Always present. */
     summary: text("summary").notNull(),
+    /** Small JSON-only data for a node's optional rich run-history view. */
+    output: jsonb("output").$type<AutomationRunOutput>(),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),

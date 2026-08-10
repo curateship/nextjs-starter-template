@@ -161,6 +161,63 @@ describe("running a flow", () => {
     expect(detail?.finishedAt).not.toBeNull()
   })
 
+  it("stores compact structured output for a node's rich history view", async () => {
+    const user = await insertUser(db, { role: "admin" })
+    const automation = await insertAutomation(user.id, [placeholder])
+    const original = automationExecutors.placeholder
+    automationExecutors.placeholder = async () => ({
+      type: "next",
+      summary: "Finished the app's report.",
+      output: {
+        resultId: "result-42",
+        metrics: { wins: 12, losses: 3 },
+      },
+    })
+
+    try {
+      const run = await startAutomationRun(site, user.id, automation.id, db)
+      await runAutomationTick(db)
+
+      const detail = await getAutomationRun(site, run.id, db)
+      expect(detail?.steps[0]).toMatchObject({
+        kind: "placeholder",
+        summary: "Finished the app's report.",
+        output: {
+          resultId: "result-42",
+          metrics: { wins: 12, losses: 3 },
+        },
+      })
+    } finally {
+      automationExecutors.placeholder = original
+    }
+  })
+
+  it("refuses a report dump that is too large for run history", async () => {
+    const user = await insertUser(db, { role: "admin" })
+    const automation = await insertAutomation(user.id, [placeholder])
+    const original = automationExecutors.placeholder
+    automationExecutors.placeholder = async () => ({
+      type: "next",
+      summary: "Made an oversized report.",
+      output: "x".repeat(50_001),
+    })
+
+    try {
+      const run = await startAutomationRun(site, user.id, automation.id, db)
+      await runAutomationTick(db)
+
+      const detail = await getAutomationRun(site, run.id, db)
+      expect(detail?.status).toBe("active")
+      expect(detail?.steps[0]).toMatchObject({
+        status: "failed",
+        output: null,
+        error: "Automation step output must stay under 50,000 characters.",
+      })
+    } finally {
+      automationExecutors.placeholder = original
+    }
+  })
+
   it("refuses to start a flow with more than one starting step", async () => {
     const user = await insertUser(db, { role: "admin" })
     const graph = { ...graphOf([placeholder, placeholder]), edges: [] }
