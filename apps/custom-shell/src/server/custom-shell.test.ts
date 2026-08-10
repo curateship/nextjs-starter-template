@@ -1509,6 +1509,23 @@ describe("custom shell workspaces", () => {
     ])
   })
 
+  it("normalizes public links and broken public settings safely", () => {
+    const saved = parseWorkspaceSettings({
+      publicNavigation: [
+        { label: "About", href: "/about" },
+        { label: "Danger", href: "javascript:alert(1)" },
+      ],
+      publicFooter: "not a list",
+      publicFooterCopyright: { text: "not a line" },
+    })
+
+    expect(saved.publicNavigation).toEqual([
+      { label: "About", href: "/about" },
+    ])
+    expect(saved.publicFooter).toEqual([])
+    expect(saved.publicFooterCopyright).toBe("")
+  })
+
   it("still gives a brand new workspace the default sidebar links", () => {
     // The feed links live under the Overview now, so the walk has
     // to look one level down as well.

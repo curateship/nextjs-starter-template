@@ -41,6 +41,11 @@ import {
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
 import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationLinks,
+  type PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
+import {
   WORKSPACE_STATUSES,
   type WorkspaceStatus,
 } from "@/lib/workspaces/status"
@@ -398,6 +403,9 @@ export const NAVIGATION_VERSION = 18
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  publicNavigation: PublicNavigationLink[]
+  publicFooter: PublicNavigationLink[]
+  publicFooterCopyright: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   /** How far this workspace's saved sidebar has been brought forward. */
@@ -2217,6 +2225,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+      publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+      publicFooterCopyright: cleanPublicFooterCopyright(
+        settings.publicFooterCopyright
+      ),
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -2264,6 +2277,11 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -2351,6 +2369,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    publicNavigation: [],
+    publicFooter: [],
+    publicFooterCopyright: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     // The defaults above are already the current shape, so a new workspace has

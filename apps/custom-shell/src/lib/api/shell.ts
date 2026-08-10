@@ -153,6 +153,9 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     appName: string
     logo: string
     logoDark: string
+    publicNavigation: ShellConfig["publicNavigation"]
+    publicFooter: ShellConfig["publicFooter"]
+    publicFooterCopyright: string
     hostIsUnknown: boolean
   }> => {
     try {
@@ -163,7 +166,15 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
       // default", so this goes through the one place that decides what that is.
       // And never a dead end on a failure — a database that could not be read
       // must not turn every address into a 404.
-      return { appName: "", logo: "", logoDark: "", hostIsUnknown: false }
+      return {
+        appName: "",
+        logo: "",
+        logoDark: "",
+        publicNavigation: [],
+        publicFooter: [],
+        publicFooterCopyright: "",
+        hostIsUnknown: false,
+      }
     }
   }
 )

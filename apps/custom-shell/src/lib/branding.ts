@@ -1,4 +1,5 @@
 import { rootRouteId, useLoaderData } from "@tanstack/react-router"
+import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
 
 /** Shown wherever the app name appears while nobody has set one. */
 export const DEFAULT_APP_NAME = "Custom Shell"
@@ -49,5 +50,26 @@ export function useBrandLogoDark() {
   return useLoaderData({
     from: rootRouteId,
     select: (data) => data.logoDark?.trim() ?? "",
+  })
+}
+
+export function usePublicNavigation(): PublicNavigationLink[] {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicNavigation ?? [],
+  })
+}
+
+export function usePublicFooter(): PublicNavigationLink[] {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicFooter ?? [],
+  })
+}
+
+export function usePublicFooterCopyright() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicFooterCopyright ?? "",
   })
 }

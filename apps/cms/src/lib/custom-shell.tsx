@@ -11,6 +11,7 @@ import {
   createDefaultPageOverrides,
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
+import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
 import { scaffoldStyling } from "@/lib/layout/scaffold-styling"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -409,6 +410,12 @@ export type ShellConfig = {
    * existed. A global for the same reason as `logo`.
    */
   logoDark: string
+  /** Links shown across the public site's header, saved per workspace. */
+  publicNavigation: PublicNavigationLink[]
+  /** Links shown in the public site's footer, saved per workspace. */
+  publicFooter: PublicNavigationLink[]
+  /** The short line shown beneath the public footer links. */
+  publicFooterCopyright: string
   /** The signed-in admin's own header row, saved on their workspace. */
   topRightNavigation: ShellTopRightNavigationItem[]
   /**
@@ -946,6 +953,9 @@ export function createDefaultShellConfig(): ShellConfig {
     favicon: "",
     logo: "",
     logoDark: "",
+    publicNavigation: [],
+    publicFooter: [],
+    publicFooterCopyright: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     // Like memberSections below: the real starting point for a fresh install,
     // handed out only while the settings row has never held a member list.

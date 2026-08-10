@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
   ChevronsUpDownIcon,
+  ExternalLinkIcon,
   Loader2Icon,
   PlusIcon,
 } from "lucide-react"
@@ -24,10 +25,17 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { WorkspaceItem } from "@/lib/api/people/workspaces"
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { capitalise, workspaceWord } from "@/lib/app-options"
+
+const subscribeToBrowserOrigin = () => () => {}
 
 /**
  * The line under a site's name is **its address**, which is the one thing that
@@ -57,6 +65,11 @@ export function WorkspaceSwitcher({
   const word = workspaceWord()
   const activeWorkspaceName = activeWorkspace?.name ?? ""
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
+  const browserOrigin = React.useSyncExternalStore(
+    subscribeToBrowserOrigin,
+    () => window.location.origin,
+    () => ""
+  )
 
   /**
    * What a site answers on. Its own domain when it has one, otherwise its name
@@ -70,6 +83,21 @@ export function WorkspaceSwitcher({
   const addressOf = (workspace: WorkspaceItem) =>
     workspace.customDomain ||
     (baseDomain ? `${workspace.subdomain}.${baseDomain}` : workspace.name)
+  const publicUrlOf = (workspace: WorkspaceItem) => {
+    const address = addressOf(workspace)
+    if (!baseDomain && !workspace.customDomain) return "/"
+
+    const currentOrigin = browserOrigin ? new URL(browserOrigin) : null
+    const protocol = workspace.customDomain
+      ? "https:"
+      : (currentOrigin?.protocol ??
+        (baseDomain === "localhost" ? "http:" : "https:"))
+    const port =
+      !workspace.customDomain && currentOrigin?.port
+        ? `:${currentOrigin.port}`
+        : ""
+    return `${protocol}//${address}${port}`
+  }
   const [createOpen, setCreateOpen] = React.useState(false)
   // The switch itself lives in `useSwitchWorkspace`, because the workspaces
   // dashboard does the same thing and the two must not drift apart.
@@ -137,31 +165,54 @@ export function WorkspaceSwitcher({
                     const busy = busyWorkspaceId === workspace.id
 
                     return (
-                      <DropdownMenuItem
-                        key={workspace.id}
-                        disabled={Boolean(busyWorkspaceId)}
-                        onSelect={() => void handleSwitch(workspace.id)}
-                        className="gap-2 p-2"
-                      >
-                        <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
-                          <WorkspaceLogo
-                            favicon={workspaceFavicon}
-                            icon={workspace.icon}
-                            name={displayName}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium">{displayName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {addressOf(workspace)}
+                      <div key={workspace.id} className="flex items-center">
+                        <DropdownMenuItem
+                          disabled={Boolean(busyWorkspaceId)}
+                          onSelect={() => void handleSwitch(workspace.id)}
+                          className="min-w-0 flex-1 gap-2 p-2"
+                        >
+                          <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
+                            <WorkspaceLogo
+                              favicon={workspaceFavicon}
+                              icon={workspace.icon}
+                              name={displayName}
+                            />
                           </div>
-                        </div>
-                        {busy ? (
-                          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                        ) : workspace.active ? (
-                          <CheckIcon className="size-4 text-muted-foreground" />
-                        ) : null}
-                      </DropdownMenuItem>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium">
+                              {displayName}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {addressOf(workspace)}
+                            </div>
+                          </div>
+                          {busy ? (
+                            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                          ) : workspace.active ? (
+                            <CheckIcon className="size-4 text-muted-foreground" />
+                          ) : null}
+                        </DropdownMenuItem>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              asChild
+                              className="size-8 shrink-0 p-0"
+                            >
+                              <a
+                                href={publicUrlOf(workspace)}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Open ${displayName} site in a new tab`}
+                              >
+                                <ExternalLinkIcon className="size-4" />
+                              </a>
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            Open site in a new tab
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     )
                   })}
                   <DropdownMenuSeparator />

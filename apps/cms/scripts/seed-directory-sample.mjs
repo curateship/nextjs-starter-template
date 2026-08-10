@@ -27,6 +27,36 @@ const sites = [
   {
     subdomain: "alpha",
     name: "Alpha Guide",
+    publicSettings: {
+      publicNavigation: [
+        { label: "Home", href: "/" },
+        { label: "Directory", href: "/directory" },
+        { label: "About", href: "/about" },
+        { label: "Contact", href: "/contact" },
+      ],
+      publicFooter: [
+        { label: "Directory", href: "/directory" },
+        { label: "About", href: "/about" },
+        { label: "Contact", href: "/contact" },
+        { label: "Privacy", href: "/privacy" },
+        { label: "Terms", href: "/terms" },
+      ],
+      publicFooterCopyright: "© 2026 Alpha Guide",
+    },
+    pages: [
+      [
+        "/about",
+        "About Alpha",
+        "Alpha Guide collects dependable local places.",
+      ],
+      [
+        "/contact",
+        "Contact Alpha",
+        "Send Alpha Guide your local recommendations.",
+      ],
+      ["/privacy", "Privacy", "Alpha Guide keeps its privacy promise simple."],
+      ["/terms", "Terms", "The terms for using Alpha Guide."],
+    ],
     categories: [
       { slug: "eat", name: "Eat", description: "Places to eat and drink." },
       {
@@ -105,6 +135,19 @@ const sites = [
   {
     subdomain: "beta",
     name: "Beta Directory",
+    publicSettings: {
+      publicNavigation: [
+        { label: "Browse", href: "/directory" },
+        { label: "Food", href: "/directory/category/eat" },
+        { label: "Trades", href: "/directory/category/trades" },
+      ],
+      publicFooter: [
+        { label: "Browse all", href: "/directory" },
+        { label: "Terms", href: "/terms" },
+      ],
+      publicFooterCopyright: "© 2026 Beta Directory",
+    },
+    pages: [["/terms", "Beta terms", "The terms for using Beta Directory."]],
     categories: [
       { slug: "eat", name: "Food", description: "Beta's own food list." },
       { slug: "trades", name: "Trades", description: "People who fix things." },
@@ -196,6 +239,7 @@ async function main() {
       const siteId = await upsertSite(client, ownerId, site)
       const categoryIds = await upsertCategories(client, siteId, site.categories)
       await upsertListings(client, siteId, categoryIds, site.listings)
+      await upsertWrittenPages(client, siteId, site.pages)
       console.log(
         `${site.name}: ${site.listings.length} listings, ${site.categories.length} categories`
       )
@@ -251,13 +295,14 @@ async function sampleOwner(client) {
 async function upsertSite(client, ownerId, site) {
   const { rows } = await client.query(
     `insert into workspaces (id, user_id, name, subdomain, settings, created_at, updated_at)
-     values (gen_random_uuid()::text, $1, $2, $3, '{}'::jsonb, now(), now())
+     values (gen_random_uuid()::text, $1, $2, $3, $4::jsonb, now(), now())
      on conflict (subdomain) do update
        set name = excluded.name,
            user_id = excluded.user_id,
+           settings = workspaces.settings || excluded.settings,
            updated_at = now()
      returning id`,
-    [ownerId, site.name, site.subdomain]
+    [ownerId, site.name, site.subdomain, JSON.stringify(site.publicSettings)]
   )
   return rows[0].id
 }
@@ -333,6 +378,21 @@ async function upsertListings(client, siteId, categoryIds, listings) {
        values (gen_random_uuid()::text, $1, $2, 'directory_listing', $3, true, now())
        on conflict (category_id, content_type, content_id) do nothing`,
       [siteId, categoryId, listingId]
+    )
+  }
+}
+
+async function upsertWrittenPages(client, siteId, pages) {
+  for (const [pagePath, title, text] of pages) {
+    await client.query(
+      `insert into written_pages
+         (id, workspace_id, path, title, body, created_at, updated_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4::jsonb, now(), now())
+       on conflict (workspace_id, path) do update
+         set title = excluded.title,
+             body = excluded.body,
+             updated_at = now()`,
+      [siteId, pagePath, title, JSON.stringify(body([text]))]
     )
   }
 }
