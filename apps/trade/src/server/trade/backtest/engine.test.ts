@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import type { CandleBar } from "@/lib/protocols/contracts"
+import type { CandleBar, FundingRate } from "@/lib/protocols/contracts"
 import { defaultDcaParams, type DcaParams } from "@/lib/trade/dca"
 import { defaultPaperCosts, type PaperCosts } from "@/lib/trade/paper"
 import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
@@ -58,7 +58,11 @@ function bars(fall: number, rise: number): CandleBar[] {
   return out
 }
 
-function coin(marketKey: string, shape: CandleBar[]): BacktestCoin {
+function coin(
+  marketKey: string,
+  shape: CandleBar[],
+  funding: FundingRate[] = []
+): BacktestCoin {
   return {
     marketKey,
     symbol: marketKey.split(":")[2],
@@ -67,6 +71,7 @@ function coin(marketKey: string, shape: CandleBar[]): BacktestCoin {
     // The base rule is not what these cases are about; the ladders below hang
     // off the click price, so no base is needed for one to arm.
     baseBars: [],
+    funding,
   }
 }
 
@@ -190,6 +195,51 @@ describe("what trading costs", () => {
     )
 
     expect(slipping.endingUsd).toBeLessThanOrEqual(none.endingUsd)
+  })
+
+  it("charges each historical funding hour with hand-checkable arithmetic", async () => {
+    const shape: CandleBar[] = [
+      { openTime: START, open: 100, high: 100, low: 100, close: 100, volume: 1 },
+      {
+        openTime: START + FOUR_HOURS,
+        open: 100,
+        high: 100,
+        low: 94,
+        close: 94,
+        volume: 1,
+      },
+      {
+        openTime: START + 2 * FOUR_HOURS,
+        open: 94,
+        high: 94,
+        low: 94,
+        close: 94,
+        volume: 1,
+      },
+    ]
+    const firstFunding = START + 2 * FOUR_HOURS
+    const funding = [0.001, 0.002, 0.003].map((rate, index) => ({
+      time: firstFunding + index * 3_600_000,
+      rate,
+    }))
+    const outcome = await runBacktest(
+      inputFor([coin("hyperliquid:mainnet:AAA", shape, funding)], {
+        costs: { takerFeeRate: 0, makerFeeRate: 0, slippageRate: 0 },
+        params: params({
+          rungs: [{ deviation: 5 }],
+          maxPositionPct: 50,
+          takeProfit: { mode: "prevRung", pct: 1 },
+        }),
+      })
+    )
+
+    const buy = outcome.coins[0].fills.find((fill) => fill.side === "buy")
+    expect(buy).toBeDefined()
+    // Position size × the $94 historical price × (0.1% + 0.2% + 0.3%).
+    const checkedByHand = buy!.sz * 94 * 0.006
+    expect(outcome.fundingPaid).toBeCloseTo(checkedByHand, 10)
+    expect(outcome.coins[0].fundingPaid).toBeCloseTo(checkedByHand, 10)
+    expect(outcome.endingUsd).toBeCloseTo(10_000 - checkedByHand - buy!.sz, 6)
   })
 })
 

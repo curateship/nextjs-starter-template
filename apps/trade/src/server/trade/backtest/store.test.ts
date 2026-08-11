@@ -11,6 +11,7 @@ import {
   claimBacktestGroup,
   createBacktest,
   failBacktestGroup,
+  heartbeatBacktestGroup,
   listBacktests,
   readBacktestGroup,
   releaseBacktestGroup,
@@ -140,10 +141,22 @@ describe("claiming a run", () => {
     expect(later).not.toBeNull()
   })
 
-  it("lets go without finishing, so the next pass carries on", async () => {
+  it("does not take a long run back while its heartbeat is current", async () => {
     const { groupId } = await makeRun()
     await claimBacktestGroup(NOW, db)
-    await releaseBacktestGroup(userId, groupId, db)
+    await heartbeatBacktestGroup(userId, groupId, 1, NOW + 4 * 60_000, db)
+
+    expect(await claimBacktestGroup(NOW + 6 * 60_000, db)).toBeNull()
+    expect(await claimBacktestGroup(NOW + 10 * 60_000, db)).not.toBeNull()
+    await expect(
+      heartbeatBacktestGroup(userId, groupId, 1, NOW + 11 * 60_000, db)
+    ).rejects.toThrow("BACKTEST_CLAIM_LOST")
+  })
+
+  it("lets go without finishing, so the next pass carries on", async () => {
+    const { groupId } = await makeRun()
+    const claimed = await claimBacktestGroup(NOW, db)
+    await releaseBacktestGroup(userId, groupId, claimed!.attempts, db)
 
     expect(await claimBacktestGroup(NOW, db)).not.toBeNull()
   })
@@ -171,7 +184,12 @@ describe("claiming a run", () => {
     for (let pass = 0; pass < 10; pass += 1) {
       const claimed = await claimBacktestGroup(NOW, db)
       expect(claimed, `pass ${pass + 1} should still be claimable`).not.toBeNull()
-      await releaseBacktestGroup(userId, claimed!.groupId, db)
+      await releaseBacktestGroup(
+        userId,
+        claimed!.groupId,
+        claimed!.attempts,
+        db
+      )
     }
   })
 
@@ -209,6 +227,7 @@ describe("saving what a run found", () => {
     endingUsd: 11_000,
     madeOrLost: 1_000,
     madeOrLostPct: 10,
+    fundingPaid: 12.5,
     worstDipUsd: 200,
     worstDipAt: NOW,
     worstDipPct: 1.8,
@@ -234,11 +253,13 @@ describe("saving what a run found", () => {
     // A coin that quietly vanished is the difference between "two coins made
     // this" and "the one that had history made this".
     const { groupId } = await makeRun()
+    const claimed = await claimBacktestGroup(NOW, db)
 
     await saveBacktestResult(
       userId,
       groupId,
       {
+        attempt: claimed!.attempts,
         summary,
         result: { equity: [], coins: [], skipped: [] },
         coins: [
@@ -273,11 +294,12 @@ describe("saving what a run found", () => {
 
   it("lets go of the claim so nothing picks it up again", async () => {
     const { groupId } = await makeRun()
-    await claimBacktestGroup(NOW, db)
+    const claimed = await claimBacktestGroup(NOW, db)
     await saveBacktestResult(
       userId,
       groupId,
       {
+        attempt: claimed!.attempts,
         summary,
         result: { equity: [], coins: [], skipped: [] },
         coins: [],
@@ -287,6 +309,31 @@ describe("saving what a run found", () => {
     )
 
     expect(await claimBacktestGroup(NOW, db)).toBeNull()
+  })
+
+  it("refuses a result from a worker whose claim was replaced", async () => {
+    const { groupId } = await makeRun()
+    const first = await claimBacktestGroup(NOW, db)
+    const second = await claimBacktestGroup(NOW + 6 * 60_000, db)
+    expect(second?.attempts).toBe(2)
+
+    await expect(
+      saveBacktestResult(
+        userId,
+        groupId,
+        {
+          attempt: first!.attempts,
+          summary,
+          result: { equity: [], coins: [], skipped: [] },
+          coins: [],
+          now: NOW + 7 * 60_000,
+        },
+        db
+      )
+    ).rejects.toThrow("BACKTEST_CLAIM_LOST")
+
+    const found = await readBacktestGroup(userId, groupId, db)
+    expect(found?.group.finishedAt).toBeNull()
   })
 })
 

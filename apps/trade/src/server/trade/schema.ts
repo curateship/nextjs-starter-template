@@ -550,6 +550,42 @@ export const tradeCandleGaps = pgTable(
   ]
 )
 
+/** Historical funding settlements, shared like the candle store. */
+export const tradeFundingRates = pgTable(
+  "trade_funding_rates",
+  {
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    time: bigint("time", { mode: "number" }).notNull(),
+    rate: doublePrecision("rate").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.marketKey, table.time] })]
+)
+
+/** The funding stretch already requested from the exchange. */
+export const tradeFundingCoverage = pgTable("trade_funding_coverage", {
+  marketKey: varchar("market_key", { length: 120 }).primaryKey(),
+  fromTime: bigint("from_time", { mode: "number" }).notNull(),
+  toTime: bigint("to_time", { mode: "number" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/** Missing settlements that a saved result must disclose. */
+export const tradeFundingGaps = pgTable(
+  "trade_funding_gaps",
+  {
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    fromTime: bigint("from_time", { mode: "number" }).notNull(),
+    toTime: bigint("to_time", { mode: "number" }).notNull(),
+    reason: text("reason").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.marketKey, table.fromTime] })]
+)
+
 /**
  * One backtest — the group. A run tests many coins at once against one shared
  * pot, so the things that belong to the whole run live here and the per-coin

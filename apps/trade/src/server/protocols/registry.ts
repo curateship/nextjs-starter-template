@@ -1,6 +1,7 @@
 import type {
   CandleBar,
   CandleInterval,
+  FundingRate,
   MarketCatalog,
   NetworkId,
   OrderAuth,
@@ -21,6 +22,7 @@ import {
   fetchHyperliquidCandles,
 } from "@/server/protocols/hyperliquid/candles"
 import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
+import { fetchHyperliquidFunding } from "@/server/protocols/hyperliquid/funding"
 import {
   cancelHyperliquidOrder,
   closeHyperliquidPosition,
@@ -30,6 +32,10 @@ import {
   setHyperliquidBrackets,
 } from "@/server/protocols/hyperliquid/orders"
 import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
+import {
+  binanceFundingIntervalMs,
+  fetchBinanceFunding,
+} from "@/server/protocols/binance/funding"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -75,6 +81,17 @@ export type ProtocolEntry = {
      * how the engine stays blind to which one it is talking to.
      */
     roundPx(px: number, sizeDecimals: number | null): number
+  }
+  /** Absent where a market has no periodic position funding. */
+  funding?: {
+    fetch(
+      network: NetworkId,
+      marketId: string,
+      from: number,
+      to: number
+    ): Promise<FundingRate[]>
+    /** Regular time between funding settlements, in milliseconds. */
+    intervalMs(marketId: string): number
   }
   /**
    * Absent on an exchange that cannot hold an account. `capabilities.accounts` is the flag; this is the code behind it. Optional so a markets-only exchange is a shorter entry rather than a set of stubs that throw — a stub is a door that looks open.
@@ -163,6 +180,10 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       prices: fetchHyperliquidPrices,
       roundPx: roundOrderPx,
     },
+    funding: {
+      fetch: fetchHyperliquidFunding,
+      intervalMs: () => 3_600_000,
+    },
     account: {
       fetch: fetchHyperliquidAccount,
     },
@@ -207,6 +228,10 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       prices: fetchBinancePrices,
       roundPx: roundBinancePx,
     },
+    funding: {
+      fetch: fetchBinanceFunding,
+      intervalMs: binanceFundingIntervalMs,
+    },
   },
 }
 
@@ -236,6 +261,14 @@ export function ordersOf(protocol: ProtocolEntry) {
     throw new Error(`PROTOCOL_NO_ORDERS:${protocol.id}`)
   }
   return protocol.orders
+}
+
+/** The funding feed for an exchange that has one, or a clear refusal. */
+export function fundingOf(protocol: ProtocolEntry) {
+  if (!protocol.funding) {
+    throw new Error(`PROTOCOL_NO_FUNDING:${protocol.id}`)
+  }
+  return protocol.funding
 }
 
 export function accountOf(protocol: ProtocolEntry) {

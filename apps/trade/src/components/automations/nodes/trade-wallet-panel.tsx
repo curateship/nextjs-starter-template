@@ -78,8 +78,8 @@ export default function TradeWalletFields({
 
       <InspectorNote>
         Pretend money only. A backtest never touches a real or a practice
-        wallet, and nothing here can move a cent. Funding costs are not counted
-        yet — the results page says so.
+        wallet, and nothing here can move a cent. Funding uses the exchange's
+        historical rates at each funding time and is listed on the results page.
       </InspectorNote>
     </>
   )

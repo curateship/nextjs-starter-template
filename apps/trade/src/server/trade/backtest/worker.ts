@@ -28,6 +28,11 @@ import {
   listCandleGaps,
   loadStoredCandles,
 } from "@/server/trade/candle-store"
+import {
+  ensureFundingCoverage,
+  listFundingGaps,
+  loadStoredFunding,
+} from "@/server/trade/funding-store"
 import { marketRules } from "@/server/trade/market-rules"
 import {
   binanceSymbolFor,
@@ -40,10 +45,12 @@ import {
   claimBacktestGroup,
   failBacktestGroup,
   failStuckBacktests,
+  heartbeatBacktestGroup,
   releaseBacktestGroup,
   releaseFailedBacktestGroup,
   replaceUnnamedRuns,
   saveBacktestResult,
+  type ClaimedGroup,
 } from "@/server/trade/backtest/store"
 import { tradeBacktests } from "@/server/trade/schema"
 
@@ -83,6 +90,7 @@ import { tradeBacktests } from "@/server/trade/schema"
  * requests throughout — a slow pass here never blocks a page.
  */
 const FETCH_AT_ONCE = 6
+const HEARTBEAT_MS = 60_000
 
 export async function backtestTick(now: number = Date.now()): Promise<void> {
   // Anything that ran out of tries says so, rather than sitting at "running"
@@ -93,10 +101,23 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
   if (!claimed) return
 
   const { userId, groupId } = claimed
+  let heartbeatFailure: unknown = null
+  let heartbeatTail: Promise<void> = Promise.resolve()
+  const heartbeat = setInterval(() => {
+    heartbeatTail = heartbeatTail.then(async () => {
+      if (heartbeatFailure) return
+      try {
+        await heartbeatBacktestGroup(userId, groupId, claimed.attempts)
+      } catch (error) {
+        heartbeatFailure = error
+      }
+    })
+  }, HEARTBEAT_MS)
+  heartbeat.unref()
 
   try {
     if (await backtestStopRequested(userId, groupId)) {
-      await finish(claimed, now, [], [], null)
+      await finish(claimed, Date.now(), [], [], null)
       return
     }
 
@@ -125,26 +146,30 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
       // for the next tick is what made a fifty-coin run take minutes: the work
       // is seconds, and the fifteen seconds between ticks was the rest of it.
       if (await backtestStopRequested(userId, groupId)) {
-        await releaseBacktestGroup(userId, groupId)
+        await releaseBacktestGroup(userId, groupId, claimed.attempts)
         return
       }
     }
 
-    await walkAndSave(claimed, now)
+    await walkAndSave(claimed)
   } catch (error) {
     // Three tries and it says so. Below that the claim is simply released and
     // the next tick has another go — a stumbling exchange should not lose a run.
     const message =
       error instanceof Error ? error.message : "The run could not be finished."
     if (claimed.attempts >= 3) {
-      await failBacktestGroup(userId, groupId, message, now)
+      await failBacktestGroup(userId, groupId, message, Date.now())
       return
     }
     // Leaves the count where the claim put it — this pass did not finish, so
     // it has to leave a mark or the run retries for ever.
-    await releaseFailedBacktestGroup(userId, groupId)
+    await releaseFailedBacktestGroup(userId, groupId, claimed.attempts)
     throw error
+  } finally {
+    clearInterval(heartbeat)
+    await heartbeatTail
   }
+  if (heartbeatFailure) throw heartbeatFailure
 }
 
 /**
@@ -214,7 +239,7 @@ async function loadOneCoin(
     return
   }
 
-  await note(userId, groupId, marketKey, 0.1, "Loading candles")
+  await note(userId, groupId, marketKey, 0.1, "Loading market history")
 
   let window
   try {
@@ -227,6 +252,7 @@ async function loadOneCoin(
     // The base rule reads the 4h whatever the run walks, and it needs history
     // from before the window so a level can already be known on day one.
     await ensureCandleCoverage(marketKey, BASE_STOP_INTERVAL, warmFrom, spec.to)
+    await ensureFundingCoverage(marketKey, spec.from, spec.to)
   } catch (error) {
     // Binance not listing the coin is an answer about the coin. Anything else
     // — a rate limit, a dropped socket — is a real fault, and is passed on so
@@ -284,10 +310,7 @@ async function loadOneCoin(
 }
 
 /** The walk itself, then the numbers, then one write. */
-async function walkAndSave(
-  claimed: { userId: string; groupId: string; automationId: string; spec: BacktestSpecSnapshot },
-  now: number
-): Promise<void> {
+async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
   const { userId, groupId, spec } = claimed
 
   const ready = await db
@@ -351,6 +374,11 @@ async function walkAndSave(
               spec.to
             ),
       baseBars,
+      funding: await loadStoredFunding(
+        coin.marketKey,
+        spec.from,
+        spec.to
+      ),
     })
   }
 
@@ -382,19 +410,14 @@ async function walkAndSave(
   )
 
   await noteAll(userId, groupId, 0.97, "Saving results")
-  await finish(claimed, now, coins, skipped, outcome)
+  await finish(claimed, Date.now(), coins, skipped, outcome)
 }
 
 type Outcome = Awaited<ReturnType<typeof runBacktest>>
 
 /** Works the numbers out once, writes them, and clears the flow's old run. */
 async function finish(
-  claimed: {
-    userId: string
-    groupId: string
-    automationId: string
-    spec: BacktestSpecSnapshot
-  },
+  claimed: ClaimedGroup,
   now: number,
   coins: readonly BacktestCoin[],
   skippedByRules: readonly BacktestSkip[],
@@ -508,7 +531,7 @@ async function finish(
       walked.openAtEnd && walked.lastPx !== null
         ? (walked.lastPx - walked.openAtEnd.entryPx) * walked.openAtEnd.szi
         : 0
-    const madeOrLost = banked + openPnl
+    const madeOrLost = banked + openPnl - walked.fundingPaid
     const closed = trades.filter((trade) => trade.exitAt !== null)
     const openAtEndUsd = walked.openAtEnd
       ? Math.abs(walked.openAtEnd.szi) * (walked.lastPx ?? walked.openAtEnd.entryPx)
@@ -538,6 +561,7 @@ async function finish(
       marketKey: row.marketKey,
       symbol: row.symbol,
       madeOrLost,
+      fundingPaid: walked.fundingPaid,
       trades: trades.length,
       won: closed.filter((trade) => trade.pnl > 0).length,
       closed: closed.length,
@@ -580,6 +604,7 @@ async function finish(
       spec.startingUsd > 0
         ? ((endingUsd - spec.startingUsd) / spec.startingUsd) * 100
         : 0,
+    fundingPaid: outcome?.fundingPaid ?? 0,
     worstDipUsd: dip.usd,
     worstDipAt: dip.at,
     worstDipPct: dip.peak > 0 ? (dip.usd / dip.peak) * 100 : null,
@@ -619,7 +644,7 @@ async function finish(
   await saveBacktestResult(
     userId,
     groupId,
-    { summary, result, coins: writes, now },
+    { attempt: claimed.attempts, summary, result, coins: writes, now },
     db
   )
   await replaceUnnamedRuns(userId, claimed.automationId, groupId)
@@ -638,9 +663,7 @@ async function credibilityWarnings(
   outcome: Outcome | null,
   skipped: readonly BacktestSkip[]
 ): Promise<string[]> {
-  const warnings: string[] = [
-    "Funding costs are not counted. Holding a position for days really costs more than this says.",
-  ]
+  const warnings: string[] = []
 
   if (outcome?.stoppedEarly) {
     warnings.push(
@@ -666,6 +689,17 @@ async function credibilityWarnings(
   if (holed.length > 0) {
     warnings.push(
       `The exchange had stretches with no prices for ${holed.slice(0, 5).join(", ")}${holed.length > 5 ? ` and ${holed.length - 5} more` : ""}. Those stretches were not traded.`
+    )
+  }
+
+  const fundingMissing: string[] = []
+  for (const coin of coins) {
+    const gaps = await listFundingGaps(coin.marketKey, spec.from, spec.to)
+    if (gaps.length > 0) fundingMissing.push(coin.symbol)
+  }
+  if (fundingMissing.length > 0) {
+    warnings.push(
+      `The exchange had stretches with no funding history for ${fundingMissing.slice(0, 5).join(", ")}${fundingMissing.length > 5 ? ` and ${fundingMissing.length - 5} more` : ""}. Those charges are missing from this result, not assumed to be free.`
     )
   }
 

@@ -184,6 +184,14 @@ export type CandleBar = {
   volume: number
 }
 
+/** One exchange funding settlement, normalized to its settlement hour. */
+export type FundingRate = {
+  /** Epoch ms of the settlement hour. */
+  time: number
+  /** Fraction of notional: positive means longs pay shorts. */
+  rate: number
+}
+
 /**
  * What one account read says a wallet holds, in the app's own words and in
  * plain dollars. An exchange module produces exactly this; whatever richer
