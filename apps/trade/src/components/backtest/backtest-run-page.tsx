@@ -18,6 +18,7 @@ import {
   getBacktestErrorMessage,
   loadBacktestCoin,
 } from "@/lib/api/backtests"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type {
   BacktestCoinSummary,
@@ -34,6 +35,12 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import {
+  firstBacktestMarket,
+  firstBacktestTrade,
+  readBacktestSelection,
+  rememberBacktestSelection,
+} from "@/lib/trade/backtest/selection"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 
 /**
@@ -116,6 +123,23 @@ export function BacktestRunPage({
     usePanelToggle(tradesPanelRef)
   )
 
+  const fallbackCoin = React.useMemo(() => firstBacktestMarket(coins), [coins])
+  const [activeCoin, setActiveCoin] = React.useState(
+    () => openCoin ?? fallbackCoin
+  )
+
+  // A bare visit starts on the first result. Returning to this run restores
+  // the last result instead, before the browser paints the page.
+  useEffectBeforePaint(() => {
+    const remembered = readBacktestSelection(run.id)
+    const rememberedCoin = coins.some(
+      (coin) => coin.marketKey === remembered?.marketKey
+    )
+      ? remembered!.marketKey
+      : null
+    setActiveCoin(openCoin ?? rememberedCoin ?? fallbackCoin)
+  }, [coins, fallbackCoin, openCoin, run.id])
+
   /** The trade picked in the list, drawn heavier on the chart above it. */
   const [selectedTrade, setSelectedTrade] = React.useState<number | null>(null)
 
@@ -128,46 +152,93 @@ export function BacktestRunPage({
     trades: BacktestTrade[]
     fills: BacktestFillMark[]
   } | null>(null)
-  const [chartError, setChartError] = React.useState<string | null>(null)
+  const [chartError, setChartError] = React.useState<{
+    key: string
+    message: string
+  } | null>(null)
+  const loadRequest = React.useRef(0)
 
-  const load = React.useCallback(async () => {
-    if (!openCoin) return
-    setChartError(null)
-    try {
-      const answer = await loadBacktestCoin(run.id, openCoin)
-      setChart({
-        key: openCoin,
-        bars: answer.bars,
-        trades: answer.trades,
-        fills: answer.fills,
+  const load = React.useCallback(() => {
+    if (!activeCoin) return Promise.resolve()
+    const request = ++loadRequest.current
+    return Promise.resolve()
+      .then(() => {
+        if (request === loadRequest.current) setChartError(null)
+        return loadBacktestCoin(run.id, activeCoin)
       })
-    } catch (error) {
-      setChart(null)
-      setChartError(getBacktestErrorMessage(error))
-    }
-  }, [run.id, openCoin])
+      .then((answer) => {
+        if (request !== loadRequest.current) return
+        const remembered = readBacktestSelection(run.id)
+        const sameRememberedMarket = remembered?.marketKey === activeCoin
+        const rememberedTradeIsValid = answer.trades.some(
+          (trade) => trade.n === remembered?.trade
+        )
+        const nextTrade = sameRememberedMarket
+          ? remembered?.trade === null || rememberedTradeIsValid
+            ? remembered.trade
+            : firstBacktestTrade(answer.trades)
+          : firstBacktestTrade(answer.trades)
+        setChart({
+          key: activeCoin,
+          bars: answer.bars,
+          trades: answer.trades,
+          fills: answer.fills,
+        })
+        setSelectedTrade(nextTrade)
+        rememberBacktestSelection(run.id, {
+          marketKey: activeCoin,
+          trade: nextTrade,
+        })
+      })
+      .catch((error: unknown) => {
+        if (request !== loadRequest.current) return
+        setChart(null)
+        setChartError({
+          key: activeCoin,
+          message: getBacktestErrorMessage(error),
+        })
+      })
+  }, [run.id, activeCoin])
 
   React.useEffect(() => {
     void load()
   }, [load])
 
-  // A trade number belongs to one coin's list, so switching coin has to let go
-  // of it — otherwise trade 7 of ETH stays picked while BTC's chart is drawn.
-  const [lastCoin, setLastCoin] = React.useState(openCoin)
-  if (lastCoin !== openCoin) {
-    setLastCoin(openCoin)
-    setSelectedTrade(null)
-  }
+  React.useEffect(() => {
+    if (!activeCoin || activeCoin === openCoin) return
+    void navigate({
+      to: "/backtests/$groupId",
+      params: { groupId: run.id },
+      search: { run: activeCoin },
+      replace: true,
+    })
+  }, [activeCoin, navigate, openCoin, run.id])
 
-  const shown = chart?.key === openCoin ? chart : null
+  const shown = chart?.key === activeCoin ? chart : null
+  const shownError = chartError?.key === activeCoin ? chartError.message : null
   const done = run.finishedAt !== null
 
-  const openCoinInChart = (marketKey: string) =>
+  const openCoinInChart = (marketKey: string) => {
+    setActiveCoin(marketKey)
+    setSelectedTrade(null)
     void navigate({
       to: "/backtests/$groupId",
       params: { groupId: run.id },
       search: { run: marketKey },
     })
+  }
+
+  const selectTrade = (trade: number | null) => {
+    setSelectedTrade(trade)
+    if (activeCoin) {
+      rememberBacktestSelection(run.id, { marketKey: activeCoin, trade })
+    }
+  }
+
+  const retryChart = () => {
+    setChartError(null)
+    void load()
+  }
 
   const statsPanel = (
     <BacktestStatsPanel
@@ -181,14 +252,14 @@ export function BacktestRunPage({
   const marketsPanel = (
     <BacktestMarketsPanel
       coins={coins}
-      openCoin={openCoin}
+      openCoin={activeCoin}
       onOpenCoin={openCoinInChart}
     />
   )
   const chartPanel = (
     <BacktestChartPanel
       coins={coins}
-      openCoin={openCoin}
+      openCoin={activeCoin}
       bars={shown?.bars ?? []}
       spec={run.spec}
       fills={shown?.fills ?? []}
@@ -196,11 +267,11 @@ export function BacktestRunPage({
         shown?.trades.find((trade) => trade.n === selectedTrade) ?? null
       }
       interval={run.spec.interval}
-      loading={openCoin !== null && shown === null && chartError === null}
-      error={chartError}
+      loading={activeCoin !== null && shown === null && shownError === null}
+      error={shownError}
       live={!done}
       automationId={run.automationId}
-      onRetry={() => void load()}
+      onRetry={retryChart}
     />
   )
 
@@ -316,12 +387,12 @@ export function BacktestRunPage({
           <WorkspacePanel className="flex flex-col" onDoubleClick={tradesDoubleClick}>
             <BacktestTradesPanel
               symbol={
-                coins.find((coin) => coin.marketKey === openCoin)?.symbol ?? null
+                coins.find((coin) => coin.marketKey === activeCoin)?.symbol ?? null
               }
               trades={shown?.trades ?? []}
-              loading={openCoin !== null && shown === null}
+              loading={activeCoin !== null && shown === null}
               selected={selectedTrade}
-              onSelect={setSelectedTrade}
+              onSelect={selectTrade}
             />
           </WorkspacePanel>
         </ResizablePanel>

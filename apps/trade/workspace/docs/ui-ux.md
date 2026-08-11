@@ -400,6 +400,9 @@ working bar streams beside it.
 
 ## Backtest candle history
 
+- A backtest result opens on the first market in Results and the first trade in
+  Trades, so its chart is useful immediately. Each run remembers the last
+  market and trade chosen in this browser and restores them when reopened.
 - Backtests save finished candles in the app database by full market key and
   candle size. Running the same window again reads those rows without asking
   the exchange again.
