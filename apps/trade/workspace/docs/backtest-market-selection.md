@@ -15,17 +15,16 @@ How the Markets step decides which exchange and coins a backtest uses.
 ## Choosing coins
 
 - Coins can be checked individually or found with search.
-- Volume-band buttons select from the current exchange's full catalogue using
-  today's volume.
-- **Every coin** selects the catalogue up to the 500-coin limit.
-- A random sample is drawn while editing. It uses the full catalogue and
-  respects how many candles the selected window can safely hold.
-- Search only narrows the visible rows. It does not change which coins the
-  volume, every-coin or random buttons use.
+- A minimum and maximum daily-volume filter treats plain numbers as millions,
+  so `10` to `100` means $10m to $100m. The visible list is ordered from highest
+  volume to lowest. Decimals and suffixes work too: `.5` and `500k` both mean
+  $500,000.
+- The header checkbox selects or clears every coin visible after the volume and
+  search filters are applied.
 
 ## What gets saved
 
-- Quick picks are resolved while editing, not when Run is pressed.
+- Filters only narrow the list while editing. They are not run again later.
 - The step saves the exact full market keys, including exchange, network and
   coin. Running the same saved flow again tests the same list.
 - A later candle-size choice that would use too much memory is refused plainly.

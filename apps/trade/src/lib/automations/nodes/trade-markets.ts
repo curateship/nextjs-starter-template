@@ -165,9 +165,9 @@ export type TradeMarketsSettings = z.infer<typeof tradeMarketsSettingsSchema>
  * The list is written down on the step, as market keys, and that is the point:
  * a run must be repeatable. A step saying "the twenty biggest coins" would mean
  * something different every week, and two runs of the same flow could not be
- * compared. The quick-picks in the panel — volume bands, a random sample —
- * draw their answer **while you are editing** and write the names into the
- * list, so pressing Run never rolls a dice.
+ * compared. The volume range in the panel narrows the list **while you are
+ * editing**, and selection writes the names into the step. Pressing Run always
+ * uses those saved names rather than applying the filter again.
  */
 export const tradeMarketsNode = defineNode({
   kind: "tradeMarkets",
