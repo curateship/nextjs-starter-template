@@ -32,7 +32,9 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedMyListingsRouteImport } from './routes/_authenticated/my-listings'
+import { Route as AuthenticatedSavedListingsRouteImport } from './routes/_authenticated/saved-listings'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/api/directory-outreach-unsubscribe'
 import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -45,6 +47,9 @@ import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminListingClaimsRouteImport } from './routes/_authenticated/admin/listing-claims'
+import { Route as AuthenticatedAdminListingFeaturedRouteImport } from './routes/_authenticated/admin/listing-featured'
+import { Route as AuthenticatedAdminListingOutreachRouteImport } from './routes/_authenticated/admin/listing-outreach'
+import { Route as AuthenticatedAdminListingSavesRouteImport } from './routes/_authenticated/admin/listing-saves'
 import { Route as AuthenticatedAdminListingSubmissionsRouteImport } from './routes/_authenticated/admin/listing-submissions'
 import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authenticated/admin/listings'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
@@ -190,11 +195,23 @@ const AuthenticatedMyListingsRoute = AuthenticatedMyListingsRouteImport.update({
   path: '/my-listings',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSavedListingsRoute =
+  AuthenticatedSavedListingsRouteImport.update({
+    id: '/saved-listings',
+    path: '/saved-listings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiDirectoryOutreachUnsubscribeRoute =
+  ApiDirectoryOutreachUnsubscribeRouteImport.update({
+    id: '/api/directory-outreach-unsubscribe',
+    path: '/api/directory-outreach-unsubscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
   id: '/api/directory-verify',
   path: '/api/directory-verify',
@@ -261,6 +278,24 @@ const AuthenticatedAdminListingClaimsRoute =
   AuthenticatedAdminListingClaimsRouteImport.update({
     id: '/listing-claims',
     path: '/listing-claims',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingFeaturedRoute =
+  AuthenticatedAdminListingFeaturedRouteImport.update({
+    id: '/listing-featured',
+    path: '/listing-featured',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingOutreachRoute =
+  AuthenticatedAdminListingOutreachRouteImport.update({
+    id: '/listing-outreach',
+    path: '/listing-outreach',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingSavesRoute =
+  AuthenticatedAdminListingSavesRouteImport.update({
+    id: '/listing-saves',
+    path: '/listing-saves',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminListingSubmissionsRoute =
@@ -456,7 +491,9 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/my-listings': typeof AuthenticatedMyListingsRoute
+  '/saved-listings': typeof AuthenticatedSavedListingsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -468,6 +505,9 @@ export interface FileRoutesByFullPath {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
+  '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
   '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -521,7 +561,9 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/my-listings': typeof AuthenticatedMyListingsRoute
+  '/saved-listings': typeof AuthenticatedSavedListingsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -533,6 +575,9 @@ export interface FileRoutesByTo {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
+  '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
   '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -590,7 +635,9 @@ export interface FileRoutesById {
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/my-listings': typeof AuthenticatedMyListingsRoute
+  '/_authenticated/saved-listings': typeof AuthenticatedSavedListingsRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory_/$slug': typeof DirectorySlugRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -602,6 +649,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/_authenticated/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/_authenticated/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
+  '/_authenticated/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
   '/_authenticated/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
   '/_authenticated/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
@@ -659,7 +709,9 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/home'
     | '/my-listings'
+    | '/saved-listings'
     | '/workspaces'
+    | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory/$slug'
     | '/admin/ai'
@@ -671,6 +723,9 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/feedback'
     | '/admin/listing-claims'
+    | '/admin/listing-featured'
+    | '/admin/listing-outreach'
+    | '/admin/listing-saves'
     | '/admin/listing-submissions'
     | '/admin/listings'
     | '/admin/media'
@@ -724,7 +779,9 @@ export interface FileRouteTypes {
     | '/account'
     | '/home'
     | '/my-listings'
+    | '/saved-listings'
     | '/workspaces'
+    | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory/$slug'
     | '/admin/ai'
@@ -736,6 +793,9 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/feedback'
     | '/admin/listing-claims'
+    | '/admin/listing-featured'
+    | '/admin/listing-outreach'
+    | '/admin/listing-saves'
     | '/admin/listing-submissions'
     | '/admin/listings'
     | '/admin/media'
@@ -792,7 +852,9 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog'
     | '/_authenticated/home'
     | '/_authenticated/my-listings'
+    | '/_authenticated/saved-listings'
     | '/_authenticated/workspaces'
+    | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory_/$slug'
     | '/_authenticated/admin/ai'
@@ -804,6 +866,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/listing-claims'
+    | '/_authenticated/admin/listing-featured'
+    | '/_authenticated/admin/listing-outreach'
+    | '/_authenticated/admin/listing-saves'
     | '/_authenticated/admin/listing-submissions'
     | '/_authenticated/admin/listings'
     | '/_authenticated/admin/media'
@@ -856,6 +921,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  ApiDirectoryOutreachUnsubscribeRoute: typeof ApiDirectoryOutreachUnsubscribeRoute
   ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
@@ -1031,12 +1097,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyListingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/saved-listings': {
+      id: '/_authenticated/saved-listings'
+      path: '/saved-listings'
+      fullPath: '/saved-listings'
+      preLoaderRoute: typeof AuthenticatedSavedListingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/directory-outreach-unsubscribe': {
+      id: '/api/directory-outreach-unsubscribe'
+      path: '/api/directory-outreach-unsubscribe'
+      fullPath: '/api/directory-outreach-unsubscribe'
+      preLoaderRoute: typeof ApiDirectoryOutreachUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/directory-verify': {
       id: '/api/directory-verify'
@@ -1120,6 +1200,27 @@ declare module '@tanstack/react-router' {
       path: '/listing-claims'
       fullPath: '/admin/listing-claims'
       preLoaderRoute: typeof AuthenticatedAdminListingClaimsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-featured': {
+      id: '/_authenticated/admin/listing-featured'
+      path: '/listing-featured'
+      fullPath: '/admin/listing-featured'
+      preLoaderRoute: typeof AuthenticatedAdminListingFeaturedRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-outreach': {
+      id: '/_authenticated/admin/listing-outreach'
+      path: '/listing-outreach'
+      fullPath: '/admin/listing-outreach'
+      preLoaderRoute: typeof AuthenticatedAdminListingOutreachRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-saves': {
+      id: '/_authenticated/admin/listing-saves'
+      path: '/listing-saves'
+      fullPath: '/admin/listing-saves'
+      preLoaderRoute: typeof AuthenticatedAdminListingSavesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/listing-submissions': {
@@ -1371,6 +1472,9 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminListingClaimsRoute: typeof AuthenticatedAdminListingClaimsRoute
+  AuthenticatedAdminListingFeaturedRoute: typeof AuthenticatedAdminListingFeaturedRoute
+  AuthenticatedAdminListingOutreachRoute: typeof AuthenticatedAdminListingOutreachRoute
+  AuthenticatedAdminListingSavesRoute: typeof AuthenticatedAdminListingSavesRoute
   AuthenticatedAdminListingSubmissionsRoute: typeof AuthenticatedAdminListingSubmissionsRoute
   AuthenticatedAdminListingsRoute: typeof AuthenticatedAdminListingsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
@@ -1402,6 +1506,11 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedAdminListingClaimsRoute: AuthenticatedAdminListingClaimsRoute,
+  AuthenticatedAdminListingFeaturedRoute:
+    AuthenticatedAdminListingFeaturedRoute,
+  AuthenticatedAdminListingOutreachRoute:
+    AuthenticatedAdminListingOutreachRoute,
+  AuthenticatedAdminListingSavesRoute: AuthenticatedAdminListingSavesRoute,
   AuthenticatedAdminListingSubmissionsRoute:
     AuthenticatedAdminListingSubmissionsRoute,
   AuthenticatedAdminListingsRoute: AuthenticatedAdminListingsRoute,
@@ -1454,6 +1563,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMyListingsRoute: typeof AuthenticatedMyListingsRoute
+  AuthenticatedSavedListingsRoute: typeof AuthenticatedSavedListingsRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
 }
 
@@ -1463,6 +1573,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMyListingsRoute: AuthenticatedMyListingsRoute,
+  AuthenticatedSavedListingsRoute: AuthenticatedSavedListingsRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
 }
 
@@ -1489,6 +1600,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  ApiDirectoryOutreachUnsubscribeRoute: ApiDirectoryOutreachUnsubscribeRoute,
   ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
   DirectorySlugRoute: DirectorySlugRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,

@@ -50,14 +50,17 @@ export function ClaimButton({
   listingSlug,
   listingTitle,
   claim,
+  startOpen = false,
 }: {
   listingId: string
   /** For the come-back-here address on the sign-in link. */
   listingSlug: string
   listingTitle: string
   claim: PublicClaimState
+  /** Outreach links land with the form open after sign-in. */
+  startOpen?: boolean
 }) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(startOpen && claim.signedIn)
   const [sent, setSent] = React.useState(false)
 
   if (!claim.enabled) return null
@@ -93,7 +96,10 @@ export function ClaimButton({
       <Button asChild variant="outline">
         {/* Comes back here afterwards, so signing in does not lose the page
             they were reading. */}
-        <Link to="/login" search={{ redirect: `/directory/${listingSlug}` }}>
+        <Link
+          to="/login"
+          search={{ redirect: `/directory/${listingSlug}${startOpen ? "?claim=start" : ""}` }}
+        >
           {claim.buttonLabel}
         </Link>
       </Button>

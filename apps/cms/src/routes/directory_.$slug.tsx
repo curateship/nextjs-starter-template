@@ -5,6 +5,8 @@ import {
   type Crumb,
 } from "@/components/directory/public/directory-breadcrumbs"
 import { ClaimButton } from "@/components/directory/public/claim-button"
+import { FeaturedBadge } from "@/components/directory/public/featured-badge"
+import { SaveDropdown } from "@/components/directory/public/save-dropdown"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
@@ -39,7 +41,11 @@ import {
  * visitor is told the same thing in each case, which is the point: a draft
  * must not be distinguishable from a page that was never written.
  */
+type ListingSearch = { claim?: "start" }
+
 export const Route = createFileRoute("/directory_/$slug")({
+  validateSearch: (search: Record<string, unknown>): ListingSearch =>
+    search.claim === "start" ? { claim: "start" } : {},
   loader: async ({ params }) => {
     // A listing page follows the directory's own switch. Hiding the directory
     // and leaving every listing inside it readable would be the switch not
@@ -70,6 +76,7 @@ export const Route = createFileRoute("/directory_/$slug")({
 function ListingRoute() {
   const { site, listing, categories, primaryCategory, related, claim } =
     Route.useLoaderData()
+  const search = Route.useSearch()
 
   const crumbs: Crumb[] = [
     { label: site.name, home: true },
@@ -99,15 +106,30 @@ function ListingRoute() {
 
       <Card>
         {listing.featuredImage ? (
-          <img
-            src={listing.featuredImage}
-            alt=""
-            className="aspect-[3/1] w-full object-cover"
-          />
+          <div className="relative overflow-hidden">
+            <img
+              src={listing.featuredImage}
+              alt=""
+              className="aspect-[3/1] w-full object-cover"
+            />
+            <SaveDropdown
+              listingId={listing.id}
+              overlay
+              className="absolute top-3 right-3"
+            />
+          </div>
         ) : null}
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
-            <h1 className="text-2xl font-semibold">{listing.title}</h1>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold">{listing.title}</h1>
+                {listing.featured ? <FeaturedBadge /> : null}
+              </div>
+              {!listing.featuredImage ? (
+                <SaveDropdown listingId={listing.id} />
+              ) : null}
+            </div>
             {listing.metaDescription ? (
               <p className="text-sm text-muted-foreground">
                 {listing.metaDescription}
@@ -136,6 +158,7 @@ function ListingRoute() {
               listingSlug={listing.slug}
               listingTitle={listing.title}
               claim={claim}
+              startOpen={search.claim === "start"}
             />
           </div>
 

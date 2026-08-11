@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationLinks,
+  isInternalPublicNavigationHref,
 } from "@/lib/pages/public-navigation"
 
 describe("public navigation settings", () => {
@@ -16,6 +17,14 @@ describe("public navigation settings", () => {
       { label: "About", href: "/about" },
       { label: "Elsewhere", href: "https://example.com/page" },
     ])
+  })
+
+  it("routes only same-site links inside the app", () => {
+    expect(isInternalPublicNavigationHref("/about?from=nav#team")).toBe(true)
+    expect(isInternalPublicNavigationHref("//example.com/page")).toBe(false)
+    expect(isInternalPublicNavigationHref("https://example.com")).toBe(false)
+    expect(isInternalPublicNavigationHref("mailto:hello@example.com")).toBe(false)
+    expect(isInternalPublicNavigationHref("tel:+15555550123")).toBe(false)
   })
 
   it("drops incomplete and dangerous links", () => {

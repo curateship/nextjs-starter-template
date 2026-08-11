@@ -238,8 +238,21 @@ async function main() {
     for (const site of sites) {
       const siteId = await upsertSite(client, ownerId, site)
       const categoryIds = await upsertCategories(client, siteId, site.categories)
-      await upsertListings(client, siteId, categoryIds, site.listings)
+      const listingIds = await upsertListings(
+        client,
+        siteId,
+        categoryIds,
+        site.listings
+      )
       await upsertWrittenPages(client, siteId, site.pages)
+      if (site.subdomain === "alpha") {
+        await upsertFeaturedSample(
+          client,
+          siteId,
+          ownerId,
+          listingIds.get("joes-diner")
+        )
+      }
       console.log(
         `${site.name}: ${site.listings.length} listings, ${site.categories.length} categories`
       )
@@ -341,6 +354,7 @@ async function upsertCategories(client, siteId, categories) {
 }
 
 async function upsertListings(client, siteId, categoryIds, listings) {
+  const ids = new Map()
   for (const listing of listings) {
     const { rows } = await client.query(
       `insert into directory_listings
@@ -368,6 +382,7 @@ async function upsertListings(client, siteId, categoryIds, listings) {
       ]
     )
     const listingId = rows[0].id
+    ids.set(listing.slug, listingId)
 
     const categoryId = categoryIds.get(listing.category)
     if (!categoryId) continue
@@ -380,6 +395,72 @@ async function upsertListings(client, siteId, categoryIds, listings) {
       [siteId, categoryId, listingId]
     )
   }
+  return ids
+}
+
+/** One real-looking active placement makes its badge and sorting inspectable. */
+async function upsertFeaturedSample(client, siteId, ownerId, listingId) {
+  if (!listingId) return
+
+  const claimResult = await client.query(
+    `select id, user_id from directory_claims
+     where listing_id = $1 and status = 'approved'
+     limit 1`,
+    [listingId]
+  )
+  let claim = claimResult.rows[0]
+  if (!claim) {
+    const inserted = await client.query(
+      `insert into directory_claims
+         (id, workspace_id, listing_id, user_id, contact_email, claimant_name,
+          status, verified_at, reviewed_by_user_id, reviewed_at, created_at, updated_at)
+       select gen_random_uuid()::text, $1, $2, u.id, u.email, u.name,
+              'approved', now(), u.id, now(), now(), now()
+       from users u where u.id = $3
+       returning id, user_id`,
+      [siteId, listingId, ownerId]
+    )
+    claim = inserted.rows[0]
+  }
+  if (!claim) return
+
+  const planResult = await client.query(
+    `select id from directory_featured_plans
+     where workspace_id = $1 and name = 'Sample featured'
+     order by created_at limit 1`,
+    [siteId]
+  )
+  let planId = planResult.rows[0]?.id
+  if (!planId) {
+    const inserted = await client.query(
+      `insert into directory_featured_plans
+         (id, workspace_id, name, description, price_cents, currency,
+          duration_days, priority, active, created_at, updated_at)
+       values (gen_random_uuid()::text, $1, 'Sample featured',
+               'Local sample used to inspect featured placement.', 2500,
+               'usd', 14, 10, true, now(), now())
+       returning id`,
+      [siteId]
+    )
+    planId = inserted.rows[0]?.id
+  }
+  if (!planId) return
+
+  await client.query(
+    `insert into directory_featured_entitlements
+       (id, workspace_id, listing_id, claim_id, buyer_user_id, plan_id,
+        stripe_session_id, amount_total, currency, status, starts_at, ends_at,
+        created_at, updated_at)
+     values (gen_random_uuid()::text, $1, $2, $3, $4, $5,
+             'dev_directory_featured_alpha_joes', 2500, 'usd', 'active',
+             now(), now() + interval '14 days', now(), now())
+     on conflict (stripe_session_id) do update
+       set status = 'active',
+           starts_at = now(),
+           ends_at = now() + interval '14 days',
+           updated_at = now()`,
+    [siteId, listingId, claim.id, claim.user_id, planId]
+  )
 }
 
 async function upsertWrittenPages(client, siteId, pages) {

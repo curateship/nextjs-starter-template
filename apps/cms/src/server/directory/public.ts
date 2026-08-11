@@ -15,6 +15,10 @@ import {
 import { appUrl } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
 import { claimedListingIds, claimStateFor } from "@/server/directory/claims"
+import {
+  activeFeaturedForListings,
+  featuredPriorityFor,
+} from "@/server/directory/featured"
 import { directorySettingsFor } from "@/server/directory/settings"
 import type { ReviewStatus } from "@/lib/directory/review-status"
 import { customShellWorkspaces } from "@/server/schema"
@@ -121,6 +125,8 @@ export type PublicListingCard = {
    * — a visitor is told the page is looked after, never by whom.
    */
   claimed: boolean
+  /** A paid placement that is active at the moment this row is read. */
+  featured: boolean
 }
 
 /** A category as a link: the two fields anything pointing at one needs. */
@@ -150,6 +156,7 @@ export type PublicListing = {
   body: WrittenPageNode
   updatedAt: Date
   createdAt: Date
+  featured: boolean
 }
 
 /** One page of the browse list, plus the filters the toolbar draws. */
@@ -218,16 +225,21 @@ function publishedOnSite(siteId: string) {
   )
 }
 
-function orderFor(sort: DirectorySort) {
+function orderFor(sort: DirectorySort, workspaceId: string) {
+  // Paid placement leads every public list, whatever ordering the visitor
+  // chooses. Expired placement yields the minimum value and immediately falls
+  // back to the ordinary order below without a cleanup job.
+  const featured = desc(featuredPriorityFor(workspaceId))
   // The id breaks every tie, so a page boundary cannot land mid-tie and show
   // the same listing twice or skip one.
   switch (sort) {
     case "newest":
-      return [desc(directoryListings.createdAt), asc(directoryListings.id)]
+      return [featured, desc(directoryListings.createdAt), asc(directoryListings.id)]
     case "title":
-      return [asc(directoryListings.title), asc(directoryListings.id)]
+      return [featured, asc(directoryListings.title), asc(directoryListings.id)]
     case "order":
       return [
+        featured,
         asc(directoryListings.displayOrder),
         desc(directoryListings.createdAt),
         asc(directoryListings.id),
@@ -291,14 +303,16 @@ async function toCards(
   const ids = rows.map((row) => row.id)
   // Both for the whole page at once. One query each rather than one per card:
   // twelve cards used to mean twelve round trips for the category alone.
-  const [shownUnder, claimed] = await Promise.all([
+  const [shownUnder, claimed, featured] = await Promise.all([
     categoryForCards(siteId, ids, database),
     claimedListingIds(siteId, ids, database),
+    activeFeaturedForListings(siteId, ids, database),
   ])
   return rows.map((row) => ({
     ...row,
     category: shownUnder.get(row.id) ?? null,
     claimed: claimed.has(row.id),
+    featured: featured.has(row.id),
   }))
 }
 
@@ -428,7 +442,7 @@ async function listingPage(
       .select(cardColumns)
       .from(directoryListings)
       .where(where)
-      .orderBy(...orderFor(options.sort))
+      .orderBy(...orderFor(options.sort, siteId))
       .limit(DIRECTORY_PAGE_SIZE)
       .offset(offset),
     database
@@ -509,7 +523,7 @@ async function relatedListings(
         inArray(directoryListings.id, siblings)
       )
     )
-    .orderBy(...orderFor("order"))
+    .orderBy(...orderFor("order", siteId))
     .limit(RELATED_LISTING_COUNT)
 
   return toCards(siteId, rows, database)
@@ -558,9 +572,10 @@ export async function readPublicListing(
 
   const primary = links.find((link) => link.isPrimary) ?? links[0] ?? null
 
-  const [settings, claimState] = await Promise.all([
+  const [settings, claimState, featured] = await Promise.all([
     directorySettingsFor(site.id, database),
     claimStateFor(site.id, row.id, options.viewerId ?? null, database),
+    activeFeaturedForListings(site.id, [row.id], database),
   ])
 
   return {
@@ -578,6 +593,7 @@ export async function readPublicListing(
       body: cleanWrittenPageBody(row.body),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      featured: featured.has(row.id),
     },
     categories: links.map((link) => ({ name: link.name, slug: link.slug })),
     primaryCategory: primary

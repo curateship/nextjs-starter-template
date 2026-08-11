@@ -11,6 +11,12 @@ import { adminGet, adminPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { claimImpactForListings } from "@/server/directory/claims"
 import {
+  featuredImpactForListings,
+  pendingFeaturedImpactForListings,
+  prepareFeaturedListingsForDeletion,
+} from "@/server/directory/featured"
+import { saveImpactForListings } from "@/server/directory/saves"
+import {
   categoriesForListing,
   createListing,
   deleteListings,
@@ -217,11 +223,14 @@ const listingDeleteImpactFn = createServerFn({ method: "GET" })
     // function lives beside `updateListing`, which the claims module already
     // calls, and having it call back into claims would make the two modules
     // import each other.
-    const [listings, claims] = await Promise.all([
+    const [listings, claims, saves, featured, pendingFeatured] = await Promise.all([
       listingDeleteImpact(site, data.ids),
       claimImpactForListings(site, data.ids),
+      saveImpactForListings(site, data.ids),
+      featuredImpactForListings(site, data.ids),
+      pendingFeaturedImpactForListings(site, data.ids),
     ])
-    return { ...listings, ...claims }
+    return { ...listings, ...claims, ...saves, ...featured, ...pendingFeatured }
   })
 
 /** What deleting these would take with it, for the confirmation to say. */
@@ -235,10 +244,26 @@ const deleteListingsFn = createServerFn({ method: "POST" })
     z.object({ ids: z.array(z.string().min(1).max(36)).min(1).max(500) })
   )
   .handler(async ({ data, context }): Promise<{ done: string[]; kept: string[] }> => {
-    return deleteListings(
-      await workspaceIdForRequest(context.user.id),
-      data.ids
-    )
+    const site = await workspaceIdForRequest(context.user.id)
+    await prepareFeaturedListingsForDeletion(site, data.ids)
+    try {
+      return await deleteListings(site, data.ids)
+    } catch (error) {
+      const constraint =
+        typeof error === "object" && error !== null && "constraint" in error
+          ? String(error.constraint)
+          : ""
+      const message = error instanceof Error ? error.message : String(error)
+      if (
+        constraint === "directory_featured_checkouts_listing_id_fkey" ||
+        message.includes("directory_featured_checkouts_listing_id_fkey")
+      ) {
+        throw new Error(
+          "A featured checkout started before deletion finished. Try again after it finishes or expires."
+        )
+      }
+      throw error
+    }
   })
 
 /** One request for the whole selection; the result counts honestly. */

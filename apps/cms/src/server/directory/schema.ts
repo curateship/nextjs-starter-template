@@ -400,3 +400,263 @@ export const directorySettings = pgTable("directory_settings", {
 })
 
 export type DirectorySettingsRow = typeof directorySettings.$inferSelect
+
+/** A named folder of listings saved by one account on one site. */
+export const directorySaveCollections = pgTable(
+  "directory_save_collections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_save_collections_site_user_name").on(
+      table.workspaceId,
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+    index("ix_directory_save_collections_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+  ]
+)
+
+export type DirectorySaveCollectionRow =
+  typeof directorySaveCollections.$inferSelect
+
+/** One listing in one saved collection. The repeated site and user keep every read direct. */
+export const directorySaveItems = pgTable(
+  "directory_save_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    collectionId: varchar("collection_id", { length: 36 })
+      .notNull()
+      .references(() => directorySaveCollections.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_save_items_collection_listing").on(
+      table.collectionId,
+      table.listingId
+    ),
+    index("ix_directory_save_items_site_listing").on(
+      table.workspaceId,
+      table.listingId
+    ),
+    index("ix_directory_save_items_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+  ]
+)
+
+/** A site's one-time paid placement offer. Stripe receives the price from this row. */
+export const directoryFeaturedPlans = pgTable(
+  "directory_featured_plans",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: varchar("description", { length: 500 }).notNull().default(""),
+    priceCents: integer("price_cents").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("usd"),
+    durationDays: integer("duration_days").notNull(),
+    priority: integer("priority").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_directory_featured_plans_site_active").on(
+      table.workspaceId,
+      table.active,
+      table.createdAt
+    ),
+    check("directory_featured_plans_price_check", sql`${table.priceCents} > 0`),
+    check(
+      "directory_featured_plans_duration_check",
+      sql`${table.durationDays} BETWEEN 1 AND 3650`
+    ),
+  ]
+)
+
+export type DirectoryFeaturedPlanRow =
+  typeof directoryFeaturedPlans.$inferSelect
+
+/**
+ * One Stripe Checkout reservation for a listing.
+ *
+ * It is written before Stripe is called. Parallel requests therefore share
+ * one idempotency key and one session, while the snapshots keep a retry
+ * byte-for-byte stable if the first request stopped before saving Stripe's ID.
+ */
+export const directoryFeaturedCheckouts = pgTable(
+  "directory_featured_checkouts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "restrict" }),
+    claimId: varchar("claim_id", { length: 36 })
+      .notNull()
+      .references(() => directoryClaims.id, { onDelete: "cascade" }),
+    buyerUserId: varchar("buyer_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    planId: varchar("plan_id", { length: 36 })
+      .notNull()
+      .references(() => directoryFeaturedPlans.id, { onDelete: "restrict" }),
+    priceCents: integer("price_cents").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    durationDays: integer("duration_days").notNull(),
+    productName: varchar("product_name", { length: 400 }).notNull(),
+    customerEmail: varchar("customer_email", { length: 255 }).notNull(),
+    successUrl: varchar("success_url", { length: 2000 }).notNull(),
+    cancelUrl: varchar("cancel_url", { length: 2000 }).notNull(),
+    stripeSessionId: varchar("stripe_session_id", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_featured_checkouts_listing").on(
+      table.workspaceId,
+      table.listingId
+    ),
+    uniqueIndex("ux_directory_featured_checkouts_session").on(
+      table.stripeSessionId
+    ),
+    index("ix_directory_featured_checkouts_plan").on(table.planId),
+  ]
+)
+
+/** A completed paid placement. Expiry is always checked against the clock when read. */
+export const directoryFeaturedEntitlements = pgTable(
+  "directory_featured_entitlements",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    claimId: varchar("claim_id", { length: 36 })
+      .notNull()
+      .references(() => directoryClaims.id, { onDelete: "cascade" }),
+    buyerUserId: varchar("buyer_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    planId: varchar("plan_id", { length: 36 })
+      .notNull()
+      .references(() => directoryFeaturedPlans.id, { onDelete: "restrict" }),
+    stripeSessionId: varchar("stripe_session_id", { length: 255 }).notNull(),
+    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+    amountTotal: integer("amount_total").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    reminderThresholdDays: integer("reminder_threshold_days"),
+    reminderClaimedAt: timestamp("reminder_claimed_at", { withTimezone: true }),
+    revokedByUserId: varchar("revoked_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokeNote: varchar("revoke_note", { length: 500 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_featured_entitlements_session").on(
+      table.stripeSessionId
+    ),
+    uniqueIndex("ux_directory_featured_entitlements_payment_intent")
+      .on(table.stripePaymentIntentId)
+      .where(sql`${table.stripePaymentIntentId} IS NOT NULL`),
+    index("ix_directory_featured_entitlements_listing_active").on(
+      table.workspaceId,
+      table.listingId,
+      table.status,
+      table.endsAt
+    ),
+    check(
+      "directory_featured_entitlements_status_check",
+      sql`${table.status} IN ('active', 'revoked')`
+    ),
+  ]
+)
+
+/** One outreach attempt. The unique listing/address pair makes a second send impossible. */
+export const directoryClaimOutreach = pgTable(
+  "directory_claim_outreach",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: varchar("error", { length: 500 }).notNull().default(""),
+    sentByUserId: varchar("sent_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_claim_outreach_listing_email").on(
+      table.listingId,
+      table.toEmail
+    ),
+    index("ix_directory_claim_outreach_site_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    check(
+      "directory_claim_outreach_status_check",
+      sql`${table.status} IN ('sending', 'sent', 'failed')`
+    ),
+  ]
+)
+
+/** An address that opted out stays out across every site in this deployment. */
+export const directoryClaimOutreachOptOuts = pgTable(
+  "directory_claim_outreach_opt_outs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    email: varchar("email", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_claim_outreach_opt_out_email").on(
+      sql`lower(${table.email})`
+    ),
+  ]
+)

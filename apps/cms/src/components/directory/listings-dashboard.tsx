@@ -119,6 +119,9 @@ export function ListingsDashboard({
     categoryLinks: number
     claims: number
     pendingRequests: number
+    saves: number
+    activeFeatured: number
+    pendingFeatured: number
   } | null>(null)
 
   const listKey = `${search.q ?? ""}|${search.status ?? ""}|${sort}|${direction}|${data.page}|${data.pageSize}`
@@ -188,6 +191,9 @@ export function ListingsDashboard({
           categoryLinks: impact.categoryLinks,
           claims: impact.claims,
           pendingRequests: impact.pendingRequests,
+          saves: impact.saves,
+          activeFeatured: impact.activeFeatured,
+          pendingFeatured: impact.pendingFeatured,
         })
       })
     },
@@ -465,6 +471,15 @@ export function ListingsDashboard({
                         ? "One change waiting to be read goes"
                         : `${confirm.pendingRequests} changes waiting to be read go`
                     } with it.`
+                  : null,
+                confirm.saves
+                  ? `${confirm.saves === 1 ? "One saved copy goes" : `${confirm.saves} saved copies go`} with it.`
+                  : null,
+                confirm.pendingFeatured
+                  ? `${confirm.pendingFeatured === 1 ? "One featured checkout is still open" : `${confirm.pendingFeatured} featured checkouts are still open`} — deletion waits until ${confirm.pendingFeatured === 1 ? "it finishes or expires" : "they finish or expire"}.`
+                  : null,
+                confirm.activeFeatured
+                  ? `${confirm.activeFeatured === 1 ? "One paid featured placement is still active" : `${confirm.activeFeatured} paid featured placements are still active`} — deleting now ends ${confirm.activeFeatured === 1 ? "it" : "them"} without a refund.`
                   : null,
               ]
                 .filter(Boolean)

@@ -23,7 +23,20 @@ import {
  * It is reached from the member sidebar, which is Settings data rather than
  * code: nothing here has to be registered anywhere for the link to exist.
  */
+type MyListingsSearch = {
+  featured_session?: string
+  featured_checkout?: "cancelled"
+}
+
 export const Route = createFileRoute("/_authenticated/my-listings")({
+  validateSearch: (search: Record<string, unknown>): MyListingsSearch => ({
+    featured_session:
+      typeof search.featured_session === "string" &&
+      /^cs_(?:test_|live_)?[A-Za-z0-9]+$/.test(search.featured_session)
+        ? search.featured_session
+        : undefined,
+    featured_checkout: search.featured_checkout === "cancelled" ? "cancelled" : undefined,
+  }),
   loader: () => loadMyListings(),
   component: MyListingsRoute,
   errorComponent: routeErrorComponent(getClaimErrorMessage),
@@ -31,5 +44,5 @@ export const Route = createFileRoute("/_authenticated/my-listings")({
 
 function MyListingsRoute() {
   const listings = Route.useLoaderData()
-  return <MyListings listings={listings} />
+  return <MyListings listings={listings} checkout={Route.useSearch()} />
 }
