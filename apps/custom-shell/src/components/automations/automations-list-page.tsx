@@ -12,11 +12,13 @@ import {
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
+  UserIcon,
   WorkflowIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -112,6 +114,9 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [runCreate, creating] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
+  const [testTarget, setTestTarget] = React.useState<AutomationListItem | null>(
+    null
+  )
   const [liveId, setLiveId] = React.useState<string | null>(null)
   const [deleteTargets, setDeleteTargets] = React.useState<
     AutomationListItem[] | null
@@ -489,27 +494,50 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center gap-1">
+                {automation.can_run_manually ? (
+                  <DisabledReason
+                    disabled={paused || !automation.isValid}
+                    reason={
+                      paused
+                        ? "Every automation is paused. Resume them to start this flow."
+                        : "This flow has something to fix before it can run. Open it and check the steps marked in red."
+                    }
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={
+                        paused || !automation.isValid || runningId !== null
+                      }
+                      aria-label={`Run ${automation.name} now`}
+                      onClick={() => void handleRunNow(automation)}
+                    >
+                      {runningId === automation.id ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <PlayIcon className="size-4" />
+                      )}
+                    </Button>
+                  </DisabledReason>
+                ) : null}
                 <DisabledReason
                   disabled={paused || !automation.isValid}
                   reason={
                     paused
-                      ? "Every automation is paused. Resume them to start this flow."
-                      : "This flow has something to fix before it can run. Open it and check the steps marked in red."
+                      ? "Every automation is paused. Resume them to test this flow."
+                      : "This flow has something to fix before it can be tested."
                   }
                 >
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={paused || !automation.isValid || runningId !== null}
-                    aria-label={`Run ${automation.name} now`}
-                    onClick={() => void handleRunNow(automation)}
+                    disabled={paused || !automation.isValid}
+                    aria-label={`Test ${automation.name} with one member`}
+                    onClick={() => setTestTarget(automation)}
                   >
-                    {runningId === automation.id ? (
-                      <Loader2Icon className="size-4 animate-spin" />
-                    ) : (
-                      <PlayIcon className="size-4" />
-                    )}
+                    <UserIcon className="size-4" />
                   </Button>
                 </DisabledReason>
                 <Button
@@ -549,6 +577,24 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
           </TableRow>
         ))}
       </DashboardTable>
+
+      {testTarget ? (
+        <TestWithMemberDialog
+          open
+          automationId={testTarget.id}
+          automationName={testTarget.name}
+          onOpenChange={(open) => {
+            if (!open) setTestTarget(null)
+          }}
+          onStarted={(runId) =>
+            navigate({
+              to: "/admin/automations/$automationId",
+              params: { automationId: testTarget.id },
+              search: { run: runId },
+            })
+          }
+        />
+      ) : null}
 
       <FormDialog
         open={createOpen}
@@ -755,8 +801,7 @@ function LiveCell({
 
   const blocked = !automation.isValid && !automation.enabled
   // Switched on, but edited since into something that cannot run. It fires
-  // nothing in that state, so the switch must not be the only thing on screen —
-  // an "on" beside a trigger's name reads as "this is happening".
+  // nothing in that state, so the switch must not be the only warning.
   const stalled = automation.enabled && !automation.isValid
 
   return (
@@ -775,14 +820,11 @@ function LiveCell({
       {busy ? (
         <Loader2Icon className="size-3.5 animate-spin text-muted-foreground" />
       ) : null}
-      <span
-        className={cn(
-          "truncate text-xs",
-          stalled ? "text-destructive" : "text-muted-foreground"
-        )}
-      >
-        {stalled ? "On, but not running" : automation.trigger_name}
-      </span>
+      {stalled ? (
+        <span className="truncate text-xs text-destructive">
+          On, but not running
+        </span>
+      ) : null}
     </div>
   )
 }

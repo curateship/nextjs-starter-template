@@ -27,6 +27,7 @@ import {
   type AutomationValidationError,
 } from "@/lib/automations/graph"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
+import { automationCanStartManually } from "@/lib/automations/run"
 import {
   AUTOMATION_TEMPLATE_KEYS,
   type AutomationTemplateKey,
@@ -48,6 +49,7 @@ export type AutomationListItem = {
   enabled: boolean
   /** What it reacts to, or null when it only ever runs by hand. */
   trigger_name: string | null
+  can_run_manually: boolean
   /** The next automatic Time occurrence, null while off or unscheduled. */
   next_run_at: string | null
   updated_at: string
@@ -61,6 +63,7 @@ export type AutomationDetail = {
   errors: AutomationValidationError[]
   enabled: boolean
   trigger_name: string | null
+  can_run_manually: boolean
   next_run_at: string | null
   created_at: string
   updated_at: string
@@ -88,6 +91,7 @@ export function toAutomationListItem(
     nodeCount,
     enabled: automation.enabled,
     trigger_name: automation.trigger_name,
+    can_run_manually: automation.can_run_manually,
     next_run_at: automation.next_run_at,
     summary: isValid
       ? `${nodeCount} ${plural(nodeCount, "step", "steps")}`
@@ -158,6 +162,7 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
         nodeCount: row.nodeCount,
         enabled: row.enabled,
         trigger_name: row.triggerName,
+        can_run_manually: row.canRunManually,
         next_run_at: row.nextRunAt?.toISOString() ?? null,
         updated_at: row.updatedAt.toISOString(),
       })),
@@ -341,6 +346,9 @@ async function serializeDetail(
     errors: inspected.errors,
     enabled: row.enabled,
     trigger_name: automationTriggerName(inspected),
+    can_run_manually: inspected.compiledConfig
+      ? automationCanStartManually(inspected.compiledConfig)
+      : false,
     next_run_at: row.nextRunAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),

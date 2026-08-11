@@ -13,7 +13,10 @@ import {
 } from "@/lib/automations/run"
 import { approvalDeadline } from "@/lib/automations/nodes/wait-for-approval"
 import { webhookNode } from "@/lib/automations/nodes/webhook"
-import { automationExecutors } from "@/server/automations/executors"
+import {
+  automationExecutorMayRunInTest,
+  automationExecutors,
+} from "@/server/automations/executors"
 import { deleteWorkspaceAutomations } from "@/server/automations/flows"
 import {
   countHeldAutomationRuns,
@@ -25,6 +28,7 @@ import {
   deleteAutomationRuns,
   runAutomationTick,
   startAutomationRun,
+  startAutomationTestRun,
   sweepExpiredApprovals,
 } from "@/server/automations/engine"
 import {
@@ -41,6 +45,7 @@ import {
 import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
 import { now, uuid } from "@/server/auth/security"
 import { getNotificationPage } from "@/server/notifications/inbox"
+import { listActiveWorkspaceMembers } from "@/server/people/workspace-users"
 
 let client: PGlite
 let db: CustomShellDb
@@ -142,6 +147,90 @@ describe("compiled config helpers", () => {
 })
 
 describe("running a flow", () => {
+  it("keeps future and app-owned steps blocked from test runs by default", () => {
+    expect(automationExecutorMayRunInTest("placeholder")).toBe(true)
+    expect(automationExecutorMayRunInTest("future-member-write")).toBe(false)
+  })
+
+  it("starts a test run with one active member and the admin's saved address", async () => {
+    const admin = await insertUser(db, {
+      role: "admin",
+      email: "admin@example.test",
+    })
+    const member = await insertUser(db, {
+      email: "member@example.test",
+      name: "Sam Member",
+    })
+    const automation = await insertAutomation(admin.id, [placeholder])
+
+    const run = await startAutomationTestRun(
+      site,
+      admin.id,
+      automation.id,
+      member.id,
+      db
+    )
+
+    expect(run).toMatchObject({
+      testRun: true,
+      testRecipientEmail: "admin@example.test",
+      subjectUserId: member.id,
+      subjectLabel: "Sam Member (member@example.test)",
+    })
+  })
+
+  it("refuses Run when the flow needs a real member event", async () => {
+    const admin = await insertUser(db, {
+      role: "admin",
+      email: "admin@example.test",
+    })
+    const member = await insertUser(db, { email: "member@example.test" })
+    const automation = await insertAutomation(admin.id, [
+      {
+        kind: "billingMoment",
+        settings: { moment: "paymentFailed", daysBefore: 3 },
+      },
+      placeholder,
+    ])
+
+    await expect(
+      startAutomationRun(site, admin.id, automation.id, db)
+    ).rejects.toThrow("REQUIRES_SUBJECT")
+    await expect(
+      startAutomationTestRun(site, admin.id, automation.id, member.id, db)
+    ).resolves.toMatchObject({ testRun: true, subjectUserId: member.id })
+  })
+
+  it("refuses an admin or inactive account as a test member", async () => {
+    const admin = await insertUser(db, { role: "admin" })
+    const inactive = await insertUser(db, { status: "suspended" })
+    const automation = await insertAutomation(admin.id, [placeholder])
+
+    await expect(
+      startAutomationTestRun(site, admin.id, automation.id, admin.id, db)
+    ).rejects.toThrow("MEMBER_NOT_FOUND")
+    await expect(
+      startAutomationTestRun(site, admin.id, automation.id, inactive.id, db)
+    ).rejects.toThrow("MEMBER_NOT_FOUND")
+  })
+
+  it("does not reveal or test a member from another workspace", async () => {
+    const admin = await insertUser(db, { role: "admin" })
+    const otherSite = await insertWorkspace(db)
+    const otherMember = await insertUser(db, {
+      email: "other-site@example.test",
+      currentWorkspaceId: otherSite.id,
+    })
+    const automation = await insertAutomation(admin.id, [placeholder])
+
+    expect(await listActiveWorkspaceMembers(site, "other-site", db)).toEqual(
+      []
+    )
+    await expect(
+      startAutomationTestRun(site, admin.id, automation.id, otherMember.id, db)
+    ).rejects.toThrow("MEMBER_NOT_FOUND")
+  })
+
   it("walks a two-step flow end to end and records what each step did", async () => {
     const user = await insertUser(db, { role: "admin" })
     const automation = await insertAutomation(user.id, [

@@ -907,6 +907,12 @@ export const customShellAutomationRuns = pgTable(
       { onDelete: "set null" }
     ),
     subjectLabel: varchar("subject_label", { length: 200 }),
+    /**
+     * A rehearsal against `subjectUserId`. Outside actions are redirected or
+     * skipped, and the copied address is the only address an email may reach.
+     */
+    testRun: boolean("test_run").notNull().default(false),
+    testRecipientEmail: varchar("test_recipient_email", { length: 255 }),
     /** The node kind that started it, so the history can name the moment. */
     triggerKind: varchar("trigger_kind", { length: 64 }),
     /**
@@ -935,6 +941,10 @@ export const customShellAutomationRuns = pgTable(
     check(
       "automation_runs_decision_check",
       sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
+    ),
+    check(
+      "automation_runs_test_recipient_check",
+      sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectUserId} is not null)`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
     index("ix_automation_runs_workspace_started").on(
