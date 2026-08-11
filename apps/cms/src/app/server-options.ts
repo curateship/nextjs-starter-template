@@ -1,4 +1,5 @@
 import type { AppServerOptions } from "@/server/app-options"
+import { directorySitemapEntries } from "@/server/directory/sitemap"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -15,4 +16,6 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+export const appServerOptions: AppServerOptions = {
+  sitemap: { extraEntries: directorySitemapEntries },
+}

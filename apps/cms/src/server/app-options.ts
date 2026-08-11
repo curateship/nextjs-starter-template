@@ -22,6 +22,24 @@ export type AppServerOptions = {
   background?: BackgroundServerOptions
   security?: SecurityServerOptions
   auth?: AuthServerOptions
+  sitemap?: SitemapServerOptions
+}
+
+export type SitemapEntry = {
+  path: string
+  updatedAt?: Date
+}
+
+type SitemapServerOptions = {
+  /**
+   * Public addresses this app adds to a site's sitemap.
+   *
+   * The shell contributes its declared and admin-written pages. An app whose
+   * public content lives in its own tables contributes those rows here. The
+   * workspace id comes from the request's Host header, never from the browser,
+   * and the app must return only public rows belonging to that workspace.
+   */
+  extraEntries?: (workspaceId: string) => Promise<readonly SitemapEntry[]>
 }
 
 type SecurityServerOptions = {
@@ -177,6 +195,14 @@ export function appTrustsOrigin(
   options: AppServerOptions = appServerOptions
 ): boolean {
   return options.security?.isTrustedOrigin?.(origin) ?? false
+}
+
+/** The app's public sitemap rows, or none when it has not added any. */
+export async function appSitemapEntries(
+  workspaceId: string,
+  options: AppServerOptions = appServerOptions
+): Promise<readonly SitemapEntry[]> {
+  return (await options.sitemap?.extraEntries?.(workspaceId)) ?? []
 }
 
 /**

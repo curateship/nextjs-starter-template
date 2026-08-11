@@ -51,8 +51,9 @@ The shell file in each pair is the catalogue: it defines what can be changed and
 what each option means. Anything not offered there is a compile error, on
 purpose — the shell always knows every way an app can deviate from it.
 
-**In this repo both app files stay empty forever.** The moment the shell puts a
-value in one, every app copied from it conflicts on that file on every merge.
+**In Custom Shell itself both app files stay empty forever.** The moment the
+shell puts a value in one, every app copied from it conflicts on that file on
+every merge.
 
 What is on offer today. An option is added when a real app needs it, never on
 the guess that one might:
@@ -62,6 +63,8 @@ the guess that one might:
   own icon and a pointer to its settings panel, paired with
 - `automations.executors` (server) — what those steps do when a flow reaches
   them, keyed by the same `kind`
+- `sitemap.extraEntries` (server) — public addresses from the app's own tables,
+  read for the site whose domain is being answered
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.

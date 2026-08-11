@@ -21,7 +21,9 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RevokeEmailChangeRouteImport } from './routes/revoke-email-change'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
@@ -128,9 +130,19 @@ const RevokeEmailChangeRoute = RevokeEmailChangeRouteImport.update({
   path: '/revoke-email-change',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignInLinkRoute = SignInLinkRouteImport.update({
   id: '/sign-in-link',
   path: '/sign-in-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
@@ -401,7 +413,9 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
@@ -461,7 +475,9 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
@@ -521,7 +537,9 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
@@ -583,7 +601,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/revoke-email-change'
+    | '/robots.txt'
     | '/sign-in-link'
+    | '/sitemap.xml'
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
@@ -643,7 +663,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/revoke-email-change'
+    | '/robots.txt'
     | '/sign-in-link'
+    | '/sitemap.xml'
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
@@ -702,7 +724,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/revoke-email-change'
+    | '/robots.txt'
     | '/sign-in-link'
+    | '/sitemap.xml'
     | '/unsubscribe'
     | '/verify-email'
     | '/_authenticated/account'
@@ -764,7 +788,9 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RevokeEmailChangeRoute: typeof RevokeEmailChangeRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   SignInLinkRoute: typeof SignInLinkRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
@@ -864,11 +890,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RevokeEmailChangeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-in-link': {
       id: '/sign-in-link'
       path: '/sign-in-link'
       fullPath: '/sign-in-link'
       preLoaderRoute: typeof SignInLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/unsubscribe': {
@@ -1337,7 +1377,9 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RevokeEmailChangeRoute: RevokeEmailChangeRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   SignInLinkRoute: SignInLinkRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   DirectorySlugRoute: DirectorySlugRoute,
