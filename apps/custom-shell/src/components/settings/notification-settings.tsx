@@ -17,6 +17,7 @@ const notificationSettingLabels: Record<NotificationType, string> = {
   ai_limit_warning: "AI allowance warnings",
   ai_limit_reached: "AI allowance reached",
   automation_approval: "Automation approvals",
+  automation_failed: "Failed automations",
 }
 
 export function NotificationSettings({

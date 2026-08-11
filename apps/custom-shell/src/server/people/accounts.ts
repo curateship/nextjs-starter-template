@@ -16,15 +16,12 @@ import {
 
 import { PENDING_DELETION } from "@/lib/account-deletion"
 import {
-  markAccountsForDeletion,
+  closeAccounts,
   purgeExpiredDeletions,
   restoreAccounts,
 } from "@/server/people/account-deletion"
 import { appUrlFor } from "@/server/app-url"
-import {
-  cancelSubscriptionsForDeletion,
-  type CancelApi,
-} from "@/server/billing/stripe"
+import { type CancelApi } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendAuthEmail } from "@/server/email/send"
 import {
@@ -520,7 +517,8 @@ export async function deleteUserAccounts(
   // After the guards and before anything is removed: a plan cancelled for a
   // delete that then failed on "last admin" would be a plan taken away for
   // nothing. If Stripe refuses this, nothing below runs.
-  await cancelSubscriptionsForDeletion(
+  const marked = await closeAccounts(
+    actorId,
     rows.map((row) => row.id),
     database,
     api
@@ -529,14 +527,6 @@ export async function deleteUserAccounts(
   const alreadyMarked = rows
     .filter((row) => row.status === PENDING_DELETION)
     .map((row) => row.id)
-  const toMark = rows
-    .filter((row) => row.status !== PENDING_DELETION)
-    .map((row) => row.id)
-
-  const marked = toMark.length
-    ? await markAccountsForDeletion(actorId, toMark, database)
-    : []
-
   const deleted = alreadyMarked.length
     ? await database
         .delete(customShellUsers)

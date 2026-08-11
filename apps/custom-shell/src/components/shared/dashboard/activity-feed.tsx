@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  CircleAlertIcon,
   GaugeIcon,
   MegaphoneIcon,
   PencilLineIcon,
@@ -167,6 +168,29 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
               to: "/admin/automations/$automationId",
               params: { automationId: item.automation_id },
               search: { run: item.automation_run_id },
+            }
+          : null,
+    }
+  }
+  if (item.type === "automation_failed") {
+    return {
+      ...event,
+      who:
+        item.automation_name?.replace(/\s*—\s*/g, " ") ?? "An automation",
+      text: "failed",
+      detail: `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`,
+      icon: CircleAlertIcon,
+      link:
+        item.automation_id && item.automation_run_id
+          ? {
+              to: "/admin/automations/$automationId",
+              params: { automationId: item.automation_id },
+              search: {
+                run: item.automation_run_id,
+                ...(item.automation_failure_node_id
+                  ? { node: item.automation_failure_node_id }
+                  : {}),
+              },
             }
           : null,
     }

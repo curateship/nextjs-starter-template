@@ -84,6 +84,8 @@ function graphOf(kinds: Array<{ kind: string; settings: AutomationNodeSettings }
 const placeholder = { kind: "placeholder", settings: { note: "" } }
 /** A test-only node kind, registered and removed inside the test that uses it. */
 const CLAIM_THIEF = "test-claim-thief"
+/** Returns a result whose summary crashes after the executor has returned. */
+const ENGINE_CRASH = "test-engine-crash"
 const approval = {
   kind: "waitForApproval",
   settings: {
@@ -351,10 +353,27 @@ describe("running a flow", () => {
     expect(detail?.status).toBe("failed")
     expect(detail?.error).toContain("cannot run yet")
     expect(detail?.steps[0].status).toBe("failed")
+
+    const notices = await db
+      .select()
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.type, "automation_failed"))
+    expect(notices).toHaveLength(1)
+    expect(notices[0].automationRunId).toBe(run.id)
+
+    await runAutomationTick(db)
+    expect(
+      await db
+        .select()
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.type, "automation_failed"))
+    ).toHaveLength(1)
   })
 
   it("retries a failed webhook three times before failing the run", async () => {
     const user = await insertUser(db, { role: "admin" })
+    const otherAdmin = await insertUser(db, { role: "admin" })
+    const member = await insertUser(db, { role: "member" })
     const automation = await insertAutomation(user.id, [
       {
         kind: webhookNode.kind,
@@ -363,7 +382,7 @@ describe("running a flow", () => {
           secret: "",
         },
       },
-    ])
+    ], "Billing webhook")
     const original = automationExecutors[webhookNode.kind]
     automationExecutors[webhookNode.kind] = async () => {
       throw new Error("Webhook returned HTTP 500 after 5 ms.")
@@ -373,6 +392,7 @@ describe("running a flow", () => {
       const run = await startAutomationRun(site, user.id, automation.id, db)
       await runAutomationTick(db)
       expect((await readRun(run.id)).attempts).toBe(1)
+      expect(await db.select().from(customShellNotifications)).toHaveLength(0)
 
       await db
         .update(customShellAutomationRuns)
@@ -380,6 +400,7 @@ describe("running a flow", () => {
         .where(eq(customShellAutomationRuns.id, run.id))
       await runAutomationTick(db)
       expect((await readRun(run.id)).attempts).toBe(2)
+      expect(await db.select().from(customShellNotifications)).toHaveLength(0)
 
       await db
         .update(customShellAutomationRuns)
@@ -394,8 +415,90 @@ describe("running a flow", () => {
       expect(detail?.steps).toHaveLength(3)
       expect(detail?.steps.every((step) => step.status === "failed")).toBe(true)
       expect(detail?.error).toBe("Webhook returned HTTP 500 after 5 ms.")
+
+      const notices = await db
+        .select()
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.type, "automation_failed"))
+      expect(notices).toHaveLength(2)
+      expect(notices.map((notice) => notice.recipientUserId).sort()).toEqual(
+        [user.id, otherAdmin.id].sort()
+      )
+      expect(
+        notices.some((notice) => notice.recipientUserId === member.id)
+      ).toBe(false)
+
+      const page = await getNotificationPage({
+        currentUser: otherAdmin,
+        database: db,
+      })
+      expect(page.notifications[0]).toMatchObject({
+        type: "automation_failed",
+        automation_run_id: run.id,
+        automation_id: automation.id,
+        automation_name: "Billing webhook",
+        automation_failure_node_id: "n0",
+        automation_failure_node_name: "Webhook",
+        automation_failure_error:
+          "The service had a problem and refused the request.",
+      })
     } finally {
       automationExecutors[webhookNode.kind] = original
+    }
+  })
+
+  it("stops and alerts when the engine itself fails three times", async () => {
+    const admin = await insertUser(db, { role: "admin" })
+    const automation = await insertAutomation(admin.id, [placeholder])
+    await db
+      .update(customShellAutomations)
+      .set({
+        compiledConfig: {
+          v: 1,
+          kind: "automation",
+          nodes: { n0: { kind: ENGINE_CRASH, settings: {} } },
+          edges: [],
+        },
+      })
+      .where(eq(customShellAutomations.id, automation.id))
+
+    automationExecutors[ENGINE_CRASH] = async () =>
+      new Proxy(
+        { type: "next" as const, summary: "Never read" },
+        {
+          get(target, property, receiver) {
+            if (property === "summary") {
+              throw new Error("The engine lost its place.")
+            }
+            return Reflect.get(target, property, receiver)
+          },
+        }
+      )
+
+    try {
+      const run = await startAutomationRun(site, admin.id, automation.id, db)
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        await runAutomationTick(db)
+        const row = await readRun(run.id)
+        expect(row.attempts).toBe(attempt)
+        expect(row.status).toBe(attempt === 3 ? "failed" : "active")
+        if (attempt < 3) {
+          expect(await db.select().from(customShellNotifications)).toHaveLength(0)
+          await db
+            .update(customShellAutomationRuns)
+            .set({ wakeAt: new Date(0) })
+            .where(eq(customShellAutomationRuns.id, run.id))
+        }
+      }
+
+      const notices = await db
+        .select()
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.type, "automation_failed"))
+      expect(notices).toHaveLength(1)
+      expect(notices[0].automationRunId).toBe(run.id)
+    } finally {
+      delete automationExecutors[ENGINE_CRASH]
     }
   })
 
@@ -431,6 +534,36 @@ describe("running a flow", () => {
     const result = await runAutomationTick(db)
     expect(result.processed).toBe(1)
     expect((await readRun(run.id)).status).toBe("completed")
+  })
+
+  it("fails and alerts instead of reclaiming an abandoned step forever", async () => {
+    const admin = await insertUser(db, { role: "admin" })
+    const automation = await insertAutomation(admin.id, [placeholder])
+    const run = await startAutomationRun(site, admin.id, automation.id, db)
+
+    await db
+      .update(customShellAutomationRuns)
+      .set({
+        attempts: 2,
+        claimToken: uuid(),
+        claimedAt: new Date(now().getTime() - 10 * 60 * 1000),
+      })
+      .where(eq(customShellAutomationRuns.id, run.id))
+
+    const result = await runAutomationTick(db)
+    expect(result.failed).toBe(1)
+    expect(await readRun(run.id)).toMatchObject({
+      status: "failed",
+      attempts: 3,
+      claimToken: null,
+      claimedAt: null,
+    })
+    const notices = await db
+      .select()
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.type, "automation_failed"))
+    expect(notices).toHaveLength(1)
+    expect(notices[0].automationRunId).toBe(run.id)
   })
 
   it("stops walking the moment it loses the claim mid-run", async () => {

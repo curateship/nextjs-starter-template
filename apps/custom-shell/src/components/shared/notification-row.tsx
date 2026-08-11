@@ -1,4 +1,5 @@
 import {
+  CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
   MegaphoneIcon,
@@ -50,6 +51,7 @@ function isFromTheApp(item: NotificationItem) {
     item.type === "changelog" ||
     item.type === "announcement" ||
     item.type === "automation_approval" ||
+    item.type === "automation_failed" ||
     isAiLimitNotification(item.type)
   )
 }
@@ -67,13 +69,21 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
   if (isFromTheApp(item)) {
     return (
       <Avatar size="lg">
-        <AvatarFallback className="bg-secondary text-secondary-foreground">
+        <AvatarFallback
+          className={cn(
+            "bg-secondary text-secondary-foreground",
+            item.type === "automation_failed" &&
+              "bg-destructive text-destructive-foreground"
+          )}
+        >
           {item.type === "changelog" ? (
             <SparklesIcon className="h-4 w-4" />
           ) : item.type === "announcement" ? (
             <MegaphoneIcon className="h-4 w-4" />
           ) : item.type === "automation_approval" ? (
             <UserCheckIcon className="h-4 w-4" />
+          ) : item.type === "automation_failed" ? (
+            <CircleAlertIcon className="h-4 w-4" />
           ) : (
             <GaugeIcon className="h-4 w-4" />
           )}
@@ -109,6 +119,9 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
   // The flow's name is the useful half — "Weekly changelog email" says more
   // about what is waiting than the word "approval" ever could.
   if (item.type === "automation_approval") {
+    return <strong>{item.automation_name?.replace(/\s*—\s*/g, " ")}</strong>
+  }
+  if (item.type === "automation_failed") {
     return <strong>{item.automation_name?.replace(/\s*—\s*/g, " ")}</strong>
   }
 
@@ -151,6 +164,9 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   if (item.type === "automation_approval") {
     return <UserCheckIcon className="h-3.5 w-3.5" />
   }
+  if (item.type === "automation_failed") {
+    return <CircleAlertIcon className="h-3.5 w-3.5" />
+  }
   if (item.type === "feedback_merged") {
     return <GitMergeIcon className="h-3.5 w-3.5" />
   }
@@ -178,9 +194,11 @@ function notificationPreview(item: NotificationItem) {
           ? approvalSummary
             ? `${approvalText.message}. ${approvalSummary}`
             : approvalText.detail
-          : isAiLimitNotification(item.type)
-            ? aiLimitNotificationText[item.type].detail
-            : (item.feedback_message ?? "")
+          : item.type === "automation_failed"
+            ? `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
+            : isAiLimitNotification(item.type)
+              ? aiLimitNotificationText[item.type].detail
+              : (item.feedback_message ?? "")
 
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }

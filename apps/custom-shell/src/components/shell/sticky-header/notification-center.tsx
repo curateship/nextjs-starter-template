@@ -290,7 +290,7 @@ export function NotificationCenter({
         void navigate({
           to: "/admin/automations/$automationId",
           params: { automationId: action.automationId },
-          search: { run: action.runId },
+          search: { run: action.runId, node: action.nodeId },
         })
       } else if (action.kind === "billing") {
         void navigate({

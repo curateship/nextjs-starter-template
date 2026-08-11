@@ -6,6 +6,7 @@ import {
   getNotificationErrorMessage,
   loadAdminNotificationsPage,
 } from "@/lib/api/notification"
+import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   readDirection,
   readOneOf,
@@ -17,10 +18,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 export const NOTIFICATION_READ_FILTERS = ["all", "unread", "read"] as const
 export const NOTIFICATION_TYPE_FILTERS = [
   "all",
-  "feedback_vote",
-  "feedback_comment",
-  "changelog",
-  "announcement",
+  ...NOTIFICATION_TYPES,
 ] as const
 export const NOTIFICATION_SORT_COLUMNS = [
   "activity",

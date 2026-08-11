@@ -2,6 +2,7 @@ import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import {
   BellIcon,
+  CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
   MegaphoneIcon,
@@ -100,7 +101,10 @@ function notificationSubject(item: NotificationItem) {
     return aiLimitNotificationText[item.type].message
   }
   // An approval notice is about a flow, so the flow's name is its subject.
-  if (item.type === "automation_approval") {
+  if (
+    item.type === "automation_approval" ||
+    item.type === "automation_failed"
+  ) {
     return item.automation_name ?? ""
   }
   return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
@@ -119,6 +123,9 @@ function notificationSubjectDetail(item: NotificationItem) {
   if (item.type === "automation_approval") {
     const state = item.automation_approval_state ?? "pending"
     return `${subject}\n\n${automationApprovalNotificationText[state].detail}`
+  }
+  if (item.type === "automation_failed") {
+    return `${subject}\n\n${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
   }
   return item.announcement_body
     ? `${subject}\n\n${item.announcement_body}`
@@ -293,7 +300,10 @@ export function NotificationsPage({
   // something get the role, the hand cursor and the handlers.
   function notificationDestination(item: NotificationItem) {
     if (item.type === "changelog") return "changelog" as const
-    if (item.type === "automation_approval") {
+    if (
+      item.type === "automation_approval" ||
+      item.type === "automation_failed"
+    ) {
       return item.automation_run_id && item.automation_id
         ? ("automationRun" as const)
         : null
@@ -315,7 +325,10 @@ export function NotificationsPage({
       void navigate({
         to: "/admin/automations/$automationId",
         params: { automationId: item.automation_id },
-        search: { run: item.automation_run_id },
+        search: {
+          run: item.automation_run_id,
+          node: item.automation_failure_node_id ?? undefined,
+        },
       })
       return
     }
@@ -416,6 +429,7 @@ export function NotificationsPage({
                 <SelectItem value="ai_limit_warning">AI warnings</SelectItem>
                 <SelectItem value="ai_limit_reached">AI limit reached</SelectItem>
                 <SelectItem value="automation_approval">Approvals</SelectItem>
+                <SelectItem value="automation_failed">Automation failures</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -496,6 +510,8 @@ export function NotificationsPage({
                     <GaugeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "automation_approval" ? (
                     <UserCheckIcon className="size-4 text-muted-foreground" />
+                  ) : item.type === "automation_failed" ? (
+                    <CircleAlertIcon className="size-4 text-destructive" />
                   ) : item.type === "feedback_merged" ? (
                     <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (
