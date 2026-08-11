@@ -86,6 +86,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
     maxPositionPct: 20,
     sizeMultiplier: 2,
+    compound: true,
     maxOrderVolPct: 0,
     twoGreen: false,
     // These suites are about rungs that REST on the book, which is still a
@@ -199,6 +200,41 @@ describe("live Smart orders", () => {
       "101",
       "102",
     ])
+  })
+
+  it("keeps fixed sizing on the wallet's starting balance", async () => {
+    account.mockResolvedValue({
+      equity: 1_500,
+      free: 1_500,
+      inTrades: 0,
+      openProfit: 0,
+    })
+    place
+      .mockResolvedValueOnce({
+        status: "resting",
+        orderId: "101",
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      })
+      .mockResolvedValueOnce({
+        status: "resting",
+        orderId: "102",
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      })
+
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ compound: false }),
+    })
+
+    expect(place.mock.calls[0][2].sz).toBeCloseTo(0.701, 9)
   })
 
   it("rolls back accepted rungs when a later rung is refused", async () => {

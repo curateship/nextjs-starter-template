@@ -122,7 +122,9 @@ export default function TradeDcaFields({
           <p className="mt-0.5 text-muted-foreground">
             {params.maxPositionPct}% of a {formatUsdRounded(potUsd)} pot
             {walletNode ? "" : ", which is what the money step starts at"}. The
-            buys below add up to it.
+            buys below add up to it. {params.compound
+              ? "Later ladders rise or fall with the pot."
+              : "Every later ladder stays based on this starting pot."}
           </p>
         </div>
 
@@ -194,6 +196,31 @@ export default function TradeDcaFields({
       </InspectorCard>
 
       <InspectorCard title="Position">
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`dca-${node.id}-compound`}
+            className="text-xs"
+            hint="Compound sizes each new ladder from the pot at that moment, so wins and losses change later buys. Fixed always sizes from the starting pot."
+          >
+            Bet sizing
+          </FieldLabel>
+          <Select
+            value={params.compound ? "compound" : "fixed"}
+            onValueChange={(value) =>
+              setParams({ compound: value === "compound" })
+            }
+          >
+            <SelectTrigger id={`dca-${node.id}-compound`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="compound">
+                Compound — grow bets with the account
+              </SelectItem>
+              <SelectItem value="fixed">Fixed — same bet every time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <TradeNumberField
           id={`dca-${node.id}-pot`}
           label="Most of the pot, per coin"

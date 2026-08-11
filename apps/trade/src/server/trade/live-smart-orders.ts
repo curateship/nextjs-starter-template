@@ -124,7 +124,7 @@ async function placeLiveDcaLadderOnce(
 
   const drawn = dcaLadderPlan({
     anchorPx,
-    equity: account.equity,
+    equity: input.params.compound ? account.equity : wallet.startingBalance,
     params: input.params,
     sizeDecimals: rules.sizeDecimals,
     volume24hUsd: rules.volume24hUsd,

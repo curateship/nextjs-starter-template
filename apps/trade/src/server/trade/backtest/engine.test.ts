@@ -263,6 +263,65 @@ describe("the ladder really runs", () => {
   })
 })
 
+describe("compound order sizing", () => {
+  function cycleBar(
+    index: number,
+    open: number,
+    high: number,
+    low: number,
+    close: number
+  ): CandleBar {
+    return {
+      openTime: START + index * FOUR_HOURS,
+      open,
+      high,
+      low,
+      close,
+      volume: 1_000,
+    }
+  }
+
+  const cycleBars: CandleBar[] = [
+    cycleBar(0, 100, 100, 100, 100),
+    cycleBar(1, 100, 100, 94, 94),
+    cycleBar(2, 94, 101, 94, 100),
+    cycleBar(3, 100, 100, 94, 94),
+    cycleBar(4, 94, 101, 94, 100),
+  ]
+
+  async function buyDollars(compound: boolean) {
+    const outcome = await runBacktest(
+      inputFor([coin("hyperliquid:mainnet:AAA", cycleBars)], {
+        costs: { takerFeeRate: 0, makerFeeRate: 0, slippageRate: 0 },
+        params: params({
+          compound,
+          rungs: [{ deviation: 5 }],
+          maxPositionPct: 50,
+          sizeMultiplier: 1,
+          takeProfit: { mode: "prevRung", pct: 1 },
+        }),
+      })
+    )
+    return outcome.coins[0].fills
+      .filter((fill) => fill.side === "buy")
+      .map((fill) => fill.px * fill.sz)
+  }
+
+  it("grows later ladders with the pot when compound is on", async () => {
+    const buys = await buyDollars(true)
+
+    expect(buys).toHaveLength(2)
+    expect(buys[1]).toBeGreaterThan(buys[0])
+  })
+
+  it("keeps later ladders on the starting pot when fixed is selected", async () => {
+    const buys = await buyDollars(false)
+
+    expect(buys).toHaveLength(2)
+    expect(buys[1]).toBeCloseTo(buys[0], 6)
+  })
+})
+
 describe("a run with many coins", () => {
   it("does not stop trading at the practice wallet's fifty orders", async () => {
     // The real defect this covers: a hand-driven practice wallet may hold fifty

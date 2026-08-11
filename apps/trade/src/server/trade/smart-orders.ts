@@ -336,7 +336,7 @@ export async function placeDcaLadder(
     base,
     rules,
     roundPx,
-    equity: figures.equity,
+    equity: input.params.compound ? figures.equity : wallet.startingBalance,
     freeCash: freeCash(book),
     openOrderCount: book.orders.length,
     heldSzi: book.positions.get(input.marketKey)?.szi ?? null,

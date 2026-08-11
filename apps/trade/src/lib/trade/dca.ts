@@ -230,13 +230,19 @@ export const DCA_TP_MODE_HINTS: Record<DcaTpMode, string> = {
 }
 
 /**
- * Everything the placement window asks for — also the shape remembered
- * between uses, so junk saved by an older build falls back to defaults.
+ * Everything a ladder setup asks for — also the shape remembered between
+ * uses, so junk saved by an older build falls back to defaults.
  */
 export const dcaParamsSchema = z.object({
   rungs: dcaRungsSchema,
   maxPositionPct: z.number().positive().max(100),
   sizeMultiplier: z.number().min(1).max(10),
+  /**
+   * Size each fresh ladder from the account's value at that moment. Off, every
+   * ladder uses the run's starting value instead. Defaulted so saved ladders
+   * keep the current behavior.
+   */
+  compound: z.boolean().default(true),
   /**
    * Liquidity guard: no single buy bigger than this share of the coin's
    * last-24-hours volume, so thin coins get small orders. 0 = off.
@@ -315,6 +321,7 @@ export function defaultDcaParams(): DcaParams {
     rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
     maxPositionPct: DEFAULT_DCA_MAX_POSITION_PCT,
     sizeMultiplier: DEFAULT_DCA_SIZE_MULTIPLIER,
+    compound: true,
     maxOrderVolPct: 0,
     twoGreen: false,
     anchor: "base",

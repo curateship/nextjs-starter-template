@@ -53,6 +53,11 @@ describe("dcaParamsSchema", () => {
     expect(dcaParamsSchema.safeParse(defaultDcaParams()).success).toBe(true)
   })
 
+  it("keeps saved ladders compounding when the setting is missing", () => {
+    const { compound: _compound, ...saved } = defaultDcaParams()
+    expect(dcaParamsSchema.parse(saved).compound).toBe(true)
+  })
+
   it.each([
     ["no rungs", { rungs: [] }],
     [

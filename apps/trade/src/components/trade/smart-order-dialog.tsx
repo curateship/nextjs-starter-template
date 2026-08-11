@@ -263,6 +263,8 @@ export function SmartOrderDialog({
       baseDetection: baseStopDetection(),
       maxPositionPct: parsed(maxPositionPct) ?? -1,
       sizeMultiplier: parsed(sizeMultiplier) ?? -1,
+      // Hand-placed ladders have no repeat cycle. Keep their existing sizing.
+      compound: true,
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
       twoGreen,
       anchor,

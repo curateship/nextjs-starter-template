@@ -138,6 +138,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
     maxPositionPct: 20,
     sizeMultiplier: 2,
+    compound: true,
     maxOrderVolPct: 0,
     twoGreen: false,
     // These suites are about rungs that REST on the book, which is still a
@@ -264,6 +265,26 @@ describe("placing a ladder", () => {
     expect(ladder.plan.rungs.map((rung) => rung.orderId)).toEqual(
       expect.arrayContaining(resting.map((row) => row.id))
     )
+  })
+
+  it("keeps fixed sizing on the wallet's starting balance after a profit", async () => {
+    await database.insert(tradePaperJournal).values({
+      userId,
+      id: "earlier-profit",
+      walletId: wallet.id,
+      marketKey: BTC,
+      side: "sell",
+      px: 100,
+      sz: 1,
+      fee: 0,
+      closedPnl: 1_000,
+      reason: "manual",
+    })
+
+    await place({ compound: false })
+
+    const resting = (await orders()).sort((a, b) => b.px - a.px)
+    expect(resting[0].sz).toBeCloseTo(7.017, 9)
   })
 
   it("hangs the ladder from the confirmed base, never from a clicked price", async () => {

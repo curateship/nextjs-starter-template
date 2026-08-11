@@ -96,6 +96,15 @@ describe("what each buy spends", () => {
     // One rung at 10% of $50,000 is the whole $5,000.
     expect(draw(node, graphWith(50_000, node))).toContain("$5,000")
   })
+
+  it("offers compound and fixed sizing", () => {
+    const html = draw(dcaNode({ compound: false }))
+
+    expect(html).toContain("Bet sizing")
+    expect(html).toContain(
+      "Every later ladder stays based on this starting pot."
+    )
+  })
 })
 
 describe("what counts as a base", () => {

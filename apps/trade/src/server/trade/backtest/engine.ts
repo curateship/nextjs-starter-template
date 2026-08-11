@@ -395,12 +395,17 @@ export async function runBacktest(
         base: baseAt(coin, closeTime, detection),
         rules: coin.rules,
         roundPx: (px) => protocol.markets.roundPx(px, coin.rules.sizeDecimals),
-        equity: paperAccountFigures({
-          startingBalance: input.startingUsd,
-          realized: book.cash - input.startingUsd,
-          positions: [...book.positions.values()],
-          marks,
-        }).equity,
+        // Compound sizes a fresh ladder from the shared pot as it stands now.
+        // Fixed keeps every new ladder on the run's opening dollars. The plan
+        // then freezes those rung sizes, so an active ladder never shifts.
+        equity: input.params.compound
+          ? paperAccountFigures({
+              startingBalance: input.startingUsd,
+              realized: book.cash - input.startingUsd,
+              positions: [...book.positions.values()],
+              marks,
+            }).equity
+          : input.startingUsd,
         freeCash: freeCash(book),
         openOrderCount: book.orders.length,
         // This bar, so the ladder never reads candles from before it existed.
