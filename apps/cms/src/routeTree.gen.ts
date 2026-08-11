@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AddListingRouteImport } from './routes/add-listing'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -30,7 +31,9 @@ import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedMyListingsRouteImport } from './routes/_authenticated/my-listings'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
@@ -41,6 +44,8 @@ import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminListingClaimsRouteImport } from './routes/_authenticated/admin/listing-claims'
+import { Route as AuthenticatedAdminListingSubmissionsRouteImport } from './routes/_authenticated/admin/listing-submissions'
 import { Route as AuthenticatedAdminListingsRouteImport } from './routes/_authenticated/admin/listings'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
@@ -83,6 +88,11 @@ const SplatRoute = SplatRouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddListingRoute = AddListingRouteImport.update({
+  id: '/add-listing',
+  path: '/add-listing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangeEmailRoute = ChangeEmailRouteImport.update({
@@ -175,10 +185,20 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedMyListingsRoute = AuthenticatedMyListingsRouteImport.update({
+  id: '/my-listings',
+  path: '/my-listings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
+  id: '/api/directory-verify',
+  path: '/api/directory-verify',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DirectorySlugRoute = DirectorySlugRouteImport.update({
   id: '/directory_/$slug',
@@ -235,6 +255,18 @@ const AuthenticatedAdminFeedbackRoute =
   AuthenticatedAdminFeedbackRouteImport.update({
     id: '/feedback',
     path: '/feedback',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingClaimsRoute =
+  AuthenticatedAdminListingClaimsRouteImport.update({
+    id: '/listing-claims',
+    path: '/listing-claims',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminListingSubmissionsRoute =
+  AuthenticatedAdminListingSubmissionsRouteImport.update({
+    id: '/listing-submissions',
+    path: '/listing-submissions',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminListingsRoute =
@@ -404,6 +436,7 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -422,7 +455,9 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
+  '/my-listings': typeof AuthenticatedMyListingsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -432,6 +467,8 @@ export interface FileRoutesByFullPath {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
@@ -466,6 +503,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -482,7 +520,9 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
+  '/my-listings': typeof AuthenticatedMyListingsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -492,6 +532,8 @@ export interface FileRoutesByTo {
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
   '/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
@@ -528,6 +570,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -546,7 +589,9 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/my-listings': typeof AuthenticatedMyListingsRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory_/$slug': typeof DirectorySlugRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -556,6 +601,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
+  '/_authenticated/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
+  '/_authenticated/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
   '/_authenticated/admin/listings': typeof AuthenticatedAdminListingsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
@@ -592,6 +639,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$'
+    | '/add-listing'
     | '/change-email'
     | '/directory'
     | '/forgot-password'
@@ -610,7 +658,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/changelog'
     | '/home'
+    | '/my-listings'
     | '/workspaces'
+    | '/api/directory-verify'
     | '/directory/$slug'
     | '/admin/ai'
     | '/admin/announcements'
@@ -620,6 +670,8 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/feedback'
+    | '/admin/listing-claims'
+    | '/admin/listing-submissions'
     | '/admin/listings'
     | '/admin/media'
     | '/admin/membership'
@@ -654,6 +706,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/add-listing'
     | '/change-email'
     | '/directory'
     | '/forgot-password'
@@ -670,7 +723,9 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/account'
     | '/home'
+    | '/my-listings'
     | '/workspaces'
+    | '/api/directory-verify'
     | '/directory/$slug'
     | '/admin/ai'
     | '/admin/announcements'
@@ -680,6 +735,8 @@ export interface FileRouteTypes {
     | '/admin/contacts'
     | '/admin/dashboard'
     | '/admin/feedback'
+    | '/admin/listing-claims'
+    | '/admin/listing-submissions'
     | '/admin/listings'
     | '/admin/media'
     | '/admin/membership'
@@ -715,6 +772,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/_authenticated'
+    | '/add-listing'
     | '/change-email'
     | '/directory'
     | '/forgot-password'
@@ -733,7 +791,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/changelog'
     | '/_authenticated/home'
+    | '/_authenticated/my-listings'
     | '/_authenticated/workspaces'
+    | '/api/directory-verify'
     | '/directory_/$slug'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/announcements'
@@ -743,6 +803,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/feedback'
+    | '/_authenticated/admin/listing-claims'
+    | '/_authenticated/admin/listing-submissions'
     | '/_authenticated/admin/listings'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
@@ -779,6 +841,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AddListingRoute: typeof AddListingRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
   DirectoryRoute: typeof DirectoryRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -793,6 +856,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
@@ -825,6 +889,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add-listing': {
+      id: '/add-listing'
+      path: '/add-listing'
+      fullPath: '/add-listing'
+      preLoaderRoute: typeof AddListingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/change-email': {
@@ -953,12 +1024,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/my-listings': {
+      id: '/_authenticated/my-listings'
+      path: '/my-listings'
+      fullPath: '/my-listings'
+      preLoaderRoute: typeof AuthenticatedMyListingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
       path: '/workspaces'
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/directory-verify': {
+      id: '/api/directory-verify'
+      path: '/api/directory-verify'
+      fullPath: '/api/directory-verify'
+      preLoaderRoute: typeof ApiDirectoryVerifyRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/directory_/$slug': {
       id: '/directory_/$slug'
@@ -1028,6 +1113,20 @@ declare module '@tanstack/react-router' {
       path: '/feedback'
       fullPath: '/admin/feedback'
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-claims': {
+      id: '/_authenticated/admin/listing-claims'
+      path: '/listing-claims'
+      fullPath: '/admin/listing-claims'
+      preLoaderRoute: typeof AuthenticatedAdminListingClaimsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/listing-submissions': {
+      id: '/_authenticated/admin/listing-submissions'
+      path: '/listing-submissions'
+      fullPath: '/admin/listing-submissions'
+      preLoaderRoute: typeof AuthenticatedAdminListingSubmissionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/listings': {
@@ -1271,6 +1370,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
+  AuthenticatedAdminListingClaimsRoute: typeof AuthenticatedAdminListingClaimsRoute
+  AuthenticatedAdminListingSubmissionsRoute: typeof AuthenticatedAdminListingSubmissionsRoute
   AuthenticatedAdminListingsRoute: typeof AuthenticatedAdminListingsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
@@ -1300,6 +1401,9 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
+  AuthenticatedAdminListingClaimsRoute: AuthenticatedAdminListingClaimsRoute,
+  AuthenticatedAdminListingSubmissionsRoute:
+    AuthenticatedAdminListingSubmissionsRoute,
   AuthenticatedAdminListingsRoute: AuthenticatedAdminListingsRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
@@ -1349,6 +1453,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedMyListingsRoute: typeof AuthenticatedMyListingsRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
 }
 
@@ -1357,6 +1462,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedMyListingsRoute: AuthenticatedMyListingsRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
 }
 
@@ -1368,6 +1474,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AddListingRoute: AddListingRoute,
   ChangeEmailRoute: ChangeEmailRoute,
   DirectoryRoute: DirectoryRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
@@ -1382,6 +1489,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
   DirectorySlugRoute: DirectorySlugRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
