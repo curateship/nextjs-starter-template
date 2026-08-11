@@ -111,9 +111,10 @@ Three faults in this app's plumbing, all found on 9 Aug 2026:
    walked; the pile-up is the fault, not the order. A 40-coin test proves the
    cap: 12 of 40 traded before, 40 of 40 after.
 
-3. **The coin list came from the exchange, the history from Binance.** Coins
-   Binance never listed were picked, then skipped after the run finished — 47 of
-   100 on one run. The picker now only offers coins with history.
+3. **The coin list and history came from different exchanges.** Coins selected
+   from Hyperliquid were replayed against Binance prices, and coins Binance had
+   never listed were skipped. History now follows the full selected market key:
+   Hyperliquid stays Hyperliquid, and Binance stays Binance.
 
 Every run made before those three were fixed is worthless, whatever its numbers
 said.

@@ -34,7 +34,10 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Loading, no-history and failed-fetch
-  states each say so inside the panel; the rest of the page stands.
+  states stay inside the panel; the rest of the page stands. While candles are
+  loading, the whole empty chart surface gently fades in and out instead of
+  showing an icon, spinner or loading screen. The completed chart fades in
+  when ready. Reduced-motion settings keep both transitions still.
   **However you set the chart up is how every chart opens.** Remembered against
   the account and carried onto the next market, the next timeframe, the next
   visit and the other machine — four numbers, two for each direction: how many
@@ -393,6 +396,19 @@ working bar streams beside it.
   lingers on screen.
 - **A hidden tab lets the connection go** and reconnects — with the same
   catch-up — when you come back.
+
+## Backtest candle history
+
+- Backtests save finished candles in the app database by full market key and
+  candle size. Running the same window again reads those rows without asking
+  the exchange again.
+- The selected protocol is also the history source. Hyperliquid markets use
+  Hyperliquid candles and Binance markets use Binance candles; prices are never
+  substituted across exchanges.
+- Downloads are saved page by page, so a failed request resumes at its missing
+  page. Every missing candle stretch stays visible as a recorded gap.
+- Hyperliquid keeps a limited history. A window beyond that history shows the
+  shortfall; adding a fallback source requires a separate decision.
 
 ## Backtest funding
 

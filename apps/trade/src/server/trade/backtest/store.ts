@@ -595,7 +595,13 @@ export async function listBacktests(
   return groups.map((group) => {
     const own = coins.filter((coin) => coin.groupId === group.id)
     const done = own.filter((coin) => coin.status !== "waiting" && coin.status !== "running")
-    const running = own.find((coin) => coin.status === "running")
+    // Show the earliest active step. During a large history load, hundreds of
+    // coins may already be waiting while a few are still downloading. Picking
+    // an arbitrary row said "Waiting for the strategy" and made a moving run
+    // look frozen even though those last downloads were still advancing.
+    const running = own
+      .filter((coin) => coin.status === "running")
+      .sort((left, right) => left.progress - right.progress)[0]
     return {
       ...group,
       createdAt: group.createdAt.getTime(),

@@ -351,7 +351,7 @@ export const customShellNotifications = pgTable(
       () => customShellAnnouncements.id,
       { onDelete: "cascade" }
     ),
-    /** Set on an approval notice; deleting the run clears its notices too. */
+    /** Set on an approval or failure notice; deleting the run clears it too. */
     automationRunId: varchar("automation_run_id", { length: 36 }).references(
       () => customShellAutomationRuns.id,
       { onDelete: "cascade" }
@@ -370,7 +370,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -389,6 +389,11 @@ export const customShellNotifications = pgTable(
     uniqueIndex("ux_notifications_announcement_recipient")
       .on(table.announcementId, table.recipientUserId)
       .where(sql`${table.announcementId} is not null`),
+    // A failed run may be observed more than once after a worker crash, but
+    // each admin gets one alert for it and no more.
+    uniqueIndex("ux_notifications_automation_failure_recipient")
+      .on(table.automationRunId, table.recipientUserId)
+      .where(sql`${table.type} = 'automation_failed'`),
   ]
 )
 

@@ -18,6 +18,18 @@ import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 const CANDLE_COUNT = 500
 
+const HISTORY_RETRIES = 5
+const HISTORY_RETRY_BASE_MS = 1_000
+const HISTORY_PAUSE_MS = 120
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Historical calls share one polite queue. Backtests may load several markets
+ * together, but the public history door should still see spaced requests.
+ */
+let historyTail: Promise<void> = Promise.resolve()
+
 /** How long one bar of each timeframe lasts, for working out the start time. */
 const INTERVAL_MS: Record<CandleInterval, number> = {
   "1m": 60_000,
@@ -91,6 +103,63 @@ export async function fetchHyperliquidCandles(
     startTime: since ?? Date.now() - INTERVAL_MS[interval] * CANDLE_COUNT,
   })
   return toCandleBars(candlesSchema.parse(response))
+}
+
+function retryableHistoryError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /429|rate.?limit|timeout|timed out|econn|enet|socket|network|fetch failed|temporar/i.test(
+      error.message
+    )
+  )
+}
+
+/**
+ * One bounded page of finished history for the database-backed candle store.
+ *
+ * The store owns paging and saves each successful page before asking for the
+ * next one. This adapter owns exchange courtesy: calls are spaced, and a rate
+ * limit or temporary network failure backs off before it is tried again.
+ */
+export async function fetchHyperliquidCandleHistory(
+  network: NetworkId,
+  marketId: string,
+  interval: CandleInterval,
+  from: number,
+  to: number
+): Promise<CandleBar[]> {
+  if (!(to > from)) return []
+
+  let release: () => void = () => {}
+  const previous = historyTail
+  historyTail = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+
+  try {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const response = await infoClient(network).candleSnapshot({
+          coin: marketId,
+          interval,
+          startTime: from,
+          endTime: to - 1,
+        })
+        return toCandleBars(candlesSchema.parse(response)).filter(
+          (bar) => bar.openTime >= from && bar.openTime < to
+        )
+      } catch (error) {
+        if (!retryableHistoryError(error) || attempt >= HISTORY_RETRIES) {
+          throw error
+        }
+        await sleep(HISTORY_RETRY_BASE_MS * 2 ** attempt)
+      }
+    }
+  } finally {
+    await sleep(HISTORY_PAUSE_MS)
+    release()
+  }
 }
 
 /** How long one bar of a timeframe lasts, in milliseconds. */

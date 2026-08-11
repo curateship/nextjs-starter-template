@@ -19,6 +19,7 @@ import { fetchHyperliquidAccount } from "@/server/protocols/hyperliquid/account"
 import { verifyHyperliquidAgentKey } from "@/server/protocols/hyperliquid/agent"
 import {
   candleIntervalMs,
+  fetchHyperliquidCandleHistory,
   fetchHyperliquidCandles,
 } from "@/server/protocols/hyperliquid/candles"
 import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
@@ -62,6 +63,14 @@ export type ProtocolEntry = {
       interval: CandleInterval,
       /** Epoch ms to read from, instead of the recent slice a chart draws. */
       since?: number
+    ): Promise<CandleBar[]>
+    /** One finished historical window, with `to` treated as exclusive. */
+    history(
+      network: NetworkId,
+      marketId: string,
+      interval: CandleInterval,
+      from: number,
+      to: number
     ): Promise<CandleBar[]>
     /** How long one bar of a timeframe lasts, in milliseconds. */
     intervalMs(interval: CandleInterval): number
@@ -159,6 +168,7 @@ export type ProtocolEntry = {
 }
 
 import {
+  fetchBinanceCandleHistory,
   binanceIntervalMs,
   fetchBinanceCandles,
   fetchBinanceMarkets,
@@ -176,6 +186,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     markets: {
       fetch: fetchHyperliquidMarkets,
       candles: fetchHyperliquidCandles,
+      history: fetchHyperliquidCandleHistory,
       intervalMs: candleIntervalMs,
       prices: fetchHyperliquidPrices,
       roundPx: roundOrderPx,
@@ -224,6 +235,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     markets: {
       fetch: fetchBinanceMarkets,
       candles: fetchBinanceCandles,
+      history: fetchBinanceCandleHistory,
       intervalMs: binanceIntervalMs,
       prices: fetchBinancePrices,
       roundPx: roundBinancePx,

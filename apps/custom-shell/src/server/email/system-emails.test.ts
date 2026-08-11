@@ -245,6 +245,29 @@ describe("what actually gets sent", () => {
     )
     expect(html).not.toContain("{{")
   })
+
+  it("renders the account closure receipt without leftover placeholders", () => {
+    const { subject, html } = composeSystemEmail(
+      {
+        kind: "account-closed",
+        to: "closed@example.com",
+        actionUrl: "https://app.dev/login",
+        tokens: {
+          deletion_date: "Sep 10, 2026",
+          plan_status: "Your paid plan was cancelled immediately.",
+          restore_instructions:
+            "Sign in before then and choose Restore my account.",
+        },
+      },
+      null
+    )
+
+    expect(subject).toBe("Your account has been closed")
+    expect(html).toContain("deleted for good on Sep 10, 2026")
+    expect(html).toContain("paid plan was cancelled immediately")
+    expect(html).toContain("Restore my account")
+    expect(html).not.toContain("{{")
+  })
 })
 
 describe("the record of what went out", () => {

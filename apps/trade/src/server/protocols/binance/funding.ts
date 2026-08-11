@@ -1,7 +1,10 @@
 import { z } from "zod"
 
 import type { FundingRate, NetworkId } from "@/lib/protocols/contracts"
-import { binanceSymbolFor } from "@/server/protocols/binance/candles"
+import {
+  binanceSymbolFor,
+  isNotListedOnBinance,
+} from "@/server/protocols/binance/candles"
 
 const BINANCE_FUNDING = "https://fapi.binance.com/fapi/v1/fundingRate"
 const PAGE_LIMIT = 1000
@@ -107,12 +110,20 @@ export async function fetchBinanceFunding(
   if (!(to > from)) return []
 
   const symbol = binanceSymbolFor(marketId)
-  if (!symbol) throw new Error(`BINANCE_NOT_LISTED:${marketId}`)
+  if (!symbol) return []
 
   const found = new Map<number, FundingRate>()
   let cursor = from
   while (cursor < to) {
-    const rows = await fundingPage(symbol, cursor, to)
+    let rows: z.infer<typeof fundingSchema>
+    try {
+      rows = await fundingPage(symbol, cursor, to)
+    } catch (error) {
+      // A delisted saved coin has no funding to store. It must not fail the
+      // other coins in the backtest; temporary exchange faults still retry.
+      if (isNotListedOnBinance(error)) return []
+      throw error
+    }
     for (const rate of toBinanceFundingRates(rows)) {
       if (rate.time >= from && rate.time < to) found.set(rate.time, rate)
     }

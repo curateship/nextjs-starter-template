@@ -5,11 +5,9 @@ import { binanceSymbolFor } from "@/server/protocols/binance/candles"
 /**
  * Which coin is which on Binance.
  *
- * The history for a backtest comes from Binance perps, so every coin the run
- * names has to be turned into a Binance symbol — and the ones that cannot be
- * are skipped out loud rather than quietly fetched as something else. Naming
- * the wrong symbol would test a different coin under the right name, which is
- * the worst failure this whole file could have.
+ * A backtest that selects Binance uses Binance perps, so every chosen coin has
+ * to be turned into the right Binance symbol. Naming the wrong symbol would
+ * test a different coin under the right name, the worst failure here.
  */
 describe("a coin as its Binance symbol", () => {
   it("adds USDT to an ordinary coin", () => {
@@ -24,9 +22,9 @@ describe("a coin as its Binance symbol", () => {
     expect(binanceSymbolFor("kBONK")).toBe("1000BONKUSDT")
   })
 
-  it("refuses a coin Binance has no perp for", () => {
-    expect(binanceSymbolFor("HYPE")).toBeNull()
-    expect(binanceSymbolFor("PURR")).toBeNull()
+  it("does not freeze an old opinion about which coins Binance lists", () => {
+    expect(binanceSymbolFor("HYPE")).toBe("HYPEUSDT")
+    expect(binanceSymbolFor("PURR")).toBe("PURRUSDT")
   })
 
   it("refuses the sub-exchange markets", () => {

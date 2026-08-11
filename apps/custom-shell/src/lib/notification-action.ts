@@ -15,19 +15,30 @@ export type NotificationAction =
   | { kind: "changelog" }
   | { kind: "billing" }
   | { kind: "feedback"; feedbackId: string }
-  | { kind: "automationRun"; automationId: string; runId: string }
+  | {
+      kind: "automationRun"
+      automationId: string
+      runId: string
+      nodeId?: string
+    }
 
 export function notificationAction(item: NotificationItem): NotificationAction {
   if (item.type === "announcement") return { kind: "none" }
   if (item.type === "changelog") return { kind: "changelog" }
   // The buttons live in the flow's own editor, in the panel under the canvas,
   // so the notice opens the run there rather than repeating what it says.
-  if (item.type === "automation_approval") {
+  if (
+    item.type === "automation_approval" ||
+    item.type === "automation_failed"
+  ) {
     return item.automation_run_id && item.automation_id
       ? {
           kind: "automationRun",
           automationId: item.automation_id,
           runId: item.automation_run_id,
+          ...(item.automation_failure_node_id
+            ? { nodeId: item.automation_failure_node_id }
+            : {}),
         }
       : { kind: "none" }
   }

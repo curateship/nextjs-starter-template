@@ -22,16 +22,11 @@ export const DEFAULT_BACKTEST_DAYS = 30
  * of candles, so a longer window simply buys fewer coins. Nothing is refused
  * that could have been answered with a number.
  *
- * Ten years because Binance listed its first USDT perpetuals in September 2019
- * and this has to keep working as that recedes. It is a guard against somebody
- * typing 99999 and waiting, not a view about how long a useful test is. A coin
- * younger than the window is not a failure either: it comes back as skipped,
- * with its gaps recorded.
- *
- * It used to be 730, which was the old worry about an exchange keeping only
- * 5,000 bars — a limit that belongs to live charts and never applied to where
- * these candles come from. All it did was turn the field red on a number
- * nothing was actually going to refuse.
+ * Ten years is an input guard against somebody typing 99999 and waiting, not a
+ * promise that every exchange holds that much. The candle store follows the
+ * selected protocol and records a shorter stretch as a visible gap. A younger
+ * coin is tested from its first stored candle. Adding another exchange as a
+ * fallback is a separate decision, never a quiet substitution inside a run.
  */
 export const MAX_BACKTEST_DAYS = 3_650
 
@@ -170,9 +165,9 @@ export type TradeMarketsSettings = z.infer<typeof tradeMarketsSettingsSchema>
  * The list is written down on the step, as market keys, and that is the point:
  * a run must be repeatable. A step saying "the twenty biggest coins" would mean
  * something different every week, and two runs of the same flow could not be
- * compared. The quick-picks in the panel — volume bands, a random sample —
- * draw their answer **while you are editing** and write the names into the
- * list, so pressing Run never rolls a dice.
+ * compared. The volume range in the panel narrows the list **while you are
+ * editing**, and selection writes the names into the step. Pressing Run always
+ * uses those saved names rather than applying the filter again.
  */
 export const tradeMarketsNode = defineNode({
   kind: "tradeMarkets",

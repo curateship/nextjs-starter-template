@@ -1,12 +1,10 @@
 import * as React from "react"
-import { RefreshCwIcon } from "lucide-react"
 
 import {
   InspectorCard,
   InspectorNote,
 } from "@/components/automations/inspector-card"
 import { TradeNumberField } from "@/components/automations/nodes/trade-number-field"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -28,7 +26,6 @@ import { getMarketsErrorMessage } from "@/lib/api/markets"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {
   candlesPerCoin,
-  coinsAllowedFor,
   MAX_BACKTEST_DAYS,
   MAX_BACKTEST_MARKETS,
   tradeMarketsNode,
@@ -37,33 +34,23 @@ import {
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { plural } from "@/lib/format/plural"
 import { formatCompactUsd } from "@/lib/trade/format"
+import {
+  changeVisibleMarketSelection,
+  filterMarketsByVolume,
+  parseMarketVolume,
+} from "@/lib/trade/market-volume-filter"
 
 /**
  * Which coins to test, and how far back.
  *
- * The quick-picks are the point of this panel. Choosing twenty coins by hand is
- * tedious enough that nobody does it twice, so the bands and the random sample
- * do it in one press — and both of them write **names** into the list rather
- * than a rule. A step saying "the twenty biggest" would mean something
- * different next week, and two runs of the same flow could not be compared. A
- * step saying "these twenty" means the same thing forever.
+ * The volume range narrows today's market catalogue while editing. The chosen
+ * market names are still what gets saved, so running the same flow later does
+ * not silently change its coins as volume moves.
  *
  * Mainnet only, deliberately: testnet prices are made up, so a strategy tested
  * against them has been tested against nothing.
  */
 const NETWORK = "mainnet"
-
-/**
- * The volume bands, in plain dollars a day. A coin that trades a hundred
- * million dollars a day and one that trades fifty thousand behave nothing
- * alike, and testing a ladder across both at once hides that.
- */
-const VOLUME_BANDS = [
-  { key: "huge", label: "Over $100m a day", min: 100_000_000, max: Infinity },
-  { key: "big", label: "$10m to $100m", min: 10_000_000, max: 100_000_000 },
-  { key: "mid", label: "$1m to $10m", min: 1_000_000, max: 10_000_000 },
-  { key: "small", label: "Under $1m", min: 0, max: 1_000_000 },
-] as const
 
 /** Extra goes at the coin list before the failure is worth telling anybody about. */
 const RETRIES = 2
@@ -87,7 +74,7 @@ const RETRY_PAUSE_MS = 400
 const LIST_CACHE_MS = 10 * 60 * 1000
 const listCache = new Map<
   string,
-  { at: number; rows: MarketRow[]; hidden: number; tradeable: boolean }
+  { at: number; rows: MarketRow[]; tradeable: boolean }
 >()
 
 export default function TradeMarketsFields({
@@ -113,6 +100,14 @@ export default function TradeMarketsFields({
   const protocol = parsedSettings.success
     ? (parsedSettings.data.protocol ?? fallback.protocol)
     : fallback.protocol
+  const minimumVolume =
+    typeof node.settings.minimumVolume === "string"
+      ? node.settings.minimumVolume
+      : ""
+  const maximumVolume =
+    typeof node.settings.maximumVolume === "string"
+      ? node.settings.maximumVolume
+      : ""
 
   /**
    * What the last fetch came back with, and which exchange it was for.
@@ -129,7 +124,6 @@ export default function TradeMarketsFields({
   const [fetched, setFetched] = React.useState<{
     protocol: string
     rows: MarketRow[] | null
-    hidden: number
     tradeable: boolean
     error: string | null
   } | null>(null)
@@ -144,7 +138,6 @@ export default function TradeMarketsFields({
   const answer = fetched?.protocol === protocol ? fetched : null
   const held = listCache.get(protocol)
   const markets = answer ? answer.rows : (held?.rows ?? null)
-  const hidden = answer ? answer.hidden : (held?.hidden ?? 0)
   /** Whether coins from this exchange can be traded, or only charted and tested. */
   const tradeable = answer ? answer.tradeable : (held?.tradeable ?? true)
   const error = answer?.error ?? null
@@ -153,16 +146,6 @@ export default function TradeMarketsFields({
     ReadonlyArray<{ id: string; label: string; tradeable: boolean }>
   >([])
   const [search, setSearch] = React.useState("")
-  /**
-   * How many coins "Draw again" takes — null until somebody types a number,
-   * and null means "as many as will fit".
-   *
-   * It used to start at a flat twenty, so the one button whose whole job is
-   * "fill this list for me" handed back twenty coins out of five hundred and
-   * left you to do the rest by hand. What fits is already worked out from the
-   * window, so that is what it offers.
-   */
-  const [sampleSize, setSampleSize] = React.useState<number | null>(null)
 
   /** Bumped by "Try again", which asks again past the cache. */
   const [attemptKey, setAttemptKey] = React.useState(0)
@@ -194,14 +177,12 @@ export default function TradeMarketsFields({
           listCache.set(protocol, {
             at: Date.now(),
             rows: loaded.rows,
-            hidden: loaded.hidden,
             tradeable: loaded.tradeable,
           })
           if (!alive) return
           setFetched({
             protocol,
             rows: loaded.rows,
-            hidden: loaded.hidden,
             tradeable: loaded.tradeable,
             error: null,
           })
@@ -212,7 +193,6 @@ export default function TradeMarketsFields({
             setFetched({
               protocol,
               rows: null,
-              hidden: 0,
               tradeable: true,
               error: getMarketsErrorMessage(loadError),
             })
@@ -271,43 +251,33 @@ export default function TradeMarketsFields({
     [marketKeys, setKeys]
   )
 
-  // Filtered on the spot. There are a few hundred coins at most and this is one
-  // pass over their names, which is nothing next to drawing the list itself —
-  // and remembering it needs the list to be provably unchanged, which it is not:
-  // it comes from a cache the fetch below writes to.
-  const needle = search.trim().toLowerCase()
-  const visible = needle
-    ? (markets ?? []).filter((row) =>
-        row.symbol.toLowerCase().includes(needle)
+  // Filtered and ordered on the spot. There are only a few hundred coins, and
+  // market volume can change whenever the cached catalogue is refreshed.
+  const parsedMinimum = minimumVolume.trim()
+    ? parseMarketVolume(minimumVolume)
+    : 0
+  const parsedMaximum = maximumVolume.trim()
+    ? parseMarketVolume(maximumVolume)
+    : Infinity
+  const rangeIsValid =
+    parsedMinimum !== null &&
+    parsedMaximum !== null &&
+    parsedMinimum <= parsedMaximum
+  const visible = rangeIsValid
+    ? filterMarketsByVolume(
+        markets ?? [],
+        parsedMinimum,
+        parsedMaximum,
+        search
       )
-    : (markets ?? [])
+    : []
 
-  /**
-   * Drawn here, in the browser, while somebody is editing — never at run time.
-   * Pressing Run twice on the same flow has to test the same coins, or two
-   * results cannot be told apart from two strategies.
-   */
-  /**
-   * The most coins this window leaves room for, and no more than exist.
-   *
-   * The candle size is the ladder step's, not this one's, so it cannot be read
-   * from here — 4h is what the summary below has always assumed. A window that
-   * turns out too greedy for the real candle size is refused when the flow is
-   * read, by name and with the number, rather than silently trimmed.
-   */
-  const roomFor = Math.min(
-    markets?.length ?? 0,
-    coinsAllowedFor("4h", days)
-  )
-  const sample = sampleSize ?? roomFor
+  const visibleKeys = visible.map((row) => row.key)
+  const visibleChosen = visibleKeys.filter((key) => chosen.has(key)).length
+  const allVisibleChosen = visible.length > 0 && visibleChosen === visible.length
 
-  function draw(pool: readonly MarketRow[], count: number) {
-    const shuffled = [...pool]
-    for (let index = shuffled.length - 1; index > 0; index -= 1) {
-      const swap = Math.floor(Math.random() * (index + 1))
-      ;[shuffled[index], shuffled[swap]] = [shuffled[swap], shuffled[index]]
-    }
-    setKeys(shuffled.slice(0, count).map((row) => row.key))
+  function toggleVisible(on: boolean) {
+    setKeys(changeVisibleMarketSelection(marketKeys, visibleKeys, on))
   }
 
   return (
@@ -316,7 +286,7 @@ export default function TradeMarketsFields({
         <TradeNumberField
           id={`markets-${node.id}-days`}
           label="Days to test"
-          hint="How much history the run walks, up to two years. A younger coin is tested from the day Binance first has prices for it, and the result says when that was."
+          hint="How much history the run walks. A younger coin is tested from the day its selected exchange first has prices for it, and the result says when that was."
           value={days}
           min={1}
           max={MAX_BACKTEST_DAYS}
@@ -380,76 +350,69 @@ export default function TradeMarketsFields({
 
         {markets !== null ? (
           <>
-            <div className="flex flex-wrap gap-1.5">
-              {VOLUME_BANDS.map((band) => (
-                <Button
-                  key={band.key}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setKeys(
-                      markets
-                        .filter(
-                          (row) =>
-                            row.volume24hUsd >= band.min &&
-                            row.volume24hUsd < band.max
-                        )
-                        .map((row) => row.key)
-                    )
-                  }
-                >
-                  {band.label}
-                </Button>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setKeys(markets.map((row) => row.key))}
-              >
-                Every coin
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={marketKeys.length === 0}
-                onClick={() => setKeys([])}
-              >
-                Clear
-              </Button>
-            </div>
-
-            <div className="grid gap-1.5">
+            <div className="grid gap-2">
               <FieldLabel
-                htmlFor={`markets-${node.id}-sample`}
                 className="text-xs"
-                hint="Picks this many coins at random, right now, and writes their names into the list. Pressing Run never randomises — a run tests exactly the coins you can see."
+                hint="Only show coins whose 24-hour trading volume falls inside this range. Plain numbers are millions, so .5 and 500k both mean $500,000."
               >
-                Random sample
+                Daily volume
               </FieldLabel>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`markets-${node.id}-sample`}
-                  inputMode="numeric"
-                  className="w-20"
-                  value={String(sample)}
-                  onChange={(event) => {
-                    const next = Number(event.target.value.trim())
-                    if (Number.isFinite(next)) setSampleSize(next)
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!(sample > 0)}
-                  onClick={() => draw(markets, sample)}
-                >
-                  <RefreshCwIcon className="size-3.5" />
-                  Draw again
-                </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor={`markets-${node.id}-minimum-volume`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    Minimum (millions)
+                  </label>
+                  <Input
+                    id={`markets-${node.id}-minimum-volume`}
+                    inputMode="decimal"
+                    placeholder="10"
+                    value={minimumVolume}
+                    maxLength={30}
+                    aria-invalid={
+                      minimumVolume.trim().length > 0 && parsedMinimum === null
+                    }
+                    onChange={(event) =>
+                      onChange({
+                        ...node,
+                        settings: {
+                          ...node.settings,
+                          minimumVolume: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor={`markets-${node.id}-maximum-volume`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    Maximum (millions)
+                  </label>
+                  <Input
+                    id={`markets-${node.id}-maximum-volume`}
+                    inputMode="decimal"
+                    placeholder="100"
+                    value={maximumVolume}
+                    maxLength={30}
+                    aria-invalid={
+                      maximumVolume.trim().length > 0 &&
+                      (parsedMaximum === null || !rangeIsValid)
+                    }
+                    onChange={(event) =>
+                      onChange({
+                        ...node,
+                        settings: {
+                          ...node.settings,
+                          maximumVolume: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                </div>
               </div>
             </div>
 
@@ -461,10 +424,34 @@ export default function TradeMarketsFields({
             />
 
             <ScrollArea className="h-56 rounded-lg border bg-background">
+              <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-muted px-3 py-2">
+                <Checkbox
+                  checked={
+                    allVisibleChosen
+                      ? true
+                      : visibleChosen > 0
+                        ? "indeterminate"
+                        : false
+                  }
+                  disabled={visible.length === 0}
+                  aria-label="Select all visible coins"
+                  onCheckedChange={(next) => toggleVisible(next === true)}
+                />
+                <span className="min-w-0 flex-1 text-xs font-medium">
+                  Select all {visible.length.toLocaleString()} shown
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  24h volume
+                </span>
+              </div>
               <div className="grid gap-0.5 p-1.5">
-                {visible.length === 0 ? (
+                {!rangeIsValid ? (
                   <p className="p-3 text-center text-xs text-muted-foreground">
-                    No coin matches “{search}”.
+                    Enter a volume range like 10 to 100 million.
+                  </p>
+                ) : visible.length === 0 ? (
+                  <p className="p-3 text-center text-xs text-muted-foreground">
+                    No coin matches these filters.
                   </p>
                 ) : (
                   visible.map((row) => (
@@ -493,9 +480,6 @@ export default function TradeMarketsFields({
               {tradeable
                 ? ""
                 : " These can be tested but not traded yet — this one gives prices, not orders."}
-              {hidden > 0
-                ? ` ${hidden} more ${plural(hidden, "coin is", "coins are")} not shown because Binance has no history for ${plural(hidden, "it", "them")}.`
-                : ""}
             </p>
           </>
         ) : null}

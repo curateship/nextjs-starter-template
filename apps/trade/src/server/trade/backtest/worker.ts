@@ -34,10 +34,6 @@ import {
   loadStoredFunding,
 } from "@/server/trade/funding-store"
 import { marketRules } from "@/server/trade/market-rules"
-import {
-  binanceSymbolFor,
-  isNotListedOnBinance,
-} from "@/server/protocols/binance/candles"
 import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
 import {
   backtestCosts,
@@ -85,9 +81,9 @@ import { tradeBacktests } from "@/server/trade/schema"
  * took minutes of doing nothing. The fetching itself is seconds; the waiting
  * was the run.
  *
- * Six at a time rather than all fifty: it keeps well inside Binance's weight
- * cap, and it is all `await`ed network work, so the server carries on answering
- * requests throughout — a slow pass here never blocks a page.
+ * Six at a time rather than all fifty: each protocol adapter applies its own
+ * request spacing, and this keeps the server from holding hundreds of loading
+ * promises at once.
  */
 const FETCH_AT_ONCE = 6
 const HEARTBEAT_MS = 60_000
@@ -226,46 +222,18 @@ async function loadOneCoin(
     return
   }
 
-  // Not every coin is on Binance, and the history comes from there. A
-  // Hyperliquid-only token or one of the sub-exchange markets is skipped with
-  // that as its reason — an honest absence rather than a failed run.
-  if (binanceSymbolFor(ref.marketId) === null) {
-    await skipCoin(
-      userId,
-      groupId,
-      marketKey,
-      "This coin is not listed on Binance perps, which is where the history comes from, so it cannot be tested."
-    )
-    return
-  }
-
   await note(userId, groupId, marketKey, 0.1, "Loading market history")
 
-  let window
-  try {
-    window = await ensureCandleCoverage(
-      marketKey,
-      spec.interval,
-      spec.from,
-      spec.to
-    )
-    // The base rule reads the 4h whatever the run walks, and it needs history
-    // from before the window so a level can already be known on day one.
-    await ensureCandleCoverage(marketKey, BASE_STOP_INTERVAL, warmFrom, spec.to)
-    await ensureFundingCoverage(marketKey, spec.from, spec.to)
-  } catch (error) {
-    // Binance not listing the coin is an answer about the coin. Anything else
-    // — a rate limit, a dropped socket — is a real fault, and is passed on so
-    // the run retries rather than writing the coin off for good.
-    if (!isNotListedOnBinance(error)) throw error
-    await skipCoin(
-      userId,
-      groupId,
-      marketKey,
-      "Binance has no history for this coin, which is where the prices come from, so it cannot be tested."
-    )
-    return
-  }
+  const window = await ensureCandleCoverage(
+    marketKey,
+    spec.interval,
+    spec.from,
+    spec.to
+  )
+  // The base rule reads the 4h whatever the run walks, and it needs history
+  // from before the window so a level can already be known on day one.
+  await ensureCandleCoverage(marketKey, BASE_STOP_INTERVAL, warmFrom, spec.to)
+  await ensureFundingCoverage(marketKey, spec.from, spec.to)
 
   if (window.barCount === 0) {
     await skipCoin(
@@ -279,11 +247,8 @@ async function loadOneCoin(
   // A coin younger than the window is TESTED FROM THE DAY IT EXISTED, not
   // thrown away.
   //
-  // This used to refuse anything with less than half the window, which turned
-  // a ten-year test of 250 Binance coins into a test of 79: the other 171 had
-  // simply not been listed yet. The window is a MAXIMUM — "go back as far as
-  // this" — and the app this is a port of reads it that way, testing each
-  // market over whatever history that market has.
+  // The window is a MAXIMUM — "go back as far as this" — so a younger market
+  // is tested from the day its selected exchange first has prices for it.
   //
   // The engine needs nothing for this. It walks the union of every coin's bar
   // times and skips a coin on a bar it does not have, so a coin that lists

@@ -475,6 +475,22 @@ describe("the list", () => {
     expect(row.coinsTotal).toBe(2)
   })
 
+  it("shows the active download instead of a coin already waiting", async () => {
+    const { groupId } = await makeRun()
+    await db
+      .update(tradeBacktests)
+      .set({ status: "running", progress: 0.3, progressNote: "Waiting for the strategy" })
+      .where(eq(tradeBacktests.marketKey, "hyperliquid:mainnet:AAA"))
+    await db
+      .update(tradeBacktests)
+      .set({ status: "running", progress: 0.1, progressNote: "Loading market history" })
+      .where(eq(tradeBacktests.marketKey, "hyperliquid:mainnet:BBB"))
+
+    const [row] = await listBacktests(userId, { automationId: "flow-1" }, db)
+    expect(row.id).toBe(groupId)
+    expect(row.progressNote).toBe("Loading market history")
+  })
+
   it("shows only the flow that was asked about", async () => {
     await makeRun(["hyperliquid:mainnet:AAA"], "flow-1")
     await makeRun(["hyperliquid:mainnet:AAA"], "flow-2")

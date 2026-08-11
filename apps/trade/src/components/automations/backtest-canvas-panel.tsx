@@ -139,7 +139,7 @@ export default function BacktestCanvasPanel({
         })
       }}
     >
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+      <div className="flex items-center gap-2 px-3 py-2">
         <FlaskConicalIcon className="size-4 shrink-0" />
         {run && !running ? (
           <Link
@@ -157,7 +157,7 @@ export default function BacktestCanvasPanel({
           // Plain text while it runs, for the same reason the card is not
           // clickable. A link left here would be the one way a keyboard could
           // still reach the half-finished run page.
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+          <span className="min-w-0 truncate text-sm font-medium">
             {run.name ?? "Backtest"}
           </span>
         ) : (
@@ -165,10 +165,19 @@ export default function BacktestCanvasPanel({
             Backtest
           </span>
         )}
+        {running ? (
+          <span
+            className="min-w-0 truncate text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
+            aria-live="polite"
+          >
+            {run.progressNote}
+          </span>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
+          className="ml-auto"
           aria-label="Close the backtest panel"
           onClick={(event) => {
             event.stopPropagation()
@@ -189,10 +198,9 @@ export default function BacktestCanvasPanel({
             </p>
           ) : running ? (
             <div className="grid gap-2">
-              <Line label="Doing now" value={run.progressNote} />
               <Line
-                label="Coins"
-                value={`${run.coinsDone} of ${run.coinsTotal}`}
+                label="Progress"
+                value={`${Math.round(run.progress * 100)}% through`}
               />
               <Meter
                 value={Math.round(run.progress * 100)}
@@ -282,11 +290,9 @@ export default function BacktestCanvasPanel({
             </p>
           )}
 
-          {run ? (
+          {run?.finishedAt ? (
             <p className="border-t pt-3 text-[11px] text-muted-foreground">
-              {run.finishedAt
-                ? `Finished ${formatRelativeTime(new Date(run.finishedAt))}.`
-                : `Started ${formatRelativeTime(new Date(run.createdAt))}.`}
+              Finished {formatRelativeTime(new Date(run.finishedAt))}.
             </p>
           ) : null}
         </div>

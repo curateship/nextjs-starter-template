@@ -352,9 +352,11 @@ export function ChartPanel({
       onContextMenu={openMenu}
     >
       {!current ? (
-        <p className="flex h-full items-center justify-center text-xs text-muted-foreground">
-          Loading candles…
-        </p>
+        <div
+          role="status"
+          aria-label="Loading candles"
+          className="h-full min-h-0 w-full bg-muted/30 motion-safe:animate-pulse motion-reduce:bg-muted/20"
+        />
       ) : current.error ? (
         <div className="p-3">
           <ErrorBanner
@@ -370,7 +372,11 @@ export function ChartPanel({
           The exchange has no price history for this market at this timeframe.
         </PanelPlaceholder>
       ) : (
-        <>
+        <div
+          key={current.key}
+          data-slot="chart-ready"
+          className="relative h-full min-h-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
+        >
           <PriceChart
             candles={current.candles}
             options={options}
@@ -489,7 +495,7 @@ export function ChartPanel({
             drawingCount={paint.drawings.length}
             onClearAll={() => void paint.clearAll()}
           />
-        </>
+        </div>
       )}
 
       {menu ? (
