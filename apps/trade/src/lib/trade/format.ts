@@ -32,6 +32,30 @@ export function formatUsd(value: number): string {
   return `$${USD.format(value)}`
 }
 
+const USD_WHOLE = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+})
+
+/**
+ * Money where the cents stop mattering: "$1,250" above a hundred dollars,
+ * "$62.50" below it.
+ *
+ * For a column of amounts rather than a balance. A ladder's nine buys run from
+ * a few cents to a few hundred dollars, and printing "$1,250.00" beside "$0.62"
+ * gives four digits of noise to the one that needs none and takes the eye off
+ * the shape of the ramp, which is the whole thing being read.
+ */
+export function formatUsdRounded(value: number): string {
+  const size = Math.abs(value)
+  // Minus outside the dollar sign, as `formatSignedUsd` has it: "-$1,250"
+  // rather than "$-1,250". A buy size is never negative, so this is only here
+  // so the rule holds if anything else picks this up.
+  const sign = value < 0 ? "-" : ""
+  return size >= 100
+    ? `${sign}$${USD_WHOLE.format(size)}`
+    : `${sign}${formatUsd(size)}`
+}
+
 /**
  * A gain or loss, sign always shown: "+$412.65", "-$18.90". In a column of
  * outcomes the sign is the reading, so it is never dropped — except on true

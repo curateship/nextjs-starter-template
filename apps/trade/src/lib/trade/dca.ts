@@ -121,6 +121,42 @@ export const dcaBaseStopSchema = z.object({
 export type DcaBaseStop = z.infer<typeof dcaBaseStopSchema>
 
 /**
+ * What counts as a base: how far back to look for a low, and how long that low
+ * must stand without being broken before it means anything.
+ *
+ * **The same two numbers the Base indicator draws with**, and the reason they
+ * are written down on the ladder rather than read from the chart is that a
+ * saved flow has to test the same thing twice. Nudging the chart is how you
+ * explore; a run that quietly changed with it could not be compared to the run
+ * before it.
+ *
+ * They used to be neither — fixed at the indicator's factory numbers, with no
+ * way to change them from anywhere. So the whole strategy hung off a level
+ * whose definition could not be tested, and a chart tuned to find bases one way
+ * traded on bases found another.
+ */
+export const dcaBaseDetectionSchema = z.object({
+  searchBars: z.number().int().min(4).max(500),
+  holdBars: z.number().int().min(1).max(499),
+  /**
+   * A base only counts when it sits above the base before it — the textbook
+   * higher low. Off, every level counts.
+   */
+  withTrendOnly: z.boolean().default(true),
+  /**
+   * Two bases can never count closer together than this many candles.
+   *
+   * It reads like a drawing preference and is not one. The chart applied it and
+   * the ladder did not, so on the same coin with the same settings the chart
+   * showed 1,387 bases and the ladder followed 1,622 — it re-aimed on levels
+   * that were never drawn.
+   */
+  minBarsApart: z.number().int().min(1).max(1000).default(20),
+})
+
+export type DcaBaseDetection = z.infer<typeof dcaBaseDetectionSchema>
+
+/**
  * The base indicator's own two numbers, read from the indicator's field list
  * rather than written down again here.
  *
@@ -128,11 +164,13 @@ export type DcaBaseStop = z.infer<typeof dcaBaseStopSchema>
  * the level the chart drew on the day you placed it. Nudging the indicator
  * afterwards changes the chart and leaves every live stop where it is.
  */
-export function baseStopDetection(): { searchBars: number; holdBars: number } {
+export function baseStopDetection(): DcaBaseDetection {
   const params = defaultIndicatorParams(BASE_FIELDS)
   return {
     searchBars: params.searchBars as number,
     holdBars: params.holdBars as number,
+    withTrendOnly: params.withTrendOnly as boolean,
+    minBarsApart: params.minBarsApart as number,
   }
 }
 
@@ -212,6 +250,13 @@ export const dcaParamsSchema = z.object({
    */
   anchor: z.enum(DCA_ANCHORS).default("base"),
   /**
+   * How a base is found — read wherever this ladder needs to know where the
+   * floor is, which is both where it hangs its rungs and where it rests its
+   * stop. Defaulted, so a ladder saved before this existed keeps the numbers it
+   * was always run with.
+   */
+  baseDetection: dcaBaseDetectionSchema.default(baseStopDetection),
+  /**
    * How a rung buys.
    *
    * **"limit" (the default):** the order is set at the rung's price and fills
@@ -273,6 +318,7 @@ export function defaultDcaParams(): DcaParams {
     maxOrderVolPct: 0,
     twoGreen: false,
     anchor: "base",
+    baseDetection: baseStopDetection(),
     rungEntry: "limit",
     takeProfit: { mode: "average", pct: DEFAULT_DCA_TAKE_PROFIT_PCT },
     stopLoss: null,
@@ -454,11 +500,16 @@ const ladderTakeProfitSchema = z.object({
  * slider on the chart, which is the sort of thing you only find out about
  * afterwards.
  */
+/**
+ * The stop's own two settings, and only those.
+ *
+ * It used to carry a frozen copy of how a base is found as well, which the plan
+ * now holds for the whole ladder. One ladder with two answers to "what is a
+ * base" is the shape of every bug in this area so far.
+ */
 const ladderBaseStopSchema = z.object({
   underPct: z.number().min(0).max(50),
   reclaimDays: z.number().min(0).max(90),
-  searchBars: z.number().int().min(4).max(500),
-  holdBars: z.number().int().min(1).max(499),
 })
 
 export type LadderBaseStop = z.infer<typeof ladderBaseStopSchema>
@@ -500,6 +551,14 @@ export const ladderPlanSchema = z.object({
    * its rungs out of order. Zero is a ladder saved before this was recorded.
    */
   startedAt: z.number().default(0),
+  /**
+   * How this ladder finds a base, frozen at placement.
+   *
+   * On the plan and not looked up, so a ladder already working keeps aiming at
+   * the level it was drawn against even if the flow behind it is edited. A
+   * ladder saved before this existed reads as the numbers it was run with.
+   */
+  baseDetection: dcaBaseDetectionSchema.default(baseStopDetection),
   /** The market's rules, frozen at placement — the engine re-aims from these. */
   sizeDecimals: z.number().nullable(),
   maxLeverage: z.number().positive(),
@@ -676,17 +735,12 @@ export function baseStopPx(
 }
 
 /**
- * The window's two base settings as a placed ladder carries them: the same two
- * numbers, plus the base indicator's own, frozen alongside.
- *
- * This is the only place a ladder picks up those numbers, so a live stop can
- * never start aiming somewhere new because the chart's indicator was nudged.
+ * The window's stop settings as a placed ladder carries them.
  */
 export function ladderBaseStopOf(
   asked: DcaBaseStop | null
 ): LadderBaseStop | null {
-  if (!asked) return null
-  return { ...asked, ...baseStopDetection() }
+  return asked
 }
 
 /**

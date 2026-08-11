@@ -1,4 +1,5 @@
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
+import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   tradeDcaNode,
   tradeDcaSettingsSchema,
@@ -120,6 +121,21 @@ export function backtestSpecFromFlow(
     }
   }
 
+  const marketRefs = market.data.marketKeys.map(parseMarketKey)
+  if (
+    marketRefs.some(
+      (ref) =>
+        !ref ||
+        ref.protocol !== market.data.protocol ||
+        ref.network !== "mainnet"
+    )
+  ) {
+    return {
+      spec: null,
+      problem:
+        "Choose every coin from the exchange shown in the Markets step. Backtests use mainnet price history.",
+    }
+  }
 
   // Coins × candles is what the run has to hold in memory at once, and only
   // here are both known: the coins and the window sit on one step, the candle

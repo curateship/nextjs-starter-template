@@ -34,7 +34,12 @@ import {
 const FOUR_HOURS = 14_400_000
 const NOW = 1_700_000_000_000
 
-vi.mock("@/server/protocols/registry", () => ({
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getProtocol: () => ({ markets: { intervalMs: () => FOUR_HOURS } }),
 }))
 
@@ -46,7 +51,7 @@ function specOf(marketKeys: string[]): BacktestSpec {
       makerFeePct: 0.015,
       slippagePct: 0.05,
     },
-    markets: { marketKeys, days: 30 },
+    markets: { protocol: "hyperliquid", marketKeys, days: 30 },
     dca: { params: defaultDcaParams(), interval: "4h" },
   }
 }
@@ -102,6 +107,15 @@ describe("writing a run down", () => {
 
     expect(found?.group.spec.from).toBe(window.from)
     expect(found?.group.spec.to).toBe(window.to)
+  })
+
+  it("refuses a run that mixes exchanges", async () => {
+    await expect(
+      makeRun([
+        "hyperliquid:mainnet:AAA",
+        "binance:mainnet:BTC",
+      ])
+    ).rejects.toThrow("BACKTEST_MARKET")
   })
 })
 

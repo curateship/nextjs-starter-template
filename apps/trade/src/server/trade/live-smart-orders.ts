@@ -22,7 +22,11 @@ import {
   type PaperPosition,
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
-import { getProtocol } from "@/server/protocols/registry"
+import {
+  accountOf,
+  getProtocol,
+  ordersOf,
+} from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
   cancelLiveOrder,
@@ -46,6 +50,7 @@ import {
   type LadderOrderInput,
 } from "./smart-ladders"
 import {
+  bumpOrders,
   fill as fillPaperBook,
   freeCash,
   type WalletBook,
@@ -92,8 +97,8 @@ async function placeLiveDcaLadderOnce(
   if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
 
   const [account, portfolio] = await Promise.all([
-    protocol.account.fetch(wallet.network, wallet.address),
-    protocol.orders.portfolio(wallet.network, wallet.address),
+    accountOf(protocol).fetch(wallet.network, wallet.address),
+    ordersOf(protocol).portfolio(wallet.network, wallet.address),
   ])
   const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
   if (held && held.szi < 0) throw new Error("SMART_SHORT_HELD")
@@ -108,7 +113,8 @@ async function placeLiveDcaLadderOnce(
       wallet.protocol,
       wallet.network,
       ref.marketId,
-      Date.now()
+      Date.now(),
+      input.params.baseDetection
     )
     if (base === null) throw new Error("SMART_LADDER_NO_BASE")
     anchorPx = roundPx(base)
@@ -250,6 +256,7 @@ function ladderPlan(
     anchor: input.params.anchor,
     rungEntry: input.params.rungEntry,
     startedAt: Date.now(),
+    baseDetection: input.params.baseDetection,
     sizeDecimals,
     maxLeverage,
     rungs,
@@ -458,7 +465,7 @@ async function reconcileLiveLaddersOnce(
   const protocol = getProtocol(wallet.protocol)
   const portfolio =
     currentPortfolio ??
-    (await protocol.orders.portfolio(wallet.network, wallet.address))
+    (await ordersOf(protocol).portfolio(wallet.network, wallet.address))
   const now = Date.now()
   const keys = rows.map((row) => row.marketKey)
   const refs = new Map(
@@ -468,9 +475,9 @@ async function reconcileLiveLaddersOnce(
     })
   )
   const [account, prices, fills] = await Promise.all([
-    protocol.account.fetch(wallet.network, wallet.address),
+    accountOf(protocol).fetch(wallet.network, wallet.address),
     protocol.markets.prices(wallet.network, [...refs.keys()]),
-    protocol.orders.fills(
+    ordersOf(protocol).fills(
       wallet.network,
       wallet.address,
       Math.min(...rows.map((row) => row.createdAt.getTime())) - 60_000
@@ -615,6 +622,7 @@ async function reconcileLiveLaddersOnce(
     }),
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    ordersVersion: 0,
     addedOrders: [],
   }
 
@@ -725,6 +733,7 @@ async function reconcileLiveLaddersOnce(
           heldBook.orders = heldBook.orders.filter(
             (order) => order.id !== orderId
           )
+          bumpOrders(heldBook)
           heldBook.goneOrderIds.add(orderId)
         },
         freeCash,

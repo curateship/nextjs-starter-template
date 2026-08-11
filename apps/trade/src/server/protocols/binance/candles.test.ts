@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { binanceSymbolFor } from "@/server/trade/backtest/binance-history"
+import { binanceSymbolFor } from "@/server/protocols/binance/candles"
 
 /**
  * Which coin is which on Binance.

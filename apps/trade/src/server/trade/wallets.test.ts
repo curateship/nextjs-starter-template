@@ -20,7 +20,12 @@ import {
 // and the key check answers approved unless a test says otherwise.
 const fetchAccount = vi.fn()
 const verifyAgent = vi.fn()
-vi.mock("@/server/protocols/registry", () => ({
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getProtocol: () => ({
     account: { fetch: fetchAccount },
     agent: { verify: verifyAgent },

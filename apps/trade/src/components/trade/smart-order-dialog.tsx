@@ -39,6 +39,7 @@ import {
   type DcaAnchor,
   type DcaParams,
   type DcaTpMode,
+  baseStopDetection,
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
 
@@ -255,6 +256,11 @@ export function SmartOrderDialog({
       // a whole list of coins at once, which only a flow has, so there is
       // nothing sensible to offer here.
       cascade: null,
+      // The one place still on the indicator's factory numbers, and the one
+      // place that arguably should not be: you are clicking a base the chart
+      // drew, so this ought to follow whatever the chart was drawing it with.
+      // The page has those settings; they are not threaded down here yet.
+      baseDetection: baseStopDetection(),
       maxPositionPct: parsed(maxPositionPct) ?? -1,
       sizeMultiplier: parsed(sizeMultiplier) ?? -1,
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,

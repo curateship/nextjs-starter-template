@@ -34,10 +34,16 @@ export type LiveAdapter = {
   watchCatchUp(network: NetworkId, listener: () => void): () => void
 }
 
-const LIVE_ADAPTERS: Record<ProtocolId, LiveAdapter> = {
+/**
+ * Partial on purpose: an exchange the app only reads markets from has nothing
+ * to stream. Asking for its adapter answers undefined, which is the same thing
+ * as "no live prices here" — where a fake adapter that never fires would look
+ * exactly like a broken socket.
+ */
+const LIVE_ADAPTERS: Partial<Record<ProtocolId, LiveAdapter>> = {
   hyperliquid: hyperliquidStream,
 }
 
-export function getLiveAdapter(id: ProtocolId): LiveAdapter {
+export function getLiveAdapter(id: ProtocolId): LiveAdapter | undefined {
   return LIVE_ADAPTERS[id]
 }

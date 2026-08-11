@@ -27,13 +27,18 @@ const asks: Array<{ from: number; to: number }> = []
 /** The bars the fake exchange actually holds, by open time. */
 let available: CandleBar[] = []
 
-vi.mock("@/server/protocols/registry", () => ({
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getProtocol: () => ({ markets: { intervalMs: () => FOUR_HOURS } }),
 }))
 
 // The history comes from Binance, not the venue the run trades on — see the
 // note at the top of `candle-store.ts`.
-vi.mock("@/server/trade/backtest/binance-history", () => ({
+vi.mock("@/server/protocols/binance/candles", () => ({
   binanceSymbolFor: (coin: string) => `${coin}USDT`,
   fetchBinanceCandleRange: async (
     _coin: string,
@@ -219,7 +224,7 @@ describe("a hole in the middle of a window", () => {
 describe("a failed fetch", () => {
   it("leaves the window looking un-asked, so it is retried", async () => {
     const to = START + 100 * FOUR_HOURS
-    const source = await import("@/server/trade/backtest/binance-history")
+    const source = await import("@/server/protocols/binance/candles")
     const broken = vi
       .spyOn(source, "fetchBinanceCandleRange")
       .mockRejectedValueOnce(new Error("the exchange said no"))

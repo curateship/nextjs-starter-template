@@ -2,7 +2,11 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { CANDLE_INTERVALS, parseMarketKey } from "@/lib/protocols/contracts"
-import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
+import {
+  baseStopDetection,
+  dcaParamsSchema,
+  type DcaParams,
+} from "@/lib/trade/dca"
 import { userGet, userPost } from "@/server/guards"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
@@ -98,7 +102,16 @@ const loadLadderBaseFn = createServerFn({ method: "GET" })
     const ref = parseMarketKey(data.marketKey)
     if (!ref) return { basePx: null }
     return {
-      basePx: await marketBaseInForce(ref.protocol, ref.network, ref.marketId, Date.now()),
+      // Nobody has asked for a ladder yet, so there are no ladder settings to
+      // read. The indicator's own numbers are what the chart drew with, which
+      // is what this preview is pointing at.
+      basePx: await marketBaseInForce(
+        ref.protocol,
+        ref.network,
+        ref.marketId,
+        Date.now(),
+        baseStopDetection()
+      ),
     }
   })
 

@@ -3,7 +3,7 @@ import {
   BASE_STOP_BAR_MS,
   BASE_STOP_BARS,
   BASE_STOP_INTERVAL,
-  baseStopDetection,
+  type DcaBaseDetection,
 } from "@/lib/trade/dca"
 import { baseInForce } from "@/lib/trade/indicators/base"
 import { getProtocol } from "@/server/protocols/registry"
@@ -20,7 +20,8 @@ export async function marketBaseInForce(
   protocol: ProtocolId,
   network: NetworkId,
   marketId: string,
-  now: number
+  now: number,
+  detection: DcaBaseDetection
 ): Promise<number | null> {
   const bars = await getProtocol(protocol)
     .markets.candles(
@@ -37,5 +38,5 @@ export async function marketBaseInForce(
   // level, so counting it would only make the answer flicker.
   const closed = bars.filter((bar) => bar.openTime + BASE_STOP_BAR_MS <= now)
   if (closed.length === 0) return null
-  return baseInForce(closed, baseStopDetection())
+  return baseInForce(closed, detection)
 }

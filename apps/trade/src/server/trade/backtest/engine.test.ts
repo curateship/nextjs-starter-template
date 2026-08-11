@@ -18,7 +18,12 @@ import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
 const FOUR_HOURS = 14_400_000
 const START = 1_700_000_000_000 - (1_700_000_000_000 % FOUR_HOURS)
 
-vi.mock("@/server/protocols/registry", () => ({
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getProtocol: () => ({
     markets: {
       intervalMs: () => FOUR_HOURS,
@@ -481,5 +486,76 @@ describe("holding through a market-wide crash", () => {
     )
     expect(sold).toBeDefined()
     expect(sold!.fillTime).toBe(deepest.fillTime)
+  })
+})
+
+describe("what counts as a base", () => {
+  /**
+   * The two numbers that decide where the floor is have to come from the FLOW,
+   * not from the indicator's factory pair.
+   *
+   * They used to be neither settable nor testable: fixed at 36 and 8 inside the
+   * code, so every backtest ever run tested one definition of a base and there
+   * was no way to try another. A strategy that hangs every rung off "the base"
+   * cannot be tested at all if what a base is cannot be moved.
+   *
+   * A long, choppy fall gives the two settings something to disagree about: a
+   * short search finds a new low every few bars, a long one holds out for a
+   * deeper one.
+   */
+  function staircase(): CandleBar[] {
+    const out: CandleBar[] = []
+    let price = 100
+    for (let index = 0; index < 300; index += 1) {
+      // A step down every tenth bar, dead flat in between. Each shelf is a new
+      // low that then STANDS, which is exactly what a base is — and it stands
+      // for nine bars, so a short wait confirms one and a long wait never does.
+      const next = index > 0 && index % 10 === 0 ? price * 0.95 : price
+      out.push({
+        openTime: START + index * FOUR_HOURS,
+        open: price,
+        high: Math.max(price, next),
+        low: Math.min(price, next),
+        close: next,
+        volume: 1_000,
+      })
+      price = next
+    }
+    return out
+  }
+
+  async function runWith(searchBars: number, holdBars: number) {
+    const shape = staircase()
+    return runBacktest({
+      ...inputFor([{ ...coin("hyperliquid:mainnet:AAA", shape), baseBars: shape }], {
+        params: params({
+          anchor: "base",
+          baseDetection: {
+            searchBars,
+            holdBars,
+            withTrendOnly: false,
+            minBarsApart: 1,
+          },
+        }),
+      }),
+      to: START + 300 * FOUR_HOURS,
+    })
+  }
+
+  it("changes what the run does when the numbers change", async () => {
+    const quick = await runWith(8, 2)
+    const patient = await runWith(120, 40)
+
+    // Not a claim about which is better — only that the setting reaches the
+    // run at all. Before this it did not, and both of these were the same run.
+    expect(quick.coins[0].fills.length).not.toBe(patient.coins[0].fills.length)
+  })
+
+  it("is carried by the ladder, so two runs of one flow still match", async () => {
+    const once = await runWith(8, 2)
+    const twice = await runWith(8, 2)
+
+    expect(once.endingUsd).toBe(twice.endingUsd)
+    expect(once.coins[0].fills.length).toBe(twice.coins[0].fills.length)
   })
 })

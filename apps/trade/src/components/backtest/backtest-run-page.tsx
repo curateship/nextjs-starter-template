@@ -190,6 +190,7 @@ export function BacktestRunPage({
       coins={coins}
       openCoin={openCoin}
       bars={shown?.bars ?? []}
+      spec={run.spec}
       fills={shown?.fills ?? []}
       focusTrade={
         shown?.trades.find((trade) => trade.n === selectedTrade) ?? null

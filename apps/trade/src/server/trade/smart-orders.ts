@@ -246,6 +246,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
   const plan: LadderPlan = {
     anchorPx,
     anchor: params.anchor,
+    baseDetection: params.baseDetection,
     sizeDecimals: rules.sizeDecimals,
     maxLeverage,
     rungs,
@@ -313,7 +314,8 @@ export async function placeDcaLadder(
           wallet.protocol,
           wallet.network,
           ref.marketId,
-          Date.now()
+          Date.now(),
+          input.params.baseDetection
         )
 
   const book = await settleWallet(userId, wallet, { marks })

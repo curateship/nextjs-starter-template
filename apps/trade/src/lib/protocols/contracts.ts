@@ -17,7 +17,7 @@
  * adding an exchange is a deliberate edit here — the one shared file — plus a
  * new module behind it, never a stray name invented at a call site.
  */
-export type ProtocolId = "hyperliquid"
+export type ProtocolId = "hyperliquid" | "binance"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -56,7 +56,7 @@ export type MarketRef = {
   marketId: string
 }
 
-const KNOWN_PROTOCOLS: readonly ProtocolId[] = ["hyperliquid"]
+const KNOWN_PROTOCOLS: readonly ProtocolId[] = ["hyperliquid", "binance"]
 const KNOWN_NETWORKS: readonly NetworkId[] = ["mainnet", "testnet"]
 
 /** The one way a market key is ever built. */

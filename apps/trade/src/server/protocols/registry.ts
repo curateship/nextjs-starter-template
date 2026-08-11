@@ -43,6 +43,8 @@ import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
 export type ProtocolEntry = {
   id: ProtocolId
   label: string
+  /** Networks this adapter can truthfully serve. */
+  networks: readonly NetworkId[]
   /** Which network a screen should show when nothing has chosen one. */
   defaultNetwork: NetworkId
   capabilities: ProtocolCapabilities
@@ -74,11 +76,17 @@ export type ProtocolEntry = {
      */
     roundPx(px: number, sizeDecimals: number | null): number
   }
-  account: {
+  /**
+   * Absent on an exchange that cannot hold an account. `capabilities.accounts` is the flag; this is the code behind it. Optional so a markets-only exchange is a shorter entry rather than a set of stubs that throw — a stub is a door that looks open.
+   */
+  account?: {
     /** What the account at this public address holds and is worth. */
     fetch(network: NetworkId, address: string): Promise<WalletAccountFigures>
   }
-  agent: {
+  /**
+   * Absent alongside `account`, for the same reason: a trading key only means something where there is trading.
+   */
+  agent?: {
     /**
      * Proves a pasted trading key before it is stored: refuses the account's
      * own key outright, and asks the exchange whether this key is really
@@ -90,7 +98,10 @@ export type ProtocolEntry = {
       agentKey: string
     ): Promise<{ validUntil: number | null }>
   }
-  orders: {
+  /**
+   * Absent on an exchange that cannot place one. See `account` above.
+   */
+  orders?: {
     /** Signs and places one real order, with optional protection legs. */
     place(
       network: NetworkId,
@@ -130,10 +141,19 @@ export type ProtocolEntry = {
   }
 }
 
+import {
+  binanceIntervalMs,
+  fetchBinanceCandles,
+  fetchBinanceMarkets,
+  fetchBinancePrices,
+  roundBinancePx,
+} from "@/server/protocols/binance/markets"
+
 const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
   hyperliquid: {
     id: "hyperliquid",
     label: "Hyperliquid",
+    networks: ["mainnet", "testnet"],
     defaultNetwork: "mainnet",
     capabilities: { markets: true, accounts: true, orders: true },
     markets: {
@@ -158,6 +178,36 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fills: fetchHyperliquidOrderFills,
     },
   },
+  /**
+   * Prices and markets, no trading — yet.
+   *
+   * Binance is an exchange this app intends to trade on, so it is registered
+   * as one from the start rather than kept as the backtest's private history
+   * source. Switching trading on later means filling in `account` and `orders`
+   * and flipping the two flags; nothing else moves, because no screen ever
+   * asks which exchange it is holding — they read these capabilities.
+   *
+   * Those blocks are absent rather than stubbed with throwing functions. A
+   * stub is a door that looks open: the flag says the door is not there, and
+   * anything that ignored the flag should fail loudly at the missing block
+   * rather than quietly at a thrown error deep in a settle.
+   */
+  binance: {
+    id: "binance",
+    label: "Binance",
+    // Mainnet only. Binance runs a testnet, but it is not what this app's
+    // practice wallets pretend against.
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: { markets: true, accounts: false, orders: false },
+    markets: {
+      fetch: fetchBinanceMarkets,
+      candles: fetchBinanceCandles,
+      intervalMs: binanceIntervalMs,
+      prices: fetchBinancePrices,
+      roundPx: roundBinancePx,
+    },
+  },
 }
 
 export function getProtocol(id: ProtocolId): ProtocolEntry {
@@ -167,4 +217,37 @@ export function getProtocol(id: ProtocolId): ProtocolEntry {
 /** Every protocol this build ships, for screens that show one list per protocol. */
 export function listProtocols(): ProtocolEntry[] {
   return Object.values(PROTOCOLS)
+}
+
+/**
+ * The trading side of an exchange that has one, or a refusal naming it.
+ *
+ * Not every exchange here can trade — Binance is listed for its markets and
+ * its years of candles, and has no orders until somebody builds them. Rather
+ * than let every call site guard, or worse leave the blocks as stubs that
+ * throw from somewhere deep inside a settle, asking for them goes through
+ * here and fails at the door with the exchange's name in the message.
+ *
+ * A caller reaching this is a bug, not a user's mistake: screens read
+ * `capabilities` and never offer to trade a market that cannot be traded.
+ */
+export function ordersOf(protocol: ProtocolEntry) {
+  if (!protocol.orders) {
+    throw new Error(`PROTOCOL_NO_ORDERS:${protocol.id}`)
+  }
+  return protocol.orders
+}
+
+export function accountOf(protocol: ProtocolEntry) {
+  if (!protocol.account) {
+    throw new Error(`PROTOCOL_NO_ACCOUNTS:${protocol.id}`)
+  }
+  return protocol.account
+}
+
+export function agentOf(protocol: ProtocolEntry) {
+  if (!protocol.agent) {
+    throw new Error(`PROTOCOL_NO_AGENT:${protocol.id}`)
+  }
+  return protocol.agent
 }

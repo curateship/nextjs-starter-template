@@ -6,7 +6,6 @@ import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
 import {
   BASE_STOP_BARS,
   BASE_STOP_INTERVAL,
-  baseStopDetection,
   baseStopPx,
   DUST_ORDER_USD,
   floorSize,
@@ -21,12 +20,21 @@ import {
   marketIsCascading,
   type CascadeSettings,
 } from "@/lib/trade/cascade"
-import { baseInForce } from "@/lib/trade/indicators/base"
+import { baseLevelsInForce } from "@/lib/trade/indicators/base"
+import {
+  ascending,
+  firstOpenAfter,
+  lastClosedIndex,
+} from "@/lib/trade/candle-window"
 import { slippedPx, type PaperSide } from "@/lib/trade/paper"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
-import { exitOrderIdOf, type WalletBook } from "@/server/trade/paper"
+import {
+  exitOrderIdOf,
+  liveOrderIds,
+  type WalletBook,
+} from "@/server/trade/paper"
 
 /**
  * What a placed DCA ladder does as price moves — the half of the practice
@@ -247,7 +255,18 @@ export async function ladderCandleNeeds(
   return needs
 }
 
-export type LadderBars = ReadonlyMap<string, { bars: CandleBar[]; barMs: number }>
+/**
+ * One feed a ladder reads: the bars, oldest first, and how long each one lasts.
+ *
+ * The bars are READ-ONLY, and are expected to be in time order. A replay hands
+ * over the same array on every pass — the whole history, thousands of bars — so
+ * copying it to be safe, or sorting it to be sure, is the length of the history
+ * repeated on every bar of the run. Everything that reads this finds its place
+ * with a binary search instead.
+ */
+export type LadderFeed = { bars: readonly CandleBar[]; barMs: number }
+
+export type LadderBars = ReadonlyMap<string, LadderFeed>
 
 /**
  * Brings every active ladder of one wallet up to date with what the settle
@@ -367,7 +386,7 @@ export async function advanceOne(
 
   // ----- What just happened to the ladder's orders -----------------------
 
-  const liveOrderIds = new Set(book.orders.map((order) => order.id))
+  const live = liveOrderIds(book)
   // This settle's fills, each spent on at most one rung — two rungs at the
   // same price must not both claim the same fill.
   const usedFillIds = new Set<string>()
@@ -386,7 +405,7 @@ export async function advanceOne(
   }
 
   for (const rung of plan.rungs) {
-    if (rung.status === "waiting" && rung.orderId && !liveOrderIds.has(rung.orderId)) {
+    if (rung.status === "waiting" && rung.orderId && !live.has(rung.orderId)) {
       // The rung's order is gone: it bought, or the engine dropped it — a
       // cancel by hand, or a buy the account could no longer afford.
       const exitId = exitOrderIdOf(rung.orderId)
@@ -408,7 +427,7 @@ export async function advanceOne(
       }
       changed = true
     }
-    if (rung.sellOrderId && !liveOrderIds.has(rung.sellOrderId)) {
+    if (rung.sellOrderId && !live.has(rung.sellOrderId)) {
       // Its sell is gone: sold at the rung above, or dropped because the
       // position it was to reduce is no longer there.
       const target = ladderExitLevels(plan)[plan.rungs.indexOf(rung)]
@@ -471,10 +490,10 @@ export async function advanceOne(
 
   if (over) {
     for (const rung of plan.rungs) {
-      if (rung.orderId && liveOrderIds.has(rung.orderId)) {
+      if (rung.orderId && live.has(rung.orderId)) {
         deps.dropOrder(book, rung.orderId)
       }
-      if (rung.sellOrderId && liveOrderIds.has(rung.sellOrderId)) {
+      if (rung.sellOrderId && live.has(rung.sellOrderId)) {
         deps.dropOrder(book, rung.sellOrderId)
       }
       rung.orderId = null
@@ -684,14 +703,14 @@ function reconcileDeadRungs(
   deps: LadderEngineDeps,
   slPx: number | null
 ): boolean {
-  const liveOrderIds = new Set(input.book.orders.map((order) => order.id))
+  const live = liveOrderIds(input.book)
   let changed = false
   for (const rung of plan.rungs) {
     if (rung.status !== "waiting") continue
     const shouldBeDead = slPx !== null && rung.px <= slPx
     if (shouldBeDead && !rung.dead) {
       rung.dead = true
-      if (rung.orderId && liveOrderIds.has(rung.orderId)) {
+      if (rung.orderId && live.has(rung.orderId)) {
         deps.dropOrder(input.book, rung.orderId)
       }
       rung.orderId = null
@@ -786,18 +805,25 @@ function watchBase(
   // ladder only wants the level to hang from — two ways to want the same
   // number, and one place that works it out.
   const stop = plan.stopLoss?.base ?? null
-  const detection = stop ?? baseStopDetection()
+  // What this ladder was placed with — all four of them, from the one place
+  // the plan keeps them.
+  const detection = plan.baseDetection
   const feed = input.ladderBars.get(ladderBarsKey("base", marketKey))
   if (!feed) return false
 
   const seenTo = plan.baseWatch?.seenTo ?? 0
   // The bar still being filled in is left out: it cannot have confirmed a
   // level, and a close that has not happened cannot start a clock either.
-  const closed = feed.bars
-    .filter((bar) => bar.openTime + feed.barMs <= input.now)
-    .sort((a, b) => a.openTime - b.openTime)
+  //
+  // Found rather than filtered. Copying out the closed bars and running the
+  // whole indicator over them again is the length of the feed, on every pass —
+  // fine live, where the feed is the handful of bars since the last look, and
+  // ruinous in a replay, where it is the entire history and there are thousands
+  // of passes.
+  const bars = ascending(feed.bars)
+  const cut = lastClosedIndex(bars, feed.barMs, input.now)
 
-  if (closed.length === 0) {
+  if (cut < 0) {
     // Nothing came back — a market too new to have history, or a call that
     // failed. Note that we looked, so this is not asked again every four
     // seconds, and leave the level exactly as it was.
@@ -808,17 +834,20 @@ function watchBase(
     return true
   }
 
+  // The level at that bar, off the one pass that answers it for every bar.
   plan.baseWatch = {
-    levelPx: baseInForce(closed, {
-      searchBars: detection.searchBars,
-      holdBars: detection.holdBars,
-    }),
-    seenTo: closed[closed.length - 1].openTime + feed.barMs,
+    levelPx:
+      baseLevelsInForce(bars, detection)[cut] ?? null,
+    seenTo: bars[cut].openTime + feed.barMs,
   }
 
   const reclaim = plan.reclaim
   if (reclaim && stop && stop.reclaimDays > 0) {
-    for (const bar of closed) {
+    // Only the bars this ladder has not read yet, which is what the skip below
+    // used to work out the long way round — from the start of the history,
+    // every pass.
+    for (let i = firstOpenAfter(bars, seenTo - feed.barMs); i <= cut; i += 1) {
+      const bar = bars[i]
       if (bar.openTime + feed.barMs <= seenTo) continue
       if (bar.close > reclaim.levelPx) {
         reclaim.aboveSince ??= bar.openTime + feed.barMs
@@ -880,9 +909,9 @@ function reanchorToBase(
   // move is refused: half a ladder is worse than one hung a little too high.
   if (moved.some((rung) => !(rung.px > 0) || rung.sz <= 0)) return false
 
-  const liveOrderIds = new Set(input.book.orders.map((order) => order.id))
+  const live = liveOrderIds(input.book)
   for (const [index, rung] of plan.rungs.entries()) {
-    if (rung.orderId && liveOrderIds.has(rung.orderId)) {
+    if (rung.orderId && live.has(rung.orderId)) {
       deps.dropOrder(input.book, rung.orderId)
     }
     rung.orderId = null
@@ -936,12 +965,12 @@ function stepDownAfterStop(
     if (rung.status === "filled") deepest = index
   }
 
-  const liveOrderIds = new Set(book.orders.map((order) => order.id))
+  const live = liveOrderIds(book)
   for (const rung of plan.rungs) {
-    if (rung.orderId && liveOrderIds.has(rung.orderId)) {
+    if (rung.orderId && live.has(rung.orderId)) {
       deps.dropOrder(book, rung.orderId)
     }
-    if (rung.sellOrderId && liveOrderIds.has(rung.sellOrderId)) {
+    if (rung.sellOrderId && live.has(rung.sellOrderId)) {
       deps.dropOrder(book, rung.sellOrderId)
     }
     rung.orderId = null
@@ -1083,13 +1112,16 @@ function watchCandles(
   let newest = seenTo
   let changed = false
 
-  const closed = feed.bars
-    .filter(
-      (bar) => bar.openTime > seenTo && bar.openTime + feed.barMs <= input.now
-    )
-    .sort((a, b) => a.openTime - b.openTime)
+  // The stretch this ladder has not read yet, named by two binary searches
+  // rather than a walk of the whole feed. A replay hands the entire history
+  // over on every bar, so filtering it here was the run's biggest single cost
+  // after the base.
+  const bars = ascending(feed.bars)
+  const from = firstOpenAfter(bars, seenTo)
+  const to = lastClosedIndex(bars, feed.barMs, input.now)
 
-  for (const bar of closed) {
+  for (let i = from; i <= to; i += 1) {
+    const bar = bars[i]
     newest = bar.openTime
     changed = true
 

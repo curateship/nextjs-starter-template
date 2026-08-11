@@ -12,14 +12,10 @@ import { userGet, userPost } from "@/server/guards"
 import { db } from "@/server/db"
 import { loadStoredCandles } from "@/server/trade/candle-store"
 import {
-  listBinancePerpSymbols,
-  testableOnBinance,
-} from "@/server/trade/backtest/binance-markets"
-import {
   listBacktests,
   readBacktestGroup,
 } from "@/server/trade/backtest/store"
-import { listProtocols } from "@/server/protocols/registry"
+import { getProtocol, listProtocols } from "@/server/protocols/registry"
 import {
   tradeBacktestGroups,
   tradeBacktests,
@@ -39,44 +35,68 @@ import { createErrorMessage } from "./error-message"
  */
 
 /**
- * The coins a backtest can actually be run on.
+ * One exchange's markets, for the step that picks which coins to work on.
  *
- * The exchange's own catalogue, cut down to what Binance has history for —
- * because the run reads its prices from Binance, and a coin Binance never
- * listed cannot be tested however much the exchange trades it. Picking from
- * the full catalogue is what made a hundred coins come back as fifty-three
- * tested: the other forty-seven were skipped, correctly, but only after the
- * run had finished.
- *
- * Deliberately still the exchange's list, filtered — not Binance's list
- * outright. A backtest is worth running on a coin you could go and trade, and
- * Binance lists hundreds that this exchange does not.
+ * The run's long history still comes from Binance. Binance itself can therefore
+ * offer its full catalogue, while another exchange is limited to coins that
+ * Binance can price. Doing that before selection prevents a run from accepting
+ * coins it will later have to skip.
  */
 const testableMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ network: z.enum(["mainnet", "testnet"]) }))
-  .handler(async ({ data }) => {
-    const [catalogs, symbols] = await Promise.all([
-      Promise.all(
-        listProtocols()
-          .filter((protocol) => protocol.capabilities.markets)
-          .map((protocol) => protocol.markets.fetch(data.network))
-      ),
-      listBinancePerpSymbols(),
-    ])
-
-    const all = catalogs.flatMap((catalog) => catalog.rows)
-    const rows = all.filter((row) => {
-      const ref = parseMarketKey(row.key)
-      return ref ? testableOnBinance(ref.marketId, symbols) : false
+  .inputValidator(
+    z.object({
+      network: z.enum(["mainnet", "testnet"]),
+      protocol: z.string().min(1).max(30),
     })
-    // Said out loud rather than silently dropped: "18 of 121 have no history"
-    // is the difference between a short list and a broken one.
-    return { rows, hidden: all.length - rows.length }
+  )
+  .handler(async ({ data }) => {
+    const entry = listProtocols().find(
+      (one) => one.id === data.protocol && one.capabilities.markets
+    )
+    // Refused by name rather than falling back to a default. A step that
+    // quietly listed a different exchange's coins than the one it says would
+    // produce a run nobody could explain.
+    if (!entry) throw new Error("MARKETS_PROTOCOL")
+    const catalog = await entry.markets.fetch(data.network)
+    const historyCatalog =
+      entry.id === "binance"
+        ? catalog
+        : await getProtocol("binance").markets.fetch(data.network)
+    const historyIds = new Set(historyCatalog.rows.map((row) => row.marketId))
+    const rows = catalog.rows.filter((row) => historyIds.has(row.marketId))
+    return {
+      rows,
+      hidden: catalog.rows.length - rows.length,
+      /** Whether coins from here can be traded, or only charted and tested. */
+      tradeable: entry.capabilities.orders,
+    }
   })
 
-export function loadTestableMarkets(network: "mainnet" | "testnet") {
-  return testableMarketsFn({ data: { network } })
+export function loadTestableMarkets(
+  network: "mainnet" | "testnet",
+  protocol: string
+) {
+  return testableMarketsFn({ data: { network, protocol } })
+}
+
+/** Every exchange that can list markets, for the step's exchange picker. */
+const marketProtocolsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async () =>
+    listProtocols()
+      .filter((one) => one.capabilities.markets)
+      .map((one) => ({
+        id: one.id,
+        label: one.label,
+        defaultNetwork: one.defaultNetwork,
+        /** False means its coins can be tested but not traded — yet. */
+        tradeable: one.capabilities.orders,
+      }))
+  )
+
+export function loadMarketProtocols() {
+  return marketProtocolsFn()
 }
 
 const groupIdSchema = z.object({ groupId: z.string().max(36) })

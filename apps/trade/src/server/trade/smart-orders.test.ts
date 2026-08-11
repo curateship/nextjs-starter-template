@@ -35,7 +35,12 @@ import {
 const marks = new Map<string, number>([["BTC", 100]])
 let candles: CandleBar[] = []
 
-vi.mock("@/server/protocols/registry", () => ({
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getProtocol: () => ({
     markets: {
       fetch: async () => ({
@@ -130,6 +135,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
   return {
     rungs: [{ deviation: 5 }, { deviation: 8 }],
     cascade: null,
+    baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
     maxPositionPct: 20,
     sizeMultiplier: 2,
     maxOrderVolPct: 0,

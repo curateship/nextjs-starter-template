@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { LoadingRow } from "@/components/ui/loading-row"
 import type { CandleBar } from "@/lib/protocols/contracts"
+import type { BacktestSpecSnapshot } from "@/lib/trade/backtest/result"
 import type {
   BacktestFillMark,
   BacktestTrade,
@@ -31,10 +32,7 @@ import {
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
-import {
-  defaultParamsOf,
-  indicatorPaint,
-} from "@/lib/trade/indicators/registry"
+import { baseDashes } from "@/lib/trade/indicators/base"
 
 import type { BacktestCoinRow } from "./backtest-run-page"
 
@@ -55,6 +53,7 @@ export function BacktestChartPanel({
   bars,
   fills,
   focusTrade,
+  spec,
   interval,
   loading,
   error,
@@ -68,6 +67,8 @@ export function BacktestChartPanel({
   fills: readonly BacktestFillMark[]
   /** The trade picked in the list below, joined up on the chart. */
   focusTrade: BacktestTrade | null
+  /** The run's own settings — what a base is, for this run. */
+  spec: BacktestSpecSnapshot
   interval: string
   loading: boolean
   error: string | null
@@ -93,34 +94,28 @@ export function BacktestChartPanel({
   // is a place to check working, and there is only one thing to check it
   // against.
   //
-  // The same detection the run itself used, drawn by the same layer, so a level
-  // on this chart is a level the run really saw.
-  const base = React.useMemo(
-    () =>
-      indicatorPaint(
-        {
-          base: {
-            on: true,
-            // `open` and `shutCards` are about the indicator MENU, which this
-            // chart does not have. They are here because the shape wants them.
-            open: false,
-            shutCards: [],
-            params: defaultParamsOf("base"),
-          },
-        },
-        [...bars]
-      ),
-    [bars]
-  )
-
-  // The levels, but **not the indicator's own signal arrows**. The base draws an
-  // arrow at each candle that confirmed a level, and on this chart that reads as
-  // an order — which is exactly what the arrows beside it already are. Two
-  // different things in one shape is worse than one of them being missing, and
-  // the one worth keeping is the one that says what the run actually did.
+  // **The run's own settings, and only the levels it actually used.**
+  //
+  // Both halves of that were wrong. It drew with the indicator's factory
+  // numbers, so changing the step changed the run and not the picture; and it
+  // drew the indicator's dashes, which mark EVERY level that ever confirmed —
+  // deliberately so on the trading chart, where the spacing rule is documented
+  // as never hiding a dash. Here that meant a chart covered in levels the run
+  // had ignored, and no way to tell which one a trade actually hung off.
+  //
+  // So this draws a short dash at each base the ladder actually anchored to,
+  // in the same shape the trading chart uses. Nothing here is a level the run
+  // did not use, and nothing here is a line drawn across the chart.
   const indicators = React.useMemo(
-    () => ({ dashes: base.dashes, marks: [] }),
-    [base]
+    () => ({
+      dashes: baseDashes([...bars], spec.params.baseDetection),
+      // No arrows. The base draws one at each candle that confirmed a level,
+      // and on this chart that reads as an order — which is exactly what the
+      // arrows beside it already are. Two different things in one shape is
+      // worse than one of them being missing.
+      marks: [],
+    }),
+    [bars, spec]
   )
 
   /**
@@ -166,11 +161,14 @@ export function BacktestChartPanel({
         // separate strip above the panels.
         icon={
           <Link
-            to="/admin/automations/$automationId"
-            params={{ automationId }}
-            aria-label="Back to the automation this run came from"
+            to="/backtests"
+            aria-label="Back to every backtest"
+            // Pulled out by a quarter on each side. The header's icon slot is
+            // 16px and this target is 24px, so without the negative margin the
+            // hover box grew out of its slot and sat off-centre against the
+            // title beside it.
             className={cn(
-              "flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
+              "-m-1 flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
               focusRing
             )}
           >

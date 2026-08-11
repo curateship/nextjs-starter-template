@@ -12,12 +12,23 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { loadTestableMarkets } from "@/lib/api/backtests"
+import {
+  loadMarketProtocols,
+  loadTestableMarkets,
+} from "@/lib/api/backtests"
 import { getMarketsErrorMessage } from "@/lib/api/markets"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {
   candlesPerCoin,
+  coinsAllowedFor,
   MAX_BACKTEST_DAYS,
   MAX_BACKTEST_MARKETS,
   tradeMarketsNode,
@@ -54,8 +65,6 @@ const VOLUME_BANDS = [
   { key: "small", label: "Under $1m", min: 0, max: 1_000_000 },
 ] as const
 
-const DEFAULT_SAMPLE = 20
-
 /** Extra goes at the coin list before the failure is worth telling anybody about. */
 const RETRIES = 2
 /** Grows with each go: 400ms, then 800ms. Long enough for a hiccup to pass. */
@@ -76,11 +85,10 @@ const RETRY_PAUSE_MS = 400
  * ask again.
  */
 const LIST_CACHE_MS = 10 * 60 * 1000
-let listCache: {
-  at: number
-  rows: MarketRow[]
-  hidden: number
-} | null = null
+const listCache = new Map<
+  string,
+  { at: number; rows: MarketRow[]; hidden: number; tradeable: boolean }
+>()
 
 export default function TradeMarketsFields({
   node,
@@ -102,62 +110,139 @@ export default function TradeMarketsFields({
   const days = parsedSettings.success
     ? (parsedSettings.data.days ?? fallback.days)
     : fallback.days
+  const protocol = parsedSettings.success
+    ? (parsedSettings.data.protocol ?? fallback.protocol)
+    : fallback.protocol
 
-  // Straight from the cache, so re-opening the step draws the full list on the
-  // first paint rather than showing an empty panel and filling it in after.
+  /**
+   * What the last fetch came back with, and which exchange it was for.
+   *
+   * One piece of state rather than three, and it remembers whose answer it is.
+   * That is what lets the list below be WORKED OUT rather than stored: the
+   * cache already holds every exchange seen this session, so switching to one
+   * you have looked at draws it on the first paint with nothing to set.
+   *
+   * It used to copy the cache into state from inside the effect, which meant
+   * every switch rendered twice — once empty, once filled — and React says so
+   * out loud.
+   */
+  const [fetched, setFetched] = React.useState<{
+    protocol: string
+    rows: MarketRow[] | null
+    hidden: number
+    tradeable: boolean
+    error: string | null
+  } | null>(null)
+
+  // The fetch's answer when it is about the exchange on screen, and whatever is
+  // already known about that exchange otherwise.
   //
-  // Whether the cache is STALE is deliberately not asked here: the clock is not
-  // something a render may read, and there is nothing to gain by asking. A list
-  // ten minutes old is still the right list to show while `load` below checks
-  // and replaces it.
-  const [markets, setMarkets] = React.useState<MarketRow[] | null>(
-    listCache?.rows ?? null
-  )
-  /** How many of the exchange's coins Binance has no history for. */
-  const [hidden, setHidden] = React.useState(listCache?.hidden ?? 0)
-  const [error, setError] = React.useState<string | null>(null)
-  const [search, setSearch] = React.useState("")
-  const [sampleSize, setSampleSize] = React.useState(DEFAULT_SAMPLE)
+  // Whether the cached copy is STALE is deliberately not asked here: the clock
+  // is not something a render may read, and there is nothing to gain by asking.
+  // A list ten minutes old is still the right list to show while the effect
+  // below checks and replaces it.
+  const answer = fetched?.protocol === protocol ? fetched : null
+  const held = listCache.get(protocol)
+  const markets = answer ? answer.rows : (held?.rows ?? null)
+  const hidden = answer ? answer.hidden : (held?.hidden ?? 0)
+  /** Whether coins from this exchange can be traded, or only charted and tested. */
+  const tradeable = answer ? answer.tradeable : (held?.tradeable ?? true)
+  const error = answer?.error ?? null
 
-  const load = React.useCallback(async (force = false) => {
-    // Warm cache: nothing to do at all. The list is already on screen — the
-    // state above starts from the same cache — so this returns without
-    // touching state rather than setting it to what it already holds.
-    const fresh =
-      listCache && Date.now() - listCache.at < LIST_CACHE_MS ? listCache : null
-    if (fresh && !force) return
-    setError(null)
-    // Two goes before complaining, and this is not belt-and-braces: opening
-    // this panel asks two different exchanges for a list at once, and either
-    // one hiccuping threw the whole thing. The failure was common, always
-    // fixed by pressing Try again, and the retry is exactly what pressing it
-    // did — so the banner was reporting a problem that had already solved
-    // itself. A real outage still fails all three goes and still says so.
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        // Only coins Binance has history for. Picking from the full catalogue
-        // is what made a hundred coins come back as fifty-three tested.
-        const { rows, hidden: without } = await loadTestableMarkets(NETWORK)
-        listCache = { at: Date.now(), rows, hidden: without }
-        setMarkets(rows)
-        setHidden(without)
+  const [protocols, setProtocols] = React.useState<
+    ReadonlyArray<{ id: string; label: string; tradeable: boolean }>
+  >([])
+  const [search, setSearch] = React.useState("")
+  /**
+   * How many coins "Draw again" takes — null until somebody types a number,
+   * and null means "as many as will fit".
+   *
+   * It used to start at a flat twenty, so the one button whose whole job is
+   * "fill this list for me" handed back twenty coins out of five hundred and
+   * left you to do the rest by hand. What fits is already worked out from the
+   * window, so that is what it offers.
+   */
+  const [sampleSize, setSampleSize] = React.useState<number | null>(null)
+
+  /** Bumped by "Try again", which asks again past the cache. */
+  const [attemptKey, setAttemptKey] = React.useState(0)
+
+  // One effect, keyed on the exchange, rather than a memoised function.
+  //
+  // The list is fetched per exchange and kept per exchange, so switching is
+  // instant the second time. Two goes before complaining, and that is not
+  // belt-and-braces: this asks an exchange for its whole catalogue, and one
+  // hiccup used to throw the lot. The failure was common and pressing Try
+  // again always fixed it — which means the banner was reporting a problem
+  // that had already solved itself. A real outage still fails all three goes
+  // and still says so.
+  React.useEffect(() => {
+    let alive = true
+
+    void (async () => {
+      // Nothing is set on the way in. What is already known about this exchange
+      // is read while drawing, so a switch back to one you have seen is already
+      // on screen by the time this runs. Whether that copy is stale is asked
+      // here rather than up there, because a render may not read a clock.
+      const known = listCache.get(protocol)
+      if (known && Date.now() - known.at < LIST_CACHE_MS && attemptKey === 0) {
         return
-      } catch (loadError) {
-        if (attempt >= RETRIES) {
-          setMarkets(null)
-          setError(getMarketsErrorMessage(loadError))
-          return
-        }
-        await new Promise((resolve) =>
-          setTimeout(resolve, RETRY_PAUSE_MS * (attempt + 1))
-        )
       }
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          const loaded = await loadTestableMarkets(NETWORK, protocol)
+          listCache.set(protocol, {
+            at: Date.now(),
+            rows: loaded.rows,
+            hidden: loaded.hidden,
+            tradeable: loaded.tradeable,
+          })
+          if (!alive) return
+          setFetched({
+            protocol,
+            rows: loaded.rows,
+            hidden: loaded.hidden,
+            tradeable: loaded.tradeable,
+            error: null,
+          })
+          return
+        } catch (loadError) {
+          if (attempt >= RETRIES) {
+            if (!alive) return
+            setFetched({
+              protocol,
+              rows: null,
+              hidden: 0,
+              tradeable: true,
+              error: getMarketsErrorMessage(loadError),
+            })
+            return
+          }
+          await new Promise((resolve) =>
+            setTimeout(resolve, RETRY_PAUSE_MS * (attempt + 1))
+          )
+        }
+      }
+    })()
+
+    return () => {
+      alive = false
+    }
+  }, [protocol, attemptKey])
+
+  // The exchanges on offer, asked once. Read from the registry rather than
+  // written down here, so adding an exchange never touches this panel.
+  React.useEffect(() => {
+    let alive = true
+    void loadMarketProtocols()
+      .then((rows) => {
+        if (alive) setProtocols(rows)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
     }
   }, [])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
 
   const chosen = React.useMemo(() => new Set(marketKeys), [marketKeys])
 
@@ -186,17 +271,36 @@ export default function TradeMarketsFields({
     [marketKeys, setKeys]
   )
 
-  const visible = React.useMemo(() => {
-    const needle = search.trim().toLowerCase()
-    const rows = markets ?? []
-    return needle ? rows.filter((row) => row.symbol.toLowerCase().includes(needle)) : rows
-  }, [markets, search])
+  // Filtered on the spot. There are a few hundred coins at most and this is one
+  // pass over their names, which is nothing next to drawing the list itself —
+  // and remembering it needs the list to be provably unchanged, which it is not:
+  // it comes from a cache the fetch below writes to.
+  const needle = search.trim().toLowerCase()
+  const visible = needle
+    ? (markets ?? []).filter((row) =>
+        row.symbol.toLowerCase().includes(needle)
+      )
+    : (markets ?? [])
 
   /**
    * Drawn here, in the browser, while somebody is editing — never at run time.
    * Pressing Run twice on the same flow has to test the same coins, or two
    * results cannot be told apart from two strategies.
    */
+  /**
+   * The most coins this window leaves room for, and no more than exist.
+   *
+   * The candle size is the ladder step's, not this one's, so it cannot be read
+   * from here — 4h is what the summary below has always assumed. A window that
+   * turns out too greedy for the real candle size is refused when the flow is
+   * read, by name and with the number, rather than silently trimmed.
+   */
+  const roomFor = Math.min(
+    markets?.length ?? 0,
+    coinsAllowedFor("4h", days)
+  )
+  const sample = sampleSize ?? roomFor
+
   function draw(pool: readonly MarketRow[], count: number) {
     const shuffled = [...pool]
     for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -212,7 +316,7 @@ export default function TradeMarketsFields({
         <TradeNumberField
           id={`markets-${node.id}-days`}
           label="Days to test"
-          hint="How much history the run walks, up to two years. Prices come from Binance, so a coin younger than the window is reported as skipped rather than guessed at."
+          hint="How much history the run walks, up to two years. A younger coin is tested from the day Binance first has prices for it, and the result says when that was."
           value={days}
           min={1}
           max={MAX_BACKTEST_DAYS}
@@ -223,9 +327,51 @@ export default function TradeMarketsFields({
         />
       </InspectorCard>
 
+      <InspectorCard title="Protocol">
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`markets-${node.id}-protocol`}
+            className="text-xs"
+            hint="Where these coins come from. Switching exchange clears the old list so one run can never mix two exchanges' rules."
+          >
+            Markets from
+          </FieldLabel>
+          <Select
+            value={protocol}
+            onValueChange={(next) =>
+              onChange({
+                ...node,
+                settings: {
+                  ...node.settings,
+                  protocol: next,
+                  marketKeys: [],
+                },
+              })
+            }
+          >
+            <SelectTrigger
+              id={`markets-${node.id}-protocol`}
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(protocols.length > 0
+                ? protocols
+                : [{ id: protocol, label: protocol, tradeable: true }]
+              ).map((one) => (
+                <SelectItem key={one.id} value={one.id}>
+                  {one.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </InspectorCard>
+
       <InspectorCard title="Coins">
         {error ? (
-          <ErrorBanner message={error} onRetry={() => void load(true)} />
+          <ErrorBanner message={error} onRetry={() => setAttemptKey((n) => n + 1)} />
         ) : null}
 
         {markets === null && !error ? (
@@ -288,7 +434,7 @@ export default function TradeMarketsFields({
                   id={`markets-${node.id}-sample`}
                   inputMode="numeric"
                   className="w-20"
-                  value={String(sampleSize)}
+                  value={String(sample)}
                   onChange={(event) => {
                     const next = Number(event.target.value.trim())
                     if (Number.isFinite(next)) setSampleSize(next)
@@ -298,8 +444,8 @@ export default function TradeMarketsFields({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={!(sampleSize > 0)}
-                  onClick={() => draw(markets, sampleSize)}
+                  disabled={!(sample > 0)}
+                  onClick={() => draw(markets, sample)}
                 >
                   <RefreshCwIcon className="size-3.5" />
                   Draw again
@@ -344,8 +490,11 @@ export default function TradeMarketsFields({
               {marketKeys.length === 0
                 ? "No coins chosen yet."
                 : `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, ${(marketKeys.length * candlesPerCoin("4h", days)).toLocaleString()} candles to read at 4h.`}
+              {tradeable
+                ? ""
+                : " These can be tested but not traded yet — this one gives prices, not orders."}
               {hidden > 0
-                ? ` ${hidden} more ${plural(hidden, "coin is", "coins are")} not shown — Binance has no history for ${plural(hidden, "it", "them")}, and that is where the prices come from.`
+                ? ` ${hidden} more ${plural(hidden, "coin is", "coins are")} not shown because Binance has no history for ${plural(hidden, "it", "them")}.`
                 : ""}
             </p>
           </>

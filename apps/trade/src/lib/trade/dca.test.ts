@@ -136,6 +136,7 @@ describe("ladder plans", () => {
     anchorPx: 100,
     anchor: "click",
     rungEntry: "limit",
+    baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
     cascade: null,
     cascadeSeenAt: null,
     startedAt: 0,
@@ -238,12 +239,13 @@ describe("the stop that rests under the base", () => {
     expect(baseStopPx(withStop(held, null), 90)).toBeNull()
   })
 
-  it("freezes the chart's own base settings onto the ladder", () => {
+  it("keeps the stop's own two settings and nothing else", () => {
+    // How a base is FOUND lives on the plan, once, for the whole ladder. The
+    // stop used to keep a second copy, which is how one ladder came to hold
+    // two answers to "where is the floor".
     expect(ladderBaseStopOf({ underPct: 1, reclaimDays: 1 })).toEqual({
       underPct: 1,
       reclaimDays: 1,
-      searchBars: 36,
-      holdBars: 8,
     })
     expect(ladderBaseStopOf(null)).toBeNull()
   })

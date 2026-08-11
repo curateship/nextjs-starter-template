@@ -16,7 +16,11 @@ import {
 } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
-import { getProtocol } from "@/server/protocols/registry"
+import {
+  accountOf,
+  agentOf,
+  getProtocol,
+} from "@/server/protocols/registry"
 import { paperWalletFigures } from "@/server/trade/paper"
 import { tradeWallets } from "@/server/trade/schema"
 
@@ -145,7 +149,7 @@ export async function createWallet(
     // approved to trade for this account, and the account's own key is
     // refused outright. Codes travel up as they are — each has its own
     // sentence in the dialog.
-    const verified = await getProtocol(input.protocol).agent.verify(
+    const verified = await agentOf(getProtocol(input.protocol)).verify(
       input.network,
       input.address,
       input.agentKey
@@ -154,8 +158,8 @@ export async function createWallet(
     // Reading the account is both the reachability check and the baseline:
     // "Since it started" measures from the value the account had right now.
     // An address Hyperliquid cannot answer for is refused, not saved broken.
-    const figures = await getProtocol(input.protocol)
-      .account.fetch(input.network, input.address)
+    const figures = await accountOf(getProtocol(input.protocol))
+      .fetch(input.network, input.address)
       .catch(() => null)
     if (!figures) throw new Error("WALLET_UNREACHABLE")
     startingBalance = figures.equity
@@ -217,7 +221,7 @@ export async function updateWallet(
     // A replacement key is proved exactly like a first one — against the
     // wallet's own stored address and network, so a key for some other
     // account can never slide in through the edit window.
-    const verified = await getProtocol(row.protocol).agent.verify(
+    const verified = await agentOf(getProtocol(row.protocol)).verify(
       row.network,
       row.address ?? "",
       input.agentKey
@@ -277,8 +281,8 @@ export async function loadWalletSummaries(
         if (!figures) return { walletId: wallet.id, state: "unreachable" }
         return summarizeWallet(wallet, figures)
       }
-      const figures = await getProtocol(wallet.protocol)
-        .account.fetch(wallet.network, wallet.address ?? "")
+      const figures = await accountOf(getProtocol(wallet.protocol))
+        .fetch(wallet.network, wallet.address ?? "")
         .catch(() => null)
       if (!figures) return { walletId: wallet.id, state: "unreachable" }
       return summarizeWallet(wallet, figures)

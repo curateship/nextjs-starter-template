@@ -48,7 +48,12 @@ function shape(from: number, count: number, floor = 100): CandleBar[] {
   return out
 }
 
-vi.mock("@/server/protocols/registry", () => ({
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getProtocol: () => ({
     markets: { intervalMs: () => FOUR_HOURS, roundPx: (px: number) => px },
   }),
@@ -60,7 +65,7 @@ const notListed = new Set<string>()
 const rateLimitOnce = new Set<string>()
 
 // The history comes from Binance, not the venue the run trades on.
-vi.mock("@/server/trade/backtest/binance-history", () => ({
+vi.mock("@/server/protocols/binance/candles", () => ({
   binanceSymbolFor: (coin: string) => (coin === "NOTLISTED" ? null : `${coin}USDT`),
   isNotListedOnBinance: (error: unknown) =>
     error instanceof Error && error.message.startsWith("BINANCE_NOT_LISTED"),
@@ -97,7 +102,7 @@ function specOf(marketKeys: string[]): BacktestSpec {
       makerFeePct: 0.015,
       slippagePct: 0.05,
     },
-    markets: { marketKeys, days: 30 },
+    markets: { protocol: "hyperliquid", marketKeys, days: 30 },
     dca: {
       // Hung off the click price, so a ladder arms without needing a base
       // confirmed in the scripted history.
@@ -176,9 +181,12 @@ describe("a run the worker picks up", () => {
     expect(coins.every((coin) => coin.progress === 1)).toBe(true)
   })
 
-  it("skips a coin the exchange has no history for, with a reason", async () => {
+  it("tests a young coin from the day it listed, rather than dropping it", async () => {
     history.set("AAA", shape(START - 600 * FOUR_HOURS, 800))
-    // Listed three days before the window ends: nothing like enough.
+    // Listed three days before the window ends. It used to be dropped for
+    // having less than half the window, which turned a ten-year test of 250
+    // Binance coins into a test of 79 — the rest simply had not existed yet.
+    // The window is a maximum, so this is tested over what it has.
     history.set("NEW", shape(START - 18 * FOUR_HOURS, 18))
 
     const { groupId } = await createBacktest(
@@ -204,17 +212,58 @@ describe("a run the worker picks up", () => {
         )
       )
 
-    // A skipped row with a reason, never an absence: "one of two coins made
-    // money" must not quietly mean "the one that had history".
-    expect(skipped.status).toBe("skipped")
-    expect(skipped.skipReason).toMatch(/only prices for this coin|no price history/)
+    // Tested, not skipped — and it says when its own history begins, so
+    // "made $40" is never read as ten years' work when it was three days'.
+    expect(skipped.status).toBe("done")
+    expect(skipped.skipReason).toBeNull()
+    expect(skipped.summary?.startedAt).toBeGreaterThan(
+      START - 30 * 24 * 3600 * 1000
+    )
 
     const [group] = await db
       .select()
       .from(tradeBacktestGroups)
       .where(eq(tradeBacktestGroups.id, groupId))
-    expect(group.summary?.coinsSkipped).toBe(1)
-    expect(group.summary?.warnings.join(" ")).toContain("skipped")
+    expect(group.summary?.coinsSkipped).toBe(0)
+    expect(group.summary?.coinsTested).toBe(2)
+  })
+
+  it("walks the window only, though it holds the warm-up in the same list", async () => {
+    // A run on 4h reads 4h candles twice over: its own window, and the longer
+    // stretch the base rule needs to know a level on day one. Those are the
+    // same candles, so they are now loaded ONCE and the window is the tail of
+    // that same list — which halves what a big run holds, and was part of why
+    // the server ran out of memory.
+    //
+    // The risk in sharing them is walking the warm-up as well, which would
+    // trade eighty-three days before the test was meant to start and quietly
+    // add months of made-up results. So this pins where the walk begins and
+    // how long it is.
+    history.set("AAA", shape(START - 600 * FOUR_HOURS, 800))
+
+    const { groupId } = await createBacktest(
+      userId,
+      {
+        automationId: "flow-1",
+        automationName: "My strategy",
+        spec: specOf(["hyperliquid:mainnet:AAA"]),
+        now: START,
+      },
+      db
+    )
+    expect(await tickUntilDone(groupId)).not.toBeNull()
+
+    const [group] = await db
+      .select()
+      .from(tradeBacktestGroups)
+      .where(eq(tradeBacktestGroups.id, groupId))
+
+    const equity = group.result?.equity ?? []
+    const from = START - 30 * 24 * 3_600_000
+    expect(equity[0]?.t).toBeGreaterThanOrEqual(from)
+    // Thirty days of four-hour candles, and not a bar more.
+    expect(equity.length).toBeLessThanOrEqual((30 * 24) / 4)
+    expect(equity.length).toBeGreaterThan(100)
   })
 
   it("fetches each coin's history once, however many passes it takes", async () => {
@@ -414,7 +463,7 @@ describe("a run the worker picks up", () => {
     // The other half of the counting rule: a slice that finishes clears the
     // count, so a slice that THROWS must not — or a permanently broken run
     // retries for ever and never says anything.
-    const source = await import("@/server/trade/backtest/binance-history")
+    const source = await import("@/server/protocols/binance/candles")
     const broken = vi
       .spyOn(source, "fetchBinanceCandleRange")
       .mockRejectedValue(new Error("the exchange said no"))

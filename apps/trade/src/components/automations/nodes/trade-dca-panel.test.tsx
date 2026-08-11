@@ -1,0 +1,128 @@
+import { renderToStaticMarkup } from "react-dom/server"
+import { describe, expect, it } from "vitest"
+
+import TradeDcaFields from "@/components/automations/nodes/trade-dca-panel"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
+import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
+import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
+
+/**
+ * What the ladder panel actually puts on screen.
+ *
+ * Rendered rather than reasoned about. Both of the things checked here are
+ * numbers a person reads and then acts on — how much each buy spends, and
+ * whether the wait they typed is the wait that will run — and both were wrong
+ * or missing until recently. A panel that quietly shows the wrong figure is
+ * worse than one that fails to draw.
+ *
+ * This is the server render, which is what the app does first anyway. It proves
+ * the words and the figures; it says nothing about widths, which needs a real
+ * browser.
+ */
+
+function dcaNode(params: Record<string, unknown> = {}): AutomationNode {
+  const base = tradeDcaNode.createSettings() as {
+    params: Record<string, unknown>
+  }
+  return {
+    id: "dca-1",
+    kind: tradeDcaNode.kind,
+    x: 0,
+    y: 0,
+    settings: {
+      ...base,
+      params: { ...base.params, ...params },
+    } as AutomationNode["settings"],
+  }
+}
+
+function graphWith(startingUsd: number, node: AutomationNode): AutomationGraph {
+  return {
+    nodes: [
+      {
+        id: "wallet-1",
+        kind: tradeWalletNode.kind,
+        x: 0,
+        y: 0,
+        settings: {
+          ...tradeWalletNode.createSettings(),
+          startingUsd,
+        } as AutomationNode["settings"],
+      },
+      node,
+    ],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  }
+}
+
+function draw(node: AutomationNode, graph?: AutomationGraph): string {
+  // The provider the real page puts above every panel; the field hints are
+  // tooltips and refuse to render without it.
+  return renderToStaticMarkup(
+    <TooltipProvider>
+      <TradeDcaFields node={node} graph={graph} onChange={() => {}} />
+    </TooltipProvider>
+  )
+}
+
+describe("what each buy spends", () => {
+  it("shows the money, not a share of a share", () => {
+    // Nine rungs, 3% of a $10,000 pot, each buy twice the one above: the shares
+    // run from 0.01% to 3%, which nobody can read as money in their head.
+    const node = dcaNode({
+      rungs: Array.from({ length: 9 }, () => ({ deviation: 5 })),
+      maxPositionPct: 3,
+      sizeMultiplier: 2,
+    })
+    const html = draw(node, graphWith(10_000, node))
+
+    expect(html).toContain("Buy size")
+    // The deepest rung takes half the lot, the one above it a quarter, and so
+    // on — and they add up to the $300 the card says at the top.
+    expect(html).toContain("$150")
+    expect(html).toContain("$75.15")
+    expect(html).toContain("$0.59")
+    expect(html).toContain("$300")
+  })
+
+  it("takes the pot from the money step in the same flow", () => {
+    const node = dcaNode({
+      rungs: [{ deviation: 5 }],
+      maxPositionPct: 10,
+      sizeMultiplier: 1,
+    })
+    // One rung at 10% of $50,000 is the whole $5,000.
+    expect(draw(node, graphWith(50_000, node))).toContain("$5,000")
+  })
+})
+
+describe("what counts as a base", () => {
+  it("offers the two numbers that decide where the floor is", () => {
+    const html = draw(dcaNode())
+
+    expect(html).toContain("What counts as a base")
+    expect(html).toContain("Candles to search back")
+    expect(html).toContain("Candles it must hold")
+  })
+
+  it("says so when the wait is longer than the search", () => {
+    // The Base indicator's own rule, said in the same words in both places.
+    // Waiting 40 candles for a low found in the last 10 is a question with no
+    // answer, and the run quietly shortens it to 9.
+    const html = draw(
+      dcaNode({ baseDetection: { searchBars: 10, holdBars: 40 } })
+    )
+
+    expect(html).toContain("acting as 9 candles")
+  })
+
+  it("stays quiet when the wait fits", () => {
+    const html = draw(
+      dcaNode({ baseDetection: { searchBars: 36, holdBars: 8 } })
+    )
+
+    expect(html).not.toContain("acting as")
+  })
+})

@@ -22,7 +22,10 @@ import {
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { decryptSecret } from "@/server/auth/encryption"
-import { getProtocol } from "@/server/protocols/registry"
+import {
+  getProtocol,
+  ordersOf,
+} from "@/server/protocols/registry"
 import {
   tradeLiveJournal,
   tradeWalletNonces,
@@ -205,10 +208,10 @@ export async function placeLiveOrder(
     // Leverage is set only when this opens fresh; adding to a position
     // inherits what the position already runs at — the practice engine's
     // rule, kept identical for real money.
-    const portfolio = await protocol.orders.portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
     const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
 
-    const outcome = await protocol.orders.place(row.network, authFor(row), {
+    const outcome = await ordersOf(protocol).place(row.network, authFor(row), {
       marketId: ref.marketId,
       side: input.side,
       kind: input.restingOnly ? "postOnly" : marketable ? "market" : "limit",
@@ -255,12 +258,12 @@ export async function cancelLiveOrder(
     const ref = checkedMarket(row, input.marketKey)
     // Named for the journal: the order being cancelled, as the exchange
     // lists it right now. Gone already is its own honest refusal.
-    const portfolio = await protocol.orders.portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
     const order = portfolio.orders.find((one) => one.orderId === input.orderId)
     if (!order) throw new Error("LIVE_ORDER_GONE")
     side = order.side
 
-    await protocol.orders.cancel(row.network, authFor(row), {
+    await ordersOf(protocol).cancel(row.network, authFor(row), {
       marketId: ref.marketId,
       orderId: input.orderId,
     })
@@ -290,7 +293,7 @@ export async function rollbackLiveOrder(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    await protocol.orders.cancel(row.network, authFor(row), {
+    await ordersOf(protocol).cancel(row.network, authFor(row), {
       marketId: ref.marketId,
       orderId: input.orderId,
     })
@@ -314,12 +317,12 @@ export async function closeLivePosition(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    const portfolio = await protocol.orders.portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
     const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "sell" : "buy"
 
-    const closed = await protocol.orders.close(row.network, authFor(row), {
+    const closed = await ordersOf(protocol).close(row.network, authFor(row), {
       marketId: ref.marketId,
       szi: held.szi,
     })
@@ -353,7 +356,7 @@ export async function setLiveBrackets(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    const portfolio = await protocol.orders.portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
     const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "buy" : "sell"
@@ -371,7 +374,7 @@ export async function setLiveBrackets(
       if (!ahead) throw new Error("LIVE_STOP_SIDE")
     }
 
-    await protocol.orders.setBrackets(row.network, authFor(row), {
+    await ordersOf(protocol).setBrackets(row.network, authFor(row), {
       marketId: ref.marketId,
       position: held,
       tpPx: input.tpPx,
@@ -422,7 +425,7 @@ export async function loadLivePortfolio(
   await Promise.all(
     live.map(async (wallet) => {
       try {
-        const portfolio = await getProtocol(wallet.protocol).orders.portfolio(
+        const portfolio = await ordersOf(getProtocol(wallet.protocol)).portfolio(
           wallet.network,
           wallet.address ?? ""
         )

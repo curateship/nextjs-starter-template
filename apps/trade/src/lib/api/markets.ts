@@ -39,7 +39,11 @@ const loadMarketsFn = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<{ catalogs: MarketCatalog[] }> => {
     const catalogs = await Promise.all(
       listProtocols()
-        .filter((protocol) => protocol.capabilities.markets)
+        .filter(
+          (protocol) =>
+            protocol.capabilities.markets &&
+            protocol.networks.includes(data.network)
+        )
         .map((protocol) => protocol.markets.fetch(data.network))
     )
     return { catalogs }

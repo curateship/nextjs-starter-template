@@ -4,14 +4,15 @@ import type {
   NetworkId,
   ProtocolId,
 } from "@/lib/protocols/contracts"
+import type { DcaBaseDetection } from "@/lib/trade/dca"
 import {
   BASE_STOP_BAR_MS,
-  baseStopDetection,
   ladderExitLevels,
   type DcaParams,
 } from "@/lib/trade/dca"
 import { marketIsCascading } from "@/lib/trade/cascade"
-import { baseInForce } from "@/lib/trade/indicators/base"
+import { baseLevelsInForce } from "@/lib/trade/indicators/base"
+import { ascending, lastClosedIndex } from "@/lib/trade/candle-window"
 import {
   paperAccountFigures,
   positionMargin,
@@ -24,6 +25,7 @@ import { getProtocol } from "@/server/protocols/registry"
 import type { MarketRules } from "@/server/trade/market-rules"
 import { armLadder } from "@/server/trade/backtest/arm"
 import {
+  bumpOrders,
   fill,
   freeCash,
   MAX_OPEN_ORDERS,
@@ -34,6 +36,7 @@ import {
   advanceOne,
   ladderBarsKey,
   type LadderBars,
+  type LadderFeed,
   type LadderEngineDeps,
   type LadderRow,
 } from "@/server/trade/smart-ladders"
@@ -114,6 +117,8 @@ export type BacktestCoinTrades = {
   lastPx: number | null
   /** The first price this coin had inside the window. */
   firstPx: number | null
+  /** When that first bar was — null when the coin had none. */
+  firstAt: number | null
 }
 
 export type BacktestRunOutcome = {
@@ -151,7 +156,8 @@ export async function runBacktest(
 ): Promise<BacktestRunOutcome> {
   const protocol = getProtocol(input.protocol)
   const barMs = protocol.markets.intervalMs(input.interval)
-  const detection = baseStopDetection()
+  // The flow's own two numbers, not the indicator's factory pair.
+  const detection = input.params.baseDetection
 
   const book: WalletBook = {
     wallet: backtestWallet(input),
@@ -162,6 +168,7 @@ export async function runBacktest(
     fills: [],
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    ordersVersion: 0,
     addedOrders: [],
   }
 
@@ -178,7 +185,6 @@ export async function runBacktest(
   const coins = [...input.coins].sort((left, right) =>
     left.marketKey.localeCompare(right.marketKey)
   )
-  const byKey = new Map(coins.map((coin) => [coin.marketKey, coin]))
 
   // Order ids are counted rather than rolled: nothing inside a run may read a
   // random number, or two identical runs stop being identical.
@@ -191,7 +197,13 @@ export async function runBacktest(
   const deps: LadderEngineDeps = {
     fill,
     dropOrder: (heldBook, orderId) => {
-      heldBook.orders = heldBook.orders.filter((order) => order.id !== orderId)
+      // Taken out where it sits, rather than by rebuilding the list around it.
+      // A big run keeps a thousand orders on the book and drops them by the
+      // hundred every bar, so the rebuilt copy was a thousand-entry array
+      // thrown away thousands of times a second — a tenth of the whole run.
+      const at = heldBook.orders.findIndex((order) => order.id === orderId)
+      if (at >= 0) heldBook.orders.splice(at, 1)
+      bumpOrders(heldBook)
       heldBook.goneOrderIds.add(orderId)
     },
     freeCash,
@@ -215,6 +227,7 @@ export async function runBacktest(
         createdAt: order.now,
         updatedAt: order.now,
       })
+      bumpOrders(book)
       return id
     },
     saveLadder: async (row, status) => {
@@ -242,8 +255,28 @@ export async function runBacktest(
   /** The last close each coin has had so far — the price "right now" is not used. */
   const marks = new Map<string, number>()
   const firstPx = new Map<string, number>()
+  // When each coin's history actually starts. A coin listed part way through
+  // the window is tested from the day it existed, and the report says so.
+  const firstAt = new Map<string, number>()
   const fillsByMarket = new Map<string, BacktestEngineFill[]>(
     coins.map((coin) => [coin.marketKey, []])
+  )
+
+  // What each coin's ladder reads, built once. Nothing in here changes as the
+  // walk goes on — the bars are the whole history from the first bar to the
+  // last, and every reader picks its own place in them by the time it is asked
+  // about. Sorted once here rather than on every look, for the same reason.
+  const feeds = new Map<string, Array<[string, LadderFeed]>>(
+    coins.map((coin) => [
+      coin.marketKey,
+      [
+        [
+          ladderBarsKey("base", coin.marketKey),
+          { bars: ascending(coin.baseBars), barMs: BASE_STOP_BAR_MS },
+        ],
+        [ladderBarsKey("green", coin.marketKey), { bars: ascending(coin.bars), barMs }],
+      ],
+    ])
   )
 
   const equity: Array<{ t: number; usd: number }> = []
@@ -255,8 +288,11 @@ export async function runBacktest(
   // for it, which skips the whole check rather than running it and ignoring
   // the answer.
   const cascadeRule = input.params.cascade ?? null
+  // Oldest-first, like every other reader of these bars: the crash check finds
+  // its window by binary search and quietly reads the wrong stretch of history
+  // if the bars are not in order.
   const cascadeBars: ReadonlyMap<string, readonly CandleBar[]> = new Map(
-    coins.map((coin) => [coin.marketKey, coin.bars])
+    coins.map((coin) => [coin.marketKey, ascending(coin.bars)])
   )
 
   for (const [index, time] of times.entries()) {
@@ -303,7 +339,10 @@ export async function runBacktest(
     for (const coin of coins) {
       const bar = barAt.get(coin.marketKey)?.get(time)
       if (!bar) continue
-      if (!firstPx.has(coin.marketKey)) firstPx.set(coin.marketKey, bar.open)
+      if (!firstPx.has(coin.marketKey)) {
+        firstPx.set(coin.marketKey, bar.open)
+        firstAt.set(coin.marketKey, bar.openTime)
+      }
       marks.set(coin.marketKey, bar.close)
 
       // No price "right now": a replay only knows what the bar said, and
@@ -317,20 +356,15 @@ export async function runBacktest(
     }
 
     // ----- What the ladders make of it -----------------------------------
+    // The feeds themselves are made ONCE, up at `feeds`, and handed over as
+    // they are. They used to be copied here — every coin's whole history, twice
+    // over, on every bar. A run of 250 coins over ten years copied about ninety
+    // megabytes of pointers per bar and did it twenty-two thousand times, which
+    // is most of why the server fell over rather than finishing.
     const ladderBars: LadderBars = new Map(
       [...ladders.keys()].flatMap((marketKey) => {
-        const coin = byKey.get(marketKey)
-        if (!coin) return []
-        return [
-          [
-            ladderBarsKey("base", marketKey),
-            { bars: [...coin.baseBars], barMs: BASE_STOP_BAR_MS },
-          ],
-          [
-            ladderBarsKey("green", marketKey),
-            { bars: [...coin.bars], barMs },
-          ],
-        ] as Array<[string, { bars: CandleBar[]; barMs: number }]>
+        const feed = feeds.get(marketKey)
+        return feed ? feed : []
       })
     )
 
@@ -411,6 +445,7 @@ export async function runBacktest(
           createdAt: closeTime,
           updatedAt: closeTime,
         })
+        bumpOrders(book)
       }
 
       ladders.set(coin.marketKey, {
@@ -489,6 +524,7 @@ export async function runBacktest(
       openAtEnd: book.positions.get(coin.marketKey) ?? null,
       lastPx: marks.get(coin.marketKey) ?? null,
       firstPx: firstPx.get(coin.marketKey) ?? null,
+      firstAt: firstAt.get(coin.marketKey) ?? null,
     })),
     equity,
     inPlay,
@@ -509,11 +545,17 @@ export async function runBacktest(
 function baseAt(
   coin: BacktestCoin,
   now: number,
-  detection: { searchBars: number; holdBars: number }
+  detection: DcaBaseDetection
 ): number | null {
-  const closed = coin.baseBars.filter(
-    (bar) => bar.openTime + BASE_STOP_BAR_MS <= now
-  )
-  if (closed.length === 0) return null
-  return baseInForce(closed, detection)
+  // Which bars had closed, then the level already worked out for that one.
+  //
+  // This used to copy out the closed bars and run the whole indicator over
+  // them, on every bar, for every coin without a ladder — which is most coins
+  // for most of a run. A hundred coins over six thousand bars spent three
+  // minutes here and never placed a single trade; two hundred and fifty coins
+  // over ten years never finished at all, and took the server's memory with it.
+  const bars = ascending(coin.baseBars)
+  const cut = lastClosedIndex(bars, BASE_STOP_BAR_MS, now)
+  if (cut < 0) return null
+  return baseLevelsInForce(bars, detection)[cut] ?? null
 }

@@ -22,7 +22,12 @@ const cancel = vi.fn()
 const close = vi.fn()
 const setBrackets = vi.fn()
 const portfolio = vi.fn()
-vi.mock("@/server/protocols/registry", () => ({
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getProtocol: () => ({
     markets: { prices },
     orders: { place, cancel, close, setBrackets, portfolio },

@@ -141,7 +141,7 @@ type Levels = {
  * low (or high) back then and nothing has beaten it in the candles since.
  */
 function levelsOf(
-  candles: IndicatorCandle[],
+  candles: readonly IndicatorCandle[],
   searchBars: number,
   holdBars: number,
   side: IndicatorSide
@@ -210,18 +210,132 @@ function levelsOf(
  * invented from too little history is worse than no level at all.
  */
 export function baseInForce(
-  candles: IndicatorCandle[],
+  candles: readonly IndicatorCandle[],
   params: IndicatorParams
 ): number | null {
+  return baseLevelsInForce(candles, params).at(-1) ?? null
+}
+
+/**
+ * The base in force at EVERY candle, worked out in one pass and remembered.
+ *
+ * The same answer as asking `baseInForce` about each prefix of the history in
+ * turn, because the rule only ever looks backwards: the level at candle 40 is
+ * decided by candles 0 to 40 and cannot be changed by candle 41. So one pass
+ * answers the question for every moment at once.
+ *
+ * That is what a replay needs. It asks "what was the base here?" once per
+ * candle per coin, and asking by handing over the history each time turned a
+ * ten-year run of 250 coins into billions of comparisons — the run that was
+ * taking the server down. Now it is a lookup.
+ *
+ * Remembered against the array itself, so it is worked out once per run of
+ * candles rather than once per question. A live pass builds a fresh array each
+ * time it looks and so never hits this, which is correct: its candles really
+ * are new.
+ *
+ * All FOUR settings are read, not just the two that find a low. Which levels
+ * count is as much a part of what a base is as where they are.
+ */
+const inForce = new WeakMap<object, Map<string, ReadonlyArray<number | null>>>()
+
+export function baseLevelsInForce(
+  candles: readonly IndicatorCandle[],
+  params: IndicatorParams
+): ReadonlyArray<number | null> {
   const settings = baseSettings(params)
-  const { level } = levelsOf(
+  const stamp = `${settings.searchBars}:${settings.holdBars}:${settings.withTrendOnly}:${settings.minBarsApart}`
+  const known = inForce.get(candles) ?? new Map()
+  inForce.set(candles, known)
+  const seen = known.get(stamp)
+  if (seen) return seen
+
+  const found = levelsOf(
     candles,
     settings.searchBars,
     settings.holdBars,
     "up"
   )
-  const last = level.at(-1)
-  return last !== undefined && !Number.isNaN(last) ? last : null
+
+  // **The same test `marksOf` uses, because it has to be the same base.**
+  //
+  // A level confirming is not the same as a level counting. Two settings
+  // decide whether it counts — it must be higher than the one before, and it
+  // must not crowd the last one — and both were applied to the arrows on the
+  // chart and to nothing else. So a ladder anchored to every confirmation
+  // while the chart drew a third as many, and the two disagreed about where
+  // the floor was on the same coin with the same settings.
+  const answer: Array<number | null> = new Array(candles.length).fill(null)
+  let current: number | null = null
+  let previous = Number.NaN
+  let countedAt = -Infinity
+  for (let i = 0; i < candles.length; i += 1) {
+    if (found.confirmed[i]) {
+      const level = found.level[i]
+      // Against the level immediately before, counted or not — that is what
+      // makes it the textbook higher low, and it is `marksOf`'s rule too.
+      const withTrend = !Number.isFinite(previous) || level > previous
+      previous = level
+      if (
+        (!settings.withTrendOnly || withTrend) &&
+        i - countedAt >= settings.minBarsApart
+      ) {
+        current = level
+        countedAt = i
+      }
+    }
+    answer[i] = current
+  }
+  known.set(stamp, answer)
+  return answer
+}
+
+/**
+ * A dash at each base that COUNTED, shaped exactly like the indicator's own.
+ *
+ * The backtest chart's bases. It cannot use `dashesOf` because that marks every
+ * level that ever confirmed — right on a chart you are browsing, wrong on one
+ * you are checking a run against, where a level the run never used explains a
+ * trade that never happened. So the levels come from the same filter the arrows
+ * use, and the shape comes from here.
+ *
+ * **Short, and over the candles that made the level.** Not a line from one base
+ * to the next: that was tried, and a base stays in force long after price has
+ * left it, so the chart ended up with rules drawn straight across it, miles from
+ * any candle. The indicator says why in its own comment — a dash reads as a mark
+ * on a spot, a line reads as something price is doing now.
+ */
+export function baseDashes(
+  candles: readonly IndicatorCandle[],
+  params: IndicatorParams
+): IndicatorDash[] {
+  const settings = baseSettings(params)
+  const hold = cappedHold(settings.searchBars, settings.holdBars)
+  // The same span the indicator's own dashes use, so the two chart the same
+  // level the same way.
+  const halfSpan = Math.max(2, Math.round(hold))
+
+  const levels = baseLevelsInForce(candles, params)
+  const dashes: IndicatorDash[] = []
+  let previous: number | null = null
+  for (const [index, level] of levels.entries()) {
+    if (level === null || level === previous) {
+      previous = level
+      continue
+    }
+    previous = level
+    // The level was MADE `hold` candles before it was confirmed, and that is
+    // where the mark belongs — on the low itself, not on the candle that
+    // finished the wait.
+    const at = index - hold
+    dashes.push({
+      fromTime: candles[Math.max(0, at - halfSpan)].openTime,
+      toTime: candles[Math.min(candles.length - 1, at + halfSpan)].openTime,
+      price: level,
+      side: "up",
+    })
+  }
+  return dashes
 }
 
 /** Each run of candles carrying the same dash value, as one mark to draw. */

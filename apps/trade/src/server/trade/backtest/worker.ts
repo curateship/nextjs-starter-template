@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
+import { firstOpenAtOrAfter } from "@/lib/trade/candle-window"
 import {
   coinWorstDip,
   middleOf,
@@ -22,7 +23,6 @@ import {
   dcaParamsSchema,
 } from "@/lib/trade/dca"
 import { db } from "@/server/db"
-import { getProtocol } from "@/server/protocols/registry"
 import {
   ensureCandleCoverage,
   listCandleGaps,
@@ -32,7 +32,7 @@ import { marketRules } from "@/server/trade/market-rules"
 import {
   binanceSymbolFor,
   isNotListedOnBinance,
-} from "@/server/trade/backtest/binance-history"
+} from "@/server/protocols/binance/candles"
 import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
 import {
   backtestCosts,
@@ -216,7 +216,6 @@ async function loadOneCoin(
 
   await note(userId, groupId, marketKey, 0.1, "Loading candles")
 
-  const intervalMs = getProtocol(ref.protocol).markets.intervalMs(spec.interval)
   let window
   try {
     window = await ensureCandleCoverage(
@@ -242,7 +241,6 @@ async function loadOneCoin(
     return
   }
 
-  const expected = Math.max(1, Math.floor((spec.to - spec.from) / intervalMs))
   if (window.barCount === 0) {
     await skipCoin(
       userId,
@@ -252,21 +250,21 @@ async function loadOneCoin(
     )
     return
   }
-  // Half the window is the line between "a coin with a few gaps" and "a coin
-  // that did not exist for most of this test". Below it the answer would be
-  // about a shorter period wearing this window's name.
-  if (window.barCount < expected / 2) {
-    const from = window.firstBar
-      ? new Date(window.firstBar).toISOString().slice(0, 10)
-      : "later"
-    await skipCoin(
-      userId,
-      groupId,
-      marketKey,
-      `There are only prices for this coin from ${from}, which is less than half this test's window.`
-    )
-    return
-  }
+  // A coin younger than the window is TESTED FROM THE DAY IT EXISTED, not
+  // thrown away.
+  //
+  // This used to refuse anything with less than half the window, which turned
+  // a ten-year test of 250 Binance coins into a test of 79: the other 171 had
+  // simply not been listed yet. The window is a MAXIMUM — "go back as far as
+  // this" — and the app this is a port of reads it that way, testing each
+  // market over whatever history that market has.
+  //
+  // The engine needs nothing for this. It walks the union of every coin's bar
+  // times and skips a coin on a bar it does not have, so a coin that lists
+  // half way through simply does nothing until it exists. What it does mean is
+  // that a late coin joins a pot the earlier ones have already been trading —
+  // which is true of real money too, and is why the window it actually got is
+  // recorded below rather than left to be guessed at.
 
   await db
     .update(tradeBacktests)
@@ -327,17 +325,32 @@ async function walkAndSave(
       })
       continue
     }
+    // The base rule always reads 4h, so a run that IS on 4h wants the same
+    // candles twice — once from the start of the window and once from before
+    // it. Loaded once and shared: the window's bars are the same objects, from
+    // where the warm-up ends. It is the difference between holding one copy of
+    // ten years of history per coin and holding two, which on a big run is
+    // hundreds of megabytes and was part of why the server ran out of memory.
+    const baseBars = await loadStoredCandles(
+      coin.marketKey,
+      BASE_STOP_INTERVAL,
+      spec.from - BASE_STOP_BARS * BASE_STOP_BAR_MS,
+      spec.to
+    )
     coins.push({
       marketKey: coin.marketKey,
       symbol: coin.symbol,
       rules,
-      bars: await loadStoredCandles(coin.marketKey, spec.interval, spec.from, spec.to),
-      baseBars: await loadStoredCandles(
-        coin.marketKey,
-        BASE_STOP_INTERVAL,
-        spec.from - BASE_STOP_BARS * BASE_STOP_BAR_MS,
-        spec.to
-      ),
+      bars:
+        spec.interval === BASE_STOP_INTERVAL
+          ? baseBars.slice(firstOpenAtOrAfter(baseBars, spec.from))
+          : await loadStoredCandles(
+              coin.marketKey,
+              spec.interval,
+              spec.from,
+              spec.to
+            ),
+      baseBars,
     })
   }
 
@@ -500,11 +513,22 @@ async function finish(
     const openAtEndUsd = walked.openAtEnd
       ? Math.abs(walked.openAtEnd.szi) * (walked.lastPx ?? walked.openAtEnd.entryPx)
       : 0
-    // Just buying this coin at the start and holding to the end, for the same
-    // money one ladder was allowed to put to work.
-    const stake =
-      (spec.startingUsd * (dcaParamsSchema.parse(spec.params).maxPositionPct)) /
-      100
+    // Just buying this coin at the start and holding to the end.
+    //
+    // **The same pot, split evenly — not a full stake each.** This used to be
+    // the share ONE ladder may spend on ONE coin, and every coin's figure was
+    // then added up for the run's total. Five per cent of ten thousand is five
+    // hundred, so a hundred and fifty coins came to seventy-five thousand
+    // pounds spent out of a ten thousand pound pot, and the comparison could
+    // report a loss several times larger than the money that existed.
+    //
+    // Splitting the pot is what "just buy and hold instead" actually means:
+    // the same money, the same coins, no ladder. It also makes the two halves
+    // comparable, which is the only reason the column is here.
+    // The coins the engine actually walked — a skipped coin never had money
+    // put into it, so it must not take a share of the pot away from one that
+    // did.
+    const stake = spec.startingUsd / Math.max(1, perCoin.size)
     const buyAndHold =
       walked.firstPx && walked.lastPx && walked.firstPx > 0
         ? stake * (walked.lastPx / walked.firstPx - 1)
@@ -518,6 +542,12 @@ async function finish(
       won: closed.filter((trade) => trade.pnl > 0).length,
       closed: closed.length,
       worstDipUsd: coinWorstDip(trades),
+      // Only when it is later than the window's own start. A coin that covered
+      // the whole test has nothing to say here.
+      startedAt:
+        walked.firstAt !== null && walked.firstAt > spec.from
+          ? walked.firstAt
+          : null,
       openAtEndUsd,
       buyAndHold,
       stats: sideStatsFromTrades(

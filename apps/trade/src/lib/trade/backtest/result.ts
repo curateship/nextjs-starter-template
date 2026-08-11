@@ -452,6 +452,17 @@ export const backtestCoinSummarySchema = z.object({
   closed: z.number(),
   /** The worst this coin's banked money fell from its own high, in dollars. */
   worstDipUsd: z.number(),
+  /**
+   * The first price this coin had inside the window, or null when it covered
+   * the whole of it.
+   *
+   * Set only for a coin that listed AFTER the window began. The window is a
+   * maximum, so a young coin is tested from the day it existed rather than
+   * thrown away — and then "made $40" means something different for a coin
+   * that had eight months than for one that had ten years. Saying which is
+   * the difference between a fair comparison and a misleading one.
+   */
+  startedAt: z.number().nullable().default(null),
   /** What this coin was still holding when the test ended, in dollars. */
   openAtEndUsd: z.number(),
   /** Just buying at the start and holding to the end, in dollars. */

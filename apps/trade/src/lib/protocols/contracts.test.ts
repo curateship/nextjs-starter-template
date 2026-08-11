@@ -31,8 +31,13 @@ describe("market keys", () => {
       "BTC",
       "hyperliquid:BTC",
       "hyperliquid:mainnet:",
-      "binance:mainnet:BTC",
+      // An exchange this build does not ship. It used to be "binance", which
+      // stopped being a good example the day Binance was registered — the
+      // point of the case is a name that is not in the union, not that
+      // particular name.
+      "coinbase:mainnet:BTC",
       "hyperliquid:moonnet:BTC",
+      "binance:moonnet:BTC",
       ":mainnet:BTC",
     ]) {
       expect(parseMarketKey(bad), bad).toBeNull()

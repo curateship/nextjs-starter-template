@@ -126,8 +126,22 @@ export async function createBacktest(
   },
   database: CustomShellDb = db
 ): Promise<{ groupId: string; coins: number }> {
-  const first = parseMarketKey(input.spec.markets.marketKeys[0])
-  if (!first) throw new Error("BACKTEST_MARKET")
+  const keys = [...new Set(input.spec.markets.marketKeys)].sort()
+  const refs = keys.map(parseMarketKey)
+  const first = refs[0]
+  if (
+    !first ||
+    refs.some(
+      (ref) =>
+        !ref ||
+        ref.protocol !== first.protocol ||
+        ref.network !== first.network ||
+        ref.protocol !== input.spec.markets.protocol ||
+        ref.network !== "mainnet"
+    )
+  ) {
+    throw new Error("BACKTEST_MARKET")
+  }
 
   const intervalMs = getProtocol(first.protocol).markets.intervalMs(
     input.spec.dca.interval
@@ -150,7 +164,6 @@ export async function createBacktest(
 
   // Alphabetical here as well as inside the engine, so the list on screen is
   // the order the run works in.
-  const keys = [...new Set(input.spec.markets.marketKeys)].sort()
   await database.insert(tradeBacktests).values(
     keys.map((marketKey) => ({
       userId,

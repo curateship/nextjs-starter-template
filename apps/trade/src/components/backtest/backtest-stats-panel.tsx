@@ -1,5 +1,5 @@
 import { FlaskConicalIcon } from "lucide-react"
-import { Area, AreaChart, ReferenceLine, YAxis } from "recharts"
+import { Area, AreaChart, ReferenceLine, XAxis, YAxis } from "recharts"
 
 import {
   BacktestKpi,
@@ -190,6 +190,13 @@ export function BacktestStatsPanel({
                         }))}
                         margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
                       >
+                        {/* Hidden, and only here so the tooltip has a date to
+                            show. Without an axis naming the category, the
+                            chart hands the tooltip a row NUMBER, which falls
+                            back to the series name — so pointing at the line
+                            read "The pot / The pot 11,676" and the one thing
+                            it could not tell you was when. */}
+                        <XAxis dataKey="label" hide />
                         <YAxis
                           axisLine={false}
                           tickLine={false}
@@ -205,7 +212,45 @@ export function BacktestStatsPanel({
                           strokeDasharray="4 4"
                           className="text-muted-foreground"
                         />
-                        <ChartTooltip content={<ChartTooltipContent />} />
+                        {/* Just the money, in the colour of what it means.
+                            The row used to read "The pot  11,676" — the
+                            series name repeated from the heading directly
+                            above it, and a swatch for a chart with one line.
+                            Neither said anything. What it is worth, and
+                            whether that is above or below what you started
+                            with, is the whole question. */}
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              // Fixed, and narrow. The shared tooltip reserves
+                              // 8rem for charts with several series and a
+                              // swatch each; this one has a date and one
+                              // number, so that floor left half the box empty.
+                              // A fixed width also stops it resizing as the
+                              // number under the pointer changes length.
+                              // Overridden here rather than in `ui/chart.tsx`,
+                              // which belongs to the shell — editing that would
+                              // fork a file every app shares.
+                              className="w-28 gap-0.5"
+                              hideIndicator
+                              formatter={(value) => {
+                                const usd = Number(value)
+                                const up = usd >= spec.startingUsd
+                                return (
+                                  <span
+                                    className={
+                                      up
+                                        ? "font-medium text-teal-600 dark:text-teal-400"
+                                        : "font-medium text-red-600 dark:text-red-400"
+                                    }
+                                  >
+                                    {formatUsd(usd)}
+                                  </span>
+                                )
+                              }}
+                            />
+                          }
+                        />
                         <Area
                           dataKey="usd"
                           type="natural"

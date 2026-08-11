@@ -203,6 +203,48 @@ export type WalletBook = {
    * for, so this is the one list that has to be saved after the fact.
    */
   addedOrders: PaperOrder[]
+  /**
+   * Bumped every time `orders` gains or loses one, so the answer to "is this
+   * order still on the book?" can be worked out once and kept.
+   *
+   * **Anything that changes `orders` must change this too.** It is a counter
+   * rather than a flag so nothing has to remember to clear it, and the six
+   * places that touch the list all sit beside a `bumpOrders` call. `liveOrderIds`
+   * is the only reader; `ordersMatchVersion` is the test that keeps them honest.
+   */
+  ordersVersion: number
+}
+
+/** One order on or off the book. Every such change goes through here. */
+export function bumpOrders(book: WalletBook): void {
+  book.ordersVersion += 1
+}
+
+/**
+ * Every order id on the book right now — worked out once per change, not once
+ * per question.
+ *
+ * A ladder asks this to tell an order that FILLED from one that is still
+ * waiting, and it is the single hottest question in the app. Each ladder asked
+ * it four times, and each ask walked the whole book: on a replay of 500 coins
+ * that is 500 ladders reading 5,500 orders, four times over, on every one of
+ * 4,380 bars — about fifty billion reads, and the reason a big run took twenty
+ * minutes rather than two.
+ *
+ * The list only changes when an order is placed or comes off, so the answer is
+ * kept until that happens. On a quiet bar it is worked out no times at all.
+ */
+const liveIds = new WeakMap<
+  WalletBook,
+  { version: number; ids: ReadonlySet<string> }
+>()
+
+export function liveOrderIds(book: WalletBook): ReadonlySet<string> {
+  const known = liveIds.get(book)
+  if (known && known.version === book.ordersVersion) return known.ids
+  const ids = new Set(book.orders.map((order) => order.id))
+  liveIds.set(book, { version: book.ordersVersion, ids })
+  return ids
 }
 
 /** The id an order's own exit carries, so the ladder can find it again. */
@@ -295,6 +337,7 @@ export function fill(
 
 function dropOrder(book: WalletBook, orderId: string): void {
   book.orders = book.orders.filter((order) => order.id !== orderId)
+  bumpOrders(book)
   book.goneOrderIds.add(orderId)
 }
 
@@ -375,6 +418,7 @@ function fillOrder(
         updatedAt: order.updatedAt,
       }
       book.orders.push(exit)
+      bumpOrders(book)
       book.addedOrders.push(exit)
     }
   }
@@ -625,6 +669,7 @@ async function readBook(
     fills: [],
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    ordersVersion: 0,
     addedOrders: [],
   }
 }

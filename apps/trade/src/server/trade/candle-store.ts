@@ -8,7 +8,7 @@ import {
 } from "@/lib/protocols/contracts"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
-import { fetchBinanceCandleRange } from "@/server/trade/backtest/binance-history"
+import { fetchBinanceCandleRange } from "@/server/protocols/binance/candles"
 import {
   tradeCandleCoverage,
   tradeCandleGaps,

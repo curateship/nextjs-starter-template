@@ -7,6 +7,7 @@ import {
   formatPrice,
   formatSignedUsd,
   formatUsd,
+  formatUsdRounded,
 } from "@/lib/trade/format"
 
 describe("trade figures", () => {
@@ -43,5 +44,23 @@ describe("trade figures", () => {
     expect(formatSignedUsd(412.65)).toBe("+$412.65")
     expect(formatSignedUsd(-18.9)).toBe("-$18.90")
     expect(formatSignedUsd(0)).toBe("$0.00")
+  })
+})
+
+describe("money in a column of amounts", () => {
+  it("drops the cents once they stop mattering", () => {
+    // The ladder panel's Buy size column. Nine buys on a ramp of 2 run from
+    // pennies to hundreds, and "$1,250.00" beside "$0.62" is four digits of
+    // noise on the one that needs none.
+    expect(formatUsdRounded(1_250)).toBe("$1,250")
+    expect(formatUsdRounded(100)).toBe("$100")
+    expect(formatUsdRounded(99.9)).toBe("$99.90")
+    expect(formatUsdRounded(0.62)).toBe("$0.62")
+    expect(formatUsdRounded(0)).toBe("$0.00")
+  })
+
+  it("treats a negative the same way round", () => {
+    expect(formatUsdRounded(-1_250)).toBe("-$1,250")
+    expect(formatUsdRounded(-0.62)).toBe("-$0.62")
   })
 })

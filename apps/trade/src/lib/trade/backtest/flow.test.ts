@@ -111,6 +111,25 @@ describe("a flow that is not one yet", () => {
     )
     expect(read.problem).toContain("at least one coin")
   })
+
+  it("refuses coins from a different exchange than the step", () => {
+    const read = backtestSpecFromFlow(
+      flowOf({
+        a: wallet,
+        b: {
+          kind: tradeMarketsNode.kind,
+          settings: {
+            ...tradeMarketsNode.createSettings(),
+            marketKeys: ["binance:mainnet:BTC"],
+          },
+        },
+        c: ladder,
+      })
+    )
+
+    expect(read.spec).toBeNull()
+    expect(read.problem).toContain("exchange shown")
+  })
 })
 
 describe("how many coins one run may take on", () => {
@@ -190,10 +209,17 @@ describe("how many coins one run may take on", () => {
     expect(coinsAllowedFor("4h", 730)).toBe(MAX_BACKTEST_MARKETS)
   })
 
-  it("still says how much reading a choice comes to", () => {
-    // Kept because the panel shows it. Two years of 4h bars is about 4,380
-    // candles a coin; the same window of 5-minute bars is seventy times that.
-    expect(candlesPerCoin("4h", 730)).toBe(4_380)
+  it("counts the 4h candles every run reads, whatever it is walking", () => {
+    // Kept because the panel shows it, and because the budget is worked out
+    // from it. Two years of 4h bars is 4,380 candles a coin, plus the 500 from
+    // before the window that the base rule needs to know a level on day one.
+    expect(candlesPerCoin("4h", 730)).toBe(4_380 + 500)
+
+    // A run on any OTHER timeframe reads its own candles AND the 4h ones, and
+    // the sum has to say so. It used to count only the first, so a run on 1h
+    // asked for a quarter more memory than it had been granted — which is a
+    // run that passes the check and then runs the server out of memory.
+    expect(candlesPerCoin("1h", 730)).toBe(17_520 + 4_380 + 500)
     expect(candlesPerCoin("5m", 730)).toBeGreaterThan(200_000)
   })
 })
@@ -218,4 +244,3 @@ describe("a ladder saved with the old click setting", () => {
     expect(read.spec?.dca.params.anchor).toBe("base")
   })
 })
-

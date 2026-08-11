@@ -45,6 +45,9 @@ export function startLiveMarketData(
 ): () => void {
   const stops = catalogs.flatMap((catalog) => {
     const adapter = getLiveAdapter(catalog.protocol)
+    // An exchange the app only reads markets from has nothing to stream, so it
+    // contributes no subscriptions. Its rows still draw — they just do not tick.
+    if (!adapter) return []
     return [
       adapter.watchFigures(catalog.network, (updates) => {
         for (const [marketId, next] of updates) {
@@ -197,7 +200,11 @@ export function useLiveCandle(
     if (!key) return
     const ref = parseMarketKey(key)
     if (!ref) return
-    return getLiveAdapter(ref.protocol).watchCandle(
+    // No stream for this exchange: the chart keeps the bars it fetched and
+    // simply does not tick. See the same choice where figures are watched.
+    const adapter = getLiveAdapter(ref.protocol)
+    if (!adapter) return
+    return adapter.watchCandle(
       ref.network,
       ref.marketId,
       interval,
