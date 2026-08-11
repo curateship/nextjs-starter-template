@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ACCOUNT_RESTORE_DAYS } from "@/lib/account-deletion"
 import { describeSubscriptionEvent } from "@/lib/billing/subscription-events"
 import {
+  closeAccounts,
   markAccountsForDeletion,
   purgeExpiredDeletions,
   restoreOwnAccount,
@@ -69,6 +70,7 @@ import {
   customShellPlans,
   customShellSessions,
   customShellSubscriptions,
+  customShellSystemEmailSends,
   customShellUsers,
   type CustomShellPlan,
 } from "@/server/schema"
@@ -1745,6 +1747,50 @@ describe("admin account management", () => {
     expect(remaining.map((row) => row.id)).toEqual([actor.id])
   })
 
+  it("emails a free account when an admin closes it", async () => {
+    const actor = await createUser({ role: "admin" })
+    const member = await createUser({ email: "closed-free@example.test" })
+
+    await deleteUserAccounts(actor.id, [member.id], database)
+
+    const sends = await database
+      .select()
+      .from(customShellSystemEmailSends)
+      .where(eq(customShellSystemEmailSends.toEmail, member.email))
+    expect(sends).toHaveLength(1)
+    expect(sends[0]).toMatchObject({
+      kind: "account-closed",
+      toEmail: "closed-free@example.test",
+      subject: "Your account has been closed",
+    })
+  })
+
+  it("emails an account that closes itself and leaves it self-restorable", async () => {
+    const member = await createUser({ email: "self-closed@example.test" })
+
+    await closeAccounts(member.id, [member.id], database)
+
+    const [closed] = await database
+      .select()
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, member.id))
+    expect(closed).toMatchObject({
+      status: "pending_deletion",
+      deletedBy: member.id,
+    })
+
+    const sends = await database
+      .select()
+      .from(customShellSystemEmailSends)
+      .where(eq(customShellSystemEmailSends.toEmail, member.email))
+    expect(sends).toHaveLength(1)
+    expect(sends[0].kind).toBe("account-closed")
+
+    await expect(restoreOwnAccount(closed, database)).resolves.toMatchObject({
+      status: "active",
+    })
+  })
+
   it("cancels a paying account's plan before it deletes anything", async () => {
     const actor = await createUser({ role: "admin" })
     const member = await createUser()
@@ -1764,6 +1810,13 @@ describe("admin account management", () => {
 
     const { entitlements } = await loadEntitlements(member.id, database)
     expect(entitlements.isPaid).toBe(false)
+
+    const sends = await database
+      .select()
+      .from(customShellSystemEmailSends)
+      .where(eq(customShellSystemEmailSends.toEmail, member.email))
+    expect(sends).toHaveLength(1)
+    expect(sends[0].kind).toBe("account-closed")
   })
 
   it("deletes nothing when Stripe will not cancel the plan", async () => {
