@@ -17,7 +17,6 @@ import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
 import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
-import { LoadingRow } from "@/components/ui/loading-row"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { BacktestSpecSnapshot } from "@/lib/trade/backtest/result"
 import type {
@@ -218,11 +217,17 @@ export function BacktestChartPanel({
               : "Pick a coin above, or click a row in the Coins tab below."}
           </p>
         ) : loading ? (
-          <div className="p-4 sm:p-5">
-            <LoadingRow label="Loading the candles…" />
-          </div>
+          <div
+            role="status"
+            aria-label="Loading candles"
+            className="h-full min-h-0 w-full flex-1 bg-muted/30 motion-safe:animate-pulse motion-reduce:bg-muted/20"
+          />
         ) : (
-          <div className="relative min-h-0 flex-1">
+          <div
+            key={`${openCoin}:${interval}`}
+            data-slot="chart-ready"
+            className="relative min-h-0 flex-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
+          >
             <PriceChart
               candles={[...bars]}
               options={DEFAULT_CHART_OPTIONS}

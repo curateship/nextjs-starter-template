@@ -34,7 +34,10 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Loading, no-history and failed-fetch
-  states each say so inside the panel; the rest of the page stands.
+  states stay inside the panel; the rest of the page stands. While candles are
+  loading, the whole empty chart surface gently fades in and out instead of
+  showing an icon, spinner or loading screen. The completed chart fades in
+  when ready. Reduced-motion settings keep both transitions still.
   **However you set the chart up is how every chart opens.** Remembered against
   the account and carried onto the next market, the next timeframe, the next
   visit and the other machine — four numbers, two for each direction: how many
