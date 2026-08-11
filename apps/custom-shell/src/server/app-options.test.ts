@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   appAutomationExecutors,
   appBackgroundWorkers,
+  appSitemapEntries,
   appTrustsOrigin,
   notifyAppAuthEvent,
 } from "@/server/app-options"
@@ -33,6 +34,10 @@ describe("an option nobody set means what the shell always did", () => {
     // False is what keeps `requireAppOrigin` the check it always was: only the
     // configured addresses pass until an app says otherwise.
     expect(appTrustsOrigin("https://somebody-elses-site.com", {})).toBe(false)
+  })
+
+  it("adds no sitemap rows of its own", async () => {
+    await expect(appSitemapEntries("site-1", {})).resolves.toEqual([])
   })
 
   it("has nobody to tell when an account is made or signed in to", async () => {
@@ -64,6 +69,17 @@ describe("an app's answer wins", () => {
     }
     expect(appTrustsOrigin("https://alpha.test", options)).toBe(true)
     expect(appTrustsOrigin("https://beta.test", options)).toBe(false)
+  })
+
+  it("hands the resolved site to the app's sitemap read", async () => {
+    const extraEntries = vi.fn(async (workspaceId: string) => [
+      { path: `/from-${workspaceId}` },
+    ])
+
+    await expect(
+      appSitemapEntries("alpha", { sitemap: { extraEntries } })
+    ).resolves.toEqual([{ path: "/from-alpha" }])
+    expect(extraEntries).toHaveBeenCalledWith("alpha")
   })
 
   it("tells the app who registered and who signed in", async () => {

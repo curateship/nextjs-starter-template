@@ -317,7 +317,7 @@ export async function setPageVisibility(
  * person: a signed-out visitor asking whether a page is hidden has no account,
  * and the answer belongs to the domain they typed rather than to them.
  */
-async function readWorkspacePageOverrides(
+export async function readWorkspacePageOverrides(
   workspaceId: string,
   database: CustomShellDb = db
 ): Promise<ShellPageOverrides> {
