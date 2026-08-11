@@ -1,9 +1,10 @@
 # Architecture overview
 
-How the Trade app is put together, and why a second exchange will be cheap to
-add. The shell's own architecture — layout, navigation, accounts, roles,
-billing — is `docs/architecture-overview.md`; this file only covers what Trade
-adds on top of it.
+How the Trade app is put together. The current dashboard belongs to
+Hyperliquid; another protocol gets its own dashboard while reusing the shared
+contracts and panels. The shell's own architecture — layout, navigation,
+accounts, roles, billing — is `docs/architecture-overview.md`; this file only
+covers what Trade adds on top of it.
 
 ## What Trade is
 
@@ -48,7 +49,9 @@ The one idea: **screens never know which exchange they are talking to.**
   its endpoints, its response checking and its quirks stop at that folder's
   edge.
 - `src/server/protocols/registry.ts` is the lookup: protocol id in, adapters
-  out. It has one entry today.
+  out. It also records that the current Trade dashboard belongs to
+  Hyperliquid; Binance remains available to backtests without entering this
+  dashboard.
 - **The rule is a test, not a hope.** `src/server/protocols/fence.test.ts`
   fails the suite if the exchange package is imported anywhere else, or if
   shared code compares against a protocol id.
@@ -56,7 +59,7 @@ The one idea: **screens never know which exchange they are talking to.**
 How the market list flows, end to end:
 
 ```
-route loader → loadMarkets() (guarded) → registry → hyperliquid/markets.ts
+route loader → loadMarkets() (guarded) → dashboard owner → hyperliquid/markets.ts
    → exchange API → response checked → translated to MarketRow[]
    → the panel draws rows, labels and all
 ```
@@ -143,10 +146,10 @@ overrode what the user had set, and one of them fed its own clamped answer back
 into the saved value, so it compounded. Deleting them made the code shorter
 *and* correct. The guard rails were the bug.
 
-**Adding a second exchange** is: one new folder under `src/server/protocols/`
-that produces the same shapes, one new entry in the registry, and its id added
-to the union in `contracts.ts`. No screen changes. If a screen has to change,
-something leaked and the fence test should have caught it.
+**Adding another exchange** is: one new folder under `src/server/protocols/`
+that produces the same shapes, one new entry in the registry, and its own
+dashboard route. Shared panels may be reused, but market lists from different
+protocols are never combined into this Hyperliquid dashboard.
 
 ## Saved data
 
@@ -212,16 +215,13 @@ bite:
   the price, so a thin book cannot fill one far from what was on screen.
 
 Not yet: dragging a live resting order to a new price (`edit-open-orders.md`),
-the recovery view (`recovery-tools.md`), sub-exchange markets, and automations
-trading real money. Smart-order ladders stay practice-only.
+the recovery view (`recovery-tools.md`), and automations trading real money.
 
 ## Deliberately not built yet
 
-- **Live streaming prices.** The list is fetched on page load. Reconnects and
-  stale-data handling come as their own piece.
-- **Alerts**, which is what the market list's Watch tab is waiting for. When
-  they arrive they attach to a drawn line through the chart's surface, not
-  through the chart.
+- **Alerts.** When they arrive they attach to a drawn line through the chart's
+  surface, not through the chart. The market list's Watch tab is already used
+  by markets with active smart orders.
 - **The Canvas and the Backtest stay outside this app's exchange boundary.**
   The Canvas will hand an automation to the Backtest or to a Bot tab through a
   door, not run either itself — decided in

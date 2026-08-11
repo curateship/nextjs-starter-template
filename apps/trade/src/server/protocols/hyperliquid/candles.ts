@@ -17,12 +17,16 @@ import { infoClient } from "@/server/protocols/hyperliquid/client"
  */
 
 const CANDLE_COUNT = 500
+const CHART_RETRIES = 3
+const CHART_RETRY_BASE_MS = 500
 
 const HISTORY_RETRIES = 5
 const HISTORY_RETRY_BASE_MS = 1_000
 const HISTORY_PAUSE_MS = 120
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const chartLoads = new Map<string, Promise<CandleBar[]>>()
 
 /**
  * Historical calls share one polite queue. Backtests may load several markets
@@ -97,15 +101,46 @@ export async function fetchHyperliquidCandles(
   interval: CandleInterval,
   since?: number
 ): Promise<CandleBar[]> {
-  const response = await infoClient(network).candleSnapshot({
-    coin: marketId,
-    interval,
-    startTime: since ?? Date.now() - INTERVAL_MS[interval] * CANDLE_COUNT,
-  })
-  return toCandleBars(candlesSchema.parse(response))
+  if (since !== undefined) {
+    const response = await infoClient(network).candleSnapshot({
+      coin: marketId,
+      interval,
+      startTime: since,
+    })
+    return toCandleBars(candlesSchema.parse(response))
+  }
+
+  const key = JSON.stringify([network, marketId, interval])
+  const running = chartLoads.get(key)
+  if (running) return running
+
+  const load = loadRecentCandles(network, marketId, interval)
+    .finally(() => chartLoads.delete(key))
+  chartLoads.set(key, load)
+  return load
 }
 
-function retryableHistoryError(error: unknown): boolean {
+async function loadRecentCandles(
+  network: NetworkId,
+  marketId: string,
+  interval: CandleInterval
+): Promise<CandleBar[]> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await infoClient(network).candleSnapshot({
+        coin: marketId,
+        interval,
+        startTime: Date.now() - INTERVAL_MS[interval] * CANDLE_COUNT,
+      })
+      return toCandleBars(candlesSchema.parse(response))
+    } catch (error) {
+      if (!retryableCandleError(error) || attempt >= CHART_RETRIES) throw error
+      await sleep(CHART_RETRY_BASE_MS * 2 ** attempt)
+    }
+  }
+}
+
+function retryableCandleError(error: unknown): boolean {
   return (
     error instanceof Error &&
     /429|rate.?limit|timeout|timed out|econn|enet|socket|network|fetch failed|temporar/i.test(
@@ -150,7 +185,7 @@ export async function fetchHyperliquidCandleHistory(
           (bar) => bar.openTime >= from && bar.openTime < to
         )
       } catch (error) {
-        if (!retryableHistoryError(error) || attempt >= HISTORY_RETRIES) {
+        if (!retryableCandleError(error) || attempt >= HISTORY_RETRIES) {
           throw error
         }
         await sleep(HISTORY_RETRY_BASE_MS * 2 ** attempt)

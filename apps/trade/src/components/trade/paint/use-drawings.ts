@@ -162,12 +162,7 @@ export function useChartDrawings(marketKey: string | null) {
     [drawings, marketKey, revise]
   )
 
-  /**
-   * Throw one away — with a way back. A marked base is work, and a slip of
-   * the mouse must not quietly erase it, so the confirmation comes after the
-   * fact and carries the drawing with it: pressing Undo saves the same line,
-   * under the same id, exactly where it was.
-   */
+  /** Throw one away at once, restoring it only if the delete fails. */
   const remove = React.useCallback(
     (id: string) => {
       if (!marketKey) return
@@ -178,24 +173,12 @@ export function useChartDrawings(marketKey: string | null) {
         current.filter((candidate) => candidate.id !== id)
       )
       setSelectedId((current) => (current === id ? null : current))
-      deleteDrawing(id)
-        .then(() => {
-          toast.success("Drawing deleted.", {
-            action: {
-              label: "Undo",
-              onClick: () => {
-                revise(key, (current) => [...current, removed])
-                void put(key, removed)
-              },
-            },
-          })
-        })
-        .catch((error: unknown) => {
-          revise(key, (current) => [...current, removed])
-          showErrorToast(getDrawingsErrorMessage(error))
-        })
+      deleteDrawing(id).catch((error: unknown) => {
+        revise(key, (current) => [...current, removed])
+        showErrorToast(getDrawingsErrorMessage(error))
+      })
     },
-    [drawings, marketKey, put, revise]
+    [drawings, marketKey, revise]
   )
 
   /**

@@ -339,6 +339,10 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     () => [...(paperAnswer?.positions ?? []), ...(liveAnswer?.positions ?? [])],
     [paperAnswer, liveAnswer]
   )
+  const ladders = React.useMemo(
+    () => [...(paperAnswer?.ladders ?? []), ...(liveAnswer?.ladders ?? [])],
+    [paperAnswer?.ladders, liveAnswer?.ladders]
+  )
 
   const journal = React.useMemo((): PaperJournalEntry[] => {
     const live = (liveAnswer?.journal ?? []).map(
@@ -688,10 +692,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     orders,
     placing,
     journal,
-    ladders: [
-      ...(paperAnswer?.ladders ?? []),
-      ...(liveAnswer?.ladders ?? []),
-    ],
+    ladders,
     busy: pending > 0,
     place,
     move,

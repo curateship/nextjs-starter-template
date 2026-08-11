@@ -10,6 +10,10 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
+import {
+  marketBelongsInTab,
+  type MarketTab,
+} from "@/lib/trade/market-tabs"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import {
@@ -23,11 +27,9 @@ import { cn } from "@/lib/utils"
  * Fav is the starred set and the one the panel opens on — the markets you
  * actually trade are a short list, and scrolling past hundreds of others to
  * reach them every time is the wrong default. All is the whole catalog, one
- * click away, and where stars are put on in the first place. Watch will be the
- * markets with an alert once alerts exist.
+ * click away, and where stars are put on in the first place. Watch is every
+ * listed market with a smart order still working.
  */
-type MarketTab = "fav" | "all" | "watch"
-
 type SortKey = "vol" | "change"
 
 /** Which way a column starts when you first click it: biggest first, both. */
@@ -74,6 +76,7 @@ export function MarketListPanel({
   marketsError,
   network,
   favorites,
+  watched,
   selectedKey,
   onSelect,
   onRetry,
@@ -85,6 +88,8 @@ export function MarketListPanel({
   network: NetworkId
   /** Which markets are starred — read only; the star itself is in the header. */
   favorites: ReadonlySet<string>
+  /** Which markets currently have an active smart order in any wallet. */
+  watched: ReadonlySet<string>
   selectedKey: string | null
   onSelect: (key: string) => void
   onRetry: () => void
@@ -114,13 +119,16 @@ export function MarketListPanel({
     let list = rows.filter(
       (row) =>
         // A market nobody trades is noise — unless it is yours: the selected
-        // market and every starred one stay visible at zero volume.
+        // market and every starred or watched one stays visible at zero volume.
         (row.volume24hUsd > 0 ||
           row.key === selectedKey ||
-          favorites.has(row.key)) &&
+          favorites.has(row.key) ||
+          watched.has(row.key)) &&
         (!trimmed || row.symbol.toUpperCase().includes(trimmed))
     )
-    if (tab === "fav") list = list.filter((row) => favorites.has(row.key))
+    list = list.filter((row) =>
+      marketBelongsInTab(tab, row.key, favorites, watched)
+    )
     const direction = sort.desc ? -1 : 1
     return [...list].sort((a, b) => {
       const [va, vb] =
@@ -129,7 +137,7 @@ export function MarketListPanel({
           : [a.change24h ?? 0, b.change24h ?? 0]
       return (va - vb) * direction
     })
-  }, [rows, query, tab, sort, favorites, selectedKey])
+  }, [rows, query, tab, sort, favorites, watched, selectedKey])
 
   const sourceLabels = catalogs
     .map((catalog) => `${catalog.protocolLabel} ${catalog.networkLabel}`)
@@ -151,6 +159,8 @@ export function MarketListPanel({
             ? "No market matches that search."
             : tab === "fav"
               ? "Nothing starred yet. Open a market and press the star beside its name — it stays here."
+              : tab === "watch"
+                ? "No active smart orders yet. Place one from a chart and its market appears here."
               : "The exchange listed no markets."}
         </p>
       ) : (
@@ -166,13 +176,6 @@ export function MarketListPanel({
         </div>
       )}
     </ScrollArea>
-  )
-
-  /** The tabs that cannot have rows yet say what they are waiting for. */
-  const waiting = (message: string) => (
-    <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-      {message}
-    </p>
   )
 
   return (
@@ -250,9 +253,7 @@ export function MarketListPanel({
         {list}
       </TabsContent>
       <TabsContent value="watch" className="min-h-0 flex-1">
-        {waiting(
-          "Markets you have an alert on. Alerts are not built yet — when they are, this fills in."
-        )}
+        {list}
       </TabsContent>
 
       {/* The practice network has no switch on screen any more — paper

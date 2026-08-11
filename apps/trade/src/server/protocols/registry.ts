@@ -257,6 +257,17 @@ export function listProtocols(): ProtocolEntry[] {
 }
 
 /**
+ * The owner of the current Trade dashboard.
+ *
+ * Other protocols keep their own dashboards instead of being folded into
+ * this market list. Keeping that decision inside the registry also preserves
+ * the rule that screens never compare protocol ids themselves.
+ */
+export function tradeDashboardProtocol(): ProtocolEntry {
+  return PROTOCOLS.hyperliquid
+}
+
+/**
  * The trading side of an exchange that has one, or a refusal naming it.
  *
  * Not every exchange here can trade — Binance is listed for its markets and

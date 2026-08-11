@@ -183,10 +183,10 @@ describe("sub-exchange markets", () => {
     expect(new Set(keys).size).toBe(keys.length)
   })
 
-  it("labels the venue and files the coin art under the bare symbol", () => {
+  it("labels the venue and keeps its namespace in the coin-art URL", () => {
     expect(subRows[0].subExchange).toBe("XYZ Markets")
     expect(subRows[0].iconUrl).toBe(
-      "https://app.hyperliquid.xyz/coins/AAPL.svg"
+      "https://app.hyperliquid.xyz/coins/xyz%3AAAPL.svg"
     )
   })
 })

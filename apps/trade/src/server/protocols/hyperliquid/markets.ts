@@ -11,7 +11,10 @@ import {
   normalizeMarketCategory,
   num,
 } from "@/lib/protocols/hyperliquid/translate"
-import { infoClient } from "@/server/protocols/hyperliquid/client"
+import {
+  allAssetCtxsSnapshot,
+  infoClient,
+} from "@/server/protocols/hyperliquid/client"
 
 /**
  * Everything this app knows about Hyperliquid lives in this folder, and this
@@ -50,34 +53,40 @@ type PerpDex = z.infer<typeof perpDexsSchema>[number]
  * missing or renamed should fail here, loudly, not as NaN three screens away.
  * Everything else in the response is deliberately ignored.
  */
-const metaAndCtxsSchema = z.tuple([
-  z.object({
-    universe: z.array(
-      z.object({
-        name: z.string().min(1),
-        isDelisted: z.boolean().optional(),
-        // The market's ground rules. Optional so one venue writing them
-        // strangely cannot take the whole list down — a missing rule shows
-        // as nothing, never as a guess.
-        szDecimals: z.number().int().min(0).max(12).optional(),
-        maxLeverage: z.number().positive().optional(),
-        onlyIsolated: z.boolean().optional(),
-      })
-    ),
-  }),
-  z.array(
+const metaSchema = z.object({
+  universe: z.array(
     z.object({
-      markPx: z.string(),
-      prevDayPx: z.string(),
-      dayNtlVlm: z.string(),
-      funding: z.string(),
-      openInterest: z.string(),
+      name: z.string().min(1),
+      isDelisted: z.boolean().optional(),
+      // The market's ground rules. Optional so one venue writing them
+      // strangely cannot take the whole list down — a missing rule shows
+      // as nothing, never as a guess.
+      szDecimals: z.number().int().min(0).max(12).optional(),
+      maxLeverage: z.number().positive().optional(),
+      onlyIsolated: z.boolean().optional(),
     })
   ),
-])
+})
+
+const assetCtxSchema = z.object({
+  markPx: z.string(),
+  prevDayPx: z.string(),
+  dayNtlVlm: z.string(),
+  funding: z.string(),
+  openInterest: z.string(),
+})
+
+const allMetasSchema = z.array(metaSchema)
+const allAssetCtxsSchema = z.array(
+  z.tuple([z.string(), z.array(assetCtxSchema)])
+)
+type MetaAndCtxs = [
+  z.infer<typeof metaSchema>,
+  z.infer<typeof assetCtxSchema>[],
+]
 
 export function toMarketRows(
-  data: z.infer<typeof metaAndCtxsSchema>,
+  data: MetaAndCtxs,
   network: NetworkId,
   dex: PerpDex = null,
   /** The exchange's own category per raw asset name, from `perpCategories`. */
@@ -100,11 +109,6 @@ export function toMarketRows(
     // markets share one key. `translate.ts` owns it so the browser stream
     // names markets identically.
     const marketId = namespaceMarketId(dex?.name ?? "", asset.name)
-    // The coin art is filed under the bare symbol, without the venue prefix.
-    const artSymbol = marketId.includes(":")
-      ? marketId.slice(marketId.indexOf(":") + 1)
-      : marketId
-
     const prevDay = num(ctx.prevDayPx)
     // The exchange reports open interest in coins; in dollars it is worth
     // coins × price.
@@ -120,8 +124,9 @@ export function toMarketRows(
       sizeDecimals: asset.szDecimals ?? null,
       maxLeverage: asset.maxLeverage ?? null,
       isolatedOnly: asset.onlyIsolated ?? false,
-      // The exchange's own coin art, from where its app serves it.
-      iconUrl: `https://app.hyperliquid.xyz/coins/${encodeURIComponent(artSymbol)}.svg`,
+      // Sub-exchange art keeps its venue namespace. Asking for the bare stock
+      // symbol returns the app's HTML shell instead of an image.
+      iconUrl: `https://app.hyperliquid.xyz/coins/${encodeURIComponent(marketId)}.svg`,
       price,
       change24h:
         prevDay !== null && prevDay > 0 ? (price - prevDay) / prevDay : null,
@@ -138,55 +143,115 @@ export function toMarketRows(
  * Every market Hyperliquid lists right now — main exchange and every
  * sub-exchange — with their day's figures.
  *
- * The venues are fetched in parallel, and one venue failing drops that venue
- * while the rest still serve. Only every venue failing is an error: a page
- * with most of the list beats no page, but an empty answer must never look
- * like "no markets exist".
+ * Metadata is one REST response and live figures are one all-venues websocket
+ * snapshot. Asking REST once per venue exceeds Hyperliquid's request limit on
+ * testnet, where hundreds of venues exist.
  */
 export async function fetchHyperliquidMarkets(
   network: NetworkId
 ): Promise<MarketCatalog> {
-  const client = infoClient(network)
-  const dexs = perpDexsSchema.parse(await client.perpDexs())
+  const cached = marketCache(network)
+  if (cached && Date.now() - cached.at < MARKET_CACHE_MS) {
+    return cached.catalog
+  }
+  const running = marketLoad(network)
+  if (running) return running
 
-  const [venues, categories] = await Promise.all([
-    Promise.all(
-      dexs.map((dex) =>
-        client
-          .metaAndAssetCtxs({ dex: dex?.name ?? "" })
-          .then((response) => ({
-            dex,
-            data: metaAndCtxsSchema.parse(response),
-            error: null as unknown,
-          }))
-          .catch((error: unknown) => ({ dex, data: null, error }))
-      )
-    ),
+  const load = loadHyperliquidMarkets(network)
+    .then((catalog) => {
+      setMarketCache(network, { at: Date.now(), catalog })
+      return catalog
+    })
+    .catch((error) => {
+      if (cached && retryableMarketError(error)) {
+        setMarketCache(network, { at: Date.now(), catalog: cached.catalog })
+        return cached.catalog
+      }
+      throw error
+    })
+    .finally(() => setMarketLoad(network, null))
+  setMarketLoad(network, load)
+  return load
+}
+
+async function loadHyperliquidMarkets(
+  network: NetworkId
+): Promise<MarketCatalog> {
+  const client = infoClient(network)
+  const [rawDexs, rawMetas, rawCtxs, categories] = await Promise.all([
+    client.perpDexs(),
+    client.allPerpMetas(),
+    allAssetCtxsSnapshot(network),
     // One global coin → category list. Categories are a convenience, so a
     // failed call degrades to the defaults instead of taking the list down.
     client
       .perpCategories()
-      .then((response) =>
-        new Map(z.array(z.tuple([z.string(), z.string()])).parse(response))
+      .then(
+        (response) =>
+          new Map(z.array(z.tuple([z.string(), z.string()])).parse(response))
       )
       .catch(() => new Map<string, string>()),
   ])
-
-  const answered = venues.filter(
-    (venue): venue is typeof venue & { data: z.infer<typeof metaAndCtxsSchema> } =>
-      venue.data !== null
-  )
-  if (answered.length === 0) {
-    throw venues[0]?.error ?? new Error("Hyperliquid did not answer.")
+  const dexs = perpDexsSchema.parse(rawDexs)
+  const metas = allMetasSchema.parse(rawMetas)
+  const ctxsByDex = new Map(allAssetCtxsSchema.parse(rawCtxs))
+  if (metas.length !== dexs.length) {
+    throw new Error("Hyperliquid metadata did not match its venues.")
   }
 
-  return {
+  const catalog: MarketCatalog = {
     protocol: "hyperliquid",
     protocolLabel: "Hyperliquid",
     network,
     networkLabel: network === "mainnet" ? "Mainnet" : "Testnet",
-    rows: answered.flatMap(({ dex, data }) =>
-      toMarketRows(data, network, dex, categories)
-    ),
+    rows: dexs.flatMap((dex, index) => {
+      const meta = metas[index]
+      const ctxs = ctxsByDex.get(dex?.name ?? "")
+      if (!meta || !ctxs) return []
+      return toMarketRows([meta, ctxs], network, dex, categories)
+    }),
   }
+  if (catalog.rows.length === 0) {
+    throw new Error("Hyperliquid returned no markets.")
+  }
+  return catalog
+}
+
+function retryableMarketError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /429|http.?5\d\d|rate.?limit|timeout|timed out|econn|enet|socket|websocket|network|fetch failed|temporar|connection closed/i.test(
+      error.message
+    )
+  )
+}
+
+const MARKET_CACHE_MS = 60_000
+type MarketCacheEntry = { at: number; catalog: MarketCatalog }
+type MarketScope = {
+  __hyperliquidMarketCaches?: Map<NetworkId, MarketCacheEntry>
+  __hyperliquidMarketLoads?: Map<NetworkId, Promise<MarketCatalog>>
+}
+const marketScope = globalThis as MarketScope
+
+function marketCache(network: NetworkId): MarketCacheEntry | undefined {
+  return marketScope.__hyperliquidMarketCaches?.get(network)
+}
+
+function setMarketCache(network: NetworkId, entry: MarketCacheEntry): void {
+  const caches = (marketScope.__hyperliquidMarketCaches ??= new Map())
+  caches.set(network, entry)
+}
+
+function marketLoad(network: NetworkId): Promise<MarketCatalog> | undefined {
+  return marketScope.__hyperliquidMarketLoads?.get(network)
+}
+
+function setMarketLoad(
+  network: NetworkId,
+  load: Promise<MarketCatalog> | null
+): void {
+  const loads = (marketScope.__hyperliquidMarketLoads ??= new Map())
+  if (load) loads.set(network, load)
+  else loads.delete(network)
 }

@@ -3,15 +3,12 @@ import { z } from "zod"
 
 import { parseMarketKey, type MarketCatalog } from "@/lib/protocols/contracts"
 import { userGet, userPost } from "@/server/guards"
-import { listProtocols } from "@/server/protocols/registry"
+import { tradeDashboardProtocol } from "@/server/protocols/registry"
 import {
   loadMarketFavoriteKeys,
   saveMarketFavoriteKeys,
 } from "@/server/trade/market-favorites"
-import {
-  loadLastMarketKey,
-  saveLastMarketKey,
-} from "@/server/trade/prefs"
+import { loadLastMarketKey, saveLastMarketKey } from "@/server/trade/prefs"
 
 import { createErrorMessage } from "./error-message"
 
@@ -37,16 +34,8 @@ const loadMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(networkSchema)
   .handler(async ({ data }): Promise<{ catalogs: MarketCatalog[] }> => {
-    const catalogs = await Promise.all(
-      listProtocols()
-        .filter(
-          (protocol) =>
-            protocol.capabilities.markets &&
-            protocol.networks.includes(data.network)
-        )
-        .map((protocol) => protocol.markets.fetch(data.network))
-    )
-    return { catalogs }
+    const protocol = tradeDashboardProtocol()
+    return { catalogs: [await protocol.markets.fetch(data.network)] }
   })
 
 /**

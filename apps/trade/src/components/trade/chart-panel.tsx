@@ -47,6 +47,8 @@ import {
 import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
 import { cn } from "@/lib/utils"
 
+const CANDLE_LOAD_SETTLE_MS = 250
+
 /**
  * The timeframe row. It draws in the middle panel's header — the workspace
  * owns the remembered choice and hands it to both this picker and the chart's
@@ -316,21 +318,27 @@ export function ChartPanel({
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
     let stale = false
-    loadCandles(selectedKey, interval)
-      .then(({ candles }) => {
-        if (stale) return
-        setAnswer({ key: wanted, candles, error: null })
-      })
-      .catch((error: unknown) => {
-        if (stale) return
-        setAnswer({
-          key: wanted,
-          candles: [],
-          error: getCandlesErrorMessage(error),
+    // Let rapid market or timeframe changes settle before asking the
+    // exchange. A request that has already reached the server cannot be
+    // cancelled from here, so starting only the last intended one matters.
+    const timeout = setTimeout(() => {
+      loadCandles(selectedKey, interval)
+        .then(({ candles }) => {
+          if (stale) return
+          setAnswer({ key: wanted, candles, error: null })
         })
-      })
+        .catch((error: unknown) => {
+          if (stale) return
+          setAnswer({
+            key: wanted,
+            candles: [],
+            error: getCandlesErrorMessage(error),
+          })
+        })
+    }, CANDLE_LOAD_SETTLE_MS)
     return () => {
       stale = true
+      clearTimeout(timeout)
     }
   }, [selectedKey, interval, wanted, attempt])
 

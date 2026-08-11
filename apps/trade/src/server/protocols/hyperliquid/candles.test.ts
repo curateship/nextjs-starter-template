@@ -7,6 +7,7 @@ vi.mock("@/server/protocols/hyperliquid/client", () => ({
 }))
 
 import {
+  fetchHyperliquidCandles,
   fetchHyperliquidCandleHistory,
   toCandleBars,
 } from "@/server/protocols/hyperliquid/candles"
@@ -52,6 +53,37 @@ describe("turning Hyperliquid's candles into bars", () => {
     ])
     expect(bars).toHaveLength(1)
     expect(bars[0].volume).toBe(0)
+  })
+})
+
+describe("reading the recent chart", () => {
+  it("shares the same request while it is still running", async () => {
+    let answer!: (value: unknown[]) => void
+    candleSnapshot.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve
+      })
+    )
+
+    const first = fetchHyperliquidCandles("mainnet", "SHARED", "1h")
+    const second = fetchHyperliquidCandles("mainnet", "SHARED", "1h")
+    answer([{ t: 1_000, o: "10", h: "12", l: "9", c: "11", v: "100" }])
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+    expect(candleSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it("retries a temporary exchange limit", async () => {
+    vi.useFakeTimers()
+    candleSnapshot
+      .mockRejectedValueOnce(new Error("429 rate limited"))
+      .mockResolvedValueOnce([])
+
+    const pending = fetchHyperliquidCandles("mainnet", "RETRY", "1h")
+    await vi.runAllTimersAsync()
+
+    await expect(pending).resolves.toEqual([])
+    expect(candleSnapshot).toHaveBeenCalledTimes(2)
   })
 })
 

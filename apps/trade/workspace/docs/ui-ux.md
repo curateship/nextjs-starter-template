@@ -263,12 +263,12 @@ placeholder names the exchange ("Search Hyperliquid Mainnet"), so what the
 list covers is on screen without spending a row on it.
 
 - **Three tabs, with icons: Fav first and the one it opens on** (starred), then
-  All (the whole catalog), then Watch (markets with an alert, once alerts
-  exist). Fav leads because the markets you actually trade are a short list,
-  and scrolling past hundreds of others to reach them every time is the wrong
-  default; All is one click away and is where stars are put on. A tab whose
-  data source does not exist yet says what it is waiting for instead of drawing
-  an empty list that reads like a bug, and an empty Fav points at All.
+  All (the whole catalog), then Watch (markets on this network with an active
+  smart order in any wallet). Fav leads because the markets you actually trade
+  are a short list, and scrolling past hundreds of others to reach them every
+  time is the wrong default; All is one click away and is where stars are put
+  on. An empty Fav points at All, while an empty Watch explains that placing a
+  smart order adds its market.
 - **A row is the symbol and the day's move, nothing else.** The percentage is
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain
@@ -310,7 +310,8 @@ list covers is on screen without spending a row on it.
   folder allowed to import its SDK. `fence.test.ts` fails the suite if it
   leaks, or if shared code ever asks `=== "hyperliquid"`.
 - Adding an exchange is a new folder plus one entry in
-  `src/server/protocols/registry.ts`. No screen changes.
+  `src/server/protocols/registry.ts`, followed by its own dashboard. The
+  current Trade dashboard remains Hyperliquid-only.
 
 Two things the old Trading app had that this does not, on purpose:
 

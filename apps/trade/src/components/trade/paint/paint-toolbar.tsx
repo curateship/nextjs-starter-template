@@ -5,11 +5,6 @@ import { MinusIcon, SlashIcon, Trash2Icon } from "lucide-react"
 import type { PaintTool } from "@/components/trade/paint/use-drawings"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 
 /**
  * The tools, as a small rail down the chart's left edge.
@@ -20,24 +15,21 @@ import {
  *
  * The bin clears the whole chart, so it is asked about first. One line at a
  * time is thrown away from the line itself — its own × while it is picked
- * out, or Delete on the keyboard — and that one comes back with Undo.
+ * out, or Delete on the keyboard.
  */
 const TOOLS: Array<{
   kind: PaintTool
   label: string
-  hint: string
   icon: ReactNode
 }> = [
   {
     kind: "level",
     label: "Draw a level",
-    hint: "Draw a level — click where the price sits.",
     icon: <MinusIcon />,
   },
   {
     kind: "trendline",
     label: "Draw a trendline",
-    hint: "Draw a trendline — drag from one point to the other, or tap both.",
     icon: <SlashIcon />,
   },
 ]
@@ -65,41 +57,30 @@ export function PaintToolbar({
       className="absolute top-2 left-2 z-20 flex flex-col gap-0.5 rounded-lg border bg-card/85 p-0.5 shadow-sm backdrop-blur-sm"
     >
       {TOOLS.map((entry) => (
-        <Tooltip key={entry.kind}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              size="icon-xs"
-              variant={tool === entry.kind ? "secondary" : "ghost"}
-              aria-pressed={tool === entry.kind}
-              aria-label={entry.label}
-              // Pressing the tool that is already in hand puts it down, so
-              // there is always a way back to plain panning.
-              onClick={() => onPickTool(tool === entry.kind ? null : entry.kind)}
-            >
-              {entry.icon}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{entry.hint}</TooltipContent>
-        </Tooltip>
+        <Button
+          key={entry.kind}
+          type="button"
+          size="icon-xs"
+          variant={tool === entry.kind ? "secondary" : "ghost"}
+          aria-pressed={tool === entry.kind}
+          aria-label={entry.label}
+          // Pressing the tool that is already in hand puts it down, so
+          // there is always a way back to plain panning.
+          onClick={() => onPickTool(tool === entry.kind ? null : entry.kind)}
+        >
+          {entry.icon}
+        </Button>
       ))}
       {drawingCount > 0 ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="ghost"
-              aria-label="Clear every drawing on this chart"
-              onClick={() => setConfirming(true)}
-            >
-              <Trash2Icon />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            Clear every drawing on this chart.
-          </TooltipContent>
-        </Tooltip>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          aria-label="Clear every drawing on this chart"
+          onClick={() => setConfirming(true)}
+        >
+          <Trash2Icon />
+        </Button>
       ) : null}
 
       <ConfirmDialog
