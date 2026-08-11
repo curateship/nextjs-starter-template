@@ -6,24 +6,29 @@ import { automationNodeName } from "@/lib/automations/node-registry"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import {
   automationEntryNodeId,
+  automationCanStartManually,
   automationNextNodeId,
   type AutomationApprovalDecision,
 } from "@/lib/automations/run"
 import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
 import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
 import { readAutomationsPaused } from "@/server/automations/pause"
+import { automationSubjectLabel } from "@/server/automations/triggers"
 import {
   automationExecutorFor,
+  automationExecutorMayRunInTest,
   type AutomationExecutorResult,
 } from "@/server/automations/executors"
 import { db, type CustomShellDb } from "@/server/db"
 import { inspectAutomation } from "@/server/automations/flows"
 import { publishNotificationCreated } from "@/server/notifications/events"
+import { findActiveWorkspaceMember } from "@/server/people/workspace-users"
 import {
   customShellAutomationRuns,
   customShellAutomationRunSteps,
   customShellAutomations,
   customShellNotifications,
+  customShellUsers,
   type CustomShellAutomationRun,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
@@ -216,13 +221,21 @@ async function processRun(
     let result: AutomationExecutorResult
     let output: AutomationRunOutput | null = null
     try {
-      result = await executor({
-        database,
-        run,
-        nodeId: currentNodeId,
-        settings: node.settings,
-        now,
-      })
+      result =
+        run.testRun && !automationExecutorMayRunInTest(node.kind)
+          ? {
+              type: "next",
+              summary: `${nodeLabel(node.kind)} was skipped in this test so it could not change anything outside the run.`,
+            }
+          : await executor({
+              database,
+              run,
+              nodeId: currentNodeId,
+              settings: node.settings,
+              now,
+              dryRun: run.testRun,
+              testRun: run.testRun,
+            })
       if (result.type !== "park") output = readStepOutput(result.output)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -553,6 +566,66 @@ export async function startAutomationRun(
   automationId: string,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomationRun> {
+  return startAutomationRunRecord(
+    workspaceId,
+    userId,
+    automationId,
+    undefined,
+    database
+  )
+}
+
+/** Starts a side-effect-safe rehearsal with one real member as its subject. */
+export async function startAutomationTestRun(
+  workspaceId: string,
+  userId: string,
+  automationId: string,
+  subjectUserId: string,
+  database: CustomShellDb = db
+): Promise<CustomShellAutomationRun> {
+  const [admin, subject] = await Promise.all([
+    database
+      .select({ email: customShellUsers.email })
+      .from(customShellUsers)
+      .where(
+        and(
+          eq(customShellUsers.id, userId),
+          eq(customShellUsers.role, "admin"),
+          eq(customShellUsers.status, "active")
+        )
+      )
+      .limit(1),
+    findActiveWorkspaceMember(workspaceId, subjectUserId, database),
+  ])
+  if (!admin[0]) throw new Error("NOT_FOUND")
+  if (!subject) throw new Error("MEMBER_NOT_FOUND")
+
+  return startAutomationRunRecord(
+    workspaceId,
+    userId,
+    automationId,
+    {
+      subjectUserId: subject.id,
+      subjectLabel: automationSubjectLabel(subject),
+      testRecipientEmail: admin[0].email,
+    },
+    database
+  )
+}
+
+async function startAutomationRunRecord(
+  workspaceId: string,
+  userId: string,
+  automationId: string,
+  test:
+    | {
+        subjectUserId: string
+        subjectLabel: string
+        testRecipientEmail: string
+      }
+    | undefined,
+  database: CustomShellDb
+): Promise<CustomShellAutomationRun> {
   // Refused rather than held, and this is the one place the kill switch works
   // that way. Everything already going is kept and resumes; but somebody is
   // standing here having just pressed a button, and telling them "everything is
@@ -581,6 +654,9 @@ export async function startAutomationRun(
 
   const entryNodeId = automationEntryNodeId(inspected.compiledConfig)
   if (!entryNodeId) throw new Error("NO_SINGLE_START")
+  if (!test && !automationCanStartManually(inspected.compiledConfig)) {
+    throw new Error("REQUIRES_SUBJECT")
+  }
 
   const timestamp = now()
   const [run] = await database
@@ -598,6 +674,10 @@ export async function startAutomationRun(
       configSnapshot: inspected.compiledConfig,
       wakeAt: timestamp,
       attempts: 0,
+      subjectUserId: test?.subjectUserId,
+      subjectLabel: test?.subjectLabel,
+      testRun: Boolean(test),
+      testRecipientEmail: test?.testRecipientEmail,
       startedAt: timestamp,
       createdAt: timestamp,
       updatedAt: timestamp,

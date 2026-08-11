@@ -7,6 +7,7 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   ne,
@@ -250,6 +251,44 @@ export async function claimBacktestGroup(
   return { ...claimed, attempts: Number(claimed.attempts) }
 }
 
+/** Keep a long-running pass from being mistaken for one abandoned by a restart. */
+export async function heartbeatBacktestGroup(
+  userId: string,
+  groupId: string,
+  attempt: number,
+  now: number = Date.now(),
+  database: CustomShellDb = db
+): Promise<void> {
+  const rows = await database
+    .update(tradeBacktestGroups)
+    .set({ claimedAt: new Date(now) })
+    .where(
+      and(
+        eq(tradeBacktestGroups.userId, userId),
+        eq(tradeBacktestGroups.id, groupId),
+        eq(tradeBacktestGroups.attempts, attempt),
+        isNotNull(tradeBacktestGroups.claimedAt),
+        isNull(tradeBacktestGroups.finishedAt)
+      )
+    )
+    .returning({ id: tradeBacktestGroups.id })
+  if (rows.length > 0) return
+
+  const [group] = await database
+    .select({
+      finishedAt: tradeBacktestGroups.finishedAt,
+    })
+    .from(tradeBacktestGroups)
+    .where(
+      and(
+        eq(tradeBacktestGroups.userId, userId),
+        eq(tradeBacktestGroups.id, groupId)
+      )
+    )
+  if (group?.finishedAt) return
+  throw new Error("BACKTEST_CLAIM_LOST")
+}
+
 /**
  * Lets go of a claim after a slice that worked, so the next pass carries on.
  *
@@ -260,6 +299,7 @@ export async function claimBacktestGroup(
 export async function releaseBacktestGroup(
   userId: string,
   groupId: string,
+  attempt: number,
   database: CustomShellDb = db
 ): Promise<void> {
   await database
@@ -268,7 +308,8 @@ export async function releaseBacktestGroup(
     .where(
       and(
         eq(tradeBacktestGroups.userId, userId),
-        eq(tradeBacktestGroups.id, groupId)
+        eq(tradeBacktestGroups.id, groupId),
+        eq(tradeBacktestGroups.attempts, attempt)
       )
     )
 }
@@ -284,6 +325,7 @@ export async function releaseBacktestGroup(
 export async function releaseFailedBacktestGroup(
   userId: string,
   groupId: string,
+  attempt: number,
   database: CustomShellDb = db
 ): Promise<void> {
   await database
@@ -292,7 +334,8 @@ export async function releaseFailedBacktestGroup(
     .where(
       and(
         eq(tradeBacktestGroups.userId, userId),
-        eq(tradeBacktestGroups.id, groupId)
+        eq(tradeBacktestGroups.id, groupId),
+        eq(tradeBacktestGroups.attempts, attempt)
       )
     )
 }
@@ -401,6 +444,7 @@ export async function saveBacktestResult(
   userId: string,
   groupId: string,
   input: {
+    attempt: number
     summary: BacktestSummary
     result: BacktestResult
     coins: Array<{
@@ -442,7 +486,7 @@ export async function saveBacktestResult(
         )
     }
 
-    await tx
+    const saved = await tx
       .update(tradeBacktestGroups)
       .set({
         summary: input.summary,
@@ -453,9 +497,14 @@ export async function saveBacktestResult(
       .where(
         and(
           eq(tradeBacktestGroups.userId, userId),
-          eq(tradeBacktestGroups.id, groupId)
+          eq(tradeBacktestGroups.id, groupId),
+          eq(tradeBacktestGroups.attempts, input.attempt),
+          isNotNull(tradeBacktestGroups.claimedAt),
+          isNull(tradeBacktestGroups.finishedAt)
         )
       )
+      .returning({ id: tradeBacktestGroups.id })
+    if (saved.length === 0) throw new Error("BACKTEST_CLAIM_LOST")
   })
 }
 

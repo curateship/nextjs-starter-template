@@ -89,6 +89,14 @@ describe("an app that adds nothing", () => {
       "step-placeholder",
     ])
   })
+
+  it("only offers Run for steps that can begin without a real event", async () => {
+    const { automationKindCanStartManually } = await freshRegistry()
+
+    expect(automationKindCanStartManually("placeholder")).toBe(true)
+    expect(automationKindCanStartManually("billingMoment")).toBe(false)
+    expect(automationKindCanStartManually("unknown-step")).toBe(true)
+  })
 })
 
 describe("an app that adds a step of its own", () => {

@@ -444,6 +444,8 @@ export const backtestCoinSummarySchema = z.object({
    * having never lost anything.
    */
   madeOrLost: z.number(),
+  /** Positive when this coin paid funding, negative when it received it. */
+  fundingPaid: z.number().default(0),
   /** Round trips, not fills. */
   trades: z.number(),
   /** How many of the closed ones banked money. */
@@ -493,6 +495,8 @@ export const backtestSummarySchema = z.object({
   madeOrLost: z.number(),
   /** The same as a share of what it started with, for the headline. */
   madeOrLostPct: z.number(),
+  /** Positive when the wallet paid funding, negative when it received it. */
+  fundingPaid: z.number().default(0),
   /**
    * The worst the combined pot ever fell from its own high, in dollars, and
    * when it was at its lowest.

@@ -206,6 +206,12 @@ export function automationKindIsTrigger(kind: string): boolean {
   return automationRegistry().byKind.get(kind)?.hasInput === false
 }
 
+/** Steps allow a manual start unless their descriptor explicitly forbids it. */
+export function automationKindCanStartManually(kind: string): boolean {
+  const descriptor = automationRegistry().byKind.get(kind)
+  return descriptor?.manualStart !== false
+}
+
 function descriptorForPaletteKey(key: string): AutomationNodeDescriptor {
   const descriptor = automationRegistry().descriptors.find(
     (item) => item.palette?.key === key

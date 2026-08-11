@@ -55,7 +55,21 @@ function shape(from: number, count: number, floor = 100): CandleBar[] {
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    id: "hyperliquid",
     markets: { intervalMs: () => FOUR_HOURS, roundPx: (px: number) => px },
+    funding: {
+      intervalMs: () => 3_600_000,
+      fetch: async (
+        _network: string,
+        _marketId: string,
+        from: number,
+        to: number
+      ) =>
+        Array.from(
+          { length: Math.max(0, Math.floor((to - from) / 3_600_000)) },
+          (_, index) => ({ time: from + index * 3_600_000, rate: 0 })
+        ),
+    },
   }),
 }))
 
@@ -169,9 +183,8 @@ describe("a run the worker picks up", () => {
     expect(group.summary).not.toBeNull()
     expect(group.summary?.coinsTested).toBe(2)
     expect(group.result?.equity.length).toBeGreaterThan(0)
-    // Funding is not counted yet, and the page has to say so rather than let
-    // somebody read the number as the whole truth.
-    expect(group.summary?.warnings.join(" ")).toContain("Funding")
+    expect(group.summary?.fundingPaid).toBe(0)
+    expect(group.summary?.warnings.join(" ")).not.toContain("funding history")
 
     const coins = await db
       .select()

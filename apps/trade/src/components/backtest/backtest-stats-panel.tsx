@@ -278,6 +278,16 @@ export function BacktestStatsPanel({
                   label="Costs"
                   value={`${spec.takerFeePct}% / ${spec.makerFeePct}% / ${spec.slippagePct}%`}
                 />
+                <Line
+                  label="Funding paid"
+                  value={
+                    figure(summary.fundingPaid) === null
+                      ? "—"
+                      : summary.fundingPaid >= 0
+                        ? formatUsd(summary.fundingPaid)
+                        : `-${formatUsd(Math.abs(summary.fundingPaid))}`
+                  }
+                />
               </dl>
 
               {summary.warnings.length > 0 ? (

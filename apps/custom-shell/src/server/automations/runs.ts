@@ -48,6 +48,7 @@ export type AutomationRunRow = {
    * somebody set going by hand, which is about nobody in particular.
    */
   subjectLabel: string | null
+  testRun: boolean
   /** The step that started it, named the way the canvas names it. */
   triggerName: string | null
   startedAt: Date
@@ -315,6 +316,7 @@ function toRunRow(
     approvalDeadlineAt: run.approvalDeadlineAt,
     stepCount,
     subjectLabel: run.subjectLabel,
+    testRun: run.testRun,
     triggerName: runTriggerName(run),
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
