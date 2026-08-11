@@ -14,6 +14,9 @@ import {
 } from "@/lib/pages/written-page-body"
 import { appUrl } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
+import { claimedListingIds, claimStateFor } from "@/server/directory/claims"
+import { directorySettingsFor } from "@/server/directory/settings"
+import type { ReviewStatus } from "@/lib/directory/review-status"
 import { customShellWorkspaces } from "@/server/schema"
 import {
   categories,
@@ -113,6 +116,11 @@ export type PublicListingCard = {
   featuredImage: string
   /** The primary category if it has one, else the first it is in. */
   category: PublicCategoryLink | null
+  /**
+   * The business itself looks after this page. Says nothing about who they are
+   * — a visitor is told the page is looked after, never by whom.
+   */
+  claimed: boolean
 }
 
 /** A category as a link: the two fields anything pointing at one needs. */
@@ -154,12 +162,40 @@ export type PublicBrowse = {
   categories: PublicCategory[]
 }
 
+/**
+ * Everything the claim button on a listing's page needs to draw itself.
+ *
+ * The wording travels with it rather than being fetched separately, because the
+ * button and its message are one decision — a page that had the button but not
+ * the sentence under it would be the setting half applied.
+ */
+export type PublicClaimState = {
+  /** This site offers claiming at all. */
+  enabled: boolean
+  /**
+   * Whether the reader has an account, so the page can offer sign-in rather
+   * than a form that would refuse them at the end.
+   *
+   * A plain yes or no, never the id. The page has no use for who they are, and
+   * a public page is not a place to put one.
+   */
+  signedIn: boolean
+  /** Somebody already looks after it. Never says who. */
+  claimed: boolean
+  /** Where the reader's own claim stands, when they have made one. */
+  mine: ReviewStatus | null
+  buttonLabel: string
+  pendingMessage: string
+  approvedMessage: string
+}
+
 export type PublicListingPage = {
   site: PublicSite
   listing: PublicListing
   categories: PublicCategoryLink[]
   primaryCategory: PublicCategoryLink | null
   related: PublicListingCard[]
+  claim: PublicClaimState
 }
 
 export type PublicCategoryPage = {
@@ -252,12 +288,18 @@ async function toCards(
   }[],
   database: CustomShellDb
 ): Promise<PublicListingCard[]> {
-  const shownUnder = await categoryForCards(
-    siteId,
-    rows.map((row) => row.id),
-    database
-  )
-  return rows.map((row) => ({ ...row, category: shownUnder.get(row.id) ?? null }))
+  const ids = rows.map((row) => row.id)
+  // Both for the whole page at once. One query each rather than one per card:
+  // twelve cards used to mean twelve round trips for the category alone.
+  const [shownUnder, claimed] = await Promise.all([
+    categoryForCards(siteId, ids, database),
+    claimedListingIds(siteId, ids, database),
+  ])
+  return rows.map((row) => ({
+    ...row,
+    category: shownUnder.get(row.id) ?? null,
+    claimed: claimed.has(row.id),
+  }))
 }
 
 /** The columns a card needs, so a grid never fetches a listing's whole body. */
@@ -483,6 +525,9 @@ async function relatedListings(
 export async function readPublicListing(
   site: VisitorSite,
   slug: string,
+  // Who is reading, when they are signed in. Only ever used to tell them where
+  // their *own* claim stands; nothing about anybody else's is returned.
+  options: { viewerId?: string | null } = {},
   database: CustomShellDb = db
 ): Promise<PublicListingPage | null> {
   const [row] = await database
@@ -513,6 +558,11 @@ export async function readPublicListing(
 
   const primary = links.find((link) => link.isPrimary) ?? links[0] ?? null
 
+  const [settings, claimState] = await Promise.all([
+    directorySettingsFor(site.id, database),
+    claimStateFor(site.id, row.id, options.viewerId ?? null, database),
+  ])
+
   return {
     site: { name: site.name, url: site.url },
     listing: {
@@ -539,6 +589,15 @@ export async function readPublicListing(
       links.map((link) => link.id),
       database
     ),
+    claim: {
+      enabled: settings.claimsEnabled,
+      signedIn: Boolean(options.viewerId),
+      claimed: claimState.claimed,
+      mine: claimState.mine,
+      buttonLabel: settings.claimButtonLabel,
+      pendingMessage: settings.claimPendingMessage,
+      approvedMessage: settings.claimApprovedMessage,
+    },
   }
 }
 

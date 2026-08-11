@@ -5,6 +5,7 @@ import {
   DIRECTORY_SORTS,
   type DirectorySort,
 } from "@/lib/directory/public-search"
+import { findCurrentUser } from "@/server/auth/security"
 import {
   readPublicBrowse,
   readPublicCategory,
@@ -93,7 +94,13 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
     const site = await visitorSite()
     if (!site) return null
 
-    return readPublicListing(site, data.slug)
+    // Who is reading, when they happen to be signed in. Read on the server from
+    // the session, never sent by the page — and used only to tell somebody
+    // where their *own* claim stands. A signed-out visitor gets the same page
+    // with nothing personal in it.
+    const viewer = await findCurrentUser().catch(() => null)
+
+    return readPublicListing(site, data.slug, { viewerId: viewer?.id ?? null })
   })
 
 /** One published listing by its address, or null if there is not one. */
@@ -122,5 +129,6 @@ export function loadDirectoryCategory(input: { slug: string; page?: number }) {
  */
 export type {
   PublicCategory,
+  PublicClaimState,
   PublicListingCard,
 } from "@/server/directory/public"
