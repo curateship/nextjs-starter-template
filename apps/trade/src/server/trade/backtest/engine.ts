@@ -1,6 +1,7 @@
 import type {
   CandleBar,
   CandleInterval,
+  FundingRate,
   NetworkId,
   ProtocolId,
 } from "@/lib/protocols/contracts"
@@ -81,6 +82,8 @@ export type BacktestCoin = {
   bars: readonly CandleBar[]
   /** 4h bars from before the window as well, for the base rule. */
   baseBars: readonly CandleBar[]
+  /** Historical settlements inside the run window, oldest first. */
+  funding: readonly FundingRate[]
 }
 
 export type BacktestRunInput = {
@@ -119,6 +122,8 @@ export type BacktestCoinTrades = {
   firstPx: number | null
   /** When that first bar was — null when the coin had none. */
   firstAt: number | null
+  /** Positive when this coin paid funding, negative when it received it. */
+  fundingPaid: number
 }
 
 export type BacktestRunOutcome = {
@@ -128,6 +133,8 @@ export type BacktestRunOutcome = {
   /** How much was in trades at each bar time, for the money-in-play figures. */
   inPlay: number[]
   endingUsd: number
+  /** Positive when the combined wallet paid funding, negative when it received it. */
+  fundingPaid: number
   /** True when Stop ended the walk before the window did. */
   stoppedEarly: boolean
   /** The bar time the walk actually reached. */
@@ -261,6 +268,42 @@ export async function runBacktest(
   const fillsByMarket = new Map<string, BacktestEngineFill[]>(
     coins.map((coin) => [coin.marketKey, []])
   )
+  const fundingPaidByMarket = new Map<string, number>(
+    coins.map((coin) => [coin.marketKey, 0])
+  )
+  const fundingIndex = new Map<string, number>(
+    coins.map((coin) => [coin.marketKey, 0])
+  )
+
+  /**
+   * Settle funding up to one moment against the position and last known price.
+   * The exchange uses its oracle price; the replay's stored historical price
+   * is the closest fact available at that same hour.
+   */
+  const applyFundingThrough = (time: number, includeTime: boolean) => {
+    for (const coin of coins) {
+      let index = fundingIndex.get(coin.marketKey) ?? 0
+      while (index < coin.funding.length) {
+        const funding = coin.funding[index]
+        if (funding.time > time || (!includeTime && funding.time === time)) break
+
+        const position = book.positions.get(coin.marketKey)
+        const mark = marks.get(coin.marketKey)
+        if (position && mark !== undefined) {
+          // Signed size carries both directions: a positive rate costs a long
+          // and pays a short; a negative rate does the reverse.
+          const paid = position.szi * mark * funding.rate
+          book.cash -= paid
+          fundingPaidByMarket.set(
+            coin.marketKey,
+            (fundingPaidByMarket.get(coin.marketKey) ?? 0) + paid
+          )
+        }
+        index += 1
+      }
+      fundingIndex.set(coin.marketKey, index)
+    }
+  }
 
   // What each coin's ladder reads, built once. Nothing in here changes as the
   // walk goes on — the bars are the whole history from the first bar to the
@@ -306,6 +349,11 @@ export async function runBacktest(
 
     const closeTime = time + barMs
     reachedTo = closeTime
+
+    // Funding between candles belongs to the position carried from the last
+    // close. The settlement exactly on this close waits until this candle's
+    // resting orders have been filled below.
+    applyFundingThrough(closeTime, false)
 
     // ----- Is the whole market falling off a cliff on this bar? ------------
     //
@@ -354,6 +402,8 @@ export async function runBacktest(
         now: closeTime,
       })
     }
+
+    applyFundingThrough(closeTime, true)
 
     // ----- What the ladders make of it -----------------------------------
     // The feeds themselves are made ONCE, up at `feeds`, and handed over as
@@ -530,10 +580,15 @@ export async function runBacktest(
       lastPx: marks.get(coin.marketKey) ?? null,
       firstPx: firstPx.get(coin.marketKey) ?? null,
       firstAt: firstAt.get(coin.marketKey) ?? null,
+      fundingPaid: fundingPaidByMarket.get(coin.marketKey) ?? 0,
     })),
     equity,
     inPlay,
     endingUsd: equity[equity.length - 1]?.usd ?? input.startingUsd,
+    fundingPaid: [...fundingPaidByMarket.values()].reduce(
+      (sum, paid) => sum + paid,
+      0
+    ),
     stoppedEarly,
     reachedTo,
   }

@@ -394,6 +394,19 @@ working bar streams beside it.
 - **A hidden tab lets the connection go** and reconnects — with the same
   catch-up — when you come back.
 
+## Backtest funding
+
+- Perpetual-market backtests use the exchange's saved historical funding rates
+  at every settlement. Positive funding costs a long position; negative funding
+  pays it.
+- The dollar payment uses the replay's stored historical price at that time.
+  The funding endpoint does not include the exchange's historical oracle price,
+  so this is the same price history used for the rest of the replay.
+- The result lists **Funding paid** directly below its fee and slippage settings.
+  A negative figure means the position received more funding than it paid.
+- Any missing market or settlement stretch appears in the result warning. It is
+  never silently described as free.
+
 ## Rules that hold everywhere
 
 - **Never swap a missing market for a different one.** If a saved market is gone

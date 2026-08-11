@@ -4,6 +4,7 @@ import {
   DirectoryBreadcrumbs,
   type Crumb,
 } from "@/components/directory/public/directory-breadcrumbs"
+import { ClaimButton } from "@/components/directory/public/claim-button"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
@@ -67,7 +68,7 @@ export const Route = createFileRoute("/directory_/$slug")({
 })
 
 function ListingRoute() {
-  const { site, listing, categories, primaryCategory, related } =
+  const { site, listing, categories, primaryCategory, related, claim } =
     Route.useLoaderData()
 
   const crumbs: Crumb[] = [
@@ -121,6 +122,22 @@ function ListingRoute() {
           ) : null}
 
           <ListingContactLinks links={listing.contactLinks} />
+
+          {/* Between the facts and the story: somebody deciding whether this is
+              their business has read enough by here, and it stays above the
+              body rather than at the bottom of a long page.
+
+              Wrapped, because this card is a grid — a button left as a direct
+              child of it stretches the full width of the page, which reads as
+              a banner rather than a thing to press. */}
+          <div>
+            <ClaimButton
+              listingId={listing.id}
+              listingSlug={listing.slug}
+              listingTitle={listing.title}
+              claim={claim}
+            />
+          </div>
 
           {/*
            * The same renderer the shell's written pages use. It builds React

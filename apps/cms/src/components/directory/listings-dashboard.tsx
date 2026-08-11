@@ -117,6 +117,8 @@ export function ListingsDashboard({
     ids: string[]
     title: string | null
     categoryLinks: number
+    claims: number
+    pendingRequests: number
   } | null>(null)
 
   const listKey = `${search.q ?? ""}|${search.status ?? ""}|${sort}|${direction}|${data.page}|${data.pageSize}`
@@ -180,7 +182,13 @@ export function ListingsDashboard({
     (ids: string[], title: string | null) => {
       void run(async () => {
         const impact = await loadListingDeleteImpact(ids)
-        setConfirm({ ids, title, categoryLinks: impact.categoryLinks })
+        setConfirm({
+          ids,
+          title,
+          categoryLinks: impact.categoryLinks,
+          claims: impact.claims,
+          pendingRequests: impact.pendingRequests,
+        })
       })
     },
     [run]
@@ -441,6 +449,22 @@ export function ListingsDashboard({
                         ? "One category tag goes"
                         : `${confirm.categoryLinks} category tags go`
                     } too — the categories themselves stay.`
+                  : null,
+                // Said before the claims, and first among the consequences that
+                // involve a person: somebody loses a page they were given.
+                confirm.claims
+                  ? `${
+                      confirm.claims === 1
+                        ? "A business owner looks after this listing and loses it"
+                        : `${confirm.claims} business owners look after these listings and lose them`
+                    }.`
+                  : null,
+                confirm.pendingRequests
+                  ? `${
+                      confirm.pendingRequests === 1
+                        ? "One change waiting to be read goes"
+                        : `${confirm.pendingRequests} changes waiting to be read go`
+                    } with it.`
                   : null,
               ]
                 .filter(Boolean)

@@ -90,7 +90,7 @@ describe("only published listings are readable", () => {
 
     // Missing rather than refused: a draft has to be indistinguishable from a
     // listing that was never written, or the address itself gives it away.
-    expect(await readPublicListing(alpha, "draft", database)).toBeNull()
+    expect(await readPublicListing(alpha, "draft", {}, database)).toBeNull()
   })
 
   it("keeps a draft out of a category page", async () => {
@@ -136,16 +136,16 @@ describe("a site only shows its own", () => {
     await publish(alpha, { title: "Alpha's diner", slug: "joes-diner" })
     await publish(beta, { title: "Beta's diner", slug: "joes-diner" })
 
-    expect((await readPublicListing(alpha, "joes-diner", database))?.listing.title)
+    expect((await readPublicListing(alpha, "joes-diner", {}, database))?.listing.title)
       .toBe("Alpha's diner")
-    expect((await readPublicListing(beta, "joes-diner", database))?.listing.title)
+    expect((await readPublicListing(beta, "joes-diner", {}, database))?.listing.title)
       .toBe("Beta's diner")
   })
 
   it("does not answer with the other site's listing", async () => {
     await publish(beta, { title: "Beta only", slug: "beta-only" })
 
-    expect(await readPublicListing(alpha, "beta-only", database)).toBeNull()
+    expect(await readPublicListing(alpha, "beta-only", {}, database)).toBeNull()
     expect((await browse(alpha)).total).toBe(0)
   })
 
@@ -186,7 +186,7 @@ describe("a site only shows its own", () => {
       )
     }
 
-    const page = await readPublicListing(alpha, "alpha-one", database)
+    const page = await readPublicListing(alpha, "alpha-one", {}, database)
 
     expect(page?.related.map((row) => row.slug)).toEqual(["alpha-two"])
   })

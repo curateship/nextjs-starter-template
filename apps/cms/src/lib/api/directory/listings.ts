@@ -9,6 +9,7 @@ import {
 } from "@/lib/directory/listing-sort"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { claimImpactForListings } from "@/server/directory/claims"
 import {
   categoriesForListing,
   createListing,
@@ -211,10 +212,16 @@ const listingDeleteImpactFn = createServerFn({ method: "GET" })
     z.object({ ids: z.array(z.string().min(1).max(36)).min(1).max(500) })
   )
   .handler(async ({ data, context }) => {
-    return listingDeleteImpact(
-      await workspaceIdForRequest(context.user.id),
-      data.ids
-    )
+    const site = await workspaceIdForRequest(context.user.id)
+    // Composed here rather than inside `listingDeleteImpact`, on purpose: that
+    // function lives beside `updateListing`, which the claims module already
+    // calls, and having it call back into claims would make the two modules
+    // import each other.
+    const [listings, claims] = await Promise.all([
+      listingDeleteImpact(site, data.ids),
+      claimImpactForListings(site, data.ids),
+    ])
+    return { ...listings, ...claims }
   })
 
 /** What deleting these would take with it, for the confirmation to say. */

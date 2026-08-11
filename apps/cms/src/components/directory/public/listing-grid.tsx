@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 
+import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PublicListingCard } from "@/lib/api/directory/public"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -70,9 +71,17 @@ function ListingCard({ listing }: { listing: PublicListingCard }) {
             {listing.title}
           </Link>
         </h2>
-        {listing.category ? (
-          <p className="text-xs text-muted-foreground">
-            {listing.category.name}
+        {listing.category || listing.claimed ? (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            {listing.category ? listing.category.name : null}
+            {/* Above the stretched link layer, so the badge's own tooltip is
+                reachable rather than being covered by the card-wide click
+                target. */}
+            {listing.claimed ? (
+              <span className="relative z-10">
+                <ClaimedBadge size="small" />
+              </span>
+            ) : null}
           </p>
         ) : null}
         {listing.metaDescription ? (
