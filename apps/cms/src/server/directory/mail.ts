@@ -36,6 +36,8 @@ export type DirectoryEmail = {
   /** The body as plain lines. Escaped here; callers never build markup. */
   lines: string[]
   action?: { label: string; url: string }
+  /** A signed opt-out link for outreach mail. Adds the standard email headers too. */
+  unsubscribeUrl?: string
 }
 
 /**
@@ -58,7 +60,11 @@ function renderEmail(email: DirectoryEmail): string {
       `<p style="margin:16px 0 0;font-size:13px;color:#666">If the button does not work, paste this into your browser:<br>${escapeHtml(email.action.url)}</p>`
     : ""
 
-  return `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px">${body}${action}</div>`
+  const unsubscribe = email.unsubscribeUrl
+    ? `<p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#666"><a href="${escapeHtml(email.unsubscribeUrl)}" style="color:#666">Stop claim invitations</a></p>`
+    : ""
+
+  return `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px">${body}${action}${unsubscribe}</div>`
 }
 
 /**
@@ -102,6 +108,14 @@ export async function sendDirectoryEmail(
     to: email.to,
     subject: email.subject,
     html: renderEmail(email),
+    ...(email.unsubscribeUrl
+      ? {
+          headers: {
+            "List-Unsubscribe": `<${email.unsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        }
+      : {}),
   })
 
   if (!result.success) {

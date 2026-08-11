@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router"
 
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
+import { FeaturedBadge } from "@/components/directory/public/featured-badge"
+import { SaveDropdown } from "@/components/directory/public/save-dropdown"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PublicListingCard } from "@/lib/api/directory/public"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -42,16 +44,29 @@ export function ListingGrid({
 
 function ListingCard({ listing }: { listing: PublicListingCard }) {
   return (
-    <Card className="relative w-full transition-colors hover:bg-accent/40">
+    <Card className="group/card relative w-full transition-colors hover:bg-accent/40">
       {listing.featuredImage ? (
-        <img
-          src={listing.featuredImage}
-          alt=""
-          loading="lazy"
-          className="aspect-[3/2] w-full object-cover"
+        <div className="relative overflow-hidden">
+          <img
+            src={listing.featuredImage}
+            alt=""
+            loading="lazy"
+            className="aspect-[3/2] w-full object-cover transition-opacity duration-200 group-hover/card:opacity-75"
+          />
+          <SaveDropdown
+            listingId={listing.id}
+            overlay
+            className="absolute top-2 right-2 transition-opacity md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100"
+          />
+        </div>
+      ) : (
+        <SaveDropdown
+          listingId={listing.id}
+          className="absolute top-2 right-2 transition-opacity md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100"
         />
-      ) : null}
+      )}
       <CardContent className="grid gap-1">
+        {listing.featured ? <FeaturedBadge /> : null}
         <h2 className="text-base leading-snug font-medium">
           {/*
            * The whole card is the link rather than the title alone: a card
@@ -66,6 +81,7 @@ function ListingCard({ listing }: { listing: PublicListingCard }) {
           <Link
             to="/directory/$slug"
             params={{ slug: listing.slug }}
+            search={{}}
             className={`after:absolute after:inset-0 ${focusRing}`}
           >
             {listing.title}

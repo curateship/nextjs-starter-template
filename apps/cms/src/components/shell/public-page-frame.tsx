@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { MenuIcon } from "lucide-react"
 
 import { BrandLogo } from "@/components/shell/brand-logo"
@@ -17,7 +18,11 @@ import {
   usePublicFooterCopyright,
   usePublicNavigation,
 } from "@/lib/branding"
-import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import {
+  isInternalPublicNavigationHref,
+  type PublicNavigationLink,
+} from "@/lib/pages/public-navigation"
+import { toLinkProps } from "@/lib/nav/nav-href"
 import { cn } from "@/lib/utils"
 
 /**
@@ -71,12 +76,16 @@ export function PublicPageFrame({
     <div className="flex min-h-screen flex-col bg-muted/60">
       <header className="border-b bg-background">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4">
-          <a href="/" className="flex min-w-0 items-center gap-2">
+          <Link
+            to="/"
+            preload="intent"
+            className="flex min-w-0 items-center gap-2"
+          >
             <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
             <span className="truncate text-sm font-medium text-foreground">
               {appName}
             </span>
-          </a>
+          </Link>
           {navigation.length ? (
             <>
               <nav aria-label="Main navigation" className="hidden md:block">
@@ -106,7 +115,7 @@ export function PublicPageFrame({
                       key={`${link.label}-${link.href}-${index}`}
                       asChild
                     >
-                      <a href={link.href}>{link.label}</a>
+                      <PublicLink link={link} />
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -154,19 +163,32 @@ export function PublicPageFrame({
 function PublicLink({
   link,
   className,
+  ...props
 }: {
   link: PublicNavigationLink
   className?: string
-}) {
+} & Omit<React.ComponentProps<"a">, "href">) {
+  const classes = cn(
+    "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    className
+  )
+
+  if (!isInternalPublicNavigationHref(link.href)) {
+    return (
+      <a {...props} href={link.href} className={classes}>
+        {link.label}
+      </a>
+    )
+  }
+
   return (
-    <a
-      href={link.href}
-      className={cn(
-        "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        className
-      )}
+    <Link
+      {...props}
+      {...toLinkProps(link.href)}
+      preload="intent"
+      className={classes}
     >
       {link.label}
-    </a>
+    </Link>
   )
 }

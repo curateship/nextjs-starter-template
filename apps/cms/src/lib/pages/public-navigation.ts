@@ -10,6 +10,11 @@ export const MAX_PUBLIC_NAVIGATION_LABEL_LENGTH = 120
 export const MAX_PUBLIC_NAVIGATION_HREF_LENGTH = 2_048
 export const MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH = 300
 
+/** Same-site links use the app router; every allowed non-slash address leaves it. */
+export function isInternalPublicNavigationHref(href: string) {
+  return href.startsWith("/") && !href.startsWith("//")
+}
+
 /**
  * Keeps only complete, safe public links. This runs on reads as well as writes,
  * so a hand-edited row can never put an executable address into the page.

@@ -1,5 +1,6 @@
 import type { AppServerOptions } from "@/server/app-options"
 import { directorySitemapEntries } from "@/server/directory/sitemap"
+import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -18,4 +19,12 @@ import { directorySitemapEntries } from "@/server/directory/sitemap"
  */
 export const appServerOptions: AppServerOptions = {
   sitemap: { extraEntries: directorySitemapEntries },
+  background: {
+    workers: [
+      {
+        name: "directory featured renewal reminders",
+        tick: runFeaturedRenewalReminders,
+      },
+    ],
+  },
 }
