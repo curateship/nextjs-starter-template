@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  changeVisibleMarketSelection,
   filterMarketsByVolume,
   parseMarketVolume,
 } from "@/lib/trade/market-volume-filter"
@@ -55,5 +56,29 @@ describe("filterMarketsByVolume", () => {
       { symbol: "ETH", volume24hUsd: 20_000_000 },
     ])
     expect(markets.map((market) => market.symbol)).toEqual(["ETH", "BTC"])
+  })
+})
+
+describe("changeVisibleMarketSelection", () => {
+  it("replaces older hidden selections when all visible markets are selected", () => {
+    const oldKeys = Array.from({ length: 500 }, (_, index) => `OLD-${index}`)
+    const visibleKeys = Array.from(
+      { length: 95 },
+      (_, index) => `VISIBLE-${index}`
+    )
+
+    expect(
+      changeVisibleMarketSelection(oldKeys, visibleKeys, true)
+    ).toEqual(visibleKeys)
+  })
+
+  it("only clears the visible markets when they are deselected", () => {
+    expect(
+      changeVisibleMarketSelection(
+        ["HIDDEN", "VISIBLE-1", "VISIBLE-2"],
+        ["VISIBLE-1", "VISIBLE-2"],
+        false
+      )
+    ).toEqual(["HIDDEN"])
   })
 })

@@ -19,8 +19,10 @@ How the Markets step decides which exchange and coins a backtest uses.
   so `10` to `100` means $10m to $100m. The visible list is ordered from highest
   volume to lowest. Decimals and suffixes work too: `.5` and `500k` both mean
   $500,000.
-- The header checkbox selects or clears every coin visible after the volume and
-  search filters are applied.
+- Selecting the header checkbox replaces the current choice with every visible
+  coin. Coins left over from an older filter cannot fill the 500-coin limit.
+- The volume range is saved with the Markets step and stays in place until it is
+  changed. It only controls which rows are shown while editing.
 
 ## What gets saved
 

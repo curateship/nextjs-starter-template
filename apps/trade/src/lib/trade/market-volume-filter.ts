@@ -43,3 +43,15 @@ export function filterMarketsByVolume<
         left.symbol.localeCompare(right.symbol)
     )
 }
+
+/** Selecting all makes the filtered rows the complete market selection. */
+export function changeVisibleMarketSelection(
+  currentKeys: readonly string[],
+  visibleKeys: readonly string[],
+  selected: boolean
+): string[] {
+  if (selected) return [...new Set(visibleKeys)]
+
+  const visibleSet = new Set(visibleKeys)
+  return currentKeys.filter((key) => !visibleSet.has(key))
+}

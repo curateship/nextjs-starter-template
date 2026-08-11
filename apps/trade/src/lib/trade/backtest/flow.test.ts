@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
+import { automationGraphSchema } from "@/lib/automations/graph"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import {
   candlesPerCoin,
@@ -129,6 +130,31 @@ describe("a flow that is not one yet", () => {
 
     expect(read.spec).toBeNull()
     expect(read.problem).toContain("exchange shown")
+  })
+})
+
+describe("saved market editor settings", () => {
+  it("keeps the editor's volume range in the saved draft", () => {
+    const graph = automationGraphSchema.parse({
+      nodes: [
+        {
+          id: "markets-1",
+          kind: tradeMarketsNode.kind,
+          x: 0,
+          y: 0,
+          settings: {
+            ...tradeMarketsNode.createSettings(),
+            minimumVolume: ".5",
+            maximumVolume: "100",
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    })
+
+    expect(graph.nodes[0].settings.minimumVolume).toBe(".5")
+    expect(graph.nodes[0].settings.maximumVolume).toBe("100")
   })
 })
 

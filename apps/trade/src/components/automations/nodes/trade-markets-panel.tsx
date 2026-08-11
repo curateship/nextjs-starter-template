@@ -35,6 +35,7 @@ import type { MarketRow } from "@/lib/protocols/contracts"
 import { plural } from "@/lib/format/plural"
 import { formatCompactUsd } from "@/lib/trade/format"
 import {
+  changeVisibleMarketSelection,
   filterMarketsByVolume,
   parseMarketVolume,
 } from "@/lib/trade/market-volume-filter"
@@ -99,6 +100,14 @@ export default function TradeMarketsFields({
   const protocol = parsedSettings.success
     ? (parsedSettings.data.protocol ?? fallback.protocol)
     : fallback.protocol
+  const minimumVolume =
+    typeof node.settings.minimumVolume === "string"
+      ? node.settings.minimumVolume
+      : ""
+  const maximumVolume =
+    typeof node.settings.maximumVolume === "string"
+      ? node.settings.maximumVolume
+      : ""
 
   /**
    * What the last fetch came back with, and which exchange it was for.
@@ -137,8 +146,6 @@ export default function TradeMarketsFields({
     ReadonlyArray<{ id: string; label: string; tradeable: boolean }>
   >([])
   const [search, setSearch] = React.useState("")
-  const [minimumVolume, setMinimumVolume] = React.useState("")
-  const [maximumVolume, setMaximumVolume] = React.useState("")
 
   /** Bumped by "Try again", which asks again past the cache. */
   const [attemptKey, setAttemptKey] = React.useState(0)
@@ -270,12 +277,7 @@ export default function TradeMarketsFields({
   const allVisibleChosen = visible.length > 0 && visibleChosen === visible.length
 
   function toggleVisible(on: boolean) {
-    const visibleSet = new Set(visibleKeys)
-    setKeys(
-      on
-        ? [...marketKeys, ...visibleKeys]
-        : marketKeys.filter((key) => !visibleSet.has(key))
-    )
+    setKeys(changeVisibleMarketSelection(marketKeys, visibleKeys, on))
   }
 
   return (
@@ -368,10 +370,19 @@ export default function TradeMarketsFields({
                     inputMode="decimal"
                     placeholder="10"
                     value={minimumVolume}
+                    maxLength={30}
                     aria-invalid={
                       minimumVolume.trim().length > 0 && parsedMinimum === null
                     }
-                    onChange={(event) => setMinimumVolume(event.target.value)}
+                    onChange={(event) =>
+                      onChange({
+                        ...node,
+                        settings: {
+                          ...node.settings,
+                          minimumVolume: event.target.value,
+                        },
+                      })
+                    }
                   />
                 </div>
                 <div className="grid gap-1.5">
@@ -386,11 +397,20 @@ export default function TradeMarketsFields({
                     inputMode="decimal"
                     placeholder="100"
                     value={maximumVolume}
+                    maxLength={30}
                     aria-invalid={
                       maximumVolume.trim().length > 0 &&
                       (parsedMaximum === null || !rangeIsValid)
                     }
-                    onChange={(event) => setMaximumVolume(event.target.value)}
+                    onChange={(event) =>
+                      onChange({
+                        ...node,
+                        settings: {
+                          ...node.settings,
+                          maximumVolume: event.target.value,
+                        },
+                      })
+                    }
                   />
                 </div>
               </div>
