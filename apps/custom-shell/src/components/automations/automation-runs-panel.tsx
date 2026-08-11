@@ -396,6 +396,11 @@ function RunRow({
               !expanded && "-rotate-90"
             )}
           />
+          {current.is_test ? (
+            <Badge variant="outline" className="shrink-0">
+              TEST
+            </Badge>
+          ) : null}
           <Badge
             variant={
               waiting
@@ -474,7 +479,13 @@ function RunRow({
                 </Link>
               ) : null}
 
-              {detail.trigger_name ? (
+              {detail.is_test && detail.subject_label ? (
+                <p className="text-xs text-muted-foreground">
+                  Tested as {detail.subject_label}. Emails were redirected to
+                  the admin who started the test, and outside changes were
+                  skipped.
+                </p>
+              ) : detail.trigger_name ? (
                 <p className="text-xs text-muted-foreground">
                   Started by {detail.trigger_name}
                   {detail.subject_label ? `, for ${detail.subject_label}` : ""}.

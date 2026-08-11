@@ -8,10 +8,12 @@ import {
 } from "@/lib/broadcasts/render"
 import {
   listAutomationAudienceContacts,
+  memberMatchesAutomationAudience,
   readAutomationAudience,
   type AutomationAudienceContact,
 } from "@/server/automations/audience"
 import { syncContactsFromUsers } from "@/server/people/contacts"
+import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users"
 import { workspaceForRun } from "@/server/automations/runs"
 import type { CustomShellDb } from "@/server/db"
 import { getEmailProvider, type EmailProvider } from "@/server/email/provider"
@@ -41,11 +43,17 @@ type SendEmailContext = {
   nodeId: string
   settings: Record<string, unknown>
   now: () => Date
+  testRun?: boolean
 }
 
 type Recipient = Pick<
   AutomationAudienceContact,
   "id" | "userId" | "email" | "firstName" | "lastName" | "emailVerifiedAt"
+>
+
+type TestRecipient = Pick<
+  Recipient,
+  "email" | "firstName" | "lastName" | "emailVerifiedAt"
 >
 
 /** The closest upstream Audience step this run actually completed, if any. */
@@ -134,6 +142,52 @@ async function subjectRecipient(
     .limit(1)
 
   return recipient ?? null
+}
+
+/**
+ * The member as a normal send would see them after contact sync, without
+ * writing that sync during a test. An existing opt-out still wins.
+ */
+async function testSubjectRecipient(
+  userId: string,
+  workspaceId: string,
+  database: CustomShellDb
+): Promise<TestRecipient | null> {
+  const [recipient] = await database
+    .select({
+      email: customShellUsers.email,
+      name: customShellUsers.name,
+      emailVerifiedAt: customShellUsers.emailVerifiedAt,
+      contactStatus: customShellContacts.status,
+    })
+    .from(customShellUsers)
+    .leftJoin(
+      customShellContacts,
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.userId, customShellUsers.id)
+      )
+    )
+    .where(
+      and(
+        await userBelongsToWorkspaceCondition(workspaceId, database),
+        eq(customShellUsers.id, userId),
+        eq(customShellUsers.role, "member"),
+        eq(customShellUsers.status, "active")
+      )
+    )
+    .limit(1)
+
+  if (!recipient || (recipient.contactStatus && recipient.contactStatus !== "subscribed")) {
+    return null
+  }
+  const parts = recipient.name.trim().split(/\s+/).filter(Boolean)
+  return {
+    email: recipient.email,
+    firstName: parts[0] ?? null,
+    lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
+    emailVerifiedAt: recipient.emailVerifiedAt,
+  }
 }
 
 function isProduction() {
@@ -288,13 +342,25 @@ export async function executeSendEmailNode({
   nodeId,
   settings: rawSettings,
   now,
+  testRun,
 }: SendEmailContext) {
   const settings = readSendEmailSettings(rawSettings)
   // The run's own workspace, fixed when it started. See executors.ts.
   const workspaceId = await workspaceForRun(run, database)
-  await syncContactsFromUsers(workspaceId, database)
+  if (!testRun) await syncContactsFromUsers(workspaceId, database)
 
   const audience = await audienceForRun(run, nodeId, database)
+  if (testRun) {
+    return executeTestEmail({
+      database,
+      run,
+      nodeId,
+      settings,
+      audience,
+      workspaceId,
+      now,
+    })
+  }
   const fixedAt = now()
   const htmlTemplate = renderBroadcastEmailHtml(settings.blocks, {
     preheader: settings.preheader,
@@ -387,5 +453,135 @@ export async function executeSendEmailNode({
   return {
     type: "next" as const,
     summary: `Emailed ${sent}, ${failed} failed, ${skipped} skipped because their email was not confirmed.`,
+  }
+}
+
+/** Sends one personalised copy to the admin and records no member delivery. */
+async function executeTestEmail({
+  database,
+  run,
+  nodeId,
+  settings,
+  audience,
+  workspaceId,
+  now,
+}: {
+  database: CustomShellDb
+  run: CustomShellAutomationRun
+  nodeId: string
+  settings: ReturnType<typeof readSendEmailSettings>
+  audience: Awaited<ReturnType<typeof audienceForRun>>
+  workspaceId: string
+  now: () => Date
+}) {
+  const destination = run.testRecipientEmail?.trim()
+  if (!destination || !run.subjectUserId) {
+    throw new Error(
+      "This test run has no safe destination or chosen member, so no email was sent."
+    )
+  }
+
+  const recipient = await testSubjectRecipient(
+    run.subjectUserId,
+    workspaceId,
+    database
+  )
+  if (!recipient) {
+    return {
+      type: "next" as const,
+      summary:
+        "No test email was sent because the chosen member could not receive this email. The member received nothing.",
+    }
+  }
+  if (audience) {
+    const matches = await memberMatchesAutomationAudience(
+      audience,
+      workspaceId,
+      run.subjectUserId,
+      database,
+      now()
+    )
+    if (!matches) {
+      return {
+        type: "next" as const,
+        summary: `${run.subjectLabel ?? "The chosen member"} did not match this email's audience, so no test email was sent.`,
+      }
+    }
+  }
+  if (!recipient.emailVerifiedAt) {
+    return {
+      type: "next" as const,
+      summary:
+        "No test email was sent because the chosen member's email is not confirmed. The member received nothing.",
+    }
+  }
+
+  const sender = await emailProvider(workspaceId, database)
+  const subject = `[TEST for ${recipient.email}] ${personalizeEmail(
+    settings.subject,
+    recipient,
+    { html: false }
+  )}`.replace(/[\r\n]+/g, " ")
+  const html = personalizeEmail(
+    renderBroadcastEmailHtml(settings.blocks, {
+      preheader: settings.preheader,
+    }),
+    recipient,
+    { html: true, unsubscribeUrl: "#" }
+  )
+  const [reserved] = await database
+    .insert(customShellAutomationDeliveries)
+    .values({
+      id: uuid(),
+      runId: run.id,
+      nodeId,
+      contactId: null,
+      userId: run.userId,
+      toEmail: destination,
+      subject,
+      status: "failed",
+      error:
+        "The test send was interrupted, so delivery could not be confirmed.",
+      createdAt: now(),
+    })
+    .onConflictDoNothing()
+    .returning({ id: customShellAutomationDeliveries.id })
+  if (!reserved) {
+    return {
+      type: "next" as const,
+      summary: `The test email for ${recipient.email} was already attempted. The member received nothing.`,
+    }
+  }
+
+  let result: Awaited<ReturnType<EmailProvider["send"]>>
+  try {
+    result = await sender.provider.send({
+      from: composeFromAddress(settings.fromName, sender.from),
+      to: destination,
+      subject,
+      html,
+    })
+  } catch (error) {
+    result = {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+  await database
+    .update(customShellAutomationDeliveries)
+    .set({
+      status: result.success ? "sent" : "failed",
+      providerMessageId: result.messageId ?? null,
+      error: result.success
+        ? null
+        : (result.error ?? "The test send did not go through"),
+    })
+    .where(eq(customShellAutomationDeliveries.id, reserved.id))
+
+  return {
+    type: "next" as const,
+    summary: result.success
+      ? `Sent a test email to ${destination} for ${recipient.email}. The member received nothing.`
+      : `The test email to ${destination} failed: ${result.error ?? "the send did not go through"}. The member received nothing.`,
   }
 }

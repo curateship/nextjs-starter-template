@@ -17,7 +17,10 @@ import {
   automationKindIsTrigger,
   automationNodeName,
 } from "@/lib/automations/node-registry"
-import { automationEntryNodeId } from "@/lib/automations/run"
+import {
+  automationCanStartManually,
+  automationEntryNodeId,
+} from "@/lib/automations/run"
 import { db, type CustomShellDb } from "@/server/db"
 import { nextScheduledRunAt } from "@/server/automations/time-triggers"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
@@ -49,6 +52,7 @@ export type AutomationListRow = {
   enabled: boolean
   /** What the flow reacts to, in the palette's own words. Null when nothing. */
   triggerName: string | null
+  canRunManually: boolean
   nextRunAt: Date | null
   updatedAt: Date
 }
@@ -150,6 +154,9 @@ export async function listWorkspaceAutomations(
       nodeCount: inspected.graph.nodes.length,
       enabled: row.enabled,
       triggerName: automationTriggerName(inspected),
+      canRunManually: inspected.compiledConfig
+        ? automationCanStartManually(inspected.compiledConfig)
+        : false,
       nextRunAt: row.nextRunAt,
       updatedAt: row.updatedAt,
     }

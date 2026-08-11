@@ -12,6 +12,7 @@ import {
 } from "@/server/automations/flows"
 import type { CustomShellDb } from "@/server/db"
 import { setEmailProviderFactoryForTests } from "@/server/email/provider"
+import { syncContactsFromUsers } from "@/server/people/contacts"
 import {
   customShellAutomationDeliveries,
   customShellAutomationRuns,
@@ -119,6 +120,7 @@ async function insertRun(
     claimToken?: string | null
     configOverride?: ReturnType<typeof config>
     completedAudiences?: Array<{ id: string; nodeId: string }>
+    testRecipientEmail?: string
   } = {}
 ): Promise<CustomShellAutomationRun> {
   const withAudience = options.withAudience ?? true
@@ -150,6 +152,8 @@ async function insertRun(
       claimToken: options.claimToken ?? null,
       claimedAt: options.claimToken ? timestamp : null,
       subjectUserId: options.subjectUserId ?? null,
+      testRun: Boolean(options.testRecipientEmail),
+      testRecipientEmail: options.testRecipientEmail,
       startedAt: timestamp,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -178,7 +182,8 @@ async function insertRun(
 
 async function execute(
   run: CustomShellAutomationRun,
-  settings: Record<string, unknown> = SETTINGS
+  settings: Record<string, unknown> = SETTINGS,
+  testRun = false
 ) {
   return executeSendEmailNode({
     database: db,
@@ -186,10 +191,85 @@ async function execute(
     nodeId: EMAIL_NODE_ID,
     settings,
     now,
+    testRun,
   })
 }
 
 describe("Send Email executor", () => {
+  it("personalises a test for the member but sends only to the admin", async () => {
+    const member = await insertUser(db, {
+      email: "subject@example.test",
+      name: "Sam Subject",
+    })
+    const send = vi.fn(async () => ({ success: true, messageId: "test-sent" }))
+    setEmailProviderFactoryForTests(() => ({ send }))
+    const [memberBefore] = await db
+      .select()
+      .from(customShellContacts)
+      .where(eq(customShellContacts.userId, member.id))
+    const run = await insertRun({
+      withAudience: false,
+      subjectUserId: member.id,
+      testRecipientEmail: owner.email,
+    })
+
+    const result = await execute(run, SETTINGS, true)
+
+    expect(result.summary).toBe(
+      `Sent a test email to ${owner.email} for subject@example.test. The member received nothing.`
+    )
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: owner.email,
+        subject: "[TEST for subject@example.test] A small update",
+      })
+    )
+    expect(send).not.toHaveBeenCalledWith(
+      expect.objectContaining({ to: "subject@example.test" })
+    )
+    const deliveries = await db
+      .select()
+      .from(customShellAutomationDeliveries)
+      .where(eq(customShellAutomationDeliveries.runId, run.id))
+    expect(deliveries).toEqual([
+      expect.objectContaining({
+        contactId: null,
+        userId: owner.id,
+        toEmail: owner.email,
+      }),
+    ])
+    const [memberAfter] = await db
+      .select()
+      .from(customShellContacts)
+      .where(eq(customShellContacts.userId, member.id))
+    expect(memberAfter).toEqual(memberBefore)
+  })
+
+  it("sends no test email when the member does not match the audience", async () => {
+    const member = await insertUser(db, { email: "free@example.test" })
+    const send = vi.fn(async () => ({ success: true, messageId: "not-used" }))
+    setEmailProviderFactoryForTests(() => ({ send }))
+    await syncContactsFromUsers(site, db)
+    const payingConfig = config(true)
+    payingConfig.nodes.audience.settings = {
+      audience: "paying",
+      planSlug: "",
+      segmentId: "",
+      segmentName: "",
+    }
+    const run = await insertRun({
+      subjectUserId: member.id,
+      testRecipientEmail: owner.email,
+      configOverride: payingConfig,
+    })
+
+    const result = await execute(run, SETTINGS, true)
+
+    expect(result.summary).toContain("did not match this email's audience")
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it("isolates failures, skips unconfirmed members, and does not resend on retry", async () => {
     await insertUser(db, { email: "good@example.test" })
     await insertUser(db, { email: "bad@example.test" })

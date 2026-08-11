@@ -103,6 +103,8 @@ export type AutomationNodeDescriptor = {
   outputPorts: readonly AutomationNodePort[]
   /** Whether the node accepts an inbound connection (false only for triggers). */
   hasInput: boolean
+  /** False when pressing Run cannot provide the real event or member it needs. */
+  manualStart?: boolean
   /** A human reason this connection is not allowed, or null when it is. */
   connectionError: (
     sourcePort: AutomationSourcePort,
