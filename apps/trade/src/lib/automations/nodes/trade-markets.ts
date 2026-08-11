@@ -22,16 +22,11 @@ export const DEFAULT_BACKTEST_DAYS = 30
  * of candles, so a longer window simply buys fewer coins. Nothing is refused
  * that could have been answered with a number.
  *
- * Ten years because Binance listed its first USDT perpetuals in September 2019
- * and this has to keep working as that recedes. It is a guard against somebody
- * typing 99999 and waiting, not a view about how long a useful test is. A coin
- * younger than the window is not a failure either: it comes back as skipped,
- * with its gaps recorded.
- *
- * It used to be 730, which was the old worry about an exchange keeping only
- * 5,000 bars — a limit that belongs to live charts and never applied to where
- * these candles come from. All it did was turn the field red on a number
- * nothing was actually going to refuse.
+ * Ten years is an input guard against somebody typing 99999 and waiting, not a
+ * promise that every exchange holds that much. The candle store follows the
+ * selected protocol and records a shorter stretch as a visible gap. A younger
+ * coin is tested from its first stored candle. Adding another exchange as a
+ * fallback is a separate decision, never a quiet substitution inside a run.
  */
 export const MAX_BACKTEST_DAYS = 3_650
 

@@ -5,10 +5,10 @@ import {
   type CandleBar,
   type CandleInterval,
   type MarketKey,
+  type MarketRef,
 } from "@/lib/protocols/contracts"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
-import { fetchBinanceCandleRange } from "@/server/protocols/binance/candles"
 import {
   tradeCandleCoverage,
   tradeCandleGaps,
@@ -38,25 +38,17 @@ import {
  * middle of its window — rather than quietly testing a shorter period and
  * calling it ninety days.
  *
- * **The bars come from Binance, not the exchange the run trades on.** That is
- * the old app's decision, ported with it: Binance keeps years of history and
- * lists far more coins, where Hyperliquid has a ~5,000-bar wall and rate-limits
- * a fifty-coin run into the ground. Live trading, order books and slippage stay
- * on Hyperliquid; only the history moves. The cost is named rather than hidden —
- * Binance prices are not Hyperliquid prices, so a run tests **the strategy**,
- * not that venue's exact fills.
+ * **The market key chooses the source.** A Hyperliquid key stores Hyperliquid
+ * candles and a Binance key stores Binance candles. The store reaches either
+ * one through the protocol registry, so no exchange package leaks into the
+ * backtest and no result quietly mixes one venue's prices with another's.
  */
 
 /**
- * How many bars have to be missing in a row before it counts as a hole worth
- * recording.
- *
- * One absent bar is ordinary: the exchange leaves out a period nothing traded
- * in, and the ladder engine carries the last price across it without noticing.
- * Three in a row is long enough to be a real outage, and a run of them in the
- * middle of a test window is something the results page should say out loud.
+ * Each page is saved before the next is requested. If page five fails, pages
+ * one through four remain covered and the next run starts at page five.
  */
-const GAP_BARS = 3
+const HISTORY_PAGE_BARS = 1_000
 
 /** Rows go in in batches, so one coin-year is not one enormous statement. */
 const WRITE_BATCH = 500
@@ -109,7 +101,7 @@ export async function ensureCandleCoverage(
     return { firstBar: null, lastBar: null, barCount: 0, gaps: [] }
   }
 
-  const [covered] = await database
+  const covered = await database
     .select()
     .from(tradeCandleCoverage)
     .where(
@@ -118,42 +110,19 @@ export async function ensureCandleCoverage(
         eq(tradeCandleCoverage.interval, interval)
       )
     )
+    .orderBy(asc(tradeCandleCoverage.fromTime))
 
-  // The ends sticking out either side of what has already been asked about.
-  // A window entirely inside the covered span leaves both of these empty, and
-  // nothing is fetched at all.
-  const missing: Array<{ from: number; to: number }> = []
-  if (!covered) {
-    missing.push({ from, to })
-  } else {
-    if (from < covered.fromTime) {
-      missing.push({ from, to: Math.min(to, covered.fromTime) })
-    }
-    if (to > covered.toTime) {
-      missing.push({ from: Math.max(from, covered.toTime), to })
-    }
-  }
+  // Coverage is kept as separate pieces. Joining two distant windows into one
+  // span would claim the untouched middle had already been fetched.
+  const missing = missingCoverage(from, to, covered)
 
-  for (const end of missing) {
-    if (!(end.to > end.from)) continue
-    const bars = await fetchBinanceCandleRange(
-      ref.marketId,
-      interval,
-      end.from,
-      end.to
-    )
-    await writeCandles(marketKey, interval, bars, database)
-  }
-
-  // Written after the fetches, never before: a fetch that throws must leave
-  // the window looking un-asked, or the failure would be remembered as "there
-  // is nothing there" and never retried.
-  if (missing.length > 0) {
-    await recordCoverage(
+  for (const range of missing) {
+    await fetchMissingRange(
+      ref,
       marketKey,
       interval,
-      Math.min(from, covered?.fromTime ?? from),
-      Math.max(to, covered?.toTime ?? to),
+      range.from,
+      range.to,
       database
     )
   }
@@ -167,6 +136,61 @@ export async function ensureCandleCoverage(
   )
   await recordGaps(marketKey, interval, report.gaps, database)
   return report
+}
+
+function missingCoverage(
+  from: number,
+  to: number,
+  covered: ReadonlyArray<{ fromTime: number; toTime: number }>
+): Array<{ from: number; to: number }> {
+  const missing: Array<{ from: number; to: number }> = []
+  let cursor = from
+
+  for (const range of covered) {
+    if (range.toTime <= cursor) continue
+    if (range.fromTime >= to) break
+    if (range.fromTime > cursor) {
+      missing.push({ from: cursor, to: Math.min(to, range.fromTime) })
+    }
+    cursor = Math.max(cursor, range.toTime)
+    if (cursor >= to) return missing
+  }
+
+  if (cursor < to) missing.push({ from: cursor, to })
+  return missing
+}
+
+async function fetchMissingRange(
+  ref: MarketRef,
+  marketKey: MarketKey,
+  interval: CandleInterval,
+  from: number,
+  to: number,
+  database: CustomShellDb
+): Promise<void> {
+  const protocol = getProtocol(ref.protocol)
+  const pageMs = protocol.markets.intervalMs(interval) * HISTORY_PAGE_BARS
+
+  for (let pageFrom = from; pageFrom < to; pageFrom += pageMs) {
+    const pageTo = Math.min(to, pageFrom + pageMs)
+    const bars = await protocol.markets.history(
+      ref.network,
+      ref.marketId,
+      interval,
+      pageFrom,
+      pageTo
+    )
+    await writeCandles(marketKey, interval, bars, database)
+    // Written after this page succeeds, never before. A later failure leaves
+    // this exact progress on record, so retrying resumes at the failed page.
+    await recordCoverage(
+      marketKey,
+      interval,
+      pageFrom,
+      pageTo,
+      database
+    )
+  }
 }
 
 async function writeCandles(
@@ -209,12 +233,14 @@ async function recordCoverage(
     .insert(tradeCandleCoverage)
     .values({ marketKey, interval, fromTime, toTime })
     .onConflictDoUpdate({
-      target: [tradeCandleCoverage.marketKey, tradeCandleCoverage.interval],
+      target: [
+        tradeCandleCoverage.marketKey,
+        tradeCandleCoverage.interval,
+        tradeCandleCoverage.fromTime,
+      ],
       set: {
-        // Widened, never narrowed. Two runs asking for different windows both
-        // add to what is known; the smaller one must not throw the larger
-        // one's history away.
-        fromTime: sql`least(${tradeCandleCoverage.fromTime}, ${fromTime})`,
+        // Concurrent runs may finish the same page. Keep the widest successful
+        // answer that begins here without joining it to a distant page.
         toTime: sql`greatest(${tradeCandleCoverage.toTime}, ${toTime})`,
         updatedAt: sql`now()`,
       },
@@ -263,7 +289,7 @@ async function readCoverageReport(
 
   // The leading hole, which is the one that matters most: it is what a coin
   // younger than the test window looks like.
-  if (firstBar - from >= step * GAP_BARS) {
+  if (firstBar - from >= step) {
     gaps.push({
       from,
       to: firstBar,
@@ -274,7 +300,7 @@ async function readCoverageReport(
   for (let index = 1; index < times.length; index += 1) {
     const previous = times[index - 1].openTime
     const current = times[index].openTime
-    if (current - previous >= step * (GAP_BARS + 1)) {
+    if (current - previous >= step * 2) {
       gaps.push({
         from: previous + step,
         to: current,
@@ -283,7 +309,7 @@ async function readCoverageReport(
     }
   }
 
-  if (to - lastBar >= step * (GAP_BARS + 1)) {
+  if (to - lastBar >= step * 2) {
     gaps.push({
       from: lastBar + step,
       to,

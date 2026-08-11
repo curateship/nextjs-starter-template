@@ -397,6 +397,19 @@ working bar streams beside it.
 - **A hidden tab lets the connection go** and reconnects — with the same
   catch-up — when you come back.
 
+## Backtest candle history
+
+- Backtests save finished candles in the app database by full market key and
+  candle size. Running the same window again reads those rows without asking
+  the exchange again.
+- The selected protocol is also the history source. Hyperliquid markets use
+  Hyperliquid candles and Binance markets use Binance candles; prices are never
+  substituted across exchanges.
+- Downloads are saved page by page, so a failed request resumes at its missing
+  page. Every missing candle stretch stays visible as a recorded gap.
+- Hyperliquid keeps a limited history. A window beyond that history shows the
+  shortfall; adding a fallback source requires a separate decision.
+
 ## Backtest funding
 
 - Perpetual-market backtests use the exchange's saved historical funding rates

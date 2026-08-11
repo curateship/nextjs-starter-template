@@ -1,23 +1,15 @@
 import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
 
 /**
- * Binance USDT-perp klines — the backtest data source.
+ * Binance USDT-perp klines — the Binance protocol's history source.
  *
- * A port of the old app's `src/server/backtest/binance-history.ts`, for the
- * reasons written there: Binance keeps **years** of history and lists far more
- * coins than Hyperliquid's ~5,000-candle wall, and answers a thousand bars a
- * request instead of paging. Live trading, order books and slippage stay on
- * Hyperliquid — only the history comes from here.
+ * A Binance market uses these prices for charts and backtests. A Hyperliquid
+ * market never comes through this file; its full market key routes it to the
+ * Hyperliquid adapter instead.
  *
- * The trade-off is named rather than hidden: Binance prices are not Hyperliquid
- * prices, so a run tests **the strategy**, not that venue's exact fills. The old
- * app took that deal deliberately and so does this.
- *
- * Where this differs from the port is the cache, and only because one already
- * exists: the old app wrote JSON files under `.candle-cache/`, and this app
- * already keeps `trade_candles` in the database and already fetches only the
- * ends it is missing. So this file is the fetch, and `candle-store.ts` is the
- * cache — the same two jobs, split the way this app already splits them.
+ * The old app wrote JSON files under `.candle-cache/`; this app keeps finished
+ * bars in `trade_candles`. This file fetches Binance pages and the shared store
+ * decides which pages are missing.
  */
 const BINANCE_FAPI_KLINES = "https://fapi.binance.com/fapi/v1/klines"
 
@@ -70,17 +62,6 @@ if (!guardScope.__backtestEconnresetGuard) {
 }
 
 /**
- * Hyperliquid coin names that need an explicit Binance symbol. The default is
- * `<COIN>USDT`; the `k`-prefix (1000x) coins map to Binance's `1000` prefix.
- * Anything not on Binance perps maps to null and is reported as skipped.
- */
-const SYMBOL_OVERRIDES: Record<string, string | null> = {
-  // Hyperliquid-only tokens with no Binance perp listing.
-  HYPE: null,
-  PURR: null,
-}
-
-/**
  * A coin name as Binance's perp symbol, or null when it is not one.
  *
  * Null is an answer, not a failure: a Hyperliquid-only token, or one of the
@@ -91,7 +72,6 @@ export function binanceSymbolFor(coin: string): string | null {
   // An empty name would otherwise become the symbol "USDT", which looks real
   // enough to be fetched and is not a market at all.
   if (!/^[A-Za-z0-9:]+$/.test(coin)) return null
-  if (coin in SYMBOL_OVERRIDES) return SYMBOL_OVERRIDES[coin]
   // Sub-exchange markets (`xyz:MSFT`, `hyna:HYPE`, `para:STX`) are not Binance
   // perps at all. Refused by the shape check below, but named here so the
   // reason is obvious rather than an accident of a regex.

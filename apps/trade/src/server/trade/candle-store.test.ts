@@ -21,11 +21,18 @@ import {
 const HOUR = 3_600_000
 const FOUR_HOURS = 4 * HOUR
 
-/** Every range the fake exchange was asked for, in order. */
-const asks: Array<{ from: number; to: number }> = []
+/** Every range the fake protocol was asked for, in order. */
+const asks: Array<{
+  protocol: string
+  marketId: string
+  interval: string
+  from: number
+  to: number
+}> = []
 
 /** The bars the fake exchange actually holds, by open time. */
 let available: CandleBar[] = []
+let failFromOnce: number | null = null
 
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
@@ -33,27 +40,37 @@ let available: CandleBar[] = []
 // call to nothing.
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  getProtocol: () => ({ markets: { intervalMs: () => FOUR_HOURS } }),
+  getProtocol: (protocol: string) => ({
+    markets: {
+      intervalMs: (interval: string) =>
+        interval === "1h" ? HOUR : FOUR_HOURS,
+      history: async (
+        _network: string,
+        marketId: string,
+        interval: string,
+        from: number,
+        to: number
+      ) => {
+        asks.push({ protocol, marketId, interval, from, to })
+        if (failFromOnce === from) {
+          failFromOnce = null
+          throw new Error("the exchange said no")
+        }
+        return available.filter(
+          (bar) => bar.openTime >= from && bar.openTime < to
+        )
+      },
+    },
+  }),
 }))
 
-// The history comes from Binance, not the venue the run trades on — see the
-// note at the top of `candle-store.ts`.
-vi.mock("@/server/protocols/binance/candles", () => ({
-  binanceSymbolFor: (coin: string) => `${coin}USDT`,
-  fetchBinanceCandleRange: async (
-    _coin: string,
-    _interval: string,
-    from: number,
-    to: number
-  ) => {
-    asks.push({ from, to })
-    return available.filter((bar) => bar.openTime >= from && bar.openTime < to)
-  },
-}))
-
-function bars(fromTime: number, count: number): CandleBar[] {
+function bars(
+  fromTime: number,
+  count: number,
+  step: number = FOUR_HOURS
+): CandleBar[] {
   return Array.from({ length: count }, (_, index) => ({
-    openTime: fromTime + index * FOUR_HOURS,
+    openTime: fromTime + index * step,
     open: 100,
     high: 101,
     low: 99,
@@ -71,6 +88,7 @@ let db: CustomShellDb
 beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
   asks.length = 0
+  failFromOnce = null
   available = bars(START, 100)
 })
 
@@ -120,7 +138,7 @@ describe("widening a window", () => {
     )
 
     // Two ends, and neither of them touches the middle that was already there.
-    expect(asks).toEqual([
+    expect(asks.map(({ from, to }) => ({ from, to }))).toEqual([
       { from: middleFrom - 20 * FOUR_HOURS, to: middleFrom },
       { from: middleTo, to: middleTo + 20 * FOUR_HOURS },
     ])
@@ -137,6 +155,36 @@ describe("widening a window", () => {
     await ensureCandleCoverage(KEY, "4h", START, wideTo, db)
 
     expect(asks).toEqual([])
+  })
+
+  it("does not claim an unfetched middle between separate windows", async () => {
+    const firstTo = START + 100 * FOUR_HOURS
+    const lastFrom = START + 3_000 * FOUR_HOURS
+    const lastTo = lastFrom + 100 * FOUR_HOURS
+    available = [
+      ...bars(START, 100),
+      ...bars(START + 1_500 * FOUR_HOURS, 100),
+      ...bars(lastFrom, 100),
+    ]
+
+    await ensureCandleCoverage(KEY, "4h", START, firstTo, db)
+    await ensureCandleCoverage(KEY, "4h", lastFrom, lastTo, db)
+    asks.length = 0
+
+    const middleFrom = START + 1_500 * FOUR_HOURS
+    const middleTo = middleFrom + 100 * FOUR_HOURS
+    const report = await ensureCandleCoverage(
+      KEY,
+      "4h",
+      middleFrom,
+      middleTo,
+      db
+    )
+
+    expect(asks.map(({ from, to }) => ({ from, to }))).toEqual([
+      { from: middleFrom, to: middleTo },
+    ])
+    expect(report.barCount).toBe(100)
   })
 })
 
@@ -208,7 +256,7 @@ describe("a hole in the middle of a window", () => {
     ])
   })
 
-  it("ignores a single missing bar, which is ordinary", async () => {
+  it("records even a single missing bar", async () => {
     available = bars(START, 20).filter(
       (bar) => bar.openTime !== START + 5 * FOUR_HOURS
     )
@@ -217,26 +265,102 @@ describe("a hole in the middle of a window", () => {
     const report = await ensureCandleCoverage(KEY, "4h", START, to, db)
 
     expect(report.barCount).toBe(19)
-    expect(report.gaps).toEqual([])
+    expect(report.gaps).toEqual([
+      {
+        from: START + 5 * FOUR_HOURS,
+        to: START + 6 * FOUR_HOURS,
+        reason: expect.any(String),
+      },
+    ])
   })
 })
 
 describe("a failed fetch", () => {
   it("leaves the window looking un-asked, so it is retried", async () => {
     const to = START + 100 * FOUR_HOURS
-    const source = await import("@/server/protocols/binance/candles")
-    const broken = vi
-      .spyOn(source, "fetchBinanceCandleRange")
-      .mockRejectedValueOnce(new Error("the exchange said no"))
+    failFromOnce = START
 
     await expect(
       ensureCandleCoverage(KEY, "4h", START, to, db)
     ).rejects.toThrow("the exchange said no")
-    broken.mockRestore()
 
     // Remembering the failure as "there is nothing there" would mean never
     // looking again.
     const report = await ensureCandleCoverage(KEY, "4h", START, to, db)
     expect(report.barCount).toBe(100)
+  })
+
+  it("resumes at the failed page instead of starting over", async () => {
+    available = bars(START, 2_500)
+    const secondPage = START + 1_000 * FOUR_HOURS
+    const to = START + 2_500 * FOUR_HOURS
+    failFromOnce = secondPage
+
+    await expect(
+      ensureCandleCoverage(KEY, "4h", START, to, db)
+    ).rejects.toThrow("the exchange said no")
+    await ensureCandleCoverage(KEY, "4h", START, to, db)
+
+    expect(asks.filter((ask) => ask.from === START)).toHaveLength(1)
+    expect(asks.filter((ask) => ask.from === secondPage)).toHaveLength(2)
+    expect(await loadStoredCandles(KEY, "4h", START, to, db)).toHaveLength(
+      2_500
+    )
+  })
+
+  it("resumes an earlier extension without skipping its middle", async () => {
+    const oldFrom = START + 2_500 * FOUR_HOURS
+    const to = oldFrom + 100 * FOUR_HOURS
+    available = bars(START, 2_600)
+    await ensureCandleCoverage(KEY, "4h", oldFrom, to, db)
+    asks.length = 0
+
+    const firstPage = START
+    const failedPage = START + 1_000 * FOUR_HOURS
+    failFromOnce = failedPage
+    await expect(
+      ensureCandleCoverage(KEY, "4h", START, to, db)
+    ).rejects.toThrow("the exchange said no")
+    await ensureCandleCoverage(KEY, "4h", START, to, db)
+
+    expect(asks.filter((ask) => ask.from === firstPage)).toHaveLength(1)
+    expect(asks.filter((ask) => ask.from === failedPage)).toHaveLength(2)
+    expect(await loadStoredCandles(KEY, "4h", START, to, db)).toHaveLength(
+      2_600
+    )
+  })
+})
+
+describe("six months of hourly history", () => {
+  it("stores it once in pages and reuses it on the second run", async () => {
+    const count = 180 * 24
+    available = bars(START, count, HOUR)
+    const to = START + count * HOUR
+
+    const first = await ensureCandleCoverage(KEY, "1h", START, to, db)
+    expect(first.barCount).toBe(count)
+    expect(asks).toHaveLength(5)
+
+    await ensureCandleCoverage(KEY, "1h", START, to, db)
+    expect(asks).toHaveLength(5)
+  })
+})
+
+describe("the selected protocol", () => {
+  it("reads Hyperliquid and Binance keys from their own adapters", async () => {
+    const to = START + 100 * FOUR_HOURS
+    await ensureCandleCoverage(KEY, "4h", START, to, db)
+    await ensureCandleCoverage(
+      "binance:mainnet:BTC",
+      "4h",
+      START,
+      to,
+      db
+    )
+
+    expect(asks.map((ask) => ask.protocol)).toEqual([
+      "hyperliquid",
+      "binance",
+    ])
   })
 })

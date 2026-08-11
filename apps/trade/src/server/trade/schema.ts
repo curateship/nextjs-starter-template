@@ -511,7 +511,11 @@ export const tradeCandleCoverage = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.marketKey, table.interval] })]
+  (table) => [
+    primaryKey({
+      columns: [table.marketKey, table.interval, table.fromTime],
+    }),
+  ]
 )
 
 /**

@@ -15,7 +15,7 @@ import {
   listBacktests,
   readBacktestGroup,
 } from "@/server/trade/backtest/store"
-import { getProtocol, listProtocols } from "@/server/protocols/registry"
+import { listProtocols } from "@/server/protocols/registry"
 import {
   tradeBacktestGroups,
   tradeBacktests,
@@ -37,10 +37,9 @@ import { createErrorMessage } from "./error-message"
 /**
  * One exchange's markets, for the step that picks which coins to work on.
  *
- * The run's long history still comes from Binance. Binance itself can therefore
- * offer its full catalogue, while another exchange is limited to coins that
- * Binance can price. Doing that before selection prevents a run from accepting
- * coins it will later have to skip.
+ * History follows the selected protocol, so every market in that protocol's
+ * catalogue can be selected. Missing or shallow history is recorded by the
+ * candle store rather than guessed from another exchange's catalogue.
  */
 const testableMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -59,15 +58,8 @@ const testableMarketsFn = createServerFn({ method: "GET" })
     // produce a run nobody could explain.
     if (!entry) throw new Error("MARKETS_PROTOCOL")
     const catalog = await entry.markets.fetch(data.network)
-    const historyCatalog =
-      entry.id === "binance"
-        ? catalog
-        : await getProtocol("binance").markets.fetch(data.network)
-    const historyIds = new Set(historyCatalog.rows.map((row) => row.marketId))
-    const rows = catalog.rows.filter((row) => historyIds.has(row.marketId))
     return {
-      rows,
-      hidden: catalog.rows.length - rows.length,
+      rows: catalog.rows,
       /** Whether coins from here can be traded, or only charted and tested. */
       tradeable: entry.capabilities.orders,
     }

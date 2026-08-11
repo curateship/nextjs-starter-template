@@ -48,15 +48,39 @@ function shape(from: number, count: number, floor = 100): CandleBar[] {
   return out
 }
 
-// Only `getProtocol` is replaced. The rest of the module comes through as
-// itself, because `ordersOf` and its siblings live here too — a mock that
-// listed just this one left them undefined, and every live test died on a
-// call to nothing.
+/** Markets that keep failing, to prove the worker eventually reports it. */
+const permanentFailures = new Set<string>()
+/** Markets that fail once with a rate limit before answering properly. */
+const rateLimitOnce = new Set<string>()
+
+// Only `getProtocol` is replaced. The store still chooses the adapter from the
+// full market key, while this scripted adapter keeps the worker test offline.
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
     id: "hyperliquid",
-    markets: { intervalMs: () => FOUR_HOURS, roundPx: (px: number) => px },
+    markets: {
+      intervalMs: () => FOUR_HOURS,
+      roundPx: (px: number) => px,
+      history: async (
+        _network: string,
+        marketId: string,
+        _interval: string,
+        from: number,
+        to: number
+      ) => {
+        if (permanentFailures.has(marketId)) {
+          throw new Error("the exchange said no")
+        }
+        if (rateLimitOnce.has(marketId)) {
+          rateLimitOnce.delete(marketId)
+          throw new Error(`Market history ${marketId} failed: 429`)
+        }
+        return (history.get(marketId) ?? []).filter(
+          (bar) => bar.openTime >= from && bar.openTime < to
+        )
+      },
+    },
     funding: {
       intervalMs: () => 3_600_000,
       fetch: async (
@@ -71,33 +95,6 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
         ),
     },
   }),
-}))
-
-/** Coins Binance answers 400 for — it has never listed them. */
-const notListed = new Set<string>()
-/** Coins that fail once with a rate limit before answering properly. */
-const rateLimitOnce = new Set<string>()
-
-// The history comes from Binance, not the venue the run trades on.
-vi.mock("@/server/protocols/binance/candles", () => ({
-  binanceSymbolFor: (coin: string) => (coin === "NOTLISTED" ? null : `${coin}USDT`),
-  isNotListedOnBinance: (error: unknown) =>
-    error instanceof Error && error.message.startsWith("BINANCE_NOT_LISTED"),
-  fetchBinanceCandleRange: async (
-    coin: string,
-    _interval: string,
-    from: number,
-    to: number
-  ) => {
-    if (notListed.has(coin)) throw new Error(`BINANCE_NOT_LISTED:${coin}USDT`)
-    if (rateLimitOnce.has(coin)) {
-      rateLimitOnce.delete(coin)
-      throw new Error(`Binance klines ${coin}USDT 4h failed: 429`)
-    }
-    return (history.get(coin) ?? []).filter(
-      (bar) => bar.openTime >= from && bar.openTime < to
-    )
-  },
 }))
 
 vi.mock("@/server/trade/market-rules", () => ({
@@ -147,7 +144,7 @@ beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
   userId = (await insertUser(db)).id
   history = new Map()
-  notListed.clear()
+  permanentFailures.clear()
   rateLimitOnce.clear()
 })
 
@@ -438,10 +435,9 @@ describe("a run the worker picks up", () => {
     expect(coins[0].error).toContain("Press Run again")
   })
 
-  it("skips a coin Binance has no perp for, with that as its reason", async () => {
-    // The history comes from Binance, so a Hyperliquid-only token cannot be
-    // tested at all. An honest skipped row, never a failed run.
+  it("tests a coin that exists only on the selected protocol", async () => {
     history.set("AAA", shape(START - 600 * FOUR_HOURS, 800))
+    history.set("NOTLISTED", shape(START - 600 * FOUR_HOURS, 800, 40))
 
     const { groupId } = await createBacktest(
       userId,
@@ -459,7 +455,7 @@ describe("a run the worker picks up", () => {
 
     expect(await tickUntilDone(groupId)).not.toBeNull()
 
-    const [skipped] = await db
+    const [coin] = await db
       .select()
       .from(tradeBacktests)
       .where(
@@ -468,18 +464,15 @@ describe("a run the worker picks up", () => {
           eq(tradeBacktests.marketKey, "hyperliquid:mainnet:NOTLISTED")
         )
       )
-    expect(skipped.status).toBe("skipped")
-    expect(skipped.skipReason).toContain("Binance")
+    expect(coin.status).toBe("done")
+    expect(coin.skipReason).toBeNull()
   })
 
   it("gives up on a coin that fails every single time", async () => {
     // The other half of the counting rule: a slice that finishes clears the
     // count, so a slice that THROWS must not — or a permanently broken run
     // retries for ever and never says anything.
-    const source = await import("@/server/protocols/binance/candles")
-    const broken = vi
-      .spyOn(source, "fetchBinanceCandleRange")
-      .mockRejectedValue(new Error("the exchange said no"))
+    permanentFailures.add("AAA")
 
     const { groupId } = await createBacktest(
       userId,
@@ -497,8 +490,6 @@ describe("a run the worker picks up", () => {
     for (let pass = 0; pass < 4; pass += 1) {
       await backtestTick(START + pass * 6 * 60_000).catch(() => {})
     }
-    broken.mockRestore()
-
     const [group] = await db
       .select()
       .from(tradeBacktestGroups)
@@ -562,12 +553,8 @@ describe("a run the worker picks up", () => {
     expect(group.summary?.coinsThatMadeMoney).toBe(0)
   })
 
-  it("skips a coin Binance has never listed instead of losing the whole run", async () => {
-    // The bug this is here for: Binance answers 400 for a symbol it does not
-    // have, that came out as a plain error, and ONE such coin took fifty-eight
-    // others down with it — the whole run marked failed.
+  it("skips a coin with no history without losing the whole run", async () => {
     history.set("AAA", shape(START - 600 * FOUR_HOURS, 800))
-    notListed.add("GHOST")
 
     const { groupId } = await createBacktest(
       userId,
@@ -589,12 +576,12 @@ describe("a run the worker picks up", () => {
       .from(tradeBacktests)
       .where(eq(tradeBacktests.groupId, groupId))
 
-    // The one Binance has is tested; the one it does not is skipped, said out
-    // loud, and takes nothing with it.
+    // The coin with prices is tested; the empty one is skipped, said out loud,
+    // and takes nothing with it.
     expect(coins.find((c) => c.symbol === "AAA")?.status).toBe("done")
     const ghost = coins.find((c) => c.symbol === "GHOST")
     expect(ghost?.status).toBe("skipped")
-    expect(ghost?.skipReason).toContain("Binance")
+    expect(ghost?.skipReason).toContain("no price history")
     expect(coins.some((c) => c.status === "error")).toBe(false)
   })
 

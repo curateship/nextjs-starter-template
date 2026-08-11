@@ -6,7 +6,10 @@ import type {
   NetworkId,
 } from "@/lib/protocols/contracts"
 import { marketKey } from "@/lib/protocols/contracts"
-import { fetchBinanceCandleRange } from "@/server/protocols/binance/candles"
+import {
+  fetchBinanceCandleRange,
+  isNotListedOnBinance,
+} from "@/server/protocols/binance/candles"
 
 /**
  * Binance's USDT perpetuals, in the app's own words.
@@ -213,6 +216,26 @@ export async function fetchBinanceCandles(
   const to = Date.now()
   const from = since ?? to - CHART_BARS * INTERVAL_MS[interval]
   return fetchBinanceCandleRange(marketId, interval, from, to)
+}
+
+/** A finished historical window for the shared candle store. */
+export async function fetchBinanceCandleHistory(
+  network: NetworkId,
+  marketId: string,
+  interval: CandleInterval,
+  from: number,
+  to: number
+): Promise<CandleBar[]> {
+  requireMainnet(network)
+  try {
+    return await fetchBinanceCandleRange(marketId, interval, from, to)
+  } catch (error) {
+    // A saved market may be delisted after it was chosen. That is an empty
+    // history answer for this one coin, not a reason to fail every other coin
+    // in the run. Network and rate-limit failures still escape and retry.
+    if (isNotListedOnBinance(error)) return []
+    throw error
+  }
 }
 
 /** Bars a chart asks for when nothing said how far back to read. */

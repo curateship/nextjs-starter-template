@@ -87,7 +87,7 @@ const RETRY_PAUSE_MS = 400
 const LIST_CACHE_MS = 10 * 60 * 1000
 const listCache = new Map<
   string,
-  { at: number; rows: MarketRow[]; hidden: number; tradeable: boolean }
+  { at: number; rows: MarketRow[]; tradeable: boolean }
 >()
 
 export default function TradeMarketsFields({
@@ -129,7 +129,6 @@ export default function TradeMarketsFields({
   const [fetched, setFetched] = React.useState<{
     protocol: string
     rows: MarketRow[] | null
-    hidden: number
     tradeable: boolean
     error: string | null
   } | null>(null)
@@ -144,7 +143,6 @@ export default function TradeMarketsFields({
   const answer = fetched?.protocol === protocol ? fetched : null
   const held = listCache.get(protocol)
   const markets = answer ? answer.rows : (held?.rows ?? null)
-  const hidden = answer ? answer.hidden : (held?.hidden ?? 0)
   /** Whether coins from this exchange can be traded, or only charted and tested. */
   const tradeable = answer ? answer.tradeable : (held?.tradeable ?? true)
   const error = answer?.error ?? null
@@ -194,14 +192,12 @@ export default function TradeMarketsFields({
           listCache.set(protocol, {
             at: Date.now(),
             rows: loaded.rows,
-            hidden: loaded.hidden,
             tradeable: loaded.tradeable,
           })
           if (!alive) return
           setFetched({
             protocol,
             rows: loaded.rows,
-            hidden: loaded.hidden,
             tradeable: loaded.tradeable,
             error: null,
           })
@@ -212,7 +208,6 @@ export default function TradeMarketsFields({
             setFetched({
               protocol,
               rows: null,
-              hidden: 0,
               tradeable: true,
               error: getMarketsErrorMessage(loadError),
             })
@@ -316,7 +311,7 @@ export default function TradeMarketsFields({
         <TradeNumberField
           id={`markets-${node.id}-days`}
           label="Days to test"
-          hint="How much history the run walks, up to two years. A younger coin is tested from the day Binance first has prices for it, and the result says when that was."
+          hint="How much history the run walks. A younger coin is tested from the day its selected exchange first has prices for it, and the result says when that was."
           value={days}
           min={1}
           max={MAX_BACKTEST_DAYS}
@@ -493,9 +488,6 @@ export default function TradeMarketsFields({
               {tradeable
                 ? ""
                 : " These can be tested but not traded yet — this one gives prices, not orders."}
-              {hidden > 0
-                ? ` ${hidden} more ${plural(hidden, "coin is", "coins are")} not shown because Binance has no history for ${plural(hidden, "it", "them")}.`
-                : ""}
             </p>
           </>
         ) : null}

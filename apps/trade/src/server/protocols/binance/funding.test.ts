@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   binanceFundingIntervalMs,
+  fetchBinanceFunding,
   toBinanceFundingRates,
 } from "@/server/protocols/binance/funding"
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe("Binance funding rates", () => {
   it("normalizes small settlement delays, sorts rows, and removes duplicates", () => {
@@ -38,5 +43,13 @@ describe("Binance funding rates", () => {
     expect(
       toBinanceFundingRates([{ fundingTime: 28_800_000, fundingRate: " " }])
     ).toEqual([])
+  })
+
+  it("treats a delisted saved market as missing funding", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 400 })))
+
+    await expect(
+      fetchBinanceFunding("mainnet", "DELISTED", 0, 1)
+    ).resolves.toEqual([])
   })
 })
