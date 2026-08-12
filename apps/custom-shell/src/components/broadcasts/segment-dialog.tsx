@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,17 +35,20 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { loadContactsPage, type ContactItem } from "@/lib/api/people/contacts"
 import {
+  countDraftSegment,
   getSegmentErrorMessage,
+  getSegmentLoadErrorMessage,
   loadSegmentMembers,
   saveSegment,
   type SegmentItem,
-  type SegmentsPage,
 } from "@/lib/api/people/contact-segments"
 import {
   defaultSegmentRules,
+  segmentCountIsNearlyEveryone,
   segmentConditionIsComplete,
   type SegmentCondition,
   type SegmentKind,
+  type SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
@@ -52,6 +56,8 @@ import { SEARCH_SETTLE_MS } from "@/lib/nav/list-search"
 
 /** How many contacts the hand-picked list offers at once. */
 const PICKER_PAGE_SIZE = 20
+/** Long enough that changing several rule fields makes one count request. */
+const LIVE_COUNT_DELAY_MS = 1200
 
 /**
  * Writing one segment: its name, whether it is decided by rules or by hand, and
@@ -63,13 +69,18 @@ const PICKER_PAGE_SIZE = 20
 export function SegmentDialog({
   open,
   segment,
-  page,
+  options,
+  prefill,
   onClose,
   onSaved,
 }: {
   open: boolean
   segment: SegmentItem | null
-  page: SegmentsPage
+  options: SegmentRuleOptions
+  prefill?: {
+    conditions: SegmentCondition[]
+    searchExcluded: boolean
+  }
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
@@ -81,7 +92,7 @@ export function SegmentDialog({
   const [conditions, setConditions] = React.useState<SegmentCondition[]>(
     segment?.kind === "rules"
       ? segment.rules.conditions
-      : defaultSegmentRules().conditions
+      : (prefill?.conditions ?? defaultSegmentRules().conditions)
   )
   const [chosen, setChosen] = React.useState<string[]>([])
   /** The people the window opened holding, so "dirty" can tell them apart. */
@@ -126,7 +137,7 @@ export function SegmentDialog({
       JSON.stringify(
         segment?.kind === "rules"
           ? segment.rules.conditions
-          : defaultSegmentRules().conditions
+          : (prefill?.conditions ?? defaultSegmentRules().conditions)
       ) ||
     JSON.stringify([...chosen].sort()) !==
       JSON.stringify([...openedWith].sort())
@@ -256,31 +267,44 @@ export function SegmentDialog({
               </Card>
 
               {kind === "rules" ? (
-                <SegmentRuleBuilder
-                  conditions={conditions}
-                  onChange={setConditions}
-                  options={page}
-                  excludeSegmentId={segment?.id}
-                  title="Rules"
-                  description="Every rule has to be true. The count is exactly what these rules say, so you can check it by hand on the contacts list — including the “on the list” rule, which is the one that drops somebody the moment they opt out."
-                  emptyText="No rules yet, so this segment is every contact you have — people who opted out included."
-                />
+                <>
+                  <SegmentRuleBuilder
+                    conditions={conditions}
+                    onChange={setConditions}
+                    options={options}
+                    excludeSegmentId={segment?.id}
+                    title="Rules"
+                    description={
+                      prefill
+                        ? `Started with the filters from the contacts list. Every rule has to be true.${prefill.searchExcluded ? " Search words are not included; only the filters will be saved." : ""}`
+                        : "Every rule has to be true. The count below is exactly what these rules say — including the “on the list” rule, which drops somebody the moment they opt out."
+                    }
+                    emptyText="No rules yet, so this segment is every contact you have — people who opted out included."
+                  />
+                  <SegmentLiveCount
+                    key={JSON.stringify(conditions)}
+                    conditions={conditions}
+                  />
+                </>
               ) : (
-                <ContactPicker
-                  chosen={chosen}
-                  knownEmails={knownEmails}
-                  onToggle={(contact) => {
-                    setKnownEmails((current) => ({
-                      ...current,
-                      [contact.id]: contact.email,
-                    }))
-                    setChosen((current) =>
-                      current.includes(contact.id)
-                        ? current.filter((id) => id !== contact.id)
-                        : [...current, contact.id]
-                    )
-                  }}
-                />
+                <>
+                  <ContactPicker
+                    chosen={chosen}
+                    knownEmails={knownEmails}
+                    onToggle={(contact) => {
+                      setKnownEmails((current) => ({
+                        ...current,
+                        [contact.id]: contact.email,
+                      }))
+                      setChosen((current) =>
+                        current.includes(contact.id)
+                          ? current.filter((id) => id !== contact.id)
+                          : [...current, contact.id]
+                      )
+                    }}
+                  />
+                  <ChosenPeopleCount count={chosen.length} />
+                </>
               )}
             </DialogBody>
             <DialogFooter>
@@ -301,6 +325,102 @@ export function SegmentDialog({
         </DialogContent>
       )}
     </FormDialog>
+  )
+}
+
+type LiveCountState =
+  | { status: "counting" }
+  | { status: "ready"; matching: number; everyone: number }
+  | { status: "error"; message: string }
+
+/** The draft's current reach, recalculated only after its rules settle. */
+function SegmentLiveCount({ conditions }: { conditions: SegmentCondition[] }) {
+  const [attempt, setAttempt] = React.useState(0)
+  const [state, setState] = React.useState<LiveCountState>({
+    status: "counting",
+  })
+  // The parent keys this component by its conditions, so this checked request
+  // shape stays fixed for the lifetime of one count and one retry.
+  const [rules] = React.useState(() => ({
+    conditions: conditions.filter(segmentConditionIsComplete),
+  }))
+  const unfinished = rules.conditions.length !== conditions.length
+
+  React.useEffect(() => {
+    let active = true
+    const timer = setTimeout(() => {
+      countDraftSegment(rules)
+        .then((result) => {
+          if (active) setState({ status: "ready", ...result })
+        })
+        .catch((error) => {
+          if (active) {
+            setState({
+              status: "error",
+              message: getSegmentLoadErrorMessage(error),
+            })
+          }
+        })
+    }, LIVE_COUNT_DELAY_MS)
+
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [attempt, rules])
+
+  const retry = () => {
+    setState({ status: "counting" })
+    setAttempt((current) => current + 1)
+  }
+
+  return (
+    <Card size="sm" aria-live="polite">
+      <CardHeader>
+        <CardTitle>Live count</CardTitle>
+        <CardDescription>
+          {state.status === "counting" ? (
+            <span className="flex items-center gap-2">
+              <Loader2Icon className="size-4 animate-spin" />
+              Counting…
+            </span>
+          ) : state.status === "error" ? (
+            "We could not count these conditions right now."
+          ) : state.matching === 0 ? (
+            "Nobody matches these conditions right now."
+          ) : (
+            <>
+              Matches {state.matching.toLocaleString()} {plural(state.matching, "person", "people")} right now.
+              {segmentCountIsNearlyEveryone(state.matching, state.everyone)
+                ? " That is nearly everyone on your list."
+                : ""}
+            </>
+          )}
+          {unfinished
+            ? " An unfinished rule is not included in this count yet."
+            : ""}
+        </CardDescription>
+      </CardHeader>
+      {state.status === "error" ? (
+        <ErrorBanner message={state.message} onRetry={retry} />
+      ) : null}
+    </Card>
+  )
+}
+
+/** The hand-picked kind needs no server trip: its draft already holds the ids. */
+function ChosenPeopleCount({ count }: { count: number }) {
+  return (
+    <Card size="sm" aria-live="polite">
+      <CardHeader>
+        <CardTitle>Live count</CardTitle>
+        <CardDescription>
+          {count
+            ? `${count.toLocaleString()} ${plural(count, "person", "people")} chosen right now.`
+            : "Nobody chosen right now."}
+        </CardDescription>
+      </CardHeader>
+    </Card>
   )
 }
 

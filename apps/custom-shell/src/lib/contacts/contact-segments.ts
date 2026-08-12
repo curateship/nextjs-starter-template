@@ -303,6 +303,19 @@ export function segmentConditionIsComplete(condition: SegmentCondition) {
   }
 }
 
+/**
+ * Whether a draft reaches enough of the whole list to deserve a gentle nudge.
+ *
+ * Four in five matches the existing automation-audience warning. Nobody is
+ * not nearly everyone, and neither is any share of an empty contact list.
+ */
+export function segmentCountIsNearlyEveryone(
+  matching: number,
+  everyone: number
+): boolean {
+  return everyone > 0 && matching > 0 && matching >= everyone * 0.8
+}
+
 /** Every segment a set of rules points at, so a loop can be looked for. */
 export function segmentReferences(rules: SegmentRules): string[] {
   const ids = new Set<string>()

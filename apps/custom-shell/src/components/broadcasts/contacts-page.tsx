@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { plural } from "@/lib/format/plural"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -62,6 +63,7 @@ import {
   getSegmentErrorMessage,
 } from "@/lib/api/people/contact-segments"
 import { contactFilterOptions } from "@/lib/api/people/contacts"
+import { segmentConditionsFromContactFilters } from "@/lib/contacts/contact-filter-segment"
 import {
   describeSegmentCondition,
   segmentConditionIsComplete,
@@ -142,6 +144,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
     [setListSearch]
   )
   const [filtersOpen, setFiltersOpen] = React.useState(false)
+  const [segmentOpen, setSegmentOpen] = React.useState(false)
   const pageSize = data.pageSize
 
   /** Writing filters back to the address always returns to the first page. */
@@ -417,6 +420,16 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               <ListFilterIcon className="size-4" />
               Filters{conditions.length ? ` (${conditions.length})` : ""}
             </DashboardToolbarButton>
+            {conditions.length ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                onClick={() => setSegmentOpen(true)}
+              >
+                <UsersRoundIcon className="size-4" />
+                Save as segment
+              </DashboardToolbarButton>
+            ) : null}
             <DashboardToolbarButton onClick={() => setAddOpen(true)}>
               <PlusIcon className="size-4" />
               Add someone
@@ -449,6 +462,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               >
                 Clear all
               </button>
+              {searchText.trim() ? (
+                <span className="text-xs text-muted-foreground">
+                  Search words will not be saved, only the filters.
+                </span>
+              ) : null}
             </>
           ) : null
         }
@@ -779,6 +797,21 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         }}
       />
 
+      <SegmentDialog
+        key={segmentOpen ? JSON.stringify(conditions) : "closed-segment"}
+        open={segmentOpen}
+        segment={null}
+        options={contactFilterOptions(data)}
+        prefill={{
+          conditions: segmentConditionsFromContactFilters(conditions),
+          searchExcluded: Boolean(searchText.trim()),
+        }}
+        onClose={() => setSegmentOpen(false)}
+        onSaved={async () => {
+          setSegmentOpen(false)
+          await refresh()
+        }}
+      />
     </>
   )
 }

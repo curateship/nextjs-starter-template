@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { SegmentCondition, SegmentRules } from "@/lib/contacts/contact-segments"
 import {
   addContactsToSegment,
+  countDraftSegmentContacts,
   countSegmentContacts,
   createWorkspaceSegment,
   deleteWorkspaceSegments,
@@ -231,6 +232,36 @@ describe("every rule has to be true at once", () => {
     )
 
     expect(total).toBe(0)
+  })
+})
+
+describe("a live count for an unsaved draft", () => {
+  it("returns both the matching group and the workspace's whole list", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    await insertContact("cat", { tags: [] })
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: ["beta"],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+
+    expect(
+      await countDraftSegmentContacts(
+        WORKSPACE_ID,
+        {
+          conditions: [
+            { type: "tag", operator: "includes", tags: ["beta"] },
+          ],
+        },
+        db,
+        TODAY
+      )
+    ).toEqual({ matching: 2, everyone: 3 })
   })
 })
 

@@ -5,6 +5,7 @@ import {
   describeSegmentRules,
   newSegmentCondition,
   parseSegmentRules,
+  segmentCountIsNearlyEveryone,
   segmentConditionIsComplete,
   segmentReferences,
   type SegmentCondition,
@@ -101,6 +102,18 @@ describe("a half-finished rule is spotted before it is saved", () => {
     expect(segmentConditionIsComplete(newSegmentCondition("status"))).toBe(true)
     expect(segmentConditionIsComplete(newSegmentCondition("joined"))).toBe(true)
     expect(segmentConditionIsComplete(newSegmentCondition("account"))).toBe(true)
+  })
+})
+
+describe("the nearly-everyone nudge", () => {
+  it("starts at four in five contacts", () => {
+    expect(segmentCountIsNearlyEveryone(20, 25)).toBe(true)
+    expect(segmentCountIsNearlyEveryone(19, 25)).toBe(false)
+  })
+
+  it("stays quiet for nobody and an empty list", () => {
+    expect(segmentCountIsNearlyEveryone(0, 25)).toBe(false)
+    expect(segmentCountIsNearlyEveryone(0, 0)).toBe(false)
   })
 })
 
