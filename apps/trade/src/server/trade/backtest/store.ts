@@ -569,8 +569,16 @@ export async function listBacktests(
           : eq(tradeBacktestGroups.archived, false)
       )
     )
-    // Pinned rows float to the top; everything else is newest first.
-    .orderBy(desc(tradeBacktestGroups.pinned), desc(tradeBacktestGroups.createdAt))
+    // Newest first, and nothing else.
+    //
+    // **Pinning must not reorder this list.** The canvas asks for one flow's
+    // runs and takes the first row as "the result of this flow" — so a pinned
+    // row sorted to the top became that flow's answer forever, and a run
+    // started afterwards was never the one on screen. Pinning is a thing you
+    // do to keep a run findable on the Backtests screen, and that screen
+    // already floats pinned rows itself when it sorts; doing it here as well
+    // was the same decision made twice, in the one place it was wrong.
+    .orderBy(desc(tradeBacktestGroups.createdAt))
 
   if (groups.length === 0) return []
 

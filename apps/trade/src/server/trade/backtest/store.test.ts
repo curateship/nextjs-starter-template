@@ -72,7 +72,10 @@ afterEach(async () => {
 
 async function makeRun(
   keys = ["hyperliquid:mainnet:AAA", "hyperliquid:mainnet:BBB"],
-  automationId = "flow-1"
+  automationId = "flow-1",
+  // When it was started. The row's `createdAt` is this, so a test about which
+  // run is newest has to be able to say.
+  now = NOW
 ) {
   return createBacktest(
     userId,
@@ -80,7 +83,7 @@ async function makeRun(
       automationId,
       automationName: "My strategy",
       spec: specOf(keys),
-      now: NOW,
+      now,
     },
     db
   )
@@ -489,6 +492,27 @@ describe("the list", () => {
     const [row] = await listBacktests(userId, { automationId: "flow-1" }, db)
     expect(row.id).toBe(groupId)
     expect(row.progressNote).toBe("Loading market history")
+  })
+
+  it("keeps a pinned run from becoming the flow's answer forever", async () => {
+    // The bug: pinning a run sorted it to the top of the flow's list, and the
+    // canvas takes the first row as "this flow's result" — so every run started
+    // afterwards was invisible there. Pinning keeps a run findable on the
+    // Backtests screen; it must not decide what the canvas is looking at.
+    const kept = await makeRun(["hyperliquid:mainnet:AAA"], "flow-1")
+    await db
+      .update(tradeBacktestGroups)
+      .set({ pinned: true })
+      .where(eq(tradeBacktestGroups.id, kept.groupId))
+
+    const newest = await makeRun(
+      ["hyperliquid:mainnet:BBB"],
+      "flow-1",
+      NOW + 60_000
+    )
+
+    const runs = await listBacktests(userId, { automationId: "flow-1" }, db)
+    expect(runs.map((run) => run.id)).toEqual([newest.groupId, kept.groupId])
   })
 
   it("shows only the flow that was asked about", async () => {
