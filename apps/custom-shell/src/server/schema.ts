@@ -409,6 +409,11 @@ export const customShellAnnouncements = pgTable(
     body: text("body").notNull(),
     /** How loud the banner looks: info, warning or critical. */
     level: varchar("level", { length: 20 }).notNull().default("info"),
+    /** App-only unless an admin deliberately includes signed-out visitors. */
+    audience: varchar("audience", { length: 20 })
+      .$type<"app" | "everyone">()
+      .notNull()
+      .default("app"),
     showBanner: boolean("show_banner").notNull().default(true),
     notify: boolean("notify").notNull().default(false),
     /**
@@ -425,6 +430,10 @@ export const customShellAnnouncements = pgTable(
     check(
       "announcements_level_check",
       sql`${table.level} in ('info', 'warning', 'critical')`
+    ),
+    check(
+      "announcements_audience_check",
+      sql`${table.audience} in ('app', 'everyone')`
     ),
     // `>=` rather than `>` on purpose: retiring something that had not started
     // yet closes its window down to nothing, which is how it never shows.
@@ -771,6 +780,8 @@ export const customShellAutomations = pgTable(
      * its own.
      */
     enabled: boolean("enabled").notNull().default(false),
+    /** Why a safety check switched this flow off; cleared by the next manual toggle. */
+    pausedReason: text("paused_reason"),
     /** The next scheduled occurrence, null while off or without a Time trigger. */
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -912,6 +923,11 @@ export const customShellAutomationRuns = pgTable(
       { onDelete: "set null" }
     ),
     subjectLabel: varchar("subject_label", { length: 200 }),
+    /** The contact itself, including an address that has no account behind it. */
+    subjectContactId: varchar("subject_contact_id", { length: 36 }).references(
+      () => customShellContacts.id,
+      { onDelete: "set null" }
+    ),
     /**
      * A rehearsal against `subjectUserId`. Outside actions are redirected or
      * skipped, and the copied address is the only address an email may reach.
@@ -943,6 +959,7 @@ export const customShellAutomationRuns = pgTable(
       .on(table.automationId, table.triggerKey)
       .where(sql`${table.triggerKey} is not null`),
     index("ix_automation_runs_subject").on(table.subjectUserId),
+    index("ix_automation_runs_subject_contact").on(table.subjectContactId),
     check(
       "automation_runs_decision_check",
       sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
@@ -1551,6 +1568,69 @@ export const customShellContactSegmentMembers = pgTable(
     // "Which segments is this person in" — the direction the key above cannot
     // answer.
     index("ix_contact_segment_members_contact").on(table.contactId),
+  ]
+)
+
+/** The last successfully observed segment for one live flow. */
+export const customShellAutomationSegmentWatches = pgTable(
+  "automation_segment_watches",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    segmentId: varchar("segment_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContactSegments.id, { onDelete: "cascade" }),
+    lastScannedAt: timestamp("last_scanned_at", {
+      withTimezone: true,
+    }).notNull(),
+  },
+  (table) => [
+    index("ix_automation_segment_watches_segment").on(table.segmentId),
+  ]
+)
+
+/** Who matched at the last look; rows disappear when a contact leaves. */
+export const customShellAutomationSegmentSnapshot = pgTable(
+  "automation_segment_snapshot",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    segmentId: varchar("segment_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContactSegments.id, { onDelete: "cascade" }),
+    contactId: varchar("contact_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContacts.id, { onDelete: "cascade" }),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "automation_segment_snapshot_pk",
+      columns: [table.automationId, table.contactId],
+    }),
+    index("ix_automation_segment_snapshot_segment").on(table.segmentId),
+  ]
+)
+
+/** Permanent once-per-contact memory, independent of deletable run history. */
+export const customShellAutomationSegmentEnrollments = pgTable(
+  "automation_segment_enrollments",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    contactId: varchar("contact_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContacts.id, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "automation_segment_enrollments_pk",
+      columns: [table.automationId, table.contactId],
+    }),
   ]
 )
 

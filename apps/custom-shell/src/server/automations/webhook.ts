@@ -1,7 +1,7 @@
 import { request as httpsRequest } from "node:https"
 import { isIP } from "node:net"
 
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 
 import {
   readWebhookSettings,
@@ -16,7 +16,7 @@ import {
   resolvePublicWebhookTarget,
   type PublicWebhookTarget,
 } from "@/server/automations/net-guard"
-import { customShellUsers } from "@/server/schema"
+import { customShellContacts, customShellUsers } from "@/server/schema"
 
 const WEBHOOK_TIMEOUT_MS = 10_000
 
@@ -124,7 +124,22 @@ async function buildWebhookPayload(
   context: AutomationExecutorContext
 ): Promise<WebhookPayload> {
   let subject: WebhookPayload["subject"] = null
-  if (context.run.subjectUserId) {
+  if (context.run.subjectContactId && context.run.workspaceId) {
+    const [contact] = await context.database
+      .select({
+        id: customShellContacts.id,
+        email: customShellContacts.email,
+      })
+      .from(customShellContacts)
+      .where(
+        and(
+          eq(customShellContacts.id, context.run.subjectContactId),
+          eq(customShellContacts.workspaceId, context.run.workspaceId)
+        )
+      )
+      .limit(1)
+    if (contact) subject = contact
+  } else if (context.run.subjectUserId) {
     const [member] = await context.database
       .select({ email: customShellUsers.email })
       .from(customShellUsers)

@@ -403,6 +403,11 @@ export const customShellAnnouncements = pgTable(
     body: text("body").notNull(),
     /** How loud the banner looks: info, warning or critical. */
     level: varchar("level", { length: 20 }).notNull().default("info"),
+    /** App-only unless an admin deliberately includes signed-out visitors. */
+    audience: varchar("audience", { length: 20 })
+      .$type<"app" | "everyone">()
+      .notNull()
+      .default("app"),
     showBanner: boolean("show_banner").notNull().default(true),
     notify: boolean("notify").notNull().default(false),
     /**
@@ -419,6 +424,10 @@ export const customShellAnnouncements = pgTable(
     check(
       "announcements_level_check",
       sql`${table.level} in ('info', 'warning', 'critical')`
+    ),
+    check(
+      "announcements_audience_check",
+      sql`${table.audience} in ('app', 'everyone')`
     ),
     // `>=` rather than `>` on purpose: retiring something that had not started
     // yet closes its window down to nothing, which is how it never shows.

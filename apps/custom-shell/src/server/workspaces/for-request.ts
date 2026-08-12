@@ -101,6 +101,7 @@ export async function visitorWorkspaceId(
 ): Promise<string | null> {
   const answer = await answerForRequest(database)
   if (answer.kind === "workspace") return answer.workspace.id
+  if (answer.kind === "unknown") return null
 
   return onlyWorkspaceId(database)
 }

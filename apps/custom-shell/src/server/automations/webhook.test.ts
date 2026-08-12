@@ -85,6 +85,44 @@ describe("Webhook executor", () => {
     )
   })
 
+  it("posts an address-only contact from the run's workspace", async () => {
+    const send = vi.fn(async () => 204)
+    const base = context()
+    const database = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [
+              { id: "contact-1", email: "lead@example.com" },
+            ],
+          }),
+        }),
+      }),
+    } as unknown as AutomationExecutorContext["database"]
+
+    await executeWebhookNode(
+      context({
+        database,
+        run: {
+          ...base.run,
+          workspaceId: "workspace-1",
+          subjectUserId: null,
+          subjectContactId: "contact-1",
+        },
+      }),
+      dependencies(send)
+    )
+
+    expect(send).toHaveBeenCalledWith(
+      target,
+      expect.objectContaining({
+        subject: { id: "contact-1", email: "lead@example.com" },
+      }),
+      "shared-secret",
+      expect.any(AbortSignal)
+    )
+  })
+
   it("fails a non-success status so the engine can retry it", async () => {
     await expect(
       executeWebhookNode(
