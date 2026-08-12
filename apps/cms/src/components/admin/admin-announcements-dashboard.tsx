@@ -122,6 +122,7 @@ function channelLabels(announcement: Announcement) {
   return [
     ...(announcement.showBanner ? ["Banner"] : []),
     ...(announcement.notify ? ["Tray"] : []),
+    ...(announcement.audience === "everyone" ? ["Visitors"] : []),
   ]
 }
 
@@ -604,6 +605,9 @@ function AnnouncementDialog({
     announcement?.showBanner ?? true
   )
   const [notify, setNotify] = React.useState(announcement?.notify ?? false)
+  const [showToVisitors, setShowToVisitors] = React.useState(
+    announcement?.audience === "everyone"
+  )
   const [startsOn, setStartsOn] = React.useState(
     toDateField(announcement?.startsAt ?? null)
   )
@@ -643,7 +647,16 @@ function AnnouncementDialog({
       return
     }
 
-    const input = { title, body, level, showBanner, notify, startsOn, endsOn }
+    const input = {
+      title,
+      body,
+      level,
+      audience: showToVisitors ? ("everyone" as const) : ("app" as const),
+      showBanner,
+      notify,
+      startsOn,
+      endsOn,
+    }
 
     setSaving(true)
     try {
@@ -668,6 +681,7 @@ function AnnouncementDialog({
     notify,
     onSaved,
     showBanner,
+    showToVisitors,
     startsOn,
     title,
   ])
@@ -680,6 +694,7 @@ function AnnouncementDialog({
     level !== (announcement?.level ?? DEFAULT_ANNOUNCEMENT_LEVEL) ||
     showBanner !== (announcement?.showBanner ?? true) ||
     notify !== (announcement?.notify ?? false) ||
+    showToVisitors !== (announcement?.audience === "everyone") ||
     startsOn !== toDateField(announcement?.startsAt ?? null) ||
     endsOn !== toDateField(announcement?.endsAt ?? null)
 
@@ -817,6 +832,16 @@ function AnnouncementDialog({
                 />
                 <Label htmlFor="announcement-notify" className="font-normal">
                   Notice in the notification tray
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="announcement-visitors"
+                  checked={showToVisitors}
+                  onCheckedChange={(value) => setShowToVisitors(value === true)}
+                />
+                <Label htmlFor="announcement-visitors" className="font-normal">
+                  Also show to visitors
                 </Label>
               </div>
             </CardContent>

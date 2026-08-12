@@ -49,6 +49,7 @@ import {
   deleteAnnouncements,
   dismissAnnouncement,
   listAnnouncements,
+  loadVisitorAnnouncements,
   loadUserAnnouncements,
   retireAnnouncements,
   updateAnnouncement,
@@ -6546,6 +6547,7 @@ describe("custom shell announcements", () => {
       title: "Uploads are slow",
       body: "We are working on it.",
       level: "warning" as const,
+      audience: "app" as const,
       showBanner: true,
       notify: false,
       startsOn: "",
@@ -6575,6 +6577,36 @@ describe("custom shell announcements", () => {
     const { banners } = await loadUserAnnouncements(workspaceId, readerId, db)
     expect(banners.map((banner) => banner.id)).toEqual([live.id])
     expect(banners[0].level).toBe("warning")
+  })
+
+  it("only gives public pages live announcements opened to visitors", async () => {
+    const workspaceId = (await insertWorkspace(database)).id
+    const otherWorkspaceId = (await insertWorkspace(database)).id
+    const db = database as unknown as CustomShellDb
+
+    const publicAnnouncement = await createAnnouncement(
+      workspaceId,
+      baseInput({ audience: "everyone" }),
+      db
+    )
+    await createAnnouncement(workspaceId, baseInput(), db)
+    await createAnnouncement(
+      workspaceId,
+      baseInput({ audience: "everyone", startsOn: dayField(7) }),
+      db
+    )
+    await createAnnouncement(
+      otherWorkspaceId,
+      baseInput({ audience: "everyone" }),
+      db
+    )
+
+    expect(await loadVisitorAnnouncements(workspaceId, db)).toEqual([
+      expect.objectContaining({
+        id: publicAnnouncement.id,
+        updatedAt: publicAnnouncement.updatedAt.toISOString(),
+      }),
+    ])
   })
 
   it("hides a dismissed banner for that person and nobody else", async () => {
