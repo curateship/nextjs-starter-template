@@ -96,32 +96,6 @@ export type PaperFillReason =
   | "stop_loss"
   | "liquidated"
 
-/**
- * What a journal row can say happened. The practice engine only ever writes
- * fills (`PaperFillReason`); the live journal also records the actions around
- * them — an order left resting, a cancel, a protection change, a refusal —
- * because with real money the asking is as much a fact as the filling.
- */
-export type JournalReason =
-  | PaperFillReason
-  | "placed"
-  | "cancelled"
-  | "brackets"
-  | "refused"
-
-/** How each reason reads in the journal. */
-export const PAPER_FILL_REASON_LABELS: Record<JournalReason, string> = {
-  order: "Order",
-  manual: "Closed by hand",
-  take_profit: "Take profit",
-  stop_loss: "Stop loss",
-  liquidated: "Liquidated",
-  placed: "Order placed",
-  cancelled: "Cancelled",
-  brackets: "Stop / target changed",
-  refused: "Refused",
-}
-
 export type PaperPosition = {
   id: string
   walletId: string
@@ -202,23 +176,19 @@ export type PaperOrder = {
   placing?: true
 }
 
+/** One fill the practice engine made, and why it made it. */
 export type PaperJournalEntry = {
   id: string
   walletId: string
   marketKey: string
-  /** Null only on live refusal rows that never got as far as having a side. */
-  side: PaperSide | null
+  side: PaperSide
   px: number
   sz: number
   fee: number
   /** What the closing part of this fill banked. Zero when it only opened. */
   closedPnl: number
-  reason: JournalReason
+  reason: PaperFillReason
   fillTime: number
-  /** A REAL action. Fees and figures the exchange did not report show as dashes. */
-  live?: true
-  /** The plain-word sentence a live row carries — a refusal's reason, mostly. */
-  note?: string | null
 }
 
 /** Everything the fill arithmetic reads and rewrites. */

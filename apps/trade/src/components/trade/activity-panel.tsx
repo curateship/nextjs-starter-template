@@ -1,11 +1,11 @@
 import * as React from "react"
-import { LayersIcon, ScrollTextIcon, ReceiptIcon } from "lucide-react"
+import { BookOpenIcon, LayersIcon, ScrollTextIcon } from "lucide-react"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import {
-  JournalTable,
   OpenOrdersTable,
   PositionsTable,
+  TradesTable,
 } from "@/components/trade/positions-table"
 import type { Trading } from "@/components/trade/use-trading"
 import {
@@ -17,13 +17,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { parseMarketKey, type MarketCatalog, type MarketRow } from "@/lib/protocols/contracts"
+import type { LiveTrade } from "@/lib/trade/live-trades"
 import type { PaperPosition } from "@/lib/trade/paper"
 
 type ActivityTab = "positions" | "orders" | "journal"
 
 /**
- * The bottom panel: what you are holding, what you have asked for, and what
- * actually happened.
+ * The bottom panel: what you are holding, what you have asked for, and how the
+ * trades that are finished actually went.
  *
  * Its tab row is also its collapsed state — dragging the divider all the way
  * down leaves exactly this header on screen, counts and all, so the panel can
@@ -34,15 +35,23 @@ export function ActivityPanel({
   trading,
   catalogs,
   onSelectMarket,
+  shownTrade,
+  onShowTrade,
 }: {
   trading: Trading
   catalogs: MarketCatalog[]
   onSelectMarket: (marketKey: string) => void
+  /** The trade drawn on the chart right now, owned by the workspace. */
+  shownTrade: LiveTrade | null
+  onShowTrade: (trade: LiveTrade | null) => void
 }) {
   const [tab, setTab] = React.useState<ActivityTab>("positions")
   const [editing, setEditing] = React.useState<PaperPosition | null>(null)
   const [flipping, setFlipping] = React.useState<PaperPosition | null>(null)
   const [closingAll, setClosingAll] = React.useState(false)
+  // The bin on a row asks first. Nothing here can be put back from the screen,
+  // and the two lists sit under a chart people click around on all day.
+  const [removingTrade, setRemovingTrade] = React.useState<LiveTrade | null>(null)
 
   /** Each row says which wallet it is in; the panel shows several at once. */
   const walletName = (walletId: string) =>
@@ -87,9 +96,9 @@ export function ActivityPanel({
         />
         <WorkspacePanelTab
           value="journal"
-          icon={<ReceiptIcon className="size-4" />}
-          label="Fill history"
-          count={trading.journal.length}
+          icon={<BookOpenIcon className="size-4" />}
+          label="Journal"
+          count={trading.trades.length}
         />
         {/* Close all is the practice engine's sweep; real positions are
             closed one by one, each with its own question. */}
@@ -139,14 +148,42 @@ export function ActivityPanel({
 
       <TabsContent value="journal" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
-          <JournalTable
-            journal={trading.journal}
+          <TradesTable
+            trades={trading.trades}
             markets={markets}
             walletName={walletName}
+            selectedId={shownTrade?.id ?? null}
+            busy={trading.busy}
+            // Pressing the row already drawn puts the chart back to itself,
+            // so the same press both shows and hides.
+            onSelectTrade={(trade) =>
+              onShowTrade(trade.id === shownTrade?.id ? null : trade)
+            }
             onSelectMarket={onSelectMarket}
+            onRemove={setRemovingTrade}
           />
         </ScrollArea>
       </TabsContent>
+
+      <ConfirmDialog
+        open={removingTrade !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemovingTrade(null)
+        }}
+        title="Remove this trade from the Journal?"
+        description="It stops showing here, and stops being drawn on the chart. Nothing about your money changes — a practice wallet's cash is added up from its fills, so the fills are kept and only hidden."
+        confirmLabel="Remove it"
+        onConfirm={() => {
+          if (removingTrade) {
+            // Drawn on the chart right now? Then it goes from there too, or a
+            // trade that is no longer in the list stays painted over the
+            // candles with nothing to press to be rid of it.
+            if (removingTrade.id === shownTrade?.id) onShowTrade(null)
+            void trading.hideTrade(removingTrade)
+          }
+          setRemovingTrade(null)
+        }}
+      />
 
       <BracketsDialog
         position={editingNow}

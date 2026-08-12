@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 
 import {
   parseMarketKey,
@@ -11,8 +11,8 @@ import {
 import {
   livePortfolioRows,
   type LiveJournalAction,
-  type LiveJournalEntry,
 } from "@/lib/trade/live"
+import type { LiveTrade } from "@/lib/trade/live-trades"
 import {
   isMarketable,
   type PaperOrder,
@@ -26,6 +26,7 @@ import {
   getProtocol,
   ordersOf,
 } from "@/server/protocols/registry"
+import { loadLiveTrades, sweepLiveFills } from "@/server/trade/live-fills"
 import {
   tradeLiveJournal,
   tradeWalletNonces,
@@ -51,8 +52,6 @@ import {
  *   themselves never take the trading path down; a failed write is logged
  *   and the action's own result stands.
  */
-
-const MAX_JOURNAL_ROWS = 200
 
 /** One atomic bump: never reused, never behind the clock. */
 async function allocateNonce(address: string, network: NetworkId): Promise<number> {
@@ -399,10 +398,10 @@ function describeBrackets(tpPx: number | null, slPx: number | null): string {
 }
 
 /**
- * Everything every live wallet holds and has waiting, plus the journal —
- * the one read the polling hook makes. A wallet the exchange will not answer
- * for contributes nothing this tick and is named in `unreachable`; it never
- * blanks the others and never throws the read.
+ * Everything every live wallet holds and has waiting, plus the journal and the
+ * finished trades — the one read the polling hook makes. A wallet the exchange
+ * will not answer for contributes nothing this tick and is named in
+ * `unreachable`; it never blanks the others and never throws the read.
  */
 export async function loadLivePortfolio(
   userId: string,
@@ -410,7 +409,7 @@ export async function loadLivePortfolio(
 ): Promise<{
   positions: PaperPosition[]
   orders: PaperOrder[]
-  journal: LiveJournalEntry[]
+  trades: LiveTrade[]
   unreachable: string[]
 }> {
   const live = wallets.filter(
@@ -432,33 +431,25 @@ export async function loadLivePortfolio(
         const rows = livePortfolioRows(wallet, portfolio, now)
         positions.push(...rows.positions)
         orders.push(...rows.orders)
+        // The Journal's history rides along with this read. It has its own
+        // rate limit inside and cannot throw, so a wallet still answers for
+        // what it holds even when its history will not come.
+        await sweepLiveFills(userId, wallet, portfolio)
       } catch {
         unreachable.push(wallet.id)
       }
     })
   )
 
-  const journalRows = await db
-    .select()
-    .from(tradeLiveJournal)
-    .where(eq(tradeLiveJournal.userId, userId))
-    .orderBy(desc(tradeLiveJournal.createdAt))
-    .limit(MAX_JOURNAL_ROWS)
+  // `trade_live_journal` is deliberately NOT read here. It is still written on
+  // every instruction and every refusal — it is the record you go digging
+  // through when a real order has gone wrong, and the background engine trades
+  // with nobody watching and no toast to see. Nothing on screen reads it, so
+  // the poll does not pay for it either.
+  const trades = await loadLiveTrades(
+    userId,
+    live.map((wallet) => wallet.id)
+  )
 
-  return {
-    positions,
-    orders,
-    unreachable,
-    journal: journalRows.map((row) => ({
-      id: row.id,
-      walletId: row.walletId,
-      marketKey: row.marketKey,
-      action: row.action,
-      side: row.side,
-      px: row.px,
-      sz: row.sz,
-      note: row.note,
-      at: row.createdAt.getTime(),
-    })),
-  }
+  return { positions, orders, trades, unreachable }
 }

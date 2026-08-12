@@ -4,11 +4,7 @@ import {
   type ProtocolId,
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
-import type {
-  PaperOrder,
-  PaperPosition,
-  PaperSide,
-} from "@/lib/trade/paper"
+import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 
 /**
  * Live trading in the app's own words — browser-safe on purpose, like its
@@ -22,7 +18,14 @@ import type {
  * that will actually be enforced.
  */
 
-/** What a live journal row records was done. */
+/**
+ * What a live journal row records was done.
+ *
+ * Nothing on screen reads this table any more — the Journal is built from
+ * fills. It is still written on every instruction and every refusal, because
+ * it is the record you go digging through when a real order has gone wrong,
+ * and the background engine trades with nobody watching and no toast to see.
+ */
 export type LiveJournalAction =
   /** An order that filled straight away — a real fill at a real price. */
   | "fill"
@@ -35,20 +38,6 @@ export type LiveJournalAction =
   | "brackets"
   /** The exchange, or this app's own rails, said no. */
   | "refused"
-
-export type LiveJournalEntry = {
-  id: string
-  walletId: string
-  marketKey: string
-  action: LiveJournalAction
-  /** Null on the refusals that never got as far as having a side. */
-  side: PaperSide | null
-  px: number
-  sz: number
-  note: string | null
-  /** Epoch ms. */
-  at: number
-}
 
 /**
  * One live wallet's exchange answer as the rows the screens draw. Ids are

@@ -22,21 +22,24 @@ import {
 } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import {
+  formatHeld,
+  tradeEndingLabel,
+  type LiveTrade,
+} from "@/lib/trade/live-trades"
+import {
   liquidationAway,
   positionMargin,
   positionProfit,
   positionValue,
   projectedProfit,
-  type PaperJournalEntry,
   type PaperOrder,
   type PaperPosition,
-  PAPER_FILL_REASON_LABELS,
 } from "@/lib/trade/paper"
 import { cn } from "@/lib/utils"
 
 /**
  * The three tables the bottom panel shows: what is held, what is waiting, and
- * everything that has already happened.
+ * how the trades that are finished actually went.
  *
  * Every column sorts, through the same `useTableSort` and `TableSortButton`
  * every other table in the app uses, so a column here behaves exactly like a
@@ -84,6 +87,15 @@ function RealBadge({ marketKey }: { marketKey: string }) {
       )}
     >
       {testnet ? "Testnet" : "Real"}
+    </span>
+  )
+}
+
+/** Marks a row from a practice wallet, so pretend money never reads as real. */
+function PracticeBadge() {
+  return (
+    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+      Practice
     </span>
   )
 }
@@ -167,19 +179,21 @@ const ORDER_COLUMNS: ColumnSpec<OrderColumn>[] = [
   { key: "leverage", label: "Leverage" },
 ]
 
-type JournalColumn =
-  | "market" | "wallet" | "when" | "side" | "price" | "size" | "fee" | "banked" | "why"
+type TradeColumn =
+  | "market" | "wallet" | "side" | "opened" | "held"
+  | "entry" | "exit" | "size" | "pnl" | "ending"
 
-const JOURNAL_COLUMNS: ColumnSpec<JournalColumn>[] = [
+const TRADE_COLUMNS: ColumnSpec<TradeColumn>[] = [
   { key: "market", label: "Market" },
   { key: "wallet", label: "Wallet" },
-  { key: "when", label: "When" },
   { key: "side", label: "Side" },
-  { key: "price", label: "Price" },
+  { key: "opened", label: "Opened" },
+  { key: "held", label: "Ran for" },
+  { key: "entry", label: "In at" },
+  { key: "exit", label: "Out at" },
   { key: "size", label: "Size" },
-  { key: "fee", label: "Fee" },
-  { key: "banked", label: "Banked" },
-  { key: "why", label: "Why" },
+  { key: "pnl", label: "Made / lost" },
+  { key: "ending", label: "How it ended" },
 ]
 
 /** Orders one list of rows by one of its columns, smallest or largest first. */
@@ -690,52 +704,99 @@ export function OpenOrdersTable({
   )
 }
 
-export function JournalTable({
-  journal,
+const ENDING_RED = "bg-red-500/10 text-red-700 dark:text-red-400"
+const ENDING_GREEN = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+
+/**
+ * What colour a trade's ending is written in.
+ *
+ * **The money decides, not the word.** A stop is not a loss: a stop that
+ * follows the price up is how a good trade is meant to end, and it can close
+ * well above what the trade paid. Painting every "Stopped out" red would call
+ * those failures, and a column of red beside a column of green profits is a
+ * table nobody would trust. Only the exchange taking the trade away is red
+ * whatever it made — that is a thing that happened TO the account.
+ */
+function endingTone(trade: LiveTrade): string {
+  if (trade.ending === "liquidated") return "bg-red-500/20 text-red-700 dark:text-red-300"
+  if (trade.ending === "closed") return "bg-muted text-muted-foreground"
+  if (trade.pnl > 0) return ENDING_GREEN
+  if (trade.pnl < 0) return ENDING_RED
+  return "bg-muted text-muted-foreground"
+}
+
+/**
+ * Finished trades, one row each — the Journal.
+ *
+ * Every other table here is a readout of right now; this one is the only place
+ * a whole trade is a single row, which is why it can say what a fill never
+ * can: how long it ran, what it made in the end, and what stopped it.
+ *
+ * Practice and real sit in one list, each row badged. They are the same
+ * question — "how did that go" — and two lists would mean reading the same
+ * columns twice to answer it.
+ *
+ * Pressing a row draws it on the chart rather than opening anything. The
+ * market's name still goes to its chart on its own, the way it does in the
+ * three tables above.
+ */
+export function TradesTable({
+  trades,
   markets,
   walletName,
+  selectedId,
+  busy,
+  onSelectTrade,
   onSelectMarket,
+  onRemove,
 }: {
-  journal: readonly PaperJournalEntry[]
+  trades: readonly LiveTrade[]
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
+  /** The trade drawn on the chart right now, or null. */
+  selectedId: string | null
+  busy: boolean
+  onSelectTrade: (trade: LiveTrade) => void
   onSelectMarket: (marketKey: string) => void
+  onRemove: (trade: LiveTrade) => void
 }) {
-  const { sort, direction, toggleSort } = useTableSort<JournalColumn>(
-    "when",
+  const { sort, direction, toggleSort } = useTableSort<TradeColumn>(
+    "opened",
     "desc",
     (column) =>
-      ["market", "wallet", "side", "why"].includes(column) ? "asc" : "desc"
+      ["market", "wallet", "side", "ending"].includes(column) ? "asc" : "desc"
   )
 
-  const rows = sortRows(journal, direction, (entry) => {
+  const rows = sortRows(trades, direction, (trade) => {
     switch (sort) {
       case "market":
-        return symbolOf(entry.marketKey)
+        return symbolOf(trade.marketKey)
       case "wallet":
-        return walletName(entry.walletId)
+        return walletName(trade.walletId)
       case "side":
-        return entry.side ?? ""
-      case "price":
-        return entry.px
+        return trade.direction
+      case "held":
+        return trade.heldMs
+      case "entry":
+        return trade.entryPx
+      case "exit":
+        return trade.exitPx
       case "size":
-        return entry.sz
-      case "fee":
-        return entry.fee
-      case "banked":
-        return entry.closedPnl
-      case "why":
-        return PAPER_FILL_REASON_LABELS[entry.reason]
+        return trade.sz
+      case "pnl":
+        return trade.pnl
+      case "ending":
+        return tradeEndingLabel(trade)
       default:
-        return entry.fillTime
+        return trade.openedAt
     }
   })
 
-  if (journal.length === 0) {
+  if (trades.length === 0) {
     return (
       <EmptyTable>
-        Nothing has happened yet. Every fill lands here, with what it cost and
-        why it happened.
+        No finished trades yet. Once a position is closed it lands here, with
+        what it made and what ended it.
       </EmptyTable>
     )
   }
@@ -744,7 +805,7 @@ export function JournalTable({
     <table className="w-full border-collapse">
       <thead>
         <tr className="bg-muted/50">
-          {JOURNAL_COLUMNS.map(({ key, label }) => (
+          {TRADE_COLUMNS.map(({ key, label }) => (
             <HeaderCell
               key={key}
               sort={{
@@ -756,60 +817,97 @@ export function JournalTable({
               {label}
             </HeaderCell>
           ))}
+          <HeaderCell>
+            <span className="sr-only">Actions</span>
+          </HeaderCell>
         </tr>
       </thead>
       <tbody>
-        {rows.map((entry) => (
-          <tr
-            key={entry.id}
-            className="border-t hover:bg-muted/40"
+        {rows.map((trade) => (
+          <TableRow
+            key={trade.id}
+            rowAction={() => onSelectTrade(trade)}
+            data-state={trade.id === selectedId ? "selected" : undefined}
+            className="border-t"
           >
             <MarketCell
-              marketKey={entry.marketKey}
-              market={markets.get(entry.marketKey) ?? null}
-              onSelect={() => onSelectMarket(entry.marketKey)}
-              badge={entry.live ? <RealBadge marketKey={entry.marketKey} /> : undefined}
+              marketKey={trade.marketKey}
+              market={markets.get(trade.marketKey) ?? null}
+              onSelect={() => onSelectMarket(trade.marketKey)}
+              badge={
+                trade.live ? (
+                  <RealBadge marketKey={trade.marketKey} />
+                ) : (
+                  <PracticeBadge />
+                )
+              }
             />
-            <WalletCell wallet={walletName(entry.walletId)} />
+            <WalletCell wallet={walletName(trade.walletId)} />
+            <Cell>
+              <span
+                className={cn(
+                  "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                  trade.direction === "long"
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                    : "bg-red-500/10 text-red-700 dark:text-red-400"
+                )}
+              >
+                {trade.direction === "long" ? "Long" : "Short"}
+              </span>
+            </Cell>
             <Cell className="text-muted-foreground">
-              {new Date(entry.fillTime).toLocaleString(undefined, {
+              {new Date(trade.openedAt).toLocaleString(undefined, {
                 month: "short",
                 day: "numeric",
                 hour: "2-digit",
                 minute: "2-digit",
               })}
             </Cell>
-            <Cell
-              className={
-                entry.side === "buy"
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : entry.side === "sell"
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-muted-foreground"
-              }
-            >
-              {entry.side === "buy" ? "Buy" : entry.side === "sell" ? "Sell" : "—"}
-            </Cell>
-            {/* A live action row can have nothing to say in a figure column —
-                a protection change carries no price of its own, and the
-                exchange keeps real fees to itself. Dashes, never fake zeros. */}
-            <Cell>{entry.live && entry.px === 0 ? "—" : formatPrice(entry.px)}</Cell>
-            <Cell>{entry.live && entry.sz === 0 ? "—" : entry.sz}</Cell>
             <Cell className="text-muted-foreground">
-              {entry.live ? "—" : `-${formatUsd(entry.fee)}`}
+              {formatHeld(trade.heldMs)}
             </Cell>
-            <Cell className={toneOf(entry.closedPnl)}>
-              {entry.closedPnl === 0 ? "—" : formatSignedUsd(entry.closedPnl)}
+            <Cell>{formatPrice(trade.entryPx)}</Cell>
+            <Cell>{formatPrice(trade.exitPx)}</Cell>
+            <Cell>{trade.sz}</Cell>
+            <Cell className={toneOf(trade.pnl)}>
+              {formatSignedUsd(trade.pnl)}
+              {/* The dollars are the answer; the percentage is only there to
+                  say whether they were a lot for the money that was in. */}
+              <span className="ml-1.5 text-muted-foreground">
+                {trade.returnPct >= 0 ? "+" : ""}
+                {trade.returnPct.toFixed(1)}%
+              </span>
             </Cell>
+            <Cell>
+              <span
+                className={cn(
+                  "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                  endingTone(trade)
+                )}
+              >
+                {tradeEndingLabel(trade)}
+                {trade.stopPx !== null ? ` at ${formatPrice(trade.stopPx)}` : ""}
+              </span>
+            </Cell>
+            {/* Marked as the actions column so a press on the bin — or on the
+                blank around a greyed-out one — never also fires the row and
+                draws the trade you were trying to be rid of. */}
             <td
-              className="max-w-64 truncate px-3 py-2 text-left text-xs text-muted-foreground"
-              // The note is the whole story on a refusal; the label alone on
-              // everything else. Hover shows the full sentence either way.
-              title={entry.note ?? undefined}
+              data-column="actions"
+              className="px-3 py-2 text-left whitespace-nowrap"
             >
-              {entry.note ?? PAPER_FILL_REASON_LABELS[entry.reason]}
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={busy}
+                aria-label={`Remove the ${symbolOf(trade.marketKey)} trade from the Journal`}
+                onClick={() => onRemove(trade)}
+              >
+                <Trash2Icon className="size-4" />
+              </Button>
             </td>
-          </tr>
+          </TableRow>
         ))}
       </tbody>
     </table>

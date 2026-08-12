@@ -29,6 +29,13 @@ import {
   type PaperPosition,
   type PaperSide,
 } from "@/lib/trade/paper"
+import {
+  buildLiveTrades,
+  type LiveFill,
+  type LiveTrade,
+  type LiveTradeEnding,
+  type LiveTriggerKind,
+} from "@/lib/trade/live-trades"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
@@ -148,20 +155,8 @@ function toOrder(row: OrderRow): PaperOrder {
   }
 }
 
-function toJournalEntry(row: JournalRow): PaperJournalEntry {
-  return {
-    id: row.id,
-    walletId: row.walletId,
-    marketKey: row.marketKey,
-    side: row.side,
-    px: row.px,
-    sz: row.sz,
-    fee: row.fee,
-    closedPnl: row.closedPnl,
-    reason: row.reason,
-    fillTime: row.fillTime.getTime(),
-  }
-}
+/** Practice fills need no order lookup, so the map they are built with is empty. */
+const NO_TRIGGERS = new Map<string, { kind: LiveTriggerKind; px: number | null }>()
 
 // ----- The wallet as the engine holds it --------------------------------
 
@@ -187,13 +182,8 @@ export type WalletBook = {
   cash: number
   positions: Map<string, PaperPosition>
   orders: PaperOrder[]
-  /**
-   * Fills to record, in the order they happened. Narrower than the display
-   * type on purpose: everything this engine writes IS a fill, with a side
-   * and a fill reason — the nullable/live variants belong to the live
-   * journal, never to this table.
-   */
-  fills: Array<PaperJournalEntry & { side: PaperSide; reason: PaperFillReason }>
+  /** Fills to record, in the order they happened. */
+  fills: PaperJournalEntry[]
   /** Markets whose position row must be rewritten or removed. */
   touchedMarkets: Set<string>
   /** Orders that filled or were cancelled by the engine. */
@@ -1024,11 +1014,56 @@ export async function settleWallet(
 export type PaperAccount = {
   positions: PaperPosition[]
   orders: PaperOrder[]
-  journal: PaperJournalEntry[]
+  /** Finished practice round trips — the Journal, alongside the real ones. */
+  trades: LiveTrade[]
 }
 
-/** How much history the Journal tab carries: plenty to review, not a dump. */
-const JOURNAL_PAGE = 200
+/**
+ * How many fills the Journal is built from. Bounded because this runs on every
+ * poll: a year of practice must not make the panel slower every week.
+ */
+const JOURNAL_PAGE = 2_000
+
+/**
+ * How a practice fill's own reason reads as the end of a trade.
+ *
+ * The practice engine fires its own stops and writes down which level was hit,
+ * so unlike a real fill there is nothing to look up afterwards. The four
+ * remaining reasons belong to live rows and never appear in this table.
+ */
+const PAPER_ENDINGS: Partial<Record<PaperFillReason, LiveTradeEnding>> = {
+  take_profit: "target",
+  stop_loss: "stop",
+  liquidated: "liquidated",
+  manual: "closed",
+  order: "closed",
+}
+
+/** One practice fill in the shape the trade builder reads. */
+function toTradeFill(row: JournalRow): LiveFill {
+  return {
+    fillId: row.id,
+    // A practice fill has no exchange order behind it, and needs none: it
+    // already knows why it happened.
+    orderId: row.id,
+    walletId: row.walletId,
+    marketKey: row.marketKey,
+    side: row.side,
+    px: row.px,
+    sz: row.sz,
+    at: row.fillTime.getTime(),
+    closedPnl: row.closedPnl,
+    fee: row.fee,
+    // Stands in for the exchange's own word, and does the one job that word
+    // does here: a fill that closed something while nothing is held belongs to
+    // a trade older than the slice read, and is left out rather than drawn
+    // backwards.
+    dir: row.closedPnl !== 0 ? "Close" : "",
+    liquidation: row.reason === "liquidated",
+    ending: PAPER_ENDINGS[row.reason] ?? "closed",
+    live: false,
+  }
+}
 
 /**
  * Everything the trading screens draw, across every practice wallet at once —
@@ -1047,7 +1082,7 @@ export async function loadPaperPortfolio(
   wallets: readonly TradeWallet[]
 ): Promise<PaperAccount> {
   const paper = wallets.filter((wallet) => wallet.kind === "paper")
-  if (paper.length === 0) return { positions: [], orders: [], journal: [] }
+  if (paper.length === 0) return { positions: [], orders: [], trades: [] }
 
   const keys = await exposedMarketKeys(
     userId,
@@ -1063,7 +1098,7 @@ export async function loadPaperPortfolio(
     orders.push(...book.orders)
   }
 
-  const journal = await db
+  const fills = await db
     .select()
     .from(tradePaperJournal)
     .where(
@@ -1072,7 +1107,11 @@ export async function loadPaperPortfolio(
         inArray(
           tradePaperJournal.walletId,
           paper.map((wallet) => wallet.id)
-        )
+        ),
+        // Binned rows are still rows — they still count towards the wallet's
+        // cash, which is why they are hidden rather than removed. They just
+        // stop being shown.
+        eq(tradePaperJournal.hidden, false)
       )
     )
     .orderBy(desc(tradePaperJournal.fillTime))
@@ -1081,7 +1120,8 @@ export async function loadPaperPortfolio(
   return {
     positions: positions.sort((a, b) => a.marketKey.localeCompare(b.marketKey)),
     orders: orders.sort((a, b) => a.createdAt - b.createdAt),
-    journal: journal.map(toJournalEntry),
+    // No triggers to look up: a practice fill carries its own reason.
+    trades: buildLiveTrades(fills.map(toTradeFill), NO_TRIGGERS),
   }
 }
 
@@ -1551,4 +1591,31 @@ export async function closeAllPaperPositions(
     }
   }
   return { closed }
+}
+
+/**
+ * Takes the fills behind one finished practice trade off the Journal.
+ *
+ * They are not removed. `realizedTotal` above adds these rows up to work out
+ * what a practice wallet is worth, so deleting one would move the balance —
+ * bin a loss and the wallet hands the money back. Nobody tidying a list has
+ * asked for that. The rows stay, stop being shown, and the money does not move.
+ *
+ * Scoped by the person, so a request carrying somebody else's row id can only
+ * ever miss.
+ */
+export async function hidePaperJournalEntries(
+  userId: string,
+  ids: readonly string[]
+): Promise<void> {
+  if (ids.length === 0) return
+  await db
+    .update(tradePaperJournal)
+    .set({ hidden: true })
+    .where(
+      and(
+        eq(tradePaperJournal.userId, userId),
+        inArray(tradePaperJournal.id, [...ids])
+      )
+    )
 }

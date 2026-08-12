@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { parseMarketKey, type PlaceOrderOutcome } from "@/lib/protocols/contracts"
-import type { LiveJournalEntry } from "@/lib/trade/live"
+import type { LiveTrade } from "@/lib/trade/live-trades"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
@@ -13,6 +13,7 @@ import {
   placeLiveOrder as placeOrderRow,
   setLiveBrackets as setBracketsRow,
 } from "@/server/trade/live-orders"
+import { hideLiveTrade as hideTradeRows } from "@/server/trade/live-fills"
 import { listActiveSmartOrders } from "@/server/trade/smart-orders"
 import { listWallets } from "@/server/trade/wallets"
 
@@ -73,7 +74,8 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
     }): Promise<{
       positions: PaperPosition[]
       orders: PaperOrder[]
-      journal: LiveJournalEntry[]
+      /** Finished round trips, newest first — what the Journal tab draws. */
+      trades: LiveTrade[]
       smartOrders: SmartOrder[]
       /** Each live wallet's name, for the Wallet column. */
       wallets: { id: string; label: string }[]
@@ -122,6 +124,26 @@ const closeLivePositionFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ closed: true }> => {
     await closePositionRow(context.user.id, data)
     return { closed: true }
+  })
+
+/**
+ * Takes one finished trade off the Journal, by hiding the fills behind it.
+ *
+ * The trade itself is not stored anywhere — it is worked out from its fills —
+ * so its fill ids are what comes in. Hidden rather than deleted because the
+ * sweep would fetch a deleted fill straight back.
+ */
+const hideLiveTradeFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      walletId: z.string().max(36),
+      fillIds: z.array(z.string().max(40)).min(1).max(200),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ hidden: true }> => {
+    await hideTradeRows(context.user.id, data.walletId, data.fillIds)
+    return { hidden: true }
   })
 
 export function loadLiveTrading() {
@@ -190,8 +212,8 @@ function humanizeExchangeReason(reason: string): string {
  * are stored as bare codes; those become their sentences here. Everything
  * else — exchange prose, the app's own sentences — passes through untouched.
  */
-export function describeLiveJournalNote(note: string): string {
-  return /^[A-Z0-9_]+$/.test(note) ? getLiveErrorMessage(note) : note
+export function hideLiveTrade(walletId: string, fillIds: string[]) {
+  return hideLiveTradeFn({ data: { walletId, fillIds } })
 }
 
 export function getLiveErrorMessage(error: unknown): string {

@@ -4,11 +4,11 @@ import { toast } from "sonner"
 import {
   cancelLiveOrder,
   closeLivePosition,
-  describeLiveJournalNote,
   getLiveErrorMessage,
   loadLiveTrading,
   placeLiveOrder,
   setLiveBrackets,
+  hideLiveTrade,
 } from "@/lib/api/live"
 import {
   cancelPaperOrder,
@@ -16,6 +16,7 @@ import {
   closePaperPosition,
   flipPaperPosition,
   getPaperErrorMessage,
+  hidePaperTrade,
   loadPaperPortfolio,
   movePaperOrder,
   placePaperOrder,
@@ -50,10 +51,8 @@ import type {
   SmartLadder,
   SmartOrder,
 } from "@/lib/trade/smart-plan"
-import type { LiveJournalEntry } from "@/lib/trade/live"
+import type { LiveTrade } from "@/lib/trade/live-trades"
 import type {
-  JournalReason,
-  PaperJournalEntry,
   PaperOrder,
   PaperPosition,
   PaperSide,
@@ -104,15 +103,8 @@ function getTradingSmartOrderError(error: unknown): string {
     : getSmartOrderErrorMessage(error)
 }
 
-/** How a live action reads in the journal's Why column. */
-const LIVE_REASONS: Record<LiveJournalEntry["action"], JournalReason> = {
-  fill: "order",
-  placed: "placed",
-  cancelled: "cancelled",
-  close: "manual",
-  brackets: "brackets",
-  refused: "refused",
-}
+/** One list, so a poll that finds nothing does not hand the panel a new array. */
+const EMPTY_TRADES: LiveTrade[] = []
 
 export type Trading = {
   /** The wallet an order placed right now would go to, or null until one is picked. */
@@ -127,7 +119,12 @@ export type Trading = {
    * heard of.
    */
   placing: PaperOrder[]
-  journal: PaperJournalEntry[]
+  /**
+   * Finished round trips, newest first — the Journal tab. Practice and real
+   * in one list, each row saying which it was, because the question you ask a
+   * journal is "how did that go" and the answer reads the same either way.
+   */
+  trades: LiveTrade[]
   /** Every smart order still working across every wallet, of either kind. */
   smartOrders: SmartOrder[]
   /** Just the DCA ladders, for the screens that only know about those. */
@@ -181,6 +178,12 @@ export type Trading = {
   close: (walletId: string, marketKey: string) => Promise<void>
   flip: (walletId: string, marketKey: string) => Promise<void>
   closeAll: () => Promise<void>
+  /**
+   * The bin on a Journal row. The trade's fills come off the list and nothing
+   * else moves: a practice wallet's cash is the sum of its fills, so really
+   * removing one would change what the wallet is worth.
+   */
+  hideTrade: (trade: LiveTrade) => Promise<void>
   /** Places a whole DCA ladder at once; the toast counts any instant buys. */
   placeLadder: (input: {
     marketKey: string
@@ -260,7 +263,7 @@ export type Trading = {
 type PaperAnswer = {
   positions: PaperPosition[]
   orders: PaperOrder[]
-  journal: PaperJournalEntry[]
+  trades: LiveTrade[]
   smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
 }
@@ -268,7 +271,7 @@ type PaperAnswer = {
 type LiveAnswer = {
   positions: PaperPosition[]
   orders: PaperOrder[]
-  journal: LiveJournalEntry[]
+  trades: LiveTrade[]
   smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
   unreachable: string[]
@@ -426,25 +429,14 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     [smartOrders]
   )
 
-  const journal = React.useMemo((): PaperJournalEntry[] => {
-    const live = (liveAnswer?.journal ?? []).map(
-      (entry): PaperJournalEntry => ({
-        id: entry.id,
-        walletId: entry.walletId,
-        marketKey: entry.marketKey,
-        side: entry.side,
-        px: entry.px,
-        sz: entry.sz,
-        fee: 0,
-        closedPnl: 0,
-        reason: LIVE_REASONS[entry.action],
-        fillTime: entry.at,
-        live: true,
-        // A rails refusal is stored as its bare code; said in words here.
-        note: entry.note ? describeLiveJournalNote(entry.note) : null,
-      })
+  const trades = React.useMemo((): LiveTrade[] => {
+    const paper = paperAnswer?.trades ?? EMPTY_TRADES
+    const live = liveAnswer?.trades ?? EMPTY_TRADES
+    if (paper.length === 0) return live
+    if (live.length === 0) return paper
+    return [...paper, ...live].sort(
+      (left, right) => right.closedAt - left.closedAt
     )
-    return [...(paperAnswer?.journal ?? []), ...live]
   }, [paperAnswer, liveAnswer])
 
   const orders = React.useMemo(() => {
@@ -839,6 +831,28 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     [runWith]
   )
 
+  const hideTrade: Trading["hideTrade"] = React.useCallback(
+    async (trade) => {
+      setPending((count) => count + 1)
+      const fillIds = [...new Set(trade.fills.map((fill) => fill.fillId))]
+      try {
+        // A trade is not stored; its fills are. Hiding them is what makes the
+        // row go. One list, two stores — the row says which it came from.
+        if (trade.live) await hideLiveTrade(trade.walletId, fillIds)
+        else await hidePaperTrade(fillIds)
+        toast.success("Removed from the Journal.")
+      } catch (error) {
+        showErrorToast(
+          trade.live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
+        )
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    },
+    [refresh]
+  )
+
   const closeAll: Trading["closeAll"] = React.useCallback(async () => {
     setPending((count) => count + 1)
     try {
@@ -862,7 +876,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     positions,
     orders,
     placing,
-    journal,
+    trades,
     smartOrders,
     ladders,
     grids,
@@ -876,6 +890,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     close,
     flip,
     closeAll,
+    hideTrade,
     placeLadder,
     cancelRung,
     cancelLadder,

@@ -3,17 +3,15 @@ import { z } from "zod"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
-import type {
-  PaperJournalEntry,
-  PaperOrder,
-  PaperPosition,
-} from "@/lib/trade/paper"
+import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
 import {
   cancelPaperOrder as cancelOrderRow,
   closeAllPaperPositions as closeAllRows,
   closePaperPosition as closePositionRow,
   flipPaperPosition as flipPositionRow,
+  hidePaperJournalEntries as hideJournalRows,
   loadPaperPortfolio as loadPortfolio,
   movePaperOrder as moveOrderRow,
   placePaperOrder as placeOrderRow,
@@ -117,7 +115,8 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
     }): Promise<{
       positions: PaperPosition[]
       orders: PaperOrder[]
-      journal: PaperJournalEntry[]
+      /** Finished practice round trips — the Journal, alongside the real ones. */
+      trades: LiveTrade[]
       smartOrders: SmartOrder[]
       wallets: { id: string; label: string }[]
     }> => {
@@ -209,6 +208,23 @@ const closeAllPaperPositionsFn = createServerFn({ method: "POST" })
     return await closeAllRows(context.user.id, wallets)
   })
 
+/**
+ * Takes one finished practice trade off the Journal, by hiding the fills it
+ * was made of.
+ *
+ * Hidden, not deleted: the wallet's cash IS the sum of these rows, so removing
+ * one would move the balance — bin a loss and the wallet hands the money back.
+ */
+const hidePaperTradeFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({ fillIds: z.array(z.string().max(36)).min(1).max(200) })
+  )
+  .handler(async ({ data, context }): Promise<{ hidden: true }> => {
+    await hideJournalRows(context.user.id, data.fillIds)
+    return { hidden: true }
+  })
+
 export function loadPaperPortfolio() {
   return loadPaperPortfolioFn()
 }
@@ -243,6 +259,10 @@ export function flipPaperPosition(walletId: string, marketKey: string) {
 
 export function closeAllPaperPositions() {
   return closeAllPaperPositionsFn()
+}
+
+export function hidePaperTrade(fillIds: string[]) {
+  return hidePaperTradeFn({ data: { fillIds } })
 }
 
 export const getPaperErrorMessage = createErrorMessage(

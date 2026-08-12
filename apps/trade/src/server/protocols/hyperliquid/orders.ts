@@ -10,6 +10,7 @@ import type {
   PlaceOrderParams,
   WalletOpenOrder,
   WalletOrderFill,
+  WalletOrderInfo,
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
@@ -565,6 +566,16 @@ const openOrdersSchema = z.array(
   })
 )
 
+/**
+ * A fill as the exchange reports it.
+ *
+ * `closedPnl`, `fee` and `dir` are the exchange's own accounting and are read
+ * rather than worked out: the Journal's money column has to agree with the
+ * account, and a subtraction of our own would not. They are optional here
+ * because the testnet has been known to leave one out, and a missing figure
+ * must not throw away the fill it belongs to — `num` turning it into null is
+ * what the zeroes below are for.
+ */
 const fillSchema = z.object({
   coin: z.string(),
   px: z.string(),
@@ -573,6 +584,10 @@ const fillSchema = z.object({
   time: z.number(),
   oid: z.number(),
   tid: z.union([z.number(), z.string()]),
+  closedPnl: z.string().optional(),
+  fee: z.string().optional(),
+  dir: z.string().optional(),
+  liquidation: z.unknown().optional(),
 })
 
 export async function fetchHyperliquidOrderFills(
@@ -596,8 +611,76 @@ export async function fetchHyperliquidOrderFills(
       px,
       sz,
       at: row.time,
+      closedPnl: num(row.closedPnl ?? "0") ?? 0,
+      fee: num(row.fee ?? "0") ?? 0,
+      dir: row.dir ?? "",
+      // The exchange sends an object here when it closed the position itself
+      // and nothing at all when it did not, so its presence is the answer.
+      liquidation: row.liquidation !== undefined && row.liquidation !== null,
     }
   })
+}
+
+/**
+ * One order as the exchange still remembers it, long after it filled.
+ *
+ * `orderStatus` is the whole reason the Journal can say "stopped out" about a
+ * trade from months ago. A stop firing arrives in the fill feed as a plain
+ * sell; what makes it a stop is `orderType`, and this is the only place that
+ * survives the order being gone.
+ *
+ * An order the exchange cannot find, or an answer it will not give, is "none"
+ * rather than an error — the caller is filling in a history column, and a
+ * blank there is a far smaller thing than a read that fails.
+ */
+const orderStatusSchema = z.object({
+  status: z.string(),
+  order: z
+    .object({
+      order: z.object({
+        orderType: z.string(),
+        triggerPx: z.string().optional(),
+        isTrigger: z.boolean().optional(),
+      }),
+    })
+    .optional(),
+})
+
+export async function fetchHyperliquidOrderInfo(
+  network: NetworkId,
+  address: string,
+  orderId: string
+): Promise<WalletOrderInfo> {
+  const unknown: WalletOrderInfo = { kind: "none", triggerPx: null }
+  const oid = Number(orderId)
+  if (!Number.isSafeInteger(oid) || oid <= 0) return unknown
+
+  let raw: unknown
+  try {
+    raw = await infoClient(network).orderStatus({
+      user: address.toLowerCase() as `0x${string}`,
+      oid,
+    })
+  } catch {
+    return unknown
+  }
+
+  const parsed = orderStatusSchema.safeParse(raw)
+  if (!parsed.success || parsed.data.status !== "order" || !parsed.data.order) {
+    return unknown
+  }
+
+  const order = parsed.data.order.order
+  const kind = /take profit/i.test(order.orderType)
+    ? ("target" as const)
+    : /stop/i.test(order.orderType)
+      ? ("stop" as const)
+      : ("none" as const)
+
+  // Zeroed once an order has triggered, which is exactly when this is asked.
+  // Null then, rather than a price of nothing drawn across the chart.
+  const triggerPx = num(order.triggerPx ?? "")
+  return { kind, triggerPx: triggerPx && triggerPx > 0 ? triggerPx : null }
 }
 
 /**

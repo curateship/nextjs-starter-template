@@ -27,6 +27,7 @@ import type { GridParams } from "@/lib/trade/grid"
 import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveJournalAction } from "@/lib/trade/live"
+import type { LiveTriggerRecord } from "@/lib/trade/live-trades"
 import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
 import type {
   BacktestCoinSummary,
@@ -191,8 +192,12 @@ export const tradeWalletNonces = pgTable(
  * Everything ever asked of the exchange with real money, and what it said
  * back — orders, cancels, closes, protection changes, and refusals alike.
  * Facts only, in plain figures, and NEVER a secret: every note written here
- * has already been through the scrubber. Nothing is ever removed; this is
- * the record the recovery tools and the Journal tab read.
+ * has already been through the scrubber. Nothing is ever removed.
+ *
+ * **Written, never read.** No screen shows this — the Journal is built from
+ * fills. It is here because the background engine trades with nobody watching
+ * and no toast to see, so when a real order has gone wrong this is the only
+ * record of what was actually sent and what came back.
  */
 export const tradeLiveJournal = pgTable(
   "trade_live_journal",
@@ -219,6 +224,109 @@ export const tradeLiveJournal = pgTable(
       table.walletId,
       table.createdAt
     ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * Every real fill the exchange has told us about, kept.
+ *
+ * This is not a second copy of `trade_live_journal`. That table records what
+ * this app **asked for**; this one records what the **exchange did**, in the
+ * exchange's own figures — including trades placed from somewhere else
+ * entirely, and stops that fired at three in the morning with nobody watching.
+ * The Journal tab is built from these rows and from nothing else.
+ *
+ * `closed_pnl` and `fee` are the venue's own accounting, copied rather than
+ * computed. Working the money out from prices would disagree with the account
+ * the moment funding or a partial close is involved, and the row whose number
+ * disagrees with the exchange is the wrong one.
+ *
+ * Keyed by the person, the wallet and the exchange's own fill id, so a sweep
+ * that overlaps the one before it writes nothing twice.
+ */
+export const tradeLiveFills = pgTable(
+  "trade_live_fills",
+  {
+    ...paperOwner(),
+    /** The exchange's trade id — unique per wallet, and never ours to make up. */
+    fillId: varchar("fill_id", { length: 40 }).notNull(),
+    /** The order it came from, which is how a stop is told from a close. */
+    orderId: varchar("order_id", { length: 40 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    px: doublePrecision("px").notNull(),
+    sz: doublePrecision("sz").notNull(),
+    /** When it happened, in milliseconds — the exchange's clock, not ours. */
+    at: bigint("at", { mode: "number" }).notNull(),
+    closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    fee: doublePrecision("fee").notNull().default(0),
+    /** The venue's own words: "Close Long", "Open Short", and the rest. */
+    dir: varchar("dir", { length: 24 }).notNull().default(""),
+    liquidation: boolean("liquidation").notNull().default(false),
+    /**
+     * Binned from the Journal. Kept rather than deleted because a deleted row
+     * would come straight back: the sweep asks the exchange for everything
+     * since the newest fill it holds.
+     */
+    hidden: boolean("hidden").notNull().default(false),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.fillId] }),
+    index("trade_live_fills_market_idx").on(
+      table.userId,
+      table.walletId,
+      table.marketKey,
+      table.at
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * The stop and take-profit orders that have been seen sitting on a position,
+ * written down once each so that later — when the position is long gone — a
+ * fill can be matched to the order that caused it.
+ *
+ * This is the only honest way to say "stopped out". The exchange reports a
+ * stop firing as an ordinary sell; what makes it a stop is which order it came
+ * from, and that order has been cancelled and forgotten by the time anybody
+ * opens the Journal. So it is recorded while it is still visible, on the poll
+ * the app already makes.
+ *
+ * Written with "do nothing if it is already there", so the poll writes each
+ * trigger exactly once no matter how often it runs. Brackets set from the
+ * exchange's own site are picked up the same way as this app's.
+ */
+export const tradeLiveTriggers = pgTable(
+  "trade_live_triggers",
+  {
+    ...paperOwner(),
+    /** The exchange's order id for the waiting stop or target. */
+    orderId: varchar("order_id", { length: 40 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    /**
+     * stop | target | none — the last of those meaning "asked, and it was an
+     * ordinary order". Stored so the exchange is never asked twice.
+     */
+    kind: varchar("kind", { length: 8 }).$type<LiveTriggerRecord>().notNull(),
+    /**
+     * The price it was set to fire at, for the line drawn on the chart. Zero
+     * where it is no longer knowable: the exchange clears a trigger price once
+     * it has fired, so an order recovered after the fact can say it WAS a stop
+     * without inventing where.
+     */
+    px: doublePrecision("px").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.orderId] }),
     foreignKey({
       columns: [table.userId, table.walletId],
       foreignColumns: [tradeWallets.userId, tradeWallets.id],
@@ -366,6 +474,10 @@ export const tradePaperOrders = pgTable(
  * Every fill that ever happened, and why it happened. Both the trade history
  * the Journal tab shows and the ledger the wallet's cash is added up from,
  * which is why nothing is ever removed from it.
+ *
+ * The bin on a row sets `hidden` instead. The wallet's cash is the sum of
+ * these rows, so a real delete would move the balance — bin a losing fill and
+ * the wallet invents the money back — and nobody tidying a list means that.
  */
 export const tradePaperJournal = pgTable(
   "trade_paper_journal",
@@ -378,6 +490,8 @@ export const tradePaperJournal = pgTable(
     sz: doublePrecision("sz").notNull(),
     fee: doublePrecision("fee").notNull(),
     closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    /** Binned from the list. The row still counts towards the wallet's cash. */
+    hidden: boolean("hidden").notNull().default(false),
     reason: varchar("reason", { length: 16 })
       .$type<PaperFillReason>()
       .notNull(),

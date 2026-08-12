@@ -134,6 +134,9 @@ describe("reading order fills", () => {
         time: 1234,
         oid: 77,
         tid: 88,
+        closedPnl: "12.5",
+        fee: "0.4",
+        dir: "Close Short",
       },
     ])
 
@@ -148,8 +151,57 @@ describe("reading order fills", () => {
         px: 95000.5,
         sz: 0.25,
         at: 1234,
+        closedPnl: 12.5,
+        fee: 0.4,
+        dir: "Close Short",
+        liquidation: false,
       },
     ])
+  })
+
+  it("a fill missing the exchange's accounting is kept, not thrown away", async () => {
+    // The testnet has been known to leave these out. A fill that vanished
+    // would take a whole trade out of the Journal with it, so the honest
+    // answer is the fill with zeroes in the columns nobody was told about.
+    userFillsByTime.mockResolvedValue([
+      { coin: "ETH", px: "3000", sz: "1", side: "A", time: 9, oid: 1, tid: 2 },
+    ])
+
+    await expect(
+      fetchHyperliquidOrderFills("testnet", TEST_ADDRESS, 0)
+    ).resolves.toEqual([
+      {
+        fillId: "2",
+        orderId: "1",
+        marketId: "ETH",
+        side: "sell",
+        px: 3000,
+        sz: 1,
+        at: 9,
+        closedPnl: 0,
+        fee: 0,
+        dir: "",
+        liquidation: false,
+      },
+    ])
+  })
+
+  it("notices when the exchange closed the position itself", async () => {
+    userFillsByTime.mockResolvedValue([
+      {
+        coin: "BTC",
+        px: "50000",
+        sz: "1",
+        side: "A",
+        time: 5,
+        oid: 3,
+        tid: 4,
+        liquidation: { liquidatedUser: "0xabc", markPx: "50000", method: "market" },
+      },
+    ])
+
+    const fills = await fetchHyperliquidOrderFills("testnet", TEST_ADDRESS, 0)
+    expect(fills[0].liquidation).toBe(true)
   })
 })
 

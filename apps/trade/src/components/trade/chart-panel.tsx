@@ -31,6 +31,7 @@ import {
   SmartOrderDialog,
   type SmartOrderState,
 } from "@/components/trade/smart-order-dialog"
+import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
@@ -44,12 +45,17 @@ import {
   type MarketRow,
 } from "@/lib/protocols/contracts"
 import type { ChartOptions } from "@/lib/trade/chart-options"
-import type { ChartView } from "@/lib/trade/chart-view"
+import {
+  DEFAULT_MARGIN_BOTTOM,
+  DEFAULT_MARGIN_TOP,
+  type ChartView,
+} from "@/lib/trade/chart-view"
 import {
   forEachPlanOrderId,
   type SmartGrid,
   type SmartLadder,
 } from "@/lib/trade/smart-plan"
+import type { LiveTrade } from "@/lib/trade/live-trades"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import type { PaperOrder } from "@/lib/trade/paper"
 import {
@@ -113,6 +119,7 @@ export function ChartPanel({
   trading,
   free,
   equity,
+  shownTrade,
 }: {
   selectedKey: string | null
   interval: CandleInterval
@@ -137,6 +144,11 @@ export function ChartPanel({
   free: number
   /** What the account is worth — the pot a DCA ladder's shares are cut from. */
   equity: number
+  /**
+   * The finished trade picked in the Journal, drawn over the candles. Null
+   * whenever nothing is picked, and ignored when it belongs to another market.
+   */
+  shownTrade: LiveTrade | null
 }) {
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
   // an answer whose key does not match what is wanted right now IS the
@@ -349,6 +361,41 @@ export function ChartPanel({
   // is wanted belongs to a market that was switched away from, and is not one.
   const current = answer && answer.key === wanted ? answer : null
 
+  // The Journal's trade, but only while its own market is the one on screen.
+  // A trade drawn over another coin's candles would be nonsense.
+  const focusTrade =
+    shownTrade && shownTrade.marketKey === selectedKey ? shownTrade : null
+
+  /**
+   * Where to put the chart, with a picked trade taken into account.
+   *
+   * The chart frames itself once per `viewKey`, asking this at that moment —
+   * so putting the trade's id in the key is what makes picking a row move the
+   * chart, without `price-chart.tsx` learning what a trade is. Nothing is
+   * remembered from it either: `chartView.readView` still owns the zoom
+   * somebody set by hand, and this only borrows its up-and-down squash.
+   */
+  const readViewForChart = React.useCallback(() => {
+    const remembered = chartView.readView()
+    const candles = current?.candles ?? []
+    if (!focusTrade || candles.length < 2) return remembered
+
+    const entry = barIndexAt(candles, focusTrade.openedAt)
+    const exit = barIndexAt(candles, focusTrade.closedAt)
+    const span = Math.max(1, exit - entry)
+    // Three times as wide as the trade, so what led up to it is on screen too,
+    // and never so tight that a one-candle trade fills the whole width.
+    const bars = Math.min(Math.max(span * 3, 40), 1_000)
+    // The trade sits a little left of centre, leaving room for what came after.
+    const to = Math.round(exit + bars * 0.3)
+    return {
+      bars,
+      gap: candles.length - 1 - to,
+      marginTop: remembered?.marginTop ?? DEFAULT_MARGIN_TOP,
+      marginBottom: remembered?.marginBottom ?? DEFAULT_MARGIN_BOTTOM,
+    }
+  }, [chartView, current?.candles, focusTrade])
+
   /**
    * What the switched-on indicators want drawn.
    *
@@ -439,8 +486,13 @@ export function ChartPanel({
             // Market and timeframe in one — the tag these very candles were
             // fetched under. It is what tells a new chart apart from more
             // candles for the one already drawn.
-            viewKey={current.key}
-            readView={chartView.readView}
+            // With a trade picked, its id joins the tag: the chart frames
+            // itself once per tag, so picking a row in the Journal is what
+            // moves the chart to it.
+            viewKey={
+              focusTrade ? `${current.key}#${focusTrade.id}` : current.key
+            }
+            readView={readViewForChart}
             onViewChange={chartView.onViewChange}
             liveBar={liveBar?.key === wanted ? liveBar.bar : null}
             // The chart is handed a function and a surface, never a drawing or
@@ -558,6 +610,10 @@ export function ChartPanel({
                     reading belongs to the candles it was taken on, so opening
                     another one puts the ruler away rather than carrying a box
                     onto a chart it means nothing on. */}
+                {/* Over the orders and under the ruler: a finished trade is
+                    history, so it must never hide a stop that is live right
+                    now, and Shift-dragging across it still measures. */}
+                <JournalMarksLayer surface={surface} trade={focusTrade} />
                 <MeasureLayer
                   key={current.key}
                   surface={surface}
@@ -731,4 +787,23 @@ export function ChartPanel({
       />
     </div>
   )
+}
+
+/**
+ * Which candle a moment falls in: the last bar that had opened by then.
+ *
+ * A binary search rather than a scan, because the chart holds thousands of
+ * bars and this is asked every time the chart is framed. A time before the
+ * first bar answers 0 — the trade is older than the history on screen, and the
+ * left edge is the closest true thing that can be said.
+ */
+function barIndexAt(candles: readonly CandleBar[], at: number): number {
+  let low = 0
+  let high = candles.length - 1
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2)
+    if (candles[middle].openTime <= at) low = middle
+    else high = middle - 1
+  }
+  return low
 }

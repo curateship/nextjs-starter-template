@@ -255,6 +255,15 @@ export type WalletPortfolio = {
   orders: WalletOpenOrder[]
 }
 
+/**
+ * One trade the exchange actually made for this wallet.
+ *
+ * The last four fields are the exchange's own accounting, not ours. A closing
+ * fill is the only place the money a trade made is stated by the venue that
+ * paid it, and working it out from prices instead would quietly disagree with
+ * the account — funding, partial closes and the venue's own rounding all land
+ * in `closedPnl` and nowhere else.
+ */
 export type WalletOrderFill = {
   fillId: string
   orderId: string
@@ -263,6 +272,32 @@ export type WalletOrderFill = {
   px: number
   sz: number
   at: number
+  /** What this fill banked, in dollars. Zero on a fill that only opened. */
+  closedPnl: number
+  /** What the venue charged for it. A rebate comes back negative. */
+  fee: number
+  /** The venue's own words for what it did: "Close Long", "Open Short", … */
+  dir: string
+  /** True when the venue closed this position itself, not the account. */
+  liquidation: boolean
+}
+
+/**
+ * What one order turned out to be, asked of the exchange after the fact.
+ *
+ * This is how a fill months old is told from a stop firing: the exchange
+ * reports a stop as an ordinary sell, and the only thing that says otherwise
+ * is the order behind it — which it still remembers long after the order is
+ * gone. "none" is a real answer and worth storing, so the same question is
+ * never asked twice.
+ *
+ * `triggerPx` is null once an order has triggered — the exchange zeroes it —
+ * so a recovered stop can say it WAS a stop without claiming a price it can no
+ * longer prove.
+ */
+export type WalletOrderInfo = {
+  kind: "stop" | "target" | "none"
+  triggerPx: number | null
 }
 
 /**

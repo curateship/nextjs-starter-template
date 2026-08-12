@@ -11,6 +11,7 @@ import type {
   ProtocolId,
   WalletAccountFigures,
   WalletOrderFill,
+  WalletOrderInfo,
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
@@ -28,6 +29,7 @@ import {
   cancelHyperliquidOrder,
   closeHyperliquidPosition,
   fetchHyperliquidOrderFills,
+  fetchHyperliquidOrderInfo,
   fetchHyperliquidPortfolio,
   placeHyperliquidOrder,
   setHyperliquidBrackets,
@@ -164,6 +166,16 @@ export type ProtocolEntry = {
       address: string,
       since: number
     ): Promise<WalletOrderFill[]>
+    /**
+     * What one order was, asked after it is gone — the only way to tell a
+     * stop firing from an ordinary sell once the order itself has been
+     * cancelled and forgotten.
+     */
+    orderInfo(
+      network: NetworkId,
+      address: string,
+      orderId: string
+    ): Promise<WalletOrderInfo>
   }
 }
 
@@ -208,6 +220,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       setBrackets: setHyperliquidBrackets,
       portfolio: fetchHyperliquidPortfolio,
       fills: fetchHyperliquidOrderFills,
+      orderInfo: fetchHyperliquidOrderInfo,
     },
   },
   /**

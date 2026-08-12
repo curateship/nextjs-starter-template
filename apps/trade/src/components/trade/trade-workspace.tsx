@@ -50,6 +50,7 @@ import {
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
+import type { LiveTrade } from "@/lib/trade/live-trades"
 import {
   CHART_INTERVAL_STORAGE_KEY,
   DEFAULT_CHART_INTERVAL,
@@ -305,6 +306,19 @@ export function TradeWorkspace({
     setOpenSheet(null)
   }
 
+  // The finished trade drawn on the chart, picked in the Journal. It lives up
+  // here because two panels share it: the table below decides which one, and
+  // the chart above draws it. Picking one in another market also switches the
+  // chart to that market — otherwise the row would look broken.
+  const [shownTrade, setShownTrade] = React.useState<LiveTrade | null>(null)
+  const showTrade = React.useCallback(
+    (trade: LiveTrade | null) => {
+      setShownTrade(trade)
+      if (trade && trade.marketKey !== selectedKey) onSelectMarket(trade.marketKey)
+    },
+    [onSelectMarket, selectedKey]
+  )
+
   const marketList = (
     <MarketListPanel
       catalogs={catalogs}
@@ -359,6 +373,7 @@ export function TradeWorkspace({
             trading={trading}
             free={free}
             equity={equity}
+            shownTrade={shownTrade}
           />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
@@ -469,6 +484,8 @@ export function TradeWorkspace({
               trading={trading}
               catalogs={catalogs}
               onSelectMarket={onSelectMarket}
+              shownTrade={shownTrade}
+              onShowTrade={showTrade}
             />
           </WorkspacePanel>
         </ResizablePanel>
