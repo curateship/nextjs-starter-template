@@ -21,16 +21,3 @@ export function segmentConditionsFromContactFilters(
     return { ...condition }
   })
 }
-
-/**
- * Whether the list total may still include search words.
- *
- * The text box updates before the address and loader. Checking both sides
- * covers typing new words and clearing old ones during that short handoff.
- */
-export function contactSearchAffectsDisplayedTotal(
-  searchText: string,
-  appliedSearch: string
-): boolean {
-  return Boolean(searchText.trim() || appliedSearch.trim())
-}

@@ -12,6 +12,7 @@ import {
 } from "@/lib/contacts/contact-segments"
 import {
   addContactsToSegment,
+  countDraftSegmentContacts,
   createWorkspaceSegment,
   deleteWorkspaceSegments,
   listSegmentMembers,
@@ -173,6 +174,21 @@ const saveSegmentFn = createServerFn({ method: "POST" })
     return { id: saved.id }
   })
 
+const countDraftSegmentFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(segmentRulesSchema)
+  .handler(
+    async ({ data, context }): Promise<{ matching: number; everyone: number }> => {
+      const workspaceId = await currentWorkspaceId(context.user.id)
+      return countDraftSegmentContacts(
+        workspaceId,
+        // The validator above is the trust boundary. The database only sees
+        // the checked shape, never the browser's original object.
+        parseSegmentRules(data)
+      )
+    }
+  )
+
 const deleteSegmentsFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(
@@ -225,6 +241,10 @@ export function saveSegment(
   segment: SegmentFormInput
 ) {
   return saveSegmentFn({ data: { segmentId, segment } })
+}
+
+export function countDraftSegment(rules: SegmentRules) {
+  return countDraftSegmentFn({ data: rules })
 }
 
 export function deleteSegments(segmentIds: string[]) {

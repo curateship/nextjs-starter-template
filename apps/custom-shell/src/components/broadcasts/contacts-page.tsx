@@ -52,8 +52,6 @@ import {
 import {
   deleteContacts,
   getContactErrorMessage,
-  getContactLoadErrorMessage,
-  loadContactsPage,
   saveContact,
   setContactsStatus,
   type ContactItem,
@@ -65,10 +63,7 @@ import {
   getSegmentErrorMessage,
 } from "@/lib/api/people/contact-segments"
 import { contactFilterOptions } from "@/lib/api/people/contacts"
-import {
-  contactSearchAffectsDisplayedTotal,
-  segmentConditionsFromContactFilters,
-} from "@/lib/contacts/contact-filter-segment"
+import { segmentConditionsFromContactFilters } from "@/lib/contacts/contact-filter-segment"
 import {
   describeSegmentCondition,
   segmentConditionIsComplete,
@@ -150,10 +145,6 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   )
   const [filtersOpen, setFiltersOpen] = React.useState(false)
   const [segmentOpen, setSegmentOpen] = React.useState(false)
-  const [segmentTotal, setSegmentTotal] = React.useState(data.total)
-  const [runPrepareSegment, preparingSegment] = useAsyncAction(
-    getContactLoadErrorMessage
-  )
   const pageSize = data.pageSize
 
   /** Writing filters back to the address always returns to the first page. */
@@ -352,29 +343,6 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   const visibleIds = data.contacts.map((contact) => contact.id)
   const selectedCount = selection.selected.size
 
-  /**
-   * Search is not a segment rule. When it is present, ask the existing list
-   * endpoint for the filters-only count before opening so the window never
-   * claims the narrower searched total belongs to the segment draft.
-   */
-  const openSegmentDraft = async () => {
-    if (preparingSegment || conditions.length === 0) return
-    if (!contactSearchAffectsDisplayedTotal(searchText, searchQuery)) {
-      setSegmentTotal(data.total)
-      setSegmentOpen(true)
-      return
-    }
-
-    await runPrepareSegment(async () => {
-      const result = await loadContactsPage({
-        rules: { conditions },
-        limit: 1,
-      })
-      setSegmentTotal(result.total)
-      setSegmentOpen(true)
-    })
-  }
-
   return (
     <>
       <DashboardTable
@@ -456,14 +424,9 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               <DashboardToolbarButton
                 type="button"
                 variant="outline"
-                disabled={preparingSegment}
-                onClick={() => void openSegmentDraft()}
+                onClick={() => setSegmentOpen(true)}
               >
-                {preparingSegment ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <UsersRoundIcon className="size-4" />
-                )}
+                <UsersRoundIcon className="size-4" />
                 Save as segment
               </DashboardToolbarButton>
             ) : null}
@@ -841,7 +804,6 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         options={contactFilterOptions(data)}
         prefill={{
           conditions: segmentConditionsFromContactFilters(conditions),
-          total: segmentTotal,
           searchExcluded: Boolean(searchText.trim()),
         }}
         onClose={() => setSegmentOpen(false)}

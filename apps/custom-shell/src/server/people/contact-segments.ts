@@ -302,6 +302,38 @@ export async function countSegmentContacts(
   return row?.total ?? 0
 }
 
+/**
+ * Counts an unsaved rules draft and the whole contact list beside it.
+ *
+ * Both counts share the same loaded segment and plan context, so rules that
+ * refer to another segment do not fetch that context twice per keystroke.
+ */
+export async function countDraftSegmentContacts(
+  workspaceId: string,
+  rules: SegmentRules,
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<{ matching: number; everyone: number }> {
+  const context = await loadSegmentContext(workspaceId, database)
+  const [matching, everyone] = await Promise.all([
+    countSegmentContacts(
+      workspaceId,
+      { id: "live-count-draft", kind: "rules", rules },
+      database,
+      timestamp,
+      context
+    ),
+    countSegmentContacts(
+      workspaceId,
+      { id: "live-count-everyone", kind: "rules", rules: { conditions: [] } },
+      database,
+      timestamp,
+      context
+    ),
+  ])
+  return { matching, everyone }
+}
+
 /** The people in one segment, worked out the same way the count was. */
 export async function listSegmentContacts(
   workspaceId: string,
