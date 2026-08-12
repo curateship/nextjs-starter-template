@@ -153,6 +153,8 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     appName: string
     logo: string
     logoDark: string
+    accentColor: string
+    shareImage: string
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
@@ -170,6 +172,8 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         appName: "",
         logo: "",
         logoDark: "",
+        accentColor: "",
+        shareImage: "",
         publicNavigation: [],
         publicFooter: [],
         publicFooterCopyright: "",

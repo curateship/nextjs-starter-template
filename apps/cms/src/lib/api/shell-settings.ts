@@ -1,5 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
-import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people/workspaces"
+import {
+  parseWorkspaceSettings,
+  requireCurrentWorkspace,
+} from "@/server/people/workspaces"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -173,6 +176,13 @@ const shellConfigSchema = z.object({
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
   favicon: z.string(),
+  workspaceLogo: z.string().max(2048),
+  workspaceLogoDark: z.string().max(2048),
+  workspaceAccentColor: z.union([
+    z.literal(""),
+    z.string().regex(/^#[0-9a-f]{6}$/i, "Enter a 6-digit hex colour."),
+  ]),
+  workspaceShareImage: z.string().max(2048),
   logo: z.string(),
   logoDark: z.string(),
   publicNavigation: publicNavigationSchema,
@@ -229,6 +239,10 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
+            logo: data.workspaceLogo,
+            logoDark: data.workspaceLogoDark,
+            accentColor: data.workspaceAccentColor,
+            shareImage: data.workspaceShareImage,
             publicNavigation: data.publicNavigation,
             publicFooter: data.publicFooter,
             publicFooterCopyright: data.publicFooterCopyright,
@@ -264,6 +278,22 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       // kill switch are kept whole for the same reason — their one writer each
       // is lib/api/auth/session-policy.ts and lib/api/automations/automation-pause.ts.
       const existingGlobals = parseShellGlobals(existing?.settings)
+
+      for (const [next, saved] of [
+        [data.workspaceLogo, workspaceSettings.logo],
+        [data.workspaceLogoDark, workspaceSettings.logoDark],
+        [data.workspaceShareImage, workspaceSettings.shareImage],
+      ]) {
+        if (
+          next &&
+          next !== saved &&
+          !(await isOwnedImageUrl(context.user.id, next, tx))
+        ) {
+          throw new Error(
+            "That image is no longer in your media library. Pick another one."
+          )
+        }
+      }
 
       // The logos are drawn on the signed-out pages, so what gets stored has to
       // be a picture somebody here really uploaded — not any address a browser

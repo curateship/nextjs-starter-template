@@ -47,7 +47,7 @@ export function directoryDescription(
 }
 
 /** The meta tags a public page adds, in the shape a route's `head` wants. */
-export function directoryHead(title: string, description: string) {
+export function directoryHead(title: string, description: string, image = "") {
   return {
     meta: [
       { title },
@@ -56,9 +56,13 @@ export function directoryHead(title: string, description: string) {
             { name: "description", content: description },
             { property: "og:title", content: title },
             { property: "og:description", content: description },
-            { name: "twitter:card", content: "summary" },
+            {
+              name: "twitter:card",
+              content: image ? "summary_large_image" : "summary",
+            },
           ]
         : []),
+      ...(image ? [{ property: "og:image", content: image }] : []),
     ],
   }
 }

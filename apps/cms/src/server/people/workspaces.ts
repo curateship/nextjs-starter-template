@@ -403,6 +403,10 @@ export const NAVIGATION_VERSION = 18
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  logo: string
+  logoDark: string
+  accentColor: string
+  shareImage: string
   publicNavigation: PublicNavigationLink[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
@@ -2225,6 +2229,16 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
+      logoDark:
+        typeof settings.logoDark === "string"
+          ? settings.logoDark
+          : fallback.logoDark,
+      accentColor: normalizeAccentColor(settings.accentColor),
+      shareImage:
+        typeof settings.shareImage === "string"
+          ? settings.shareImage
+          : fallback.shareImage,
       publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
       publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
       publicFooterCopyright: cleanPublicFooterCopyright(
@@ -2277,6 +2291,16 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
+    logoDark:
+      typeof settings.logoDark === "string"
+        ? settings.logoDark
+        : fallback.logoDark,
+    accentColor: normalizeAccentColor(settings.accentColor),
+    shareImage:
+      typeof settings.shareImage === "string"
+        ? settings.shareImage
+        : fallback.shareImage,
     publicNavigation: cleanPublicNavigationLinks(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
     publicFooterCopyright: cleanPublicFooterCopyright(
@@ -2369,6 +2393,10 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    logo: "",
+    logoDark: "",
+    accentColor: "",
+    shareImage: "",
     publicNavigation: [],
     publicFooter: [],
     publicFooterCopyright: "",
@@ -2385,6 +2413,12 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     // Nothing hidden. A new site shows every page it has.
     pages: {},
   }
+}
+
+function normalizeAccentColor(value: unknown) {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim())
+    ? value.trim().toLowerCase()
+    : ""
 }
 
 function createDefaultWorkspaceSections(): ShellSection[] {

@@ -53,6 +53,14 @@ export function useBrandLogoDark() {
   })
 }
 
+/** The site's primary colour on public pages, or blank for the shell default. */
+export function usePublicAccentColor() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.accentColor?.trim() ?? "",
+  })
+}
+
 export function usePublicNavigation(): PublicNavigationLink[] {
   return useLoaderData({
     from: rootRouteId,

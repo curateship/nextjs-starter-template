@@ -396,18 +396,20 @@ export type ShellConfig = {
    */
   memberHomeRoute: string
   favicon: string
+  /** This workspace's public logo. Empty falls back to the app-wide logo. */
+  workspaceLogo: string
+  /** This workspace's public dark logo. Empty falls back to the app-wide one. */
+  workspaceLogoDark: string
+  /** This workspace's public primary colour. Empty keeps the shell default. */
+  workspaceAccentColor: string
+  /** This workspace's fallback image for shared public links. */
+  workspaceShareImage: string
   /**
-   * App-wide brand image drawn above the signed-out pages (sign in, register,
-   * reset, pricing). A media-library URL, empty for no logo. Unlike the favicon
-   * it is a global rather than a per-workspace setting, because the pages that
-   * show it are read before anybody has signed in or picked a workspace.
+   * App-wide fallback logo for a site that has no logo of its own.
    */
   logo: string
   /**
-   * The same brand image redrawn for a dark background, used only while the
-   * visitor is in dark mode. Optional: empty means the one logo above is shown
-   * on both backgrounds, which is exactly how the app behaved before this
-   * existed. A global for the same reason as `logo`.
+   * App-wide dark fallback for a site that has no dark logo of its own.
    */
   logoDark: string
   /** Links shown across the public site's header, saved per workspace. */
@@ -951,6 +953,10 @@ export function createDefaultShellConfig(): ShellConfig {
     adminRoute: "",
     memberHomeRoute: "",
     favicon: "",
+    workspaceLogo: "",
+    workspaceLogoDark: "",
+    workspaceAccentColor: "",
+    workspaceShareImage: "",
     logo: "",
     logoDark: "",
     publicNavigation: [],
