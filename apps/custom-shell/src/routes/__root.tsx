@@ -104,7 +104,10 @@ export const Route = createRootRoute({
     return {
       meta: [
         { charSet: "utf-8" },
-        { name: "viewport", content: "width=device-width, initial-scale: 1" },
+        // `initial-scale=1`, with an equals sign. A colon is CSS habit and
+        // browsers reject the whole key, which every page announced in the
+        // console and which left the starting zoom unset on phones.
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
         { title },
         ...(description
           ? [

@@ -417,7 +417,7 @@ describe("Send Email executor", () => {
 
     const result = await execute(run)
     expect(result.summary).toBe(
-      "Emailed 0, 0 failed — this run had no Audience step and was not about a member."
+      "Emailed 0, 0 failed — this run had no Audience step and was not about a person."
     )
   })
 

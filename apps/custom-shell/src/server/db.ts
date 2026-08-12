@@ -2,13 +2,13 @@ import { drizzle, type NodePgQueryResultHKT } from "drizzle-orm/node-postgres"
 import type { PgDatabase } from "drizzle-orm/pg-core"
 import { Pool } from "pg"
 
+import { getDatabaseUrl } from "@/server/database-url"
 import * as schema from "@/server/schema"
 
-const LOCAL_DATABASE_URL = `postgresql://postgres:localdev@localhost:${process.env.CUSTOM_SHELL_POSTGRES_PORT || "54320"}/custom_shell`
-
-export function getDatabaseUrl() {
-  return process.env.CUSTOM_SHELL_DATABASE_URL || LOCAL_DATABASE_URL
-}
+// Re-exported so the many callers that already ask `db.ts` for the address keep
+// working. Anything that wants only the address — no pool — should import
+// `@/server/database-url` directly.
+export { getDatabaseUrl }
 
 const pool = new Pool({
   connectionString: getDatabaseUrl(),

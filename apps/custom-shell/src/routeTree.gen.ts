@@ -30,6 +30,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
@@ -169,6 +170,11 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
@@ -390,6 +396,7 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -445,6 +452,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -504,6 +512,7 @@ export interface FileRoutesById {
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -563,6 +572,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/home'
     | '/workspaces'
+    | '/api/health'
     | '/admin/ai'
     | '/admin/announcements'
     | '/admin/automations'
@@ -618,6 +628,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/home'
     | '/workspaces'
+    | '/api/health'
     | '/admin/ai'
     | '/admin/announcements'
     | '/admin/automations'
@@ -676,6 +687,7 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog'
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
+    | '/api/health'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/automations'
@@ -730,6 +742,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
@@ -887,6 +900,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspaces'
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -1277,6 +1297,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
