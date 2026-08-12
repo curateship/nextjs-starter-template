@@ -56,6 +56,21 @@ export const appOptions: AppOptions = {
      * A pointer, never the component: this file is read on the server, and the
      * panel reaches the database through `@/lib/api/*`.
      */
+    /**
+     * A trading flow has no member to test against.
+     *
+     * "Test with member…" runs the flow for one chosen person, which is the
+     * right way to try a welcome sequence and means nothing here: a backtest
+     * walks a strategy over months of price history and there is nobody in it.
+     * So it is hidden on any flow holding one of this app's own steps, and left
+     * alone on every other flow, which still works the way the shell intends.
+     */
+    memberTest: {
+      appliesTo: (kinds) =>
+        ![tradeWalletNode.kind, tradeMarketsNode.kind, tradeDcaNode.kind].some(
+          (kind) => kinds.includes(kind)
+        ),
+    },
     canvasPanel: {
       label: "Previous result",
       // Only on a flow that actually runs one. Every other flow in this app
