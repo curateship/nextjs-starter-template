@@ -7,16 +7,44 @@ import {
   dcaParamsSchema,
   type DcaParams,
 } from "@/lib/trade/dca"
+import {
+  gridParamsSchema,
+  MAX_GRID_LEVELS,
+  MIN_GRID_LEVELS,
+  type GridParams,
+} from "@/lib/trade/grid"
 import { userGet, userPost } from "@/server/guards"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
+  cancelLiveGridLevel,
+  cancelLiveGridRest,
+  moveLiveGridExit,
+  moveLiveGridRange,
+  reshapeLiveGrid,
   cancelLiveLadderRest,
   cancelLiveLadderRung,
   placeLiveDcaLadder,
+  placeLiveGridOrder,
   reconcileLiveLadders,
+  updateLiveGridStop,
   updateLiveLadderExits,
 } from "@/server/trade/live-smart-orders"
-import { loadSmartDca, saveSmartDca } from "@/server/trade/prefs"
+import {
+  cancelGridLevel as cancelGridLevelRow,
+  cancelGridRest as cancelGridRestRows,
+  moveGridExit as moveGridExitRows,
+  moveGridRange as moveGridRangeRows,
+  reshapeGrid as reshapeGridRows,
+  placeGridOrder as placeGridRows,
+  updateGridStop as updateGridStopRows,
+  type PlacedGrid,
+} from "@/server/trade/grid-orders"
+import {
+  loadSmartDca,
+  loadSmartGrid,
+  saveSmartDca,
+  saveSmartGrid,
+} from "@/server/trade/prefs"
 import {
   cancelLadderRest as cancelRestRows,
   cancelLadderRung as cancelRungRow,
@@ -33,9 +61,10 @@ import {
 import { createErrorMessage } from "./error-message"
 
 /**
- * Smart orders: one right-click places a whole DCA ladder, and these are the
- * actions behind it — place, call off one rung, call off the rest, change the
- * exits, and remember the window's settings.
+ * Smart orders: one right-click places a whole plan, and these are the actions
+ * behind them — place, call off one part, call off the rest, change the exits,
+ * and remember each window's settings. Two kinds today, the DCA ladder and the
+ * grid.
  *
  * Every function starts by finding the wallet the request names, scoped to
  * whoever is asking. The browser never sends a size or a rung price — the
@@ -218,6 +247,180 @@ export function reconcileLiveSmartOrders() {
   return reconcileLiveLaddersFn()
 }
 
+// ----- The grid ------------------------------------------------------------
+
+const placeGridSchema = z.object({
+  walletId: z.string().max(36),
+  marketKey: marketKeySchema,
+  topPx: z.number().positive().finite(),
+  bottomPx: z.number().positive().finite(),
+  params: gridParamsSchema,
+})
+
+const gridLevelSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+  levelIndex: z.number().int().min(0).max(MAX_GRID_LEVELS - 1),
+})
+
+const gridSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+})
+
+const gridStopSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+  stopLoss: gridParamsSchema.shape.stopLoss,
+})
+
+const placeGridOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(placeGridSchema)
+  .handler(async ({ data, context }): Promise<PlacedGrid> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId, true)
+    const input = {
+      marketKey: data.marketKey,
+      topPx: data.topPx,
+      bottomPx: data.bottomPx,
+      params: data.params,
+    }
+    const placed =
+      wallet.kind === "live"
+        ? await placeLiveGridOrder(context.user.id, wallet, input)
+        : await placeGridRows(context.user.id, wallet, input)
+    // Remembered only once a grid was really placed with them.
+    await saveSmartGrid(context.user.id, data.params)
+    return placed
+  })
+
+const cancelGridLevelFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(gridLevelSchema)
+  .handler(async ({ data, context }): Promise<{ cancelled: true }> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId)
+    if (wallet.kind === "live") {
+      await cancelLiveGridLevel(context.user.id, wallet, data)
+    } else {
+      await cancelGridLevelRow(context.user.id, wallet, data)
+    }
+    return { cancelled: true }
+  })
+
+const cancelGridRestFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(gridSchema)
+  .handler(async ({ data, context }): Promise<{ cancelled: number }> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId)
+    return wallet.kind === "live"
+      ? await cancelLiveGridRest(context.user.id, wallet, data)
+      : await cancelGridRestRows(context.user.id, wallet, data)
+  })
+
+const moveGridRangeSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+  topPx: z.number().positive().finite(),
+  bottomPx: z.number().positive().finite(),
+})
+
+const moveGridRangeFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(moveGridRangeSchema)
+  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId, true)
+    return wallet.kind === "live"
+      ? await moveLiveGridRange(context.user.id, wallet, data)
+      : await moveGridRangeRows(context.user.id, wallet, data)
+  })
+
+const reshapeGridSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+  levels: z.number().int().min(MIN_GRID_LEVELS).max(MAX_GRID_LEVELS).optional(),
+  potPct: z.number().positive().max(100).optional(),
+})
+
+const reshapeGridFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(reshapeGridSchema)
+  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+    // A re-shape can buy, so it needs a wallet that may receive orders.
+    const wallet = await tradingWallet(context.user.id, data.walletId, true)
+    return wallet.kind === "live"
+      ? await reshapeLiveGrid(context.user.id, wallet, data)
+      : await reshapeGridRows(context.user.id, wallet, data)
+  })
+
+const moveGridExitSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+  which: z.enum(["takeProfit", "stopLoss"]),
+  px: z.number().positive().finite(),
+})
+
+const moveGridExitFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(moveGridExitSchema)
+  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId)
+    return wallet.kind === "live"
+      ? await moveLiveGridExit(context.user.id, wallet, data)
+      : await moveGridExitRows(context.user.id, wallet, data)
+  })
+
+const updateGridStopFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(gridStopSchema)
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId)
+    if (wallet.kind === "live") {
+      await updateLiveGridStop(context.user.id, wallet, data)
+    } else {
+      await updateGridStopRows(context.user.id, wallet, data)
+    }
+    return { saved: true }
+  })
+
+/** The grid window's remembered settings, or null the first time it opens. */
+const loadSmartGridFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<{ params: GridParams | null }> => {
+    return { params: await loadSmartGrid(context.user.id) }
+  })
+
+export function placeGridOrder(input: z.infer<typeof placeGridSchema>) {
+  return placeGridOrderFn({ data: input })
+}
+
+export function cancelGridLevel(input: z.infer<typeof gridLevelSchema>) {
+  return cancelGridLevelFn({ data: input })
+}
+
+export function cancelGridRest(input: z.infer<typeof gridSchema>) {
+  return cancelGridRestFn({ data: input })
+}
+
+export function moveGridRange(input: z.infer<typeof moveGridRangeSchema>) {
+  return moveGridRangeFn({ data: input })
+}
+
+export function reshapeGrid(input: z.infer<typeof reshapeGridSchema>) {
+  return reshapeGridFn({ data: input })
+}
+
+export function moveGridExit(input: z.infer<typeof moveGridExitSchema>) {
+  return moveGridExitFn({ data: input })
+}
+
+export function updateGridStop(input: z.infer<typeof gridStopSchema>) {
+  return updateGridStopFn({ data: input })
+}
+
+export function loadSmartGridParams() {
+  return loadSmartGridFn()
+}
+
 export const getSmartOrderErrorMessage = createErrorMessage(
   {
     PAPER_WALLET_NOT_FOUND:
@@ -261,6 +464,28 @@ export const getSmartOrderErrorMessage = createErrorMessage(
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
     SMART_RUNG_DONE: "That rung already bought or was already called off.",
+    SMART_GRID_RANGE:
+      "The bottom of the grid has to be below the top. Check the two prices and try again.",
+    SMART_GRID_UNDER_RANGE:
+      "Place the grid below the price — the whole range has to sit under the market so nothing buys the moment it is placed.",
+    SMART_GRID_STEP_TOO_THIN:
+      "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels.",
+    SMART_GRID_LEVEL_TOO_SMALL:
+      "A level is too small to be an order at this market's size step — nothing was placed. Use fewer levels or a bigger share.",
+    SMART_GRID_COST:
+      "The whole grid costs more than the free cash — nothing was placed. Use a smaller share or fewer levels.",
+    SMART_GRID_NOT_FOUND:
+      "That grid is not there any more — it may have finished or been cancelled.",
+    SMART_GRID_LEVEL_DONE:
+      "That level already bought or was already called off.",
+    SMART_GRID_TARGET_IN_RANGE:
+      "The take profit has to sit above the top of the range — inside it is where the grid is working, so a target in there would close it on an ordinary swing.",
+    SMART_GRID_STOP_IN_RANGE:
+      "The stop has to sit below the bottom of the range — inside it is where the grid is working, so a stop in there would sell it on an ordinary dip.",
+    SMART_GRID_TARGET_PASSED:
+      "The take profit sits below the price already, so the grid would sell up and finish the moment it was placed. Put it above the price, or switch it off.",
+    SMART_GRID_STARTED:
+      "Every level of this grid has been called off, so there is no range left to move. Place a new grid instead.",
   },
   "That did not go through. Try it again."
 )

@@ -1,5 +1,10 @@
 import * as React from "react"
-import { LayersIcon, TrendingDownIcon, TrendingUpIcon } from "lucide-react"
+import {
+  Grid2x2Icon,
+  LayersIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+} from "lucide-react"
 
 import { formatPrice } from "@/lib/trade/format"
 import type { PaperSide } from "@/lib/trade/paper"
@@ -16,12 +21,12 @@ import type { PaperSide } from "@/lib/trade/paper"
 
 export type ChartMenuState = { price: number; x: number; y: number }
 
-/** The presets the Smart order group offers. Grid would be one more entry. */
-export type SmartOrderPreset = "dca"
+/** The presets the Smart order group offers. */
+export type SmartOrderPreset = "dca" | "grid"
 
 /** Roughly what the menu measures, so it can be kept on screen. */
 const MENU_WIDTH = 200
-const MENU_HEIGHT = 164
+const MENU_HEIGHT = 202
 
 export function ChartOrderMenu({
   menu,
@@ -91,23 +96,51 @@ export function ChartOrderMenu({
               >
                 Smart order
               </p>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => onPickSmart("dca")}
-                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-              >
-                <LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="font-medium">DCA ladder</span>
-                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                  {formatPrice(menu.price)}
-                </span>
-              </button>
+              <SmartRow
+                label="DCA ladder"
+                price={menu.price}
+                icon={<LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
+                onPick={() => onPickSmart("dca")}
+              />
+              <SmartRow
+                label="Grid"
+                price={menu.price}
+                icon={<Grid2x2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />}
+                onPick={() => onPickSmart("grid")}
+              />
             </div>
           </>
         ) : null}
       </div>
     </>
+  )
+}
+
+/** One Smart-order preset: its icon, its name, and the price clicked. */
+function SmartRow({
+  label,
+  price,
+  icon,
+  onPick,
+}: {
+  label: string
+  price: number
+  icon: React.ReactNode
+  onPick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onPick}
+      className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+    >
+      {icon}
+      <span className="font-medium">{label}</span>
+      <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+        {formatPrice(price)}
+      </span>
+    </button>
   )
 }
 

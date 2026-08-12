@@ -21,8 +21,10 @@ import type {
 import type { CardFolds } from "@/lib/trade/card-folds"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
-import type { DcaParams, LadderPlan, LadderStatus } from "@/lib/trade/dca"
+import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
+import type { GridParams } from "@/lib/trade/grid"
+import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveJournalAction } from "@/lib/trade/live"
 import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
@@ -91,6 +93,10 @@ export const tradePrefs = pgTable("trade_prefs", {
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
   smartDca: jsonb("smart_dca").$type<DcaParams>(),
+  // The grid window's last-used settings. A sibling of `smart_dca` and
+  // deliberately not folded into it: the two windows ask for different things,
+  // and each column is validated by its own schema on the way in and out.
+  smartGrid: jsonb("smart_grid").$type<GridParams>(),
   // Which indicators are switched on, what each is set to, and how each one's
   // part of the menu was left folded — against the account rather than the
   // market, the same choice as the zoom above and for the same reason: however
@@ -394,11 +400,17 @@ export const tradePaperJournal = pgTable(
 )
 
 /**
- * The smart-order ladders the engine keeps working on — one row per placed
- * ladder. The percentages from the window die at placement; what lives here is
- * concrete prices and sizes in one jsonb plan, read only through
- * `ladderPlanSchema` so a row an older build wrote is ignored, never
- * half-obeyed. Finished ladders flip to `done` and stay for the record.
+ * The smart orders the engine keeps working on — one row per placed order,
+ * whether it is a DCA ladder or a grid. The percentages from the window die at
+ * placement; what lives here is concrete prices and sizes in one jsonb plan,
+ * read only through `readSmartPlan(kind, …)` so a row an older build wrote is
+ * ignored, never half-obeyed. Finished orders flip to `done` and stay for the
+ * record.
+ *
+ * Both kinds share this table because there is exactly ONE position per coin
+ * per wallet and both of them write its stop — so two on the same coin would
+ * fight over it, and sharing the table is what makes the "one live smart order
+ * per coin per wallet" check block that on its own.
  */
 export const tradeSmartLadders = pgTable(
   "trade_smart_ladders",
@@ -406,8 +418,13 @@ export const tradeSmartLadders = pgTable(
     ...paperOwner(),
     id: varchar("id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
+    /** Which kind of smart order this row is. Rows written before grids say "dca". */
+    kind: varchar("kind", { length: 8 })
+      .$type<SmartOrderKind>()
+      .notNull()
+      .default("dca"),
     status: varchar("status", { length: 8 }).$type<LadderStatus>().notNull(),
-    plan: jsonb("plan").$type<LadderPlan>().notNull(),
+    plan: jsonb("plan").$type<SmartPlan>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

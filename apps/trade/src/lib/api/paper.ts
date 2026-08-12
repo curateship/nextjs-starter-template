@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
-import type { SmartLadder } from "@/lib/trade/dca"
+import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type {
   PaperJournalEntry,
   PaperOrder,
@@ -20,7 +20,7 @@ import {
   setPaperBrackets as setBracketsRow,
   updatePaperOrder as updateOrderRow,
 } from "@/server/trade/paper"
-import { listActiveLadders } from "@/server/trade/smart-orders"
+import { listActiveSmartOrders } from "@/server/trade/smart-orders"
 import {
   findTradingWallet,
   findWallet,
@@ -118,21 +118,21 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
       positions: PaperPosition[]
       orders: PaperOrder[]
       journal: PaperJournalEntry[]
-      ladders: SmartLadder[]
+      smartOrders: SmartOrder[]
       wallets: { id: string; label: string }[]
     }> => {
       const wallets = await listWallets(context.user.id)
       const portfolio = await loadPortfolio(context.user.id, wallets)
       const paper = wallets.filter((wallet) => wallet.kind === "paper")
-      // Read after the settle inside the portfolio load, so a ladder a stop
-      // just finished is already gone from the answer.
-      const ladders = await listActiveLadders(
+      // Read after the settle inside the portfolio load, so a smart order a
+      // stop just finished is already gone from the answer.
+      const smartOrders = await listActiveSmartOrders(
         context.user.id,
         paper.map((wallet) => wallet.id)
       )
       return {
         ...portfolio,
-        ladders,
+        smartOrders,
         wallets: paper.map((wallet) => ({ id: wallet.id, label: wallet.label })),
       }
     }

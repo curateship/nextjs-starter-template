@@ -148,13 +148,16 @@ async function yieldLockIfDue(): Promise<boolean> {
 }
 
 /**
- * The wallets with at least one working ladder, and who owns them.
+ * The wallets with at least one working smart order, and who owns them —
+ * ladders and grids alike, since both live in the one table and both are
+ * advanced by the same settle.
  *
- * One row per wallet however many ladders it holds — settling a wallet advances
- * all of its ladders together, so asking per ladder would do the same work
- * several times over.
+ * One row per wallet however many it holds: settling a wallet advances all of
+ * them together, so asking per order would do the same work several times over.
+ * Nothing here reads the plan, which is what lets a new kind of smart order be
+ * picked up without this job changing at all.
  */
-async function walletsWithWork(): Promise<
+export async function walletsWithWork(): Promise<
   Array<{ userId: string; wallet: TradeWallet }>
 > {
   const rows = await db

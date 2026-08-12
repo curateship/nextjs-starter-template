@@ -38,6 +38,7 @@ import {
   tradePaperOrders,
   tradePaperPositions,
   tradePaperState,
+  tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
 import {
@@ -797,16 +798,23 @@ export async function saveBook(
 }
 
 /**
- * The markets these wallets have anything riding on. Two small reads rather
+ * The markets these wallets have anything riding on. Three small reads rather
  * than loading every position and order, because this runs before the exchange
  * is asked anything and only needs the names.
+ *
+ * Smart orders are counted even when they are holding nothing and resting
+ * nothing, which is not a corner case: a grid below its range has sold
+ * everything and taken its buys off the book, and a ladder whose every rung sits
+ * under the stop is in the same state. Left to positions and orders alone their
+ * market drops off the price list, so the engine stops looking at the coin — and
+ * a smart order that cannot see price come back is one that never wakes up.
  */
 export async function exposedMarketKeys(
   userId: string,
   walletIds: readonly string[]
 ): Promise<string[]> {
   if (walletIds.length === 0) return []
-  const [positions, orders] = await Promise.all([
+  const [positions, orders, smart] = await Promise.all([
     db
       .selectDistinct({ marketKey: tradePaperPositions.marketKey })
       .from(tradePaperPositions)
@@ -825,9 +833,19 @@ export async function exposedMarketKeys(
           inArray(tradePaperOrders.walletId, [...walletIds])
         )
       ),
+    db
+      .selectDistinct({ marketKey: tradeSmartLadders.marketKey })
+      .from(tradeSmartLadders)
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          inArray(tradeSmartLadders.walletId, [...walletIds]),
+          eq(tradeSmartLadders.status, "active")
+        )
+      ),
   ])
   return [
-    ...new Set([...positions, ...orders].map((row) => row.marketKey)),
+    ...new Set([...positions, ...orders, ...smart].map((row) => row.marketKey)),
   ]
 }
 

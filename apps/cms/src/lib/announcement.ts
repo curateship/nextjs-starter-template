@@ -14,6 +14,10 @@ export const ANNOUNCEMENT_LEVELS = ["info", "warning", "critical"] as const
 
 export type AnnouncementLevel = (typeof ANNOUNCEMENT_LEVELS)[number]
 
+export const ANNOUNCEMENT_AUDIENCES = ["app", "everyone"] as const
+
+export type AnnouncementAudience = (typeof ANNOUNCEMENT_AUDIENCES)[number]
+
 export const DEFAULT_ANNOUNCEMENT_LEVEL: AnnouncementLevel = "info"
 
 export function isAnnouncementLevel(value: unknown): value is AnnouncementLevel {
@@ -31,6 +35,45 @@ export type UserAnnouncement = {
   title: string
   body: string
   level: AnnouncementLevel
+}
+
+/** A public banner carries its edit time so an edited message can resurface. */
+export type VisitorAnnouncement = UserAnnouncement & {
+  updatedAt: string
+}
+
+const VISITOR_DISMISSAL_PREFIX = "custom-shell:visitor-announcement:"
+
+export function visitorAnnouncementDismissalKey(announcementId: string) {
+  return `${VISITOR_DISMISSAL_PREFIX}${announcementId}`
+}
+
+export function isVisitorAnnouncementDismissed(
+  storage: Pick<Storage, "getItem">,
+  announcement: VisitorAnnouncement
+) {
+  try {
+    return (
+      storage.getItem(visitorAnnouncementDismissalKey(announcement.id)) ===
+      announcement.updatedAt
+    )
+  } catch {
+    return false
+  }
+}
+
+export function rememberVisitorAnnouncementDismissal(
+  storage: Pick<Storage, "setItem">,
+  announcement: VisitorAnnouncement
+) {
+  try {
+    storage.setItem(
+      visitorAnnouncementDismissalKey(announcement.id),
+      announcement.updatedAt
+    )
+  } catch {
+    // A browser that blocks storage still dismisses it for this page view.
+  }
 }
 
 export const announcementLevelLabels: Record<AnnouncementLevel, string> = {

@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { parseMarketKey, type PlaceOrderOutcome } from "@/lib/protocols/contracts"
 import type { LiveJournalEntry } from "@/lib/trade/live"
-import type { SmartLadder } from "@/lib/trade/dca"
+import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
 import {
@@ -13,7 +13,7 @@ import {
   placeLiveOrder as placeOrderRow,
   setLiveBrackets as setBracketsRow,
 } from "@/server/trade/live-orders"
-import { listActiveLadders } from "@/server/trade/smart-orders"
+import { listActiveSmartOrders } from "@/server/trade/smart-orders"
 import { listWallets } from "@/server/trade/wallets"
 
 import { describeAuthError } from "./error-message"
@@ -74,7 +74,7 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       positions: PaperPosition[]
       orders: PaperOrder[]
       journal: LiveJournalEntry[]
-      ladders: SmartLadder[]
+      smartOrders: SmartOrder[]
       /** Each live wallet's name, for the Wallet column. */
       wallets: { id: string; label: string }[]
       unreachable: string[]
@@ -84,7 +84,7 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       const liveWallets = wallets.filter((wallet) => wallet.kind === "live")
       return {
         ...portfolio,
-        ladders: await listActiveLadders(
+        smartOrders: await listActiveSmartOrders(
           context.user.id,
           liveWallets.map((wallet) => wallet.id)
         ),

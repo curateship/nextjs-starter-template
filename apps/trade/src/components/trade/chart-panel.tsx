@@ -18,6 +18,13 @@ import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { PriceChart, type ChartSurface } from "@/components/trade/price-chart"
+import { GridLayer } from "@/components/trade/grid-layer"
+import {
+  GridOrderDialog,
+  type GridOrderState,
+  type GridPreviewLine,
+} from "@/components/trade/grid-order-dialog"
+import { GridStopDialog } from "@/components/trade/grid-stop-dialog"
 import { SmartLadderExitsDialog } from "@/components/trade/smart-ladder-exits-dialog"
 import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
 import {
@@ -38,7 +45,12 @@ import {
 } from "@/lib/protocols/contracts"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
-import type { SmartLadder } from "@/lib/trade/dca"
+import {
+  forEachPlanOrderId,
+  type SmartGrid,
+  type SmartLadder,
+} from "@/lib/trade/smart-plan"
+import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import type { PaperOrder } from "@/lib/trade/paper"
 import {
   indicatorPaint,
@@ -172,6 +184,14 @@ export function ChartPanel({
   const [smart, setSmart] = React.useState<SmartOrderState | null>(null)
   const [preview, setPreview] = React.useState<number[] | null>(null)
   const [exitsFor, setExitsFor] = React.useState<SmartLadder | null>(null)
+  // The grid's half of the same right-click: its window, its preview lines,
+  // and the two things a placed grid can be asked to do.
+  const [grid, setGrid] = React.useState<GridOrderState | null>(null)
+  const [gridPreview, setGridPreview] = React.useState<GridPreviewLine[] | null>(
+    null
+  )
+  const [stopFor, setStopFor] = React.useState<SmartGrid | null>(null)
+  const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(null)
   // Stopping a ladder cancels every waiting rung at once, so unlike a single
   // order's × it asks first.
   const [cancelFor, setCancelFor] = React.useState<SmartLadder | null>(null)
@@ -198,6 +218,9 @@ export function ChartPanel({
     setSmart(null)
     setPreview(null)
     setExitsFor(null)
+    setGrid(null)
+    setGridPreview(null)
+    setStopFor(null)
     setCancelFor(null)
     setEditing(null)
   }
@@ -217,27 +240,52 @@ export function ChartPanel({
     setMenu({ price, x: event.clientX, y: event.clientY })
   }
 
-  // The orders a ladder is running — its resting rungs and its sells — are
-  // drawn by the ladder layer with their own labels and rules, so the plain
-  // order lines must not draw them a second time (or offer to drag them).
-  const ladderOrderIds = React.useMemo(() => {
+  // The orders a smart order is running — a ladder's rungs and sells, a grid's
+  // levels and sells — are drawn by their own layer with their own labels and
+  // rules, so the plain order lines must not draw them a second time (or offer
+  // to drag them).
+  //
+  // Walked through `forEachPlanOrderId` rather than reaching into the rungs
+  // here, so a kind that is added later cannot be left out of this set by
+  // accident. It was: the grid's levels were drawn twice, a green label from
+  // the grid layer sitting on top of a grey one from the plain order lines,
+  // and the doubled pills read as some second thing at the same price.
+  const smartOrderIds = React.useMemo(() => {
     const ids = new Set<string>()
-    for (const ladder of trading.ladders) {
-      for (const rung of ladder.plan.rungs) {
-        if (rung.orderId) ids.add(rung.orderId)
-        if (rung.sellOrderId) ids.add(rung.sellOrderId)
-      }
+    for (const order of trading.smartOrders) {
+      forEachPlanOrderId(order.kind, order.plan, (orderId) => {
+        ids.add(orderId)
+      })
     }
     return ids
-  }, [trading.ladders])
+  }, [trading.smartOrders])
+  // A grid draws its own STOP LOSS line and drags it, so the plain bracket
+  // line must not draw a second one at the same price — that is a red pill
+  // behind a red pill, and it reads as some other thing at the same level.
+  //
+  // Only the stop. A grid never writes a take profit onto the position, so one
+  // that is there was put there by hand and still belongs to the plain lines.
+  const gridStops = React.useMemo(
+    () => new Set(trading.grids.map((one) => `${one.walletId}:${one.marketKey}`)),
+    [trading.grids]
+  )
+  const linePositions = React.useMemo(
+    () =>
+      trading.positions.map((one) =>
+        gridStops.has(`${one.walletId}:${one.marketKey}`)
+          ? { ...one, slPx: null }
+          : one
+      ),
+    [trading.positions, gridStops]
+  )
   const looseOrders = React.useMemo(
     () => [
-      ...trading.orders.filter((order) => !ladderOrderIds.has(order.id)),
+      ...trading.orders.filter((order) => !smartOrderIds.has(order.id)),
       // Orders asked for whose answer has not landed yet, so a press shows on
       // the chart at once instead of a second or two later.
       ...trading.placing,
     ],
-    [trading.orders, trading.placing, ladderOrderIds]
+    [trading.orders, trading.placing, smartOrderIds]
   )
 
   // The open window follows the poll, because the order under it can move: the
@@ -425,7 +473,7 @@ export function ChartPanel({
                   // Every wallet's, not just the active one's: a row in the
                   // table below is a link to its own market, and it would be a
                   // dead end if the chart then showed nothing.
-                  positions={trading.positions}
+                  positions={linePositions}
                   orders={looseOrders}
                   walletName={(walletId) =>
                     trading.walletNames.get(walletId) ?? "Another wallet"
@@ -483,6 +531,27 @@ export function ChartPanel({
                   onCancelLadder={setCancelFor}
                   onEditExits={setExitsFor}
                 />
+                <GridLayer
+                  surface={surface}
+                  marketKey={selectedKey}
+                  grids={trading.grids}
+                  preview={gridPreview}
+                  tool={paint.tool}
+                  walletName={(walletId) =>
+                    trading.walletNames.get(walletId) ?? "Another wallet"
+                  }
+                  onCancelLevel={(walletId, gridId, levelIndex) =>
+                    void trading.cancelGridLevel(walletId, gridId, levelIndex)
+                  }
+                  onCancelGrid={setCancelGridFor}
+                  onEditStop={setStopFor}
+                  onMoveRange={(one, range) =>
+                    trading.moveGridRange(one.walletId, one.id, range)
+                  }
+                  onMoveExit={(one, which, px) =>
+                    trading.moveGridExit(one.walletId, one.id, which, px)
+                  }
+                />
                 {/* Last, so while Shift is held its sheet is over everything
                     else and a drag across a stop line measures rather than
                     moving the stop. Keyed on the market and timeframe: a
@@ -515,8 +584,10 @@ export function ChartPanel({
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
             setMenu(null)
           }}
-          onPickSmart={() => {
-            setSmart({ px: menu.price, x: menu.x, y: menu.y })
+          onPickSmart={(preset) => {
+            const at = { px: menu.price, x: menu.x, y: menu.y }
+            if (preset === "grid") setGrid(at)
+            else setSmart(at)
             setMenu(null)
           }}
         />
@@ -557,6 +628,63 @@ export function ChartPanel({
           }
         />
       ) : null}
+      {grid && market ? (
+        <GridOrderDialog
+          state={grid}
+          market={market}
+          wallet={trading.wallet?.label ?? ""}
+          real={trading.wallet?.kind === "live"}
+          equity={equity}
+          free={free}
+          takerFeeRate={TAKER_FEE_RATE}
+          busy={trading.busy}
+          onPreview={setGridPreview}
+          onClose={() => setGrid(null)}
+          onPlace={(input) =>
+            trading.placeGrid({ marketKey: market.key, ...input })
+          }
+        />
+      ) : null}
+      <GridStopDialog
+        grid={stopFor}
+        busy={trading.busy}
+        onSave={(one, stopLoss) =>
+          trading.setGridStop(one.walletId, one.id, stopLoss)
+        }
+        onReshape={(one, shape) =>
+          trading.reshapeGrid(one.walletId, one.id, shape)
+        }
+        onClose={() => setStopFor(null)}
+      />
+      <ConfirmDialog
+        open={cancelGridFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setCancelGridFor(null)
+        }}
+        title="Stop this grid buying?"
+        description={
+          cancelGridFor
+            ? `${
+                cancelGridFor.plan.levels.filter(
+                  (level) => level.status === "waiting"
+                ).length
+              } waiting ${
+                cancelGridFor.plan.levels.filter(
+                  (level) => level.status === "waiting"
+                ).length === 1
+                  ? "level is"
+                  : "levels are"
+              } cancelled and buy nothing — they do not come back. Whatever the grid is holding stays, and its sells keep working.`
+            : ""
+        }
+        confirmLabel="Stop the grid"
+        onConfirm={() => {
+          if (cancelGridFor) {
+            void trading.cancelGrid(cancelGridFor.walletId, cancelGridFor.id)
+          }
+          setCancelGridFor(null)
+        }}
+      />
       <SmartLadderExitsDialog
         ladder={exitsFor}
         position={
