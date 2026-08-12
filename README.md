@@ -25,6 +25,8 @@ pnpm run lint    # Lint all apps
 
 ## Deployment
 
-Production runs on a Hetzner VPS managed by Coolify. The root `Dockerfile` builds the directory app and runs its Nitro server output on port 3000. Directory replaced hub as the deployed app; hub remains in the repo but is no longer deployed.
+Production runs on a Hetzner VPS managed by Coolify. Every app built on Custom Shell deploys the same way: two Coolify resources for one app — a web resource and a background worker — both built from the root `Dockerfile` with the app's folder name as its one build argument.
 
-`VITE_APP_URL` and `VITE_APP_DOMAIN` must be supplied as Docker build arguments — Vite freezes them into the bundle, so a rebuild is required to change them. See `apps/directory/README.md`.
+Apps never share a database or any settings with each other. Outside development an app with no `CUSTOM_SHELL_DATABASE_URL` refuses to start rather than reaching for a local one.
+
+Full instructions, the release order, the health checks and rollback: `docs/deployment.md`.

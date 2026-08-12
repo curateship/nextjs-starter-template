@@ -111,16 +111,24 @@ The single UI standard lives in `.agents/skills/Ui-standards/SKILL.md`, and ever
 
 ## Deployment
 
-The root `Dockerfile` builds the Directory app for production using its Nitro server output. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
+The root `Dockerfile` is one reusable recipe for any app built on Custom Shell. It has two targets — `web` and `worker` — and takes the app's folder name as a build argument:
 
-Directory is the production Docker target. Hub is still in the repo and still owns the SQL migration history, but it is no longer deployed. Other apps can be built through their workspace scripts, but they are not the root Dockerfile target.
+```sh
+docker build --target web    --build-arg APP=custom-shell -t custom-shell-web .
+docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker .
+```
 
-Directory's `VITE_APP_URL` and `VITE_APP_DOMAIN` are build arguments rather than runtime variables, because Vite freezes them into the bundle. The image build fails when they are missing. The container port stays 3000, unchanged from the Hub image, so the proxy and custom-domain routing keep working across the cutover.
+An app is those two things running side by side: the website, which brings the database up to date on the way in and then serves on port 3000, and a background worker, which runs automations, scheduled newsletters and the app's own registered jobs whether or not anyone is on the site. Both carry their own health checks.
+
+Apps never share a database or any settings with each other. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
+
+The full guide — the two Coolify resources, the values they need, the release order, the health checks and rollback — is `docs/deployment.md`.
 
 ## Documentation
 
 Useful docs:
 
+- `docs/deployment.md` - deploying an app: the two resources, values, release order, rollback
 - `docs/local-enviroment.md` - local URLs and helper command notes
 - `docs/scalability.md` - scalability notes
 - `docs/monorepo.md` - this overview

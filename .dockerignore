@@ -8,6 +8,9 @@
 !**/.env.example
 **/node_modules
 **/.output
+# Built inside the image by `build:worker`. A copy from somebody's laptop must
+# never be what ships.
+**/worker/dist
 **/.tanstack
 **/.local-storage
 **/.playwright-cli
