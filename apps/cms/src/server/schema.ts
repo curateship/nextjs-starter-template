@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm"
 
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import type { AutomationGraph } from "@/lib/automations/graph"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import type {
   AutomationApprovalDecision,
   AutomationRunStatus,
@@ -350,7 +351,7 @@ export const customShellNotifications = pgTable(
       () => customShellAnnouncements.id,
       { onDelete: "cascade" }
     ),
-    /** Set on an approval notice; deleting the run clears its notices too. */
+    /** Set on an approval or failure notice; deleting the run clears it too. */
     automationRunId: varchar("automation_run_id", { length: 36 }).references(
       () => customShellAutomationRuns.id,
       { onDelete: "cascade" }
@@ -369,7 +370,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -388,6 +389,11 @@ export const customShellNotifications = pgTable(
     uniqueIndex("ux_notifications_announcement_recipient")
       .on(table.announcementId, table.recipientUserId)
       .where(sql`${table.announcementId} is not null`),
+    // A failed run may be observed more than once after a worker crash, but
+    // each admin gets one alert for it and no more.
+    uniqueIndex("ux_notifications_automation_failure_recipient")
+      .on(table.automationRunId, table.recipientUserId)
+      .where(sql`${table.type} = 'automation_failed'`),
   ]
 )
 
@@ -774,6 +780,10 @@ export const customShellAutomations = pgTable(
      * its own.
      */
     enabled: boolean("enabled").notNull().default(false),
+    /** Why a safety check switched this flow off; cleared by the next manual toggle. */
+    pausedReason: text("paused_reason"),
+    /** The next scheduled occurrence, null while off or without a Time trigger. */
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -786,6 +796,9 @@ export const customShellAutomations = pgTable(
       table.workspaceId,
       table.updatedAt
     ),
+    index("ix_automations_next_run")
+      .on(table.nextRunAt)
+      .where(sql`${table.nextRunAt} is not null`),
   ]
 )
 
@@ -910,6 +923,17 @@ export const customShellAutomationRuns = pgTable(
       { onDelete: "set null" }
     ),
     subjectLabel: varchar("subject_label", { length: 200 }),
+    /** The contact itself, including an address that has no account behind it. */
+    subjectContactId: varchar("subject_contact_id", { length: 36 }).references(
+      () => customShellContacts.id,
+      { onDelete: "set null" }
+    ),
+    /**
+     * A rehearsal against `subjectUserId`. Outside actions are redirected or
+     * skipped, and the copied address is the only address an email may reach.
+     */
+    testRun: boolean("test_run").notNull().default(false),
+    testRecipientEmail: varchar("test_recipient_email", { length: 255 }),
     /** The node kind that started it, so the history can name the moment. */
     triggerKind: varchar("trigger_kind", { length: 64 }),
     /**
@@ -935,9 +959,14 @@ export const customShellAutomationRuns = pgTable(
       .on(table.automationId, table.triggerKey)
       .where(sql`${table.triggerKey} is not null`),
     index("ix_automation_runs_subject").on(table.subjectUserId),
+    index("ix_automation_runs_subject_contact").on(table.subjectContactId),
     check(
       "automation_runs_decision_check",
       sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
+    ),
+    check(
+      "automation_runs_test_recipient_check",
+      sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectUserId} is not null)`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
     index("ix_automation_runs_workspace_started").on(
@@ -964,6 +993,8 @@ export const customShellAutomationRunSteps = pgTable(
     attempts: integer("attempts").notNull().default(1),
     /** What the step did, in the words a person would use. Always present. */
     summary: text("summary").notNull(),
+    /** Small JSON-only data for a node's optional rich run-history view. */
+    output: jsonb("output").$type<AutomationRunOutput>(),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
@@ -1537,6 +1568,69 @@ export const customShellContactSegmentMembers = pgTable(
     // "Which segments is this person in" — the direction the key above cannot
     // answer.
     index("ix_contact_segment_members_contact").on(table.contactId),
+  ]
+)
+
+/** The last successfully observed segment for one live flow. */
+export const customShellAutomationSegmentWatches = pgTable(
+  "automation_segment_watches",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    segmentId: varchar("segment_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContactSegments.id, { onDelete: "cascade" }),
+    lastScannedAt: timestamp("last_scanned_at", {
+      withTimezone: true,
+    }).notNull(),
+  },
+  (table) => [
+    index("ix_automation_segment_watches_segment").on(table.segmentId),
+  ]
+)
+
+/** Who matched at the last look; rows disappear when a contact leaves. */
+export const customShellAutomationSegmentSnapshot = pgTable(
+  "automation_segment_snapshot",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    segmentId: varchar("segment_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContactSegments.id, { onDelete: "cascade" }),
+    contactId: varchar("contact_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContacts.id, { onDelete: "cascade" }),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "automation_segment_snapshot_pk",
+      columns: [table.automationId, table.contactId],
+    }),
+    index("ix_automation_segment_snapshot_segment").on(table.segmentId),
+  ]
+)
+
+/** Permanent once-per-contact memory, independent of deletable run history. */
+export const customShellAutomationSegmentEnrollments = pgTable(
+  "automation_segment_enrollments",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    contactId: varchar("contact_id", { length: 36 })
+      .notNull()
+      .references(() => customShellContacts.id, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "automation_segment_enrollments_pk",
+      columns: [table.automationId, table.contactId],
+    }),
   ]
 )
 

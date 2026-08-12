@@ -1,4 +1,5 @@
 import * as React from "react"
+import type { ComponentType } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
   ArrowLeftIcon,
@@ -6,12 +7,14 @@ import {
   Loader2Icon,
   PauseIcon,
   PlayIcon,
+  UserIcon,
   WorkflowIcon,
 } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
+import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
@@ -39,6 +42,7 @@ import {
   automationPaletteKeyForNode,
   createAutomationNode,
 } from "@/lib/automations/node-registry"
+import { automationCanStartManually } from "@/lib/automations/run"
 import {
   getAutomationRunErrorMessage,
   runAutomationNow,
@@ -54,6 +58,7 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import {
@@ -63,6 +68,8 @@ import {
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
+import { appCanvasPanel } from "@/lib/app-options"
+import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
 // Same debounce as the shell's settings auto-save, so editing an automation
@@ -75,6 +82,7 @@ export function AutomationEditor({
   initialRuns,
   initialBlockDefaults,
   openRunId,
+  openNode,
   mode = "automation",
   onSaveTemplateGraph,
 }: {
@@ -84,6 +92,15 @@ export function AutomationEditor({
   initialBlockDefaults: BroadcastBlockDefaults
   /** The run a bell notice linked to, opened in the bottom panel on arrival. */
   openRunId?: string
+  /**
+   * A step to arrive with already selected, by its id or by its kind.
+   *
+   * For a page built out of one step's work — a backtest report, say — sending
+   * somebody back to "the settings that produced this" rather than to the
+   * canvas with nothing chosen. A kind is accepted because the sender usually
+   * knows what the step is without knowing this flow's copy of it.
+   */
+  openNode?: string
   mode?: "automation" | "template"
   onSaveTemplateGraph?: (graph: AutomationGraph) => Promise<unknown>
 }) {
@@ -100,11 +117,25 @@ export function AutomationEditor({
   const [name] = React.useState(initial.name)
   const [graph, setGraph] = React.useState(initial.graph)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
-    null
+    // Worked out here rather than in an effect: selecting after the first draw
+    // would flash the empty settings panel first, and an effect that ran again
+    // would drag somebody back to this step every time they picked another.
+    () => {
+      if (!openNode) return null
+      const found =
+        initial.graph.nodes.find((node) => node.id === openNode) ??
+        initial.graph.nodes.find((node) => node.kind === openNode)
+      return found?.id ?? null
+    }
   )
   const [previewNode, setPreviewNode] = React.useState<AutomationNode | null>(
     null
   )
+  // The run this canvas started, and whether the app's own panel is open.
+  // Opened by pressing Run, and stays until it is closed by hand — a panel
+  // that vanished when the run finished would take the result with it.
+  const [startedRunId, setStartedRunId] = React.useState<string | null>(null)
+  const [appPanelShut, setAppPanelShut] = React.useState(false)
   const [editingEmailNodeId, setEditingEmailNodeId] = React.useState<
     string | null
   >(null)
@@ -120,6 +151,8 @@ export function AutomationEditor({
   })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [running, setRunning] = React.useState(false)
+  const [testOpen, setTestOpen] = React.useState(false)
+  const [preparingTest, setPreparingTest] = React.useState(false)
   const [live, setLive] = React.useState(initial.enabled)
   const [savingLive, setSavingLive] = React.useState(false)
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
@@ -152,6 +185,10 @@ export function AutomationEditor({
   const togglePalette = usePanelToggle(palettePanelRef)
   const toggleInspector = usePanelToggle(inspectorPanelRef)
   const toggleRuns = usePanelToggle(runsPanelRef)
+
+  // Shut, the runs panel is exactly its own tab row, and that row's line would
+  // sit on top of the panel's bottom edge. See `headerOnly`.
+  const runsShut = usePanelCollapsed(runsPanelRef)
 
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
@@ -291,6 +328,9 @@ export function AutomationEditor({
   }, [reportSaveStatus])
 
   const compiled = React.useMemo(() => compileAutomationGraph(graph), [graph])
+  const canRunManually = compiled.config
+    ? automationCanStartManually(compiled.config)
+    : false
   // Read off the draft, so the switch appears the moment a trigger is dropped
   // on the canvas rather than once the flow happens to compile.
   const triggerName = React.useMemo(() => {
@@ -337,6 +377,10 @@ export function AutomationEditor({
   const handleRunNow = async () => {
     if (running || paused || !compiled.config) return
     setRunning(true)
+    // Opened on the press, not on the answer. Saving and starting take a
+    // moment, and a panel that appears afterwards makes the button feel like
+    // it did nothing.
+    setAppPanelShut(false)
     try {
       await saveNow()
       const current = latestRef.current
@@ -344,9 +388,11 @@ export function AutomationEditor({
         return
 
       const { runId } = await runAutomationNow(initial.id)
+      setStartedRunId(runId)
+      // No toast for starting: the canvas panel opens on the press and shows
+      // the run happening, which says it better than a message that covers
+      // part of the screen to repeat what you just did.
       dismissErrorToast()
-      toast.success(`Started "${name}".`)
-      runsPanelRef.current?.expand()
       await navigate({
         to: "/admin/automations/$automationId",
         params: { automationId: initial.id },
@@ -357,6 +403,22 @@ export function AutomationEditor({
       showErrorToast(getAutomationRunErrorMessage(error))
     } finally {
       setRunning(false)
+    }
+  }
+
+  const openMemberTest = async () => {
+    if (preparingTest || paused || !compiled.config) return
+    setPreparingTest(true)
+    try {
+      await saveNow()
+      const current = latestRef.current
+      if (serialize(current.name, current.graph) !== lastSavedRef.current)
+        return
+      setTestOpen(true)
+    } catch (error) {
+      showErrorToast(getAutomationErrorMessage(error))
+    } finally {
+      setPreparingTest(false)
     }
   }
   const selectedNode =
@@ -586,12 +648,6 @@ export function AutomationEditor({
                 reason="Fix the steps marked in red before switching this flow on."
               >
                 <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={live}
-                    disabled={savingLive || (!compiled.config && !live)}
-                    aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
-                    onCheckedChange={(next) => void handleLiveChange(next)}
-                  />
                   {/* On, but edited since into something that cannot run. The
                     switch alone would read as "this is happening". */}
                   <span
@@ -602,11 +658,17 @@ export function AutomationEditor({
                     }
                   >
                     {!live
-                      ? "Off"
+                      ? "Start automation"
                       : compiled.config
                         ? `On — ${triggerName}`
                         : "On, but not running"}
                   </span>
+                  <Switch
+                    checked={live}
+                    disabled={savingLive || (!compiled.config && !live)}
+                    aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
+                    onCheckedChange={(next) => void handleLiveChange(next)}
+                  />
                 </label>
               </DisabledReason>
             ) : null}
@@ -639,17 +701,41 @@ export function AutomationEditor({
             >
               <Button
                 type="button"
-                disabled={paused || !compiled.config || running}
-                onClick={() => void handleRunNow()}
+                variant="outline"
+                disabled={paused || !compiled.config || preparingTest}
+                onClick={() => void openMemberTest()}
               >
-                {running ? (
+                {preparingTest ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : (
-                  <PlayIcon className="size-4" />
+                  <UserIcon className="size-4" />
                 )}
-                Run
+                Test with member…
               </Button>
             </DisabledReason>
+            {canRunManually ? (
+              <DisabledReason
+                disabled={paused || !compiled.config}
+                reason={
+                  paused
+                    ? "Every automation is paused. Resume them to start this flow."
+                    : "Fix the steps marked in red before running this automation."
+                }
+              >
+                <Button
+                  type="button"
+                  disabled={paused || !compiled.config || running}
+                  onClick={() => void handleRunNow()}
+                >
+                  {running ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <PlayIcon className="size-4" />
+                  )}
+                  Run
+                </Button>
+              </DisabledReason>
+            ) : null}
           </div>
         )
       }
@@ -692,6 +778,14 @@ export function AutomationEditor({
           {canvasHeader}
           <div className="relative flex min-h-0 flex-1">
             {canvas}
+            <AppCanvasPanel
+              automationId={initial.id}
+              nodeKinds={graph.nodes.map((node) => node.kind)}
+              runId={startedRunId}
+              shut={appPanelShut}
+              onShut={() => setAppPanelShut(true)}
+              onOpen={() => setAppPanelShut(false)}
+            />
             {paletteCollapsed ? (
               <PanelReopenTab
                 side="left"
@@ -784,8 +878,12 @@ export function AutomationEditor({
               // be dragged back open.
               collapsible
               collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+              onResize={runsShut.onResize}
             >
-              <WorkspacePanel onDoubleClick={runsDoubleClick}>
+              <WorkspacePanel
+                onDoubleClick={runsDoubleClick}
+                headerOnly={runsShut.collapsed}
+              >
                 {runsPanel}
               </WorkspacePanel>
             </ResizablePanel>
@@ -794,16 +892,112 @@ export function AutomationEditor({
       </div>
 
       {!templateMode ? (
-        <ConfirmDialog
-          open={confirmPauseOpen}
-          onOpenChange={setConfirmPauseOpen}
-          title="Pause every automation?"
-          description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
-          confirmLabel="Pause automations"
-          loading={automationPauseBusy}
-          onConfirm={() => void handlePauseChange(true)}
-        />
+        <>
+          <TestWithMemberDialog
+            open={testOpen}
+            automationId={initial.id}
+            automationName={name}
+            onOpenChange={setTestOpen}
+            onStarted={async (runId) => {
+              setStartedRunId(runId)
+              setAppPanelShut(false)
+              await navigate({
+                to: "/admin/automations/$automationId",
+                params: { automationId: initial.id },
+                search: { run: runId },
+                replace: true,
+              })
+            }}
+          />
+          <ConfirmDialog
+            open={confirmPauseOpen}
+            onOpenChange={setConfirmPauseOpen}
+            title="Pause every automation?"
+            description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
+            confirmLabel="Pause automations"
+            loading={automationPauseBusy}
+            onConfirm={() => void handlePauseChange(true)}
+          />
+        </>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * The app's own panel on the canvas, and the button that brings it back.
+ *
+ * Drawn over the canvas at the top right, under the Run button, because that is
+ * where somebody is looking when a flow starts. Nothing at all when the app has
+ * not asked for one.
+ *
+ * Each panel is wrapped once and kept: `React.lazy` returns a new component
+ * type every call, and one made during a render loses its state on every
+ * render.
+ */
+const lazyCanvasPanels = new Map<
+  string,
+  React.LazyExoticComponent<ComponentType<AutomationCanvasPanelProps>>
+>()
+
+function AppCanvasPanel({
+  automationId,
+  nodeKinds,
+  runId,
+  shut,
+  onShut,
+  onOpen,
+}: {
+  automationId: string
+  nodeKinds: readonly string[]
+  runId: string | null
+  shut: boolean
+  onShut: () => void
+  onOpen: () => void
+}) {
+  const declared = appCanvasPanel()
+  // Nothing at all — not even the button — on a flow this panel is not about.
+  const asked =
+    declared && (declared.appliesTo?.(nodeKinds) ?? true) ? declared : null
+
+  // Fetched as soon as the editor is drawn, not when the panel is first shown.
+  // It is a lazy import, so without this the first open waits on a download —
+  // which is exactly the moment somebody has just pressed Run and is watching.
+  React.useEffect(() => {
+    if (asked) void asked.panel()
+  }, [asked])
+
+  if (!asked) return null
+
+  if (shut) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="absolute top-3 right-3 z-10 shadow-sm"
+        onClick={onOpen}
+      >
+        {asked.label}
+      </Button>
+    )
+  }
+
+  let panel = lazyCanvasPanels.get(asked.label)
+  if (!panel) {
+    panel = React.lazy(asked.panel)
+    lazyCanvasPanels.set(asked.label, panel)
+  }
+
+  return (
+    <div className="absolute top-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)]">
+      <React.Suspense fallback={null}>
+        {React.createElement(panel as ComponentType<AutomationCanvasPanelProps>, {
+          automationId,
+          runId,
+          onClose: onShut,
+        })}
+      </React.Suspense>
     </div>
   )
 }

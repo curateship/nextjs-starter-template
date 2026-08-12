@@ -1,7 +1,7 @@
 import { lazy, type ComponentType } from "react"
 import { CircleHelpIcon } from "lucide-react"
 
-import { appAutomationNodes } from "@/lib/app-options"
+import { appAutomationNodes, appPaletteGroups } from "@/lib/app-options"
 
 import type { AutomationNode, AutomationSourcePort } from "./graph"
 import type {
@@ -9,14 +9,18 @@ import type {
   AutomationNodeFieldsProps,
   AutomationNodeIcon,
   AutomationNodePort,
+  AutomationNodeRunResultProps,
   AutomationPaletteGroup,
 } from "./node-descriptor"
 import { aiStepNode } from "./nodes/ai-step"
 import { audienceNode } from "./nodes/audience"
 import { billingMomentNode } from "./nodes/billing-moment"
+import { joinedSegmentNode } from "./nodes/joined-segment"
 import { placeholderNode } from "./nodes/placeholder"
 import { sendEmailNode } from "./nodes/send-email"
+import { timeActivateNode } from "./nodes/time-activate"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
+import { webhookNode } from "./nodes/webhook"
 
 export type {
   AutomationNodeIcon,
@@ -29,12 +33,16 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
   audienceNode,
   billingMomentNode,
+  joinedSegmentNode,
+  timeActivateNode,
   placeholderNode,
   sendEmailNode,
   waitForApprovalNode,
+  webhookNode,
 ]
 
-export const AUTOMATION_PALETTE_GROUPS: readonly AutomationPaletteGroup[] = [
+/** The palette headings the shell itself ships, in the order it shows them. */
+const SHELL_PALETTE_GROUPS: readonly AutomationPaletteGroup[] = [
   "Triggers",
   "Actions",
   "Flow",
@@ -55,6 +63,7 @@ type Registry = {
   byKind: Map<string, AutomationNodeDescriptor>
   paletteItems: readonly AutomationPaletteItem[]
   paletteKeys: Set<string>
+  paletteGroups: readonly AutomationPaletteGroup[]
 }
 
 let registry: Registry | null = null
@@ -74,6 +83,18 @@ function automationRegistry(): Registry {
 
   const descriptors = [...SHELL_NODE_DESCRIPTORS, ...appAutomationNodes()]
 
+  // The shell's headings first, then the app's, so an app's own group always
+  // sits below the ones people already know rather than in the middle of them.
+  const paletteGroups = [...SHELL_PALETTE_GROUPS]
+  for (const group of appPaletteGroups()) {
+    if (paletteGroups.includes(group)) {
+      throw new Error(
+        `"${group}" is already a palette heading in this shell. An app's own heading needs a name the shell isn't already using.`
+      )
+    }
+    paletteGroups.push(group)
+  }
+
   const byKind = new Map<string, AutomationNodeDescriptor>()
   const paletteKeys = new Set<string>()
   for (const descriptor of descriptors) {
@@ -87,14 +108,24 @@ function automationRegistry(): Registry {
     }
     byKind.set(descriptor.kind, descriptor)
 
-    const key = descriptor.palette?.key
-    if (key === undefined) continue
+    if (!descriptor.palette) continue
+
+    const { key, group } = descriptor.palette
     if (paletteKeys.has(key)) {
       throw new Error(
         `Two automation steps both claim the palette key "${key}". An app's own step needs a key the shell isn't already using.`
       )
     }
     paletteKeys.add(key)
+
+    // A heading nobody declared would leave the step out of the palette
+    // altogether, and a step you cannot find looks like a step that was never
+    // written. Said out loud instead.
+    if (!paletteGroups.includes(group)) {
+      throw new Error(
+        `The "${key}" step sits under a palette heading called "${group}", which nothing declares. Add it to automations.paletteGroups in the app's options.`
+      )
+    }
   }
 
   const paletteItems = descriptors
@@ -111,12 +142,23 @@ function automationRegistry(): Registry {
     )
     .sort(
       (left, right) =>
-        AUTOMATION_PALETTE_GROUPS.indexOf(left.group) -
-        AUTOMATION_PALETTE_GROUPS.indexOf(right.group)
+        paletteGroups.indexOf(left.group) - paletteGroups.indexOf(right.group)
     )
 
-  registry = { descriptors, byKind, paletteItems, paletteKeys }
+  registry = { descriptors, byKind, paletteItems, paletteKeys, paletteGroups }
   return registry
+}
+
+/**
+ * Every palette heading, in the order the palette draws them — the shell's own
+ * five, then whatever the app declared.
+ *
+ * A function rather than the constant this used to be, for the same reason the
+ * registry is built lazily: an app's headings come from its options file, which
+ * imports app components, which import shell components, which import this one.
+ */
+export function automationPaletteGroups(): readonly AutomationPaletteGroup[] {
+  return automationRegistry().paletteGroups
 }
 
 export function automationPaletteItems(): readonly AutomationPaletteItem[] {
@@ -164,6 +206,12 @@ export function isSupportedNode(node: AutomationNode): boolean {
  */
 export function automationKindIsTrigger(kind: string): boolean {
   return automationRegistry().byKind.get(kind)?.hasInput === false
+}
+
+/** Steps allow a manual start unless their descriptor explicitly forbids it. */
+export function automationKindCanStartManually(kind: string): boolean {
+  const descriptor = automationRegistry().byKind.get(kind)
+  return descriptor?.manualStart !== false
 }
 
 function descriptorForPaletteKey(key: string): AutomationNodeDescriptor {
@@ -236,6 +284,31 @@ export function automationNodeFields(
 
   const component = lazy(descriptor.fields)
   lazyFields.set(descriptor.kind, component)
+  return component
+}
+
+/**
+ * The rich run-history view a node brings with it, when it has one.
+ *
+ * Kept lazy for the same server/browser boundary as settings panels, and kept
+ * by kind so opening another run does not rebuild the app's component.
+ */
+const lazyRunResults = new Map<
+  string,
+  ComponentType<AutomationNodeRunResultProps>
+>()
+
+export function automationNodeRunResult(
+  kind: string
+): ComponentType<AutomationNodeRunResultProps> | null {
+  const descriptor = automationRegistry().byKind.get(kind)
+  if (!descriptor?.runResult) return null
+
+  const cached = lazyRunResults.get(kind)
+  if (cached) return cached
+
+  const component = lazy(descriptor.runResult)
+  lazyRunResults.set(kind, component)
   return component
 }
 

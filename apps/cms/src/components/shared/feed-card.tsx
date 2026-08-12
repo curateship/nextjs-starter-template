@@ -102,7 +102,7 @@ export function CardHeaderRow({
   return (
     <div
       className={cn(
-        "flex h-[3.15rem] shrink-0 items-stretch gap-2.5 border-b border-foreground/10 px-4 sm:px-5",
+        "flex h-[3.15rem] shrink-0 items-stretch gap-2.5 border-b px-4 sm:px-5",
         className
       )}
     >

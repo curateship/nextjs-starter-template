@@ -19,10 +19,12 @@ import {
 
 const appNodes = vi.hoisted(() => ({
   current: [] as readonly AutomationNodeDescriptor[],
+  groups: [] as readonly string[],
 }))
 
 vi.mock("@/lib/app-options", () => ({
   appAutomationNodes: () => appNodes.current,
+  appPaletteGroups: () => appNodes.groups,
 }))
 
 /** The least a node can be and still be one. */
@@ -56,21 +58,44 @@ async function freshRegistry() {
 
 beforeEach(() => {
   appNodes.current = []
+  appNodes.groups = []
 })
 
 describe("an app that adds nothing", () => {
+  it("gets exactly the shell's own headings", async () => {
+    const { automationPaletteGroups } = await freshRegistry()
+
+    expect(automationPaletteGroups()).toEqual([
+      "Triggers",
+      "Actions",
+      "Flow",
+      "AI",
+      "Steps",
+    ])
+  })
+
   it("gets exactly the shell's own steps", async () => {
     const { automationPaletteItems } = await freshRegistry()
 
     // Grouped, in the order the palette shows the groups: triggers first.
     expect(automationPaletteItems().map((item) => item.key)).toEqual([
       "trigger-billing-moment",
+      "trigger-time-activate",
       "action-send-email",
+      "action-webhook",
       "flow-audience",
       "flow-approval",
       "step-ai",
       "step-placeholder",
     ])
+  })
+
+  it("only offers Run for steps that can begin without a real event", async () => {
+    const { automationKindCanStartManually } = await freshRegistry()
+
+    expect(automationKindCanStartManually("placeholder")).toBe(true)
+    expect(automationKindCanStartManually("billingMoment")).toBe(false)
+    expect(automationKindCanStartManually("unknown-step")).toBe(true)
   })
 })
 
@@ -156,6 +181,82 @@ describe("an app that adds a step of its own", () => {
         settings: {},
       })
     ).toBeNull()
+  })
+
+  it("does not load a rich run result until React draws it", async () => {
+    let opened = false
+    appNodes.current = [
+      testNode("sendSms", {
+        runResult: async () => {
+          opened = true
+          return { default: () => null }
+        },
+      }),
+    ]
+    const { automationNodeRunResult } = await freshRegistry()
+
+    expect(automationNodeRunResult("sendSms")).not.toBeNull()
+    expect(opened).toBe(false)
+  })
+
+  it("keeps one rich result component per node kind", async () => {
+    appNodes.current = [
+      testNode("sendSms", {
+        runResult: async () => ({ default: () => null }),
+      }),
+    ]
+    const { automationNodeRunResult } = await freshRegistry()
+
+    expect(automationNodeRunResult("sendSms")).toBe(
+      automationNodeRunResult("sendSms")
+    )
+  })
+
+  it("uses the plain summary when a node has no rich run result", async () => {
+    appNodes.current = [testNode("sendSms")]
+    const { automationNodeRunResult } = await freshRegistry()
+
+    expect(automationNodeRunResult("sendSms")).toBeNull()
+  })
+})
+
+describe("an app that adds a palette heading of its own", () => {
+  it("puts it after the shell's, with its steps under it", async () => {
+    appNodes.groups = ["Trading"]
+    appNodes.current = [
+      testNode("tradeWallet", {
+        palette: { key: "trade-wallet", group: "Trading", description: "" },
+      }),
+    ]
+    const { automationPaletteGroups, automationPaletteItems } =
+      await freshRegistry()
+
+    expect(automationPaletteGroups().at(-1)).toBe("Trading")
+    // Last in the palette too, since items are sorted by their heading's place.
+    expect(automationPaletteItems().at(-1)).toMatchObject({
+      key: "trade-wallet",
+      group: "Trading",
+    })
+  })
+
+  it("refuses a heading the shell already uses", async () => {
+    appNodes.groups = ["Actions"]
+    const { automationPaletteItems } = await freshRegistry()
+
+    expect(() => automationPaletteItems()).toThrow(/"Actions"/)
+  })
+
+  it("refuses a step under a heading nothing declares", async () => {
+    // Otherwise the step is simply not drawn, which looks exactly like a step
+    // that was never written.
+    appNodes.current = [
+      testNode("tradeWallet", {
+        palette: { key: "trade-wallet", group: "Trading", description: "" },
+      }),
+    ]
+    const { automationPaletteItems } = await freshRegistry()
+
+    expect(() => automationPaletteItems()).toThrow(/"Trading"/)
   })
 })
 

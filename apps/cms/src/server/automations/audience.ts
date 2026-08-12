@@ -316,6 +316,32 @@ export async function countAutomationAudience(
   )
 }
 
+/** Whether one real member belongs to this audience right now. */
+export async function memberMatchesAutomationAudience(
+  audience: AutomationAudience,
+  workspaceId: string,
+  userId: string,
+  database: CustomShellDb = db,
+  timestamp: Date = now(),
+  segment?: AudienceSegment | null
+): Promise<boolean> {
+  return (
+    (await countMatching(
+      database,
+      and(
+        await audienceFilter(
+          audience,
+          workspaceId,
+          database,
+          timestamp,
+          segment
+        ),
+        eq(customShellContacts.userId, userId)
+      ) as SQL
+    )) > 0
+  )
+}
+
 /** One contact a send-style automation step can act on. */
 export type AutomationAudienceContact = {
   id: string

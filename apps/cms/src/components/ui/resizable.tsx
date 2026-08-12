@@ -39,6 +39,13 @@ function ResizableHandle({
   return (
     <ResizablePrimitive.Separator
       data-slot="resizable-handle"
+      // Both are read in `theme.css`. With the content spacing at zero the
+      // panels give up their own borders, and this handle — sitting exactly
+      // where the edge facing the middle used to be — draws the line instead.
+      // It cannot be done with a class here, because the rule that takes the
+      // borders off is in that file and would win.
+      data-gap={gap ? "true" : undefined}
+      data-collapsed={collapsed ? "true" : undefined}
       className={cn(
         "relative flex w-px items-center justify-center bg-border ring-offset-background after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90",
         gap &&
@@ -70,6 +77,7 @@ const BOTTOM_COLLAPSED_HEIGHT = "52.4px"
 function WorkspacePanel({
   className,
   collapsed,
+  headerOnly,
   ...props
 }: React.ComponentProps<"div"> & {
   /**
@@ -87,11 +95,27 @@ function WorkspacePanel({
    * settings and would put it straight back over any class written here.
    */
   collapsed?: boolean
+  /**
+   * The panel is shut down to **its own header**, on
+   * `BOTTOM_COLLAPSED_HEIGHT`, so that header is the last thing in it.
+   *
+   * A panel header carries a line under it to part it from what follows. Shut,
+   * nothing follows — and the panel's own bottom edge is already drawn one
+   * pixel below, so the two land on top of each other and the bar reads as
+   * having a double-thick line along the bottom. This takes the header's line
+   * off for as long as there is nothing under it to part it from.
+   *
+   * Off by default, so a panel nobody tells about this is drawn exactly as it
+   * always was. The rule is in `theme.css`, beside the one that sets these
+   * borders from the user's settings, because a class here would lose to it.
+   */
+  headerOnly?: boolean
 }) {
   return (
     <div
       data-slot="workspace-panel"
       data-collapsed={collapsed ? "true" : undefined}
+      data-header-only={headerOnly ? "true" : undefined}
       className={cn(
         // A REAL border, not a ring: these panels sit flush inside
         // resizable-panel containers that clip anything drawn outside the box

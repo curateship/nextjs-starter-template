@@ -6,6 +6,7 @@ import {
   deleteAutomationRuns,
   runAutomationTick,
   startAutomationRun,
+  startAutomationTestRun,
 } from "@/server/automations/engine"
 import {
   getAutomationRun as readAutomationRun,
@@ -14,6 +15,10 @@ import {
   type AutomationRunRow,
 } from "@/server/automations/runs"
 import { adminGet, adminPost } from "@/server/guards"
+import {
+  listActiveWorkspaceMembers,
+  type WorkspaceMember,
+} from "@/server/people/workspace-users"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import type {
@@ -21,7 +26,10 @@ import type {
   AutomationRunStatus,
   AutomationRunStepStatus,
 } from "@/lib/automations/run"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { createErrorMessage } from "../error-message"
+
+export type AutomationTestMember = WorkspaceMember
 
 export type AutomationRunItem = {
   id: string
@@ -38,14 +46,17 @@ export type AutomationRunItem = {
   trigger_name: string | null
   started_at: string
   finished_at: string | null
+  is_test: boolean
 }
 
 export type AutomationRunStepItem = {
   id: string
   node_id: string
+  kind: string
   step_name: string
   status: AutomationRunStepStatus
   summary: string
+  output: AutomationRunOutput | null
   error: string | null
   started_at: string
   finished_at: string
@@ -72,6 +83,12 @@ const automationIdSchema = z.object({
   automationId: z.string().min(1).max(36),
 })
 const runIdSchema = z.object({ runId: z.string().min(1).max(36) })
+const testRunSchema = automationIdSchema.extend({
+  memberId: z.string().min(1).max(36),
+})
+const testMemberSearchSchema = z.object({
+  search: z.string().trim().max(120).default(""),
+})
 
 const runListSchema = automationIdSchema.extend({
   offset: z.number().int().min(0).max(100_000).default(0),
@@ -87,10 +104,14 @@ const runErrorMessages: Record<string, string> = {
     "This flow has something to fix before it can run. Check the steps marked in red.",
   NO_SINGLE_START:
     "This flow has more than one starting step, so there is no single place to begin. Connect the steps into one line and try again.",
+  REQUIRES_SUBJECT:
+    "This flow needs a real member or event to begin. Use Test with member instead.",
   ALREADY_DECIDED:
     "That run was already decided — somebody else got there first, or the deadline passed.",
   AUTOMATIONS_PAUSED:
     "Every automation is paused right now, so nothing new can be started. Resume them first.",
+  MEMBER_NOT_FOUND:
+    "That active member no longer exists. Choose another member and try again.",
 }
 
 export const getAutomationRunErrorMessage = createErrorMessage(
@@ -102,9 +123,13 @@ const loadRunsPanelFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(automationIdSchema)
   .handler(async ({ data, context }): Promise<AutomationRunsPanelData> => {
+    // The SITE's runs, not the person's. These read by workspace, and passing
+    // a user id here matched no rows at all — every flow's Runs tab said it had
+    // never run while the runs sat in the table.
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const [flow, waiting] = await Promise.all([
-      readRunsForAutomation(context.user.id, data.automationId),
-      readRunsAwaitingApproval(context.user.id),
+      readRunsForAutomation(workspaceId, data.automationId),
+      readRunsAwaitingApproval(workspaceId),
     ])
     return {
       runs: flow.runs.map(serializeRun),
@@ -118,8 +143,9 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(runListSchema)
   .handler(async ({ data, context }) => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const page = await readRunsForAutomation(
-      context.user.id,
+      workspaceId,
       data.automationId,
       data.offset
     )
@@ -129,7 +155,9 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
 const listWaitingRunsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }) => {
-    const waiting = await readRunsAwaitingApproval(context.user.id)
+    const waiting = await readRunsAwaitingApproval(
+      await workspaceIdForRequest(context.user.id)
+    )
     return { runs: waiting.runs.map(serializeRun), total: waiting.total }
   })
 
@@ -152,9 +180,11 @@ const getAutomationRunFn = createServerFn({ method: "GET" })
       steps: run.steps.map((step) => ({
         id: step.id,
         node_id: step.nodeId,
+        kind: step.kind,
         step_name: step.stepName,
         status: step.status as AutomationRunStepStatus,
         summary: step.summary,
+        output: step.output,
         error: step.error,
         started_at: step.startedAt.toISOString(),
         finished_at: step.finishedAt.toISOString(),
@@ -183,6 +213,32 @@ const runAutomationNowFn = createServerFn({ method: "POST" })
       console.error("Automation tick after Run now failed", error)
     })
     return { runId: run.id }
+  })
+
+const testAutomationWithMemberFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(testRunSchema)
+  .handler(async ({ data, context }): Promise<{ runId: string }> => {
+    const run = await startAutomationTestRun(
+      await workspaceIdForRequest(context.user.id),
+      context.user.id,
+      data.automationId,
+      data.memberId
+    )
+    await runAutomationTick().catch((error) => {
+      console.error("Automation tick after member test failed", error)
+    })
+    return { runId: run.id }
+  })
+
+const listAutomationTestMembersFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(testMemberSearchSchema)
+  .handler(async ({ data, context }): Promise<WorkspaceMember[]> => {
+    return listActiveWorkspaceMembers(
+      await workspaceIdForRequest(context.user.id),
+      data.search
+    )
   })
 
 const decideApprovalFn = createServerFn({ method: "POST" })
@@ -245,6 +301,17 @@ export function runAutomationNow(automationId: string) {
   return runAutomationNowFn({ data: { automationId } })
 }
 
+export function testAutomationWithMember(
+  automationId: string,
+  memberId: string
+) {
+  return testAutomationWithMemberFn({ data: { automationId, memberId } })
+}
+
+export function listAutomationTestMembers(search: string) {
+  return listAutomationTestMembersFn({ data: { search } })
+}
+
 export function decideApproval(
   runId: string,
   decision: "approved" | "rejected"
@@ -270,5 +337,6 @@ function serializeRun(run: AutomationRunRow): AutomationRunItem {
     trigger_name: run.triggerName,
     started_at: run.startedAt.toISOString(),
     finished_at: run.finishedAt?.toISOString() ?? null,
+    is_test: run.testRun,
   }
 }

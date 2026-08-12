@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, sql } from "drizzle-orm"
 
 import { automationNodeName } from "@/lib/automations/node-registry"
+import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import {
   automationEntryNodeId,
   type AutomationRunStatus,
@@ -47,6 +48,7 @@ export type AutomationRunRow = {
    * somebody set going by hand, which is about nobody in particular.
    */
   subjectLabel: string | null
+  testRun: boolean
   /** The step that started it, named the way the canvas names it. */
   triggerName: string | null
   startedAt: Date
@@ -56,10 +58,13 @@ export type AutomationRunRow = {
 export type AutomationRunStepRow = {
   id: string
   nodeId: string
+  /** Finds the node's optional app-owned result view. */
+  kind: string
   /** The node's name as the canvas writes it — `kind` is only used to find it. */
   stepName: string
   status: string
   summary: string
+  output: AutomationRunOutput | null
   error: string | null
   startedAt: Date
   finishedAt: Date
@@ -246,6 +251,7 @@ export async function getAutomationRun(
     steps: steps.map((step) => ({
       id: step.id,
       nodeId: step.nodeId,
+      kind: step.kind,
       // The settings come from the run's frozen copy of the flow, not from an
       // empty bag: a step whose name depends on how it was set — a billing
       // trigger, say — would otherwise be called by that node kind's default
@@ -259,6 +265,7 @@ export async function getAutomationRun(
       }),
       status: step.status,
       summary: step.summary,
+      output: step.output,
       error: step.error,
       startedAt: step.startedAt,
       finishedAt: step.finishedAt,
@@ -309,6 +316,7 @@ function toRunRow(
     approvalDeadlineAt: run.approvalDeadlineAt,
     stepCount,
     subjectLabel: run.subjectLabel,
+    testRun: run.testRun,
     triggerName: runTriggerName(run),
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,

@@ -32,8 +32,10 @@ import {
   listWaitingRuns,
   type AutomationRunDetailItem,
   type AutomationRunItem,
+  type AutomationRunStepItem,
   type AutomationRunsPanelData,
 } from "@/lib/api/automations/automation-runs"
+import { automationNodeRunResult } from "@/lib/automations/node-registry"
 import {
   automationRunStatusLabel,
   automationRunStepStatusLabels,
@@ -68,7 +70,13 @@ export function AutomationRunsPanel({
 }) {
   const [tab, setTab] = React.useState<PanelTab>(
     // A link to a run of another flow belongs in Waiting, where it actually is.
-    openRunId && !initial.runs.some((run) => run.id === openRunId)
+    //
+    // Judged by whether the run IS in the waiting list, not by whether it is
+    // missing from this flow's first page. Pressing Run opens the panel at the
+    // brand-new run, and a run created a moment ago is in neither list yet —
+    // so "not in Runs" sent every single Run press to Waiting on you, which is
+    // the one tab it certainly is not in.
+    openRunId && initial.waiting.some((run) => run.id === openRunId)
       ? "waiting"
       : "runs"
   )
@@ -77,7 +85,10 @@ export function AutomationRunsPanel({
   const [waiting, setWaiting] = React.useState(initial.waiting)
   const [waitingTotal, setWaitingTotal] = React.useState(initial.waiting_total)
   const [expandedId, setExpandedId] = React.useState<string | null>(
-    openRunId ?? null
+    // The newest run open on arrival, unless a link asked for another. The
+    // panel exists to answer "what did that just do", and the answer is almost
+    // always the run at the top.
+    openRunId ?? initial.runs[0]?.id ?? null
   )
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -101,6 +112,26 @@ export function AutomationRunsPanel({
       setError(getAutomationRunErrorMessage(refreshError))
     }
   }, [automationId])
+
+  // A run the address asks for that the list has never heard of.
+  //
+  // Pressing Run adds `?run=<id>` without the route's loader running again, so
+  // the panel is still holding the list from before the run existed — it opened
+  // on a run it could not draw, and showed nothing at all. One read puts the
+  // new run at the top where it belongs.
+  //
+  // Once per run id, and no more. A read always hands back a fresh list, so
+  // "still not there, read again" is a loop that never ends — and a link to a
+  // run of another flow is never in this flow's list, so it would hammer the
+  // server for as long as the page stayed open.
+  const chased = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!openRunId) return
+    if (runs.some((run) => run.id === openRunId)) return
+    if (chased.current === openRunId) return
+    chased.current = openRunId
+    void refresh()
+  }, [openRunId, runs, refresh])
 
   async function loadMore() {
     if (loadingMore) return
@@ -248,6 +279,12 @@ export function AutomationRunsPanel({
   )
 }
 
+/** How often an unfinished run is re-read while it is open. */
+const STILL_GOING_MS = 3_000
+
+/** Statuses that never change again. Anything else is still moving. */
+const finalStatuses = new Set(["completed", "failed", "rejected"])
+
 /**
  * One run: a line you can click open. Shut, it is the status and when. Open, it
  * loads its own steps — and, when it is waiting on somebody, the sentence the
@@ -285,10 +322,34 @@ function RunRow({
     }
   }, [run.id])
 
+  /**
+   * The run as freshly as this row knows it.
+   *
+   * Open, the row re-reads itself every few seconds and the list behind it does
+   * not, so the row's own reading is the newer one — a run that finishes while
+   * it is open still reads "Running" in the list, so the badge said the wrong
+   * thing and the poll below, judged on that, never stopped.
+   *
+   * Shut, the row stops reading and its last answer freezes, so the list is the
+   * newer one again.
+   */
+  const current = expanded && detail ? detail : run
+
   React.useEffect(() => {
     if (!expanded) return
     void load()
   }, [expanded, load])
+
+  // A run that has not finished is still growing steps. Read once and it stays
+  // as it was the instant it was opened — press Run and the row opens on a run
+  // with no steps at all, then never draws the ones that arrive a second later.
+  // A finished run never changes again, so this stops.
+  React.useEffect(() => {
+    if (!expanded) return
+    if (finalStatuses.has(current.status)) return
+    const timer = window.setInterval(() => void load(), STILL_GOING_MS)
+    return () => window.clearInterval(timer)
+  }, [expanded, load, current.status])
 
   async function decide(decision: "approved" | "rejected") {
     if (deciding) return
@@ -314,8 +375,8 @@ function RunRow({
     }
   }
 
-  const waiting = run.status === "waiting_approval"
-  const finished = !waiting && run.status !== "active"
+  const waiting = current.status === "waiting_approval"
+  const finished = !waiting && current.status !== "active"
 
   return (
     <div className="rounded-lg border border-foreground/10 bg-muted/20">
@@ -335,13 +396,22 @@ function RunRow({
               !expanded && "-rotate-90"
             )}
           />
+          {current.is_test ? (
+            <Badge variant="outline" className="shrink-0">
+              TEST
+            </Badge>
+          ) : null}
           <Badge
             variant={
-              waiting ? "default" : run.status === "failed" ? "destructive" : "secondary"
+              waiting
+                ? "default"
+                : current.status === "failed"
+                  ? "destructive"
+                  : "secondary"
             }
             className="shrink-0"
           >
-            {automationRunStatusLabel(run.status, run.approval_decision)}
+            {automationRunStatusLabel(current.status, current.approval_decision)}
           </Badge>
           {showFlow ? (
             <span className="min-w-0 truncate text-xs font-medium" title={run.automation_name}>
@@ -409,7 +479,13 @@ function RunRow({
                 </Link>
               ) : null}
 
-              {detail.trigger_name ? (
+              {detail.is_test && detail.subject_label ? (
+                <p className="text-xs text-muted-foreground">
+                  Tested as {detail.subject_label}. Emails were redirected to
+                  the admin who started the test, and outside changes were
+                  skipped.
+                </p>
+              ) : detail.trigger_name ? (
                 <p className="text-xs text-muted-foreground">
                   Started by {detail.trigger_name}
                   {detail.subject_label ? `, for ${detail.subject_label}` : ""}.
@@ -444,6 +520,7 @@ function RunRow({
                       {step.error ? (
                         <p className="text-destructive">{step.error}</p>
                       ) : null}
+                      <StepRunResult runId={detail.id} step={step} />
                     </div>
                   ))}
                 </div>
@@ -463,6 +540,32 @@ function RunRow({
           )}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/** The node's own result UI, kept inside the shell's status and error frame. */
+function StepRunResult({
+  runId,
+  step,
+}: {
+  runId: string
+  step: AutomationRunStepItem
+}) {
+  if (step.output === null) return null
+  const result = automationNodeRunResult(step.kind)
+  if (!result) return null
+
+  return (
+    <div className="pt-2">
+      <React.Suspense fallback={null}>
+        {React.createElement(result, {
+          runId,
+          stepId: step.id,
+          nodeId: step.node_id,
+          output: step.output,
+        })}
+      </React.Suspense>
     </div>
   )
 }

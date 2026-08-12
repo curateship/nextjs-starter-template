@@ -43,6 +43,9 @@ import {
   type NotificationTypeVisibility,
 } from "@/lib/notification-types"
 import { readShellGlobals } from "@/server/shell-settings"
+import { automationCompiledConfigSchema } from "@/lib/automations/compile"
+import { plainAutomationFailure } from "@/lib/automations/failure-message"
+import { automationNodeName } from "@/lib/automations/node-registry"
 
 type NotificationListResponse = {
   notifications: NotificationItem[]
@@ -78,6 +81,7 @@ const subjectExpression = sql<string>`case
   when ${customShellNotifications.type} = 'ai_limit_warning' then ${aiLimitNotificationText.ai_limit_warning.message}
   when ${customShellNotifications.type} = 'ai_limit_reached' then ${aiLimitNotificationText.ai_limit_reached.message}
   when ${customShellNotifications.type} = 'automation_approval' then coalesce(${customShellAutomations.name}, '')
+  when ${customShellNotifications.type} = 'automation_failed' then coalesce(${customShellAutomations.name}, '')
   else coalesce(${customShellChangelogEntries.title}, ${customShellAnnouncements.title}, ${customShellFeedback.message}, '')
 end`
 
@@ -520,6 +524,9 @@ export async function serializeNotificationRows(
               automationId: customShellAutomations.id,
               automationName: customShellAutomations.name,
               approvalSummary: customShellAutomationRuns.approvalSummary,
+              currentNodeId: customShellAutomationRuns.currentNodeId,
+              configSnapshot: customShellAutomationRuns.configSnapshot,
+              error: customShellAutomationRuns.error,
             })
             .from(customShellAutomationRuns)
             .innerJoin(
@@ -590,7 +597,43 @@ export async function serializeNotificationRows(
       : null,
     automation_approval_state:
       (row.automationApprovalState as AutomationApprovalState | null) ?? null,
+    automation_failure_node_id:
+      row.type === "automation_failed"
+        ? (automations.get(row.automationRunId ?? "")?.currentNodeId ?? null)
+        : null,
+    automation_failure_node_name:
+      row.type === "automation_failed"
+        ? automationFailureNodeName(automations.get(row.automationRunId ?? ""))
+        : null,
+    automation_failure_error:
+      row.type === "automation_failed"
+        ? plainAutomationFailure(
+            automations.get(row.automationRunId ?? "")?.error ?? null
+          )
+        : null,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
   }))
+}
+
+function automationFailureNodeName(
+  run:
+    | {
+        currentNodeId: string
+        configSnapshot: unknown
+      }
+    | undefined
+): string {
+  if (!run) return "Unknown step"
+  const config = automationCompiledConfigSchema.safeParse(run.configSnapshot)
+  const node = config.success ? config.data.nodes[run.currentNodeId] : undefined
+  return node
+    ? automationNodeName({
+        id: run.currentNodeId,
+        kind: node.kind,
+        x: 0,
+        y: 0,
+        settings: node.settings,
+      })
+    : "Unknown step"
 }

@@ -1,5 +1,8 @@
 import type { AutomationCompiledConfig } from "./compile"
-import { automationKindIsTrigger } from "./node-registry"
+import {
+  automationKindCanStartManually,
+  automationKindIsTrigger,
+} from "./node-registry"
 
 /**
  * The words a run and its steps are described by, and the plain-English names
@@ -93,6 +96,15 @@ export function automationTriggerKind(
   const entry = automationEntryNodeId(config)
   const kind = entry ? config.nodes[entry]?.kind : undefined
   return kind && automationKindIsTrigger(kind) ? kind : null
+}
+
+/** Whether pressing Run can supply everything the flow's first step needs. */
+export function automationCanStartManually(
+  config: AutomationCompiledConfig
+): boolean {
+  const entry = automationEntryNodeId(config)
+  const kind = entry ? config.nodes[entry]?.kind : undefined
+  return Boolean(kind && automationKindCanStartManually(kind))
 }
 
 /** The step after this one, or null when the flow ends here. */

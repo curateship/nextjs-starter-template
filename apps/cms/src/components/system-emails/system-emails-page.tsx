@@ -26,10 +26,10 @@ type SortColumn = "name" | "subject" | "sends" | "edited"
 /**
  * The emails the app sends for itself.
  *
- * There are exactly five and there always will be, so this list has no search,
- * no paging and no way to add or delete one — those would all be controls that
- * never do anything. It is a way in to each editor and an answer to "has this
- * one actually been going out".
+ * This is a fixed built-in list, so it has no search, no paging and no way to
+ * add or delete one — those would all be controls that never do anything. It
+ * is a way in to each editor and an answer to "has this one actually been
+ * going out".
  */
 export function SystemEmailsPage({
   initial,
@@ -37,7 +37,7 @@ export function SystemEmailsPage({
   initial: SystemEmailListItem[]
 }) {
   const navigate = useNavigate()
-  // Starts in the order the five are declared, which is roughly the order
+  // Starts in the order the emails are declared, which is roughly the order
   // somebody meets them: register, sign in, forget the password.
   const { sort, direction, toggleSort } = useTableSort<SortColumn>("name", "asc", (column) => column === "sends" || column === "edited" ? "desc" : "asc")
 
@@ -128,7 +128,7 @@ export function SystemEmailsPage({
         </TableHeader>
       }
       isEmpty={false}
-      // Never actually shown: the five are built into the app and cannot be
+      // Never actually shown: these are built into the app and cannot be
       // deleted, searched away or filtered out. The table still asks for it.
       emptyText="The app sends no emails of its own."
       emptyColSpan={5}

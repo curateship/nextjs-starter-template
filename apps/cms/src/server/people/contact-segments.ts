@@ -20,6 +20,7 @@ import {
   parseSegmentRules,
   segmentConditionIsComplete,
   segmentReferences,
+  segmentRulesMatch,
   type SegmentCondition,
   type SegmentKind,
   type SegmentRules,
@@ -27,6 +28,7 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { activeSubscriptionCondition } from "@/server/billing/entitlements"
 import {
+  customShellAutomations,
   customShellContactSegmentMembers,
   customShellContactSegments,
   customShellContacts,
@@ -34,6 +36,7 @@ import {
   customShellSubscriptions,
   type CustomShellContactSegment,
 } from "@/server/schema"
+import { automationGraphSchema } from "@/lib/automations/graph"
 import { now, uuid } from "@/server/auth/security"
 
 /**
@@ -142,29 +145,32 @@ function buildConditions(
   /** The chain of segments followed to get here, so a loop cannot spin. */
   trail: string[]
 ): SQL {
-  const filters: SQL[] = [eq(customShellContacts.workspaceId, workspaceId)]
+  const workspace = eq(customShellContacts.workspaceId, workspaceId)
 
   if (segment.kind === "static") {
     // Hand-picked: the people themselves, and nothing else to work out.
-    filters.push(
-      inArray(
-        customShellContacts.id,
-        database
-          .select({ id: customShellContactSegmentMembers.contactId })
-          .from(customShellContactSegmentMembers)
-          .where(eq(customShellContactSegmentMembers.segmentId, segment.id))
-      )
+    const chosen = inArray(
+      customShellContacts.id,
+      database
+        .select({ id: customShellContactSegmentMembers.contactId })
+        .from(customShellContactSegmentMembers)
+        .where(eq(customShellContactSegmentMembers.segmentId, segment.id))
     )
-    return and(...filters) as SQL
+    return and(workspace, chosen) as SQL
   }
 
-  for (const condition of segment.rules.conditions) {
-    filters.push(
-      conditionSql(workspaceId, condition, database, timestamp, context, trail)
-    )
-  }
+  const filters = segment.rules.conditions.map((condition) =>
+    conditionSql(workspaceId, condition, database, timestamp, context, trail)
+  )
+  if (filters.length === 0) return workspace
 
-  return and(...filters) as SQL
+  const group =
+    segmentRulesMatch(segment.rules) === "any"
+      ? or(...filters)
+      : and(...filters)
+  // Workspace ownership always sits outside the all/any group. Putting it
+  // inside an `or` would let another workspace's matching contacts leak in.
+  return and(workspace, group) as SQL
 }
 
 function conditionSql(
@@ -300,6 +306,38 @@ export async function countSegmentContacts(
       await segmentConditions(workspaceId, segment, database, timestamp, context)
     )
   return row?.total ?? 0
+}
+
+/**
+ * Counts an unsaved rules draft and the whole contact list beside it.
+ *
+ * Both counts share the same loaded segment and plan context, so rules that
+ * refer to another segment do not fetch that context twice per keystroke.
+ */
+export async function countDraftSegmentContacts(
+  workspaceId: string,
+  rules: SegmentRules,
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<{ matching: number; everyone: number }> {
+  const context = await loadSegmentContext(workspaceId, database)
+  const [matching, everyone] = await Promise.all([
+    countSegmentContacts(
+      workspaceId,
+      { id: "live-count-draft", kind: "rules", rules },
+      database,
+      timestamp,
+      context
+    ),
+    countSegmentContacts(
+      workspaceId,
+      { id: "live-count-everyone", kind: "rules", rules: { conditions: [] } },
+      database,
+      timestamp,
+      context
+    ),
+  ])
+  return { matching, everyone }
 }
 
 /** The people in one segment, worked out the same way the count was. */
@@ -812,6 +850,33 @@ export async function deleteWorkspaceSegments(
     for (const reference of segmentReferences(parseSegmentRules(survivor.rules))) {
       if (!asked.has(reference)) continue
       usedBy.set(reference, [...(usedBy.get(reference) ?? []), survivor.name])
+    }
+  }
+
+  // A flow keeps the segment id in its saved graph. Read every draft, not only
+  // live compiled flows: an off flow still points at the segment and could be
+  // switched back on later. Audience steps are included for the same reason.
+  const flows = await database
+    .select({
+      name: customShellAutomations.name,
+      graph: customShellAutomations.graph,
+    })
+    .from(customShellAutomations)
+    .where(eq(customShellAutomations.workspaceId, workspaceId))
+  for (const flow of flows) {
+    const graph = automationGraphSchema.safeParse(flow.graph)
+    if (!graph.success) continue
+    for (const node of graph.data.nodes) {
+      if (node.kind !== "joinedSegment" && node.kind !== "audience") continue
+      const segmentId =
+        typeof node.settings.segmentId === "string"
+          ? node.settings.segmentId
+          : ""
+      if (!asked.has(segmentId)) continue
+      usedBy.set(segmentId, [
+        ...(usedBy.get(segmentId) ?? []),
+        `Automation: ${flow.name}`,
+      ])
     }
   }
 
