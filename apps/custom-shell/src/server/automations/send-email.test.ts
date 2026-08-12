@@ -117,6 +117,7 @@ async function insertRun(
   options: {
     withAudience?: boolean
     subjectUserId?: string | null
+    subjectContactId?: string | null
     claimToken?: string | null
     configOverride?: ReturnType<typeof config>
     completedAudiences?: Array<{ id: string; nodeId: string }>
@@ -152,6 +153,7 @@ async function insertRun(
       claimToken: options.claimToken ?? null,
       claimedAt: options.claimToken ? timestamp : null,
       subjectUserId: options.subjectUserId ?? null,
+      subjectContactId: options.subjectContactId ?? null,
       testRun: Boolean(options.testRecipientEmail),
       testRecipientEmail: options.testRecipientEmail,
       startedAt: timestamp,
@@ -328,6 +330,35 @@ describe("Send Email executor", () => {
     expect(result.summary).toContain("Emailed 1, 0 failed")
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ to: "subject@example.test" })
+    )
+  })
+
+  it("emails an address-only subject contact when no account exists", async () => {
+    const timestamp = now()
+    const contactId = uuid()
+    await db.insert(customShellContacts).values({
+      id: contactId,
+      workspaceId: site,
+      email: "lead@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    const send = vi.fn(async () => ({
+      success: true,
+      messageId: "sent-lead",
+    }))
+    setEmailProviderFactoryForTests(() => ({ send }))
+    const run = await insertRun({
+      withAudience: false,
+      subjectContactId: contactId,
+    })
+
+    const result = await execute(run)
+    expect(result.summary).toContain("Emailed 1, 0 failed")
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "lead@example.test" })
     )
   })
 

@@ -803,6 +803,7 @@ function LiveCell({
   // Switched on, but edited since into something that cannot run. It fires
   // nothing in that state, so the switch must not be the only warning.
   const stalled = automation.enabled && !automation.isValid
+  const safelyPaused = !automation.enabled && automation.paused_reason
 
   return (
     <div className="flex items-center gap-2">
@@ -823,6 +824,14 @@ function LiveCell({
       {stalled ? (
         <span className="truncate text-xs text-destructive">
           On, but not running
+        </span>
+      ) : null}
+      {safelyPaused ? (
+        <span
+          className="max-w-56 truncate text-xs text-destructive"
+          title={automation.paused_reason ?? undefined}
+        >
+          {automation.paused_reason}
         </span>
       ) : null}
     </div>

@@ -28,6 +28,7 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { activeSubscriptionCondition } from "@/server/billing/entitlements"
 import {
+  customShellAutomations,
   customShellContactSegmentMembers,
   customShellContactSegments,
   customShellContacts,
@@ -35,6 +36,7 @@ import {
   customShellSubscriptions,
   type CustomShellContactSegment,
 } from "@/server/schema"
+import { automationGraphSchema } from "@/lib/automations/graph"
 import { now, uuid } from "@/server/auth/security"
 
 /**
@@ -848,6 +850,33 @@ export async function deleteWorkspaceSegments(
     for (const reference of segmentReferences(parseSegmentRules(survivor.rules))) {
       if (!asked.has(reference)) continue
       usedBy.set(reference, [...(usedBy.get(reference) ?? []), survivor.name])
+    }
+  }
+
+  // A flow keeps the segment id in its saved graph. Read every draft, not only
+  // live compiled flows: an off flow still points at the segment and could be
+  // switched back on later. Audience steps are included for the same reason.
+  const flows = await database
+    .select({
+      name: customShellAutomations.name,
+      graph: customShellAutomations.graph,
+    })
+    .from(customShellAutomations)
+    .where(eq(customShellAutomations.workspaceId, workspaceId))
+  for (const flow of flows) {
+    const graph = automationGraphSchema.safeParse(flow.graph)
+    if (!graph.success) continue
+    for (const node of graph.data.nodes) {
+      if (node.kind !== "joinedSegment" && node.kind !== "audience") continue
+      const segmentId =
+        typeof node.settings.segmentId === "string"
+          ? node.settings.segmentId
+          : ""
+      if (!asked.has(segmentId)) continue
+      usedBy.set(segmentId, [
+        ...(usedBy.get(segmentId) ?? []),
+        `Automation: ${flow.name}`,
+      ])
     }
   }
 

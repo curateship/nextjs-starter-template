@@ -12,6 +12,7 @@ import {
 } from "@/lib/automations/run"
 import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
 import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
+import { runJoinedSegmentTriggers } from "@/server/automations/segment-triggers"
 import { readAutomationsPaused } from "@/server/automations/pause"
 import { automationSubjectLabel } from "@/server/automations/triggers"
 import {
@@ -79,6 +80,14 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   // a checkpoint nobody could answer during the pause would be the switch
   // throwing work away. See `server/automations/pause.ts` for the whole rule.
   if (await readAutomationsPaused(database)) {
+    // Segment membership still advances while paused, but starts nothing. This
+    // deliberately skips arrivals during the pause rather than releasing a
+    // catch-up burst when the switch comes back on.
+    try {
+      await runJoinedSegmentTriggers(database, { startRuns: false })
+    } catch (error) {
+      console.error("Joined-segment snapshot failed while paused", error)
+    }
     return { processed: 0, failed: 0, expired: 0, started: 0, paused: true }
   }
 
@@ -86,6 +95,11 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   // walked in this same pass rather than sitting still for fifteen seconds.
   // Never throws — a scan that falls over must not stop the runs already going.
   let started = 0
+  try {
+    started += await runJoinedSegmentTriggers(database)
+  } catch (error) {
+    console.error("Joined-segment trigger scan failed", error)
+  }
   try {
     started += await runTimeActivateTriggers(database)
   } catch (error) {

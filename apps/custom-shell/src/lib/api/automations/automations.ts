@@ -47,6 +47,7 @@ export type AutomationListItem = {
   nodeCount: number
   /** Whether this flow's trigger is live. Never about the Run button. */
   enabled: boolean
+  paused_reason: string | null
   /** What it reacts to, or null when it only ever runs by hand. */
   trigger_name: string | null
   can_run_manually: boolean
@@ -62,6 +63,7 @@ export type AutomationDetail = {
   compiledConfig: AutomationCompiledConfig | null
   errors: AutomationValidationError[]
   enabled: boolean
+  paused_reason: string | null
   trigger_name: string | null
   can_run_manually: boolean
   next_run_at: string | null
@@ -90,6 +92,7 @@ export function toAutomationListItem(
     isValid,
     nodeCount,
     enabled: automation.enabled,
+    paused_reason: automation.paused_reason,
     trigger_name: automation.trigger_name,
     can_run_manually: automation.can_run_manually,
     next_run_at: automation.next_run_at,
@@ -130,6 +133,10 @@ const automationErrorMessages: Record<string, string> = {
     "This flow has no trigger step, so there is nothing for it to react to. Add one from the Triggers group.",
   SCHEDULE_FINISHED:
     "That one-time schedule has already passed. Choose a future time before turning the flow on.",
+  SEGMENT_NOT_FOUND:
+    "That segment no longer exists. Choose another one before turning the flow on.",
+  FLOW_CHANGED:
+    "This flow changed while its live switch was being saved. Check it, then try again.",
   NAME_REQUIRED: "Name the automation first.",
   NAME_TAKEN: "An automation with that name already exists.",
   COPY_LIMIT: "Could not find a free name for the copy.",
@@ -161,6 +168,7 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
         isValid: row.isValid,
         nodeCount: row.nodeCount,
         enabled: row.enabled,
+        paused_reason: row.pausedReason,
         trigger_name: row.triggerName,
         can_run_manually: row.canRunManually,
         next_run_at: row.nextRunAt?.toISOString() ?? null,
@@ -345,6 +353,7 @@ async function serializeDetail(
     compiledConfig: inspected.compiledConfig,
     errors: inspected.errors,
     enabled: row.enabled,
+    paused_reason: row.pausedReason,
     trigger_name: automationTriggerName(inspected),
     can_run_manually: inspected.compiledConfig
       ? automationCanStartManually(inspected.compiledConfig)

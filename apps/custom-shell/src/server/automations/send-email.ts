@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, isNull, or, sql } from "drizzle-orm"
 
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
 import { readSendEmailSettings } from "@/lib/automations/nodes/send-email"
@@ -109,13 +109,13 @@ async function audienceForRun(
   )
 }
 
-/** The run's one subject member, used only when no Audience step came first. */
+/** The run's one subject contact, used only when no Audience step came first. */
 async function subjectRecipient(
   run: CustomShellAutomationRun,
   workspaceId: string,
   database: CustomShellDb
 ): Promise<Recipient | null> {
-  if (!run.subjectUserId) return null
+  if (!run.subjectContactId && !run.subjectUserId) return null
 
   const [recipient] = await database
     .select({
@@ -127,16 +127,21 @@ async function subjectRecipient(
       emailVerifiedAt: customShellUsers.emailVerifiedAt,
     })
     .from(customShellContacts)
-    .innerJoin(
+    .leftJoin(
       customShellUsers,
       eq(customShellUsers.id, customShellContacts.userId)
     )
     .where(
       and(
         eq(customShellContacts.workspaceId, workspaceId),
-        eq(customShellContacts.userId, run.subjectUserId),
+        run.subjectContactId
+          ? eq(customShellContacts.id, run.subjectContactId)
+          : eq(customShellContacts.userId, run.subjectUserId!),
         eq(customShellContacts.status, "subscribed"),
-        eq(customShellUsers.status, "active")
+        or(
+          isNull(customShellContacts.userId),
+          eq(customShellUsers.status, "active")
+        )
       )
     )
     .limit(1)
@@ -421,9 +426,10 @@ export async function executeSendEmailNode({
     if (recipient) {
       await processRecipient(recipient)
     } else {
-      emptyReason = run.subjectUserId
-        ? "the member this run was about could not receive email"
-        : "this run had no Audience step and was not about a member"
+      emptyReason =
+        run.subjectContactId || run.subjectUserId
+          ? "the person this run was about could not receive email"
+          : "this run had no Audience step and was not about a person"
     }
   }
 

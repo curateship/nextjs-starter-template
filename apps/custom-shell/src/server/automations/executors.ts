@@ -9,6 +9,7 @@ import {
 } from "@/lib/automations/nodes/wait-for-approval"
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
+import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
 import { webhookNode } from "@/lib/automations/nodes/webhook"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
@@ -123,6 +124,25 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       type: "next",
       summary:
         "Started by hand. The saved schedule was not changed, and its next automatic run stays where it was.",
+    }
+  },
+
+  [joinedSegmentNode.kind]: async ({ run, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. They did not really join the segment.`,
+      }
+    }
+    if (!who) {
+      throw new Error(
+        "This segment run has no contact, so it cannot continue safely."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${who} joined the segment.`,
     }
   },
 
