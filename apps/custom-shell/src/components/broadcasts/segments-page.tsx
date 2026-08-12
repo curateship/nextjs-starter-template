@@ -385,7 +385,7 @@ export function SegmentsPage({
         key={editing?.id ?? (creating ? "new-segment" : "closed")}
         open={creating || Boolean(editing)}
         segment={editing}
-        page={initial}
+        options={initial}
         onClose={() => {
           setCreating(false)
           setEditing(null)

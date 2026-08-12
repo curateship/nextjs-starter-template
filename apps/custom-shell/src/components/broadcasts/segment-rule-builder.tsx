@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { FieldLabel } from "@/components/ui/field-label"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,12 +48,15 @@ import {
  * makes "the list I am looking at" and "the segment I saved" the same group
  * rather than two things that drift.
  *
- * Every rule has to be true. There is no "or" and no brackets, deliberately: a
- * builder with grouping is a query tool nobody can read back.
+ * The whole list can require every rule or any one rule. There are deliberately
+ * no nested groups or brackets: that would become a query tool nobody can read
+ * back.
  */
 export function SegmentRuleBuilder({
   conditions,
   onChange,
+  match,
+  onMatchChange,
   options,
   excludeSegmentId,
   idPrefix = "segment-rule",
@@ -62,6 +66,8 @@ export function SegmentRuleBuilder({
 }: {
   conditions: SegmentCondition[]
   onChange: (conditions: SegmentCondition[]) => void
+  match: "all" | "any"
+  onMatchChange: (match: "all" | "any") => void
   options: SegmentRuleOptions
   /** The segment being edited, which must not be offered as one to leave out. */
   excludeSegmentId?: string
@@ -125,11 +131,34 @@ export function SegmentRuleBuilder({
             </DropdownMenu>
           </CardAction>
         </CardHeader>
-        {conditions.length === 0 ? (
-          <CardContent className="text-sm text-muted-foreground">
-            {emptyText}
-          </CardContent>
-        ) : null}
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor={`${idPrefix}-match`}
+              hint="Choose whether one rule is enough or every rule must be true."
+            >
+              People must match
+            </FieldLabel>
+            <Select
+              value={match}
+              onValueChange={(value) => onMatchChange(value as "all" | "any")}
+            >
+              <SelectTrigger
+                id={`${idPrefix}-match`}
+                className="w-full sm:w-fit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All of these rules</SelectItem>
+                <SelectItem value="any">Any of these rules</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {conditions.length === 0 ? (
+            <span className="text-sm text-muted-foreground">{emptyText}</span>
+          ) : null}
+        </CardContent>
       </Card>
 
       {conditions.map((condition, index) => (
@@ -466,5 +495,3 @@ function OperatorSelect({
     </Select>
   )
 }
-
-

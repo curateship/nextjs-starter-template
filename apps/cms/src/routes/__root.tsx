@@ -99,12 +99,16 @@ export const Route = createRootRoute({
   loader: () => loadBranding(),
   head: ({ loaderData, matches }) => {
     const title = routeTitle(matches, loaderData?.appName)
-    const description = PUBLIC_ROUTE_DESCRIPTIONS[matches.at(-1)?.routeId ?? ""]
+    const routeId = matches.at(-1)?.routeId ?? ""
+    const description = PUBLIC_ROUTE_DESCRIPTIONS[routeId]
+    const shareImage = routeId.startsWith("/_authenticated")
+      ? ""
+      : loaderData?.shareImage?.trim()
 
     return {
       meta: [
         { charSet: "utf-8" },
-        { name: "viewport", content: "width=device-width, initial-scale: 1" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
         { title },
         ...(description
           ? [
@@ -113,6 +117,9 @@ export const Route = createRootRoute({
               { property: "og:description", content: description },
               { name: "twitter:card", content: "summary" },
             ]
+          : []),
+        ...(shareImage
+          ? [{ property: "og:image", content: shareImage }]
           : []),
       ],
     }

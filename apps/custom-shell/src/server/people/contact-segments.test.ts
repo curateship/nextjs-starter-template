@@ -2,9 +2,14 @@ import type { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import type { SegmentCondition, SegmentRules } from "@/lib/contacts/contact-segments"
+import {
+  parseSegmentRules,
+  type SegmentCondition,
+  type SegmentRules,
+} from "@/lib/contacts/contact-segments"
 import {
   addContactsToSegment,
+  countDraftSegmentContacts,
   countSegmentContacts,
   createWorkspaceSegment,
   deleteWorkspaceSegments,
@@ -76,8 +81,7 @@ function rulesInput(
 }
 
 /** Who a set of rules matches, by email, without saving a segment first. */
-async function matching(conditions: SegmentCondition[]) {
-  const rules: SegmentRules = { conditions }
+async function matchingRules(rules: SegmentRules) {
   const people = await listSegmentContacts(
     WORKSPACE_ID,
     { id: "draft", kind: "rules", rules },
@@ -86,6 +90,10 @@ async function matching(conditions: SegmentCondition[]) {
     TODAY
   )
   return people.map((person) => person.email).sort()
+}
+
+async function matching(conditions: SegmentCondition[]) {
+  return matchingRules({ conditions })
 }
 
 beforeEach(async () => {
@@ -231,6 +239,84 @@ describe("every rule has to be true at once", () => {
     )
 
     expect(total).toBe(0)
+  })
+})
+
+describe("choosing whether all or any rules must match", () => {
+  const conditions: SegmentCondition[] = [
+    { type: "tag", operator: "includes", tags: ["beta"] },
+    { type: "status", operator: "is", status: "subscribed" },
+  ]
+
+  it("returns the intersection for all and the union for any", async () => {
+    await insertContact("ada", { tags: ["beta"], status: "subscribed" })
+    await insertContact("bob", { tags: ["beta"], status: "unsubscribed" })
+    await insertContact("cat", { tags: [], status: "subscribed" })
+
+    expect(await matchingRules({ conditions })).toEqual(["ada@example.test"])
+    expect(await matchingRules({ match: "any", conditions })).toEqual([
+      "ada@example.test",
+      "bob@example.test",
+      "cat@example.test",
+    ])
+  })
+
+  it("keeps workspace ownership outside the any-rule group", async () => {
+    await insertContact("ada", { tags: ["beta"], status: "unsubscribed" })
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+
+    expect(await matchingRules({ match: "any", conditions })).toEqual([
+      "ada@example.test",
+    ])
+  })
+
+  it("keeps unreadable any-mode rules matching nobody", async () => {
+    await insertContact("ada", { status: "subscribed" })
+    await insertContact("bob", { status: "unsubscribed" })
+
+    const unreadable = parseSegmentRules({
+      match: "any",
+      conditions: [{ type: "wormhole" }],
+    })
+    expect(await matchingRules(unreadable)).toEqual([])
+  })
+})
+
+describe("a live count for an unsaved draft", () => {
+  it("returns both the matching group and the workspace's whole list", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    await insertContact("cat", { tags: [] })
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: ["beta"],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+
+    expect(
+      await countDraftSegmentContacts(
+        WORKSPACE_ID,
+        {
+          conditions: [
+            { type: "tag", operator: "includes", tags: ["beta"] },
+          ],
+        },
+        db,
+        TODAY
+      )
+    ).toEqual({ matching: 2, everyone: 3 })
   })
 })
 
@@ -578,6 +664,20 @@ describe("the list page counts every segment in one query", () => {
       ]),
       db
     )
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      {
+        ...rulesInput("Beta or old", []),
+        rules: {
+          match: "any",
+          conditions: [
+            { type: "tag", operator: "includes", tags: ["beta"] },
+            { type: "joined", operator: "before", days: 100 },
+          ],
+        },
+      },
+      db
+    )
 
     const listed = await listWorkspaceSegments(WORKSPACE_ID, db, TODAY)
 
@@ -597,7 +697,12 @@ describe("the list page counts every segment in one query", () => {
       Object.fromEntries(
         listed.map((item) => [item.segment.name, item.total])
       )
-    ).toEqual({ Beta: 2, "Old hands": 1, "Beta minus": 1 })
+    ).toEqual({
+      Beta: 2,
+      "Old hands": 1,
+      "Beta minus": 1,
+      "Beta or old": 3,
+    })
   })
 })
 

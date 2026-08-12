@@ -70,6 +70,8 @@ export async function readBranding(
   appName: string
   logo: string
   logoDark: string
+  accentColor: string
+  shareImage: string
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -91,6 +93,8 @@ export async function readBranding(
       appName: globals.appName,
       logo: globals.logo,
       logoDark: globals.logoDark,
+      accentColor: "",
+      shareImage: "",
       publicNavigation: [],
       publicFooter: [],
       publicFooterCopyright: "",
@@ -102,11 +106,10 @@ export async function readBranding(
 
   return {
     appName: answer.workspace.name || globals.appName,
-    // A workspace has a favicon of its own but no logo yet — that arrives with
-    // the rest of its look, in a later task. Until then the deployment's logo
-    // is shown, which beats a site with no mark at all.
-    logo: globals.logo,
-    logoDark: globals.logoDark,
+    logo: workspaceSettings.logo || globals.logo,
+    logoDark: workspaceSettings.logoDark || globals.logoDark,
+    accentColor: workspaceSettings.accentColor,
+    shareImage: workspaceSettings.shareImage,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -142,6 +145,10 @@ export async function readShellSettings(
     workspaceName: workspace?.name ?? globals.workspaceName,
     sidebarWidth: workspaceSettings.sidebarWidth,
     favicon: workspaceSettings.favicon,
+    workspaceLogo: workspaceSettings.logo,
+    workspaceLogoDark: workspaceSettings.logoDark,
+    workspaceAccentColor: workspaceSettings.accentColor,
+    workspaceShareImage: workspaceSettings.shareImage,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,

@@ -227,6 +227,13 @@ export function ShellLayout({
       setSaveStatus("blocked")
       return false
     }
+    if (
+      snapshot.workspaceAccentColor &&
+      !/^#[0-9a-f]{6}$/i.test(snapshot.workspaceAccentColor)
+    ) {
+      setSaveStatus("blocked")
+      return false
+    }
 
     const version = configSaveVersionRef.current + 1
     configSaveVersionRef.current = version
@@ -622,6 +629,13 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
     favicon: settings.favicon ?? fallback.favicon,
+    workspaceLogo: settings.workspaceLogo ?? fallback.workspaceLogo,
+    workspaceLogoDark:
+      settings.workspaceLogoDark ?? fallback.workspaceLogoDark,
+    workspaceAccentColor:
+      settings.workspaceAccentColor ?? fallback.workspaceAccentColor,
+    workspaceShareImage:
+      settings.workspaceShareImage ?? fallback.workspaceShareImage,
     logo: settings.logo ?? fallback.logo,
     logoDark: settings.logoDark ?? fallback.logoDark,
     publicNavigation: Array.isArray(settings.publicNavigation)
