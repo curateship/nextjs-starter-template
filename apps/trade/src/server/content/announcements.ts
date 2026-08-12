@@ -15,8 +15,10 @@ import {
   isAnnouncementLevel,
   MAX_ANNOUNCEMENT_BODY_LENGTH,
   MAX_ANNOUNCEMENT_TITLE_LENGTH,
+  type AnnouncementAudience,
   type AnnouncementLevel,
   type UserAnnouncement,
+  type VisitorAnnouncement,
 } from "@/lib/announcement"
 
 /**
@@ -37,12 +39,58 @@ export type AnnouncementInput = {
   title: string
   body: string
   level: AnnouncementLevel
+  audience: AnnouncementAudience
   showBanner: boolean
   notify: boolean
   /** "yyyy-mm-dd", or empty for "starts the moment it is saved". */
   startsOn: string
   /** "yyyy-mm-dd", or empty for "runs until somebody retires it". */
   endsOn: string
+}
+
+/** Live public banners for one site. Filtering happens before data leaves. */
+export async function loadVisitorAnnouncements(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<VisitorAnnouncement[]> {
+  const timestamp = now()
+  const rows = await database
+    .select({
+      id: customShellAnnouncements.id,
+      title: customShellAnnouncements.title,
+      body: customShellAnnouncements.body,
+      level: customShellAnnouncements.level,
+      updatedAt: customShellAnnouncements.updatedAt,
+    })
+    .from(customShellAnnouncements)
+    .where(
+      and(
+        eq(customShellAnnouncements.workspaceId, workspaceId),
+        eq(customShellAnnouncements.audience, "everyone"),
+        lte(customShellAnnouncements.startsAt, timestamp),
+        or(
+          isNull(customShellAnnouncements.endsAt),
+          gt(customShellAnnouncements.endsAt, timestamp)
+        )
+      )
+    )
+    .orderBy(desc(customShellAnnouncements.startsAt))
+
+  return rows
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      level: isAnnouncementLevel(row.level)
+        ? row.level
+        : DEFAULT_ANNOUNCEMENT_LEVEL,
+      updatedAt: row.updatedAt.toISOString(),
+    }))
+    .sort(
+      (a, b) =>
+        ANNOUNCEMENT_LEVELS.indexOf(b.level) -
+        ANNOUNCEMENT_LEVELS.indexOf(a.level)
+    )
 }
 
 /** Newest first. The admin dashboard reads this — every announcement, live or not. */
@@ -335,6 +383,7 @@ export function serializeAnnouncement(announcement: CustomShellAnnouncement) {
     level: isAnnouncementLevel(announcement.level)
       ? announcement.level
       : DEFAULT_ANNOUNCEMENT_LEVEL,
+    audience: announcement.audience,
     showBanner: announcement.showBanner,
     notify: announcement.notify,
     startsAt: announcement.startsAt.toISOString(),
@@ -376,6 +425,7 @@ function cleanAnnouncementInput(input: AnnouncementInput, timestamp: Date) {
     title,
     body,
     level: input.level,
+    audience: input.audience,
     showBanner: input.showBanner,
     notify: input.notify,
     startsAt,

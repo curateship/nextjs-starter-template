@@ -218,6 +218,12 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
         when: "Jan 1, 2026, 9:00 AM UTC",
       },
       "new-account": {},
+      "account-closed": {
+        deletion_date: "Jan 31, 2026",
+        plan_status: "Your paid plan was cancelled immediately.",
+        restore_instructions:
+          "To restore the account before then, sign in and choose Restore my account.",
+      },
     }
     return sendAuthEmail({
       kind: data.kind,

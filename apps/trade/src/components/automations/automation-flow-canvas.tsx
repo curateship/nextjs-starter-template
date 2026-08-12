@@ -390,6 +390,10 @@ export function AutomationFlowCanvas({
           y: point.y - NODE_HEIGHT / 2,
         })
       }}
+      onDoubleClick={(event) => {
+        if (event.target !== event.currentTarget) return
+        fitToView()
+      }}
       onPointerDown={(event) => {
         if (event.button !== 0 || event.target !== event.currentTarget) return
         event.preventDefault()

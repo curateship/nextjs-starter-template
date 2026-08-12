@@ -457,6 +457,7 @@ export async function cancelSubscriptionsForDeletion(
   database: CustomShellDb = db,
   api: CancelApi = stripeCancelApi
 ) {
+  const paidPlanCancelledUserIds: string[] = []
   const subscriptions = await database
     .select()
     .from(customShellSubscriptions)
@@ -476,12 +477,17 @@ export async function cancelSubscriptionsForDeletion(
         database,
         api
       )
+      if (subscription.source !== "manual") {
+        paidPlanCancelledUserIds.push(subscription.userId)
+      }
     } catch (error) {
       // One code for every way this can fail, because the caller only needs to
       // say the same thing either way: nothing was deleted.
       throw new Error("SUBSCRIPTION_CANCEL_FAILED", { cause: error })
     }
   }
+
+  return paidPlanCancelledUserIds
 }
 
 /** Who asked for a pause or a resume, for the line it leaves in the history. */

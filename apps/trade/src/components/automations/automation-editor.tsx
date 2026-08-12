@@ -7,12 +7,14 @@ import {
   Loader2Icon,
   PauseIcon,
   PlayIcon,
+  UserIcon,
   WorkflowIcon,
 } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
+import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
@@ -40,6 +42,7 @@ import {
   automationPaletteKeyForNode,
   createAutomationNode,
 } from "@/lib/automations/node-registry"
+import { automationCanStartManually } from "@/lib/automations/run"
 import {
   getAutomationRunErrorMessage,
   runAutomationNow,
@@ -148,6 +151,8 @@ export function AutomationEditor({
   })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [running, setRunning] = React.useState(false)
+  const [testOpen, setTestOpen] = React.useState(false)
+  const [preparingTest, setPreparingTest] = React.useState(false)
   const [live, setLive] = React.useState(initial.enabled)
   const [savingLive, setSavingLive] = React.useState(false)
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
@@ -323,6 +328,9 @@ export function AutomationEditor({
   }, [reportSaveStatus])
 
   const compiled = React.useMemo(() => compileAutomationGraph(graph), [graph])
+  const canRunManually = compiled.config
+    ? automationCanStartManually(compiled.config)
+    : false
   // Read off the draft, so the switch appears the moment a trigger is dropped
   // on the canvas rather than once the flow happens to compile.
   const triggerName = React.useMemo(() => {
@@ -395,6 +403,22 @@ export function AutomationEditor({
       showErrorToast(getAutomationRunErrorMessage(error))
     } finally {
       setRunning(false)
+    }
+  }
+
+  const openMemberTest = async () => {
+    if (preparingTest || paused || !compiled.config) return
+    setPreparingTest(true)
+    try {
+      await saveNow()
+      const current = latestRef.current
+      if (serialize(current.name, current.graph) !== lastSavedRef.current)
+        return
+      setTestOpen(true)
+    } catch (error) {
+      showErrorToast(getAutomationErrorMessage(error))
+    } finally {
+      setPreparingTest(false)
     }
   }
   const selectedNode =
@@ -624,12 +648,6 @@ export function AutomationEditor({
                 reason="Fix the steps marked in red before switching this flow on."
               >
                 <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={live}
-                    disabled={savingLive || (!compiled.config && !live)}
-                    aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
-                    onCheckedChange={(next) => void handleLiveChange(next)}
-                  />
                   {/* On, but edited since into something that cannot run. The
                     switch alone would read as "this is happening". */}
                   <span
@@ -640,11 +658,17 @@ export function AutomationEditor({
                     }
                   >
                     {!live
-                      ? "Off"
+                      ? "Start automation"
                       : compiled.config
                         ? `On — ${triggerName}`
                         : "On, but not running"}
                   </span>
+                  <Switch
+                    checked={live}
+                    disabled={savingLive || (!compiled.config && !live)}
+                    aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
+                    onCheckedChange={(next) => void handleLiveChange(next)}
+                  />
                 </label>
               </DisabledReason>
             ) : null}
@@ -677,17 +701,41 @@ export function AutomationEditor({
             >
               <Button
                 type="button"
-                disabled={paused || !compiled.config || running}
-                onClick={() => void handleRunNow()}
+                variant="outline"
+                disabled={paused || !compiled.config || preparingTest}
+                onClick={() => void openMemberTest()}
               >
-                {running ? (
+                {preparingTest ? (
                   <Loader2Icon className="size-4 animate-spin" />
                 ) : (
-                  <PlayIcon className="size-4" />
+                  <UserIcon className="size-4" />
                 )}
-                Run
+                Test with member…
               </Button>
             </DisabledReason>
+            {canRunManually ? (
+              <DisabledReason
+                disabled={paused || !compiled.config}
+                reason={
+                  paused
+                    ? "Every automation is paused. Resume them to start this flow."
+                    : "Fix the steps marked in red before running this automation."
+                }
+              >
+                <Button
+                  type="button"
+                  disabled={paused || !compiled.config || running}
+                  onClick={() => void handleRunNow()}
+                >
+                  {running ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <PlayIcon className="size-4" />
+                  )}
+                  Run
+                </Button>
+              </DisabledReason>
+            ) : null}
           </div>
         )
       }
@@ -844,15 +892,33 @@ export function AutomationEditor({
       </div>
 
       {!templateMode ? (
-        <ConfirmDialog
-          open={confirmPauseOpen}
-          onOpenChange={setConfirmPauseOpen}
-          title="Pause every automation?"
-          description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
-          confirmLabel="Pause automations"
-          loading={automationPauseBusy}
-          onConfirm={() => void handlePauseChange(true)}
-        />
+        <>
+          <TestWithMemberDialog
+            open={testOpen}
+            automationId={initial.id}
+            automationName={name}
+            onOpenChange={setTestOpen}
+            onStarted={async (runId) => {
+              setStartedRunId(runId)
+              setAppPanelShut(false)
+              await navigate({
+                to: "/admin/automations/$automationId",
+                params: { automationId: initial.id },
+                search: { run: runId },
+                replace: true,
+              })
+            }}
+          />
+          <ConfirmDialog
+            open={confirmPauseOpen}
+            onOpenChange={setConfirmPauseOpen}
+            title="Pause every automation?"
+            description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
+            confirmLabel="Pause automations"
+            loading={automationPauseBusy}
+            onConfirm={() => void handlePauseChange(true)}
+          />
+        </>
       ) : null}
     </div>
   )

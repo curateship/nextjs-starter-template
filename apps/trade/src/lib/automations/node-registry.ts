@@ -15,6 +15,7 @@ import type {
 import { aiStepNode } from "./nodes/ai-step"
 import { audienceNode } from "./nodes/audience"
 import { billingMomentNode } from "./nodes/billing-moment"
+import { joinedSegmentNode } from "./nodes/joined-segment"
 import { placeholderNode } from "./nodes/placeholder"
 import { sendEmailNode } from "./nodes/send-email"
 import { timeActivateNode } from "./nodes/time-activate"
@@ -32,6 +33,7 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   aiStepNode,
   audienceNode,
   billingMomentNode,
+  joinedSegmentNode,
   timeActivateNode,
   placeholderNode,
   sendEmailNode,
@@ -204,6 +206,12 @@ export function isSupportedNode(node: AutomationNode): boolean {
  */
 export function automationKindIsTrigger(kind: string): boolean {
   return automationRegistry().byKind.get(kind)?.hasInput === false
+}
+
+/** Steps allow a manual start unless their descriptor explicitly forbids it. */
+export function automationKindCanStartManually(kind: string): boolean {
+  const descriptor = automationRegistry().byKind.get(kind)
+  return descriptor?.manualStart !== false
 }
 
 function descriptorForPaletteKey(key: string): AutomationNodeDescriptor {

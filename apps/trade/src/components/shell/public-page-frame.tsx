@@ -1,6 +1,7 @@
 import * as React from "react"
 import { MenuIcon } from "lucide-react"
 
+import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { BrandLogo } from "@/components/shell/brand-logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +19,12 @@ import {
   usePublicNavigation,
 } from "@/lib/branding"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import {
+  isVisitorAnnouncementDismissed,
+  rememberVisitorAnnouncementDismissal,
+  type VisitorAnnouncement,
+} from "@/lib/announcement"
+import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { cn } from "@/lib/utils"
 
 /**
@@ -43,14 +50,45 @@ export function PublicPageFrame({
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
+  const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
+    VisitorAnnouncement[]
+  >([])
+  const [dismissedVisitorIds, setDismissedVisitorIds] = React.useState<
+    Set<string>
+  >(() => new Set())
+
+  React.useEffect(() => {
+    let active = true
+    loadVisitorAnnouncements()
+      .then((announcements) => {
+        if (active) setVisitorAnnouncements(announcements)
+      })
+      .catch((error) => {
+        console.error("[announcements] Could not load visitor banners", error)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const visibleVisitorAnnouncements = visitorAnnouncements.filter(
+    (announcement) =>
+      !dismissedVisitorIds.has(announcement.id) &&
+      !isVisitorAnnouncementDismissed(localStorage, announcement)
+  )
   const hasSiteFrame = Boolean(
     navigation.length || footer.length || footerCopyright
   )
 
+  function dismissVisitorAnnouncement(announcement: VisitorAnnouncement) {
+    rememberVisitorAnnouncementDismissal(localStorage, announcement)
+    setDismissedVisitorIds((current) => new Set(current).add(announcement.id))
+  }
+
   // Empty settings preserve the original markup and classes exactly. Existing
   // apps therefore keep their centred, bare public frame until an admin adds
   // something to it.
-  if (!hasSiteFrame) {
+  if (!hasSiteFrame && !visibleVisitorAnnouncements.length) {
     return (
       <main
         className={cn(
@@ -69,7 +107,19 @@ export function PublicPageFrame({
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/60">
-      <header className="border-b bg-background">
+      {visibleVisitorAnnouncements.length ? (
+        <div className="grid gap-2 px-2 py-2 md:gap-3 md:px-3 md:py-3">
+          {visibleVisitorAnnouncements.map((announcement) => (
+            <AnnouncementBanner
+              key={announcement.id}
+              announcement={announcement}
+              onDismiss={() => dismissVisitorAnnouncement(announcement)}
+            />
+          ))}
+        </div>
+      ) : null}
+      {hasSiteFrame ? (
+        <header className="border-b bg-background">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4">
           <a href="/" className="flex min-w-0 items-center gap-2">
             <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
@@ -114,7 +164,8 @@ export function PublicPageFrame({
             </>
           ) : null}
         </div>
-      </header>
+        </header>
+      ) : null}
       <main
         className={cn(
           "grid flex-1 place-items-center px-4 py-10",
@@ -122,10 +173,16 @@ export function PublicPageFrame({
         )}
       >
         <div className="flex w-full flex-col items-center gap-2 md:gap-3">
+          {!hasSiteFrame ? (
+            <>
+              <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
+              <p className="text-sm font-medium text-foreground">{appName}</p>
+            </>
+          ) : null}
           {children}
         </div>
       </main>
-      {footer.length || footerCopyright ? (
+      {hasSiteFrame && (footer.length || footerCopyright) ? (
         <footer className="border-t bg-background">
           <div className="mx-auto grid w-full max-w-6xl gap-2 px-3 py-4 md:px-4">
             {footer.length ? (

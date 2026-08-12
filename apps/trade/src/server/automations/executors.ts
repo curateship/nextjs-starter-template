@@ -9,11 +9,13 @@ import {
 } from "@/lib/automations/nodes/wait-for-approval"
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
+import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
 import { webhookNode } from "@/lib/automations/nodes/webhook"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
   countAutomationAudience,
+  memberMatchesAutomationAudience,
   readAutomationAudience,
   requireAudienceSegment,
 } from "@/server/automations/audience"
@@ -47,6 +49,8 @@ export type AutomationExecutorContext = {
   now: () => Date
   /** The dry-run task sets this so outside effects can describe, not happen. */
   dryRun?: boolean
+  /** A rehearsal against one member, with outside effects made safe. */
+  testRun?: boolean
 }
 
 export type AutomationExecutorResult =
@@ -83,19 +87,22 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    * spotted the date. This writes the first line of the history, and it is the
    * line that names the moment and the person.
    *
-   * A flow started by hand has no moment and nobody to be about, and that is
-   * allowed on purpose: it is how you try the rest of a recovery flow without
-   * having to make a real payment fail.
+   * A one-member test has no real billing moment on purpose. It names the
+   * chosen member and carries on without pretending a payment event happened.
    */
-  [billingMomentNode.kind]: async ({ run, settings }) => {
+  [billingMomentNode.kind]: async ({ run, settings, testRun }) => {
     const facts = run.triggerFacts
     const who = run.subjectLabel?.trim()
-    if (!facts || !who) {
+    if (testRun && who) {
       return {
         type: "next",
-        summary:
-          "Started by hand, so there is nobody in particular this run is about. The steps after this one act on whoever they are set to.",
+        summary: `Testing this flow with ${who}. No real billing event happened.`,
       }
+    }
+    if (!facts || !who) {
+      throw new Error(
+        "This billing run has no member or billing event, so it cannot continue."
+      )
     }
     return { type: "next", summary: billingMomentLine(settings, facts, who) }
   },
@@ -120,6 +127,25 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     }
   },
 
+  [joinedSegmentNode.kind]: async ({ run, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    if (testRun && who) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. They did not really join the segment.`,
+      }
+    }
+    if (!who) {
+      throw new Error(
+        "This segment run has no contact, so it cannot continue safely."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${who} joined the segment.`,
+    }
+  },
+
   /**
    * Works out who the rest of the flow is about and writes the answer into the
    * run's history — the choice and the number it matched, never the names.
@@ -136,13 +162,15 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
    * segment the flow points at having been deleted *is* a failure, because
    * carrying on would mean guessing.
    */
-  [audienceNode.kind]: async ({ database, run, settings, now }) => {
+  [audienceNode.kind]: async ({ database, run, settings, now, testRun }) => {
     const audience = readAutomationAudience(settings)
     // The run's own workspace, fixed when it started. Only a run that predates
     // that column falls back to its owner's — looking it up every time is how a
     // flow's audience used to change when its owner switched workspace.
     const workspaceId = await workspaceForRun(run, database)
-    await syncContactsFromUsers(workspaceId, database)
+    // A test must not "helpfully" create or update the chosen member's contact.
+    // It reads exactly what exists and says when that means they do not match.
+    if (!testRun) await syncContactsFromUsers(workspaceId, database)
 
     // Looked up here as well as inside the count so the run history can say
     // the segment's name — and looked up by id, so a renamed segment still
@@ -152,18 +180,43 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       workspaceId,
       database
     )
-    const matched = await countAutomationAudience(
-      audience,
-      workspaceId,
-      database,
-      now(),
-      segment
-    )
+    const timestamp = now()
+    const subjectMatched =
+      testRun && run.subjectUserId
+        ? await memberMatchesAutomationAudience(
+            audience,
+            workspaceId,
+            run.subjectUserId,
+            database,
+            timestamp,
+            segment
+          )
+        : null
+    const matched =
+      subjectMatched === null
+        ? await countAutomationAudience(
+            audience,
+            workspaceId,
+            database,
+            timestamp,
+            segment
+          )
+        : Number(subjectMatched)
     const who = audienceWording(
       audience.kind,
       audience.planSlug,
       segment?.name ?? ""
     )
+
+    if (subjectMatched !== null) {
+      const subject = run.subjectLabel?.trim() || "The chosen member"
+      return {
+        type: "next",
+        summary: subjectMatched
+          ? `${subject} matched — ${who}.`
+          : `${subject} did not match — ${who}.`,
+      }
+    }
 
     return {
       type: "next",
@@ -190,6 +243,25 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       deadlineAt: approvalDeadline(now(), timeoutDays),
     }
   },
+}
+
+/**
+ * Only these built-in steps may execute during a one-member rehearsal.
+ * App-owned and future steps are skipped until they explicitly gain a safe
+ * test path, so a new outside action cannot accidentally touch the member.
+ */
+const TEST_RUN_SAFE_KINDS = new Set([
+  "placeholder",
+  billingMomentNode.kind,
+  timeActivateNode.kind,
+  audienceNode.kind,
+  sendEmailNode.kind,
+  webhookNode.kind,
+  waitForApprovalNode.kind,
+])
+
+export function automationExecutorMayRunInTest(kind: string): boolean {
+  return TEST_RUN_SAFE_KINDS.has(kind)
 }
 
 /**

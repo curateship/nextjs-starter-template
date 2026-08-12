@@ -6,24 +6,33 @@ import { automationNodeName } from "@/lib/automations/node-registry"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import {
   automationEntryNodeId,
+  automationCanStartManually,
   automationNextNodeId,
   type AutomationApprovalDecision,
 } from "@/lib/automations/run"
 import { runBillingTriggerScans } from "@/server/automations/billing-triggers"
 import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
+import { runJoinedSegmentTriggers } from "@/server/automations/segment-triggers"
 import { readAutomationsPaused } from "@/server/automations/pause"
+import { automationSubjectLabel } from "@/server/automations/triggers"
 import {
   automationExecutorFor,
+  automationExecutorMayRunInTest,
   type AutomationExecutorResult,
 } from "@/server/automations/executors"
 import { db, type CustomShellDb } from "@/server/db"
 import { inspectAutomation } from "@/server/automations/flows"
-import { publishNotificationCreated } from "@/server/notifications/events"
+import {
+  publishNotificationCreated,
+  publishNotificationCreatedMany,
+} from "@/server/notifications/events"
+import { findActiveWorkspaceMember } from "@/server/people/workspace-users"
 import {
   customShellAutomationRuns,
   customShellAutomationRunSteps,
   customShellAutomations,
   customShellNotifications,
+  customShellUsers,
   type CustomShellAutomationRun,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
@@ -71,6 +80,14 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   // a checkpoint nobody could answer during the pause would be the switch
   // throwing work away. See `server/automations/pause.ts` for the whole rule.
   if (await readAutomationsPaused(database)) {
+    // Segment membership still advances while paused, but starts nothing. This
+    // deliberately skips arrivals during the pause rather than releasing a
+    // catch-up burst when the switch comes back on.
+    try {
+      await runJoinedSegmentTriggers(database, { startRuns: false })
+    } catch (error) {
+      console.error("Joined-segment snapshot failed while paused", error)
+    }
     return { processed: 0, failed: 0, expired: 0, started: 0, paused: true }
   }
 
@@ -78,6 +95,11 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   // walked in this same pass rather than sitting still for fifteen seconds.
   // Never throws — a scan that falls over must not stop the runs already going.
   let started = 0
+  try {
+    started += await runJoinedSegmentTriggers(database)
+  } catch (error) {
+    console.error("Joined-segment trigger scan failed", error)
+  }
   try {
     started += await runTimeActivateTriggers(database)
   } catch (error) {
@@ -87,12 +109,25 @@ export async function runAutomationTick(database: CustomShellDb = db) {
 
   const claimToken = uuid()
 
+  // A worker that vanished cannot catch its own error. Count each stale claim
+  // as an attempt, and stop a run that has been abandoned three times instead
+  // of reclaiming it forever in silence.
+  let failed = await failExpiredClaims(database)
+
   // The claim and the pick happen in one statement. SKIP LOCKED means a second
   // ticker running at the same moment steps over the rows this one is taking
   // instead of queueing behind them, so neither can claim the same run.
   const claimed = await database.execute(sql`
     UPDATE automation_runs
-    SET claim_token = ${claimToken}, claimed_at = now(), updated_at = now()
+    SET claim_token = ${claimToken},
+        claimed_at = now(),
+        attempts = CASE
+          WHEN claimed_at IS NOT NULL
+            AND claimed_at < now() - interval '${sql.raw(String(CLAIM_TIMEOUT_MINUTES))} minutes'
+          THEN attempts + 1
+          ELSE attempts
+        END,
+        updated_at = now()
     WHERE id IN (
       SELECT id FROM automation_runs
       WHERE status = 'active'
@@ -111,15 +146,22 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   const runIds = (claimed.rows as Array<{ id: string }>).map((row) => row.id)
 
   let processed = 0
-  let failed = 0
   for (const runId of runIds) {
     try {
       await processRun(runId, claimToken, database)
       processed += 1
     } catch (error) {
       // One bad run must not take the rest of the batch with it. The run keeps
-      // its claim and is picked up again once that claim goes stale.
+      // its own retry count and hands its claim back when that can be recorded.
       console.error(`Automation run ${runId} failed to process`, error)
+      try {
+        await recoverUnexpectedRunFailure(runId, claimToken, error, database)
+      } catch (recoveryError) {
+        console.error(
+          `Automation run ${runId} could not record its failure`,
+          recoveryError
+        )
+      }
       failed += 1
     }
   }
@@ -127,6 +169,158 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   const expired = await sweepExpiredApprovals(database)
 
   return { processed, failed, expired, started, paused: false }
+}
+
+/** Stops runs whose worker vanished on the same step three times. */
+async function failExpiredClaims(database: CustomShellDb): Promise<number> {
+  const cutoff = new Date(
+    now().getTime() - CLAIM_TIMEOUT_MINUTES * 60 * 1000
+  )
+  const [candidate] = await database
+    .select({ id: customShellAutomationRuns.id })
+    .from(customShellAutomationRuns)
+    .where(
+      and(
+        eq(customShellAutomationRuns.status, "active"),
+        isNotNull(customShellAutomationRuns.claimedAt),
+        lte(customShellAutomationRuns.claimedAt, cutoff),
+        sql`${customShellAutomationRuns.attempts} >= ${MAX_ATTEMPTS - 1}`
+      )
+    )
+    .limit(1)
+  if (!candidate) return 0
+
+  const result = await database.transaction(async (tx) => {
+    // Bounded like the normal claim pass, and skips rows another worker is
+    // already deciding. A large backlog therefore cannot turn one tick into
+    // an unbounded write or make two workers wait on each other.
+    const failedRuns = await tx.execute(sql`
+      UPDATE automation_runs
+      SET status = 'failed',
+          attempts = attempts + 1,
+          error = 'The automation worker stopped while this step was running three times.',
+          finished_at = now(),
+          claim_token = NULL,
+          claimed_at = NULL,
+          updated_at = now()
+      WHERE id IN (
+        SELECT id FROM automation_runs
+        WHERE status = 'active'
+          AND claimed_at IS NOT NULL
+          AND claimed_at <= ${cutoff}
+          AND attempts >= ${MAX_ATTEMPTS - 1}
+        ORDER BY claimed_at ASC
+        LIMIT ${CLAIM_BATCH_SIZE}
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id
+    `)
+    const runIds = (failedRuns.rows as Array<{ id: string }>).map(
+      (run) => run.id
+    )
+    return {
+      failed: runIds.length,
+      recipients: await insertAutomationFailureNotifications(tx, runIds),
+    }
+  })
+  await publishNotificationCreatedMany(result.recipients, database)
+  return result.failed
+}
+
+/**
+ * A thrown executor error follows the normal retry path inside `processRun`.
+ * This is for the engine itself failing between those guarded points.
+ */
+async function recoverUnexpectedRunFailure(
+  runId: string,
+  claimToken: string,
+  error: unknown,
+  database: CustomShellDb
+) {
+  const message = error instanceof Error ? error.message : String(error)
+  const recipients = await database.transaction(async (tx) => {
+    const [run] = await tx
+      .select({ attempts: customShellAutomationRuns.attempts })
+      .from(customShellAutomationRuns)
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.status, "active"),
+          eq(customShellAutomationRuns.claimToken, claimToken)
+        )
+      )
+      .limit(1)
+    if (!run) return []
+
+    const attempts = run.attempts + 1
+    const terminal = attempts >= MAX_ATTEMPTS
+    const [updated] = await tx
+      .update(customShellAutomationRuns)
+      .set({
+        status: terminal ? "failed" : "active",
+        attempts,
+        error: message,
+        ...(terminal
+          ? { finishedAt: now() }
+          : {
+              wakeAt: new Date(
+                now().getTime() + RETRY_BACKOFF_MS * attempts
+              ),
+            }),
+        claimToken: null,
+        claimedAt: null,
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(customShellAutomationRuns.id, runId),
+          eq(customShellAutomationRuns.status, "active"),
+          eq(customShellAutomationRuns.claimToken, claimToken)
+        )
+      )
+      .returning({ id: customShellAutomationRuns.id })
+
+    return terminal && updated
+      ? insertAutomationFailureNotifications(tx, [updated.id])
+      : []
+  })
+  await publishNotificationCreatedMany(recipients, database)
+}
+
+/** Inserts the missing one-per-admin rows inside the run's failure transaction. */
+async function insertAutomationFailureNotifications(
+  database: CustomShellDb,
+  runIds: string[]
+): Promise<string[]> {
+  if (!runIds.length) return []
+  const admins = await database
+    .select({ id: customShellUsers.id })
+    .from(customShellUsers)
+    .where(
+      and(
+        eq(customShellUsers.role, "admin"),
+        eq(customShellUsers.status, "active")
+      )
+    )
+  if (!admins.length) return []
+
+  const inserted = await database
+    .insert(customShellNotifications)
+    .values(
+      runIds.flatMap((runId) =>
+        admins.map((admin) => ({
+          id: uuid(),
+          recipientUserId: admin.id,
+          actorUserId: null,
+          type: "automation_failed",
+          automationRunId: runId,
+          createdAt: now(),
+        }))
+      )
+    )
+    .onConflictDoNothing()
+    .returning({ recipientUserId: customShellNotifications.recipientUserId })
+  return inserted.map((row) => row.recipientUserId)
 }
 
 /** Walks one claimed run as far as this pass allows. */
@@ -158,6 +352,26 @@ async function processRun(
   const release = async (
     values: Partial<typeof customShellAutomationRuns.$inferInsert>
   ) => {
+    if (values.status === "failed") {
+      const recipients = await database.transaction(async (tx) => {
+        const [failedRun] = await tx
+          .update(customShellAutomationRuns)
+          .set({ ...values, claimToken: null, claimedAt: null, updatedAt: now() })
+          .where(
+            and(
+              eq(customShellAutomationRuns.id, runId),
+              eq(customShellAutomationRuns.claimToken, claimToken)
+            )
+          )
+          .returning({ id: customShellAutomationRuns.id })
+        return failedRun
+          ? insertAutomationFailureNotifications(tx, [failedRun.id])
+          : []
+      })
+      await publishNotificationCreatedMany(recipients, database)
+      return
+    }
+
     await database
       .update(customShellAutomationRuns)
       .set({ ...values, claimToken: null, claimedAt: null, updatedAt: now() })
@@ -216,13 +430,21 @@ async function processRun(
     let result: AutomationExecutorResult
     let output: AutomationRunOutput | null = null
     try {
-      result = await executor({
-        database,
-        run,
-        nodeId: currentNodeId,
-        settings: node.settings,
-        now,
-      })
+      result =
+        run.testRun && !automationExecutorMayRunInTest(node.kind)
+          ? {
+              type: "next",
+              summary: `${nodeLabel(node.kind)} was skipped in this test so it could not change anything outside the run.`,
+            }
+          : await executor({
+              database,
+              run,
+              nodeId: currentNodeId,
+              settings: node.settings,
+              now,
+              dryRun: run.testRun,
+              testRun: run.testRun,
+            })
       if (result.type !== "park") output = readStepOutput(result.output)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -409,8 +631,9 @@ export async function decideAutomationApproval({
 }): Promise<boolean> {
   const timestamp = now()
   const approved = decision === "approved"
+  let failureRecipients: string[] = []
 
-  return database.transaction(async (tx) => {
+  const decided = await database.transaction(async (tx) => {
     // Read and write inside one transaction: the run's move and the step that
     // records why must land together or not at all.
     const [waiting] = await tx
@@ -432,7 +655,7 @@ export async function decideAutomationApproval({
     // way to know what carrying on would do. Say so rather than marking the run
     // complete, which would claim the rest of the flow ran when it never did.
     if (approved && !config.success) {
-      await tx
+      const [failedRun] = await tx
         .update(customShellAutomationRuns)
         .set({
           status: "failed",
@@ -441,6 +664,10 @@ export async function decideAutomationApproval({
           updatedAt: timestamp,
         })
         .where(eq(customShellAutomationRuns.id, runId))
+        .returning({ id: customShellAutomationRuns.id })
+      failureRecipients = failedRun
+        ? await insertAutomationFailureNotifications(tx, [failedRun.id])
+        : []
       return false
     }
     const next = config.success
@@ -499,6 +726,8 @@ export async function decideAutomationApproval({
 
     return true
   })
+  await publishNotificationCreatedMany(failureRecipients, database)
+  return decided
 }
 
 /** Auto-rejects checkpoints nobody answered before their deadline. */
@@ -553,6 +782,66 @@ export async function startAutomationRun(
   automationId: string,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomationRun> {
+  return startAutomationRunRecord(
+    workspaceId,
+    userId,
+    automationId,
+    undefined,
+    database
+  )
+}
+
+/** Starts a side-effect-safe rehearsal with one real member as its subject. */
+export async function startAutomationTestRun(
+  workspaceId: string,
+  userId: string,
+  automationId: string,
+  subjectUserId: string,
+  database: CustomShellDb = db
+): Promise<CustomShellAutomationRun> {
+  const [admin, subject] = await Promise.all([
+    database
+      .select({ email: customShellUsers.email })
+      .from(customShellUsers)
+      .where(
+        and(
+          eq(customShellUsers.id, userId),
+          eq(customShellUsers.role, "admin"),
+          eq(customShellUsers.status, "active")
+        )
+      )
+      .limit(1),
+    findActiveWorkspaceMember(workspaceId, subjectUserId, database),
+  ])
+  if (!admin[0]) throw new Error("NOT_FOUND")
+  if (!subject) throw new Error("MEMBER_NOT_FOUND")
+
+  return startAutomationRunRecord(
+    workspaceId,
+    userId,
+    automationId,
+    {
+      subjectUserId: subject.id,
+      subjectLabel: automationSubjectLabel(subject),
+      testRecipientEmail: admin[0].email,
+    },
+    database
+  )
+}
+
+async function startAutomationRunRecord(
+  workspaceId: string,
+  userId: string,
+  automationId: string,
+  test:
+    | {
+        subjectUserId: string
+        subjectLabel: string
+        testRecipientEmail: string
+      }
+    | undefined,
+  database: CustomShellDb
+): Promise<CustomShellAutomationRun> {
   // Refused rather than held, and this is the one place the kill switch works
   // that way. Everything already going is kept and resumes; but somebody is
   // standing here having just pressed a button, and telling them "everything is
@@ -581,6 +870,9 @@ export async function startAutomationRun(
 
   const entryNodeId = automationEntryNodeId(inspected.compiledConfig)
   if (!entryNodeId) throw new Error("NO_SINGLE_START")
+  if (!test && !automationCanStartManually(inspected.compiledConfig)) {
+    throw new Error("REQUIRES_SUBJECT")
+  }
 
   const timestamp = now()
   const [run] = await database
@@ -598,6 +890,10 @@ export async function startAutomationRun(
       configSnapshot: inspected.compiledConfig,
       wakeAt: timestamp,
       attempts: 0,
+      subjectUserId: test?.subjectUserId,
+      subjectLabel: test?.subjectLabel,
+      testRun: Boolean(test),
+      testRecipientEmail: test?.testRecipientEmail,
       startedAt: timestamp,
       createdAt: timestamp,
       updatedAt: timestamp,

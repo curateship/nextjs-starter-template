@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { plural } from "@/lib/format/plural"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -62,11 +63,14 @@ import {
   getSegmentErrorMessage,
 } from "@/lib/api/people/contact-segments"
 import { contactFilterOptions } from "@/lib/api/people/contacts"
+import { segmentRulesFromContactFilters } from "@/lib/contacts/contact-filter-segment"
 import {
   describeSegmentCondition,
   segmentConditionIsComplete,
+  segmentRulesMatch,
   type SegmentCondition,
   type SegmentRuleOptions,
+  type SegmentRules,
 } from "@/lib/contacts/contact-segments"
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -87,7 +91,7 @@ import { useSelection } from "@/lib/hooks/use-selection"
 const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
 
 /** One shared empty list, so "no filters" is the same object every render. */
-const EMPTY_CONDITIONS: SegmentCondition[] = []
+const EMPTY_RULES: SegmentRules = { conditions: [] }
 
 function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
@@ -126,7 +130,9 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   const listSearch = contactsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
-  const conditions = listSearch.filter?.conditions ?? EMPTY_CONDITIONS
+  const rules = listSearch.filter ?? EMPTY_RULES
+  const conditions = rules.conditions
+  const match = segmentRulesMatch(rules)
   const [searchText, setSearchText] = useSearchBoxText(searchQuery, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
@@ -142,16 +148,25 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
     [setListSearch]
   )
   const [filtersOpen, setFiltersOpen] = React.useState(false)
+  const [segmentOpen, setSegmentOpen] = React.useState(false)
   const pageSize = data.pageSize
 
   /** Writing filters back to the address always returns to the first page. */
-  const setConditions = React.useCallback(
-    (next: SegmentCondition[]) =>
+  const setRules = React.useCallback(
+    (next: SegmentRules) =>
       setListSearch({
-        filter: next.length ? { conditions: next } : undefined,
+        filter: next.conditions.length ? next : undefined,
         page: undefined,
       }),
     [setListSearch]
+  )
+  const setConditions = React.useCallback(
+    (next: SegmentCondition[]) =>
+      setRules({
+        ...(match === "any" ? { match } : {}),
+        conditions: next,
+      }),
+    [match, setRules]
   )
 
   /** Names for the "not in…" chips, so a rule reads as a name not an id. */
@@ -417,6 +432,16 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               <ListFilterIcon className="size-4" />
               Filters{conditions.length ? ` (${conditions.length})` : ""}
             </DashboardToolbarButton>
+            {conditions.length ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                onClick={() => setSegmentOpen(true)}
+              >
+                <UsersRoundIcon className="size-4" />
+                Save as segment
+              </DashboardToolbarButton>
+            ) : null}
             <DashboardToolbarButton onClick={() => setAddOpen(true)}>
               <PlusIcon className="size-4" />
               Add someone
@@ -426,6 +451,9 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         filters={
           conditions.length ? (
             <>
+              {match === "any" ? (
+                <Badge variant="secondary">Matching any rule</Badge>
+              ) : null}
               {conditions.map((condition, index) => (
                 <Badge key={index} variant="secondary" className="gap-1 pr-1">
                   {describeSegmentCondition(condition, segmentNames)}
@@ -449,6 +477,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               >
                 Clear all
               </button>
+              {searchText.trim() ? (
+                <span className="text-xs text-muted-foreground">
+                  Search words will not be saved, only the filters.
+                </span>
+              ) : null}
             </>
           ) : null
         }
@@ -769,16 +802,31 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         // Fresh per opening, so Cancel really does leave the list as it was.
         key={filtersOpen ? "open" : "closed"}
         open={filtersOpen}
-        conditions={conditions}
+        rules={rules}
         options={contactFilterOptions(data)}
         total={data.total}
         onClose={() => setFiltersOpen(false)}
         onApply={(next) => {
-          setConditions(next)
+          setRules(next)
           setFiltersOpen(false)
         }}
       />
 
+      <SegmentDialog
+        key={segmentOpen ? JSON.stringify(rules) : "closed-segment"}
+        open={segmentOpen}
+        segment={null}
+        options={contactFilterOptions(data)}
+        prefill={{
+          rules: segmentRulesFromContactFilters(rules),
+          searchExcluded: Boolean(searchText.trim()),
+        }}
+        onClose={() => setSegmentOpen(false)}
+        onSaved={async () => {
+          setSegmentOpen(false)
+          await refresh()
+        }}
+      />
     </>
   )
 }
@@ -790,23 +838,23 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
  */
 function ContactFiltersDialog({
   open,
-  conditions,
+  rules,
   options,
   total,
   onClose,
   onApply,
 }: {
   open: boolean
-  conditions: SegmentCondition[]
+  rules: SegmentRules
   options: SegmentRuleOptions
   /** How many people the list is showing behind this window. */
   total: number
   onClose: () => void
-  onApply: (conditions: SegmentCondition[]) => void
+  onApply: (rules: SegmentRules) => void
 }) {
-  const [draft, setDraft] = React.useState(conditions)
-  const dirty = JSON.stringify(draft) !== JSON.stringify(conditions)
-  const unfinished = draft.some(
+  const [draft, setDraft] = React.useState(rules)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(rules)
+  const unfinished = draft.conditions.some(
     (condition) => !segmentConditionIsComplete(condition)
   )
 
@@ -817,7 +865,10 @@ function ContactFiltersDialog({
       )
       return
     }
-    onApply(draft)
+    onApply({
+      ...(segmentRulesMatch(draft) === "any" ? { match: "any" } : {}),
+      conditions: draft.conditions,
+    })
   }
 
   return (
@@ -827,8 +878,8 @@ function ContactFiltersDialog({
           <DialogHeader>
             <DialogTitle>Filter contacts</DialogTitle>
             <DialogDescription>
-              Every rule has to be true. These are the same rules a segment is
-              written in, so a list you filter down to can be saved as one.
+              These are the same rules a segment is written in, so a list you
+              filter down to can be saved as one.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -840,13 +891,20 @@ function ContactFiltersDialog({
           >
             <DialogBody>
               <SegmentRuleBuilder
-                conditions={draft}
-                onChange={setDraft}
+                conditions={draft.conditions}
+                onChange={(conditions) => setDraft({ ...draft, conditions })}
+                match={segmentRulesMatch(draft)}
+                onMatchChange={(next) =>
+                  setDraft({
+                    ...(next === "any" ? { match: next } : {}),
+                    conditions: draft.conditions,
+                  })
+                }
                 options={options}
                 idPrefix="contact-filter"
                 title="Rules"
                 description={
-                  conditions.length
+                  rules.conditions.length
                     ? `${total.toLocaleString()} ${plural(total, "person", "people")} match the filters on the list now.`
                     : "Nothing is filtered, so the list is showing everybody."
                 }
@@ -854,12 +912,12 @@ function ContactFiltersDialog({
               />
             </DialogBody>
             <DialogFooter>
-              {draft.length ? (
+              {draft.conditions.length ? (
                 <Button
                   type="button"
                   variant="outline"
                   className="mr-auto"
-                  onClick={() => setDraft([])}
+                  onClick={() => setDraft({ conditions: [] })}
                 >
                   Clear all
                 </Button>

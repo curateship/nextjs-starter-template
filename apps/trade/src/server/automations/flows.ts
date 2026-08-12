@@ -13,14 +13,24 @@ import {
 } from "@/lib/automations/graph"
 import { sendEmailDraftSettingsSchema } from "@/lib/automations/nodes/send-email"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
+import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
 import {
   automationKindIsTrigger,
   automationNodeName,
 } from "@/lib/automations/node-registry"
-import { automationEntryNodeId } from "@/lib/automations/run"
+import {
+  automationCanStartManually,
+  automationEntryNodeId,
+  automationTriggerKind,
+} from "@/lib/automations/run"
 import { db, type CustomShellDb } from "@/server/db"
 import { nextScheduledRunAt } from "@/server/automations/time-triggers"
+import {
+  initializeJoinedSegmentWatch,
+  resetJoinedSegmentWatch,
+} from "@/server/automations/segment-triggers"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
+import { syncContactsFromUsers } from "@/server/people/contacts"
 import {
   customShellAutomationRuns,
   customShellAutomations,
@@ -47,8 +57,10 @@ export type AutomationListRow = {
   isValid: boolean
   nodeCount: number
   enabled: boolean
+  pausedReason: string | null
   /** What the flow reacts to, in the palette's own words. Null when nothing. */
   triggerName: string | null
+  canRunManually: boolean
   nextRunAt: Date | null
   updatedAt: Date
 }
@@ -149,7 +161,11 @@ export async function listWorkspaceAutomations(
         inspected.compiledConfig !== null && inspected.errors.length === 0,
       nodeCount: inspected.graph.nodes.length,
       enabled: row.enabled,
+      pausedReason: row.pausedReason,
       triggerName: automationTriggerName(inspected),
+      canRunManually: inspected.compiledConfig
+        ? automationCanStartManually(inspected.compiledConfig)
+        : false,
       nextRunAt: row.nextRunAt,
       updatedAt: row.updatedAt,
     }
@@ -203,22 +219,54 @@ export async function setAutomationEnabled(
   ) {
     throw new Error("SCHEDULE_FINISHED")
   }
-  const [updated] = await database
-    .update(customShellAutomations)
-    .set({
-      enabled,
-      nextRunAt,
-      updatedAt: timestamp,
-    })
-    .where(
-      and(
-        eq(customShellAutomations.id, automationId),
-        eq(customShellAutomations.workspaceId, workspaceId)
+  if (
+    enabled &&
+    inspected.compiledConfig &&
+    automationTriggerKind(inspected.compiledConfig) === joinedSegmentNode.kind
+  ) {
+    // Kept outside the flow-row transaction. The ticker syncs contacts before
+    // locking that row too, so both paths take locks in the same order.
+    await syncContactsFromUsers(workspaceId, database)
+  }
+  return database.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id
+      from automations
+      where id = ${automationId} and workspace_id = ${workspaceId}
+      for update
+    `)
+    const current = await getWorkspaceAutomation(workspaceId, automationId, tx)
+    if (!current) throw new Error("NOT_FOUND")
+    if (current.updatedAt.getTime() !== row.updatedAt.getTime()) {
+      throw new Error("FLOW_CHANGED")
+    }
+    const transitioning = current.enabled !== enabled
+    const [updated] = await tx
+      .update(customShellAutomations)
+      .set({
+        enabled,
+        pausedReason: transitioning || enabled ? null : current.pausedReason,
+        nextRunAt,
+        updatedAt: timestamp,
+      })
+      .where(
+        and(
+          eq(customShellAutomations.id, automationId),
+          eq(customShellAutomations.workspaceId, workspaceId)
+        )
       )
-    )
-    .returning()
-  if (!updated) throw new Error("NOT_FOUND")
-  return updated
+      .returning()
+    if (!updated) throw new Error("NOT_FOUND")
+    if (transitioning) {
+      // In the same transaction as the switch. A ticker cannot observe the
+      // flow as newly live while still seeing its old baseline.
+      await resetJoinedSegmentWatch(automationId, tx)
+    }
+    if (enabled && transitioning) {
+      await initializeJoinedSegmentWatch(updated, tx, timestamp)
+    }
+    return updated
+  })
 }
 
 export async function getWorkspaceAutomation(

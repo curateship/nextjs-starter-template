@@ -62,6 +62,8 @@ the guess that one might:
   own icon and a pointer to its settings panel, paired with
 - `automations.executors` (server) — what those steps do when a flow reaches
   them, keyed by the same `kind`
+- `sitemap.extraEntries` (server) — public addresses from the app's own tables,
+  read for the site whose domain is being answered
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.

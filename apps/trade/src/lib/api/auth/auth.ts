@@ -10,13 +10,12 @@ import { describeDevice } from "@/lib/format/device-label"
 import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
 import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
 import {
-  markAccountsForDeletion,
+  closeAccounts,
   purgeExpiredDeletions,
   restoreOwnAccount,
 } from "@/server/people/account-deletion"
 import { notifyAppAuthEvent } from "@/server/app-options"
 import { appUrlFor } from "@/server/app-url"
-import { cancelSubscriptionsForDeletion } from "@/server/billing/stripe"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { db } from "@/server/db"
 import {
@@ -885,14 +884,10 @@ const deleteAccountFn = createServerFn({ method: "POST" })
       throw new Error("LAST_ADMIN")
     }
 
-    // Their paid plan goes before their account does. The account is
-    // unreachable from the next line on, so a plan that outlived it would be
-    // money taken for something nobody can open.
-    await cancelSubscriptionsForDeletion([user.id])
-
-    // Marked, not removed. Nothing can be reached with it from this moment on,
-    // and it is really deleted once the restore window runs out.
-    await markAccountsForDeletion(user.id, [user.id])
+    // Cancels a paid plan first, then marks the account and sends its closure
+    // receipt. Nothing can be reached with it from this moment on, and it is
+    // really deleted once the restore window runs out.
+    await closeAccounts(user.id, [user.id])
     clearSessionCookie()
     return { ok: true }
   })
@@ -1077,4 +1072,3 @@ function sendVerificationEmail(email: string, token: string) {
     actionUrl: appUrlFor(`/verify-email?token=${encodeURIComponent(token)}`),
   })
 }
-

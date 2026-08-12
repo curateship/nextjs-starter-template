@@ -19,9 +19,9 @@ import { escapeHtml } from "@/lib/email/escape-html"
  * and one to the old address once it is done. They say different things to
  * different people at different moments.
  *
- * The last three are alerts rather than invitations. Nobody asked for them and
- * there is nothing to complete — they exist so that somebody losing an account
- * finds out while they can still act.
+ * Some are alerts rather than invitations. Nobody asked for those and there is
+ * nothing to complete — they exist so that somebody losing an account finds
+ * out while they can still act.
  */
 export const SYSTEM_EMAIL_KINDS = [
   "verify-email",
@@ -33,6 +33,7 @@ export const SYSTEM_EMAIL_KINDS = [
   "password-changed",
   "new-device",
   "new-account",
+  "account-closed",
 ] as const
 
 export type SystemEmailKind = (typeof SYSTEM_EMAIL_KINDS)[number]
@@ -264,6 +265,35 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
     },
     tokens: [EMAIL_TOKEN],
   },
+  "account-closed": {
+    kind: "account-closed",
+    name: "Account closed",
+    whenSent: "When somebody closes an account, or an admin closes it for them.",
+    defaults: {
+      subject: "Your account has been closed",
+      heading: "Your account is closed",
+      message:
+        "The account for {{email}} will be deleted for good on {{deletion_date}}. {{plan_status}} {{restore_instructions}}",
+      action: "Open the app",
+      closing:
+        "After {{deletion_date}}, the account cannot be restored.",
+    },
+    tokens: [
+      EMAIL_TOKEN,
+      {
+        token: "{{deletion_date}}",
+        description: "The date the account is deleted for good",
+      },
+      {
+        token: "{{plan_status}}",
+        description: "Whether a paid plan was cancelled immediately",
+      },
+      {
+        token: "{{restore_instructions}}",
+        description: "How this person can restore the account",
+      },
+    ],
+  },
 }
 
 /**
@@ -274,9 +304,9 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
  * saved per-workspace block setups fill the header's logo and the footer's
  * company lines in, so a new email opens already looking like the rest. Two
  * things the pattern pins regardless of any saved setup: the button sits in
- * the middle, and the footer's unsubscribe link is off — these emails carry
- * no unsubscribe address to fill it, and someone asked for each one by
- * pressing a button thirty seconds earlier.
+ * the middle, and the footer's unsubscribe link is off. These are account
+ * messages rather than newsletters, so there is no unsubscribe address to
+ * fill in.
  */
 export function createSystemEmailBlocks(
   kind: SystemEmailKind,

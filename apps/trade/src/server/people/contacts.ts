@@ -5,7 +5,6 @@ import {
   eq,
   ilike,
   inArray,
-  isNull,
   ne,
   or,
   sql,
@@ -14,11 +13,11 @@ import {
 import type { SegmentRules } from "@/lib/contacts/contact-segments"
 import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
 import { segmentConditions } from "@/server/people/contact-segments"
+import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
   customShellUsers,
-  customShellWorkspaces,
   type CustomShellContact,
 } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
@@ -67,22 +66,6 @@ export async function syncContactsFromUsers(
   workspaceId: string,
   database: CustomShellDb = db
 ) {
-  // Which site an unpointed person counts as belonging to. Read once: the
-  // answer is the same for every row in the query below.
-  const [oldest] = await database
-    .select({ id: customShellWorkspaces.id })
-    .from(customShellWorkspaces)
-    .orderBy(asc(customShellWorkspaces.createdAt))
-    .limit(1)
-
-  const belongsHere =
-    oldest?.id === workspaceId
-      ? or(
-          eq(customShellUsers.currentWorkspaceId, workspaceId),
-          isNull(customShellUsers.currentWorkspaceId)
-        )
-      : eq(customShellUsers.currentWorkspaceId, workspaceId)
-
   const users = await database
     .select({
       id: customShellUsers.id,
@@ -95,7 +78,7 @@ export async function syncContactsFromUsers(
       and(
         // Somebody on their way out is not somebody to email.
         ne(customShellUsers.status, "pending_deletion"),
-        belongsHere
+        await userBelongsToWorkspaceCondition(workspaceId, database)
       )
     )
 

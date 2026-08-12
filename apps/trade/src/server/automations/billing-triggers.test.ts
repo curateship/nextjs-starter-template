@@ -680,16 +680,16 @@ describe("a card about to run out", () => {
   })
 })
 
-describe("a trigger flow started by hand", () => {
-  it("runs, and says plainly that it is about nobody in particular", async () => {
+describe("a billing run missing its event", () => {
+  it("fails clearly instead of continuing without a member", async () => {
     const owner = await insertUser(database, { role: "admin" })
     const flow = await insertAutomation({
       owner,
       graph: graphOf([{ kind: billingMomentNode.kind, settings: paymentFailed }, placeholder]),
     })
 
-    // Straight to the engine rather than through `startAutomationRun`, which is
-    // the same insert without a subject or any facts.
+    // A malformed stored run, bypassing the public start path that now refuses
+    // billing flows without a member event.
     const timestamp = now()
     const inspected = inspectAutomation(flow)
     await database.insert(customShellAutomationRuns).values({
@@ -710,10 +710,12 @@ describe("a trigger flow started by hand", () => {
     await runAutomationTick(database)
 
     const [run] = await runsOf(flow.id)
-    expect(run.status).toBe("completed")
+    expect(run.status).toBe("active")
 
     const detail = await getAutomationRun(site, run.id, database)
-    expect(detail!.steps[0].summary).toContain("Started by hand")
+    expect(detail!.steps[0].error).toContain(
+      "no member or billing event"
+    )
   })
 })
 
