@@ -1,7 +1,8 @@
 import { SettingsIcon, XIcon } from "lucide-react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
-import { ladderExitLevels, type SmartLadder } from "@/lib/trade/dca"
+import { ladderExitLevels } from "@/lib/trade/dca"
+import type { SmartLadder } from "@/lib/trade/smart-plan"
 import { formatPrice } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 

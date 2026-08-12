@@ -11,16 +11,21 @@ import {
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
-  readLadderPlan,
   DUST_ORDER_USD,
   type DcaParams,
   type LadderPlan,
   type LadderRungState,
-  type SmartLadder,
 } from "@/lib/trade/dca"
+import type { GridPlan } from "@/lib/trade/grid"
+import {
+  readSmartOrderKind,
+  readSmartPlan,
+  type SmartOrder,
+  type SmartPlan,
+} from "@/lib/trade/smart-plan"
 import { isMarketable, paperAccountFigures } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
@@ -295,7 +300,9 @@ export async function placeDcaLadder(
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("PAPER_MARKET")
 
-  const existing = await activeLadder(userId, wallet.id, input.marketKey)
+  // Any kind, not just another ladder: a grid on this coin would fight this
+  // ladder over the one position's stop.
+  const existing = await activeSmartOrderId(userId, wallet.id, input.marketKey)
   if (existing) throw new Error("SMART_LADDER_EXISTS")
 
   const protocol = getProtocol(wallet.protocol)
@@ -354,20 +361,10 @@ export async function placeDcaLadder(
       .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
       .for("update")
 
-    // Re-checked under the lock: two tabs placing at once must not both win.
-    const race = await tx
-      .select({ id: tradeSmartLadders.id })
-      .from(tradeSmartLadders)
-      .where(
-        and(
-          eq(tradeSmartLadders.userId, userId),
-          eq(tradeSmartLadders.walletId, wallet.id),
-          eq(tradeSmartLadders.marketKey, input.marketKey),
-          eq(tradeSmartLadders.status, "active")
-        )
-      )
-      .limit(1)
-    if (race.length > 0) throw new Error("SMART_LADDER_EXISTS")
+    // Re-checked under the lock: two tabs placing at once must not both win,
+    // and neither may a ladder and a grid.
+    const race = await activeSmartOrderId(userId, wallet.id, input.marketKey, tx)
+    if (race) throw new Error("SMART_LADDER_EXISTS")
 
     await saveBook(tx, userId, book, new Date(now))
 
@@ -398,6 +395,7 @@ export async function placeDcaLadder(
       id: randomUUID(),
       walletId: wallet.id,
       marketKey: input.marketKey,
+      kind: "dca",
       status: "active",
       plan,
       createdAt: new Date(now),
@@ -426,6 +424,37 @@ export type LadderRowRecord = {
   plan: LadderPlan
 }
 
+/**
+ * Is there ALREADY a smart order working on this coin in this wallet, of any
+ * kind? Its id, or null.
+ *
+ * This is the exclusivity check both placement paths make, and it deliberately
+ * does not parse the plan. There is one position per coin per wallet and every
+ * kind of smart order writes its stop, so two of them would fight — and a check
+ * that parsed the plan would answer "no" for the kind it did not recognise and
+ * let exactly that happen.
+ */
+export async function activeSmartOrderId(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  tx: CustomShellDb = db
+): Promise<string | null> {
+  const rows = await tx
+    .select({ id: tradeSmartLadders.id })
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.marketKey, marketKey),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .limit(1)
+  return rows[0]?.id ?? null
+}
+
 export async function activeLadder(
   userId: string,
   walletId: string,
@@ -444,8 +473,8 @@ export async function activeLadder(
     )
     .limit(1)
   const row = rows[0]
-  if (!row) return null
-  const plan = readLadderPlan(row.plan)
+  if (!row || row.kind !== "dca") return null
+  const plan = readSmartPlan("dca", row.plan) as LadderPlan | null
   return plan ? { id: row.id, marketKey: row.marketKey, status: row.status, plan } : null
 }
 
@@ -466,15 +495,19 @@ export async function ladderById(
     )
     .limit(1)
   const row = rows[0]
-  const plan = row && row.status === "active" ? readLadderPlan(row.plan) : null
+  const plan =
+    row && row.status === "active" && row.kind === "dca"
+      ? (readSmartPlan("dca", row.plan) as LadderPlan | null)
+      : null
   if (!row || !plan) throw new Error("SMART_LADDER_NOT_FOUND")
   return { id: row.id, marketKey: row.marketKey, status: row.status, plan }
 }
 
+/** Writes any smart order's plan down — the ladder's and the grid's alike. */
 export async function saveLadderPlan(
   userId: string,
   ladderId: string,
-  plan: LadderPlan,
+  plan: SmartPlan,
   status: "active" | "done"
 ): Promise<void> {
   await db
@@ -637,11 +670,11 @@ export async function updateLadderExits(
   await settleWallet(userId, wallet)
 }
 
-/** Every ladder still worth drawing, across these wallets. */
-export async function listActiveLadders(
+/** Every smart order still worth drawing, of any kind, across these wallets. */
+export async function listActiveSmartOrders(
   userId: string,
   walletIds: readonly string[]
-): Promise<SmartLadder[]> {
+): Promise<SmartOrder[]> {
   if (walletIds.length === 0) return []
   const rows = await db
     .select()
@@ -654,19 +687,25 @@ export async function listActiveLadders(
       )
     )
 
-  const ladders: SmartLadder[] = []
+  const orders: SmartOrder[] = []
   for (const row of rows) {
-    const plan = readLadderPlan(row.plan)
+    const kind = readSmartOrderKind(row.kind)
+    if (!kind) continue
+    const plan = readSmartPlan(kind, row.plan)
     if (!plan) continue
-    ladders.push({
+    const shared = {
       id: row.id,
       walletId: row.walletId,
       marketKey: row.marketKey,
-      status: "active",
-      plan,
+      status: "active" as const,
       createdAt: row.createdAt.getTime(),
       updatedAt: row.updatedAt.getTime(),
-    })
+    }
+    orders.push(
+      kind === "grid"
+        ? { ...shared, kind, plan: plan as GridPlan }
+        : { ...shared, kind, plan: plan as LadderPlan }
+    )
   }
-  return ladders
+  return orders
 }

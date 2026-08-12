@@ -12,11 +12,11 @@ import {
   ladderExitLevels,
   ladderFirstBuyPx,
   baseStopPx,
-  readLadderPlan,
   rungBudget,
   type LadderPlan,
   type LadderRungState,
 } from "./dca"
+import { readSmartPlan } from "./smart-plan"
 
 describe("dcaLevels", () => {
   it("compounds each step off the buy above, not the click", () => {
@@ -187,9 +187,12 @@ describe("ladder plans", () => {
   })
 
   it("reads a stored plan back, and refuses junk rather than half-obeying it", () => {
-    expect(readLadderPlan(plan)).toEqual(plan)
-    expect(readLadderPlan(null)).toBeNull()
-    expect(readLadderPlan({ anchorPx: "up" })).toBeNull()
+    expect(readSmartPlan("dca", plan)).toEqual(plan)
+    expect(readSmartPlan("dca", null)).toBeNull()
+    expect(readSmartPlan("dca", { anchorPx: "up" })).toBeNull()
+    // A ladder is not a grid. Reading one as the other has to fail, or a row
+    // of the wrong kind would be half-obeyed by whichever engine got to it.
+    expect(readSmartPlan("grid", plan)).toBeNull()
   })
 })
 

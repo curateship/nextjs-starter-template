@@ -35,8 +35,8 @@ import {
   DEFAULT_DCA_TAKE_PROFIT_PCT,
   type DcaParams,
   type DcaTpMode,
-  type SmartLadder,
 } from "@/lib/trade/dca"
+import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { PaperPosition } from "@/lib/trade/paper"
 
 /** A bracket price back to its distance from the entry, for filling a box in. */

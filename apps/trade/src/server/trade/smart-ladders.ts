@@ -11,25 +11,41 @@ import {
   floorSize,
   ladderExitLevels,
   ladderWatchInterval,
-  readLadderPlan,
   rungBudget,
   type LadderPlan,
 } from "@/lib/trade/dca"
+import type { GridPlan } from "@/lib/trade/grid"
+import { readSmartOrderKind, readSmartPlan } from "@/lib/trade/smart-plan"
 import {
   holdUntil,
   marketIsCascading,
   type CascadeSettings,
 } from "@/lib/trade/cascade"
-import { baseLevelsInForce } from "@/lib/trade/indicators/base"
 import {
   ascending,
   firstOpenAfter,
   lastClosedIndex,
 } from "@/lib/trade/candle-window"
-import { slippedPx, type PaperSide } from "@/lib/trade/paper"
+import { slippedPx } from "@/lib/trade/paper"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
+import { advanceGrid, type GridRow } from "./smart-grids"
+import {
+  aimStop,
+  INTERVAL_MS,
+  ladderBarsKey as barsKey,
+  makeFillClaimer,
+  near,
+  nearNullable,
+  readBaseWatch,
+  type LadderAdvanceInput,
+  type LadderBars,
+  type LadderBarsUse,
+  type LadderEngineDeps,
+  type LadderOrderInput,
+  type SmartRow,
+} from "./smart-engine"
 import {
   exitOrderIdOf,
   liveOrderIds,
@@ -52,118 +68,22 @@ import {
  * engine that imports it.
  */
 
-export type LadderOrderInput = {
-  marketKey: string
-  side: PaperSide
-  px: number
-  sz: number
-  leverage: number
-  maxLeverage: number
-  reduceOnly: boolean
-  now: number
-  /**
-   * Where this slice sells itself, resting from the instant the buy fills.
-   *
-   * Only the replay reads it. A practice or real wallet settles seconds after
-   * a fill, so placing the exit afterwards costs nothing there; a replay only
-   * gets to look once a four-hour candle has finished, and a crash that
-   * bounces inside one candle leaves every exit behind. Deliberately not a
-   * column on the orders table for that reason — nothing outside a run needs
-   * to remember it.
-   */
-  exitPx?: number | null
-}
-
-export type LadderEngineDeps = {
-  fill: (
-    book: WalletBook,
-    input: {
-      marketKey: string
-      side: PaperSide
-      px: number
-      sz: number
-      feeRate: number
-      leverage: number
-      maxLeverage: number
-      reason: "order"
-      at: number
-    }
-  ) => void
-  dropOrder: (book: WalletBook, orderId: string) => void
-  freeCash: (book: WalletBook) => number
-  /**
-   * Writes one order down and answers with its id.
-   *
-   * Required, like the three above it. This used to be optional with the
-   * practice tables as a fallback, and that made "where does this order go?"
-   * a question with two answers and no way to see which one applied. Now the
-   * caller says: the practice wallet writes rows, the live wallet asks the
-   * exchange, and a backtest keeps it in memory and writes nothing.
-   */
-  insertOrder: (input: LadderOrderInput) => Promise<string>
-  /** Writes the ladder's plan and status down, for the same reason. */
-  saveLadder: (
-    row: LadderRow,
-    status: "active" | "done",
-    now: number
-  ) => Promise<void>
-}
-
-/**
- * What one advance works on: a book in memory, today's prices, the candles the
- * ladders are watching, and the moment it is all as of.
- *
- * No database. Everything that would touch one is in `deps`, which is what
- * lets a backtest replay months through this same code without a row being
- * written anywhere.
- */
-export type LadderAdvanceInput = {
-  book: WalletBook
-  marks: ReadonlyMap<string, number>
-  ladderBars: LadderBars
-  now: number
-  /**
-   * The whole market is falling off a cliff right now.
-   *
-   * Worked out ONCE by the caller and handed to every ladder, because the
-   * question is about the market rather than this coin — and because a run
-   * watching 400 coins must not answer it 400 times a bar. Undefined means
-   * nobody is watching for it, which is every caller that has not asked.
-   */
-  cascading?: boolean
-}
+// The contract every smart-order engine is driven through — the deps shape,
+// the advance input, the candle feeds and the few rules both engines share —
+// lives in `smart-engine.ts` so the ladder and the grid can use it without
+// importing each other. Re-exported here because this file was its only home
+// for a long time and plenty of callers still reach for it by this name.
+export {
+  ladderBarsKey,
+  type LadderAdvanceInput,
+  type LadderBars,
+  type LadderBarsUse,
+  type LadderEngineDeps,
+  type LadderFeed,
+  type LadderOrderInput,
+} from "./smart-engine"
 
 const DAY_MS = 86_400_000
-
-/**
- * Which feed a ladder is asking for. One market can want both at once — a
- * two-green ladder on the 15m and a base stop on the 4h — so the key carries
- * the purpose as well as the market.
- */
-export type LadderBarsUse = "green" | "base"
-
-export function ladderBarsKey(use: LadderBarsUse, marketKey: string): string {
-  return `${use}:${marketKey}`
-}
-
-const INTERVAL_MS: Record<CandleInterval, number> = {
-  "1m": 60_000,
-  "5m": 300_000,
-  "15m": 900_000,
-  "1h": 3_600_000,
-  "4h": 14_400_000,
-  "1d": 86_400_000,
-}
-
-/** Close enough for two doubles that came from the same arithmetic. */
-function near(a: number, b: number): boolean {
-  return Math.abs(a - b) <= Math.max(1e-9, Math.abs(a) * 1e-9)
-}
-
-function nearNullable(a: number | null, b: number | null): boolean {
-  if (a === null || b === null) return a === b
-  return near(a, b)
-}
 
 export type LadderRow = {
   id: string
@@ -197,6 +117,7 @@ export async function ladderCandleNeeds(
   const rows = await db
     .select({
       marketKey: tradeSmartLadders.marketKey,
+      kind: tradeSmartLadders.kind,
       plan: tradeSmartLadders.plan,
       createdAt: tradeSmartLadders.createdAt,
     })
@@ -217,9 +138,34 @@ export async function ladderCandleNeeds(
     barMs: number
   }[] = []
   for (const row of rows) {
-    const plan = readLadderPlan(row.plan)
-    if (!plan) continue
+    const kind = readSmartOrderKind(row.kind)
+    if (!kind) continue
+    const parsed = readSmartPlan(kind, row.plan)
+    if (!parsed) continue
 
+    // A grid needs no candles of its own. Its buys and sells are resting
+    // orders, filled by the market walk that has already happened — the only
+    // feed it ever wants is the 4h its base stop rides, and only when that is
+    // switched on.
+    if (kind === "grid") {
+      const gridPlan = parsed as GridPlan
+      if (gridPlan.stopLoss?.base) {
+        const barMs = INTERVAL_MS[BASE_STOP_INTERVAL]
+        const seenTo = gridPlan.baseWatch?.seenTo ?? 0
+        if (now - seenTo >= barMs) {
+          needs.push({
+            use: "base",
+            marketKey: row.marketKey,
+            interval: BASE_STOP_INTERVAL,
+            since: now - BASE_STOP_BARS * barMs,
+            barMs,
+          })
+        }
+      }
+      continue
+    }
+
+    const plan = parsed as LadderPlan
     const interval = ladderWatchInterval(plan)
     if (interval && plan.rungs.some((rung) => rung.status === "waiting")) {
       const since = plan.green?.seenTo ?? row.createdAt.getTime()
@@ -256,23 +202,11 @@ export async function ladderCandleNeeds(
 }
 
 /**
- * One feed a ladder reads: the bars, oldest first, and how long each one lasts.
- *
- * The bars are READ-ONLY, and are expected to be in time order. A replay hands
- * over the same array on every pass — the whole history, thousands of bars — so
- * copying it to be safe, or sorting it to be sure, is the length of the history
- * repeated on every bar of the run. Everything that reads this finds its place
- * with a binary search instead.
- */
-export type LadderFeed = { bars: readonly CandleBar[]; barMs: number }
-
-export type LadderBars = ReadonlyMap<string, LadderFeed>
-
-/**
- * Brings every active ladder of one wallet up to date with what the settle
- * just replayed. Runs inside the settle's transaction, after the markets were
- * walked and before the book is saved — so bracket changes ride the same save
- * and a half-advanced ladder can never reach the database.
+ * Brings every active smart order of one wallet up to date with what the settle
+ * just replayed — ladders and grids alike. Runs inside the settle's
+ * transaction, after the markets were walked and before the book is saved, so
+ * bracket changes ride the same save and a half-advanced order can never reach
+ * the database.
  */
 export async function advanceLadders(
   input: LadderAdvanceInput & { tx: CustomShellDb; userId: string },
@@ -282,6 +216,7 @@ export async function advanceLadders(
     .select({
       id: tradeSmartLadders.id,
       marketKey: tradeSmartLadders.marketKey,
+      kind: tradeSmartLadders.kind,
       plan: tradeSmartLadders.plan,
     })
     .from(tradeSmartLadders)
@@ -302,9 +237,24 @@ export async function advanceLadders(
   }
 
   for (const raw of rows) {
-    const plan = readLadderPlan(raw.plan)
+    const kind = readSmartOrderKind(raw.kind)
+    if (!kind) continue
+    const plan = readSmartPlan(kind, raw.plan)
     if (!plan) continue
-    const row: LadderRow = { id: raw.id, marketKey: raw.marketKey, plan }
+    if (kind === "grid") {
+      const row: GridRow = {
+        id: raw.id,
+        marketKey: raw.marketKey,
+        plan: plan as GridPlan,
+      }
+      await advanceGrid(input, withDatabase, row)
+      continue
+    }
+    const row: LadderRow = {
+      id: raw.id,
+      marketKey: raw.marketKey,
+      plan: plan as LadderPlan,
+    }
     await advanceOne(input, withDatabase, row)
   }
 }
@@ -389,20 +339,7 @@ export async function advanceOne(
   const live = liveOrderIds(book)
   // This settle's fills, each spent on at most one rung — two rungs at the
   // same price must not both claim the same fill.
-  const usedFillIds = new Set<string>()
-  const fillFor = (side: PaperSide, px: number, maxSz: number) => {
-    const found = book.fills.find(
-      (fill) =>
-        !usedFillIds.has(fill.id) &&
-        fill.marketKey === row.marketKey &&
-        fill.side === side &&
-        fill.reason === "order" &&
-        near(fill.px, px) &&
-        fill.sz <= maxSz + 1e-9
-    )
-    if (found) usedFillIds.add(found.id)
-    return found ?? null
-  }
+  const fillFor = makeFillClaimer(book, row.marketKey)
 
   for (const rung of plan.rungs) {
     if (rung.status === "waiting" && rung.orderId && !live.has(rung.orderId)) {
@@ -634,18 +571,15 @@ function aimBrackets(
 
   const sl = plan.stopLoss
   if (sl && sl.mode === "percent") {
-    if (!nearNullable(plan.aimedSlPx, position.slPx)) {
-      sl.mode = "fixed"
-      sl.pct = null
-      plan.aimedSlPx = position.slPx
+    // The same rule the grid uses, from the one place it lives: follow the
+    // stop until a hand moves it, then never touch it again.
+    if (
+      aimStop(plan, position, wantedStopPx(plan, position.entryPx, roundPx), () => {
+        sl.mode = "fixed"
+        sl.pct = null
+      })
+    ) {
       changed = true
-    } else {
-      const desired = wantedStopPx(plan, position.entryPx, roundPx)
-      if (!nearNullable(desired, position.slPx)) {
-        position.slPx = desired
-        plan.aimedSlPx = desired
-        changed = true
-      }
     }
   }
 
@@ -808,38 +742,25 @@ function watchBase(
   // What this ladder was placed with — all four of them, from the one place
   // the plan keeps them.
   const detection = plan.baseDetection
-  const feed = input.ladderBars.get(ladderBarsKey("base", marketKey))
+  const feed = input.ladderBars.get(barsKey("base", marketKey))
   if (!feed) return false
 
   const seenTo = plan.baseWatch?.seenTo ?? 0
   // The bar still being filled in is left out: it cannot have confirmed a
   // level, and a close that has not happened cannot start a clock either.
-  //
-  // Found rather than filtered. Copying out the closed bars and running the
-  // whole indicator over them again is the length of the feed, on every pass —
-  // fine live, where the feed is the handful of bars since the last look, and
-  // ruinous in a replay, where it is the entire history and there are thousands
-  // of passes.
-  const bars = ascending(feed.bars)
-  const cut = lastClosedIndex(bars, feed.barMs, input.now)
-
-  if (cut < 0) {
-    // Nothing came back — a market too new to have history, or a call that
-    // failed. Note that we looked, so this is not asked again every four
-    // seconds, and leave the level exactly as it was.
-    plan.baseWatch = {
-      levelPx: plan.baseWatch?.levelPx ?? null,
-      seenTo: input.now,
-    }
-    return true
-  }
-
-  // The level at that bar, off the one pass that answers it for every bar.
-  plan.baseWatch = {
-    levelPx:
-      baseLevelsInForce(bars, detection)[cut] ?? null,
-    seenTo: bars[cut].openTime + feed.barMs,
-  }
+  const read = readBaseWatch(
+    feed,
+    detection,
+    input.now,
+    plan.baseWatch?.levelPx ?? null
+  )
+  if (!read) return false
+  plan.baseWatch = read.watch
+  const { bars, cut } = read
+  // Nothing came back — a market too new to have history, or a call that
+  // failed. The watch above notes that we looked, so this is not asked again
+  // every four seconds, and the level is left exactly as it was.
+  if (cut < 0) return true
 
   const reclaim = plan.reclaim
   if (reclaim && stop && stop.reclaimDays > 0) {
@@ -1057,6 +978,7 @@ function reclaimRung(
     feeRate: input.book.costs.takerFeeRate,
     leverage: 1,
     maxLeverage: plan.maxLeverage,
+    reduceOnly: false,
     reason: "order",
     at: input.now,
   })
@@ -1085,7 +1007,7 @@ function watchCandles(
   deps: LadderEngineDeps,
   marketKey: string
 ): boolean {
-  const feed = input.ladderBars.get(ladderBarsKey("green", marketKey))
+  const feed = input.ladderBars.get(barsKey("green", marketKey))
   if (!feed || feed.bars.length === 0) return false
 
   // A ladder that has never watched starts HERE, not at the beginning of time.
@@ -1182,6 +1104,7 @@ function watchCandles(
       feeRate: input.book.costs.takerFeeRate,
       leverage: 1,
       maxLeverage: plan.maxLeverage,
+      reduceOnly: false,
       reason: "order",
       at: bar.openTime + feed.barMs,
     })
@@ -1224,7 +1147,7 @@ async function insertLadderOrder(
 async function saveLadderRow(
   tx: CustomShellDb,
   userId: string,
-  row: LadderRow,
+  row: SmartRow,
   status: "active" | "done",
   now: number
 ): Promise<void> {
