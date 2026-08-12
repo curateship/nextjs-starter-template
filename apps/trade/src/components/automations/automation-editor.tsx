@@ -68,7 +68,7 @@ import {
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
-import { appCanvasPanel } from "@/lib/app-options"
+import { appCanvasPanel, appOffersMemberTest } from "@/lib/app-options"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
@@ -331,6 +331,14 @@ export function AutomationEditor({
   const canRunManually = compiled.config
     ? automationCanStartManually(compiled.config)
     : false
+  // What is on the canvas, for the two things that ask: whether this app wants
+  // its own panel here, and whether testing against one member means anything
+  // on a flow made of these steps.
+  const nodeKinds = React.useMemo(
+    () => graph.nodes.map((node) => node.kind),
+    [graph.nodes]
+  )
+  const offersMemberTest = appOffersMemberTest(nodeKinds)
   // Read off the draft, so the switch appears the moment a trigger is dropped
   // on the canvas rather than once the flow happens to compile.
   const triggerName = React.useMemo(() => {
@@ -691,28 +699,30 @@ export function AutomationEditor({
               )}
               {paused ? "Resume all" : "Pause all"}
             </Button>
-            <DisabledReason
-              disabled={paused || !compiled.config}
-              reason={
-                paused
-                  ? "Every automation is paused. Resume them to start this flow."
-                  : "Fix the steps marked in red before running this automation."
-              }
-            >
-              <Button
-                type="button"
-                variant="outline"
-                disabled={paused || !compiled.config || preparingTest}
-                onClick={() => void openMemberTest()}
+            {offersMemberTest ? (
+              <DisabledReason
+                disabled={paused || !compiled.config}
+                reason={
+                  paused
+                    ? "Every automation is paused. Resume them to start this flow."
+                    : "Fix the steps marked in red before running this automation."
+                }
               >
-                {preparingTest ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <UserIcon className="size-4" />
-                )}
-                Test with member…
-              </Button>
-            </DisabledReason>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={paused || !compiled.config || preparingTest}
+                  onClick={() => void openMemberTest()}
+                >
+                  {preparingTest ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <UserIcon className="size-4" />
+                  )}
+                  Test with member…
+                </Button>
+              </DisabledReason>
+            ) : null}
             {canRunManually ? (
               <DisabledReason
                 disabled={paused || !compiled.config}
@@ -780,7 +790,7 @@ export function AutomationEditor({
             {canvas}
             <AppCanvasPanel
               automationId={initial.id}
-              nodeKinds={graph.nodes.map((node) => node.kind)}
+              nodeKinds={nodeKinds}
               runId={startedRunId}
               shut={appPanelShut}
               onShut={() => setAppPanelShut(true)}

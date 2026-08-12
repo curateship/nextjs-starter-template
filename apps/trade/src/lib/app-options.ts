@@ -201,6 +201,24 @@ type AutomationOptions = {
    * See the type for why it is a pointer to a file rather than a component.
    */
   canvasPanel?: AutomationCanvasPanel
+  /**
+   * Which flows offer "Test with member…". Unset means every flow does, which
+   * is what every app did before this existed.
+   *
+   * The button runs the flow against one chosen member, which is the right way
+   * to try a welcome sequence and a meaningless thing to offer a flow with no
+   * member in it at all. The shell cannot tell the two apart: it would have to
+   * know what an app's own steps are about. Trade's backtest is exactly that —
+   * it walks a strategy over price history, and there is nobody to test it
+   * with.
+   *
+   * Deciding from the kinds of step on the canvas rather than per app, because
+   * one app has both: Trade's backtest flow has no member, and its ordinary
+   * flows still do.
+   */
+  memberTest?: {
+    appliesTo: (nodeKinds: readonly string[]) => boolean
+  }
 }
 
 type LandingOptions = {
@@ -381,6 +399,23 @@ export function appCanvasPanel(
   options: AppOptions = appOptions
 ): AutomationCanvasPanel | null {
   return options.automations?.canvasPanel ?? null
+}
+
+/**
+ * Whether this flow offers "Test with member…".
+ *
+ * True unless the app says otherwise, so an app that has never heard of this
+ * option behaves exactly as it did before.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export function appOffersMemberTest(
+  nodeKinds: readonly string[],
+  options: AppOptions = appOptions
+): boolean {
+  return options.automations?.memberTest?.appliesTo(nodeKinds) ?? true
 }
 
 /**
