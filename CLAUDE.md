@@ -186,3 +186,31 @@ only the first is written down anywhere.
 - Do not wait for `networkidle` on a page that polls — it never fires. Use `domcontentloaded`, then `waitForSelector` on something the page draws.
 - `playwright` is installed at the repo root, but only under `node_modules/.pnpm/`, so a bare `import "playwright"` fails even from the root. Import it by path: `node_modules/.pnpm/playwright@<version>/node_modules/playwright/index.mjs`.
 - Anything that changes bundling or code splitting (chunking config, `dynamic()`/`lazy` imports, moving code across a `"use client"` boundary) can only be proven in a production build, since dev does not chunk. Do not treat chunk counts or file sizes as verification. Ask before running a production build locally, and check the deployed URL's console straight after the deploy.
+
+## Never Rest Orders on the Book
+
+**Smart orders place nothing until a price is actually reached.** A level on the
+chart is a *trigger* — a price the app is watching. When price gets there, and
+only then, an order is sent. Nothing sits on the book waiting.
+
+This applies to every smart order, now and in future. It is not a preference:
+
+- **It does not tie up money.** A plan with twelve resting buys reserves the
+  whole pot the moment it is placed, so the rest of the account cannot use it —
+  even though eleven of those levels may never trade all week. With triggers the
+  cash stays free until something actually happens.
+- **It does not use up order slots.** A wallet has a cap on open orders. A plan
+  that is mostly waiting should not be holding most of it.
+- **It does not get drawn twice.** A resting order is a row, and the chart draws
+  every row it finds; a smart order's own layer then draws its line on top of
+  the same price. Two labels, two lines, one price. With triggers there are no
+  rows, so the only thing on the chart is the smart order itself.
+
+**How it is built:** the engine compares today's price against each level on
+every pass and calls its injected `fill` when one is crossed. There is no
+`insertOrder` for a level, no order id on a level, and nothing to cancel when a
+level is called off — its status changes and that is all.
+
+The DCA ladder still rests its rungs, which is why its levels are drawn twice on
+the chart and why a placed ladder eats the wallet's order cap. It should be
+moved onto triggers too; until then it is the exception, not the pattern.

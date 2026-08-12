@@ -385,6 +385,53 @@ export type DcaPlannedRung = {
   sz: number
 }
 
+// ----- Sizing one order, which every smart order does the same way ---------
+
+/**
+ * The most one order may spend under the liquidity guard, or null when the
+ * guard is off or the market's volume is unknown.
+ *
+ * Its own function so the ladder and the grid cannot drift apart on what "no
+ * single buy bigger than this share of the day's volume" means.
+ */
+export function volumeCapUsd(
+  maxOrderVolPct: number,
+  volume24hUsd: number | null
+): number | null {
+  if (!(maxOrderVolPct > 0)) return null
+  if (!volume24hUsd || !(volume24hUsd > 0)) return null
+  return (volume24hUsd * maxOrderVolPct) / 100
+}
+
+/**
+ * One order, sized: the dollars it may spend after the liquidity guard, and how
+ * many coins that buys at this market's size step.
+ *
+ * The kernel every smart order shares. A ladder splits its pot by an
+ * exponential ramp and a grid splits its pot evenly, but from the moment each
+ * has decided "this order wants $166" the rest is identical — the same cap, the
+ * same floor to the size step, the same test for too small to be a trade. Two
+ * copies of that is two places for the dust rule to be different.
+ *
+ * `tooSmall` is reported, never silently dropped: the caller refuses the whole
+ * order out loud so nobody places half of what the window drew.
+ */
+export function sizeOneOrder(input: {
+  px: number
+  /** What this order would like to spend, before the guard. */
+  wantedUsd: number
+  /** From `volumeCapUsd`, or null when nothing caps it. */
+  capUsd: number | null
+  sizeDecimals: number | null
+}): { dollars: number; sz: number; capped: boolean; tooSmall: boolean } {
+  const wanted = input.wantedUsd
+  const dollars = input.capUsd !== null ? Math.min(wanted, input.capUsd) : wanted
+  const capped = input.capUsd !== null && dollars < wanted
+  const sz = input.px > 0 ? floorSize(dollars / input.px, input.sizeDecimals) : 0
+  const spent = sz * input.px
+  return { dollars: spent, sz, capped, tooSmall: sz <= 0 || spent < DUST_ORDER_USD }
+}
+
 export type DcaLadderPlan = {
   rungs: DcaPlannedRung[]
   /** What the whole ladder costs if every rung buys, at 1× — dollars. */
@@ -420,26 +467,23 @@ export function dcaLadderPlan(input: {
     input.params.maxPositionPct,
     input.params.sizeMultiplier
   )
-  const volumeCap =
-    input.params.maxOrderVolPct > 0 && (input.volume24hUsd ?? 0) > 0
-      ? ((input.volume24hUsd as number) * input.params.maxOrderVolPct) / 100
-      : null
+  const capUsd = volumeCapUsd(input.params.maxOrderVolPct, input.volume24hUsd)
 
   let totalCost = 0
   let tooSmallIndex: number | null = null
   let volumeCapped = false
 
   const rungs = levels.map((px, index) => {
-    const wanted = (input.equity * shares[index]) / 100
-    const dollars = volumeCap !== null ? Math.min(wanted, volumeCap) : wanted
-    if (volumeCap !== null && dollars < wanted) volumeCapped = true
-    const sz = px > 0 ? floorSize(dollars / px, input.sizeDecimals) : 0
-    const spent = sz * px
-    if ((sz <= 0 || spent < DUST_ORDER_USD) && tooSmallIndex === null) {
-      tooSmallIndex = index
-    }
-    totalCost += spent
-    return { px, dollars: spent, sz }
+    const sized = sizeOneOrder({
+      px,
+      wantedUsd: (input.equity * shares[index]) / 100,
+      capUsd,
+      sizeDecimals: input.sizeDecimals,
+    })
+    if (sized.capped) volumeCapped = true
+    if (sized.tooSmall && tooSmallIndex === null) tooSmallIndex = index
+    totalCost += sized.dollars
+    return { px, dollars: sized.dollars, sz: sized.sz }
   })
 
   return { rungs, totalCost, tooSmallIndex, volumeCapped }
@@ -655,25 +699,16 @@ export type LadderPlan = z.infer<typeof ladderPlanSchema>
 export const LADDER_STATUSES = ["active", "done"] as const
 export type LadderStatus = (typeof LADDER_STATUSES)[number]
 
-/** One placed ladder, as the screens see it. */
-export type SmartLadder = {
-  id: string
-  walletId: string
-  marketKey: string
-  status: LadderStatus
-  plan: LadderPlan
-  createdAt: number
-  updatedAt: number
-}
-
 /**
- * Reads a stored plan back, or null when it cannot be read — a row written by
- * a build that meant something else by it is ignored rather than half-obeyed.
+ * There is deliberately no `readLadderPlan` here.
+ *
+ * Ladders share their table with grids, and a plan parsed without knowing which
+ * kind of row it came from returns null for the other kind — which every caller
+ * turns into "skip this row". A skipped row is a smart order with real orders
+ * resting on a real exchange that nothing will ever advance again. So the only
+ * door is `readSmartPlan(kind, value)` in `smart-plan.ts`, and it cannot be
+ * called without naming the kind.
  */
-export function readLadderPlan(value: unknown): LadderPlan | null {
-  const parsed = ladderPlanSchema.safeParse(value)
-  return parsed.success ? parsed.data : null
-}
 
 /**
  * The price levels a ladder exits at, one per rung: the rung above each rung,

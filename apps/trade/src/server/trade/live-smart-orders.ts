@@ -8,12 +8,25 @@ import {
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
-  readLadderPlan,
   DUST_ORDER_USD,
   type LadderPlan,
   type LadderRungState,
   type DcaParams,
 } from "@/lib/trade/dca"
+import {
+  DEFAULT_GRID_ABOVE_PCT,
+  DEFAULT_GRID_BELOW_PCT,
+  gridRangeMovable,
+  gridStopPx,
+  type GridParams,
+} from "@/lib/trade/grid"
+import {
+  forEachPlanOrderId,
+  readSmartOrderKind,
+  readSmartPlan,
+  type SmartOrderKind,
+  type SmartPlan,
+} from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import {
   defaultPaperCosts,
@@ -36,23 +49,34 @@ import {
 } from "@/server/trade/live-orders"
 import { marketRules } from "@/server/trade/market-rules"
 import {
-  activeLadder,
+  activeSmartOrderId,
   ladderById,
   saveLadderPlan,
   type PlaceLadderInput,
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
+import { advanceGrid } from "./smart-grids"
 import {
   advanceOne,
   ladderBarsKey,
   ladderCandleNeeds,
+  type LadderAdvanceInput,
   type LadderBars,
+  type LadderEngineDeps,
   type LadderOrderInput,
 } from "./smart-ladders"
+import {
+  draftGridOrder,
+  gridById,
+  saveGridPlan,
+  type PlaceGridInput,
+  type PlacedGrid,
+} from "./grid-orders"
 import {
   bumpOrders,
   fill as fillPaperBook,
   freeCash,
+  MAX_OPEN_ORDERS,
   type WalletBook,
 } from "@/server/trade/paper"
 import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
@@ -84,7 +108,7 @@ async function placeLiveDcaLadderOnce(
   ) {
     throw new Error("LIVE_MARKET")
   }
-  if (await activeLadder(userId, wallet.id, input.marketKey)) {
+  if (await activeSmartOrderId(userId, wallet.id, input.marketKey)) {
     throw new Error("SMART_LADDER_EXISTS")
   }
 
@@ -156,7 +180,7 @@ async function placeLiveDcaLadderOnce(
   }
 
   const resting = rungs.filter((rung) => rung.status === "waiting" && !twoGreen)
-  if (portfolio.orders.length + resting.length > 50) {
+  if (portfolio.orders.length + resting.length > MAX_OPEN_ORDERS) {
     throw new Error("PAPER_ORDER_LIMIT")
   }
 
@@ -198,26 +222,19 @@ async function placeLiveDcaLadderOnce(
           and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
         )
         .for("update")
-      const race = await tx
-        .select({ id: tradeSmartLadders.id })
-        .from(tradeSmartLadders)
-        .where(
-          and(
-            eq(tradeSmartLadders.userId, userId),
-            eq(tradeSmartLadders.walletId, wallet.id),
-            eq(tradeSmartLadders.marketKey, input.marketKey),
-            eq(tradeSmartLadders.status, "active")
-          )
-        )
-        .limit(1)
-      if (race.length > 0) {
-        throw new Error("SMART_LADDER_EXISTS")
-      }
+      const race = await activeSmartOrderId(
+        userId,
+        wallet.id,
+        input.marketKey,
+        tx
+      )
+      if (race) throw new Error("SMART_LADDER_EXISTS")
       await tx.insert(tradeSmartLadders).values({
         userId,
         id: randomUUID(),
         walletId: wallet.id,
         marketKey: input.marketKey,
+        kind: "dca",
         status: "active",
         plan,
         createdAt: now,
@@ -462,6 +479,27 @@ async function reconcileLiveLaddersOnce(
     )
   if (rows.length === 0) return
 
+  // Parsed ONCE, by kind, and everything below reads from here.
+  //
+  // A row whose plan cannot be read is dropped now rather than skipped in six
+  // separate places later — a row that some of this function believes in and
+  // the rest does not is how an order ends up resting on the exchange with
+  // nothing advancing it.
+  const parsed = new Map<string, { kind: SmartOrderKind; plan: SmartPlan }>()
+  for (const row of rows) {
+    const kind = readSmartOrderKind(row.kind)
+    if (!kind) continue
+    const plan = readSmartPlan(kind, row.plan)
+    if (plan) parsed.set(row.id, { kind, plan })
+  }
+  if (parsed.size === 0) return
+
+  /** The plan for whichever smart order is working this coin, if any. */
+  const planFor = (marketKey: string) => {
+    const row = rows.find((one) => one.marketKey === marketKey)
+    return row ? (parsed.get(row.id) ?? null) : null
+  }
+
   const protocol = getProtocol(wallet.protocol)
   const portfolio =
     currentPortfolio ??
@@ -480,7 +518,25 @@ async function reconcileLiveLaddersOnce(
     ordersOf(protocol).fills(
       wallet.network,
       wallet.address,
-      Math.min(...rows.map((row) => row.createdAt.getTime())) - 60_000
+      // How far back the fill feed is read.
+      //
+      // From where each order has already read to, not from when it was
+      // placed. A ladder makes perhaps forty fills in its whole life, so
+      // re-reading everything since placement cost nothing; a grid recycling
+      // ten times a day makes hundreds, and re-reading all of them every second
+      // is a bill that grows for as long as the grid is winning. The minute of
+      // overlap is deliberate — a fill that lands between two passes must not
+      // fall down the gap.
+      Math.min(
+        ...rows.map((row) => {
+          const seen = parsed.get(row.id)?.plan
+          const to =
+            seen && "seenFillsTo" in seen && seen.seenFillsTo > 0
+              ? seen.seenFillsTo
+              : row.createdAt.getTime()
+          return to
+        })
+      ) - 60_000
     ),
   ])
   const marks = new Map<string, number>()
@@ -493,7 +549,7 @@ async function reconcileLiveLaddersOnce(
   for (const held of portfolio.positions) {
     const marketKey = refs.get(held.marketId)
     if (!marketKey) continue
-    const plan = rows.find((row) => row.marketKey === marketKey)?.plan
+    const held_plan = planFor(marketKey)?.plan
     positions.set(marketKey, {
       id: marketKey,
       walletId: wallet.id,
@@ -501,7 +557,7 @@ async function reconcileLiveLaddersOnce(
       szi: held.szi,
       entryPx: held.entryPx,
       leverage: held.leverage,
-      maxLeverage: plan?.maxLeverage ?? held.leverage,
+      maxLeverage: held_plan?.maxLeverage ?? held.leverage,
       tpPx: held.tpPx,
       slPx: held.slPx,
       feesPaid: 0,
@@ -520,9 +576,7 @@ async function reconcileLiveLaddersOnce(
         px: order.px,
         sz: order.sz,
         leverage: 1,
-        maxLeverage:
-          rows.find((row) => row.marketKey === marketKey)?.plan.maxLeverage ??
-          1,
+        maxLeverage: planFor(marketKey)?.plan.maxLeverage ?? 1,
         reduceOnly: order.reduceOnly,
         tpPx: null,
         slPx: null,
@@ -537,11 +591,17 @@ async function reconcileLiveLaddersOnce(
     { marketKey: string; side: "buy" | "sell"; px: number; sz: number }
   >()
   for (const row of rows) {
-    const plan = readLadderPlan(row.plan)
-    if (!plan) continue
-    const exits = ladderExitLevels(plan)
+    const entry = parsed.get(row.id)
+    if (!entry) continue
     const roundPx = (px: number) =>
-      protocol.markets.roundPx(px, plan.sizeDecimals)
+      protocol.markets.roundPx(px, entry.plan.sizeDecimals)
+
+    // A grid manages no exchange orders — its levels are watched prices — so
+    // there is nothing of its to match fills against.
+    if (entry.kind === "grid") continue
+
+    const plan = entry.plan as LadderPlan
+    const exits = ladderExitLevels(plan)
     for (const [index, rung] of plan.rungs.entries()) {
       if (rung.orderId) {
         managedOrders.set(rung.orderId, {
@@ -594,14 +654,19 @@ async function reconcileLiveLaddersOnce(
       const marketKey = refs.get(one.marketId)
       if (!marketKey) return []
       if (managedOrders.has(one.orderId)) return []
-      const plan = rows.find((row) => row.marketKey === marketKey)?.plan
+      const entry = planFor(marketKey)
       const near = (wanted: number | null) =>
         wanted !== null &&
         Math.abs(one.px - wanted) <= Math.max(1e-8, one.px * 1e-6)
+      // A grid never writes a take-profit onto the position — its exits are its
+      // resting sells — so there is no target price for one of its fills to
+      // have come from.
+      const aimedTpPx =
+        entry && entry.kind === "dca" ? (entry.plan as LadderPlan).aimedTpPx : null
       const reason: PaperFillReason =
-        one.side === "sell" && near(plan?.aimedSlPx ?? null)
+        one.side === "sell" && near(entry?.plan.aimedSlPx ?? null)
           ? "stop_loss"
-          : one.side === "sell" && near(plan?.aimedTpPx ?? null)
+          : one.side === "sell" && near(aimedTpPx)
             ? "take_profit"
             : "order"
       if (reason === "order") return []
@@ -650,14 +715,196 @@ async function reconcileLiveLaddersOnce(
     })
   )
 
+  /**
+   * Runs one smart order's engine and turns what it wanted into real exchange
+   * calls — placing, cancelling and market-filling, then saving the plan.
+   *
+   * One closure for both kinds. The translation is where the money is: a second
+   * copy of it would be a second place for a temporary order id to survive into
+   * the saved plan, which is the failure that places the same order every
+   * second forever.
+   */
+  const advanceRow = async (
+    raw: (typeof rows)[number],
+    entry: { kind: SmartOrderKind; plan: SmartPlan },
+    engine: (
+      input: LadderAdvanceInput,
+      deps: LadderEngineDeps,
+      row: never
+    ) => Promise<void>
+  ): Promise<void> => {
+  const originalPlan = structuredClone(entry.plan)
+  const originalOrders = new Map(
+    book.orders
+      .filter((order) => order.marketKey === raw.marketKey)
+      .map((order) => [order.id, order])
+  )
+  const originalPosition = book.positions.get(raw.marketKey)
+  const originalBrackets = originalPosition
+    ? { tpPx: originalPosition.tpPx, slPx: originalPosition.slPx }
+    : null
+  const pendingPlaces: Array<{ tempId: string; input: LadderOrderInput }> = []
+  const pendingFills: LadderOrderInput[] = []
+  const pendingCancels = new Set<string>()
+  await engine(
+    {
+      book,
+      marks,
+      ladderBars: ladderBars as LadderBars,
+      now,
+    },
+    {
+      fill: (heldBook, input) => {
+        // `reduceOnly` is carried through, not assumed.
+        //
+        // It used to be hardcoded false here, which was invisible while the
+        // only thing this path ever did was buy a rung back. A smart order
+        // that SELLS at the market — a grid running out of the top of its
+        // range — would then send a plain sell, and in the race where the
+        // position has already gone that opens a short with real money.
+        pendingFills.push({ ...input, now: input.at })
+        fillPaperBook(heldBook, input)
+      },
+      dropOrder: (heldBook, orderId) => {
+        pendingCancels.add(orderId)
+        heldBook.orders = heldBook.orders.filter(
+          (order) => order.id !== orderId
+        )
+        bumpOrders(heldBook)
+        heldBook.goneOrderIds.add(orderId)
+      },
+      freeCash,
+      insertOrder: async (input) => {
+        const tempId = `pending:${randomUUID()}`
+        pendingPlaces.push({ tempId, input })
+        return tempId
+      },
+      saveLadder: async (row, status) => {
+        const accepted: string[] = []
+        let marketActionStarted = false
+        try {
+          for (const orderId of pendingCancels) {
+            await rollbackLiveOrder(userId, {
+              walletId: wallet.id,
+              marketKey: row.marketKey,
+              orderId,
+            })
+          }
+          for (const pending of pendingPlaces) {
+            const outcome = await placeLiveOrder(userId, {
+              walletId: wallet.id,
+              marketKey: pending.input.marketKey,
+              side: pending.input.side,
+              px: pending.input.px,
+              sz: pending.input.sz,
+              leverage: pending.input.leverage,
+              reduceOnly: pending.input.reduceOnly,
+              tpPx: null,
+              slPx: null,
+              restingOnly: true,
+            })
+            if (outcome.status !== "resting" || !outcome.orderId)
+              throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
+            accepted.push(outcome.orderId)
+            replacePlanOrderId(entry.kind, row.plan, pending.tempId, outcome.orderId)
+          }
+          for (const input of pendingFills) {
+            marketActionStarted = true
+            const mark = marks.get(input.marketKey)
+            await placeLiveOrder(userId, {
+              walletId: wallet.id,
+              marketKey: input.marketKey,
+              side: input.side,
+              px: mark ?? input.px,
+              sz: input.sz,
+              leverage: input.leverage,
+              reduceOnly: input.reduceOnly,
+              tpPx: null,
+              slPx: null,
+            })
+          }
+          // The exchange changes and their matching plan are one logical
+          // action. A failed save enters the same recovery path as a failed
+          // placement so resting orders never drift away from their record.
+          await saveLadderPlan(userId, row.id, row.plan, status)
+        } catch (error) {
+          // A market fill cannot be undone. Save the conservative advanced
+          // state so a retry cannot buy it twice; the next exchange read
+          // corrects the exact position and exits.
+          if (marketActionStarted) {
+            await saveLadderPlan(userId, row.id, row.plan, status)
+            throw error
+          }
+          const recoveryFailed = await restoreLiveOrders({
+            userId,
+            wallet,
+            marketKey: row.marketKey,
+            accepted,
+            cancelled: [...pendingCancels]
+              .map((id) => originalOrders.get(id))
+              .filter((order): order is PaperOrder => order !== undefined),
+            kind: entry.kind,
+            plan: originalPlan,
+          })
+          await saveLadderPlan(userId, row.id, originalPlan, "active")
+          if (recoveryFailed) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
+          throw error
+        }
+
+        // Persisted before protection: entries and resting orders now have
+        // durable ids. If protection is refused, a retry cannot place them
+        // twice.
+        const position = book.positions.get(row.marketKey)
+        if (position && book.touchedMarkets.has(row.marketKey)) {
+          try {
+            await setLiveBrackets(userId, {
+              walletId: wallet.id,
+              marketKey: row.marketKey,
+              tpPx: position.tpPx,
+              slPx: position.slPx,
+            })
+          } catch (error) {
+            // Leave the plan ready to retry its rule. The adapter says when
+            // it already removed the old protection; otherwise its original
+            // values are still the exchange truth.
+            const oldProtectionGone =
+              error instanceof Error &&
+              error.message.includes("LIVE_BRACKETS_GONE")
+            if (entry.kind === "dca") {
+              ;(row.plan as LadderPlan).aimedTpPx = oldProtectionGone
+                ? null
+                : (originalBrackets?.tpPx ?? null)
+            }
+            row.plan.aimedSlPx = oldProtectionGone
+              ? null
+              : (originalBrackets?.slPx ?? null)
+            await saveLadderPlan(userId, row.id, row.plan, status)
+            throw error
+          }
+        }
+      },
+    },
+    { id: raw.id, marketKey: raw.marketKey, plan: entry.plan } as never
+  )
+  }
+
   for (const raw of rows) {
     // A just-accepted exchange order can take a moment to appear in the
     // portfolio read. Treating that short delay as a disappearance would
     // place its replacement twice.
     if (!force && now - raw.updatedAt.getTime() < EXCHANGE_VISIBILITY_GRACE_MS)
       continue
-    const plan = readLadderPlan(raw.plan)
-    if (!plan) continue
+    const entry = parsed.get(raw.id)
+    if (!entry) continue
+
+    if (entry.kind === "grid") {
+      // A grid has no orders on the exchange to match fills against: its
+      // levels are watched prices and it buys when one is reached.
+      await advanceRow(raw, entry, advanceGrid)
+      continue
+    }
+
+    const plan = entry.plan as LadderPlan
     const exits = ladderExitLevels(plan)
     for (const [index, rung] of plan.rungs.entries()) {
       if (rung.orderId && !liveOrderIds.has(rung.orderId)) {
@@ -703,161 +950,28 @@ async function reconcileLiveLaddersOnce(
         })
       }
     }
-    const originalPlan = structuredClone(plan)
-    const originalOrders = new Map(
-      book.orders
-        .filter((order) => order.marketKey === raw.marketKey)
-        .map((order) => [order.id, order])
-    )
-    const originalPosition = book.positions.get(raw.marketKey)
-    const originalBrackets = originalPosition
-      ? { tpPx: originalPosition.tpPx, slPx: originalPosition.slPx }
-      : null
-    const pendingPlaces: Array<{ tempId: string; input: LadderOrderInput }> = []
-    const pendingFills: LadderOrderInput[] = []
-    const pendingCancels = new Set<string>()
-    await advanceOne(
-      {
-        book,
-        marks,
-        ladderBars: ladderBars as LadderBars,
-        now,
-      },
-      {
-        fill: (heldBook, input) => {
-          pendingFills.push({ ...input, reduceOnly: false, now: input.at })
-          fillPaperBook(heldBook, input)
-        },
-        dropOrder: (heldBook, orderId) => {
-          pendingCancels.add(orderId)
-          heldBook.orders = heldBook.orders.filter(
-            (order) => order.id !== orderId
-          )
-          bumpOrders(heldBook)
-          heldBook.goneOrderIds.add(orderId)
-        },
-        freeCash,
-        insertOrder: async (input) => {
-          const tempId = `pending:${randomUUID()}`
-          pendingPlaces.push({ tempId, input })
-          return tempId
-        },
-        saveLadder: async (row, status) => {
-          const accepted: string[] = []
-          let marketActionStarted = false
-          try {
-            for (const orderId of pendingCancels) {
-              await rollbackLiveOrder(userId, {
-                walletId: wallet.id,
-                marketKey: row.marketKey,
-                orderId,
-              })
-            }
-            for (const pending of pendingPlaces) {
-              const outcome = await placeLiveOrder(userId, {
-                walletId: wallet.id,
-                marketKey: pending.input.marketKey,
-                side: pending.input.side,
-                px: pending.input.px,
-                sz: pending.input.sz,
-                leverage: pending.input.leverage,
-                reduceOnly: pending.input.reduceOnly,
-                tpPx: null,
-                slPx: null,
-                restingOnly: true,
-              })
-              if (outcome.status !== "resting" || !outcome.orderId)
-                throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
-              accepted.push(outcome.orderId)
-              replacePlanOrderId(row.plan, pending.tempId, outcome.orderId)
-            }
-            for (const input of pendingFills) {
-              marketActionStarted = true
-              const mark = marks.get(input.marketKey)
-              await placeLiveOrder(userId, {
-                walletId: wallet.id,
-                marketKey: input.marketKey,
-                side: input.side,
-                px: mark ?? input.px,
-                sz: input.sz,
-                leverage: input.leverage,
-                reduceOnly: input.reduceOnly,
-                tpPx: null,
-                slPx: null,
-              })
-            }
-            // The exchange changes and their matching plan are one logical
-            // action. A failed save enters the same recovery path as a failed
-            // placement so resting orders never drift away from their record.
-            await saveLadderPlan(userId, row.id, row.plan, status)
-          } catch (error) {
-            // A market fill cannot be undone. Save the conservative advanced
-            // state so a retry cannot buy it twice; the next exchange read
-            // corrects the exact position and exits.
-            if (marketActionStarted) {
-              await saveLadderPlan(userId, row.id, row.plan, status)
-              throw error
-            }
-            const recoveryFailed = await restoreLiveOrders({
-              userId,
-              wallet,
-              marketKey: row.marketKey,
-              accepted,
-              cancelled: [...pendingCancels]
-                .map((id) => originalOrders.get(id))
-                .filter((order): order is PaperOrder => order !== undefined),
-              plan: originalPlan,
-            })
-            await saveLadderPlan(userId, row.id, originalPlan, "active")
-            if (recoveryFailed) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
-            throw error
-          }
-
-          // Persisted before protection: entries and resting orders now have
-          // durable ids. If protection is refused, a retry cannot place them
-          // twice.
-          const position = book.positions.get(row.marketKey)
-          if (position && book.touchedMarkets.has(row.marketKey)) {
-            try {
-              await setLiveBrackets(userId, {
-                walletId: wallet.id,
-                marketKey: row.marketKey,
-                tpPx: position.tpPx,
-                slPx: position.slPx,
-              })
-            } catch (error) {
-              // Leave the plan ready to retry its rule. The adapter says when
-              // it already removed the old protection; otherwise its original
-              // values are still the exchange truth.
-              const oldProtectionGone =
-                error instanceof Error &&
-                error.message.includes("LIVE_BRACKETS_GONE")
-              row.plan.aimedTpPx = oldProtectionGone
-                ? null
-                : (originalBrackets?.tpPx ?? null)
-              row.plan.aimedSlPx = oldProtectionGone
-                ? null
-                : (originalBrackets?.slPx ?? null)
-              await saveLadderPlan(userId, row.id, row.plan, status)
-              throw error
-            }
-          }
-        },
-      },
-      { id: raw.id, marketKey: raw.marketKey, plan }
-    )
+    await advanceRow(raw, entry, advanceOne as never)
   }
 }
 
+/**
+ * Swaps the temporary id an order carried for the real one the exchange
+ * answered with, wherever in the plan it is.
+ *
+ * Through `forEachPlanOrderId` rather than walking the rungs itself, because a
+ * plan shape this misses keeps its `pending:` ids in the saved row — and the
+ * next pass then reads an id the exchange has never heard of, decides the order
+ * vanished, and places it again. Every second. Forever.
+ */
 function replacePlanOrderId(
-  plan: LadderPlan,
+  kind: SmartOrderKind,
+  plan: SmartPlan,
   before: string,
   after: string
 ): void {
-  for (const rung of plan.rungs) {
-    if (rung.orderId === before) rung.orderId = after
-    if (rung.sellOrderId === before) rung.sellOrderId = after
-  }
+  forEachPlanOrderId(kind, plan, (orderId, set) => {
+    if (orderId === before) set(after)
+  })
 }
 
 async function restoreLiveOrders(input: {
@@ -866,7 +980,8 @@ async function restoreLiveOrders(input: {
   marketKey: string
   accepted: string[]
   cancelled: PaperOrder[]
-  plan: LadderPlan
+  kind: SmartOrderKind
+  plan: SmartPlan
 }): Promise<boolean> {
   let failed = false
   for (const orderId of input.accepted.reverse()) {
@@ -896,11 +1011,380 @@ async function restoreLiveOrders(input: {
           failed = true
           return
         }
-        replacePlanOrderId(input.plan, order.id, outcome.orderId)
+        replacePlanOrderId(input.kind, input.plan, order.id, outcome.orderId)
       })
       .catch(() => {
         failed = true
       })
   }
   return failed
+}
+
+// ----- The grid's live half ------------------------------------------------
+
+
+/** Places the live exchange half of a grid order atomically. */
+export async function placeLiveGridOrder(
+  userId: string,
+  wallet: TradeWallet,
+  input: PlaceGridInput
+): Promise<PlacedGrid> {
+  return await serializeLiveWallet(userId, wallet, () =>
+    placeLiveGridOrderOnce(userId, wallet, input)
+  )
+}
+
+async function placeLiveGridOrderOnce(
+  userId: string,
+  wallet: TradeWallet,
+  input: PlaceGridInput
+): Promise<PlacedGrid> {
+  if (wallet.kind !== "live" || !wallet.address || !wallet.hasKey) {
+    throw new Error("LIVE_WALLET_KEY")
+  }
+  const ref = parseMarketKey(input.marketKey)
+  if (
+    !ref ||
+    ref.protocol !== wallet.protocol ||
+    ref.network !== wallet.network
+  ) {
+    throw new Error("LIVE_MARKET")
+  }
+  if (await activeSmartOrderId(userId, wallet.id, input.marketKey)) {
+    throw new Error("SMART_LADDER_EXISTS")
+  }
+
+  const protocol = getProtocol(wallet.protocol)
+  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  if (!rules) throw new Error("LIVE_MARKET")
+  const mark = (
+    await protocol.markets.prices(wallet.network, [ref.marketId])
+  ).get(ref.marketId)
+  if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+
+  const [account, portfolio] = await Promise.all([
+    accountOf(protocol).fetch(wallet.network, wallet.address),
+    ordersOf(protocol).portfolio(wallet.network, wallet.address),
+  ])
+  const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
+
+  // Through the SAME draft the practice wallet uses. The ladder's live path
+  // re-implements its draft by hand and has drifted from it — a hardcoded order
+  // cap among other things — and there is no reason to repeat that here.
+  const now = Date.now()
+  const { plan, levels, totalCost, startingSz } = draftGridOrder({
+    marketKey: input.marketKey,
+    params: input.params,
+    topPx: input.topPx,
+    bottomPx: input.bottomPx,
+    mark,
+    rules,
+    roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals),
+    equity: input.params.compound ? account.equity : wallet.startingBalance,
+    freeCash: account.free,
+    takerFeeRate: defaultPaperCosts().takerFeeRate,
+    startedAt: now,
+    heldSzi: held?.szi ?? null,
+  })
+
+  const accepted: string[] = []
+  try {
+    // Nothing rests. A grid's levels are prices it WATCHES, and the engine
+    // buys when one is reached — so the only thing to send now is the position
+    // standing behind the levels that start out selling.
+    if (startingSz > 0) {
+      await placeLiveOrder(userId, {
+        walletId: wallet.id,
+        marketKey: input.marketKey,
+        side: "buy",
+        px: mark,
+        sz: startingSz,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    }
+
+    const stamp = new Date(now)
+    await db.transaction(async (tx) => {
+      await tx
+        .select({ id: tradeWallets.id })
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+        .for("update")
+      const race = await activeSmartOrderId(
+        userId,
+        wallet.id,
+        input.marketKey,
+        tx
+      )
+      if (race) throw new Error("SMART_LADDER_EXISTS")
+      await tx.insert(tradeSmartLadders).values({
+        userId,
+        id: randomUUID(),
+        walletId: wallet.id,
+        marketKey: input.marketKey,
+        kind: "grid",
+        status: "active",
+        plan,
+        createdAt: stamp,
+        updatedAt: stamp,
+      })
+    })
+  } catch (error) {
+    const failures: unknown[] = []
+    for (const orderId of accepted.reverse()) {
+      await rollbackLiveOrder(userId, {
+        walletId: wallet.id,
+        marketKey: input.marketKey,
+        orderId,
+      }).catch((rollbackError) => failures.push(rollbackError))
+    }
+    if (failures.length > 0) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
+    throw error
+  }
+
+  return { levels: levels.length, totalCost }
+}
+
+/** Calling off one waiting level of a live grid. */
+export async function cancelLiveGridLevel(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; levelIndex: number }
+): Promise<void> {
+  await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    const level = grid.plan.levels[input.levelIndex]
+    if (!level || level.status !== "waiting") {
+      throw new Error("SMART_GRID_LEVEL_DONE")
+    }
+    level.status = "cancelled"
+    await saveGridPlan(userId, grid.id, grid.plan, "active")
+  })
+}
+
+/** Stop a live grid buying: every waiting level is called off. */
+export async function cancelLiveGridRest(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string }
+): Promise<{ cancelled: number }> {
+  return await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    let cancelled = 0
+    for (const level of grid.plan.levels) {
+      if (level.status !== "waiting") continue
+      level.status = "cancelled"
+      cancelled += 1
+    }
+    await saveGridPlan(userId, grid.id, grid.plan, "active")
+    return { cancelled }
+  })
+}
+
+/** Changing a live grid's stop. */
+export async function updateLiveGridStop(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; stopLoss: GridParams["stopLoss"] }
+): Promise<void> {
+  await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    const protocol = getProtocol(wallet.protocol)
+    const plan = grid.plan
+
+    plan.stopLoss = input.stopLoss
+      ? {
+          mode: "percent",
+          underPct: input.stopLoss.underPct,
+          px: null,
+          base: input.stopLoss.base,
+        }
+      : null
+
+    const wanted = gridStopPx(plan)
+    const slPx =
+      wanted === null
+        ? null
+        : protocol.markets.roundPx(wanted, plan.sizeDecimals)
+    await setLiveBrackets(userId, {
+      walletId: wallet.id,
+      marketKey: grid.marketKey,
+      // A grid never writes a target: its exits are its resting sells.
+      tpPx: null,
+      slPx,
+    })
+    plan.aimedSlPx = slPx
+    await saveGridPlan(userId, grid.id, plan, "active")
+  })
+}
+
+/** Re-shaping a live grid — see `reshapeGrid` for what it does and why. */
+export async function reshapeLiveGrid(
+  userId: string,
+  wallet: TradeWallet,
+  input: {
+    gridId: string
+    topPx?: number
+    bottomPx?: number
+    levels?: number
+    potPct?: number
+  }
+): Promise<{ moved: true }> {
+  return await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    const plan = grid.plan
+    if (!gridRangeMovable(plan)) throw new Error("SMART_GRID_STARTED")
+
+    const ref = parseMarketKey(grid.marketKey)
+    if (!ref) throw new Error("LIVE_MARKET")
+    const protocol = getProtocol(wallet.protocol)
+    const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+    if (!rules) throw new Error("LIVE_MARKET")
+    const mark = (
+      await protocol.markets.prices(wallet.network, [ref.marketId])
+    ).get(ref.marketId)
+    if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+
+    const [account, portfolio] = await Promise.all([
+      accountOf(protocol).fetch(wallet.network, wallet.address as string),
+      ordersOf(protocol).portfolio(wallet.network, wallet.address as string),
+    ])
+    const held = plan.levels.reduce((sum, level) => sum + level.budget, 0)
+
+    // Drawn and fully checked BEFORE a single order is cancelled, so a refused
+    // move leaves the grid resting exactly where it was.
+    const draft = draftGridOrder({
+      marketKey: grid.marketKey,
+      params: {
+        levels: input.levels ?? plan.levels.length,
+        potPct: input.potPct ?? plan.potPct,
+        compound: true,
+        maxOrderVolPct: plan.maxOrderVolPct,
+        spacing: plan.spacing,
+        abovePct: DEFAULT_GRID_ABOVE_PCT,
+        rangePct: DEFAULT_GRID_BELOW_PCT,
+        baseDetection: plan.baseDetection,
+        stopLoss: plan.stopLoss
+          ? { underPct: plan.stopLoss.underPct, base: plan.stopLoss.base }
+          : null,
+        takeProfitPct: null,
+      },
+      topPx: input.topPx ?? plan.topPx,
+      bottomPx: input.bottomPx ?? plan.bottomPx,
+      mark,
+      rules,
+      roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals),
+      equity: account.equity,
+      freeCash: account.free + held,
+      takerFeeRate: defaultPaperCosts().takerFeeRate,
+      startedAt: plan.startedAt,
+      heldSzi:
+        portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ??
+        null,
+    })
+
+    // No orders to cancel and none to place — the levels are watched prices.
+    // But a range dragged up over the price has levels ABOVE it now, and those
+    // are levels the grid SELLS at, so it has to hold the coins for them the
+    // same way a fresh grid does. Left out, the plan says "holding" with no
+    // position behind it and the next pass closes the grid for losing coins it
+    // never bought.
+    const heldNow =
+      portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ?? 0
+    const shortfall = draft.startingSz - heldNow
+    if (Math.abs(shortfall) > 1e-9) {
+      const sz = floorSize(Math.abs(shortfall), draft.plan.sizeDecimals)
+      if (sz > 0) {
+        const buying = shortfall > 0
+        await placeLiveOrder(userId, {
+          walletId: wallet.id,
+          marketKey: grid.marketKey,
+          side: buying ? "buy" : "sell",
+          px: mark,
+          sz,
+          leverage: 1,
+          // Selling back what the new levels no longer need may only shrink
+          // what is held — never open a short into a position that has gone.
+          reduceOnly: !buying,
+          tpPx: null,
+          slPx: null,
+        })
+      }
+    }
+    await saveGridPlan(
+      userId,
+      grid.id,
+      {
+        ...draft.plan,
+        stopLoss: plan.stopLoss,
+        takeProfitPx:
+          plan.takeProfitPx === null
+            ? null
+            : draft.plan.topPx * (plan.takeProfitPx / plan.topPx),
+        baseWatch: plan.baseWatch,
+        aimedSlPx: plan.aimedSlPx,
+        seenFillsTo: plan.seenFillsTo,
+        cycles: plan.cycles,
+      },
+      "active"
+    )
+    return { moved: true as const }
+  })
+}
+
+/** Dragging a live grid's take profit or stop loss — see `moveGridExit`. */
+export async function moveLiveGridExit(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; which: "takeProfit" | "stopLoss"; px: number }
+): Promise<{ moved: true }> {
+  return await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    const plan = grid.plan
+    const protocol = getProtocol(wallet.protocol)
+    const px = protocol.markets.roundPx(input.px, plan.sizeDecimals)
+    if (!(px > 0)) throw new Error("LIVE_PRICE")
+
+    if (input.which === "takeProfit") {
+      if (px <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
+      plan.takeProfitPx = px
+    } else {
+      if (px >= plan.bottomPx) throw new Error("SMART_GRID_STOP_IN_RANGE")
+      plan.stopLoss = {
+        mode: "fixed",
+        underPct: plan.stopLoss?.underPct ?? 0,
+        px,
+        base: null,
+      }
+      await setLiveBrackets(userId, {
+        walletId: wallet.id,
+        marketKey: grid.marketKey,
+        tpPx: null,
+        slPx: px,
+      })
+      plan.aimedSlPx = px
+    }
+
+    await saveGridPlan(userId, grid.id, plan, "active")
+    return { moved: true as const }
+  })
+}
+
+/** Dragging an end of a live grid's range — one shape of `reshapeLiveGrid`. */
+export function moveLiveGridRange(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; topPx: number; bottomPx: number }
+): Promise<{ moved: true }> {
+  return reshapeLiveGrid(userId, wallet, input)
 }

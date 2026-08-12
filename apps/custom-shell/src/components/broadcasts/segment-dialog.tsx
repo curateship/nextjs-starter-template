@@ -46,9 +46,11 @@ import {
   defaultSegmentRules,
   segmentCountIsNearlyEveryone,
   segmentConditionIsComplete,
+  segmentRulesMatch,
   type SegmentCondition,
   type SegmentKind,
   type SegmentRuleOptions,
+  type SegmentRules,
 } from "@/lib/contacts/contact-segments"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
@@ -78,7 +80,7 @@ export function SegmentDialog({
   segment: SegmentItem | null
   options: SegmentRuleOptions
   prefill?: {
-    conditions: SegmentCondition[]
+    rules: SegmentRules
     searchExcluded: boolean
   }
   onClose: () => void
@@ -92,7 +94,12 @@ export function SegmentDialog({
   const [conditions, setConditions] = React.useState<SegmentCondition[]>(
     segment?.kind === "rules"
       ? segment.rules.conditions
-      : (prefill?.conditions ?? defaultSegmentRules().conditions)
+      : (prefill?.rules.conditions ?? defaultSegmentRules().conditions)
+  )
+  const [match, setMatch] = React.useState<"all" | "any">(
+    segment?.kind === "rules"
+      ? segmentRulesMatch(segment.rules)
+      : segmentRulesMatch(prefill?.rules ?? defaultSegmentRules())
   )
   const [chosen, setChosen] = React.useState<string[]>([])
   /** The people the window opened holding, so "dirty" can tell them apart. */
@@ -133,11 +140,17 @@ export function SegmentDialog({
     name !== (segment?.name ?? "") ||
     description !== (segment?.description ?? "") ||
     kind !== (segment?.kind ?? "rules") ||
+    match !==
+      segmentRulesMatch(
+        segment?.kind === "rules"
+          ? segment.rules
+          : (prefill?.rules ?? defaultSegmentRules())
+      ) ||
     JSON.stringify(conditions) !==
       JSON.stringify(
         segment?.kind === "rules"
           ? segment.rules.conditions
-          : (prefill?.conditions ?? defaultSegmentRules().conditions)
+          : (prefill?.rules.conditions ?? defaultSegmentRules().conditions)
       ) ||
     JSON.stringify([...chosen].sort()) !==
       JSON.stringify([...openedWith].sort())
@@ -163,7 +176,10 @@ export function SegmentDialog({
         name,
         description,
         kind,
-        rules: { conditions: kind === "rules" ? conditions : [] },
+        rules: {
+          ...(kind === "rules" && match === "any" ? { match } : {}),
+          conditions: kind === "rules" ? conditions : [],
+        },
         contactIds: kind === "static" ? chosen : [],
       })
       toast.success(segment ? "Segment saved." : "Segment created.")
@@ -271,19 +287,24 @@ export function SegmentDialog({
                   <SegmentRuleBuilder
                     conditions={conditions}
                     onChange={setConditions}
+                    match={match}
+                    onMatchChange={setMatch}
                     options={options}
                     excludeSegmentId={segment?.id}
                     title="Rules"
                     description={
                       prefill
-                        ? `Started with the filters from the contacts list. Every rule has to be true.${prefill.searchExcluded ? " Search words are not included; only the filters will be saved." : ""}`
-                        : "Every rule has to be true. The count below is exactly what these rules say — including the “on the list” rule, which drops somebody the moment they opt out."
+                        ? `Started with the filters from the contacts list.${prefill.searchExcluded ? " Search words are not included; only the filters will be saved." : ""}`
+                        : "The count below is exactly what these rules say — including the “on the list” rule, which drops somebody the moment they opt out."
                     }
                     emptyText="No rules yet, so this segment is every contact you have — people who opted out included."
                   />
                   <SegmentLiveCount
-                    key={JSON.stringify(conditions)}
-                    conditions={conditions}
+                    key={JSON.stringify({ match, conditions })}
+                    rules={{
+                      ...(match === "any" ? { match } : {}),
+                      conditions,
+                    }}
                   />
                 </>
               ) : (
@@ -334,7 +355,7 @@ type LiveCountState =
   | { status: "error"; message: string }
 
 /** The draft's current reach, recalculated only after its rules settle. */
-function SegmentLiveCount({ conditions }: { conditions: SegmentCondition[] }) {
+function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
   const [attempt, setAttempt] = React.useState(0)
   const [state, setState] = React.useState<LiveCountState>({
     status: "counting",
@@ -342,9 +363,10 @@ function SegmentLiveCount({ conditions }: { conditions: SegmentCondition[] }) {
   // The parent keys this component by its conditions, so this checked request
   // shape stays fixed for the lifetime of one count and one retry.
   const [rules] = React.useState(() => ({
-    conditions: conditions.filter(segmentConditionIsComplete),
+    ...(draft.match === "any" ? { match: "any" as const } : {}),
+    conditions: draft.conditions.filter(segmentConditionIsComplete),
   }))
-  const unfinished = rules.conditions.length !== conditions.length
+  const unfinished = rules.conditions.length !== draft.conditions.length
 
   React.useEffect(() => {
     let active = true

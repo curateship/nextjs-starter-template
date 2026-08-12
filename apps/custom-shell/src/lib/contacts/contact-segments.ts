@@ -15,8 +15,8 @@ import { z } from "zod"
  * - **hand-picked** — the people themselves, in `contact_segment_members`, for
  *   the one-off list no rule describes.
  *
- * Conditions are a flat list and **all of them have to be true**. No "or", no
- * brackets. A builder with grouping is a query tool nobody can read back.
+ * Conditions are one flat list. The whole list can require every rule or any
+ * one rule, but there are no nested groups or brackets.
  */
 
 /** The four things a contact's status can be — the same list the table checks. */
@@ -87,10 +87,16 @@ export type SegmentConditionType = SegmentCondition["type"]
 export const MAX_SEGMENT_CONDITIONS = 20
 
 export const segmentRulesSchema = z.object({
+  match: z.enum(["all", "any"]).optional(),
   conditions: z.array(segmentConditionSchema).max(MAX_SEGMENT_CONDITIONS),
 })
 
 export type SegmentRules = z.infer<typeof segmentRulesSchema>
+
+/** Old rows have no mode field and keep their original all-rules meaning. */
+export function segmentRulesMatch(rules: SegmentRules): "all" | "any" {
+  return rules.match ?? "all"
+}
 
 /**
  * The rules of a segment whose saved conditions could not be read at all.
@@ -275,9 +281,12 @@ export function describeSegmentRules(
   // No rules is not "nobody" — it is every contact in the workspace, opted-out
   // people included. Saying so out loud is the point.
   if (rules.conditions.length === 0) return "Every contact, with no rules"
-  return rules.conditions
+  const description = rules.conditions
     .map((condition) => describeSegmentCondition(condition, segmentNames))
-    .join(", and ")
+    .join(segmentRulesMatch(rules) === "any" ? ", or " : ", and ")
+  return segmentRulesMatch(rules) === "any"
+    ? `Any of: ${description}`
+    : description
 }
 
 /**

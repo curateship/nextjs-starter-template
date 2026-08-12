@@ -23,8 +23,15 @@ import {
   updatePaperOrder,
 } from "@/lib/api/paper"
 import {
+  cancelGridLevel as cancelGridLevelApi,
+  cancelGridRest,
   cancelLadderRest,
   cancelLadderRung,
+  moveGridExit as moveGridExitApi,
+  moveGridRange as moveGridRangeApi,
+  reshapeGrid as reshapeGridApi,
+  placeGridOrder,
+  updateGridStop,
   getSmartOrderErrorMessage,
   placeDcaLadder,
   reconcileLiveSmartOrders,
@@ -35,7 +42,14 @@ import {
   type CandleInterval,
 } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { DcaParams, SmartLadder } from "@/lib/trade/dca"
+import type { DcaParams } from "@/lib/trade/dca"
+import { formatUsd } from "@/lib/trade/format"
+import type { GridParams } from "@/lib/trade/grid"
+import type {
+  SmartGrid,
+  SmartLadder,
+  SmartOrder,
+} from "@/lib/trade/smart-plan"
 import type { LiveJournalEntry } from "@/lib/trade/live"
 import type {
   JournalReason,
@@ -114,7 +128,9 @@ export type Trading = {
    */
   placing: PaperOrder[]
   journal: PaperJournalEntry[]
-  /** The smart-order ladders still working across every wallet. */
+  /** Every smart order still working across every wallet, of either kind. */
+  smartOrders: SmartOrder[]
+  /** Just the DCA ladders, for the screens that only know about those. */
   ladders: SmartLadder[]
   /** Each wallet's name, for the Wallet column. */
   walletNames: ReadonlyMap<string, string>
@@ -189,13 +205,63 @@ export type Trading = {
       stopLoss: DcaParams["stopLoss"]
     }
   ) => Promise<boolean>
+  /** The grids still working, the same list filtered by kind. */
+  grids: SmartGrid[]
+  /** Places a whole grid at once. */
+  placeGrid: (input: {
+    marketKey: string
+    topPx: number
+    bottomPx: number
+    params: GridParams
+  }) => Promise<boolean>
+  /** The × on one waiting level. Unlike the others it never comes back. */
+  cancelGridLevel: (
+    walletId: string,
+    gridId: string,
+    levelIndex: number
+  ) => Promise<void>
+  /** Stop the grid buying: calls off every waiting level, keeps what's held. */
+  cancelGrid: (walletId: string, gridId: string) => Promise<void>
+  /**
+   * Drag an end of a grid's range. Only while nothing has bought — after that
+   * the server refuses, because levels that have bought sell against the price
+   * they bought at.
+   */
+  moveGridRange: (
+    walletId: string,
+    gridId: string,
+    range: { topPx: number; bottomPx: number }
+  ) => Promise<boolean>
+  /**
+   * Re-slice a running grid: how many levels it has, and what share of the
+   * account it spends. Both redraw every level and settle the position to
+   * match, so nothing is left holding a size it did not choose.
+   */
+  reshapeGrid: (
+    walletId: string,
+    gridId: string,
+    shape: { levels?: number; potPct?: number }
+  ) => Promise<boolean>
+  /** Drag the grid's take profit or stop loss to a price. Always allowed. */
+  moveGridExit: (
+    walletId: string,
+    gridId: string,
+    which: "takeProfit" | "stopLoss",
+    px: number
+  ) => Promise<boolean>
+  /** Change a live grid's stop. */
+  setGridStop: (
+    walletId: string,
+    gridId: string,
+    stopLoss: GridParams["stopLoss"]
+  ) => Promise<boolean>
 }
 
 type PaperAnswer = {
   positions: PaperPosition[]
   orders: PaperOrder[]
   journal: PaperJournalEntry[]
-  ladders: SmartLadder[]
+  smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
 }
 
@@ -203,7 +269,7 @@ type LiveAnswer = {
   positions: PaperPosition[]
   orders: PaperOrder[]
   journal: LiveJournalEntry[]
-  ladders: SmartLadder[]
+  smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
   unreachable: string[]
 }
@@ -339,9 +405,25 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     () => [...(paperAnswer?.positions ?? []), ...(liveAnswer?.positions ?? [])],
     [paperAnswer, liveAnswer]
   )
+  const smartOrders = React.useMemo(
+    () => [
+      ...(paperAnswer?.smartOrders ?? []),
+      ...(liveAnswer?.smartOrders ?? []),
+    ],
+    [paperAnswer?.smartOrders, liveAnswer?.smartOrders]
+  )
+  // Derived rather than fetched separately: the screens that predate the grid
+  // still want ladders alone, and one list of both is the truth they filter.
   const ladders = React.useMemo(
-    () => [...(paperAnswer?.ladders ?? []), ...(liveAnswer?.ladders ?? [])],
-    [paperAnswer?.ladders, liveAnswer?.ladders]
+    () =>
+      smartOrders.filter(
+        (order): order is SmartLadder => order.kind === "dca"
+      ),
+    [smartOrders]
+  )
+  const grids = React.useMemo(
+    () => smartOrders.filter((order): order is SmartGrid => order.kind === "grid"),
+    [smartOrders]
   )
 
   const journal = React.useMemo((): PaperJournalEntry[] => {
@@ -668,6 +750,95 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     [runWith]
   )
 
+  const placeGrid: Trading["placeGrid"] = React.useCallback(
+    async (input) => {
+      if (!walletId || !wallet) return false
+      setPending((count) => count + 1)
+      try {
+        const { levels, totalCost } = await placeGridOrder({
+          walletId,
+          ...input,
+        })
+        toast.success(
+          `Grid placed in ${nameOf(walletId)} — ${levels} buys waiting, ${formatUsd(totalCost)} in total.`
+        )
+        return true
+      } catch (error) {
+        showErrorToast(getTradingSmartOrderError(error))
+        return false
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    },
+    [walletId, wallet, nameOf, refresh]
+  )
+
+  const cancelGridLevel: Trading["cancelGridLevel"] = React.useCallback(
+    async (walletId, gridId, levelIndex) => {
+      await runWith(
+        getTradingSmartOrderError,
+        () => cancelGridLevelApi({ walletId, gridId, levelIndex }),
+        `Level ${levelIndex + 1} called off in ${nameOf(walletId)}.`
+      )
+    },
+    [runWith, nameOf]
+  )
+
+  const cancelGrid: Trading["cancelGrid"] = React.useCallback(
+    async (walletId, gridId) => {
+      await runWith(
+        getTradingSmartOrderError,
+        () => cancelGridRest({ walletId, gridId }),
+        `Grid stopped in ${nameOf(walletId)} — what's held stays.`
+      )
+    },
+    [runWith, nameOf]
+  )
+
+  const moveGridRange: Trading["moveGridRange"] = React.useCallback(
+    async (walletId, gridId, range) => {
+      // No toast. Dragging a line is a direct thing — the line moves and you
+      // can see it — and a message for every nudge is noise. Errors still say
+      // so, because a refused drag looks exactly like one that worked.
+      return await runWith(getTradingSmartOrderError, () =>
+        moveGridRangeApi({ walletId, gridId, ...range })
+      )
+    },
+    [runWith]
+  )
+
+  const reshapeGrid: Trading["reshapeGrid"] = React.useCallback(
+    async (walletId, gridId, shape) => {
+      return await runWith(
+        getTradingSmartOrderError,
+        () => reshapeGridApi({ walletId, gridId, ...shape }),
+        "Grid re-sliced."
+      )
+    },
+    [runWith]
+  )
+
+  const moveGridExit: Trading["moveGridExit"] = React.useCallback(
+    async (walletId, gridId, which, px) => {
+      return await runWith(getTradingSmartOrderError, () =>
+        moveGridExitApi({ walletId, gridId, which, px })
+      )
+    },
+    [runWith]
+  )
+
+  const setGridStop: Trading["setGridStop"] = React.useCallback(
+    async (walletId, gridId, stopLoss) => {
+      return await runWith(
+        getTradingSmartOrderError,
+        () => updateGridStop({ walletId, gridId, stopLoss }),
+        "Stop changed."
+      )
+    },
+    [runWith]
+  )
+
   const closeAll: Trading["closeAll"] = React.useCallback(async () => {
     setPending((count) => count + 1)
     try {
@@ -692,7 +863,9 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     orders,
     placing,
     journal,
+    smartOrders,
     ladders,
+    grids,
     busy: pending > 0,
     place,
     move,
@@ -707,5 +880,12 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     cancelRung,
     cancelLadder,
     setLadderExits,
+    placeGrid,
+    cancelGridLevel,
+    cancelGrid,
+    moveGridRange,
+    moveGridExit,
+    reshapeGrid,
+    setGridStop,
   }
 }

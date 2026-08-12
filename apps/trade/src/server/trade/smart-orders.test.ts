@@ -17,7 +17,7 @@ import { loadSmartDca, saveSmartDca } from "@/server/trade/prefs"
 import {
   cancelLadderRest,
   cancelLadderRung,
-  listActiveLadders,
+  listActiveSmartOrders,
   placeDcaLadder,
   updateLadderExits,
 } from "@/server/trade/smart-orders"
@@ -599,8 +599,8 @@ describe("everything around a ladder", () => {
   it("keeps ladders to their own account", async () => {
     await place()
     const stranger = (await insertUser(database)).id
-    expect(await listActiveLadders(stranger, [wallet.id])).toHaveLength(0)
-    expect(await listActiveLadders(userId, [wallet.id])).toHaveLength(1)
+    expect(await listActiveSmartOrders(stranger, [wallet.id])).toHaveLength(0)
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toHaveLength(1)
   })
 
   it("deleting the wallet takes its ladders with it", async () => {

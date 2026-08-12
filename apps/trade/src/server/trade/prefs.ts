@@ -7,6 +7,7 @@ import {
 } from "@/lib/trade/chart-options"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
+import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
 import {
   readIndicatorSettings,
   type IndicatorSettings,
@@ -200,5 +201,35 @@ export async function saveCardFolds(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { cardFolds, updatedAt: new Date() },
+    })
+}
+
+/**
+ * The grid window's last-used settings, or null on a first use. Its own column
+ * beside `smart_dca` rather than folded into it: the two windows ask for
+ * different things, and each is validated by its own schema on the way in and
+ * out, so junk from an older build falls back to that window's defaults alone.
+ */
+export async function loadSmartGrid(userId: string): Promise<GridParams | null> {
+  const row = await db
+    .select({ smartGrid: tradePrefs.smartGrid })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  const parsed = gridParamsSchema.safeParse(row[0]?.smartGrid ?? null)
+  return parsed.success ? parsed.data : null
+}
+
+/** Remember them — saved after a successful place, never on every keystroke. */
+export async function saveSmartGrid(
+  userId: string,
+  smartGrid: GridParams
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, smartGrid, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { smartGrid, updatedAt: new Date() },
     })
 }
