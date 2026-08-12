@@ -65,7 +65,8 @@ export const Route = createFileRoute("/directory_/$slug")({
       directoryDescription(
         loaderData.listing.metaDescription,
         `${loaderData.listing.title} on ${loaderData.site.name}.`
-      )
+      ),
+      loaderData.listing.featuredImage
     )
   },
   component: ListingRoute,

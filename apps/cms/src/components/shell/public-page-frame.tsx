@@ -14,6 +14,7 @@ import {
   useAppName,
   useBrandLogo,
   useBrandLogoDark,
+  usePublicAccentColor,
   usePublicFooter,
   usePublicFooterCopyright,
   usePublicNavigation,
@@ -45,6 +46,7 @@ export function PublicPageFrame({
   const appName = useAppName()
   const logo = useBrandLogo()
   const logoDark = useBrandLogoDark()
+  const accentColor = usePublicAccentColor()
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
@@ -62,6 +64,7 @@ export function PublicPageFrame({
           "grid min-h-screen place-items-center bg-muted/60 px-4 py-10",
           className
         )}
+        style={publicAccentStyle(accentColor)}
       >
         <div className="flex w-full flex-col items-center gap-2 md:gap-3">
           <BrandLogo src={logo} darkSrc={logoDark} appName={appName} />
@@ -73,7 +76,10 @@ export function PublicPageFrame({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/60">
+    <div
+      className="flex min-h-screen flex-col bg-muted/60"
+      style={publicAccentStyle(accentColor)}
+    >
       <header className="border-b bg-background">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4">
           <Link
@@ -158,6 +164,25 @@ export function PublicPageFrame({
       ) : null}
     </div>
   )
+}
+
+function publicAccentStyle(accentColor: string): React.CSSProperties | undefined {
+  if (!accentColor) return undefined
+
+  return {
+    "--primary": accentColor,
+    "--primary-foreground": readableForeground(accentColor),
+    "--ring": accentColor,
+  } as React.CSSProperties
+}
+
+function readableForeground(hex: string) {
+  const red = Number.parseInt(hex.slice(1, 3), 16)
+  const green = Number.parseInt(hex.slice(3, 5), 16)
+  const blue = Number.parseInt(hex.slice(5, 7), 16)
+  return red * 0.299 + green * 0.587 + blue * 0.114 > 150
+    ? "#18181b"
+    : "#fafafa"
 }
 
 function PublicLink({

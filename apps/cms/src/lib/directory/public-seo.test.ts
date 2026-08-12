@@ -47,6 +47,19 @@ describe("titles and descriptions", () => {
       meta: [{ title: "Directory · Alpha" }],
     })
   })
+
+  it("uses a listing image when the page has one", () => {
+    expect(
+      directoryHead(
+        "Joe's Diner · Alpha",
+        "Breakfast all day",
+        "https://images.example.com/joe.jpg"
+      ).meta
+    ).toContainEqual({
+      property: "og:image",
+      content: "https://images.example.com/joe.jpg",
+    })
+  })
 })
 
 describe("addresses", () => {

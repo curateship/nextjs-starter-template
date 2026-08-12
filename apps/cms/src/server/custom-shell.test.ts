@@ -1526,6 +1526,24 @@ describe("custom shell workspaces", () => {
     expect(saved.publicFooterCopyright).toBe("")
   })
 
+  it("keeps a site's own appearance and drops an invalid accent colour", () => {
+    expect(
+      parseWorkspaceSettings({
+        logo: "https://media.example.test/site/logo.png",
+        logoDark: "https://media.example.test/site/logo-dark.png",
+        accentColor: " #3B82F6 ",
+        shareImage: "https://media.example.test/site/share.png",
+      })
+    ).toMatchObject({
+      logo: "https://media.example.test/site/logo.png",
+      logoDark: "https://media.example.test/site/logo-dark.png",
+      accentColor: "#3b82f6",
+      shareImage: "https://media.example.test/site/share.png",
+    })
+
+    expect(parseWorkspaceSettings({ accentColor: "blue" }).accentColor).toBe("")
+  })
+
   it("still gives a brand new workspace the default sidebar links", () => {
     // The feed links live under the Overview now, so the walk has
     // to look one level down as well.

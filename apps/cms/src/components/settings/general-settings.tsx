@@ -42,18 +42,12 @@ export function GeneralSettings({
   onMaintenanceChange,
   maintenanceBusy,
 }: GeneralSettingsProps & MaintenanceProps) {
-  // The auto-save refuses a blank workspace name (saveConfigNow in
-  // shell-layout.tsx), so say so on blur rather than letting the edit sit on
-  // screen looking saved.
-
-  const workspaceNameMissing = !config.workspaceName.trim()
-
   return (
     <CardGroup>
       <CollapsibleSettingsCard
         storageId="general"
         title="General settings"
-        description="Set the app and workspace names, the favicon, and the logo on the signed-out pages."
+        description="Set the product-wide name, behavior, and fallback logos."
         contentClassName="space-y-6"
       >
         <div className="grid gap-2">
@@ -73,31 +67,6 @@ export function GeneralSettings({
               })
             }
             placeholder={DEFAULT_APP_NAME}
-          />
-        </div>
-
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="workspace-name"
-            hint="The name of the site you are working on — it heads the sidebar and names this site in the switcher. Each site has its own; this renames the one you are in."
-          >
-            Site name
-          </FieldLabel>
-          <Input
-            id="workspace-name"
-            value={config.workspaceName}
-            onChange={(event) =>
-              onConfigChange({ ...config, workspaceName: event.target.value })
-            }
-            placeholder="Site name"
-            aria-invalid={workspaceNameMissing || undefined}
-            onBlur={() => {
-              if (workspaceNameMissing) {
-                showErrorToast(
-                  "Give the site a name — settings can't be saved without one."
-                )
-              }
-            }}
           />
         </div>
 
@@ -202,34 +171,24 @@ export function GeneralSettings({
             them is shorter than a stack and reads as one decision. */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <ImageUpload
-            label="Favicon"
-            value={config.favicon}
-            onChange={(url) => onConfigChange({ ...config, favicon: url })}
-            aspect="square"
-            fit="contain"
-            emptyLabel="Select favicon"
-            className="max-w-24"
-          />
-
-          <ImageUpload
-            label="Logo"
+            label="Fallback logo"
             value={config.logo}
             onChange={(url) => onConfigChange({ ...config, logo: url })}
             aspect="square"
             fit="contain"
             emptyLabel="Select logo"
-            hint="Shown above the signed-out pages — sign in, register, verify, reset password and pricing. Everyone sees the same one. Leave it empty for the app name on its own."
+            hint="Used when a site has no logo of its own. Leave it empty for the app name on its own."
             className="max-w-24"
           />
 
           <ImageUpload
-            label="Dark logo"
+            label="Fallback dark logo"
             value={config.logoDark}
             onChange={(url) => onConfigChange({ ...config, logoDark: url })}
             aspect="square"
             fit="contain"
             emptyLabel="Select logo"
-            hint="Optional. Shown in place of the logo while a visitor has their device in dark mode, so a logo drawn in near-black does not disappear on a dark page. Leave it empty and the one logo above is used on both."
+            hint="Used in dark mode when a site has no dark logo of its own."
             className="max-w-24"
           />
         </div>

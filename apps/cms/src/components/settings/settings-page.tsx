@@ -3,6 +3,7 @@ import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
+import { CmsSettings } from "@/components/settings/cms-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
 import { PublicSiteSettings } from "@/components/settings/public-site-settings"
@@ -37,6 +38,11 @@ const settingsTabs = [
   { id: "ai", label: "AI" },
 ] as const
 
+/** Settings owned by CMS rather than the shared platform shell. */
+const cmsSettingsTabs = [
+  { id: "site-identity", label: "Site identity" },
+] as const
+
 /**
  * Settings an admin decides on a member's behalf. Their own card in the rail,
  * so it is obvious at a glance which of these change somebody else's screen.
@@ -53,11 +59,13 @@ const publicSettingsTabs = [
 
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
+  | (typeof cmsSettingsTabs)[number]["id"]
   | (typeof memberSettingsTabs)[number]["id"]
   | (typeof publicSettingsTabs)[number]["id"]
 
 const allSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
+  ...cmsSettingsTabs.map((tab) => tab.id),
   ...memberSettingsTabs.map((tab) => tab.id),
   ...publicSettingsTabs.map((tab) => tab.id),
 ]
@@ -105,6 +113,13 @@ export function SettingsPage({
         />
 
         <SettingsTabGroup
+          storageId="settings-rail-cms"
+          title="CMS"
+          tabs={cmsSettingsTabs}
+          activeTab={activeTab}
+        />
+
+        <SettingsTabGroup
           storageId="settings-rail-members"
           title="Members"
           tabs={memberSettingsTabs}
@@ -120,6 +135,9 @@ export function SettingsPage({
       </div>
 
       <div className="min-w-0 flex-1">
+        {activeTab === "site-identity" ? (
+          <CmsSettings config={config} onConfigChange={onConfigChange} />
+        ) : null}
         {activeTab === "general" ? (
           <GeneralSettings
             config={config}
