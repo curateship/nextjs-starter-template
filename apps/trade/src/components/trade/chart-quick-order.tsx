@@ -94,7 +94,10 @@ export function ChartQuickOrder({
 
   const [sizeInput, setSizeInput] = React.useState("")
   const [sizeUnit, setSizeUnit] = React.useState<SizeUnit>("usd")
-  const [leverage, setLeverage] = React.useState(Math.min(5, maxLeverage))
+  // Opens at 1×: borrowed money is something to reach for on purpose, not the
+  // setting a window hands you before you have read it. At 1× a coin has to go
+  // to nothing to lose the trade; at 5× a fifth of the way there does it.
+  const [leverage, setLeverage] = React.useState(Math.min(1, maxLeverage))
   const [bracketOn, setBracketOn] = React.useState(false)
   const [stopPct, setStopPct] = React.useState("2")
   const [targetPct, setTargetPct] = React.useState("5")

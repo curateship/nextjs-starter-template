@@ -6,7 +6,6 @@ import {
   TrendingUpIcon,
 } from "lucide-react"
 
-import { formatPrice } from "@/lib/trade/format"
 import type { PaperSide } from "@/lib/trade/paper"
 
 /**
@@ -14,9 +13,12 @@ import type { PaperSide } from "@/lib/trade/paper"
  *
  * Buy at the level clicked, sell at it — and under a "Smart order" heading,
  * the presets that place a whole plan at once, starting with the DCA ladder.
- * The price is the whole point of right-clicking rather than opening a form —
- * the level you pointed at is the level the order hangs from — so it is
- * printed on the rows rather than left to be typed in afterwards.
+ *
+ * The price is not printed on the rows. It is the same price on all four of
+ * them — the level the pointer is on — so four copies of it said nothing that
+ * the crosshair and the price axis were not already saying, right beside the
+ * menu. The window each row opens shows the price it is working from, which is
+ * where it can still be changed.
  */
 
 export type ChartMenuState = { price: number; x: number; y: number }
@@ -24,9 +26,8 @@ export type ChartMenuState = { price: number; x: number; y: number }
 /** The presets the Smart order group offers. */
 export type SmartOrderPreset = "dca" | "grid"
 
-/** Roughly what the menu measures, so it can be kept on screen. */
-const MENU_WIDTH = 200
-const MENU_HEIGHT = 202
+/** How close to the window's edge the menu may sit. */
+const EDGE = 8
 
 export function ChartOrderMenu({
   menu,
@@ -50,6 +51,27 @@ export function ChartOrderMenu({
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [onClose])
 
+  /**
+   * Where it ends up, once it knows how big it is.
+   *
+   * The menu is as wide as its longest row and no wider, so nothing here can
+   * be told in advance what it measures — it is asked. It is drawn at the
+   * pointer first and moved inside the window before the browser paints, so
+   * there is no frame where a menu hangs off the edge.
+   */
+  const boxRef = React.useRef<HTMLDivElement | null>(null)
+  const [at, setAt] = React.useState({ left: menu.x, top: menu.y })
+
+  React.useLayoutEffect(() => {
+    const box = boxRef.current
+    if (!box) return
+    const { width, height } = box.getBoundingClientRect()
+    setAt({
+      left: clamp(menu.x, EDGE, window.innerWidth - width - EDGE),
+      top: clamp(menu.y, EDGE, window.innerHeight - height - EDGE),
+    })
+  }, [menu.x, menu.y, smartOrders])
+
   return (
     <>
       {/* Catches the next press anywhere, including the right-click that opens
@@ -63,24 +85,17 @@ export function ChartOrderMenu({
         }}
       />
       <div
+        ref={boxRef}
         role="menu"
         aria-label="Order at this price"
-        className="fixed z-50 w-48 overflow-hidden rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
-        style={{
-          left: Math.min(menu.x, window.innerWidth - MENU_WIDTH),
-          top: Math.min(menu.y, window.innerHeight - MENU_HEIGHT),
-        }}
+        // As wide as its longest row. There is no column of figures to line up
+        // any more, so a fixed width would only be empty space to the right of
+        // four short labels.
+        className="fixed z-50 w-max overflow-hidden rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
+        style={{ left: at.left, top: at.top }}
       >
-        <MenuRow
-          side="buy"
-          price={menu.price}
-          onPick={() => onPick("buy")}
-        />
-        <MenuRow
-          side="sell"
-          price={menu.price}
-          onPick={() => onPick("sell")}
-        />
+        <MenuRow side="buy" onPick={() => onPick("buy")} />
+        <MenuRow side="sell" onPick={() => onPick("sell")} />
         {smartOrders ? (
           <>
             <div
@@ -98,13 +113,11 @@ export function ChartOrderMenu({
               </p>
               <SmartRow
                 label="DCA ladder"
-                price={menu.price}
                 icon={<LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
                 onPick={() => onPickSmart("dca")}
               />
               <SmartRow
                 label="Grid"
-                price={menu.price}
                 icon={<Grid2x2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />}
                 onPick={() => onPickSmart("grid")}
               />
@@ -116,15 +129,13 @@ export function ChartOrderMenu({
   )
 }
 
-/** One Smart-order preset: its icon, its name, and the price clicked. */
+/** One Smart-order preset: its icon and its name. */
 function SmartRow({
   label,
-  price,
   icon,
   onPick,
 }: {
   label: string
-  price: number
   icon: React.ReactNode
   onPick: () => void
 }) {
@@ -137,20 +148,15 @@ function SmartRow({
     >
       {icon}
       <span className="font-medium">{label}</span>
-      <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-        {formatPrice(price)}
-      </span>
     </button>
   )
 }
 
 function MenuRow({
   side,
-  price,
   onPick,
 }: {
   side: PaperSide
-  price: number
   onPick: () => void
 }) {
   const buy = side === "buy"
@@ -167,9 +173,10 @@ function MenuRow({
         <TrendingDownIcon className="size-4 text-red-600 dark:text-red-400" />
       )}
       <span className="font-medium">{buy ? "Buy limit" : "Sell limit"}</span>
-      <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-        {formatPrice(price)}
-      </span>
     </button>
   )
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(Math.max(value, low), Math.max(low, high))
 }
