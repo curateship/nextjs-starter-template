@@ -20,6 +20,7 @@ import {
   parseSegmentRules,
   segmentConditionIsComplete,
   segmentReferences,
+  segmentRulesMatch,
   type SegmentCondition,
   type SegmentKind,
   type SegmentRules,
@@ -142,29 +143,32 @@ function buildConditions(
   /** The chain of segments followed to get here, so a loop cannot spin. */
   trail: string[]
 ): SQL {
-  const filters: SQL[] = [eq(customShellContacts.workspaceId, workspaceId)]
+  const workspace = eq(customShellContacts.workspaceId, workspaceId)
 
   if (segment.kind === "static") {
     // Hand-picked: the people themselves, and nothing else to work out.
-    filters.push(
-      inArray(
-        customShellContacts.id,
-        database
-          .select({ id: customShellContactSegmentMembers.contactId })
-          .from(customShellContactSegmentMembers)
-          .where(eq(customShellContactSegmentMembers.segmentId, segment.id))
-      )
+    const chosen = inArray(
+      customShellContacts.id,
+      database
+        .select({ id: customShellContactSegmentMembers.contactId })
+        .from(customShellContactSegmentMembers)
+        .where(eq(customShellContactSegmentMembers.segmentId, segment.id))
     )
-    return and(...filters) as SQL
+    return and(workspace, chosen) as SQL
   }
 
-  for (const condition of segment.rules.conditions) {
-    filters.push(
-      conditionSql(workspaceId, condition, database, timestamp, context, trail)
-    )
-  }
+  const filters = segment.rules.conditions.map((condition) =>
+    conditionSql(workspaceId, condition, database, timestamp, context, trail)
+  )
+  if (filters.length === 0) return workspace
 
-  return and(...filters) as SQL
+  const group =
+    segmentRulesMatch(segment.rules) === "any"
+      ? or(...filters)
+      : and(...filters)
+  // Workspace ownership always sits outside the all/any group. Putting it
+  // inside an `or` would let another workspace's matching contacts leak in.
+  return and(workspace, group) as SQL
 }
 
 function conditionSql(

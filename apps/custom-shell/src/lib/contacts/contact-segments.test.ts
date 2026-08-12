@@ -5,9 +5,11 @@ import {
   describeSegmentRules,
   newSegmentCondition,
   parseSegmentRules,
+  readSegmentRulesParam,
   segmentCountIsNearlyEveryone,
   segmentConditionIsComplete,
   segmentReferences,
+  segmentRulesMatch,
   type SegmentCondition,
 } from "@/lib/contacts/contact-segments"
 
@@ -21,6 +23,13 @@ import {
  */
 
 describe("reading saved rules", () => {
+  it("keeps old rows on all rules and accepts any-rule rows", () => {
+    expect(segmentRulesMatch(parseSegmentRules({ conditions: [] }))).toBe("all")
+    expect(
+      parseSegmentRules({ match: "any", conditions: [] })
+    ).toEqual({ match: "any", conditions: [] })
+  })
+
   it("keeps a list of conditions it understands", () => {
     const rules = parseSegmentRules({
       conditions: [
@@ -39,6 +48,21 @@ describe("reading saved rules", () => {
 
   it("keeps an empty list as an empty list", () => {
     expect(parseSegmentRules({ conditions: [] })).toEqual({ conditions: [] })
+  })
+
+  it("keeps valid conditions but drops an unknown mode back to all", () => {
+    expect(
+      parseSegmentRules({
+        match: "some",
+        conditions: [
+          { type: "status", operator: "is", status: "subscribed" },
+        ],
+      })
+    ).toEqual({
+      conditions: [
+        { type: "status", operator: "is", status: "subscribed" },
+      ],
+    })
   })
 
   it("drops one condition it cannot read and keeps the rest", () => {
@@ -64,6 +88,35 @@ describe("reading saved rules", () => {
   })
 })
 
+describe("reading rules from a contacts-list link", () => {
+  it("keeps an any-rule filter in the address", () => {
+    expect(
+      readSegmentRulesParam({
+        match: "any",
+        conditions: [
+          { type: "status", operator: "is", status: "subscribed" },
+        ],
+      })
+    ).toEqual({
+      match: "any",
+      conditions: [
+        { type: "status", operator: "is", status: "subscribed" },
+      ],
+    })
+  })
+
+  it("drops the whole filter when its mode is junk", () => {
+    expect(
+      readSegmentRulesParam({
+        match: "some",
+        conditions: [
+          { type: "status", operator: "is", status: "subscribed" },
+        ],
+      })
+    ).toBeUndefined()
+  })
+})
+
 describe("a rule that no longer reads never widens the segment", () => {
   /** On the list and opted out at once: true of nobody, by design. */
   const matchesNobody = { conditions: expect.arrayContaining([
@@ -82,6 +135,16 @@ describe("a rule that no longer reads never widens the segment", () => {
     expect(
       parseSegmentRules({ conditions: [{ type: "wormhole" }, { type: "brick" }] })
     ).toEqual(matchesNobody)
+  })
+
+  it("pins unreadable any-mode rules to the all-rules safety shape", () => {
+    const rules = parseSegmentRules({
+      match: "any",
+      conditions: [{ type: "wormhole" }, { type: "brick" }],
+    })
+
+    expect(segmentRulesMatch(rules)).toBe("all")
+    expect(rules).toEqual(matchesNobody)
   })
 
   it("does not confuse that with a segment saved with no rules at all", () => {
@@ -130,6 +193,17 @@ describe("what a segment says in words", () => {
 
     expect(describeSegmentRules({ conditions })).toBe(
       "tagged beta, and has an account"
+    )
+  })
+
+  it("says plainly when any one rule is enough", () => {
+    const conditions: SegmentCondition[] = [
+      { type: "tag", operator: "includes", tags: ["beta"] },
+      { type: "account", operator: "has" },
+    ]
+
+    expect(describeSegmentRules({ match: "any", conditions })).toBe(
+      "Any of: tagged beta, or has an account"
     )
   })
 
