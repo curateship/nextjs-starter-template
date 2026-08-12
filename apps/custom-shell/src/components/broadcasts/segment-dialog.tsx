@@ -38,13 +38,13 @@ import {
   loadSegmentMembers,
   saveSegment,
   type SegmentItem,
-  type SegmentsPage,
 } from "@/lib/api/people/contact-segments"
 import {
   defaultSegmentRules,
   segmentConditionIsComplete,
   type SegmentCondition,
   type SegmentKind,
+  type SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
@@ -63,13 +63,19 @@ const PICKER_PAGE_SIZE = 20
 export function SegmentDialog({
   open,
   segment,
-  page,
+  options,
+  prefill,
   onClose,
   onSaved,
 }: {
   open: boolean
   segment: SegmentItem | null
-  page: SegmentsPage
+  options: SegmentRuleOptions
+  prefill?: {
+    conditions: SegmentCondition[]
+    total: number
+    searchExcluded: boolean
+  }
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
@@ -81,7 +87,7 @@ export function SegmentDialog({
   const [conditions, setConditions] = React.useState<SegmentCondition[]>(
     segment?.kind === "rules"
       ? segment.rules.conditions
-      : defaultSegmentRules().conditions
+      : (prefill?.conditions ?? defaultSegmentRules().conditions)
   )
   const [chosen, setChosen] = React.useState<string[]>([])
   /** The people the window opened holding, so "dirty" can tell them apart. */
@@ -126,7 +132,7 @@ export function SegmentDialog({
       JSON.stringify(
         segment?.kind === "rules"
           ? segment.rules.conditions
-          : defaultSegmentRules().conditions
+          : (prefill?.conditions ?? defaultSegmentRules().conditions)
       ) ||
     JSON.stringify([...chosen].sort()) !==
       JSON.stringify([...openedWith].sort())
@@ -259,10 +265,14 @@ export function SegmentDialog({
                 <SegmentRuleBuilder
                   conditions={conditions}
                   onChange={setConditions}
-                  options={page}
+                  options={options}
                   excludeSegmentId={segment?.id}
                   title="Rules"
-                  description="Every rule has to be true. The count is exactly what these rules say, so you can check it by hand on the contacts list — including the “on the list” rule, which is the one that drops somebody the moment they opt out."
+                  description={
+                    prefill
+                      ? `${prefill.total.toLocaleString()} ${plural(prefill.total, "person", "people")} matched these filters when this window opened. Every rule has to be true.${prefill.searchExcluded ? " Search words are not included; only the filters will be saved." : ""}`
+                      : "Every rule has to be true. The count is exactly what these rules say, so you can check it by hand on the contacts list — including the “on the list” rule, which is the one that drops somebody the moment they opt out."
+                  }
                   emptyText="No rules yet, so this segment is every contact you have — people who opted out included."
                 />
               ) : (
