@@ -6,6 +6,7 @@ import { z } from "zod"
 import {
   appAutomationNodes,
   appCanvasPanel,
+  appOffersMemberTest,
   appPaletteGroups,
   appSettingsTabs,
   catchAllOverride,
@@ -227,6 +228,26 @@ describe("the app's own canvas panel", () => {
       panel: async () => ({ default: () => null }),
     }
     expect(appCanvasPanel({ automations: { canvasPanel } })).toBe(canvasPanel)
+  })
+})
+
+describe("testing a flow with one member", () => {
+  it("is offered on every flow unless an app says otherwise", () => {
+    expect(appOffersMemberTest([], {})).toBe(true)
+    expect(appOffersMemberTest(["sendEmail"], {})).toBe(true)
+  })
+
+  it("is kept off the flows the app names, and left on the rest", () => {
+    const options = {
+      automations: {
+        memberTest: {
+          appliesTo: (kinds: readonly string[]) => !kinds.includes("tradeDca"),
+        },
+      },
+    }
+
+    expect(appOffersMemberTest(["tradeWallet", "tradeDca"], options)).toBe(false)
+    expect(appOffersMemberTest(["sendEmail"], options)).toBe(true)
   })
 })
 
