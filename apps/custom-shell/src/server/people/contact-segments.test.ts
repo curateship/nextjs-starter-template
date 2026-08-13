@@ -26,6 +26,7 @@ import {
 import { type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
+  customShellDeliveries,
   customShellPlans,
   customShellSubscriptions,
   customShellWorkspaces,
@@ -65,6 +66,30 @@ async function insertContact(
     tags: [],
     createdAt: daysAgo(1),
     updatedAt: daysAgo(1),
+    ...overrides,
+  })
+}
+
+/**
+ * One thing sent to one person, at one moment.
+ *
+ * No broadcast id on purpose: the rules ask when somebody was last sent
+ * anything, never what it was, and a delivery whose broadcast has since been
+ * deleted keeps its `null` there forever.
+ */
+async function insertDelivery(
+  contactId: string,
+  at: Date,
+  overrides: Partial<typeof customShellDeliveries.$inferInsert> = {}
+) {
+  await db.insert(customShellDeliveries).values({
+    id: `${contactId}-${at.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+    workspaceId: WORKSPACE_ID,
+    contactId,
+    toEmail: `${contactId}@example.test`,
+    subject: "Newsletter",
+    status: "sent",
+    createdAt: at,
     ...overrides,
   })
 }
@@ -204,6 +229,151 @@ describe("one segment, one condition at a time", () => {
     expect(await matching([{ type: "account", operator: "hasnt" }])).toEqual([
       "bob@example.test",
     ])
+  })
+})
+
+/**
+ * The three ways of asking about sending history.
+ *
+ * The one to get right is "not emailed in N days": it has to include people
+ * who have never been emailed at all. Leaving them out would make a
+ * re-engagement list quietly miss the people who most need it, and nothing on
+ * screen would say so.
+ */
+describe("when somebody was last emailed", () => {
+  /** Recently emailed, emailed long ago, and never emailed. */
+  async function threePeople() {
+    await insertContact("recent")
+    await insertContact("stale")
+    await insertContact("never")
+    await insertDelivery("recent", daysAgo(3))
+    await insertDelivery("stale", daysAgo(200))
+  }
+
+  it("finds the people emailed inside the window", async () => {
+    await threePeople()
+
+    expect(
+      await matching([{ type: "emailed", operator: "within", days: 30 }])
+    ).toEqual(["recent@example.test"])
+  })
+
+  it("counts never-emailed people as not emailed in the window", async () => {
+    await threePeople()
+
+    expect(
+      await matching([{ type: "emailed", operator: "before", days: 30 }])
+    ).toEqual(["never@example.test", "stale@example.test"])
+  })
+
+  it("matches only people with nothing sent to them at all", async () => {
+    await threePeople()
+
+    expect(
+      await matching([{ type: "emailed", operator: "never", days: 30 }])
+    ).toEqual(["never@example.test"])
+  })
+
+  it("reads the newest send, not the last one written down", async () => {
+    await insertContact("ada")
+    // Written in the wrong order on purpose: the recent send is stored first
+    // and the ancient one second, so a rule that looked at the newest row
+    // rather than the newest date would get this backwards.
+    await insertDelivery("ada", daysAgo(2))
+    await insertDelivery("ada", daysAgo(400))
+
+    expect(
+      await matching([{ type: "emailed", operator: "within", days: 30 }])
+    ).toEqual(["ada@example.test"])
+    expect(
+      await matching([{ type: "emailed", operator: "before", days: 30 }])
+    ).toEqual([])
+  })
+
+  it("lands the boundary day on the inside of the window", async () => {
+    await insertContact("edge")
+    await insertDelivery("edge", daysAgo(30))
+
+    // Exactly thirty days ago is "in the last thirty days", the same way the
+    // joined rule reads its own cutoff. Both answers have to agree about it,
+    // or somebody sits in neither.
+    expect(
+      await matching([{ type: "emailed", operator: "within", days: 30 }])
+    ).toEqual(["edge@example.test"])
+    expect(
+      await matching([{ type: "emailed", operator: "before", days: 30 }])
+    ).toEqual([])
+  })
+
+  it("ignores sends belonging to another workspace", async () => {
+    await insertContact("ada")
+    await insertContact("theirs", { workspaceId: OTHER_WORKSPACE_ID })
+    await insertDelivery("theirs", daysAgo(1), {
+      workspaceId: OTHER_WORKSPACE_ID,
+    })
+
+    expect(
+      await matching([{ type: "emailed", operator: "never", days: 30 }])
+    ).toEqual(["ada@example.test"])
+  })
+
+  it("treats a send that failed as a send, like the contacts list does", async () => {
+    await insertContact("bounced")
+    await insertDelivery("bounced", daysAgo(3), { status: "failed" })
+
+    // The "Last emailed" column on the contacts list shows this date, so the
+    // rule has to agree with it. Somebody checking the rule against the list
+    // by hand is the whole point.
+    expect(
+      await matching([{ type: "emailed", operator: "never", days: 30 }])
+    ).toEqual([])
+    expect(
+      await matching([{ type: "emailed", operator: "within", days: 30 }])
+    ).toEqual(["bounced@example.test"])
+  })
+
+  it("still counts everybody's send history in one pass of the list page", async () => {
+    await threePeople()
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Gone quiet", [
+        { type: "emailed", operator: "before", days: 30 },
+      ]),
+      db
+    )
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Never touched", [
+        { type: "emailed", operator: "never", days: 30 },
+      ]),
+      db
+    )
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Just emailed", [
+        { type: "emailed", operator: "within", days: 30 },
+        { type: "status", operator: "is", status: "subscribed" },
+      ]),
+      db
+    )
+
+    const listed = await listWorkspaceSegments(WORKSPACE_ID, db, TODAY)
+
+    // Counted the slow way as well, one query each: the one-pass query has to
+    // give the same answers with a correlated lookup inside every count.
+    for (const item of listed) {
+      const alone = await countSegmentContacts(
+        WORKSPACE_ID,
+        readSegment(item.segment),
+        db,
+        TODAY
+      )
+      expect(alone, item.segment.name).toBe(item.total)
+    }
+
+    expect(
+      Object.fromEntries(listed.map((item) => [item.segment.name, item.total]))
+    ).toEqual({ "Gone quiet": 2, "Never touched": 1, "Just emailed": 1 })
   })
 })
 
@@ -490,6 +660,40 @@ describe("one segment leaving another out", () => {
     const people = await listSegmentContacts(
       WORKSPACE_ID,
       readSegment(readers),
+      {},
+      db,
+      TODAY
+    )
+    expect(people.map((person) => person.email)).toEqual(["ada@example.test"])
+  })
+
+  it("takes away the people of a segment built on sending history", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    await insertDelivery("bob", daysAgo(3))
+
+    // The nested one asks about deliveries, and it is worked out inside a
+    // subquery that is itself over `contacts`. Two mentions of the same table,
+    // one inside the other: the place a lookup can quietly attach itself to
+    // the wrong one and give an answer that looks plausible.
+    const emailed = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Emailed lately", [
+        { type: "emailed", operator: "within", days: 30 },
+      ]),
+      db
+    )
+    const rest = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Everyone else", [
+        { type: "notIn", segmentIds: [emailed.id] },
+      ]),
+      db
+    )
+
+    const people = await listSegmentContacts(
+      WORKSPACE_ID,
+      readSegment(rest),
       {},
       db,
       TODAY

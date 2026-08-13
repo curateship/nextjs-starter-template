@@ -77,6 +77,46 @@ describe("reading saved rules", () => {
     expect(rules.conditions[0]?.type).toBe("tag")
   })
 
+  it("reads all three ways of asking about sending history", () => {
+    const rules = parseSegmentRules({
+      conditions: [
+        { type: "emailed", operator: "within", days: 7 },
+        { type: "emailed", operator: "before", days: 90 },
+        { type: "emailed", operator: "never", days: 90 },
+      ],
+    })
+
+    expect(rules.conditions).toHaveLength(3)
+    expect(rules.conditions[1]).toEqual({
+      type: "emailed",
+      operator: "before",
+      days: 90,
+    })
+  })
+
+  it("refuses a sending-history rule with a silly number of days", () => {
+    const rules = parseSegmentRules({
+      conditions: [{ type: "emailed", operator: "before", days: 100000 }],
+    })
+
+    // Everything was thrown away, so this is the "matches nobody" shape below.
+    expect(rules.conditions).toHaveLength(2)
+    expect(rules.conditions.every((c) => c.type === "status")).toBe(true)
+  })
+
+  it("leaves rules saved before sending history existed exactly as they were", () => {
+    const before = {
+      match: "any" as const,
+      conditions: [
+        { type: "tag" as const, operator: "includes" as const, tags: ["beta"] },
+        { type: "joined" as const, operator: "before" as const, days: 30 },
+        { type: "account" as const, operator: "hasnt" as const },
+      ],
+    }
+
+    expect(parseSegmentRules(before)).toEqual(before)
+  })
+
   it("refuses a joined rule with a silly number of days", () => {
     const rules = parseSegmentRules({
       conditions: [{ type: "joined", operator: "within", days: 100000 }],
@@ -103,6 +143,21 @@ describe("reading rules from a contacts-list link", () => {
         { type: "status", operator: "is", status: "subscribed" },
       ],
     })
+  })
+
+  it("carries a sending-history rule through the address unchanged", () => {
+    const filter = {
+      conditions: [
+        { type: "emailed" as const, operator: "before" as const, days: 90 },
+      ],
+    }
+
+    // The contacts list writes its filters into the address as JSON and reads
+    // them back here, so a rule that does not survive this trip is one that
+    // silently disappears on a reload.
+    expect(
+      readSegmentRulesParam(JSON.parse(JSON.stringify(filter)))
+    ).toEqual(filter)
   })
 
   it("drops the whole filter when its mode is junk", () => {
@@ -165,6 +220,7 @@ describe("a half-finished rule is spotted before it is saved", () => {
     expect(segmentConditionIsComplete(newSegmentCondition("status"))).toBe(true)
     expect(segmentConditionIsComplete(newSegmentCondition("joined"))).toBe(true)
     expect(segmentConditionIsComplete(newSegmentCondition("account"))).toBe(true)
+    expect(segmentConditionIsComplete(newSegmentCondition("emailed"))).toBe(true)
   })
 })
 
@@ -205,6 +261,25 @@ describe("what a segment says in words", () => {
     expect(describeSegmentRules({ match: "any", conditions })).toBe(
       "Any of: tagged beta, or has an account"
     )
+  })
+
+  it("says all three sending-history rules in plain words", () => {
+    expect(
+      describeSegmentRules({
+        conditions: [{ type: "emailed", operator: "within", days: 7 }],
+      })
+    ).toBe("emailed in the last 7 days")
+    expect(
+      describeSegmentRules({
+        conditions: [{ type: "emailed", operator: "before", days: 90 }],
+      })
+    ).toBe("not emailed in the last 90 days")
+    // The number is still carried, and must not turn up in the words.
+    expect(
+      describeSegmentRules({
+        conditions: [{ type: "emailed", operator: "never", days: 90 }],
+      })
+    ).toBe("never emailed")
   })
 
   it("says a segment with no rules is every contact, not nobody", () => {
