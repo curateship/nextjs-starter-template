@@ -12,6 +12,11 @@ import {
   cleanWrittenPageBody,
   type WrittenPageNode,
 } from "@/lib/pages/written-page-body"
+import {
+  searchSnippet,
+  siteSearchPattern,
+  type SiteSearchResult,
+} from "@/lib/pages/site-search"
 import { appUrl } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
 import { claimedListingIds, claimStateFor } from "@/server/directory/claims"
@@ -223,6 +228,48 @@ function publishedOnSite(siteId: string) {
     eq(directoryListings.workspaceId, siteId),
     eq(directoryListings.status, "published")
   )
+}
+
+/** Published listing results contributed to the shell's whole-site search. */
+export async function directorySearchResults(
+  siteId: string,
+  rawQuery: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<SiteSearchResult[]> {
+  const query = rawQuery.trim()
+  if (!query || limit < 1) return []
+
+  const pattern = siteSearchPattern(query)
+  const rows = await database
+    .select({
+      title: directoryListings.title,
+      slug: directoryListings.slug,
+      metaDescription: directoryListings.metaDescription,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        publishedOnSite(siteId),
+        or(
+          ilike(directoryListings.title, pattern),
+          ilike(directoryListings.metaDescription, pattern)
+        )
+      )
+    )
+    .orderBy(
+      desc(ilike(directoryListings.title, pattern)),
+      asc(directoryListings.title),
+      asc(directoryListings.id)
+    )
+    .limit(limit)
+
+  return rows.map((row) => ({
+    type: "Listing",
+    title: row.title,
+    snippet: searchSnippet(row.metaDescription, query),
+    path: `/directory/${row.slug}`,
+  }))
 }
 
 function orderFor(sort: DirectorySort, workspaceId: string) {
