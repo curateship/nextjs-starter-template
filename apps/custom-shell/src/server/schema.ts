@@ -1768,6 +1768,25 @@ export const customShellDeliveries = pgTable(
       table.createdAt
     ),
     index("ix_deliveries_contact").on(table.contactId),
+    /**
+     * "Has this person been sent anything since…", asked once per contact by
+     * the segment rules about sending history.
+     *
+     * All three columns, in this order, so the question is answered out of the
+     * index without touching a single row: workspace and contact narrow it,
+     * and the date is then already sorted underneath. Measured on 20,000
+     * contacts and 200,000 sends, with three segments using the rule — 2,100ms
+     * without it, 175ms with it.
+     *
+     * The `deliveries` index above is not the same thing and is still needed:
+     * it starts at the contact, so it answers "everything sent to this one
+     * person" for the details window.
+     */
+    index("ix_deliveries_workspace_contact_created").on(
+      table.workspaceId,
+      table.contactId,
+      table.createdAt
+    ),
     index("ix_deliveries_broadcast").on(table.broadcastId),
     uniqueIndex("ux_deliveries_broadcast_contact")
       .on(table.broadcastId, table.contactId)

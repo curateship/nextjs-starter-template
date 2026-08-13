@@ -482,6 +482,12 @@ async function processBroadcastBatch(
   // The audience is worked out fresh for every batch, not frozen when Send was
   // pressed. That is what makes a segment worth pointing at: somebody who opts
   // out halfway through simply stops being in it.
+  //
+  // A segment asking about sending history — "not emailed in the last 90 days"
+  // — therefore shrinks as this very send goes out, because sending writes the
+  // delivery row the rule reads. That is not a hole: the people who drop out
+  // are exactly the people already sent this, and `unsent` below leaves those
+  // out anyway. Everybody still waiting is still in it.
   let audience: AudienceContact[]
   try {
     audience = await resolveBroadcastAudience(

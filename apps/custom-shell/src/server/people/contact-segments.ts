@@ -3,6 +3,7 @@ import {
   arrayOverlaps,
   asc,
   eq,
+  exists,
   gte,
   ilike,
   inArray,
@@ -11,6 +12,7 @@ import {
   lt,
   ne,
   not,
+  notExists,
   notInArray,
   or,
   sql,
@@ -33,6 +35,7 @@ import {
   customShellContactSegmentMembers,
   customShellContactSegments,
   customShellContacts,
+  customShellDeliveries,
   customShellPlans,
   customShellSubscriptions,
   type CustomShellContactSegment,
@@ -223,6 +226,42 @@ function conditionSql(
       return condition.operator === "within"
         ? gte(customShellContacts.createdAt, cutoff)
         : lt(customShellContacts.createdAt, cutoff)
+    }
+
+    case "emailed": {
+      const cutoff = new Date(
+        timestamp.getTime() - condition.days * 24 * 60 * 60 * 1000
+      )
+
+      // Sends, not opens. Every send writes one delivery row per person, so
+      // "when were they last emailed" is "is there a row newer than the
+      // cutoff" — asked as an exists rather than as a newest-date, so it can
+      // stop at the first row it finds. Workspace, then contact, then date is
+      // exactly `ix_deliveries_workspace_contact_created`, so the answer comes
+      // out of that index without reading a row.
+      const sent = database
+        .select({ contactId: customShellDeliveries.contactId })
+        .from(customShellDeliveries)
+        .where(
+          and(
+            // The contact already belongs to one workspace, so this is belt
+            // and braces — but it is also the first column of the index, so it
+            // is not free-standing paranoia either.
+            eq(customShellDeliveries.workspaceId, workspaceId),
+            eq(customShellDeliveries.contactId, customShellContacts.id),
+            // "Never" asks about every row there has ever been, so it is the
+            // same subquery with the date left off.
+            ...(condition.operator === "never"
+              ? []
+              : [gte(customShellDeliveries.createdAt, cutoff)])
+          )
+        )
+
+      // "Not in the last N days" and "never" are the same question asked of
+      // different rows: nothing recent, and nothing at all. Somebody who has
+      // never been emailed is therefore in the first answer too, which is what
+      // makes it a re-engagement list rather than a list of lapsed regulars.
+      return condition.operator === "within" ? exists(sent) : notExists(sent)
     }
 
     case "account":
