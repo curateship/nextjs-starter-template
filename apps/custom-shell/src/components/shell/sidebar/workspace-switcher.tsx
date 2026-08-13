@@ -30,7 +30,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { WorkspaceItem } from "@/lib/api/people/workspaces"
+import type {
+  WorkspaceCopyChoice,
+  WorkspaceItem,
+} from "@/lib/api/people/workspaces"
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { capitalise, workspaceWord } from "@/lib/app-options"
@@ -51,11 +54,13 @@ export function WorkspaceSwitcher({
   workspaces,
   favicon,
   baseDomain = "",
+  copyChoices = [],
 }: {
   workspaces: WorkspaceItem[]
   favicon: string
   /** The domain workspaces hang off, for the address field's preview. */
   baseDomain?: string
+  copyChoices?: WorkspaceCopyChoice[]
 }) {
   const { isMobile } = useSidebar()
   const activeWorkspace =
@@ -247,6 +252,8 @@ export function WorkspaceSwitcher({
 
       <WorkspaceFormDialog
         baseDomain={baseDomain}
+        availableWorkspaces={workspaces}
+        copyChoices={copyChoices}
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />

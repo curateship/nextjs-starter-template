@@ -51,12 +51,17 @@ import {
 } from "@/lib/workspaces/status"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  appWorkspaceCopyChoices,
+  copyAppWorkspace,
+} from "@/server/app-options"
+import {
   answerForRequest,
   dropWorkspaceCache,
   workspaceBaseDomain,
 } from "@/server/workspaces/host"
 import {
   customShellUsers,
+  customShellWrittenPages,
   customShellWorkspaces,
   type CustomShellWorkspace,
 } from "@/server/schema"
@@ -558,6 +563,10 @@ export async function readWorkspaceList(
     workspaces: workspaces.map((row) =>
       serializeWorkspace(row, currentWorkspaceId)
     ),
+    copyChoices: appWorkspaceCopyChoices().map(({ key, label }) => ({
+      key,
+      label,
+    })),
     baseDomain: workspaceBaseDomain(),
   }
 }
@@ -761,6 +770,106 @@ export async function createUserWorkspace(
     dropWorkspaceCache()
     return setCurrentWorkspace(userId, workspace.id, tx)
   })
+}
+
+/**
+ * Starts a workspace from another reachable workspace's site setup.
+ *
+ * Settings, written pages and the app hook share one transaction. Anything
+ * failing leaves no workspace, page or app row behind. The source is only
+ * read, and the new workspace is always a draft.
+ */
+export async function copyUserWorkspace(
+  userId: string,
+  sourceWorkspaceId: string,
+  name: string,
+  settings: Partial<WorkspaceSettings> = {},
+  database: CustomShellDb = db,
+  address?: Partial<WorkspaceAddress>,
+  options: {
+    seesEveryWorkspace?: boolean
+    choices?: readonly string[]
+  } = {}
+) {
+  const trimmedName = name.trim()
+  if (!trimmedName) throw new Error("Workspace name is required")
+
+  const workspace = await database.transaction(async (tx) => {
+    const mayReach = reachable(userId, options.seesEveryWorkspace ?? false)
+    const [source] = await tx
+      .select()
+      .from(customShellWorkspaces)
+      .where(and(eq(customShellWorkspaces.id, sourceWorkspaceId), mayReach))
+      .limit(1)
+    if (!source) throw new Error("Workspace not found")
+
+    const createdAt = now()
+    const id = uuid()
+    const copiedSettings = cleanWorkspaceSettings({
+      ...parseWorkspaceSettings(source.settings),
+      ...settings,
+    })
+    const [created] = await tx
+      .insert(customShellWorkspaces)
+      .values({
+        id,
+        userId,
+        name: trimmedName.slice(0, 255),
+        ...(address?.subdomain
+          ? cleanAddress({
+              subdomain: address.subdomain,
+              customDomain: address.customDomain ?? "",
+              status: "draft",
+            })
+          : {
+              subdomain: await freeSubdomain(trimmedName, id, tx),
+              status: "draft" as const,
+            }),
+        settings: copiedSettings,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+      .catch((error) => {
+        throw describeAddressClash(error, {
+          subdomain: cleanSubdomain(address?.subdomain ?? ""),
+          customDomain: cleanCustomDomain(address?.customDomain ?? ""),
+          status: "draft",
+        })
+      })
+    if (!created) throw new Error("Workspace was not created")
+
+    const pages = await tx
+      .select()
+      .from(customShellWrittenPages)
+      .where(eq(customShellWrittenPages.workspaceId, sourceWorkspaceId))
+    if (pages.length) {
+      await tx.insert(customShellWrittenPages).values(
+        pages.map((page) => ({
+          id: uuid(),
+          workspaceId: created.id,
+          path: page.path,
+          title: page.title,
+          body: page.body,
+          createdAt,
+          updatedAt: createdAt,
+        }))
+      )
+    }
+
+    await copyAppWorkspace(
+      {
+        sourceWorkspaceId,
+        newWorkspaceId: created.id,
+        choices: options.choices ?? [],
+        database: tx,
+      }
+    )
+    return setCurrentWorkspace(userId, created.id, tx)
+  })
+
+  dropWorkspaceCache()
+  return workspace
 }
 
 export async function updateUserWorkspace(

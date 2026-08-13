@@ -1,6 +1,7 @@
 import { appServerOptions } from "@/app/server-options"
 import type { SiteSearchResult } from "@/lib/pages/site-search"
 import type { AutomationExecutor } from "@/server/automations/executors"
+import type { CustomShellDb } from "@/server/db"
 
 /**
  * The same idea as `src/lib/app-options.ts`, for the answers that can only run
@@ -25,6 +26,27 @@ export type AppServerOptions = {
   auth?: AuthServerOptions
   sitemap?: SitemapServerOptions
   search?: SearchServerOptions
+  workspaces?: WorkspaceServerOptions
+}
+
+export type WorkspaceCopyChoice = {
+  key: string
+  label: string
+}
+
+export type WorkspaceCopyInput = {
+  sourceWorkspaceId: string
+  newWorkspaceId: string
+  choices: readonly string[]
+  /** The transaction creating the new workspace. Throwing rolls it all back. */
+  database: CustomShellDb
+}
+
+type WorkspaceServerOptions = {
+  /** Optional app-owned content choices shown only when copying a workspace. */
+  copyChoices?: readonly WorkspaceCopyChoice[]
+  /** Copies app-owned rows inside the shell's workspace-copy transaction. */
+  onCopy?: (input: WorkspaceCopyInput) => Promise<void>
 }
 
 export type SiteSearchSource = (
@@ -198,6 +220,27 @@ export function appBackgroundWorkers(
   options: AppServerOptions = appServerOptions
 ): readonly AppBackgroundWorker[] {
   return options.background?.workers ?? []
+}
+
+/** App-owned choices shown on the workspace copy form, or none. */
+export function appWorkspaceCopyChoices(
+  options: AppServerOptions = appServerOptions
+): readonly WorkspaceCopyChoice[] {
+  return options.workspaces?.copyChoices ?? []
+}
+
+/** Copies app-owned workspace rows, or does nothing when the app has none. */
+export async function copyAppWorkspace(
+  input: WorkspaceCopyInput,
+  options: AppServerOptions = appServerOptions
+): Promise<void> {
+  const configured = new Set(
+    (options.workspaces?.copyChoices ?? []).map((choice) => choice.key)
+  )
+  if (input.choices.some((choice) => !configured.has(choice))) {
+    throw new Error("That workspace copy choice is not available.")
+  }
+  await options.workspaces?.onCopy?.(input)
 }
 
 /**

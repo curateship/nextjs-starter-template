@@ -32,7 +32,10 @@ import { whoMayHaveWorkspaces } from "@/lib/app-options"
 import { useBlankSpaceDoubleClick } from "@/lib/layout/panel-collapse"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
-import type { WorkspaceItem } from "@/lib/api/people/workspaces"
+import type {
+  WorkspaceCopyChoice,
+  WorkspaceItem,
+} from "@/lib/api/people/workspaces"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
@@ -40,6 +43,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   plan: PlanSummary
   workspaces: WorkspaceItem[]
   baseDomain?: string
+  copyChoices?: WorkspaceCopyChoice[]
   /** True while an admin is looking at the app as this member. */
   viewingAsMember: boolean
   onLogout: () => void
@@ -128,6 +132,7 @@ export function AppSidebar({
   plan,
   workspaces,
   baseDomain,
+  copyChoices,
   viewingAsMember,
   onLogout,
   ...props
@@ -165,6 +170,7 @@ export function AppSidebar({
           <WorkspaceSwitcher
             workspaces={workspaces}
             baseDomain={baseDomain}
+            copyChoices={copyChoices}
             favicon={config.favicon}
           />
         )}
