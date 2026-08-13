@@ -43,9 +43,12 @@ import {
 import {
   LISTING_STATUS_FILTERS,
   LISTING_STATUS_LABELS,
+  LISTING_VIEW_RANGES,
+  LISTING_VIEW_RANGE_LABELS,
   listingSortDirection,
   type ListingSortColumn,
   type ListingStatusFilter,
+  type ListingViewRange,
 } from "@/lib/directory/listing-sort"
 import {
   forgetListings,
@@ -69,13 +72,6 @@ import {
  * Opening a row goes to the listing's own edit page at /admin/listings/<id>.
  */
 
-const LISTING_COLUMNS: SortableColumn<ListingSortColumn>[] = [
-  { key: "title", label: "Listing", column: "main" },
-  { key: "status", label: "Status", column: "meta" },
-  { key: "created", label: "Created", column: "meta", className: "hidden md:table-cell" },
-  { key: "updated", label: "Updated", column: "meta" },
-]
-
 export function ListingsDashboard({
   data,
   categories,
@@ -89,6 +85,7 @@ export function ListingsDashboard({
     status?: ListingStatusFilter
     sort?: ListingSortColumn
     direction?: "asc" | "desc"
+    days?: ListingViewRange
     /** Which listing's edit window is open — it lives in the address. */
     open?: string
   }
@@ -102,6 +99,31 @@ export function ListingsDashboard({
 
   const sort = search.sort ?? "created"
   const direction = search.direction ?? "desc"
+  const viewDays = search.days ?? "all"
+  const columns = React.useMemo<SortableColumn<ListingSortColumn>[]>(
+    () => [
+      { key: "title", label: "Listing", column: "main" },
+      { key: "status", label: "Status", column: "meta" },
+      {
+        key: "views",
+        label:
+          viewDays === "all"
+            ? "Views"
+            : viewDays === 365
+              ? "Year views"
+              : `${viewDays}-day views`,
+        column: "meta",
+      },
+      {
+        key: "created",
+        label: "Created",
+        column: "meta",
+        className: "hidden md:table-cell",
+      },
+      { key: "updated", label: "Updated", column: "meta" },
+    ],
+    [viewDays]
+  )
   const toggleSort = useListSort<ListingSortColumn>(
     { sort, direction },
     listingSortDirection
@@ -279,6 +301,26 @@ export function ListingsDashboard({
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={String(viewDays)}
+              onValueChange={(value) =>
+                setListSearch({
+                  days: value === "all" ? undefined : Number(value),
+                  page: undefined,
+                })
+              }
+            >
+              <SelectTrigger className="w-fit" aria-label="Choose view range">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LISTING_VIEW_RANGES.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {LISTING_VIEW_RANGE_LABELS[days]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
               New listing
@@ -287,7 +329,7 @@ export function ListingsDashboard({
         }
         header={
           <SortableTableHeader
-            columns={LISTING_COLUMNS}
+            columns={columns}
             sort={sort}
             direction={direction}
             onSort={toggleSort}
@@ -310,7 +352,7 @@ export function ListingsDashboard({
             ? "No listing matches that search."
             : "No listings yet. Create the first one."
         }
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={{
           type: "pagination",
           page: data.page,
@@ -371,6 +413,7 @@ export function ListingsDashboard({
                 <Badge variant="outline">Draft</Badge>
               )}
             </TableCell>
+            <TableCell column="meta">{listing.views.toLocaleString()}</TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
               {formatDate(listing.createdAt)}
             </TableCell>

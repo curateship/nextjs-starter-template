@@ -9,6 +9,7 @@ import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
+  customShellDeliveries,
   customShellUsers,
   type CustomShellContact,
 } from "@/server/schema"
@@ -215,25 +216,70 @@ export async function listWorkspaceContacts(
   const offset = Math.max(options.offset ?? 0, 0)
   const where = await contactFilterConditions(workspaceId, options, database)
 
-  // Ordered here rather than in the browser, because the page only ever holds
-  // one page of contacts — sorting what has already arrived would only shuffle
-  // those rows and leave the rest of the list where it was.
-  const order = options.direction === "asc" ? asc : desc
-  const column = {
-    email: customShellContacts.email,
-    name: customShellContacts.firstName,
-    status: customShellContacts.status,
-    created: customShellContacts.createdAt,
-  }[options.sort ?? "created"]
+  // When each person was last sent anything, worked out once for the whole
+  // workspace and joined on. One grouped pass over `deliveries`, not a little
+  // subquery per row — a row-at-a-time version costs one lookup per contact on
+  // screen, on a database that is not on this machine.
+  //
+  // The count beside it deliberately does not join: how many people match the
+  // filters has nothing to do with what was sent to them.
+  const lastEmailed = database
+    .select({
+      contactId: customShellDeliveries.contactId,
+      // `mapWith` is what turns the driver's raw timestamp back into a Date.
+      // A hand-written expression gets none of the column's own conversion, so
+      // without it this arrives as a string and every caller that treats it as
+      // a date throws — which is exactly what happens next, in the API layer.
+      at: sql<Date | null>`max(${customShellDeliveries.createdAt})`
+        .mapWith(customShellDeliveries.createdAt)
+        .as("last_emailed_at"),
+    })
+    .from(customShellDeliveries)
+    .where(eq(customShellDeliveries.workspaceId, workspaceId))
+    .groupBy(customShellDeliveries.contactId)
+    .as("last_emailed")
+
+  /**
+   * Ordered here rather than in the browser, because the page only ever holds
+   * one page of contacts — sorting what has already arrived would only shuffle
+   * those rows and leave the rest of the list where it was.
+   *
+   * "Last emailed" is the one column that is not a column, so it is its own
+   * branch rather than an entry in the map below.
+   *
+   * Never emailed sorts with the oldest, both ways round: somebody who has
+   * never been sent anything is the most stale person on the list, so they
+   * belong at the same end as the longest-ago date — first when the oldest are
+   * first, last when the newest are. Postgres does the opposite by default
+   * (nulls last ascending, first descending), so both directions say where the
+   * nulls go rather than leaving it to a default that reads as a bug.
+   */
+  const ascending = options.direction === "asc"
+  const orderBy =
+    options.sort === "emailed"
+      ? ascending
+        ? sql`${lastEmailed.at} asc nulls first`
+        : sql`${lastEmailed.at} desc nulls last`
+      : (ascending ? asc : desc)(
+          {
+            email: customShellContacts.email,
+            name: customShellContacts.firstName,
+            status: customShellContacts.status,
+            created: customShellContacts.createdAt,
+          }[options.sort ?? "created"]
+        )
 
   const [rows, [countRow]] = await Promise.all([
     database
-      .select()
+      .select({ contact: customShellContacts, lastEmailedAt: lastEmailed.at })
       .from(customShellContacts)
+      // Left, not inner: somebody who has never been emailed is still on the
+      // list, with nothing in this column.
+      .leftJoin(lastEmailed, eq(lastEmailed.contactId, customShellContacts.id))
       .where(where)
       // The id breaks ties, so a page boundary cannot land mid-tie and show
       // the same person twice or skip one entirely.
-      .orderBy(order(column), asc(customShellContacts.id))
+      .orderBy(orderBy, asc(customShellContacts.id))
       .limit(limit)
       .offset(offset),
     database
@@ -242,7 +288,32 @@ export async function listWorkspaceContacts(
       .where(where),
   ])
 
-  return { contacts: rows, total: countRow?.total ?? 0 }
+  return {
+    contacts: rows.map((row) => ({
+      ...row.contact,
+      lastEmailedAt: row.lastEmailedAt,
+    })),
+    total: countRow?.total ?? 0,
+  }
+}
+
+/** One contact, or null when it is not this workspace's to look at. */
+export async function getWorkspaceContact(
+  workspaceId: string,
+  contactId: string,
+  database: CustomShellDb = db
+): Promise<CustomShellContact | null> {
+  const [row] = await database
+    .select()
+    .from(customShellContacts)
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.id, contactId)
+      )
+    )
+    .limit(1)
+  return row ?? null
 }
 
 /** Every tag in use in this workspace, so the picker can offer real ones. */

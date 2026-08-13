@@ -34,9 +34,13 @@ type TableRowProps = React.ComponentProps<"tr"> & {
    * A row with one gets the pointer cursor and the grey hover tint; a row
    * without stays flat, so the tint always means something will happen.
    *
-   * The row is deliberately not focusable. Its title is already a link or a
+   * The row is deliberately not *tabbable*. Its title is already a link or a
    * button, so the keyboard reaches the same place without a second tab stop
    * on every row of every table.
+   *
+   * It is focusable by a click, though (`tabIndex={-1}`), and the handler
+   * focuses it before running this. That is only so a window opened from a row
+   * has something to give focus back to when it closes.
    */
   rowAction?: () => void
 }
@@ -145,7 +149,12 @@ function TableRow({ className, rowAction, onClick, ...props }: TableRowProps) {
     // Whatever is under the pointer owns this click. Bounded to the row: the
     // table itself sits inside scrollers and wrappers that would match too.
     const owner = event.target.closest(rowInteractiveSelector)
-    if (owner && event.currentTarget.contains(owner)) return
+    // The row itself never counts as something inside the row that owns the
+    // click — it is the thing being clicked. It matches the selector only
+    // because it carries `tabIndex={-1}` for the focus handover below.
+    if (owner && owner !== event.currentTarget && event.currentTarget.contains(owner)) {
+      return
+    }
     // Dragging across a cell to copy some text is not a click on the row.
     const selection = window.getSelection()
     if (
@@ -155,6 +164,17 @@ function TableRow({ className, rowAction, onClick, ...props }: TableRowProps) {
     ) {
       return
     }
+    // Take focus before doing anything. A row cannot be tabbed to — that is
+    // deliberate, above — but clicking a `<tr>` moves focus nowhere at all, so
+    // a window opened from here has nothing to hand focus back to when it
+    // closes and it lands on the page instead. `tabIndex={-1}` below is what
+    // makes this possible without adding a tab stop to every row of every
+    // table. The ring is `focus-visible`, so a mouse click does not paint one.
+    //
+    // Without `preventScroll` this also scrolls the row into view, which in a
+    // table scrolled sideways yanks it back to the left on every click. The row
+    // was just clicked, so it is already where the reader can see it.
+    event.currentTarget.focus({ preventScroll: true })
     rowAction()
   }
 
@@ -164,12 +184,14 @@ function TableRow({ className, rowAction, onClick, ...props }: TableRowProps) {
       className={cn(
         "border-0 transition-colors has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted data-[state=selected]:hover:bg-muted",
         rowAction && "cursor-pointer hover:bg-muted/50",
-        // Only some tables make their rows focusable, but where they do the
-        // row has to show it. Inside, because a wide table scrolls and a `<tr>`
-        // cannot paint a ring — see `focusRingInset`.
+        // A focused row has to show it. Inside, because a wide table scrolls
+        // and a `<tr>` cannot paint a ring — see `focusRingInset`. Only on
+        // keyboard focus, so the click that focuses a row draws nothing.
         focusRingInset,
         className
       )}
+      // Reachable by a click, never by Tab — see `handleClick`.
+      tabIndex={rowAction ? -1 : undefined}
       onClick={rowAction || onClick ? handleClick : undefined}
       {...props}
     />
