@@ -3,13 +3,18 @@ import { z } from "zod"
 
 import { CONTACT_SORT_COLUMNS } from "@/lib/contacts/contact-sort"
 import {
-  segmentRulesSchema,
-  type SegmentKind,
-  type SegmentRuleOptions,
+  contactFilterSchema,
+  type ContactFilterInput,
+} from "@/lib/contacts/contact-filter"
+import type {
+  SegmentKind,
+  SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
 
 import {
   deleteWorkspaceContacts,
+  deleteWorkspaceContactsMatching,
+  getWorkspaceContact,
   listWorkspaceContacts,
   listWorkspaceTags,
   setContactStatus,
@@ -18,8 +23,10 @@ import {
 } from "@/server/people/contacts"
 import {
   listSegmentNames,
+  listSegmentsForContact,
   listWorkspaceContactSources,
 } from "@/server/people/contact-segments"
+import { listContactDeliveries } from "@/server/email/deliveries"
 import { adminGet, adminPost } from "@/server/guards"
 import { listPlans } from "@/server/billing/plans"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
@@ -42,8 +49,18 @@ export type ContactItem = {
   tags: string[]
   status: ContactStatus
   source: string | null
-  /** True when this contact is an account on the app rather than a typed-in address. */
-  isAccount: boolean
+  /**
+   * The account this contact is, or null for a typed-in address that belongs to
+   * nobody. The id rather than a yes-or-no, because the detail window links
+   * straight to that account and a boolean cannot say which one.
+   */
+  userId: string | null
+  /**
+   * When anything was last sent to them, or null for somebody who has never
+   * been emailed. The newest row in `deliveries` for them — the same date their
+   * details window shows at the top of its history.
+   */
+  lastEmailedAt: string | null
   created_at: string
 }
 
@@ -74,6 +91,39 @@ export type ContactsPage = {
   pageSize: number
 }
 
+/** One email this contact was sent, and what became of it. */
+export type ContactDelivery = {
+  id: string
+  subject: string
+  /**
+   * The newsletter it came from, or null when that newsletter has since been
+   * deleted. The send still happened, so it is still listed — just with nothing
+   * to open.
+   */
+  broadcastId: string | null
+  status: "sent" | "failed"
+  /** Set when the mail bounced back after it was handed over. */
+  bouncedAt: string | null
+  /** Why it failed, when it did. */
+  error: string | null
+  created_at: string
+}
+
+/**
+ * Everything about one contact the list itself does not already hold.
+ *
+ * The list has their name, address, tags and status; this is the part that
+ * needs its own queries — the segments they are in right now and what has been
+ * sent to them. Fetched when the window opens rather than with every page of
+ * the list, which would be one of these per row.
+ */
+export type ContactDetail = {
+  segments: { id: string; name: string; kind: SegmentKind }[]
+  history: ContactDelivery[]
+  /** There is another page of history below this one. */
+  hasMore: boolean
+}
+
 /** The contacts page's own payload, read as the rule builder's choices. */
 export function contactFilterOptions(page: ContactsPage): SegmentRuleOptions {
   return {
@@ -87,6 +137,7 @@ export function contactFilterOptions(page: ContactsPage): SegmentRuleOptions {
 const contactErrorMessages: Record<string, string> = {
   EMAIL_REQUIRED: "An email address is the one thing we need.",
   SAVE_FAILED: "We could not save that. Please try again.",
+  CONTACT_NOT_FOUND: "That contact is no longer on the list.",
 }
 
 export const getContactErrorMessage = createErrorMessage(
@@ -99,12 +150,9 @@ export const getContactLoadErrorMessage = createErrorMessage(
   "We could not load your contacts. Please try again."
 )
 
-const listSchema = z.object({
-  search: z.string().trim().max(200).optional(),
-  // The list's filters, in the same rules a segment is written in. Checked
-  // against the same schema, so nothing the browser sends can describe a group
-  // the segment builder could not.
-  rules: segmentRulesSchema.optional(),
+// The list is the filter plus how to order and page it, so it extends the one
+// filter schema rather than restating it — see `contactFilterSchema`.
+const listSchema = contactFilterSchema.extend({
   // Checked against the fixed list rather than passed through: this names a
   // column, and anything the database is asked to order by has to come from
   // us, never from whatever the browser sent.
@@ -163,7 +211,51 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
         tags: row.tags,
         status: row.status as ContactStatus,
         source: row.source,
-        isAccount: row.userId !== null,
+        userId: row.userId,
+        lastEmailedAt: row.lastEmailedAt?.toISOString() ?? null,
+        created_at: row.createdAt.toISOString(),
+      })),
+    }
+  })
+
+/** How many sends one page of the history holds. */
+export const CONTACT_HISTORY_PAGE_SIZE = 10
+
+const contactDetailSchema = z.object({
+  contactId: z.string().min(1).max(36),
+  /** 1-based, the same way the contacts list itself pages. */
+  page: z.number().int().min(1).max(10_000).optional(),
+})
+
+const loadContactDetailFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(contactDetailSchema)
+  .handler(async ({ data, context }): Promise<ContactDetail> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    // Read first, and refuse before doing any work if this contact is not this
+    // workspace's. Without it, an id from another workspace would come back as
+    // an honest-looking empty history rather than as a refusal.
+    const contact = await getWorkspaceContact(workspaceId, data.contactId)
+    if (!contact) throw new Error("CONTACT_NOT_FOUND")
+
+    const [segments, { deliveries, hasMore }] = await Promise.all([
+      listSegmentsForContact(workspaceId, contact.id),
+      listContactDeliveries(workspaceId, contact.id, {
+        limit: CONTACT_HISTORY_PAGE_SIZE,
+        offset: ((data.page ?? 1) - 1) * CONTACT_HISTORY_PAGE_SIZE,
+      }),
+    ])
+
+    return {
+      segments,
+      hasMore,
+      history: deliveries.map((row) => ({
+        id: row.id,
+        subject: row.subject,
+        broadcastId: row.broadcastId,
+        status: row.status === "failed" ? "failed" : "sent",
+        bouncedAt: row.bouncedAt?.toISOString() ?? null,
+        error: row.error,
         created_at: row.createdAt.toISOString(),
       })),
     }
@@ -207,10 +299,34 @@ const deleteContactsFn = createServerFn({ method: "POST" })
     }
   })
 
+/**
+ * Deletes everybody the filters match, rather than a list of ticked rows.
+ *
+ * The ticked-rows path above caps at 500 ids because that is how many a browser
+ * can honestly hand over. This one sends the filters instead, so there is no
+ * cap and no chance of the set drifting from the list the admin was reading.
+ */
+const deleteMatchingContactsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(contactFilterSchema)
+  .handler(async ({ data, context }): Promise<{ deleted: number }> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    return {
+      deleted: await deleteWorkspaceContactsMatching(workspaceId, data),
+    }
+  })
+
 export function loadContactsPage(
   options: z.input<typeof listSchema> = {}
 ) {
   return loadContactsPageFn({ data: options })
+}
+
+export function loadContactDetail(
+  contactId: string,
+  page?: number
+) {
+  return loadContactDetailFn({ data: { contactId, page } })
 }
 
 export function saveContact(input: z.input<typeof upsertSchema>) {
@@ -226,4 +342,8 @@ export function setContactsStatus(
 
 export function deleteContacts(contactIds: string[]) {
   return deleteContactsFn({ data: { contactIds } })
+}
+
+export function deleteMatchingContacts(filter: ContactFilterInput) {
+  return deleteMatchingContactsFn({ data: filter })
 }

@@ -1,0 +1,22 @@
+-- Segment rules about when somebody was last emailed.
+--
+-- No new columns: every send already writes one row in `deliveries`, and the
+-- three new rules ("emailed in the last N days", "not emailed in the last N
+-- days", "never emailed") are all the same question asked of those rows.
+--
+-- What is new is *how often* that question gets asked. The segments page counts
+-- every segment in one pass over the contacts table, so a segment with one of
+-- these rules asks "anything sent to this person since…" once per contact, per
+-- segment. Without an index that means reading every send belonging to each
+-- person from disk just to look at its date.
+--
+-- Workspace, then contact, then date — in that order — so the answer comes out
+-- of the index and no row is read at all. Measured on 20,000 contacts and
+-- 200,000 sends with three segments using the rule: 2,100ms before, 175ms
+-- after.
+--
+-- `ix_deliveries_contact` stays. It starts at the contact rather than the
+-- workspace, which is the shape the contact-details window wants when it asks
+-- for everything ever sent to one person.
+CREATE INDEX IF NOT EXISTS "ix_deliveries_workspace_contact_created"
+  ON "deliveries" ("workspace_id", "contact_id", "created_at");

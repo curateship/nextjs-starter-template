@@ -37,8 +37,11 @@ export type SegmentKind = (typeof SEGMENT_KINDS)[number]
 export const MAX_SEGMENT_NAME_LENGTH = 120
 export const MAX_SEGMENT_DESCRIPTION_LENGTH = 500
 const MAX_TAG_LENGTH = 100
-/** Ten years. Long enough for any real "joined before" rule. */
-const MAX_JOINED_DAYS = 3650
+/**
+ * Ten years. Long enough for any real "joined before" or "not emailed in"
+ * rule, and short enough that a mistyped number is refused rather than saved.
+ */
+export const MAX_RULE_DAYS = 3650
 
 const segmentConditionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -59,7 +62,20 @@ const segmentConditionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("joined"),
     operator: z.enum(["within", "before"]),
-    days: z.number().int().min(1).max(MAX_JOINED_DAYS),
+    days: z.number().int().min(1).max(MAX_RULE_DAYS),
+  }),
+  /**
+   * When they were last sent something.
+   *
+   * `days` is carried even by "never", where it means nothing, so switching
+   * the operator back and forth does not lose the number somebody typed. The
+   * rule reads sends, not opens — a separate thing, and not to be merged with
+   * this one.
+   */
+  z.object({
+    type: z.literal("emailed"),
+    operator: z.enum(["within", "before", "never"]),
+    days: z.number().int().min(1).max(MAX_RULE_DAYS),
   }),
   z.object({
     type: z.literal("account"),
@@ -187,6 +203,7 @@ export const segmentConditionLabels: Record<SegmentConditionType, string> = {
   status: "Status",
   source: "Where they came from",
   joined: "When they joined",
+  emailed: "When they were last emailed",
   account: "Has an account",
   plan: "Plan",
   notIn: "Not in another segment",
@@ -213,6 +230,10 @@ export function newSegmentCondition(
       return { type: "source", operator: "is", source: "" }
     case "joined":
       return { type: "joined", operator: "within", days: 30 }
+    case "emailed":
+      // Ninety days, because the rule this exists for is the re-engagement
+      // one — "we have not talked to these people in three months".
+      return { type: "emailed", operator: "before", days: 90 }
     case "account":
       return { type: "account", operator: "has" }
     case "plan":
@@ -258,6 +279,11 @@ export function describeSegmentCondition(
       return condition.operator === "within"
         ? `joined in the last ${condition.days} days`
         : `joined more than ${condition.days} days ago`
+    case "emailed":
+      if (condition.operator === "never") return "never emailed"
+      return condition.operator === "within"
+        ? `emailed in the last ${condition.days} days`
+        : `not emailed in the last ${condition.days} days`
     case "account":
       return condition.operator === "has"
         ? "has an account"

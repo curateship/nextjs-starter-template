@@ -1,5 +1,7 @@
 import { appServerOptions } from "@/app/server-options"
+import type { SiteSearchResult } from "@/lib/pages/site-search"
 import type { AutomationExecutor } from "@/server/automations/executors"
+import type { CustomShellDb } from "@/server/db"
 
 /**
  * The same idea as `src/lib/app-options.ts`, for the answers that can only run
@@ -23,6 +25,46 @@ export type AppServerOptions = {
   security?: SecurityServerOptions
   auth?: AuthServerOptions
   sitemap?: SitemapServerOptions
+  search?: SearchServerOptions
+  workspaces?: WorkspaceServerOptions
+}
+
+export type WorkspaceCopyChoice = {
+  key: string
+  label: string
+}
+
+export type WorkspaceCopyInput = {
+  sourceWorkspaceId: string
+  newWorkspaceId: string
+  choices: readonly string[]
+  /** The transaction creating the new workspace. Throwing rolls it all back. */
+  database: CustomShellDb
+}
+
+type WorkspaceServerOptions = {
+  /** Optional app-owned content choices shown only when copying a workspace. */
+  copyChoices?: readonly WorkspaceCopyChoice[]
+  /** Copies app-owned rows inside the shell's workspace-copy transaction. */
+  onCopy?: (input: WorkspaceCopyInput) => Promise<void>
+}
+
+export type SiteSearchSource = (
+  workspaceId: string,
+  query: string,
+  limit: number
+) => Promise<readonly SiteSearchResult[]>
+
+type SearchServerOptions = {
+  /**
+   * Public content this app adds to a site's search results.
+   *
+   * The shell searches its admin-written pages. An app whose public content
+   * lives in its own tables adds one or more reads here. The workspace id
+   * comes from the request's Host header, never from the browser, and every
+   * source must return only public rows belonging to that workspace.
+   */
+  sources?: readonly SiteSearchSource[]
 }
 
 export type SitemapEntry = {
@@ -180,6 +222,27 @@ export function appBackgroundWorkers(
   return options.background?.workers ?? []
 }
 
+/** App-owned choices shown on the workspace copy form, or none. */
+export function appWorkspaceCopyChoices(
+  options: AppServerOptions = appServerOptions
+): readonly WorkspaceCopyChoice[] {
+  return options.workspaces?.copyChoices ?? []
+}
+
+/** Copies app-owned workspace rows, or does nothing when the app has none. */
+export async function copyAppWorkspace(
+  input: WorkspaceCopyInput,
+  options: AppServerOptions = appServerOptions
+): Promise<void> {
+  const configured = new Set(
+    (options.workspaces?.copyChoices ?? []).map((choice) => choice.key)
+  )
+  if (input.choices.some((choice) => !configured.has(choice))) {
+    throw new Error("That workspace copy choice is not available.")
+  }
+  await options.workspaces?.onCopy?.(input)
+}
+
 /**
  * Whether the app vouches for an address the origin check did not recognise.
  *
@@ -203,6 +266,20 @@ export async function appSitemapEntries(
   options: AppServerOptions = appServerOptions
 ): Promise<readonly SitemapEntry[]> {
   return (await options.sitemap?.extraEntries?.(workspaceId)) ?? []
+}
+
+/** Results from the app's own public search sources, or none when unset. */
+export async function appSiteSearchResults(
+  workspaceId: string,
+  query: string,
+  limit: number,
+  options: AppServerOptions = appServerOptions
+): Promise<SiteSearchResult[]> {
+  const sources = options.search?.sources ?? []
+  const groups = await Promise.all(
+    sources.map((source) => source(workspaceId, query, limit))
+  )
+  return groups.flatMap((results) => results.slice(0, limit))
 }
 
 /**

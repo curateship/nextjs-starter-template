@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select"
 import {
   CONTACT_SEGMENT_STATUSES,
+  MAX_RULE_DAYS,
   MAX_SEGMENT_CONDITIONS,
   newSegmentCondition,
   segmentConditionIsComplete,
@@ -88,6 +89,7 @@ export function SegmentRuleBuilder({
     "status",
     ...(options.sources.length ? (["source"] as const) : []),
     "joined",
+    "emailed",
     "account",
     ...(options.plans.length ? (["plan"] as const) : []),
     ...(options.segments.some((other) => other.id !== excludeSegmentId)
@@ -359,28 +361,44 @@ function ConditionRow({
                 })
               }
             />
-            <div className="flex flex-1 items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={3650}
-                className="w-24"
-                value={condition.days}
-                aria-label={`Number of days for rule ${index + 1}`}
-                onChange={(event) =>
-                  onChange({
-                    ...condition,
-                    days: Math.min(
-                      3650,
-                      Math.max(1, Number(event.target.value) || 1)
-                    ),
-                  })
-                }
+            <DaysInput
+              index={index}
+              days={condition.days}
+              suffix={condition.operator === "within" ? "days" : "days ago"}
+              onChange={(days) => onChange({ ...condition, days })}
+            />
+          </>
+        ) : null}
+
+        {condition.type === "emailed" ? (
+          <>
+            <OperatorSelect
+              id={`${id}-operator`}
+              aria-label={operatorLabel}
+              value={condition.operator}
+              options={[
+                { value: "within", label: "in the last" },
+                { value: "before", label: "not in the last" },
+                { value: "never", label: "never" },
+              ]}
+              onChange={(operator) =>
+                onChange({
+                  ...condition,
+                  operator: operator as "within" | "before" | "never",
+                })
+              }
+            />
+            {/* "Never" has no number to fill in. The typed one is kept in the
+                rule rather than reset, so switching back and forth does not
+                quietly lose it. */}
+            {condition.operator === "never" ? null : (
+              <DaysInput
+                index={index}
+                days={condition.days}
+                suffix="days"
+                onChange={(days) => onChange({ ...condition, days })}
               />
-              <span className="text-sm text-muted-foreground">
-                {condition.operator === "within" ? "days" : "days ago"}
-              </span>
-            </div>
+            )}
           </>
         ) : null}
 
@@ -464,6 +482,47 @@ function ConditionRow({
         ) : null}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * The number of days a "when they joined" or "when they were last emailed"
+ * rule counts back, with the word after it.
+ *
+ * Clamped to the same 1–3650 the saved shape allows, so a number nobody could
+ * save is one nobody can type either.
+ */
+function DaysInput({
+  index,
+  days,
+  suffix,
+  onChange,
+}: {
+  index: number
+  days: number
+  suffix: string
+  onChange: (days: number) => void
+}) {
+  return (
+    <div className="flex flex-1 items-center gap-2">
+      <Input
+        type="number"
+        min={1}
+        max={MAX_RULE_DAYS}
+        className="w-24"
+        value={days}
+        aria-label={`Number of days for rule ${index + 1}`}
+        onChange={(event) =>
+          onChange(
+            Math.min(
+              MAX_RULE_DAYS,
+              Math.max(1, Number(event.target.value) || 1)
+            )
+          )
+        }
+      />
+      <span className="text-sm text-muted-foreground">{suffix}</span>
+    </div>
   )
 }
 

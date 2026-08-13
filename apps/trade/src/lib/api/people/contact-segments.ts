@@ -11,7 +11,12 @@ import {
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
 import {
+  contactFilterSchema,
+  type ContactFilterInput,
+} from "@/lib/contacts/contact-filter"
+import {
   addContactsToSegment,
+  addMatchingContactsToSegment,
   countDraftSegmentContacts,
   createWorkspaceSegment,
   deleteWorkspaceSegments,
@@ -217,6 +222,31 @@ const addToSegmentFn = createServerFn({ method: "POST" })
     }
   )
 
+/**
+ * Puts everybody the contacts list's filters match into a hand-picked segment.
+ *
+ * The ticked-rows path above caps at 500 ids; this one carries no ids at all,
+ * so a filter matching thousands goes in one request and means exactly the
+ * people the list was showing.
+ */
+const addMatchingToSegmentFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    contactFilterSchema.extend({ segmentId: z.string().min(1).max(36) })
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ added: number; alreadyThere: number }> => {
+      const workspaceId = await currentWorkspaceId(context.user.id)
+      return addMatchingContactsToSegment(workspaceId, data.segmentId, {
+        search: data.search,
+        rules: data.rules,
+      })
+    }
+  )
+
 export function loadSegmentsPage() {
   return loadSegmentsPageFn()
 }
@@ -230,6 +260,13 @@ export function addContactsToWorkspaceSegment(
   contactIds: string[]
 ) {
   return addToSegmentFn({ data: { segmentId, contactIds } })
+}
+
+export function addMatchingContactsToWorkspaceSegment(
+  segmentId: string,
+  filter: ContactFilterInput
+) {
+  return addMatchingToSegmentFn({ data: { ...filter, segmentId } })
 }
 
 export function loadSegmentMembers(segmentId: string) {

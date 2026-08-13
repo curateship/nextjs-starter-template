@@ -3,13 +3,16 @@ import {
   arrayOverlaps,
   asc,
   eq,
+  exists,
   gte,
+  ilike,
   inArray,
   isNotNull,
   isNull,
   lt,
   ne,
   not,
+  notExists,
   notInArray,
   or,
   sql,
@@ -32,6 +35,7 @@ import {
   customShellContactSegmentMembers,
   customShellContactSegments,
   customShellContacts,
+  customShellDeliveries,
   customShellPlans,
   customShellSubscriptions,
   type CustomShellContactSegment,
@@ -47,6 +51,13 @@ import { now, uuid } from "@/server/auth/security"
  * the send path all call it, so the number somebody was shown is the number
  * that gets emailed. A second copy of "what this segment means" is exactly how
  * a preview and a send end up disagreeing.
+ *
+ * `contactFilterConditions` is the same idea for the contacts list's own
+ * filters — the search box and the rules together. It reads through
+ * `segmentConditions` rather than beside it, and the rows, the total, deleting
+ * everyone matching and adding everyone matching all go through it. That is
+ * what makes "the people acted on" and "the people shown" the same query
+ * instead of two that happen to agree today.
  */
 
 /** A segment as the rest of this file wants it: rules already parsed. */
@@ -217,6 +228,42 @@ function conditionSql(
         : lt(customShellContacts.createdAt, cutoff)
     }
 
+    case "emailed": {
+      const cutoff = new Date(
+        timestamp.getTime() - condition.days * 24 * 60 * 60 * 1000
+      )
+
+      // Sends, not opens. Every send writes one delivery row per person, so
+      // "when were they last emailed" is "is there a row newer than the
+      // cutoff" — asked as an exists rather than as a newest-date, so it can
+      // stop at the first row it finds. Workspace, then contact, then date is
+      // exactly `ix_deliveries_workspace_contact_created`, so the answer comes
+      // out of that index without reading a row.
+      const sent = database
+        .select({ contactId: customShellDeliveries.contactId })
+        .from(customShellDeliveries)
+        .where(
+          and(
+            // The contact already belongs to one workspace, so this is belt
+            // and braces — but it is also the first column of the index, so it
+            // is not free-standing paranoia either.
+            eq(customShellDeliveries.workspaceId, workspaceId),
+            eq(customShellDeliveries.contactId, customShellContacts.id),
+            // "Never" asks about every row there has ever been, so it is the
+            // same subquery with the date left off.
+            ...(condition.operator === "never"
+              ? []
+              : [gte(customShellDeliveries.createdAt, cutoff)])
+          )
+        )
+
+      // "Not in the last N days" and "never" are the same question asked of
+      // different rows: nothing recent, and nothing at all. Somebody who has
+      // never been emailed is therefore in the first answer too, which is what
+      // makes it a re-engagement list rather than a list of lapsed regulars.
+      return condition.operator === "within" ? exists(sent) : notExists(sent)
+    }
+
     case "account":
       return condition.operator === "has"
         ? isNotNull(customShellContacts.userId)
@@ -289,6 +336,56 @@ function conditionSql(
       return and(...excluded) as SQL
     }
   }
+}
+
+/**
+ * What the contacts list is currently showing, as one database condition.
+ *
+ * The search box and the filter rules together, scoped to the workspace. Every
+ * screen and every action that means "the people this list is showing" reads
+ * through here: the rows, the total under them, deleting everyone matching, and
+ * adding everyone matching to a segment.
+ *
+ * One condition rather than four copies of it is the whole point. A bulk delete
+ * that built its own version of the same filter would only have to drift by one
+ * rule to delete people the admin was never shown.
+ */
+export type ContactListFilter = {
+  search?: string
+  rules?: SegmentRules
+}
+
+export async function contactFilterConditions(
+  workspaceId: string,
+  filter: ContactListFilter = {},
+  database: CustomShellDb = db
+): Promise<SQL> {
+  const filters = [eq(customShellContacts.workspaceId, workspaceId)]
+
+  const search = filter.search?.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    const searchFilter = or(
+      ilike(customShellContacts.email, pattern),
+      ilike(customShellContacts.firstName, pattern),
+      ilike(customShellContacts.lastName, pattern)
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
+
+  if (filter.rules?.conditions.length) {
+    filters.push(
+      await segmentConditions(
+        workspaceId,
+        // Not a saved segment — a draft one, standing in for the filters on
+        // screen. The id is only there for the loop guard to hold on to.
+        { id: "contacts-filter", kind: "rules", rules: filter.rules },
+        database
+      )
+    )
+  }
+
+  return and(...filters) as SQL
 }
 
 /** How many contacts are in one segment right now. */
@@ -428,6 +525,74 @@ export async function listWorkspaceSegments(
     rules: definitions[index].rules,
     total: totals?.[`total${index}`] ?? 0,
   }))
+}
+
+/**
+ * Which segments one person is in right now, worked out fresh.
+ *
+ * Not a stored list — for a rules segment there is nothing stored to read. Every
+ * segment is asked the same question it would be asked on the segments page,
+ * through the very same `buildConditions`, so "why are they getting this?" is
+ * answered by the rules themselves rather than by a second opinion about them.
+ *
+ * One query, the same shape `listWorkspaceSegments` uses: one
+ * `count(… ) filter (where …)` per segment over a single row. That count can
+ * only be 0 or 1 here, which is exactly the yes-or-no being asked.
+ */
+export async function listSegmentsForContact(
+  workspaceId: string,
+  contactId: string,
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<{ id: string; name: string; kind: SegmentKind }[]> {
+  const [rows, context] = await Promise.all([
+    database
+      .select({
+        id: customShellContactSegments.id,
+        name: customShellContactSegments.name,
+        kind: customShellContactSegments.kind,
+        rules: customShellContactSegments.rules,
+      })
+      .from(customShellContactSegments)
+      .where(eq(customShellContactSegments.workspaceId, workspaceId))
+      .orderBy(asc(customShellContactSegments.name)),
+    loadSegmentContext(workspaceId, database),
+  ])
+
+  if (rows.length === 0) return []
+
+  const columns: Record<string, SQL<number>> = {}
+  for (const [index, row] of rows.entries()) {
+    const definition = context.segments.get(row.id) ?? readSegment(row)
+    columns[`member${index}`] = sql<number>`count(*) filter (where ${buildConditions(
+      workspaceId,
+      definition,
+      database,
+      timestamp,
+      context,
+      [definition.id]
+    )})::int`
+  }
+
+  // Scoped to the one contact, so every `filter` above is asked about them and
+  // nobody else. A contact that has since been deleted simply matches nothing.
+  const [totals] = await database
+    .select(columns)
+    .from(customShellContacts)
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.id, contactId)
+      )
+    )
+
+  return rows
+    .filter((_, index) => (totals?.[`member${index}`] ?? 0) > 0)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      kind: row.kind === "static" ? "static" : "rules",
+    }))
 }
 
 async function getWorkspaceSegment(
@@ -756,14 +921,65 @@ export async function listSegmentNames(
   }))
 }
 
+/** The segment people may actually be put into, or a refusal saying why not. */
+async function requireHandPickedSegment(
+  workspaceId: string,
+  segmentId: string,
+  database: CustomShellDb
+) {
+  const segment = await getWorkspaceSegment(workspaceId, segmentId, database)
+  if (!segment) throw new Error("SEGMENT_NOT_FOUND")
+  if (segment.kind !== "static") throw new Error("SEGMENT_IS_RULES")
+  return segment
+}
+
+/**
+ * A statement carries three values per row and Postgres stops at 65,535 of
+ * them. Ticking rows by hand could never reach that; "everyone the filter
+ * matches" can, so the rows go in a batch at a time.
+ */
+const MEMBER_INSERT_BATCH = 1_000
+
+/**
+ * Writes the membership rows and says what actually landed.
+ *
+ * Adding the same person twice is impossible — the pair is the table's primary
+ * key, so a repeat is simply not inserted and does not come back in
+ * `returning`. That is what lets "already in it" be counted rather than guessed.
+ */
+async function insertSegmentMembers(
+  segmentId: string,
+  contactIds: string[],
+  database: CustomShellDb
+): Promise<{ added: number; alreadyThere: number }> {
+  const timestamp = now()
+  let added = 0
+
+  for (let at = 0; at < contactIds.length; at += MEMBER_INSERT_BATCH) {
+    const inserted = await database
+      .insert(customShellContactSegmentMembers)
+      .values(
+        contactIds.slice(at, at + MEMBER_INSERT_BATCH).map((contactId) => ({
+          segmentId,
+          contactId,
+          createdAt: timestamp,
+        }))
+      )
+      .onConflictDoNothing()
+      .returning({ contactId: customShellContactSegmentMembers.contactId })
+    added += inserted.length
+  }
+
+  return { added, alreadyThere: contactIds.length - added }
+}
+
 /**
  * Puts people into a hand-picked segment from wherever they were selected.
  *
  * Says what it actually did rather than "done": somebody already in the segment
  * is counted separately instead of being reported as added, because "5 people
  * added" when three of them were already there is the kind of small lie that
- * makes a number nobody trusts. Adding the same person twice is impossible —
- * the pair is the table's primary key, and a repeat is simply not inserted.
+ * makes a number nobody trusts.
  */
 export async function addContactsToSegment(
   workspaceId: string,
@@ -771,9 +987,7 @@ export async function addContactsToSegment(
   contactIds: string[],
   database: CustomShellDb = db
 ): Promise<{ added: number; alreadyThere: number }> {
-  const segment = await getWorkspaceSegment(workspaceId, segmentId, database)
-  if (!segment) throw new Error("SEGMENT_NOT_FOUND")
-  if (segment.kind !== "static") throw new Error("SEGMENT_IS_RULES")
+  await requireHandPickedSegment(workspaceId, segmentId, database)
   if (contactIds.length === 0) return { added: 0, alreadyThere: 0 }
 
   // Scoped to the workspace here, so an id from somewhere else is simply not
@@ -789,23 +1003,43 @@ export async function addContactsToSegment(
     )
   if (theirs.length === 0) throw new Error("SEGMENT_CONTACT_MISSING")
 
-  const timestamp = now()
-  const inserted = await database
-    .insert(customShellContactSegmentMembers)
-    .values(
-      theirs.map((contact) => ({
-        segmentId,
-        contactId: contact.id,
-        createdAt: timestamp,
-      }))
-    )
-    .onConflictDoNothing()
-    .returning({ contactId: customShellContactSegmentMembers.contactId })
+  return insertSegmentMembers(
+    segmentId,
+    theirs.map((contact) => contact.id),
+    database
+  )
+}
 
-  return {
-    added: inserted.length,
-    alreadyThere: theirs.length - inserted.length,
-  }
+/**
+ * Puts everybody the contacts list's filters match into a hand-picked segment.
+ *
+ * The people are found through `contactFilterConditions`, the very condition
+ * the list itself is drawn from, so "everyone matching" can only ever mean the
+ * people the admin was looking at. Nothing here trusts a list of ids from the
+ * browser, which is why the 500-at-a-time cap on the ticked-rows path does not
+ * apply — there are no ids to send.
+ *
+ * A filter matching nobody adds nobody rather than failing: an empty answer to
+ * a filter is a real answer, unlike an id that points at no contact.
+ */
+export async function addMatchingContactsToSegment(
+  workspaceId: string,
+  segmentId: string,
+  filter: ContactListFilter,
+  database: CustomShellDb = db
+): Promise<{ added: number; alreadyThere: number }> {
+  await requireHandPickedSegment(workspaceId, segmentId, database)
+
+  const matching = await database
+    .select({ id: customShellContacts.id })
+    .from(customShellContacts)
+    .where(await contactFilterConditions(workspaceId, filter, database))
+
+  return insertSegmentMembers(
+    segmentId,
+    matching.map((contact) => contact.id),
+    database
+  )
 }
 
 export type SegmentDeleteResult = {

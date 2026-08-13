@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import {
   ListFilterIcon,
   Loader2Icon,
@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/table"
 import {
   deleteContacts,
+  deleteMatchingContacts,
   getContactErrorMessage,
   saveContact,
   setContactsStatus,
@@ -60,6 +61,7 @@ import {
 } from "@/lib/api/people/contacts"
 import {
   addContactsToWorkspaceSegment,
+  addMatchingContactsToWorkspaceSegment,
   getSegmentErrorMessage,
 } from "@/lib/api/people/contact-segments"
 import { contactFilterOptions } from "@/lib/api/people/contacts"
@@ -68,10 +70,12 @@ import {
   describeSegmentCondition,
   segmentConditionIsComplete,
   segmentRulesMatch,
+  segmentStatusLabels,
   type SegmentCondition,
   type SegmentRuleOptions,
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
+import { ContactDetailDialog } from "@/components/broadcasts/contact-detail-dialog"
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -98,24 +102,6 @@ function fullName(contact: ContactItem) {
 }
 
 /**
- * Why this contact gets mail or not, each reason in its own words: opting out
- * was their choice, bouncing and spam reports arrive from Resend by webhook.
- * "Put back" works on all three — an admin can always override.
- */
-function contactStatusLabel(status: ContactItem["status"]) {
-  switch (status) {
-    case "subscribed":
-      return "On the list"
-    case "unsubscribed":
-      return "Opted out"
-    case "bounced":
-      return "Bouncing"
-    case "complained":
-      return "Marked it spam"
-  }
-}
-
-/**
  * Everyone a newsletter can go to, and the filters that narrow them down.
  *
  * The filters are written in exactly the rules a segment is — one builder for
@@ -127,8 +113,10 @@ function contactStatusLabel(status: ContactItem["status"]) {
  */
 export function ContactsPage({ data }: { data: ContactsPageData }) {
   const router = useRouter()
+  const navigate = useNavigate()
   const listSearch = contactsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
+  const openId = listSearch.open
   const searchQuery = listSearch.q ?? ""
   const rules = listSearch.filter ?? EMPTY_RULES
   const conditions = rules.conditions
@@ -167,6 +155,27 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         conditions: next,
       }),
     [match, setRules]
+  )
+
+  /**
+   * The filters exactly as the list was fetched with them, ready to hand to an
+   * action that works by filter rather than by ticked row.
+   */
+  const currentFilter = React.useMemo(
+    () => ({
+      search: searchQuery.trim() || undefined,
+      rules: rules.conditions.length ? rules : undefined,
+    }),
+    [searchQuery, rules]
+  )
+
+  /**
+   * Only a hand-picked segment can be added to; a rules one works out its own
+   * members. Offering the others would be offering a choice the server refuses.
+   */
+  const handPickedSegments = React.useMemo(
+    () => data.segments.filter((segment) => segment.kind === "static"),
+    [data.segments]
   )
 
   /** Names for the "not in…" chips, so a rule reads as a name not an id. */
@@ -237,9 +246,51 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   const [deleteTarget, setDeleteTarget] = React.useState<ContactItem | null>(
     null
   )
+  /**
+   * The open window lives in the address, so a link can name one person and
+   * Back closes the window rather than leaving the list.
+   *
+   * Not through `setListSearch`, which replaces the history entry — that is
+   * right for a filter typed letter by letter and wrong for a window, where
+   * Back is how most people close things.
+   */
+  const setOpenContact = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+
+  // Read out of the address rather than kept beside it. There is then no second
+  // copy to fall out of step: a link naming somebody on this page opens their
+  // window on arrival, and Back closes it, without an effect for either.
+  const detailTarget =
+    data.contacts.find((contact) => contact.id === openId) ?? null
   const [runDelete, deleting] = useAsyncAction(getContactErrorMessage)
   const closingDeleteTarget = useLastValue(deleteTarget)
+  /** Held through the closing fade, so the window does not empty as it goes. */
+  const closingDetailTarget = useLastValue(detailTarget)
   const selection = useSelection()
+  /**
+   * Which list "everyone matching" was chosen for, or null for nobody.
+   *
+   * The list it was chosen for rather than a plain yes/no, so it simply stops
+   * being true the moment the filters, the search, the sort or the page change.
+   * "Everyone" means whoever the filters meant at the moment it was clicked;
+   * carrying it across a changed filter would point it at different people
+   * without anybody saying so.
+   *
+   * No ids are held. Every action it drives sends the filters themselves.
+   */
+  const [matchingList, setMatchingList] = React.useState<string | null>(null)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   /** Which hand-picked segment the ticked people would go into. */
   const [segmentTarget, setSegmentTarget] = React.useState("")
@@ -247,11 +298,36 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
 
   // Every value that changes which rows are on screen. Without this, ticking
   // five people and then changing a filter leaves "Delete (5)" meaning five
-  // rows you can no longer see.
-  useClearSelectionOnListChange(
-    selection.setSelected,
-    `${searchQuery}|${sort}|${direction}|${page}|${pageSize}|${JSON.stringify(conditions)}`
-  )
+  // rows you can no longer see. The whole `rules` object, not just its
+  // conditions: switching between "match all" and "match any" leaves the same
+  // rules meaning a different set of people.
+  const listKey = `${searchQuery}|${sort}|${direction}|${page}|${pageSize}|${JSON.stringify(rules)}`
+  useClearSelectionOnListChange(selection.setSelected, listKey)
+
+  // Forgotten the moment the list changes, and forgotten for good. Merely
+  // comparing it to the current list is not enough: page two and back again
+  // would match this string a second time and quietly bring "everyone" back
+  // with every tick already gone — a "Delete (1,312)" over an untouched table.
+  //
+  // Dropped while rendering rather than in an effect, so no frame is ever drawn
+  // with the old number over the new list.
+  if (matchingList !== null && matchingList !== listKey) setMatchingList(null)
+  const allMatching = matchingList === listKey
+
+  /** Ticks and "everyone matching" both off — the one way back to nothing. */
+  const clearSelection = () => {
+    setMatchingList(null)
+    selection.clear()
+  }
+
+  /**
+   * Untick anything and "everyone matching" is over, because the ticks are once
+   * again the honest description of who is picked.
+   */
+  const tickRow = (contactId: string) => {
+    setMatchingList(null)
+    selection.toggle(contactId)
+  }
 
   // Re-running the route loader is the refresh: it is what fetched these rows
   // in the first place, so asking it again is the one way to get fresh ones.
@@ -305,7 +381,10 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   }
 
   /**
-   * Puts the ticked people into a hand-picked segment.
+   * Puts the picked people into a hand-picked segment.
+   *
+   * With "everyone matching" on, the filters go to the server instead of a list
+   * of ids, so the people added are worked out by the query that drew the list.
    *
    * The sentence afterwards counts honestly: somebody who was already in the
    * segment is said so rather than being reported as added, because a number
@@ -318,34 +397,50 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
       return
     }
     const name =
-      data.segments.find((segment) => segment.id === segmentTarget)?.name ??
+      handPickedSegments.find((segment) => segment.id === segmentTarget)?.name ??
       "that segment"
 
     await runAdd(async () => {
-      const { added, alreadyThere } = await addContactsToWorkspaceSegment(
-        segmentTarget,
-        [...selection.selected]
-      )
-      selection.clear()
+      const { added, alreadyThere } = allMatching
+        ? await addMatchingContactsToWorkspaceSegment(
+            segmentTarget,
+            currentFilter
+          )
+        : await addContactsToWorkspaceSegment(segmentTarget, [
+            ...selection.selected,
+          ])
+      clearSelection()
       setSegmentTarget("")
+      const went = `${added.toLocaleString()} ${plural(added, "person", "people")}`
       toast.success(
         added === 0
           ? `Everybody picked was already in ${quoteOneLine(name)}.`
           : alreadyThere
-            ? `${added} ${plural(added, "person", "people")} added to ${quoteOneLine(name)}. ${alreadyThere} ${alreadyThere === 1 ? "was" : "were"} already in it.`
-            : `${added} ${plural(added, "person", "people")} added to ${quoteOneLine(name)}.`
+            ? `${went} added to ${quoteOneLine(name)}. ${alreadyThere.toLocaleString()} ${alreadyThere === 1 ? "was" : "were"} already in it.`
+            : `${went} added to ${quoteOneLine(name)}.`
       )
     })
   }
 
-  /** Both the single row and the selection go through here. */
-  const removeMany = async (ids: string[], done: () => void) => {
-    if (deleting || ids.length === 0) return
+  /**
+   * The single row, the ticked rows and "everyone matching" all end here.
+   *
+   * The caller says how to do the deleting, so the counting and the tidying up
+   * afterwards are written once. The number in the toast is the number the
+   * server really deleted, which can differ from the number on the confirm
+   * button — accounts sync into this list on every load, so somebody can join
+   * between the two.
+   */
+  const removeContacts = async (
+    remove: () => Promise<{ deleted: number }>,
+    done: () => void
+  ) => {
+    if (deleting) return
     await runDelete(async () => {
-      const { deleted } = await deleteContacts(ids)
-      selection.clear()
+      const { deleted } = await remove()
+      clearSelection()
       toast.success(
-        `Deleted ${deleted} ${plural(deleted, "contact", "contacts")}.`
+        `Deleted ${deleted.toLocaleString()} ${plural(deleted, "contact", "contacts")}.`
       )
       done()
       await refresh()
@@ -353,7 +448,14 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   }
 
   const visibleIds = data.contacts.map((contact) => contact.id)
-  const selectedCount = selection.selected.size
+  /**
+   * How many people the bulk buttons would act on. With "everyone matching" on
+   * that is the list's own total — the same number the heading shows, so the
+   * confirm cannot promise a different figure from the one on screen.
+   */
+  const selectedCount = allMatching ? data.total : selection.selected.size
+  /** The page is fully ticked, so "and the rest of them" is worth offering. */
+  const pageFullyTicked = selection.selectAllState(visibleIds) === true
 
   return (
     <>
@@ -362,7 +464,18 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         icon={<UsersIcon />}
         count={data.total}
         selectedCount={selectedCount}
-        onClearSelection={selection.clear}
+        onClearSelection={clearSelection}
+        // Offered once the whole page is ticked, which is the moment "and the
+        // rest of them" is a real question. The chip hides itself again as soon
+        // as the selection covers the total.
+        selectAll={
+          pageFullyTicked
+            ? {
+                total: data.total,
+                onSelectAll: () => setMatchingList(listKey),
+              }
+            : undefined
+        }
         controls={
           <>
             {selectedCount ? (
@@ -373,13 +486,13 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                 onClick={() => setMassDeleteOpen(true)}
               >
                 <Trash2Icon className="size-4" />
-                Delete ({selectedCount})
+                Delete ({selectedCount.toLocaleString()})
               </DashboardToolbarButton>
             ) : null}
             {/* Only with people ticked, and only when there is a hand-picked
                 segment to put them in — a dropdown with nothing in it is worse
                 than no dropdown. */}
-            {selectedCount && data.segments.length ? (
+            {selectedCount && handPickedSegments.length ? (
               <>
                 <Select
                   value={segmentTarget}
@@ -395,7 +508,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                     <SelectValue placeholder="Pick a segment…" />
                   </DashboardToolbarSelectTrigger>
                   <SelectContent>
-                    {data.segments.map((segment) => (
+                    {handPickedSegments.map((segment) => (
                       <SelectItem key={segment.id} value={segment.id}>
                         {segment.name}
                       </SelectItem>
@@ -413,7 +526,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                   ) : (
                     <UsersRoundIcon className="size-4" />
                   )}
-                  Add to segment ({selectedCount})
+                  Add to segment ({selectedCount.toLocaleString()})
                 </DashboardToolbarButton>
               </>
             ) : null}
@@ -491,7 +604,12 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               <TableHead column="select">
                 <Checkbox
                   checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
+                  onCheckedChange={() => {
+                    // Same rule as a single row: touching the ticks is what
+                    // ends "everyone matching".
+                    setMatchingList(null)
+                    selection.toggleVisible(visibleIds)
+                  }}
                   aria-label="Select the contacts on this page"
                 />
               </TableHead>
@@ -515,7 +633,10 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               </TableHead>
               {/* Tags are a list, so there is no single value to order by. */}
               <TableHead column="meta" className="hidden md:table-cell">Tags</TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
+              {/* Status and Added used to hide at different widths in the
+                  heading and in the rows, so a narrow screen labelled the
+                  status badges "Added". Each pair now hides together. */}
+              <TableHead column="meta">
                 <TableSortButton
                   active={sort === "status"}
                   direction={direction}
@@ -524,7 +645,16 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                   Status
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden lg:table-cell">
+                <TableSortButton
+                  active={sort === "emailed"}
+                  direction={direction}
+                  onClick={() => toggleSort("emailed")}
+                >
+                  Last emailed
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
                 <TableSortButton
                   active={sort === "created"}
                   direction={direction}
@@ -543,7 +673,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
             ? "Nobody matches that."
             : "Nobody on the list yet. Everyone who signs up lands here."
         }
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{
           type: "pagination",
           page,
@@ -557,23 +687,34 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         }}
       >
         {data.contacts.map((contact) => (
-          <TableRow key={contact.id} className="group">
+          <TableRow
+            key={contact.id}
+            className="group"
+            rowAction={() => setOpenContact(contact.id)}
+          >
             <TableCell column="select">
               <Checkbox
                 checked={selection.selected.has(contact.id)}
-                onCheckedChange={() => selection.toggle(contact.id)}
+                onCheckedChange={() => tickRow(contact.id)}
                 aria-label={`Select ${contact.email}`}
               />
             </TableCell>
             <TableCell column="main">
-              <span className="block max-w-96 truncate font-medium" title={contact.email}>
+              {/* The same action the row carries, so the address is reachable
+                  by keyboard too — a row is not focusable, a button is. */}
+              <button
+                type="button"
+                className="block max-w-96 truncate text-left font-medium group-hover:underline"
+                title={contact.email}
+                onClick={() => setOpenContact(contact.id)}
+              >
                 {contact.email}
-              </span>
+              </button>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden sm:table-cell">
               <span className="flex items-center gap-2">
                 <span className="truncate">{fullName(contact) || "—"}</span>
-                {contact.isAccount ? (
+                {contact.userId ? (
                   <Badge variant="outline" className="shrink-0">
                     Account
                   </Badge>
@@ -615,8 +756,16 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                   contact.status === "subscribed" ? "secondary" : "destructive"
                 }
               >
-                {contactStatusLabel(contact.status)}
+                {segmentStatusLabels[contact.status]}
               </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {contact.lastEmailedAt
+                ? formatDate(contact.lastEmailedAt)
+                : // Not a dash. "Nothing has ever been sent to this person" is
+                  // a real answer, and the one somebody scanning this column is
+                  // looking for.
+                  "Never"}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {formatDate(contact.created_at)}
@@ -777,25 +926,49 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         description="They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off instead."
         confirmLabel="Delete contact"
         loading={deleting}
-        onConfirm={() =>
-          void removeMany(deleteTarget ? [deleteTarget.id] : [], () =>
-            setDeleteTarget(null)
+        onConfirm={() => {
+          if (!deleteTarget) return
+          const { id } = deleteTarget
+          void removeContacts(
+            () => deleteContacts([id]),
+            () => setDeleteTarget(null)
           )
-        }
+        }}
       />
 
       <ConfirmDialog
         open={massDeleteOpen}
         onOpenChange={setMassDeleteOpen}
-        title={`Delete ${selectedCount} ${plural(selectedCount, "contact", "contacts")}?`}
-        description="They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off instead."
-        confirmLabel={`Delete ${selectedCount} ${plural(selectedCount, "contact", "contacts")}`}
-        loading={deleting}
-        onConfirm={() =>
-          void removeMany([...selection.selected], () =>
-            setMassDeleteOpen(false)
-          )
+        title={`Delete ${selectedCount.toLocaleString()} ${plural(selectedCount, "contact", "contacts")}?`}
+        description={
+          allMatching
+            ? "That is everybody the filters match, not only the people on this page. They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off instead."
+            : "They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off instead."
         }
+        confirmLabel={`Delete ${selectedCount.toLocaleString()} ${plural(selectedCount, "contact", "contacts")}`}
+        loading={deleting}
+        onConfirm={() => {
+          // The window can outlive the selection — clearing the ticks takes the
+          // button away but leaves this open. Deleting nobody and announcing it
+          // is worse than doing nothing.
+          if (!selectedCount) return
+          void removeContacts(
+            () =>
+              allMatching
+                ? deleteMatchingContacts(currentFilter)
+                : deleteContacts([...selection.selected]),
+            () => setMassDeleteOpen(false)
+          )
+        }}
+      />
+
+      <ContactDetailDialog
+        // Fresh per person, so nothing of the last one is left on screen.
+        key={closingDetailTarget?.id ?? "closed-detail"}
+        contact={closingDetailTarget}
+        open={Boolean(detailTarget)}
+        onClose={() => setOpenContact(undefined)}
+        onChanged={refresh}
       />
 
       <ContactFiltersDialog
