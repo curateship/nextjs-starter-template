@@ -34,6 +34,10 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { compileAutomationGraph } from "@/lib/automations/compile"
+import type {
+  AutomationCanvasStatus,
+  AutomationCanvasStatusProps,
+} from "@/lib/automations/canvas-panel"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import {
@@ -68,7 +72,11 @@ import {
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
-import { appCanvasPanel, appOffersMemberTest } from "@/lib/app-options"
+import {
+  appCanvasHeaderStatus,
+  appCanvasPanel,
+  appOffersMemberTest,
+} from "@/lib/app-options"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
@@ -680,6 +688,10 @@ export function AutomationEditor({
                 </label>
               </DisabledReason>
             ) : null}
+            <CanvasHeaderStatus
+              automationId={initial.id}
+              nodeKinds={nodeKinds}
+            />
             <Button
               type="button"
               variant="outline"
@@ -948,6 +960,53 @@ export function AutomationEditor({
 const lazyCanvasPanels = new Map<
   string,
   React.LazyExoticComponent<ComponentType<AutomationCanvasPanelProps>>
+>()
+
+/**
+ * The app's own status in the canvas header, or nothing at all.
+ *
+ * Nothing is the default and nothing is drawn around it: no chrome, no label,
+ * no fallback. An app that has not asked for this finds the header exactly as
+ * it has always been, which is what the option test checks.
+ */
+function CanvasHeaderStatus({
+  automationId,
+  nodeKinds,
+}: {
+  automationId: string
+  nodeKinds: readonly string[]
+}) {
+  const declared = appCanvasHeaderStatus()
+  const asked =
+    declared && (declared.appliesTo?.(nodeKinds) ?? true) ? declared : null
+
+  // Fetched as the editor draws rather than when it is first needed, for the
+  // reason written on the panel below.
+  React.useEffect(() => {
+    if (asked) void asked.status()
+  }, [asked])
+
+  if (!asked) return null
+
+  let chip = lazyHeaderStatus.get(asked)
+  if (!chip) {
+    chip = React.lazy(asked.status)
+    lazyHeaderStatus.set(asked, chip)
+  }
+
+  // No fallback: a header that flickers a placeholder every time it draws is
+  // worse than one that fills in a moment later.
+  return (
+    <React.Suspense fallback={null}>
+      {React.createElement(chip, { automationId })}
+    </React.Suspense>
+  )
+}
+
+/** Kept so the lazy import is made once rather than on every draw. */
+const lazyHeaderStatus = new Map<
+  AutomationCanvasStatus,
+  React.LazyExoticComponent<ComponentType<AutomationCanvasStatusProps>>
 >()
 
 function AppCanvasPanel({

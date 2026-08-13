@@ -220,12 +220,27 @@ export async function advanceWorkingLadders(): Promise<void> {
       { settleWallet, exposedMarketKeys },
       { reconcileLiveLadders },
       { pushedMarks },
+      { advanceFlowRuns },
     ] =
       await Promise.all([
         import("@/server/trade/paper"),
         import("@/server/trade/live-smart-orders"),
         import("@/server/trade/live-marks"),
+        import("@/server/trade/flow-run"),
       ])
+
+    // Switched-on flows get their coins looked at first, so a ladder placed
+    // this pass is worked by the same pass rather than waiting a second.
+    //
+    // Wrapped, because this decides which coins deserve a ladder and none of
+    // that is worth stopping the engine over: a flow whose exchange will not
+    // answer must not stop every wallet's stops and exits being worked.
+    try {
+      await advanceFlowRuns()
+    } catch (error) {
+      console.error("Flow pass failed", error)
+      lastPass.error = error instanceof Error ? error.message : String(error)
+    }
 
     const work = await walletsWithWork()
     lastPass.wallets = work.length

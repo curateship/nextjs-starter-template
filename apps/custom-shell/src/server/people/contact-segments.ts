@@ -3,6 +3,7 @@ import {
   arrayOverlaps,
   asc,
   eq,
+  exists,
   gte,
   ilike,
   inArray,
@@ -11,6 +12,7 @@ import {
   lt,
   ne,
   not,
+  notExists,
   notInArray,
   or,
   sql,
@@ -33,6 +35,7 @@ import {
   customShellContactSegmentMembers,
   customShellContactSegments,
   customShellContacts,
+  customShellDeliveries,
   customShellPlans,
   customShellSubscriptions,
   type CustomShellContactSegment,
@@ -223,6 +226,42 @@ function conditionSql(
       return condition.operator === "within"
         ? gte(customShellContacts.createdAt, cutoff)
         : lt(customShellContacts.createdAt, cutoff)
+    }
+
+    case "emailed": {
+      const cutoff = new Date(
+        timestamp.getTime() - condition.days * 24 * 60 * 60 * 1000
+      )
+
+      // Sends, not opens. Every send writes one delivery row per person, so
+      // "when were they last emailed" is "is there a row newer than the
+      // cutoff" — asked as an exists rather than as a newest-date, so it can
+      // stop at the first row it finds. Workspace, then contact, then date is
+      // exactly `ix_deliveries_workspace_contact_created`, so the answer comes
+      // out of that index without reading a row.
+      const sent = database
+        .select({ contactId: customShellDeliveries.contactId })
+        .from(customShellDeliveries)
+        .where(
+          and(
+            // The contact already belongs to one workspace, so this is belt
+            // and braces — but it is also the first column of the index, so it
+            // is not free-standing paranoia either.
+            eq(customShellDeliveries.workspaceId, workspaceId),
+            eq(customShellDeliveries.contactId, customShellContacts.id),
+            // "Never" asks about every row there has ever been, so it is the
+            // same subquery with the date left off.
+            ...(condition.operator === "never"
+              ? []
+              : [gte(customShellDeliveries.createdAt, cutoff)])
+          )
+        )
+
+      // "Not in the last N days" and "never" are the same question asked of
+      // different rows: nothing recent, and nothing at all. Somebody who has
+      // never been emailed is therefore in the first answer too, which is what
+      // makes it a re-engagement list rather than a list of lapsed regulars.
+      return condition.operator === "within" ? exists(sent) : notExists(sent)
     }
 
     case "account":
@@ -486,6 +525,74 @@ export async function listWorkspaceSegments(
     rules: definitions[index].rules,
     total: totals?.[`total${index}`] ?? 0,
   }))
+}
+
+/**
+ * Which segments one person is in right now, worked out fresh.
+ *
+ * Not a stored list — for a rules segment there is nothing stored to read. Every
+ * segment is asked the same question it would be asked on the segments page,
+ * through the very same `buildConditions`, so "why are they getting this?" is
+ * answered by the rules themselves rather than by a second opinion about them.
+ *
+ * One query, the same shape `listWorkspaceSegments` uses: one
+ * `count(… ) filter (where …)` per segment over a single row. That count can
+ * only be 0 or 1 here, which is exactly the yes-or-no being asked.
+ */
+export async function listSegmentsForContact(
+  workspaceId: string,
+  contactId: string,
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<{ id: string; name: string; kind: SegmentKind }[]> {
+  const [rows, context] = await Promise.all([
+    database
+      .select({
+        id: customShellContactSegments.id,
+        name: customShellContactSegments.name,
+        kind: customShellContactSegments.kind,
+        rules: customShellContactSegments.rules,
+      })
+      .from(customShellContactSegments)
+      .where(eq(customShellContactSegments.workspaceId, workspaceId))
+      .orderBy(asc(customShellContactSegments.name)),
+    loadSegmentContext(workspaceId, database),
+  ])
+
+  if (rows.length === 0) return []
+
+  const columns: Record<string, SQL<number>> = {}
+  for (const [index, row] of rows.entries()) {
+    const definition = context.segments.get(row.id) ?? readSegment(row)
+    columns[`member${index}`] = sql<number>`count(*) filter (where ${buildConditions(
+      workspaceId,
+      definition,
+      database,
+      timestamp,
+      context,
+      [definition.id]
+    )})::int`
+  }
+
+  // Scoped to the one contact, so every `filter` above is asked about them and
+  // nobody else. A contact that has since been deleted simply matches nothing.
+  const [totals] = await database
+    .select(columns)
+    .from(customShellContacts)
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.id, contactId)
+      )
+    )
+
+  return rows
+    .filter((_, index) => (totals?.[`member${index}`] ?? 0) > 0)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      kind: row.kind === "static" ? "static" : "rules",
+    }))
 }
 
 async function getWorkspaceSegment(

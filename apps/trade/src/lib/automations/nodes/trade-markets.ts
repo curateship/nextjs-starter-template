@@ -10,6 +10,21 @@ import { plural } from "@/lib/format/plural"
 export const DEFAULT_BACKTEST_DAYS = 30
 
 /**
+ * The exchange a backtest reads history from when nobody has said otherwise.
+ *
+ * Binance rather than the one this app trades on, and that is the point: with
+ * pretend money nothing is ever sent anywhere, so the only thing that matters
+ * is whose price history is longest and widest. Binance lists more coins and
+ * holds years more of them, which is the difference between testing a strategy
+ * over one cycle and testing it over several.
+ *
+ * It is only ever a default. Naming a wallet moves the step onto that wallet's
+ * exchange, because a wallet can only trade its own — and picking a different
+ * one here by hand is always allowed.
+ */
+export const DEFAULT_BACKTEST_PROTOCOL = "binance"
+
+/**
  * The longest window this step will accept.
  *
  * As far back as the prices go, and no further.
@@ -264,7 +279,9 @@ export const tradeMarketsSettingsSchema = z.object({
    * coin against it so two exchanges' rules can never be mixed by mistake.
    *
    * Defaulted, not required: every flow saved before there was a second one
-   * was picking from Hyperliquid.
+   * was picking from Hyperliquid, so that is what those flows keep meaning.
+   * A step made from today starts on {@link DEFAULT_BACKTEST_PROTOCOL}; this
+   * default is only ever reached by a saved step that never wrote the field.
    */
   protocol: z.string().min(1).max(30).default("hyperliquid"),
   marketKeys: z
@@ -314,7 +331,7 @@ export const tradeMarketsNode = defineNode({
     description: "Where the coins come from, which ones, and how far back",
   },
   createSettings: () => ({
-    protocol: "hyperliquid",
+    protocol: DEFAULT_BACKTEST_PROTOCOL,
     marketKeys: [],
     days: DEFAULT_BACKTEST_DAYS,
     from: null,

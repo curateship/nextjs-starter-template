@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import {
   ListFilterIcon,
   Loader2Icon,
@@ -70,10 +70,12 @@ import {
   describeSegmentCondition,
   segmentConditionIsComplete,
   segmentRulesMatch,
+  segmentStatusLabels,
   type SegmentCondition,
   type SegmentRuleOptions,
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
+import { ContactDetailDialog } from "@/components/broadcasts/contact-detail-dialog"
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -100,24 +102,6 @@ function fullName(contact: ContactItem) {
 }
 
 /**
- * Why this contact gets mail or not, each reason in its own words: opting out
- * was their choice, bouncing and spam reports arrive from Resend by webhook.
- * "Put back" works on all three — an admin can always override.
- */
-function contactStatusLabel(status: ContactItem["status"]) {
-  switch (status) {
-    case "subscribed":
-      return "On the list"
-    case "unsubscribed":
-      return "Opted out"
-    case "bounced":
-      return "Bouncing"
-    case "complained":
-      return "Marked it spam"
-  }
-}
-
-/**
  * Everyone a newsletter can go to, and the filters that narrow them down.
  *
  * The filters are written in exactly the rules a segment is — one builder for
@@ -129,8 +113,10 @@ function contactStatusLabel(status: ContactItem["status"]) {
  */
 export function ContactsPage({ data }: { data: ContactsPageData }) {
   const router = useRouter()
+  const navigate = useNavigate()
   const listSearch = contactsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
+  const openId = listSearch.open
   const searchQuery = listSearch.q ?? ""
   const rules = listSearch.filter ?? EMPTY_RULES
   const conditions = rules.conditions
@@ -260,8 +246,38 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   const [deleteTarget, setDeleteTarget] = React.useState<ContactItem | null>(
     null
   )
+  /**
+   * The open window lives in the address, so a link can name one person and
+   * Back closes the window rather than leaving the list.
+   *
+   * Not through `setListSearch`, which replaces the history entry — that is
+   * right for a filter typed letter by letter and wrong for a window, where
+   * Back is how most people close things.
+   */
+  const setOpenContact = React.useCallback(
+    (id: string | undefined) => {
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+
+  // Read out of the address rather than kept beside it. There is then no second
+  // copy to fall out of step: a link naming somebody on this page opens their
+  // window on arrival, and Back closes it, without an effect for either.
+  const detailTarget =
+    data.contacts.find((contact) => contact.id === openId) ?? null
   const [runDelete, deleting] = useAsyncAction(getContactErrorMessage)
   const closingDeleteTarget = useLastValue(deleteTarget)
+  /** Held through the closing fade, so the window does not empty as it goes. */
+  const closingDetailTarget = useLastValue(detailTarget)
   const selection = useSelection()
   /**
    * Which list "everyone matching" was chosen for, or null for nobody.
@@ -617,7 +633,10 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               </TableHead>
               {/* Tags are a list, so there is no single value to order by. */}
               <TableHead column="meta" className="hidden md:table-cell">Tags</TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
+              {/* Status and Added used to hide at different widths in the
+                  heading and in the rows, so a narrow screen labelled the
+                  status badges "Added". Each pair now hides together. */}
+              <TableHead column="meta">
                 <TableSortButton
                   active={sort === "status"}
                   direction={direction}
@@ -626,7 +645,16 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                   Status
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden lg:table-cell">
+                <TableSortButton
+                  active={sort === "emailed"}
+                  direction={direction}
+                  onClick={() => toggleSort("emailed")}
+                >
+                  Last emailed
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
                 <TableSortButton
                   active={sort === "created"}
                   direction={direction}
@@ -645,7 +673,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
             ? "Nobody matches that."
             : "Nobody on the list yet. Everyone who signs up lands here."
         }
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{
           type: "pagination",
           page,
@@ -659,7 +687,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         }}
       >
         {data.contacts.map((contact) => (
-          <TableRow key={contact.id} className="group">
+          <TableRow
+            key={contact.id}
+            className="group"
+            rowAction={() => setOpenContact(contact.id)}
+          >
             <TableCell column="select">
               <Checkbox
                 checked={selection.selected.has(contact.id)}
@@ -668,14 +700,21 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               />
             </TableCell>
             <TableCell column="main">
-              <span className="block max-w-96 truncate font-medium" title={contact.email}>
+              {/* The same action the row carries, so the address is reachable
+                  by keyboard too — a row is not focusable, a button is. */}
+              <button
+                type="button"
+                className="block max-w-96 truncate text-left font-medium group-hover:underline"
+                title={contact.email}
+                onClick={() => setOpenContact(contact.id)}
+              >
                 {contact.email}
-              </span>
+              </button>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden sm:table-cell">
               <span className="flex items-center gap-2">
                 <span className="truncate">{fullName(contact) || "—"}</span>
-                {contact.isAccount ? (
+                {contact.userId ? (
                   <Badge variant="outline" className="shrink-0">
                     Account
                   </Badge>
@@ -717,8 +756,16 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                   contact.status === "subscribed" ? "secondary" : "destructive"
                 }
               >
-                {contactStatusLabel(contact.status)}
+                {segmentStatusLabels[contact.status]}
               </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {contact.lastEmailedAt
+                ? formatDate(contact.lastEmailedAt)
+                : // Not a dash. "Nothing has ever been sent to this person" is
+                  // a real answer, and the one somebody scanning this column is
+                  // looking for.
+                  "Never"}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {formatDate(contact.created_at)}
@@ -913,6 +960,15 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
             () => setMassDeleteOpen(false)
           )
         }}
+      />
+
+      <ContactDetailDialog
+        // Fresh per person, so nothing of the last one is left on screen.
+        key={closingDetailTarget?.id ?? "closed-detail"}
+        contact={closingDetailTarget}
+        open={Boolean(detailTarget)}
+        onClose={() => setOpenContact(undefined)}
+        onChanged={refresh}
       />
 
       <ContactFiltersDialog

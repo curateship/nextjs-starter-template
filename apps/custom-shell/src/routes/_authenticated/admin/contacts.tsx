@@ -12,6 +12,7 @@ import {
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import {
   readDirection,
   readOneOf,
@@ -20,6 +21,8 @@ import {
 } from "@/lib/nav/list-search"
 
 type ContactsSearch = {
+  /** Whose details window is open. */
+  open?: string
   q?: string
   sort?: (typeof CONTACT_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
@@ -40,6 +43,7 @@ function readContactsSearch(
   search: Record<string, unknown>
 ): ContactsSearch {
   return {
+    ...readOpenSearch(search),
     q: readSearchText(search.q),
     sort: readOneOf(search.sort, CONTACT_SORT_COLUMNS),
     direction: readDirection(search.direction),
@@ -58,7 +62,9 @@ export const Route = createFileRoute("/_authenticated/admin/contacts")({
   validateSearch: readContactsSearch,
   // The first paint already answers the address it was opened at, so a shared
   // filtered link is filtered before any of our own fetching happens.
-  loaderDeps: ({ search }) => search,
+  // Everything except which window is open. `open` names a person already on
+  // the page, so opening one must not refetch the whole list underneath it.
+  loaderDeps: ({ search }) => ({ ...search, open: undefined }),
   // The loader is the only thing that fetches this list, so one change to the
   // address is one trip to the server — not a loader fetch and then a second
   // one from the page correcting it.

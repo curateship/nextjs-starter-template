@@ -61,3 +61,45 @@ export function defineCanvasPanel(
 ): AutomationCanvasPanel {
   return panel
 }
+
+/** What the app's status chip in the canvas header is handed. */
+export type AutomationCanvasStatusProps = {
+  /** The flow open in the editor. */
+  automationId: string
+}
+
+/**
+ * A small piece of the app's own, in the canvas header beside Pause all.
+ *
+ * **Why the header and not the panel.** The panel under Run is about what a
+ * run produced — a report, a render. This is about what the flow IS right now,
+ * and the header is where a person looks for that: it is the one strip on the
+ * screen that is always visible and never scrolls away. Trade needs it because
+ * a flow can be switched on and trading real money while the canvas beside it
+ * is being edited into something else entirely, and that fact must never be a
+ * card somebody has closed.
+ *
+ * It draws itself completely, including anything it wants to open. The shell
+ * gives it a place to stand and nothing else — no chrome, no label, no state —
+ * because an app's own status is not a shape the shell can guess.
+ *
+ * `status` is **a pointer to another file, never the component itself**, for
+ * the reason written on `panel` above.
+ */
+export type AutomationCanvasStatus = {
+  /**
+   * Whether this flow wants it, from the kinds of step on its canvas. Unset
+   * means every flow gets it.
+   */
+  appliesTo?: (nodeKinds: readonly string[]) => boolean
+  status: () => Promise<{
+    default: ComponentType<AutomationCanvasStatusProps>
+  }>
+}
+
+/** Identity helper so a status literal stays fully typed at the definition. */
+export function defineCanvasStatus(
+  status: AutomationCanvasStatus
+): AutomationCanvasStatus {
+  return status
+}

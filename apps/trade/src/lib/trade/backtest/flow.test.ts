@@ -29,10 +29,13 @@ function flowOf(
 }
 
 const wallet = { kind: tradeWalletNode.kind, settings: tradeWalletNode.createSettings() }
+// The exchange is pinned rather than taken from the default, so these tests go
+// on being about the window and the memory budget when the default moves.
 const markets = {
   kind: tradeMarketsNode.kind,
   settings: {
     ...tradeMarketsNode.createSettings(),
+    protocol: "hyperliquid",
     marketKeys: ["hyperliquid:mainnet:BTC"],
   },
 }
@@ -68,7 +71,7 @@ describe("a flow that is not one yet", () => {
   it("names the missing wallet", () => {
     const read = backtestSpecFromFlow(flowOf({ b: markets, c: ladder }))
     expect(read.spec).toBeNull()
-    expect(read.problem).toContain("Pretend wallet")
+    expect(read.problem).toContain("Add a Wallet step")
   })
 
   it("names the missing markets step", () => {
@@ -87,7 +90,7 @@ describe("a flow that is not one yet", () => {
     const read = backtestSpecFromFlow(
       flowOf({ a: wallet, a2: wallet, b: markets, c: ladder })
     )
-    expect(read.problem).toContain("two Pretend wallet")
+    expect(read.problem).toContain("two Wallet steps")
   })
 
   it("refuses two markets steps", () => {
@@ -123,6 +126,7 @@ describe("a flow that is not one yet", () => {
           kind: tradeMarketsNode.kind,
           settings: {
             ...tradeMarketsNode.createSettings(),
+            protocol: "hyperliquid",
             marketKeys: ["binance:mainnet:BTC"],
           },
         },
@@ -351,5 +355,87 @@ describe("a ladder saved with the old click setting", () => {
 
     expect(read.problem).toBeNull()
     expect(read.spec?.dca.params.anchor).toBe("base")
+  })
+})
+
+describe("a flow whose Wallet step names a wallet", () => {
+  /** The wallet step as the panel writes it once a wallet is picked. */
+  function tradingWallet(
+    patch: Record<string, unknown> = {}
+  ): { kind: string; settings: Record<string, unknown> } {
+    return {
+      kind: tradeWalletNode.kind,
+      settings: {
+        ...tradeWalletNode.createSettings(),
+        walletId: "w1",
+        walletLabel: "Practice 2",
+        walletKind: "paper",
+        spendCapUsd: 500,
+        ...patch,
+      },
+    }
+  }
+
+  it("is not a backtest, and says which wallet in the refusal", () => {
+    const read = backtestSpecFromFlow(
+      flowOf({ a: tradingWallet(), b: markets, c: ladder })
+    )
+
+    expect(read.spec).toBeNull()
+    expect(read.problem).toContain("Practice 2")
+    expect(read.problem).toContain("practice money")
+    expect(read.problem).toContain("pretend money")
+  })
+
+  it("calls real money what it is", () => {
+    const read = backtestSpecFromFlow(
+      flowOf({
+        a: tradingWallet({ walletKind: "live", walletLabel: "Main" }),
+        b: markets,
+        c: ladder,
+      })
+    )
+
+    expect(read.problem).toContain("Main")
+    expect(read.problem).toContain("real money")
+  })
+
+  it("says so before complaining about the rest of the flow", () => {
+    // Somebody who pressed the wrong button should not first be told their
+    // coin list is empty. The wallet answer is the useful one.
+    const noCoins = {
+      kind: tradeMarketsNode.kind,
+      settings: {
+        ...tradeMarketsNode.createSettings(),
+        protocol: "hyperliquid",
+        marketKeys: [],
+      },
+    }
+    const read = backtestSpecFromFlow(
+      flowOf({ a: tradingWallet(), b: noCoins, c: ladder })
+    )
+
+    expect(read.problem).toContain("Practice 2")
+  })
+})
+
+describe("a flow drawn before the wallet picker existed", () => {
+  it("reads back as pretend money, so nothing had to be migrated", () => {
+    // Exactly the settings an older build wrote: the four numbers and not one
+    // of the new fields.
+    const old = {
+      kind: tradeWalletNode.kind,
+      settings: {
+        startingUsd: 25_000,
+        takerFeePct: 0.045,
+        makerFeePct: 0.015,
+        slippagePct: 0.05,
+      },
+    }
+    const read = backtestSpecFromFlow(flowOf({ a: old, b: markets, c: ladder }))
+
+    expect(read.problem).toBeNull()
+    expect(read.spec?.wallet.startingUsd).toBe(25_000)
+    expect(read.spec?.wallet.walletId).toBeNull()
   })
 })

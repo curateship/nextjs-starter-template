@@ -72,7 +72,16 @@ export const appOptions: AppOptions = {
         ),
     },
     canvasPanel: {
-      label: "Previous result",
+      // Deliberately not "Previous result".
+      //
+      // This one button reopens two different panels: the last backtest a flow
+      // ran, or — once its Wallet step names a wallet — what that flow trades
+      // and why Run will not test it. "Previous result" is only ever true of
+      // the first, and a flow about to spend real money should not be offering
+      // a button that says backtest. The shell takes a plain string here, so
+      // one wording has to be honest in both; the panel's own heading says the
+      // specific thing.
+      label: "This flow",
       // Only on a flow that actually runs one. Every other flow in this app
       // would otherwise carry a button offering a backtest it never ran.
       appliesTo: (kinds) => kinds.includes(tradeDcaNode.kind),

@@ -1,5 +1,3 @@
-![image](workspace/docs/assets/pasted-image-1786540373648487000.png)# CLAUDE.md — Custom Shell
-
 Custom Shell is the template every other app is built from. See `AGENTS.md` for
 where the docs and tasks live; this file is only about the one thing that makes
 this app different from the others.
