@@ -12,6 +12,7 @@ import {
   type CancelApi,
 } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
+import { cancelPendingMemberRuns } from "@/server/automations/member-events"
 import { sendAuthEmail, type AuthEmail } from "@/server/email/send"
 import {
   customShellSessions,
@@ -127,33 +128,35 @@ export async function markAccountsForDeletion(
 ) {
   const timestamp = now()
 
-  const marked = await database
-    .update(customShellUsers)
-    .set({
-      status: PENDING_DELETION,
-      deletedAt: timestamp,
-      deletedBy: actorId,
-      updatedAt: timestamp,
-    })
-    .where(
-      and(
-        inArray(customShellUsers.id, userIds),
-        ne(customShellUsers.status, PENDING_DELETION)
+  return database.transaction(async (tx) => {
+    const marked = await tx
+      .update(customShellUsers)
+      .set({
+        status: PENDING_DELETION,
+        deletedAt: timestamp,
+        deletedBy: actorId,
+        updatedAt: timestamp,
+      })
+      .where(
+        and(
+          inArray(customShellUsers.id, userIds),
+          ne(customShellUsers.status, PENDING_DELETION)
+        )
       )
-    )
-    .returning({ id: customShellUsers.id })
+      .returning({ id: customShellUsers.id })
 
-  if (marked.length > 0) {
-    // Same as suspending: nothing keeps working on an open tab.
-    await database.delete(customShellSessions).where(
-      inArray(
-        customShellSessions.userId,
-        marked.map((row) => row.id)
-      )
-    )
-  }
+    if (marked.length > 0) {
+      const markedIds = marked.map((row) => row.id)
+      await cancelPendingMemberRuns(markedIds, tx, timestamp)
 
-  return marked.map((row) => row.id)
+      // Same as suspending: nothing keeps working on an open tab.
+      await tx
+        .delete(customShellSessions)
+        .where(inArray(customShellSessions.userId, markedIds))
+    }
+
+    return marked.map((row) => row.id)
+  })
 }
 
 /**

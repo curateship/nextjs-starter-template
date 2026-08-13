@@ -30,6 +30,7 @@ export type AutomationRunStatus =
   | "completed"
   | "failed"
   | "rejected"
+  | "canceled"
 
 export type AutomationRunStepStatus = "completed" | "failed" | "rejected"
 
@@ -52,6 +53,7 @@ export function automationRunStatusLabel(
     waiting_approval: "Waiting for approval",
     completed: "Completed",
     failed: "Failed",
+    canceled: "Canceled",
   }[status]
 }
 

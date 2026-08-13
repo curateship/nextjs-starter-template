@@ -283,7 +283,12 @@ export function AutomationRunsPanel({
 const STILL_GOING_MS = 3_000
 
 /** Statuses that never change again. Anything else is still moving. */
-const finalStatuses = new Set(["completed", "failed", "rejected"])
+const finalStatuses = new Set([
+  "completed",
+  "failed",
+  "rejected",
+  "canceled",
+])
 
 /**
  * One run: a line you can click open. Shut, it is the status and when. Open, it

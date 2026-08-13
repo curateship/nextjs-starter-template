@@ -12,6 +12,7 @@ import {
   fireAutomationTrigger,
   type AutomationTriggerEvent,
 } from "@/server/automations/triggers"
+import { emitMemberEventForUser } from "@/server/automations/member-events"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   findSubscription,
@@ -379,18 +380,21 @@ export async function cancelSubscriptionByAdmin(
     : null
 
   if (subscription.source === "manual") {
-    await database
-      .delete(customShellSubscriptions)
-      .where(eq(customShellSubscriptions.id, subscription.id))
+    return database.transaction(async (tx) => {
+      await tx
+        .delete(customShellSubscriptions)
+        .where(eq(customShellSubscriptions.id, subscription.id))
 
-    await recordSubscriptionEvent(database, {
-      userId,
-      kind: "canceled",
-      planName,
-      source: "admin",
+      await recordSubscriptionEvent(tx, {
+        userId,
+        kind: "canceled",
+        planName,
+        source: "admin",
+      })
+      await emitMemberEventForUser("canceled", userId, tx)
+
+      return { mode: "immediate" as const, endsAt: null }
     })
-
-    return { mode: "immediate" as const, endsAt: null }
   }
 
   if (!subscription.stripeSubscriptionId) {
@@ -408,31 +412,35 @@ export async function cancelSubscriptionByAdmin(
   // Mirror Stripe's answer locally right away. The webhook will repeat it
   // later, but the admin looking at the table should not have to wait for it.
   const endsAt = periodEnd(result)
-  await database
-    .update(customShellSubscriptions)
-    .set({
-      status: result.status,
-      cancelAtPeriodEnd: result.cancel_at_period_end,
-      currentPeriodEnd: endsAt,
-      updatedAt: now(),
+  return database.transaction(async (tx) => {
+    await tx
+      .update(customShellSubscriptions)
+      .set({
+        status: result.status,
+        cancelAtPeriodEnd: result.cancel_at_period_end,
+        currentPeriodEnd: endsAt,
+        updatedAt: now(),
+      })
+      .where(eq(customShellSubscriptions.id, subscription.id))
+
+    // Written here rather than left to the webhook, because the webhook will
+    // find the row already saying what it came to say and so will record
+    // nothing — and because it was an admin who did this, which only this side
+    // of it knows.
+    await recordSubscriptionEvent(tx, {
+      userId,
+      kind: mode === "immediate" ? "canceled" : "cancel_scheduled",
+      planName,
+      detail: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+      source: "admin",
     })
-    .where(eq(customShellSubscriptions.id, subscription.id))
+    await emitMemberEventForUser("canceled", userId, tx)
 
-  // Written here rather than left to the webhook, because the webhook will find
-  // the row already saying what it came to say and so will record nothing — and
-  // because it was an admin who did this, which only this side of it knows.
-  await recordSubscriptionEvent(database, {
-    userId,
-    kind: mode === "immediate" ? "canceled" : "cancel_scheduled",
-    planName,
-    detail: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
-    source: "admin",
+    return {
+      mode,
+      endsAt: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+    }
   })
-
-  return {
-    mode,
-    endsAt: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
-  }
 }
 
 /**
@@ -672,6 +680,16 @@ export async function applyStripeEvent(
           },
           values.insert.updatedAt
         )
+
+        if (values.event.kind === "subscribed") {
+          await emitMemberEventForUser(
+            "subscribed",
+            values.insert.userId,
+            tx
+          )
+        } else if (values.memberCancellation) {
+          await emitMemberEventForUser("canceled", values.insert.userId, tx)
+        }
       }
 
       // The free trial is used up the moment one actually starts, which is
@@ -840,13 +858,21 @@ async function buildSubscriptionValues(
     updatedAt: timestamp,
   }
 
+  const event = deriveSubscriptionEvent(
+    before,
+    snapshotOf(update, plan?.name ?? null)
+  )
+
   return {
     insert: { id: uuid(), userId, createdAt: timestamp, ...update },
     update,
-    event: deriveSubscriptionEvent(
-      before,
-      snapshotOf(update, plan?.name ?? null)
-    ),
+    event,
+    // Stopping renewal and ending immediately are member actions. The later
+    // expiry of a plan already set to end is not another cancellation action,
+    // so a flow that was off for the first event must not back-fill then.
+    memberCancellation:
+      event?.kind === "cancel_scheduled" ||
+      (event?.kind === "canceled" && !before?.cancelAtPeriodEnd),
     // Stripe's own record of when the trial began, rather than the moment this
     // event happened to be delivered — a webhook that arrives late still marks
     // the right day.

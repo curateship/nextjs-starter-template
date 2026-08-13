@@ -802,6 +802,29 @@ export const customShellAutomations = pgTable(
   ]
 )
 
+/** Permanent once-per-member memory for member lifecycle flows. */
+export const customShellAutomationMemberEventEnrollments = pgTable(
+  "automation_member_event_enrollments",
+  {
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => customShellAutomations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    event: varchar("event", { length: 20 }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.automationId, table.userId, table.event] }),
+    check(
+      "automation_member_event_enrollments_event_check",
+      sql`${table.event} in ('registered', 'verified', 'subscribed', 'canceled')`
+    ),
+    index("ix_automation_member_event_enrollments_user").on(table.userId),
+  ]
+)
+
 /**
  * One admin's saved version of a built-in automation template.
  *
@@ -953,7 +976,7 @@ export const customShellAutomationRuns = pgTable(
   (table) => [
     check(
       "automation_runs_status_check",
-      sql`${table.status} in ('active', 'waiting_approval', 'completed', 'failed', 'rejected')`
+      sql`${table.status} in ('active', 'waiting_approval', 'completed', 'failed', 'rejected', 'canceled')`
     ),
     uniqueIndex("ux_automation_runs_trigger_key")
       .on(table.automationId, table.triggerKey)

@@ -15,6 +15,7 @@ import {
   restoreOwnAccount,
 } from "@/server/people/account-deletion"
 import { notifyAppAuthEvent } from "@/server/app-options"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { db } from "@/server/db"
@@ -307,7 +308,7 @@ const registerFn = createServerFn({ method: "POST" })
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
-    const { userId, token } = await db.transaction(async (tx) => {
+    const { user, token } = await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(customShellUsers)
         .values({
@@ -320,18 +321,23 @@ const registerFn = createServerFn({ method: "POST" })
           createdAt,
           updatedAt: createdAt,
         })
-        .returning({ id: customShellUsers.id })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
 
-      return {
-        userId: user.id,
-        token: await createAuthToken(user.id, "verify_email", tx),
-      }
+      const token = await createAuthToken(user.id, "verify_email", tx)
+      await emitMemberEvent("registered", user, tx)
+
+      return { user, token }
     })
 
     // Told here rather than at the first sign-in because this is the only
     // moment the request that made the account is still in hand, and no
     // session exists yet to carry it — verification comes first.
-    await notifyAppAuthEvent({ kind: "register", userId })
+    await notifyAppAuthEvent({ kind: "register", userId: user.id })
 
     await sendVerificationEmail(data.email, token)
     return { ok: true }
@@ -351,10 +357,18 @@ const verifyEmailFn = createServerFn({ method: "POST" })
         timestamp
       )
 
-      await tx
+      const [verified] = await tx
         .update(customShellUsers)
         .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
         .where(eq(customShellUsers.id, consumed.userId))
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      if (verified) await emitMemberEvent("verified", verified, tx)
     })
 
     return { ok: true }
@@ -561,6 +575,12 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         timestamp
       )
 
+      const [before] = await tx
+        .select({ emailVerifiedAt: customShellUsers.emailVerifiedAt })
+        .from(customShellUsers)
+        .where(eq(customShellUsers.id, consumed.userId))
+        .limit(1)
+
       const [account] = await tx
         .update(customShellUsers)
         .set({
@@ -570,7 +590,16 @@ const resetPasswordFn = createServerFn({ method: "POST" })
           updatedAt: timestamp,
         })
         .where(eq(customShellUsers.id, consumed.userId))
-        .returning({ email: customShellUsers.email })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      if (account && !before?.emailVerifiedAt) {
+        await emitMemberEvent("verified", account, tx)
+      }
 
       // Anyone signed in with the old password is signed out.
       await tx

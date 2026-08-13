@@ -10,6 +10,11 @@ import {
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
 import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
+import {
+  MEMBER_EVENT_LABELS,
+  memberEventNode,
+  readMemberEvent,
+} from "@/lib/automations/nodes/member-event"
 import { webhookNode } from "@/lib/automations/nodes/webhook"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
@@ -146,6 +151,26 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     }
   },
 
+  [memberEventNode.kind]: async ({ run, settings, testRun }) => {
+    const who = run.subjectLabel?.trim()
+    const event = readMemberEvent(settings)
+    if (testRun && who && event) {
+      return {
+        type: "next",
+        summary: `Testing this flow with ${who}. ${MEMBER_EVENT_LABELS[event]} did not really happen.`,
+      }
+    }
+    if (!who || !event || run.triggerFacts?.event !== event) {
+      throw new Error(
+        "This member event run has no matching member event, so it cannot continue."
+      )
+    }
+    return {
+      type: "next",
+      summary: `${MEMBER_EVENT_LABELS[event]} for ${who}.`,
+    }
+  },
+
   /**
    * Works out who the rest of the flow is about and writes the answer into the
    * run's history — the choice and the number it matched, never the names.
@@ -253,6 +278,7 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
 const TEST_RUN_SAFE_KINDS = new Set([
   "placeholder",
   billingMomentNode.kind,
+  memberEventNode.kind,
   timeActivateNode.kind,
   audienceNode.kind,
   sendEmailNode.kind,

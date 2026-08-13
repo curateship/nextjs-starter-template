@@ -4,6 +4,7 @@ import { isPendingDeletion } from "@/lib/account-deletion"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellUsers, type CustomShellUser } from "@/server/schema"
 import { startSessionWithAlert } from "@/server/auth/security-alerts"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import {
   consumeAuthToken,
   createAuthToken,
@@ -94,13 +95,15 @@ export async function consumeSignInLink(
   // password reset already draws.
   const user = account.emailVerifiedAt
     ? account
-    : (
-        await database
+    : await database.transaction(async (tx) => {
+        const [verified] = await tx
           .update(customShellUsers)
           .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
           .where(eq(customShellUsers.id, account.id))
           .returning()
-      )[0]
+        await emitMemberEvent("verified", verified, tx)
+        return verified
+      })
 
   return {
     user,

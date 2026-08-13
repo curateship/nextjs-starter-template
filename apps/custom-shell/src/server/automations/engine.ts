@@ -962,6 +962,7 @@ export async function deleteAutomationRuns(
           "completed",
           "failed",
           "rejected",
+          "canceled",
         ])
       )
     )
