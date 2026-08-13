@@ -1,10 +1,12 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { MenuIcon } from "lucide-react"
+import { MenuIcon, SearchIcon } from "lucide-react"
 
 import { BrandLogo } from "@/components/shell/brand-logo"
+import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,6 +144,22 @@ export function PublicPageFrame({
                 {appName}
               </span>
             </Link>
+            <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
+              <div className="relative">
+                <SearchIcon
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  name="q"
+                  type="search"
+                  aria-label="Search this site"
+                  placeholder="Search this site"
+                  maxLength={120}
+                  className="pl-8"
+                />
+              </div>
+            </SiteSearchForm>
             {navigation.length ? (
               <>
                 <nav aria-label="Main navigation" className="hidden md:block">

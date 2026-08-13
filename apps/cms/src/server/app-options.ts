@@ -1,4 +1,5 @@
 import { appServerOptions } from "@/app/server-options"
+import type { SiteSearchResult } from "@/lib/pages/site-search"
 import type { AutomationExecutor } from "@/server/automations/executors"
 
 /**
@@ -23,6 +24,25 @@ export type AppServerOptions = {
   security?: SecurityServerOptions
   auth?: AuthServerOptions
   sitemap?: SitemapServerOptions
+  search?: SearchServerOptions
+}
+
+export type SiteSearchSource = (
+  workspaceId: string,
+  query: string,
+  limit: number
+) => Promise<readonly SiteSearchResult[]>
+
+type SearchServerOptions = {
+  /**
+   * Public content this app adds to a site's search results.
+   *
+   * The shell searches its admin-written pages. An app whose public content
+   * lives in its own tables adds one or more reads here. The workspace id
+   * comes from the request's Host header, never from the browser, and every
+   * source must return only public rows belonging to that workspace.
+   */
+  sources?: readonly SiteSearchSource[]
 }
 
 export type SitemapEntry = {
@@ -203,6 +223,20 @@ export async function appSitemapEntries(
   options: AppServerOptions = appServerOptions
 ): Promise<readonly SitemapEntry[]> {
   return (await options.sitemap?.extraEntries?.(workspaceId)) ?? []
+}
+
+/** Results from the app's own public search sources, or none when unset. */
+export async function appSiteSearchResults(
+  workspaceId: string,
+  query: string,
+  limit: number,
+  options: AppServerOptions = appServerOptions
+): Promise<SiteSearchResult[]> {
+  const sources = options.search?.sources ?? []
+  const groups = await Promise.all(
+    sources.map((source) => source(workspaceId, query, limit))
+  )
+  return groups.flatMap((results) => results.slice(0, limit))
 }
 
 /**

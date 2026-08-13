@@ -85,6 +85,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "Decides what a signed-out visitor is shown on a public page, so a session check here would hide every page it protects.",
   "content/pages.ts:readWrittenPageFn":
     "An admin-written page is a public page; requiring a session to read one would hide every page an admin ever writes.",
+  "content/search.ts:readSiteSearchFn":
+    "The site's search page is public. Its read resolves the site from the domain and returns only content already visible to everyone.",
   "content/announcements.ts:readVisitorAnnouncementsFn":
     "Public pages show these banners before a visitor has an account; the domain chooses the site and the query returns only live visitor announcements.",
   "people/view-as.ts:stopFn":

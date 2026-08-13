@@ -6,6 +6,7 @@ import {
   appAutomationExecutors,
   appBackgroundWorkers,
   appSitemapEntries,
+  appSiteSearchResults,
   appTrustsOrigin,
   notifyAppAuthEvent,
 } from "@/server/app-options"
@@ -38,6 +39,12 @@ describe("an option nobody set means what the shell always did", () => {
 
   it("adds no sitemap rows of its own", async () => {
     await expect(appSitemapEntries("site-1", {})).resolves.toEqual([])
+  })
+
+  it("adds no search results of its own", async () => {
+    await expect(
+      appSiteSearchResults("site-1", "parking", 40, {})
+    ).resolves.toEqual([])
   })
 
   it("has nobody to tell when an account is made or signed in to", async () => {
@@ -80,6 +87,31 @@ describe("an app's answer wins", () => {
       appSitemapEntries("alpha", { sitemap: { extraEntries } })
     ).resolves.toEqual([{ path: "/from-alpha" }])
     expect(extraEntries).toHaveBeenCalledWith("alpha")
+  })
+
+  it("hands the resolved site, words and bound to every search source", async () => {
+    const source = vi.fn(async (workspaceId: string, query: string) => [
+      {
+        type: "Listing",
+        title: query,
+        snippet: "",
+        path: `/from-${workspaceId}`,
+      },
+    ])
+
+    await expect(
+      appSiteSearchResults("alpha", "parking", 20, {
+        search: { sources: [source] },
+      })
+    ).resolves.toEqual([
+      {
+        type: "Listing",
+        title: "parking",
+        snippet: "",
+        path: "/from-alpha",
+      },
+    ])
+    expect(source).toHaveBeenCalledWith("alpha", "parking", 20)
   })
 
   it("tells the app who registered and who signed in", async () => {
