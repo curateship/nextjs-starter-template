@@ -11,6 +11,7 @@ import {
   addContactsToSegment,
   addMatchingContactsToSegment,
   countDraftSegmentContacts,
+  listSegmentsForContact,
   countSegmentContacts,
   createWorkspaceSegment,
   deleteWorkspaceSegments,
@@ -1028,6 +1029,164 @@ describe("adding everybody the filter matches to a segment", () => {
       )
     ).toEqual({ added: 1, alreadyThere: 0 })
     expect(await membersOf(segment.id)).toEqual(["ada@example.test"])
+  })
+})
+
+/**
+ * Which segments one person is in, for the window that answers "why are they
+ * getting this?".
+ *
+ * The answer has to come from the segments' own rules rather than a stored
+ * list, so the check that matters most is the last one: change a tag and the
+ * answer changes with it, without anything being rewritten.
+ */
+describe("the segments one contact is in right now", () => {
+  async function names(contactId: string) {
+    const segments = await listSegmentsForContact(
+      WORKSPACE_ID,
+      contactId,
+      db,
+      TODAY
+    )
+    return segments.map((segment) => segment.name)
+  }
+
+  it("says none when the workspace has no segments at all", async () => {
+    await insertContact("ada")
+
+    expect(await names("ada")).toEqual([])
+  })
+
+  it("lists only the rules segments whose rules they match", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Testers", [
+        { type: "tag", operator: "includes", tags: ["beta"] },
+      ]),
+      db
+    )
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Staff", [
+        { type: "tag", operator: "includes", tags: ["staff"] },
+      ]),
+      db
+    )
+
+    expect(await names("ada")).toEqual(["Testers"])
+  })
+
+  it("includes a hand-picked segment they were put into", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      {
+        name: "Chosen few",
+        description: "",
+        kind: "static",
+        rules: { conditions: [] },
+        contactIds: ["ada"],
+      },
+      db
+    )
+
+    expect(await names("ada")).toEqual(["Chosen few"])
+    expect(await names("bob")).toEqual([])
+  })
+
+  it("moves them the moment a tag changes, with nothing to rewrite", async () => {
+    await insertContact("ada", { tags: [] })
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Testers", [
+        { type: "tag", operator: "includes", tags: ["beta"] },
+      ]),
+      db
+    )
+
+    expect(await names("ada")).toEqual([])
+
+    await db
+      .update(customShellContacts)
+      .set({ tags: ["beta"] })
+      .where(eq(customShellContacts.id, "ada"))
+
+    expect(await names("ada")).toEqual(["Testers"])
+  })
+
+  it("follows a segment that leaves another one out", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta", "staff"] })
+    const staff = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Staff", [
+        { type: "tag", operator: "includes", tags: ["staff"] },
+      ]),
+      db
+    )
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Testers who are not staff", [
+        { type: "tag", operator: "includes", tags: ["beta"] },
+        { type: "notIn", segmentIds: [staff.id] },
+      ]),
+      db
+    )
+
+    expect(await names("ada")).toEqual(["Testers who are not staff"])
+    expect(await names("bob")).toEqual(["Staff"])
+  })
+
+  it("names them in the same order the segments page does", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    for (const name of ["Zebra", "Apple", "Mango"]) {
+      await createWorkspaceSegment(
+        WORKSPACE_ID,
+        rulesInput(name, [
+          { type: "tag", operator: "includes", tags: ["beta"] },
+        ]),
+        db
+      )
+    }
+
+    expect(await names("ada")).toEqual(["Apple", "Mango", "Zebra"])
+  })
+
+  it("never answers with another workspace's segments", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await createWorkspaceSegment(
+      OTHER_WORKSPACE_ID,
+      rulesInput("Theirs", [
+        { type: "tag", operator: "includes", tags: ["beta"] },
+      ]),
+      db
+    )
+
+    expect(await names("ada")).toEqual([])
+  })
+
+  it("says none for a contact belonging to somebody else", async () => {
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: ["beta"],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Testers", [
+        { type: "tag", operator: "includes", tags: ["beta"] },
+      ]),
+      db
+    )
+
+    // Asked with this workspace's id, so the stranger is simply not there.
+    expect(await names("stranger")).toEqual([])
   })
 })
 

@@ -245,6 +245,25 @@ export async function listWorkspaceContacts(
   return { contacts: rows, total: countRow?.total ?? 0 }
 }
 
+/** One contact, or null when it is not this workspace's to look at. */
+export async function getWorkspaceContact(
+  workspaceId: string,
+  contactId: string,
+  database: CustomShellDb = db
+): Promise<CustomShellContact | null> {
+  const [row] = await database
+    .select()
+    .from(customShellContacts)
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.id, contactId)
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
 /** Every tag in use in this workspace, so the picker can offer real ones. */
 export async function listWorkspaceTags(
   workspaceId: string,

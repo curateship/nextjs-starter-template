@@ -488,6 +488,74 @@ export async function listWorkspaceSegments(
   }))
 }
 
+/**
+ * Which segments one person is in right now, worked out fresh.
+ *
+ * Not a stored list — for a rules segment there is nothing stored to read. Every
+ * segment is asked the same question it would be asked on the segments page,
+ * through the very same `buildConditions`, so "why are they getting this?" is
+ * answered by the rules themselves rather than by a second opinion about them.
+ *
+ * One query, the same shape `listWorkspaceSegments` uses: one
+ * `count(… ) filter (where …)` per segment over a single row. That count can
+ * only be 0 or 1 here, which is exactly the yes-or-no being asked.
+ */
+export async function listSegmentsForContact(
+  workspaceId: string,
+  contactId: string,
+  database: CustomShellDb = db,
+  timestamp: Date = now()
+): Promise<{ id: string; name: string; kind: SegmentKind }[]> {
+  const [rows, context] = await Promise.all([
+    database
+      .select({
+        id: customShellContactSegments.id,
+        name: customShellContactSegments.name,
+        kind: customShellContactSegments.kind,
+        rules: customShellContactSegments.rules,
+      })
+      .from(customShellContactSegments)
+      .where(eq(customShellContactSegments.workspaceId, workspaceId))
+      .orderBy(asc(customShellContactSegments.name)),
+    loadSegmentContext(workspaceId, database),
+  ])
+
+  if (rows.length === 0) return []
+
+  const columns: Record<string, SQL<number>> = {}
+  for (const [index, row] of rows.entries()) {
+    const definition = context.segments.get(row.id) ?? readSegment(row)
+    columns[`member${index}`] = sql<number>`count(*) filter (where ${buildConditions(
+      workspaceId,
+      definition,
+      database,
+      timestamp,
+      context,
+      [definition.id]
+    )})::int`
+  }
+
+  // Scoped to the one contact, so every `filter` above is asked about them and
+  // nobody else. A contact that has since been deleted simply matches nothing.
+  const [totals] = await database
+    .select(columns)
+    .from(customShellContacts)
+    .where(
+      and(
+        eq(customShellContacts.workspaceId, workspaceId),
+        eq(customShellContacts.id, contactId)
+      )
+    )
+
+  return rows
+    .filter((_, index) => (totals?.[`member${index}`] ?? 0) > 0)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      kind: row.kind === "static" ? "static" : "rules",
+    }))
+}
+
 async function getWorkspaceSegment(
   workspaceId: string,
   segmentId: string,
