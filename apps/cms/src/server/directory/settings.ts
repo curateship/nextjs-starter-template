@@ -18,6 +18,7 @@ import { directorySettings } from "@/server/directory/schema"
 
 export type DirectorySettings = {
   claimsEnabled: boolean
+  badgesEnabled: boolean
   claimButtonLabel: string
   claimPendingMessage: string
   claimApprovedMessage: string
@@ -26,6 +27,7 @@ export type DirectorySettings = {
 /** The wording a site gets before anybody changes it. */
 export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   claimsEnabled: true,
+  badgesEnabled: false,
   claimButtonLabel: "Is this your business?",
   claimPendingMessage:
     "Thanks — we have your request. We check each one by hand and will email you when it is done.",
@@ -59,6 +61,7 @@ export async function directorySettingsFor(
 
   return {
     claimsEnabled: row.claimsEnabled,
+    badgesEnabled: row.badgesEnabled,
     claimButtonLabel: orDefault(
       row.claimButtonLabel,
       DIRECTORY_SETTING_DEFAULTS.claimButtonLabel
@@ -91,12 +94,14 @@ export async function savedDirectorySettings(
   return row
     ? {
         claimsEnabled: row.claimsEnabled,
+        badgesEnabled: row.badgesEnabled,
         claimButtonLabel: row.claimButtonLabel,
         claimPendingMessage: row.claimPendingMessage,
         claimApprovedMessage: row.claimApprovedMessage,
       }
     : {
         claimsEnabled: DIRECTORY_SETTING_DEFAULTS.claimsEnabled,
+        badgesEnabled: DIRECTORY_SETTING_DEFAULTS.badgesEnabled,
         claimButtonLabel: "",
         claimPendingMessage: "",
         claimApprovedMessage: "",
@@ -105,7 +110,7 @@ export async function savedDirectorySettings(
 
 export async function saveDirectorySettings(
   workspaceId: string,
-  input: Partial<DirectorySettings>,
+  input: Partial<Omit<DirectorySettings, "badgesEnabled">>,
   database: CustomShellDb = db
 ): Promise<DirectorySettings> {
   const at = now()
@@ -128,4 +133,27 @@ export async function saveDirectorySettings(
     })
 
   return directorySettingsFor(workspaceId, database)
+}
+
+/** Changes only the badge switch, leaving every claim setting untouched. */
+export async function saveDirectoryBadgesEnabled(
+  workspaceId: string,
+  badgesEnabled: boolean,
+  database: CustomShellDb = db
+) {
+  const at = now()
+  await database
+    .insert(directorySettings)
+    .values({
+      workspaceId,
+      badgesEnabled,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { badgesEnabled, updatedAt: at },
+    })
+
+  return { badgesEnabled }
 }
