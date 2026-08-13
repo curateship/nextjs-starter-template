@@ -1,5 +1,6 @@
 import type { AppServerOptions } from "@/server/app-options"
 import { directorySitemapEntries } from "@/server/directory/sitemap"
+import { directorySearchResults } from "@/server/directory/public"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 
 /**
@@ -19,6 +20,7 @@ import { runFeaturedRenewalReminders } from "@/server/directory/featured"
  */
 export const appServerOptions: AppServerOptions = {
   sitemap: { extraEntries: directorySitemapEntries },
+  search: { sources: [directorySearchResults] },
   background: {
     workers: [
       {

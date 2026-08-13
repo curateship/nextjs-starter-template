@@ -155,6 +155,51 @@ export function MeasureLayer({
   const [pointer, setPointer] = React.useState<{ x: number; y: number } | null>(
     null
   )
+  /**
+   * Where the pointer is, whether or not the ruler is armed.
+   *
+   * A ref and not state: it changes with every mouse move and nothing should
+   * redraw because of it. It exists for the one moment below.
+   */
+  const lastSeenRef = React.useRef<{ x: number; y: number } | null>(null)
+  React.useEffect(() => {
+    const onMove = (event: PointerEvent) => {
+      lastSeenRef.current = { x: event.clientX, y: event.clientY }
+    }
+    document.addEventListener("pointermove", onMove, { passive: true })
+    return () => document.removeEventListener("pointermove", onMove)
+  }, [])
+
+  /**
+   * The crosshair, the instant Shift goes down — not on the next mouse move.
+   *
+   * Arming covers the plot, which takes the chart's own crosshair away. This
+   * layer draws the replacement, and it used to have nothing to draw until the
+   * pointer moved: hold Shift over a price and the crosshair vanished, then
+   * snapped back somewhere else the moment your hand twitched. It read as the
+   * crosshair skipping about. Where the pointer is standing is already known,
+   * so it is used.
+   *
+   * Done as this element arrives rather than in an effect, because that IS the
+   * moment: the sheet is mounted only while the ruler is armed, so it appearing
+   * and Shift going down are the same event.
+   */
+  const attach = React.useCallback((element: HTMLDivElement | null) => {
+    if (!element) {
+      // Shift let go: the sheet is gone and so is its crosshair.
+      setPointer(null)
+      return
+    }
+    const at = lastSeenRef.current
+    if (!at) return
+    const box = element.getBoundingClientRect()
+    const x = at.x - box.left
+    const y = at.y - box.top
+    // Standing off the plot is standing nowhere; the chart shows no crosshair
+    // there either.
+    if (x < 0 || y < 0 || x > box.width || y > box.height) return
+    setPointer({ x, y })
+  }, [])
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Only the left button draws one. A right-click is handled below.
@@ -209,6 +254,7 @@ export function MeasureLayer({
 
   return (
     <div
+      ref={attach}
       // As wide as the plot, not the axis beside it, and clipping what runs
       // past its edges — a box dragged off the side stops at the candles. It
       // covers the plot so the chart never sees the drag, and the crosshair

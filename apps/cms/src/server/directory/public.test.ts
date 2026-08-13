@@ -8,6 +8,7 @@ import {
   updateListing,
 } from "@/server/directory/listings"
 import {
+  directorySearchResults,
   publicCategories,
   readPublicBrowse,
   readPublicCategory,
@@ -288,6 +289,72 @@ describe("the browse list", () => {
     )
 
     expect((await browse(alpha)).listings[0]?.category?.name).toBe("Food")
+  })
+})
+
+describe("the whole-site search source", () => {
+  it("finds only this site's published listings", async () => {
+    await publish(alpha, {
+      title: "Alpha garage",
+      slug: "alpha-garage",
+      metaDescription: "Covered parking downtown",
+    })
+    await publish(beta, {
+      title: "Beta garage",
+      slug: "beta-garage",
+      metaDescription: "Covered parking downtown",
+    })
+    const draft = await createListing(
+      alpha.id,
+      { title: "Draft garage", slug: "draft-garage" },
+      database
+    )
+    await updateListing(
+      alpha.id,
+      draft.id,
+      { metaDescription: "Covered parking downtown" },
+      database
+    )
+
+    const results = await directorySearchResults(
+      alpha.id,
+      "parking",
+      40,
+      database
+    )
+
+    expect(results).toEqual([
+      {
+        type: "Listing",
+        title: "Alpha garage",
+        snippet: "Covered parking downtown",
+        path: "/directory/alpha-garage",
+      },
+    ])
+  })
+
+  it("puts title matches first and respects the bound", async () => {
+    await publish(alpha, {
+      title: "Parking first",
+      slug: "parking-first",
+      metaDescription: "Downtown",
+    })
+    await publish(alpha, {
+      title: "Garage second",
+      slug: "garage-second",
+      metaDescription: "Parking downtown",
+    })
+
+    const results = await directorySearchResults(
+      alpha.id,
+      "parking",
+      1,
+      database
+    )
+
+    expect(results.map((result) => result.path)).toEqual([
+      "/directory/parking-first",
+    ])
   })
 })
 

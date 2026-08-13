@@ -557,7 +557,8 @@ async function finish(
 
   const equity = outcome?.equity ?? []
   const dip = worstDip(equity)
-  const peak = peakInPlay(equity, outcome?.inPlay ?? [])
+  const peak = peakInPlay(equity, outcome?.inPlay ?? [], spec.startingUsd)
+  const shares = inPlayShares(equity, outcome?.inPlay ?? [], spec.startingUsd)
   const endingUsd = outcome?.endingUsd ?? spec.startingUsd
   const warnings = await credibilityWarnings(spec, coins, outcome, skipped)
 
@@ -579,9 +580,13 @@ async function finish(
     coinsThatMadeMoney: coinSummaries.filter((coin) => coin.madeOrLost > 0)
       .length,
     peakInPlayUsd: peak.usd,
+    peakInPlayPct: peak.pct,
     peakInPlayAt: peak.at,
     peakInPlayHeldMs: peak.heldMs,
     typicalInPlayUsd: middleOf(outcome?.inPlay ?? []),
+    // Null rather than zero when there is no pot to take a share of, so the
+    // tile shows a dash like every other figure a run cannot answer.
+    typicalInPlayPct: shares.length > 0 ? middleOf(shares) : null,
     potAtWorstDipUsd:
       dip.at === null
         ? null
@@ -682,34 +687,93 @@ async function credibilityWarnings(
 }
 
 /**
- * The heaviest the pot was ever working, when that was, and how long it stayed
- * there.
+ * The wallet this bar's trades were paid for out of — the pot as it stood
+ * **before** the bar, which is the previous bar's close.
+ *
+ * Never this bar's own close. Money is committed at the start of a bar, so the
+ * bar's closing pot already contains whatever those very trades just made or
+ * lost. On a cascade the difference is the whole answer: Oct 10 2025 put
+ * $14,132 to work out of $14,178 — every dollar there was — and the same bar
+ * closed at $29,332 because the coins it had just bought at the lows were
+ * marked up before the candle finished. Divided by the close that reads 48%,
+ * and 48% says there was plenty of room when there was $46 left.
+ */
+function walletBefore(
+  equity: readonly { t: number; usd: number }[],
+  startingUsd: number,
+  index: number
+): number | null {
+  const pot = index === 0 ? startingUsd : equity[index - 1]?.usd
+  // A wallet at or below zero has no share to take: dividing would invent a
+  // number rather than answer the question.
+  return typeof pot === "number" && pot > 0 ? pot : null
+}
+
+/** What share of the wallet was in trades at each bar, where the wallet is known. */
+function inPlayShares(
+  equity: readonly { t: number; usd: number }[],
+  inPlay: readonly number[],
+  startingUsd: number
+): number[] {
+  const shares: number[] = []
+  for (const [index, amount] of inPlay.entries()) {
+    const pot = walletBefore(equity, startingUsd, index)
+    if (pot === null) continue
+    shares.push((amount / pot) * 100)
+  }
+  return shares
+}
+
+/**
+ * The moment the wallet was stretched furthest, what was in trades then, and
+ * how long it stayed there.
+ *
+ * This tile answers one question — **did the run have enough money** — so both
+ * halves of the fraction have to be about the money it had. See `walletBefore`
+ * for the denominator, which is the reason a cascade day no longer reads as a
+ * quiet one.
+ *
+ * **Found by share, not by dollars.** With compounding on, the biggest dollar
+ * figure is usually just the latest one, because by then the wallet is bigger
+ * too. The tightest moment is the one that nearly ran out, whenever it was.
  *
  * "Held" is counted in real time over the bars that were within a whisker of
  * the peak, because a peak that lasted one candle and one that lasted a week
  * are very different risks wearing the same number.
+ *
+ * A share of zero and no share at all are different answers and stay different:
+ * a run that bought nothing used 0% of its wallet, which is worth saying, while
+ * a run with no wallet to divide by cannot be asked and reads as a dash.
  */
-function peakInPlay(
+export function peakInPlay(
   equity: readonly { t: number; usd: number }[],
-  inPlay: readonly number[]
-): { usd: number; at: number | null; heldMs: number } {
-  if (inPlay.length === 0) return { usd: 0, at: null, heldMs: 0 }
+  inPlay: readonly number[],
+  startingUsd: number
+): { usd: number; pct: number | null; at: number | null; heldMs: number } {
+  const shares = inPlayShares(equity, inPlay, startingUsd)
+  if (shares.length === 0) return { usd: 0, pct: null, at: null, heldMs: 0 }
 
+  let pct = 0
   let usd = 0
   let at: number | null = null
   for (const [index, amount] of inPlay.entries()) {
-    if (amount > usd) {
+    const pot = walletBefore(equity, startingUsd, index)
+    if (pot === null) continue
+    const share = (amount / pot) * 100
+    if (share > pct) {
+      pct = share
       usd = amount
       at = equity[index]?.t ?? null
     }
   }
-  if (usd <= 0) return { usd: 0, at: null, heldMs: 0 }
+  // Nothing was ever in trades. That is 0%, on no particular day.
+  if (pct <= 0) return { usd: 0, pct: 0, at: null, heldMs: 0 }
 
   // A bar counts as "at the peak" when it is within a tenth of a percent of it.
-  const near = inPlay.filter((amount) => amount >= usd * 0.999).length
+  const near = shares.filter((share) => share >= pct * 0.999).length
   const barMs =
     equity.length > 1 ? Math.max(0, equity[1].t - equity[0].t) : 0
-  return { usd, at, heldMs: near * barMs }
+  return { usd, pct, at, heldMs: near * barMs }
 }
 
 async function skipCoin(
