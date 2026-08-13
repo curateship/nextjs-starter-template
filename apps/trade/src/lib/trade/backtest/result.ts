@@ -519,9 +519,29 @@ export const backtestSummarySchema = z.object({
   coinsSkipped: z.number(),
   /** How many of the tested coins ended up ahead. */
   coinsThatMadeMoney: z.number(),
-  /** The most money that was ever in trades at once, in dollars. */
+  /** How much was in trades at the moment the wallet was stretched furthest. */
   peakInPlayUsd: z.number(),
-  /** When it was at its heaviest. */
+  /**
+   * The same moment as a share of the wallet **as it stood before that bar** —
+   * how close the run came to running out of money.
+   *
+   * Two things this is deliberately not measured against:
+   *
+   * - **Not what the run started with.** With compounding on, a run that grew
+   *   $10,000 into $31,000 and had $33,000 working read as "334% of the
+   *   wallet" when it was using every dollar it had.
+   * - **Not the pot at the end of that same bar.** Money is committed at the
+   *   start of a bar, so the bar's closing pot already contains what those
+   *   trades just made. Oct 10 2025 put $14,132 to work out of $14,178 — all
+   *   of it — and closed at $29,332 once the coins bought at the lows were
+   *   marked up. Against the close that reads 48%, which says there was room
+   *   to spare when there was $46 left.
+   *
+   * Absent on runs saved before it was worked out this way, and a wrong percent
+   * is worse than none — see how max drawdown handles the same gap.
+   */
+  peakInPlayPct: z.number().nullable().default(null),
+  /** When it was stretched furthest. */
   peakInPlayAt: z.number().nullable(),
   /**
    * How long it stayed there, in milliseconds.
@@ -532,6 +552,13 @@ export const backtestSummarySchema = z.object({
   peakInPlayHeldMs: z.number(),
   /** The typical amount in trades, in dollars — the middle of the run. */
   typicalInPlayUsd: z.number(),
+  /**
+   * The typical share of the wallet that was in trades — the middle of every
+   * bar's own share, not the typical dollars divided by the typical wallet. The
+   * wallet moves, so dividing one middle by another answers a question nobody
+   * asked.
+   */
+  typicalInPlayPct: z.number().nullable().default(null),
   /** What was in the pot at the bottom of the worst dip, in dollars. */
   potAtWorstDipUsd: z.number().nullable(),
   /** How many coins were still holding something when the window closed. */
