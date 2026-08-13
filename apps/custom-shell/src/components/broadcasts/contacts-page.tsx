@@ -633,7 +633,10 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               </TableHead>
               {/* Tags are a list, so there is no single value to order by. */}
               <TableHead column="meta" className="hidden md:table-cell">Tags</TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
+              {/* Status and Added used to hide at different widths in the
+                  heading and in the rows, so a narrow screen labelled the
+                  status badges "Added". Each pair now hides together. */}
+              <TableHead column="meta">
                 <TableSortButton
                   active={sort === "status"}
                   direction={direction}
@@ -642,7 +645,16 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                   Status
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden lg:table-cell">
+                <TableSortButton
+                  active={sort === "emailed"}
+                  direction={direction}
+                  onClick={() => toggleSort("emailed")}
+                >
+                  Last emailed
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta" className="hidden lg:table-cell">
                 <TableSortButton
                   active={sort === "created"}
                   direction={direction}
@@ -661,7 +673,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
             ? "Nobody matches that."
             : "Nobody on the list yet. Everyone who signs up lands here."
         }
-        emptyColSpan={7}
+        emptyColSpan={8}
         footer={{
           type: "pagination",
           page,
@@ -746,6 +758,14 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               >
                 {segmentStatusLabels[contact.status]}
               </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {contact.lastEmailedAt
+                ? formatDate(contact.lastEmailedAt)
+                : // Not a dash. "Nothing has ever been sent to this person" is
+                  // a real answer, and the one somebody scanning this column is
+                  // looking for.
+                  "Never"}
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {formatDate(contact.created_at)}

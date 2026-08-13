@@ -55,6 +55,12 @@ export type ContactItem = {
    * straight to that account and a boolean cannot say which one.
    */
   userId: string | null
+  /**
+   * When anything was last sent to them, or null for somebody who has never
+   * been emailed. The newest row in `deliveries` for them — the same date their
+   * details window shows at the top of its history.
+   */
+  lastEmailedAt: string | null
   created_at: string
 }
 
@@ -206,6 +212,7 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
         status: row.status as ContactStatus,
         source: row.source,
         userId: row.userId,
+        lastEmailedAt: row.lastEmailedAt?.toISOString() ?? null,
         created_at: row.createdAt.toISOString(),
       })),
     }

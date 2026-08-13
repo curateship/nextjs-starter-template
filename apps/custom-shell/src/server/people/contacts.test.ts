@@ -8,7 +8,11 @@ import {
   listWorkspaceContacts,
 } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"
-import { customShellContacts, customShellWorkspaces } from "@/server/schema"
+import {
+  customShellContacts,
+  customShellDeliveries,
+  customShellWorkspaces,
+} from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /**
@@ -179,6 +183,173 @@ describe("filtering the contacts list", () => {
     expect(
       await listed([{ type: "tag", operator: "includes", tags: ["gone"] }])
     ).toEqual([])
+  })
+})
+
+/**
+ * The "last emailed" column, and what it does with people nobody has emailed.
+ *
+ * Two things are being checked: that the date is the newest send and not just
+ * any of them, and that never-emailed people land at the same end as the oldest
+ * dates whichever way the column is sorted. The second is where databases
+ * surprise people — Postgres puts nulls last ascending and first descending, so
+ * left alone it would read as a bug in one direction.
+ */
+describe("when each person was last emailed", () => {
+  async function send(contactId: string, at: Date, workspaceId = WORKSPACE_ID) {
+    await db.insert(customShellDeliveries).values({
+      id: `${contactId}-${at.getTime()}`,
+      workspaceId,
+      broadcastId: null,
+      contactId,
+      toEmail: `${contactId}@example.test`,
+      subject: "A newsletter",
+      status: "sent",
+      createdAt: at,
+    })
+  }
+
+  /** Everybody, in the order the list puts them, with their date. */
+  async function orderedBy(direction: "asc" | "desc") {
+    const { contacts } = await listWorkspaceContacts(
+      WORKSPACE_ID,
+      { sort: "emailed", direction },
+      db
+    )
+    return contacts.map((contact) => [
+      contact.email.replace("@example.test", ""),
+      contact.lastEmailedAt?.toISOString() ?? null,
+    ])
+  }
+
+  it("is empty for somebody who has never been emailed", async () => {
+    await insertContact("ada")
+
+    const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
+    expect(contacts[0].lastEmailedAt).toBeNull()
+  })
+
+  it("is the date of the one send, when there is only one", async () => {
+    await insertContact("ada")
+    await send("ada", daysAgo(3))
+
+    const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
+    expect(contacts[0].lastEmailedAt).toEqual(daysAgo(3))
+  })
+
+  it("is the newest of many sends, not the first or the last written", async () => {
+    await insertContact("ada")
+    await send("ada", daysAgo(30))
+    await send("ada", daysAgo(2))
+    // Written last, older than the one above — so "the newest" and "the most
+    // recently inserted" are deliberately different answers here.
+    await send("ada", daysAgo(10))
+
+    const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
+    expect(contacts[0].lastEmailedAt).toEqual(daysAgo(2))
+  })
+
+  it("counts nobody else's sends toward this person's date", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    await send("bob", daysAgo(1))
+
+    const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
+    const ada = contacts.find((contact) => contact.id === "ada")
+    expect(ada?.lastEmailedAt).toBeNull()
+  })
+
+  it("never counts a send recorded against another workspace", async () => {
+    await insertContact("ada")
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    // Same workspace as the contact it names, so this is a real row — it just
+    // has nothing to do with the workspace being asked.
+    await send("stranger", daysAgo(1), OTHER_WORKSPACE_ID)
+
+    const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
+    expect(contacts).toHaveLength(1)
+    expect(contacts[0].lastEmailedAt).toBeNull()
+  })
+
+  it("puts never-emailed people with the oldest, sorting oldest first", async () => {
+    await insertContact("never")
+    await insertContact("old")
+    await insertContact("recent")
+    await send("old", daysAgo(90))
+    await send("recent", daysAgo(1))
+
+    expect(await orderedBy("asc")).toEqual([
+      ["never", null],
+      ["old", daysAgo(90).toISOString()],
+      ["recent", daysAgo(1).toISOString()],
+    ])
+  })
+
+  it("and at the far end sorting newest first", async () => {
+    await insertContact("never")
+    await insertContact("old")
+    await insertContact("recent")
+    await send("old", daysAgo(90))
+    await send("recent", daysAgo(1))
+
+    expect(await orderedBy("desc")).toEqual([
+      ["recent", daysAgo(1).toISOString()],
+      ["old", daysAgo(90).toISOString()],
+      ["never", null],
+    ])
+  })
+
+  it("breaks ties on the id, so paging cannot repeat or skip anybody", async () => {
+    // Three people emailed at the very same moment, which a single newsletter
+    // going out does to everybody on it.
+    for (const id of ["cat", "ada", "bob"]) {
+      await insertContact(id)
+      await send(id, daysAgo(5))
+    }
+
+    const firstTwo = await listWorkspaceContacts(
+      WORKSPACE_ID,
+      { sort: "emailed", direction: "asc", limit: 2 },
+      db
+    )
+    const lastOne = await listWorkspaceContacts(
+      WORKSPACE_ID,
+      { sort: "emailed", direction: "asc", limit: 2, offset: 2 },
+      db
+    )
+
+    expect(firstTwo.contacts.map((contact) => contact.id)).toEqual(["ada", "bob"])
+    expect(lastOne.contacts.map((contact) => contact.id)).toEqual(["cat"])
+  })
+
+  it("still filters and counts the same as before with the column joined on", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    await insertContact("cat")
+    // Several sends for one person, which a careless join would turn into
+    // several rows for them and a total of four.
+    await send("ada", daysAgo(9))
+    await send("ada", daysAgo(4))
+
+    const { contacts, total } = await listWorkspaceContacts(
+      WORKSPACE_ID,
+      {
+        rules: {
+          conditions: [{ type: "tag", operator: "includes", tags: ["beta"] }],
+        },
+      },
+      db
+    )
+    expect(total).toBe(2)
+    expect(contacts).toHaveLength(2)
   })
 })
 
