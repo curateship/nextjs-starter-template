@@ -6,10 +6,12 @@ import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import {
   candlesPerCoin,
   coinsAllowedFor,
+  dayStartMs,
   MAX_BACKTEST_DAYS,
   MAX_BACKTEST_MARKETS,
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
+  windowDays,
 } from "@/lib/automations/nodes/trade-markets"
 import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
 import { backtestSpecFromFlow } from "@/lib/trade/backtest/flow"
@@ -155,6 +157,87 @@ describe("saved market editor settings", () => {
 
     expect(graph.nodes[0].settings.minimumVolume).toBe(".5")
     expect(graph.nodes[0].settings.maximumVolume).toBe("100")
+  })
+})
+
+describe("naming the two days a run covers", () => {
+  function withDates(dates: { from?: string | null; to?: string | null }) {
+    return backtestSpecFromFlow(
+      flowOf({
+        a: wallet,
+        b: { ...markets, settings: { ...markets.settings, ...dates } },
+        c: ladder,
+      })
+    )
+  }
+
+  it("takes two days and leaves the day count alone underneath them", () => {
+    const read = withDates({ from: "2023-01-01", to: "2023-06-30" })
+
+    expect(read.problem).toBeNull()
+    expect(read.spec?.markets.from).toBe("2023-01-01")
+    expect(read.spec?.markets.to).toBe("2023-06-30")
+    // Untouched on purpose: clearing the dates puts you back on the window you
+    // had before, rather than on whatever the dates happened to add up to.
+    expect(read.spec?.markets.days).toBe(30)
+  })
+
+  it("counts both days in, so the length is what somebody would say it is", () => {
+    // January 1st to June 30th is 181 days. Counting the gap between the two
+    // midnights instead gives 180 and quietly loses the last day.
+    expect(windowDays({ days: 30, from: "2023-01-01", to: "2023-06-30" })).toBe(181)
+    expect(windowDays({ days: 30, from: "2023-10-01", to: "2023-10-10" })).toBe(10)
+    expect(windowDays({ days: 30, from: "2023-10-01", to: "2023-10-01" })).toBe(1)
+    // No dates named, so the count on the step is the answer.
+    expect(windowDays({ days: 30, from: null, to: null })).toBe(30)
+  })
+
+  it("asks for the other date rather than guessing it", () => {
+    expect(withDates({ from: "2023-01-01" }).problem).toMatch(/both dates/i)
+    expect(withDates({ to: "2023-01-01" }).problem).toMatch(/both dates/i)
+  })
+
+  it("says so when the end is before the start", () => {
+    expect(withDates({ from: "2023-06-30", to: "2023-01-01" }).problem).toMatch(
+      /before the start/i
+    )
+  })
+
+  it("refuses a day that does not exist", () => {
+    // The 31st of February is a typo, and left to itself `Date.parse` answers
+    // the 3rd of March rather than refusing — so somebody meaning to end
+    // February would have had the window moved into spring without being told.
+    expect(dayStartMs("2023-02-31")).toBeNull()
+    expect(dayStartMs("2023-13-01")).toBeNull()
+    expect(dayStartMs("30 June 2023")).toBeNull()
+    expect(dayStartMs("2024-02-29")).not.toBeNull()
+  })
+
+  it("weighs a dated window by its real length, not by the count underneath", () => {
+    // The trap this closes: two years of 5-minute candles across four hundred
+    // coins is a crash, and it used to be waved through any time the dates
+    // said two years while the number underneath still said 30.
+    const read = backtestSpecFromFlow(
+      flowOf({
+        a: wallet,
+        b: {
+          ...markets,
+          settings: {
+            ...markets.settings,
+            days: 30,
+            from: "2021-01-01",
+            to: "2022-12-31",
+            marketKeys: Array.from(
+              { length: 400 },
+              (_, index) => `hyperliquid:mainnet:C${index}`
+            ),
+          },
+        },
+        c: { ...ladder, settings: { ...ladder.settings, interval: "5m" } },
+      })
+    )
+
+    expect(read.problem).toMatch(/candles are held in memory/i)
   })
 })
 

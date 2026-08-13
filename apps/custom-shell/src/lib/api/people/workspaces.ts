@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { describeAuthError } from "../error-message"
-import { createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/people/workspaces"
+import { copyUserWorkspace, createUserWorkspace, switchUserWorkspace, updateUserWorkspace, deleteUserWorkspace, deleteUserWorkspaces, listUserWorkspaces, serializeWorkspace } from "@/server/people/workspaces"
 import {
   MAX_CUSTOM_DOMAIN,
   MAX_SUBDOMAIN,
@@ -12,6 +12,7 @@ import {
 import { mayHaveWorkspace } from "@/lib/app-options"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceBaseDomain } from "@/server/workspaces/host"
+import { appWorkspaceCopyChoices } from "@/server/app-options"
 import { z } from "zod"
 
 import { iconMeta, type IconKey } from "@/lib/custom-shell"
@@ -34,6 +35,7 @@ export type WorkspaceItem = {
 
 export type WorkspaceListResponse = {
   workspaces: WorkspaceItem[]
+  copyChoices: WorkspaceCopyChoice[]
   /**
    * The domain workspaces hang off, so the form can show what a workspace will
    * answer on as the address is typed. Empty when none is configured, which is
@@ -41,6 +43,8 @@ export type WorkspaceListResponse = {
    */
   baseDomain: string
 }
+
+export type WorkspaceCopyChoice = { key: string; label: string }
 
 /** A bulk delete's honest accounting: what went, and what is still there. */
 export type WorkspaceBulkDeleteResponse = WorkspaceListResponse & {
@@ -66,6 +70,12 @@ const createWorkspaceSchema = z.object({
   name: z.string().min(1).max(255),
   icon: iconSchema.optional(),
   address: addressSchema.optional(),
+  copyFrom: z
+    .object({
+      workspaceId: z.string().min(1).max(36),
+      choices: z.array(z.string().min(1).max(80)).max(20),
+    })
+    .optional(),
 })
 
 const switchWorkspaceSchema = z.object({
@@ -104,13 +114,28 @@ const createWorkspaceFn = createServerFn({ method: "POST" })
   .inputValidator(createWorkspaceSchema)
   .handler(async ({ data, context }): Promise<WorkspaceListResponse> => {
     requireMayHaveWorkspace(context.user)
-    await createUserWorkspace(
-      context.user.id,
-      data.name,
-      { icon: data.icon },
-      undefined,
-      data.address
-    )
+    if (data.copyFrom) {
+      await copyUserWorkspace(
+        context.user.id,
+        data.copyFrom.workspaceId,
+        data.name,
+        data.icon ? { icon: data.icon } : {},
+        undefined,
+        data.address,
+        {
+          seesEveryWorkspace: seesEveryWorkspace(context.user),
+          choices: data.copyFrom.choices,
+        }
+      )
+    } else {
+      await createUserWorkspace(
+        context.user.id,
+        data.name,
+        { icon: data.icon },
+        undefined,
+        data.address
+      )
+    }
     return workspaceListForUser(context.user)
   })
 
@@ -169,9 +194,10 @@ export function loadWorkspaces() {
 export function createWorkspace(
   name: string,
   icon?: IconKey,
-  address?: WorkspaceAddressInput
+  address?: WorkspaceAddressInput,
+  copyFrom?: { workspaceId: string; choices: string[] }
 ) {
-  return createWorkspaceFn({ data: { name, icon, address } })
+  return createWorkspaceFn({ data: { name, icon, address, copyFrom } })
 }
 
 export function switchWorkspace(workspaceId: string) {
@@ -246,6 +272,10 @@ async function workspaceListForUser(
     workspaces: workspaces.map((row) =>
       serializeWorkspace(row, currentWorkspaceId)
     ),
+    copyChoices: appWorkspaceCopyChoices().map(({ key, label }) => ({
+      key,
+      label,
+    })),
     // A server value: the form shows the address as it is typed and cannot work
     // out on its own what the workspace will answer on.
     baseDomain: workspaceBaseDomain(),

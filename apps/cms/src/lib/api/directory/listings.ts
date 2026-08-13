@@ -6,6 +6,7 @@ import {
   LISTING_STATUS_FILTERS,
   type ListingSortColumn,
   type ListingStatusFilter,
+  type ListingViewRange,
 } from "@/lib/directory/listing-sort"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -72,6 +73,14 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
       status: z.enum(LISTING_STATUS_FILTERS).optional(),
       sort: z.enum(LISTING_SORT_COLUMNS).optional(),
       direction: z.enum(["asc", "desc"]).optional(),
+      days: z
+        .union([
+          z.literal("all"),
+          z.literal(7),
+          z.literal(30),
+          z.literal(365),
+        ])
+        .optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
     })
@@ -79,18 +88,22 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
   .handler(async ({ data, context }): Promise<ListingsPage> => {
     const pageSize = data.limit ?? 50
     const page = data.page ?? 1
-    const { listings, total } = await listListings(
-      await workspaceIdForRequest(context.user.id),
-      {
-        search: data.search,
-        status: data.status,
-        sort: data.sort,
-        direction: data.direction,
-        limit: pageSize,
-        offset: (page - 1) * pageSize,
-      }
-    )
-    return { listings, total, page, pageSize }
+    const site = await workspaceIdForRequest(context.user.id)
+    const { listings, total } = await listListings(site, {
+      search: data.search,
+      status: data.status,
+      sort: data.sort,
+      direction: data.direction,
+      viewDays: data.days,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    })
+    return {
+      listings,
+      total,
+      page,
+      pageSize,
+    }
   })
 
 export function loadListingsPage(input: {
@@ -98,6 +111,7 @@ export function loadListingsPage(input: {
   status?: ListingStatusFilter
   sort?: ListingSortColumn
   direction?: "asc" | "desc"
+  days?: ListingViewRange
   page?: number
   limit?: number
 }) {

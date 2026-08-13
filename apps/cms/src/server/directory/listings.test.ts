@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { menuLinkHref } from "@/lib/directory/contact-links"
+import { uuid } from "@/server/auth/security"
 import { createTestDatabase, insertWorkspace, type TestDatabase } from "@/server/test-support"
 import { createCategory } from "@/server/directory/categories"
 import {
@@ -15,6 +16,7 @@ import {
   setListingCategories,
   updateListing,
 } from "@/server/directory/listings"
+import { recordVisit } from "@/server/traffic"
 
 /**
  * Listings are plain records with two promises: an address only ever belongs
@@ -173,6 +175,34 @@ describe("the admin list", () => {
     )
     expect(pageTwo.total).toBe(4)
     expect(pageTwo.listings).toHaveLength(2)
+  })
+
+  it("sorts the full result by views and shows zero for an unviewed listing", async () => {
+    const quiet = await createListing(site, { title: "Quiet" }, database)
+    const popular = await createListing(site, { title: "Popular" }, database)
+    await recordVisit(
+      {
+        workspaceId: site,
+        path: `/directory/${popular.slug}`,
+        referrerDomain: "direct",
+        device: "computer",
+        audience: "visitor",
+        visitorHash: uuid(),
+      },
+      database
+    )
+
+    const result = await listListings(
+      site,
+      { sort: "views", direction: "desc", viewDays: 30 },
+      database
+    )
+
+    expect(result.listings.map((listing) => listing.id)).toEqual([
+      popular.id,
+      quiet.id,
+    ])
+    expect(result.listings.map((listing) => listing.views)).toEqual([1, 0])
   })
 })
 

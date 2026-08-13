@@ -31,6 +31,7 @@ import {
   deleteWorkspaces,
   getWorkspaceErrorMessage,
   type WorkspaceItem,
+  type WorkspaceCopyChoice,
 } from "@/lib/api/people/workspaces"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
@@ -81,10 +82,12 @@ const STATUS_ORDER: Record<WorkspaceStatus, number> = {
 export function WorkspacesDashboard({
   initialWorkspaces: workspaces,
   baseDomain = "",
+  copyChoices = [],
 }: {
   initialWorkspaces: WorkspaceItem[]
   /** The domain workspaces hang off, for the address field's preview. */
   baseDomain?: string
+  copyChoices?: WorkspaceCopyChoice[]
 }) {
   // Read inside the component, never at module level — an app's options file
   // can import its way back here.
@@ -415,6 +418,8 @@ export function WorkspacesDashboard({
 
       <WorkspaceFormDialog
         baseDomain={baseDomain}
+        availableWorkspaces={workspaces}
+        copyChoices={copyChoices}
         open={formOpen}
         editing={editing}
         onClose={() => {

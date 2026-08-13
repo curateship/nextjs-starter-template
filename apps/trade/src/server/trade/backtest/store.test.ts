@@ -52,7 +52,7 @@ function specOf(marketKeys: string[]): BacktestSpec {
       makerFeePct: 0.015,
       slippagePct: 0.05,
     },
-    markets: { protocol: "hyperliquid", marketKeys, days: 30 },
+    markets: { protocol: "hyperliquid", marketKeys, days: 30, from: null, to: null },
     dca: { params: defaultDcaParams(), interval: "4h" },
   }
 }
@@ -107,10 +107,96 @@ describe("writing a run down", () => {
     // could differ for a reason nobody could see.
     const { groupId } = await makeRun()
     const found = await readBacktestGroup(userId, groupId, db)
-    const window = backtestWindow(NOW, 30, FOUR_HOURS)
+    const window = backtestWindow(NOW, { days: 30 }, FOUR_HOURS)
 
     expect(found?.group.spec.from).toBe(window.from)
     expect(found?.group.spec.to).toBe(window.to)
+  })
+
+  it("walks exactly the days somebody named, last day included", () => {
+    // October 1st to October 10th is ten days, because that is what somebody
+    // typing those two dates means. Ending at the 10th's own midnight would
+    // drop the 10th — which on a real run is the day they picked the dates to
+    // look at.
+    const window = backtestWindow(
+      NOW,
+      { days: 30, from: "2023-10-01", to: "2023-10-10" },
+      FOUR_HOURS
+    )
+
+    expect(new Date(window.from).toISOString()).toBe("2023-10-01T00:00:00.000Z")
+    expect(new Date(window.to).toISOString()).toBe("2023-10-11T00:00:00.000Z")
+    expect((window.to - window.from) / 86_400_000).toBe(10)
+  })
+
+  it("ignores the day count once two dates are named", () => {
+    // The 30 sitting on the step is left alone underneath the dates, so this
+    // is the one that decides whether it is still being read. Six months, not
+    // thirty days.
+    const dated = backtestWindow(
+      NOW,
+      { days: 30, from: "2023-01-01", to: "2023-06-30" },
+      FOUR_HOURS
+    )
+
+    expect(new Date(dated.from).toISOString()).toBe("2023-01-01T00:00:00.000Z")
+    expect(new Date(dated.to).toISOString()).toBe("2023-07-01T00:00:00.000Z")
+  })
+
+  it("cuts a window that runs past today back to the last finished bar", () => {
+    // Naming today, or a day that has not arrived, means "up to now" — not a
+    // stretch of empty future the run would walk with no prices in it.
+    const window = backtestWindow(
+      NOW,
+      { days: 30, from: "2020-01-01", to: "2999-01-01" },
+      FOUR_HOURS
+    )
+
+    expect(window.to).toBe(Math.floor(NOW / FOUR_HOURS) * FOUR_HOURS)
+  })
+
+  it("writes down how long the run really covers, not the number on the step", async () => {
+    // The day count is left alone underneath the dates, so every screen that
+    // captions a run would otherwise call a six-month window "30 days".
+    const spec = specOf(["hyperliquid:mainnet:AAA"])
+    const { groupId } = await createBacktest(
+      userId,
+      {
+        automationId: "flow-dates",
+        automationName: "Dates",
+        spec: {
+          ...spec,
+          markets: { ...spec.markets, from: "2023-01-01", to: "2023-06-30" },
+        },
+        now: NOW,
+      },
+      db
+    )
+
+    const found = await readBacktestGroup(userId, groupId, db)
+    expect(found?.group.spec.days).toBe(181)
+    expect(new Date(found?.group.spec.from ?? 0).toISOString()).toBe(
+      "2023-01-01T00:00:00.000Z"
+    )
+  })
+
+  it("refuses a window that has not happened yet", async () => {
+    const spec = specOf(["hyperliquid:mainnet:AAA"])
+    await expect(
+      createBacktest(
+        userId,
+        {
+          automationId: "flow-future",
+          automationName: "Future",
+          spec: {
+            ...spec,
+            markets: { ...spec.markets, from: "2999-01-01", to: "2999-02-01" },
+          },
+          now: NOW,
+        },
+        db
+      )
+    ).rejects.toThrow("BACKTEST_WINDOW")
   })
 
   it("refuses a run that mixes exchanges", async () => {

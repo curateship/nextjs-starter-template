@@ -6,6 +6,7 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -36,6 +37,7 @@ import {
   getWorkspaceErrorMessage,
   updateWorkspace,
   type WorkspaceItem,
+  type WorkspaceCopyChoice,
 } from "@/lib/api/people/workspaces"
 import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
 import {
@@ -59,6 +61,8 @@ type WorkspaceDraft = {
   subdomain: string
   customDomain: string
   status: WorkspaceStatus
+  copySourceId: string
+  copyChoices: string[]
 }
 
 function draftFor(workspace: WorkspaceItem | null): WorkspaceDraft {
@@ -69,6 +73,8 @@ function draftFor(workspace: WorkspaceItem | null): WorkspaceDraft {
         subdomain: workspace.subdomain,
         customDomain: workspace.customDomain,
         status: workspace.status,
+        copySourceId: "blank",
+        copyChoices: [],
       }
     : {
         name: "",
@@ -76,6 +82,8 @@ function draftFor(workspace: WorkspaceItem | null): WorkspaceDraft {
         subdomain: "",
         customDomain: "",
         status: "active",
+        copySourceId: "blank",
+        copyChoices: [],
       }
 }
 
@@ -97,6 +105,8 @@ export function WorkspaceFormDialog({
   open,
   editing = null,
   baseDomain = "",
+  availableWorkspaces = [],
+  copyChoices = [],
   onClose,
 }: {
   open: boolean
@@ -107,6 +117,10 @@ export function WorkspaceFormDialog({
    * on. Empty on an app that serves one site, which is most of them.
    */
   baseDomain?: string
+  /** Workspaces the signed-in person may use as a starting point. */
+  availableWorkspaces?: WorkspaceItem[]
+  /** Optional app-owned content choices for a copied workspace. */
+  copyChoices?: WorkspaceCopyChoice[]
   onClose: () => void
 }) {
   const router = useRouter()
@@ -122,6 +136,7 @@ export function WorkspaceFormDialog({
   const subdomainId = `${fieldId}-subdomain`
   const domainId = `${fieldId}-domain`
   const statusId = `${fieldId}-status`
+  const copySourceId = `${fieldId}-copy-source`
 
   // Opening is a fresh start: the window shows the workspace it was just
   // handed, never whatever the last one it opened for was left holding.
@@ -146,7 +161,9 @@ export function WorkspaceFormDialog({
     draft.icon !== opened.icon ||
     draft.subdomain !== opened.subdomain ||
     draft.customDomain !== opened.customDomain ||
-    draft.status !== opened.status
+    draft.status !== opened.status ||
+    draft.copySourceId !== opened.copySourceId ||
+    draft.copyChoices.length > 0
 
   // Said as it is typed, so a refusal never waits for a save. The server checks
   // the same rules again — this half is a courtesy, not the gate.
@@ -175,10 +192,26 @@ export function WorkspaceFormDialog({
       if (editing) {
         await updateWorkspace(editing.id, name, draft.icon, address)
       } else {
-        await createWorkspace(name, draft.icon, address)
+        await createWorkspace(
+          name,
+          draft.icon,
+          address,
+          draft.copySourceId === "blank"
+            ? undefined
+            : {
+                workspaceId: draft.copySourceId,
+                choices: draft.copyChoices,
+              }
+        )
       }
       await router.invalidate()
-      toast.success(editing ? "Workspace updated." : "Workspace created.")
+      toast.success(
+        editing
+          ? "Workspace updated."
+          : draft.copySourceId === "blank"
+            ? "Workspace created."
+            : "Workspace copied."
+      )
       onClose()
     })
   }
@@ -277,6 +310,84 @@ export function WorkspaceFormDialog({
                 </CardContent>
               </Card>
 
+              {!editing ? (
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Starting point</CardTitle>
+                    <CardDescription>
+                      Copies site settings and written pages. Contacts,
+                      segments, broadcasts, members, traffic, announcements,
+                      automations, media-library records and billing never copy.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor={copySourceId}>Start from</FieldLabel>
+                      <Select
+                        value={draft.copySourceId}
+                        disabled={saving}
+                        onValueChange={(value) => {
+                          const source = availableWorkspaces.find(
+                            (workspace) => workspace.id === value
+                          )
+                          setDraft((current) => ({
+                            ...current,
+                            copySourceId: value,
+                            copyChoices: [],
+                            icon: source?.icon ?? defaultIcon,
+                            status: source ? "draft" : "active",
+                          }))
+                        }}
+                      >
+                        <SelectTrigger id={copySourceId} className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="blank">Blank</SelectItem>
+                          {availableWorkspaces.map((workspace) => (
+                            <SelectItem key={workspace.id} value={workspace.id}>
+                              {workspace.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {draft.copySourceId !== "blank"
+                      ? copyChoices.map((choice) => {
+                          const checked = draft.copyChoices.includes(choice.key)
+                          const choiceId = `${fieldId}-copy-${choice.key}`
+                          return (
+                            <div
+                              key={choice.key}
+                              className="flex items-center gap-2"
+                            >
+                              <Checkbox
+                                id={choiceId}
+                                checked={checked}
+                                disabled={saving}
+                                onCheckedChange={(next) =>
+                                  setDraft((current) => ({
+                                    ...current,
+                                    copyChoices: next
+                                      ? [...current.copyChoices, choice.key]
+                                      : current.copyChoices.filter(
+                                          (key) => key !== choice.key
+                                        ),
+                                  }))
+                                }
+                              />
+                              <label htmlFor={choiceId} className="text-sm">
+                                {choice.label}
+                              </label>
+                            </div>
+                          )
+                        })
+                      : null}
+                  </CardContent>
+                </Card>
+              ) : null}
+
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>Where it answers</CardTitle>
@@ -359,7 +470,7 @@ export function WorkspaceFormDialog({
                     <FieldLabel htmlFor={statusId}>State</FieldLabel>
                     <Select
                       value={draft.status}
-                      disabled={saving}
+                      disabled={saving || draft.copySourceId !== "blank"}
                       onValueChange={(value) =>
                         setDraft((current) => ({
                           ...current,

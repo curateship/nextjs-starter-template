@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  getTableColumns,
   ilike,
   inArray,
   ne,
@@ -20,7 +21,10 @@ import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
 } from "@/server/directory/slug-rules"
-import type { ListingSortColumn } from "@/lib/directory/listing-sort"
+import type {
+  ListingSortColumn,
+  ListingViewRange,
+} from "@/lib/directory/listing-sort"
 import {
   cleanWrittenPageBody,
   emptyWrittenPageBody,
@@ -35,6 +39,12 @@ import {
   LISTING_CONTENT_TYPE,
   type DirectoryListingRow,
 } from "@/server/directory/schema"
+import {
+  listingViewCounts,
+  listingViewJoin,
+  listingViewTotal,
+} from "@/server/directory/views"
+import { customShellTrafficDailyFacts } from "@/server/schema"
 
 /**
  * Directory listings: a page per business or place. A listing is a plain
@@ -64,6 +74,7 @@ export type DirectoryListing = {
 /** A dashboard row: the listing without its body, plus its category names. */
 export type ListingSummary = Omit<DirectoryListing, "body" | "contactLinks"> & {
   categories: string[]
+  views: number
 }
 
 function toListing(row: DirectoryListingRow): DirectoryListing {
@@ -182,6 +193,7 @@ export async function listListings(
     status?: ListingStatus
     sort?: ListingSortColumn
     direction?: "asc" | "desc"
+    viewDays?: ListingViewRange
     limit?: number
     offset?: number
   } = {},
@@ -206,6 +218,8 @@ export async function listListings(
     filters.push(eq(directoryListings.status, options.status))
   }
   const where = and(...filters)
+  const sortsByViews = options.sort === "views"
+  const views = listingViewTotal()
 
   // Ordered here rather than in the browser: the page only ever holds one
   // page of listings, so sorting what already arrived would shuffle those
@@ -214,36 +228,66 @@ export async function listListings(
   const column = {
     title: directoryListings.title,
     status: directoryListings.status,
+    views,
     created: directoryListings.createdAt,
     updated: directoryListings.updatedAt,
   }[options.sort ?? "created"]
 
+  const rowsQuery = sortsByViews
+    ? database
+        .select({ ...getTableColumns(directoryListings), views })
+        .from(directoryListings)
+        .leftJoin(
+          customShellTrafficDailyFacts,
+          listingViewJoin(workspaceId, options.viewDays ?? "all")
+        )
+        .where(where)
+        .groupBy(directoryListings.id)
+        // The id breaks ties, so a page boundary cannot land mid-tie and show
+        // the same listing twice or skip one.
+        .orderBy(order(views), asc(directoryListings.id))
+        .limit(limit)
+        .offset(offset)
+    : database
+        .select({
+          ...getTableColumns(directoryListings),
+          views: sql<number>`0`.mapWith(Number),
+        })
+        .from(directoryListings)
+        .where(where)
+        .orderBy(order(column), asc(directoryListings.id))
+        .limit(limit)
+        .offset(offset)
+
   const [rows, [countRow]] = await Promise.all([
-    database
-      .select()
-      .from(directoryListings)
-      .where(where)
-      // The id breaks ties, so a page boundary cannot land mid-tie and show
-      // the same listing twice or skip one.
-      .orderBy(order(column), asc(directoryListings.id))
-      .limit(limit)
-      .offset(offset),
+    rowsQuery,
     database
       .select({ total: sql<number>`count(*)::int` })
       .from(directoryListings)
       .where(where),
   ])
 
-  const names = await categoryNamesFor(
-    workspaceId,
-    rows.map((row) => row.id),
-    database
-  )
+  const listingIds = rows.map((row) => row.id)
+  const [names, counts] = await Promise.all([
+    categoryNamesFor(workspaceId, listingIds, database),
+    sortsByViews
+      ? new Map(rows.map((row) => [row.id, row.views]))
+      : listingViewCounts(
+          workspaceId,
+          listingIds,
+          options.viewDays ?? "all",
+          database
+        ),
+  ])
 
   return {
     listings: rows.map((row) => {
       const { body: _body, contactLinks: _links, ...rest } = toListing(row)
-      return { ...rest, categories: names.get(row.id) ?? [] }
+      return {
+        ...rest,
+        categories: names.get(row.id) ?? [],
+        views: counts.get(row.id) ?? 0,
+      }
     }),
     total: countRow?.total ?? 0,
   }
