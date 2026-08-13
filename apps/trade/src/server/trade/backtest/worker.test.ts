@@ -622,43 +622,67 @@ describe("a run the worker picks up", () => {
 })
 
 /**
- * "Peak wallet" answers one question: how close did the run come to running out
- * of money. Against the pot at that moment, because with compounding on the
- * opening dollars stop being the wallet after the first winning week.
+ * "Peak wallet" answers one question: did the run have enough money. So both
+ * halves of the fraction have to be about the money it HAD — the wallet as it
+ * stood before the bar, never the pot at the end of it.
  */
 describe("peak wallet", () => {
   const bars = (usd: number[]) =>
     usd.map((amount, index) => ({ t: START + index * FOUR_HOURS, usd: amount }))
 
-  it("measures against the pot as it stood, not what the run started with", () => {
-    // The run that started this: a $10,000 pot grown to $31,445 with $33,440
-    // working. Divided by the opening dollars that reads 334%; the honest
-    // answer is that it was using a little more than it had.
-    const peak = peakInPlay(bars([10_000, 31_445]), [0, 33_440])
-    expect(Math.round(peak.pct!)).toBe(106)
-    expect(peak.usd).toBe(33_440)
+  it("divides by the wallet before the bar, not the pot the bar closed at", () => {
+    // Oct 10 2025, the case this exists for. $14,132 went to work out of the
+    // $14,178 there was — every dollar of it. The same bar closed at $29,332
+    // because the coins bought at the crash lows were marked up before the
+    // candle finished. Against that close it reads 48%, which says there was
+    // plenty of room when there was $46 left.
+    const peak = peakInPlay(bars([14_178, 29_332]), [852, 14_132], 10_000)
+    expect(Math.round(peak.pct!)).toBe(100)
+    expect(peak.usd).toBe(14_132)
     expect(peak.at).toBe(START + FOUR_HOURS)
   })
 
+  it("measures against the wallet as it stood, not what the run started with", () => {
+    // Compounding: $10,000 grown to $31,019 with $33,440 working. Divided by
+    // the opening dollars that reads 334%; it was using a little more than it
+    // had.
+    const peak = peakInPlay(
+      bars([30_500, 31_019, 31_445]),
+      [0, 24_568, 33_440],
+      10_000
+    )
+    expect(Math.round(peak.pct!)).toBe(108)
+    expect(peak.at).toBe(START + 2 * FOUR_HOURS)
+  })
+
+  it("uses the opening balance for the very first bar, which has nothing before it", () => {
+    const peak = peakInPlay(bars([10_400]), [5_000], 10_000)
+    expect(Math.round(peak.pct!)).toBe(50)
+  })
+
   it("finds the tightest moment, not the biggest pile of dollars", () => {
-    // $9,000 of a $10,000 pot is a wallet nearly out of money. $12,000 of a
-    // $40,000 pot is a quiet week that happens to hold more dollars.
-    const peak = peakInPlay(bars([10_000, 40_000]), [9_000, 12_000])
+    // $9,000 of a $10,000 wallet is nearly out of money. $12,000 of a $40,000
+    // wallet is a quiet week that happens to hold more dollars.
+    const peak = peakInPlay(bars([10_000, 40_000, 41_000]), [0, 9_000, 12_000], 10_000)
     expect(Math.round(peak.pct!)).toBe(90)
-    expect(peak.at).toBe(START)
+    expect(peak.at).toBe(START + FOUR_HOURS)
   })
 
   it("counts how long it stayed there by share, so held matches the peak", () => {
-    const peak = peakInPlay(bars([10_000, 10_000, 20_000]), [9_000, 9_000, 9_000])
+    const peak = peakInPlay(
+      bars([10_000, 10_000, 10_000]),
+      [0, 9_000, 9_000],
+      10_000
+    )
     expect(peak.heldMs).toBe(2 * FOUR_HOURS)
   })
 
-  it("says nothing rather than dividing by a pot that is gone", () => {
-    expect(peakInPlay(bars([0, 0]), [500, 500]).pct).toBeNull()
-    expect(peakInPlay([], []).pct).toBeNull()
+  it("says nothing rather than dividing by a wallet that is gone", () => {
+    expect(peakInPlay(bars([0, 0]), [500, 500], 0).pct).toBeNull()
+    expect(peakInPlay([], [], 10_000).pct).toBeNull()
   })
 
   it("calls a run that bought nothing 0%, which is not the same as a dash", () => {
-    expect(peakInPlay(bars([10_000, 10_000]), [0, 0]).pct).toBe(0)
+    expect(peakInPlay(bars([10_000, 10_000]), [0, 0], 10_000).pct).toBe(0)
   })
 })

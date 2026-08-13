@@ -165,7 +165,7 @@ export function BacktestStatsPanel({
                       ? "—"
                       : `${Math.round(summary.typicalInPlayPct!)}%`
                   }
-                  sub={`${formatUsd(summary.typicalInPlayUsd)} typically in use`}
+                  sub={`${formatUsd(summary.typicalInPlayUsd)} typically in trades`}
                 />
                 <BacktestKpi
                   label="In coins"
@@ -326,8 +326,12 @@ function Line({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * "$33,440 · Jun 6 2026 · held 12h" — what was in trades when the pot was
- * working hardest, when that was, and how long it stayed there.
+ * "$33,440 in trades · Jun 6 2026 · held 12h" — what was in trades when the
+ * wallet was stretched furthest, when that was, and how long it stayed there.
+ *
+ * **"in trades" is not decoration.** Without it the figure reads as the size of
+ * the wallet rather than the amount put to work, which is the opposite of what
+ * it is, and the percent above it then looks like nonsense.
  *
  * The date is what makes the number checkable: it names the crash the wallet
  * was answering. The dollars lead because a run saved before the share was
@@ -337,7 +341,7 @@ function Line({ label, value }: { label: string; value: string }) {
 function peakSub(summary: BacktestSummary): string {
   const at = figure(summary.peakInPlayAt)
   const held = figure(summary.peakInPlayHeldMs)
-  const parts = [formatUsd(summary.peakInPlayUsd)]
+  const parts = [`${formatUsd(summary.peakInPlayUsd)} in trades`]
   if (at !== null) parts.push(formatDate(new Date(at)))
   if (held !== null) parts.push(heldFor(held))
   return parts.join(" · ")
