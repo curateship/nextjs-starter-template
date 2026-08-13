@@ -22,8 +22,10 @@ import {
   directoryClaims,
   directoryListings,
   directoryOwnerEditRequests,
+  directorySettings,
   type DirectoryClaimRow,
 } from "@/server/directory/schema"
+import { directorySiteUrl } from "@/server/directory/site-url"
 import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 
 /**
@@ -521,6 +523,7 @@ export type OwnedListing = {
   slug: string
   metaDescription: string
   featuredImage: string
+  status: string
   /**
    * The checked shapes, not `unknown`. A server function refuses to hand
    * `unknown` to a page — it cannot promise it will survive the trip — and a
@@ -530,6 +533,8 @@ export type OwnedListing = {
   body: WrittenPageNode
   siteName: string
   siteId: string
+  siteUrl: string
+  badgesEnabled: boolean
   /** The change they have already asked for, if one is waiting. */
   pendingRequestId: string | null
 }
@@ -550,6 +555,9 @@ export async function listingsOwnedBy(
       claimId: directoryClaims.id,
       listing: directoryListings,
       siteName: customShellWorkspaces.name,
+      siteSubdomain: customShellWorkspaces.subdomain,
+      siteCustomDomain: customShellWorkspaces.customDomain,
+      badgesEnabled: directorySettings.badgesEnabled,
     })
     .from(directoryClaims)
     .innerJoin(
@@ -559,6 +567,10 @@ export async function listingsOwnedBy(
     .innerJoin(
       customShellWorkspaces,
       eq(customShellWorkspaces.id, directoryClaims.workspaceId)
+    )
+    .leftJoin(
+      directorySettings,
+      eq(directorySettings.workspaceId, directoryClaims.workspaceId)
     )
     .where(
       and(
@@ -594,10 +606,16 @@ export async function listingsOwnedBy(
     slug: row.listing.slug,
     metaDescription: row.listing.metaDescription,
     featuredImage: row.listing.featuredImage,
+    status: row.listing.status,
     contactLinks: cleanContactLinks(row.listing.contactLinks),
     body: cleanWrittenPageBody(row.listing.body),
     siteName: row.siteName,
     siteId: row.listing.workspaceId,
+    siteUrl: directorySiteUrl({
+      subdomain: row.siteSubdomain,
+      customDomain: row.siteCustomDomain || null,
+    }),
+    badgesEnabled: row.badgesEnabled ?? false,
     pendingRequestId: waiting.get(row.claimId) ?? null,
   }))
 }

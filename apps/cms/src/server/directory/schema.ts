@@ -385,6 +385,8 @@ export const directorySettings = pgTable("directory_settings", {
     .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
   /** Whether a visitor is offered the claim button at all. */
   claimsEnabled: boolean("claims_enabled").notNull().default(true),
+  /** Whether owners may publish this site's listing badge on other websites. */
+  badgesEnabled: boolean("badges_enabled").notNull().default(false),
   /** Empty means "use the built-in wording", so a cleared box is not a blank page. */
   claimButtonLabel: varchar("claim_button_label", { length: 80 })
     .notNull()

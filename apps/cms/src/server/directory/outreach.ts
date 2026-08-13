@@ -4,7 +4,6 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { cleanContactLinks } from "@/lib/directory/contact-links"
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
 import { escapeHtml } from "@/lib/email/escape-html"
-import { appUrl } from "@/server/app-url"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendDirectoryEmail } from "@/server/directory/mail"
@@ -13,8 +12,8 @@ import {
   directoryClaimOutreachOptOuts,
   directoryListings,
 } from "@/server/directory/schema"
+import { directorySiteUrl } from "@/server/directory/site-url"
 import { customShellWorkspaces } from "@/server/schema"
-import { workspaceBaseDomain } from "@/server/workspaces/host"
 
 export type OutreachStatus = "ready" | "sent" | "opted_out"
 
@@ -158,18 +157,6 @@ export function verifyOutreachOptOutToken(email: string, token: string) {
   return expected.length === provided.length && timingSafeEqual(expected, provided)
 }
 
-function siteUrl(site: { subdomain: string; customDomain: string | null }) {
-  if (site.customDomain) return `https://${site.customDomain}`
-  const base = workspaceBaseDomain()
-  if (!base) return appUrl()
-  const deployment = new URL(appUrl())
-  const port =
-    deployment.hostname === "localhost" && typeof __DEV_APP_PORT__ === "number"
-      ? String(__DEV_APP_PORT__)
-      : deployment.port
-  return `${deployment.protocol}//${site.subdomain}.${base}${port ? `:${port}` : ""}`
-}
-
 export function buildOutreachOptOutUrl(origin: string, email: string) {
   const params = new URLSearchParams({ email, token: optOutToken(email) })
   return `${origin}/api/directory-outreach-unsubscribe?${params.toString()}`
@@ -208,7 +195,7 @@ export async function sendClaimOutreach(
     .where(eq(customShellWorkspaces.id, workspaceId))
     .limit(1)
   if (!site) throw new Error("That site no longer exists.")
-  const origin = siteUrl(site)
+  const origin = directorySiteUrl(site)
 
   const rows = await database
     .select({

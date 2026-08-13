@@ -70,6 +70,7 @@ import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as DirectoryCategorySlugRouteImport } from './routes/directory_.category.$slug'
+import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -410,6 +411,11 @@ const DirectoryCategorySlugRoute = DirectoryCategorySlugRouteImport.update({
   path: '/directory/category/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmbedListingListingIdRoute = EmbedListingListingIdRouteImport.update({
+  id: '/embed/listing/$listingId',
+  path: '/embed/listing/$listingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -533,6 +539,7 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -604,6 +611,7 @@ export interface FileRoutesByTo {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -679,6 +687,7 @@ export interface FileRoutesById {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory_/category/$slug': typeof DirectoryCategorySlugRoute
+  '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -754,6 +763,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory/category/$slug'
+    | '/embed/listing/$listingId'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -825,6 +835,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory/category/$slug'
+    | '/embed/listing/$listingId'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -899,6 +910,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory_/category/$slug'
+    | '/embed/listing/$listingId'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -941,6 +953,7 @@ export interface RootRouteChildren {
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   DirectoryCategorySlugRoute: typeof DirectoryCategorySlugRoute
+  EmbedListingListingIdRoute: typeof EmbedListingListingIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
@@ -1376,6 +1389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DirectoryCategorySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/embed/listing/$listingId': {
+      id: '/embed/listing/$listingId'
+      path: '/embed/listing/$listingId'
+      fullPath: '/embed/listing/$listingId'
+      preLoaderRoute: typeof EmbedListingListingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account/billing_/success': {
       id: '/_authenticated/account/billing_/success'
       path: '/billing/success'
@@ -1628,6 +1648,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   DirectoryCategorySlugRoute: DirectoryCategorySlugRoute,
+  EmbedListingListingIdRoute: EmbedListingListingIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
@@ -1638,10 +1659,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

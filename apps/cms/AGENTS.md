@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for agents working in Custom Shell.
+Guidance for agents working in CMS.
 
 ## Route First
 
@@ -117,4 +117,3 @@ it. The app's own hooks live in `src/lib/hooks/`.
 - Do not hide failed operations.
 - Only fix build, lint, or type errors caused by your change.
 - When summarizing work, do not include full file paths.
-- Keep answers short and concise.

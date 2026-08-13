@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { Loader2Icon, SparklesIcon, StoreIcon } from "lucide-react"
+import { CopyIcon, Loader2Icon, SparklesIcon, StoreIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -21,6 +21,13 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Popover,
   PopoverContent,
   PopoverHeader,
@@ -33,6 +40,13 @@ import {
   type OwnedListing,
 } from "@/lib/api/directory/claims"
 import type { ContactLinks } from "@/lib/directory/contact-links"
+import {
+  buildListingBadgeSnippet,
+  listingBadgePath,
+  LISTING_BADGE_SIZES,
+  type ListingBadgeSize,
+  type ListingBadgeTheme,
+} from "@/lib/directory/listing-badge"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import {
   confirmFeatured,
@@ -287,8 +301,119 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
         </div>
 
         <FeaturedPurchase listingId={listing.listingId} />
+        <ListingBadgeBuilder listing={listing} />
       </CardContent>
     </Card>
+  )
+}
+
+function ListingBadgeBuilder({ listing }: { listing: OwnedListing }) {
+  const [size, setSize] = React.useState<ListingBadgeSize>("badge")
+  const [theme, setTheme] = React.useState<ListingBadgeTheme>("light")
+
+  if (!listing.badgesEnabled || listing.status !== "published") {
+    return (
+      <div className="border-t pt-4">
+        <p className="text-sm font-medium">Website badge</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {listing.status !== "published"
+            ? "This badge becomes available when the listing is published."
+            : `Badges are turned off on ${listing.siteName}.`}
+        </p>
+      </div>
+    )
+  }
+
+  const dimensions = LISTING_BADGE_SIZES[size]
+  const src = `${listing.siteUrl}${listingBadgePath(listing.listingId, size, theme)}`
+  const snippet = buildListingBadgeSnippet({
+    origin: listing.siteUrl,
+    listingId: listing.listingId,
+    listingTitle: listing.title,
+    siteName: listing.siteName,
+    size,
+    theme,
+  })
+
+  return (
+    <div className="grid gap-4 border-t pt-4">
+      <div>
+        <p className="text-sm font-medium">Website badge</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose a look, then paste the code into your website.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <FieldLabel htmlFor={`badge-size-${listing.claimId}`}>Size</FieldLabel>
+          <Select
+            value={size}
+            onValueChange={(value) => setSize(value as ListingBadgeSize)}
+          >
+            <SelectTrigger id={`badge-size-${listing.claimId}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="badge">Badge — 260 × 64</SelectItem>
+              <SelectItem value="card">Card — 320 × 160</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <FieldLabel htmlFor={`badge-theme-${listing.claimId}`}>Theme</FieldLabel>
+          <Select
+            value={theme}
+            onValueChange={(value) => setTheme(value as ListingBadgeTheme)}
+          >
+            <SelectTrigger id={`badge-theme-${listing.claimId}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="light">Light</SelectItem>
+              <SelectItem value="dark">Dark</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-muted/40 p-3">
+        <iframe
+          src={src}
+          width={dimensions.width}
+          height={dimensions.height}
+          className="block max-w-full border-0"
+          title={`${listing.title} badge preview`}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={`badge-code-${listing.claimId}`}>
+          Code to paste
+        </FieldLabel>
+        <Textarea
+          id={`badge-code-${listing.claimId}`}
+          rows={3}
+          readOnly
+          value={snippet}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(snippet)
+                .then(() => toast.success("Badge code copied."))
+                .catch(() => toast.error("The badge code could not be copied."))
+            }}
+          >
+            <CopyIcon /> Copy code
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
