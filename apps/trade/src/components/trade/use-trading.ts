@@ -43,6 +43,7 @@ import {
   type CandleInterval,
 } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { keepUnreachableRows } from "@/lib/trade/live"
 import type { DcaParams } from "@/lib/trade/dca"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
@@ -324,7 +325,9 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     ])
     if (requestRef.current !== request) return false
     if (paper.status === "fulfilled") setPaperAnswer(paper.value)
-    if (live.status === "fulfilled") setLiveAnswer(live.value)
+    if (live.status === "fulfilled") {
+      setLiveAnswer((was) => keepUnreachableRows(was, live.value))
+    }
     return paper.status === "fulfilled" && live.status === "fulfilled"
   }, [])
 

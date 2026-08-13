@@ -115,3 +115,40 @@ export function keyExpiryWarning(
   if (daysLeft > 14) return null
   return `The trading key expires in ${daysLeft === 1 ? "1 day" : `${daysLeft} days`}. Renew it on Hyperliquid and save the new key here.`
 }
+
+/**
+ * A wallet the exchange would not answer for keeps the rows it last had.
+ *
+ * **A read that failed is not "you are holding nothing".** The live read asks
+ * the exchange on every pass, and any hiccup — a rate limit most often, since
+ * the exchange counts every request from one machine together — makes that one
+ * wallet answer with nothing at all. Drawn straight, a real position blinked
+ * out of the table and back a few seconds later, over and over. On a screen
+ * about real money that reads as "the position is gone", which is the one
+ * thing it must never say by accident.
+ *
+ * So the last figures stand until a read actually lands. They are a few
+ * seconds stale, and the account panel already says the wallet could not be
+ * reached, which is the honest version of what happened. A wallet that has
+ * been deleted stops being asked about at all, so its rows go for good.
+ *
+ * The practice engine never had this: it reads from our own database, which
+ * does not ration.
+ */
+export function keepUnreachableRows<
+  Answer extends {
+    positions: PaperPosition[]
+    orders: PaperOrder[]
+    unreachable: string[]
+  },
+>(was: Answer | null, next: Answer): Answer {
+  if (!was || next.unreachable.length === 0) return next
+  const stale = new Set(next.unreachable)
+  const held = <Row extends { walletId: string }>(rows: Row[]): Row[] =>
+    rows.filter((row) => stale.has(row.walletId))
+  return {
+    ...next,
+    positions: [...next.positions, ...held(was.positions)],
+    orders: [...next.orders, ...held(was.orders)],
+  }
+}

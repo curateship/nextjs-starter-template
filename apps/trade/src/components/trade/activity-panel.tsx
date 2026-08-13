@@ -122,6 +122,7 @@ export function ActivityPanel({
             positions={trading.positions}
             markets={markets}
             walletName={walletName}
+            smartOrders={trading.smartOrders}
             busy={trading.busy}
             onSelectMarket={onSelectMarket}
             onEdit={setEditing}
