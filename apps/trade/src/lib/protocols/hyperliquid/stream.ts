@@ -38,6 +38,25 @@ import {
 const STALE_AFTER_MS = 8_000
 const WATCHDOG_EVERY_MS = 3_000
 const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
+
+/**
+ * How long the venue-and-market name map is trusted before it is asked for
+ * again.
+ *
+ * **This is the difference between a reconnect costing nothing and costing two
+ * requests.** The map used to be fetched on every single connect, and a
+ * dropped socket rebuilds in as little as a second — so a spell of bad
+ * connectivity turned into a burst of requests, the exchange started refusing
+ * them, the fetch failed, and the failure caused another reconnect. Round and
+ * round, and the refusals landed on every other call this machine made: the
+ * live position read is the one that showed it, blinking out of the table and
+ * back every few seconds.
+ *
+ * Ten minutes is generous for what it holds. A venue listing a brand new
+ * market is the only thing that changes it, and being ten minutes late to draw
+ * one costs nobody anything.
+ */
+const NAMES_GOOD_FOR_MS = 10 * 60_000
 /** How long a connection outlives its last listener — a loader refresh
  * unsubscribes and resubscribes within a breath, and should not pay a
  * reconnect for it. */
@@ -70,6 +89,8 @@ type Hub = {
   lastFigures: Map<string, LiveFigures>
   /** (venue name, index in its universe) → market id. */
   idByVenueIndex: Map<string, string[]>
+  /** When that map was last fetched, so a reconnect does not refetch it. */
+  namesFetchedAt: number
   status: LiveStatus
   lastMessageAt: number
   /** True once live at least once — the next first-tick fires catch-up. */
@@ -100,6 +121,7 @@ function getHub(network: NetworkId): Hub {
       candles: new Map(),
       lastFigures: new Map(),
       idByVenueIndex: new Map(),
+      namesFetchedAt: 0,
       status: "connecting",
       lastMessageAt: 0,
       everLive: false,
@@ -191,26 +213,43 @@ async function connect(hub: Hub) {
     if (generation !== hub.generation || hub.disposed) return
 
     // The stream reports markets by venue and position, not by name, so the
-    // name map comes first — refreshed on every connect, because a venue can
-    // list a new market while we were away.
-    const info = new sdk.InfoClient({
-      transport: new sdk.HttpTransport({ isTestnet: hub.network === "testnet" }),
-    })
-    const [dexs, metas] = await Promise.all([
-      info.perpDexs(),
-      info.allPerpMetas(),
-    ])
-    if (generation !== hub.generation || hub.disposed) return
-    hub.idByVenueIndex = new Map(
-      metas.map((meta, index) => {
-        const dex = index === 0 ? null : dexs[index]
-        const name = dex?.name ?? ""
-        return [
-          name,
-          meta.universe.map((asset) => namespaceMarketId(name, asset.name)),
-        ]
+    // name map has to be in hand before a tick can be read. Asked for only
+    // when there is nothing usable or what we have has gone stale — see
+    // `NAMES_GOOD_FOR_MS`. A reconnect with a good map makes no request at all.
+    const needNames =
+      hub.idByVenueIndex.size === 0 ||
+      Date.now() - hub.namesFetchedAt > NAMES_GOOD_FOR_MS
+    if (needNames) {
+      const info = new sdk.InfoClient({
+        transport: new sdk.HttpTransport({
+          isTestnet: hub.network === "testnet",
+        }),
       })
-    )
+      try {
+        const [dexs, metas] = await Promise.all([
+          info.perpDexs(),
+          info.allPerpMetas(),
+        ])
+        if (generation !== hub.generation || hub.disposed) return
+        hub.idByVenueIndex = new Map(
+          metas.map((meta, index) => {
+            const dex = index === 0 ? null : dexs[index]
+            const name = dex?.name ?? ""
+            return [
+              name,
+              meta.universe.map((asset) => namespaceMarketId(name, asset.name)),
+            ]
+          })
+        )
+        hub.namesFetchedAt = Date.now()
+      } catch (error) {
+        // A refused or failed read must not take the socket down with it. An
+        // older map still names every market that existed when it was fetched,
+        // which is all of them bar a listing from the last few minutes — and
+        // giving up here is what turned one refusal into a reconnect loop.
+        if (hub.idByVenueIndex.size === 0) throw error
+      }
+    }
 
     const transport = new sdk.WebSocketTransport({
       isTestnet: hub.network === "testnet",

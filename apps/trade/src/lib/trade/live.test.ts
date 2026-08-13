@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import type { WalletPortfolio } from "@/lib/protocols/contracts"
-import { keyExpiryWarning, livePortfolioRows } from "@/lib/trade/live"
+import {
+  keepUnreachableRows,
+  keyExpiryWarning,
+  livePortfolioRows,
+} from "@/lib/trade/live"
 
 const WALLET = {
   id: "w1",
@@ -86,5 +90,62 @@ describe("the key-expiry warning", () => {
 
   it("says expired once it is", () => {
     expect(keyExpiryWarning(now - 1, now)).toContain("expired")
+  })
+})
+
+describe("a wallet the exchange would not answer for", () => {
+  const row = (walletId: string, marketKey: string) =>
+    ({ walletId, marketKey }) as never
+
+  function answer(over: {
+    positions?: unknown[]
+    orders?: unknown[]
+    unreachable?: string[]
+  }) {
+    return {
+      positions: (over.positions ?? []) as never[],
+      orders: (over.orders ?? []) as never[],
+      unreachable: over.unreachable ?? [],
+    }
+  }
+
+  it("keeps what it last held instead of showing nothing", () => {
+    // The bug: one failed read emptied the wallet, so a real position blinked
+    // out of the table and back again every few seconds.
+    const held = answer({ positions: [row("w1", "hyperliquid:mainnet:HYPE")] })
+    const failed = answer({ unreachable: ["w1"] })
+
+    const shown = keepUnreachableRows(held, failed)
+    expect(shown.positions).toHaveLength(1)
+    expect(shown.unreachable).toEqual(["w1"])
+  })
+
+  it("lets a read that landed have the last word", () => {
+    // The position really was closed while nobody could see it. The next
+    // answer that actually arrives is the truth, stale rows and all.
+    const held = answer({ positions: [row("w1", "hyperliquid:mainnet:HYPE")] })
+    const landed = answer({ positions: [] })
+
+    expect(keepUnreachableRows(held, landed).positions).toEqual([])
+  })
+
+  it("only carries the wallet that could not be reached", () => {
+    const held = answer({
+      positions: [
+        row("w1", "hyperliquid:mainnet:HYPE"),
+        row("w2", "hyperliquid:mainnet:ZRO"),
+      ],
+    })
+    // w2 answered and holds nothing now; w1 did not answer at all.
+    const next = answer({ unreachable: ["w1"] })
+
+    const shown = keepUnreachableRows(held, next)
+    expect(shown.positions).toHaveLength(1)
+    expect((shown.positions[0] as { walletId: string }).walletId).toBe("w1")
+  })
+
+  it("has nothing to carry on the very first read", () => {
+    const first = answer({ unreachable: ["w1"] })
+    expect(keepUnreachableRows(null, first)).toBe(first)
   })
 })
