@@ -56,6 +56,7 @@ import {
   deleteAutomations,
   duplicateAutomation,
   getAutomationErrorMessage,
+  renameAutomation,
   setAutomationLive,
   toAutomationListItem,
   type AutomationListItem,
@@ -112,6 +113,10 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [createName, setCreateName] = React.useState("")
   const [createChoice, setCreateChoice] = React.useState<CreateChoice>("blank")
   const [runCreate, creating] = useAsyncAction(getAutomationErrorMessage)
+  const [renameTarget, setRenameTarget] =
+    React.useState<AutomationListItem | null>(null)
+  const [renameName, setRenameName] = React.useState("")
+  const [runRename, renaming] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
   const [testTarget, setTestTarget] = React.useState<AutomationListItem | null>(
@@ -222,6 +227,43 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       setCreateName("")
       setCreateChoice("blank")
       await openEditor(created.id)
+    })
+  }
+
+  const openRename = (automation: AutomationListItem) => {
+    setRenameTarget(automation)
+    setRenameName(automation.name)
+  }
+
+  const closeRename = () => {
+    setRenameTarget(null)
+    setRenameName("")
+  }
+
+  const handleRename = async () => {
+    const target = renameTarget
+    if (!target || renaming) return
+    if (!renameName.trim()) {
+      showErrorToast("Automation name is required.")
+      return
+    }
+    // Nothing to save, so say nothing and close. Opening the window and
+    // pressing Save without typing is not a failure worth a message.
+    if (renameName.trim() === target.name) {
+      closeRename()
+      return
+    }
+    await runRename(async () => {
+      const renamed = await renameAutomation(target.id, renameName)
+      setAutomations((current) =>
+        current.map((automation) =>
+          automation.id === renamed.id
+            ? { ...automation, name: renamed.name, updated_at: renamed.updated_at }
+            : automation
+        )
+      )
+      toast.success(`Renamed to "${renamed.name}".`)
+      closeRename()
     })
   }
 
@@ -554,12 +596,18 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                     <CopyIcon className="size-4" />
                   )}
                 </Button>
+                {/*
+                  Renames rather than opening the editor: clicking the row
+                  already does that, so this was a second way to do the same
+                  thing and no way at all to change a flow's name without
+                  opening its canvas.
+                */}
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label={`Open ${automation.name} in the editor`}
-                  onClick={() => void openEditor(automation.id)}
+                  aria-label={`Rename ${automation.name}`}
+                  onClick={() => openRename(automation)}
                 >
                   <SettingsIcon className="size-4" />
                 </Button>
@@ -682,6 +730,60 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                 Create automation
               </Button>
             </DialogFooter>
+          </DialogContent>
+        )}
+      </FormDialog>
+
+      <FormDialog
+        open={renameTarget !== null}
+        dirty={renameName.trim() !== (renameTarget?.name ?? "")}
+        busy={renaming}
+        onClose={closeRename}
+      >
+        {(requestClose) => (
+          <DialogContent variant="admin">
+            <DialogHeader>
+              <DialogTitle>Rename automation</DialogTitle>
+              <DialogDescription>
+                Only the name changes. The steps and whether it is live stay
+                exactly as they are.
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleRename()
+              }}
+            >
+              <DialogBody className="grid gap-2">
+                <Label htmlFor="rename-automation-name">Name</Label>
+                <Input
+                  id="rename-automation-name"
+                  value={renameName}
+                  maxLength={80}
+                  placeholder="Weekly changelog email"
+                  onChange={(event) => setRenameName(event.target.value)}
+                  aria-invalid={!renameName.trim() || undefined}
+                />
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={renaming}
+                  onClick={requestClose}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={renaming}>
+                  {renaming ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : null}
+                  Save name
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         )}
       </FormDialog>
