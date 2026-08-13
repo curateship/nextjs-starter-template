@@ -11,8 +11,10 @@ import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import {
   LISTING_SORT_COLUMNS,
   LISTING_STATUS_FILTERS,
+  readListingViewRange,
   type ListingSortColumn,
   type ListingStatusFilter,
+  type ListingViewRange,
 } from "@/lib/directory/listing-sort"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import {
@@ -27,6 +29,7 @@ type ListingsSearch = {
   status?: ListingStatusFilter
   sort?: ListingSortColumn
   direction?: "asc" | "desc"
+  days?: ListingViewRange
   page?: number
   size?: number
   /** Which listing's edit window is open, so a listing can be linked to. */
@@ -44,6 +47,7 @@ function readListingsSearch(search: Record<string, unknown>): ListingsSearch {
     status: readOneOf(search.status, LISTING_STATUS_FILTERS),
     sort: readOneOf(search.sort, LISTING_SORT_COLUMNS),
     direction: readDirection(search.direction),
+    days: readListingViewRange(search.days),
     page: readPage(search.page),
     size: readOneOf(String(search.size), DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String))
       ? Number(search.size)
@@ -66,6 +70,7 @@ export const Route = createFileRoute("/_authenticated/admin/listings")({
         status: deps.status,
         sort: deps.sort,
         direction: deps.direction,
+        days: deps.days,
         page: deps.page,
         limit: deps.size,
       }),
