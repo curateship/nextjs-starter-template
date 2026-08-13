@@ -126,7 +126,6 @@ function snapshotOf(
 /** The costs a run charges, as the fractions the engine works in. */
 export function backtestCosts(snapshot: BacktestSpecSnapshot) {
   return walletCostRates({
-    startingUsd: snapshot.startingUsd,
     takerFeePct: snapshot.takerFeePct,
     makerFeePct: snapshot.makerFeePct,
     slippagePct: snapshot.slippagePct,

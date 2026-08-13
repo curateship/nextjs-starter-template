@@ -15,8 +15,10 @@ import {
   type TradeMarketsSettings,
 } from "@/lib/automations/nodes/trade-markets"
 import {
+  chosenWallet,
   tradeWalletNode,
   tradeWalletSettingsSchema,
+  walletMoneyWords,
   type TradeWalletSettings,
 } from "@/lib/automations/nodes/trade-wallet"
 
@@ -65,13 +67,13 @@ export function backtestSpecFromFlow(
   const ladders = stepsOfKind(config, tradeDcaNode.kind)
 
   if (wallets.length === 0) {
-    return { spec: null, problem: "Add a Pretend wallet step to this flow." }
+    return { spec: null, problem: "Add a Wallet step to this flow." }
   }
   if (wallets.length > 1) {
     return {
       spec: null,
       problem:
-        "This flow has two Pretend wallet steps. A backtest spends one pot, so delete one of them.",
+        "This flow has two Wallet steps. A backtest spends one pot, so delete one of them.",
     }
   }
   if (markets.length === 0) {
@@ -107,9 +109,23 @@ export function backtestSpecFromFlow(
   if (!wallet.success) {
     return {
       spec: null,
-      problem: "The Pretend wallet step's settings could not be read. Open it and check the numbers.",
+      problem: "The Wallet step's settings could not be read. Open it and check the numbers.",
     }
   }
+
+  // Asked before anything else about the flow, because it is not a complaint
+  // about the flow — it is the wrong button. Somebody whose Wallet step names a
+  // real account should not first be told their coin list is empty.
+  const named = chosenWallet(wallet.data)
+  if (named) {
+    return {
+      spec: null,
+      problem:
+        `This flow trades ${named.label} with ${walletMoneyWords(named.kind)}, so there is nothing to backtest. ` +
+        "Set its Wallet step back to pretend money to test it.",
+    }
+  }
+
   if (!market.success) {
     return {
       spec: null,
