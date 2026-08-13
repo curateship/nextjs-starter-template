@@ -10,6 +10,8 @@ import {
   coinsAllowedFor,
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
+  windowDays,
+  windowProblem,
   type TradeMarketsSettings,
 } from "@/lib/automations/nodes/trade-markets"
 import {
@@ -137,17 +139,28 @@ export function backtestSpecFromFlow(
     }
   }
 
+  // Two dates that do not describe a stretch of time, before anything is
+  // worked out from them.
+  const dates = windowProblem(market.data)
+  if (dates !== null) return { spec: null, problem: dates }
+
   // Coins × candles is what the run has to hold in memory at once, and only
   // here are both known: the coins and the window sit on one step, the candle
   // size on another. This refuses the shape that would take the process down,
   // not the shape that is merely slow — see `MAX_BACKTEST_CANDLES`.
-  const allowed = coinsAllowedFor(dca.data.interval, market.data.days)
+  //
+  // The length comes from `windowDays` rather than off the step, so a window
+  // given as two dates is weighed the same as one given as a number. Reading
+  // `days` here would have waved through two years of 5-minute candles any
+  // time the dates were set and the number underneath still said 30.
+  const days = windowDays(market.data)
+  const allowed = coinsAllowedFor(dca.data.interval, days)
   if (market.data.marketKeys.length > allowed) {
-    const each = candlesPerCoin(dca.data.interval, market.data.days)
+    const each = candlesPerCoin(dca.data.interval, days)
     return {
       spec: null,
       problem:
-        `That is ${market.data.marketKeys.length} coins of ${dca.data.interval} candles over ${market.data.days} days — about ${each.toLocaleString()} candles each, and every coin's candles are held in memory at once. ` +
+        `That is ${market.data.marketKeys.length} coins of ${dca.data.interval} candles over ${days} days — about ${each.toLocaleString()} candles each, and every coin's candles are held in memory at once. ` +
         `Pick at most ${allowed} coins, shorten the window, or use a bigger candle.`,
     }
   }

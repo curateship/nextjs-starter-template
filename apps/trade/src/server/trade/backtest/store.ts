@@ -27,6 +27,11 @@ import type {
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
 import { walletCostRates } from "@/lib/automations/nodes/trade-wallet"
+import {
+  chosenWindow,
+  windowDays,
+  type MarketWindowDates,
+} from "@/lib/automations/nodes/trade-markets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import {
@@ -70,15 +75,30 @@ const DAY_MS = 86_400_000
  * Snapped to the bar grid so two runs started a minute apart cover exactly the
  * same ground. `now` is passed in rather than read here, so nothing about a
  * run's shape depends on when this function happened to be called.
+ *
+ * Two named dates decide the window outright and the day count is ignored. The
+ * far end is still cut back to the last finished bar, so naming today, or a day
+ * that has not arrived, means "up to now" rather than a stretch of empty
+ * future. A window entirely in the future has nothing left after that cut, and
+ * is refused where it is asked for rather than run as an empty result.
  */
 export function backtestWindow(
   now: number,
-  days: number,
+  markets: { days: number } & MarketWindowDates,
   intervalMs: number
 ): { from: number; to: number } {
-  const to = Math.floor(now / intervalMs) * intervalMs
-  const from = Math.floor((to - days * DAY_MS) / intervalMs) * intervalMs
-  return { from, to }
+  const latest = Math.floor(now / intervalMs) * intervalMs
+  const chosen = chosenWindow(markets)
+  if (chosen) {
+    return {
+      from: Math.floor(chosen.from / intervalMs) * intervalMs,
+      to: Math.min(latest, Math.floor(chosen.to / intervalMs) * intervalMs),
+    }
+  }
+  return {
+    from: Math.floor((latest - markets.days * DAY_MS) / intervalMs) * intervalMs,
+    to: latest,
+  }
 }
 
 function snapshotOf(
@@ -90,7 +110,11 @@ function snapshotOf(
     takerFeePct: spec.wallet.takerFeePct,
     makerFeePct: spec.wallet.makerFeePct,
     slippagePct: spec.wallet.slippagePct,
-    days: spec.markets.days,
+    // How long the run actually covers, not the number sitting on the step —
+    // a window given as two dates leaves `days` untouched underneath it, and
+    // every screen that reads this would otherwise caption a two-year run
+    // "30 days".
+    days: windowDays(spec.markets),
     interval: spec.dca.interval,
     marketKeys: [...spec.markets.marketKeys],
     params: spec.dca.params,
@@ -147,11 +171,10 @@ export async function createBacktest(
   const intervalMs = getProtocol(first.protocol).markets.intervalMs(
     input.spec.dca.interval
   )
-  const window = backtestWindow(
-    input.now,
-    input.spec.markets.days,
-    intervalMs
-  )
+  const window = backtestWindow(input.now, input.spec.markets, intervalMs)
+  if (window.to <= window.from) {
+    throw new Error("BACKTEST_WINDOW")
+  }
 
   const groupId = randomUUID()
   await database.insert(tradeBacktestGroups).values({

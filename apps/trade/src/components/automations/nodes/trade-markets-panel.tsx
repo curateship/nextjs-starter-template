@@ -6,6 +6,7 @@ import {
 } from "@/components/automations/inspector-card"
 import { TradeNumberField } from "@/components/automations/nodes/trade-number-field"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DatePicker } from "@/components/ui/date-picker"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -26,10 +27,14 @@ import { getMarketsErrorMessage } from "@/lib/api/markets"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {
   candlesPerCoin,
+  dateFromDay,
+  dayFromDate,
   MAX_BACKTEST_DAYS,
   MAX_BACKTEST_MARKETS,
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
+  windowDays,
+  windowProblem,
 } from "@/lib/automations/nodes/trade-markets"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { plural } from "@/lib/format/plural"
@@ -77,6 +82,24 @@ const listCache = new Map<
   { at: number; rows: MarketRow[]; tradeable: boolean }
 >()
 
+/**
+ * The same stretch a day count describes, written as its two ends.
+ *
+ * What switching to dates starts you on, so the run does not change shape the
+ * moment you switch. Ends today because "the last 30 days" does, and both ends
+ * are counted in — thirty days back from today, and today itself, is thirty
+ * days.
+ *
+ * The clock is read here rather than while drawing: this only ever runs from a
+ * click.
+ */
+function recentDaysAsDates(days: number): { from: string; to: string } {
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(start.getDate() - (days - 1))
+  return { from: dayFromDate(start), to: dayFromDate(today) }
+}
+
 export default function TradeMarketsFields({
   node,
   onChange,
@@ -100,6 +123,15 @@ export default function TradeMarketsFields({
   const protocol = parsedSettings.success
     ? (parsedSettings.data.protocol ?? fallback.protocol)
     : fallback.protocol
+  // Read straight off the step rather than through the schema, so a date that
+  // does not parse still shows in the box with the reason underneath it. Going
+  // through the parse would blank the field and leave nothing to correct.
+  const from = typeof node.settings.from === "string" ? node.settings.from : null
+  const to = typeof node.settings.to === "string" ? node.settings.to : null
+  /** Which of the two ways of naming a window this step is using. */
+  const betweenDates = from !== null || to !== null
+  const dateProblem = windowProblem({ from, to })
+  const windowLength = windowDays({ days, from, to })
   const minimumVolume =
     typeof node.settings.minimumVolume === "string"
       ? node.settings.minimumVolume
@@ -283,18 +315,118 @@ export default function TradeMarketsFields({
   return (
     <>
       <InspectorCard title="How far back">
-        <TradeNumberField
-          id={`markets-${node.id}-days`}
-          label="Days to test"
-          hint="How much history the run walks. A younger coin is tested from the day its selected exchange first has prices for it, and the result says when that was."
-          value={days}
-          min={1}
-          max={MAX_BACKTEST_DAYS}
-          suffix="days"
-          onChange={(next) =>
-            onChange({ ...node, settings: { ...node.settings, days: next } })
-          }
-        />
+        <div className="grid gap-1.5">
+          <FieldLabel
+            htmlFor={`markets-${node.id}-window`}
+            className="text-xs"
+            hint="Either the run ends today and you say how long it is, or you name the two days it runs between. Naming the days is how you go back to one particular stretch — a crash, a quiet summer — and get the same run every time."
+          >
+            Window
+          </FieldLabel>
+          <Select
+            value={betweenDates ? "between" : "recent"}
+            onValueChange={(next) =>
+              onChange({
+                ...node,
+                settings:
+                  next === "between"
+                    ? // Filled in rather than left blank, so the panel never
+                      // sits in a half-chosen state: the dates start as the
+                      // same stretch the day count was already describing, and
+                      // moving either end from there is one click.
+                      { ...node.settings, ...recentDaysAsDates(days) }
+                    : { ...node.settings, from: null, to: null },
+              })
+            }
+          >
+            <SelectTrigger
+              id={`markets-${node.id}-window`}
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">The last few days</SelectItem>
+              <SelectItem value="between">Between two dates</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {betweenDates ? (
+          <>
+            {/* One above the other, not side by side. The inspector is a
+                narrow column, and a written-out date — "August 13th, 2026" —
+                is wider than half of it, so two abreast cut the year off both
+                of them. */}
+            <div className="grid gap-2">
+              <div className="grid gap-1.5">
+                <label
+                  htmlFor={`markets-${node.id}-from`}
+                  className="text-xs text-muted-foreground"
+                >
+                  From
+                </label>
+                <DatePicker
+                  id={`markets-${node.id}-from`}
+                  value={dateFromDay(from)}
+                  onChange={(picked) =>
+                    onChange({
+                      ...node,
+                      settings: {
+                        ...node.settings,
+                        from: picked ? dayFromDate(picked) : null,
+                      },
+                    })
+                  }
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label
+                  htmlFor={`markets-${node.id}-to`}
+                  className="text-xs text-muted-foreground"
+                >
+                  To
+                </label>
+                <DatePicker
+                  id={`markets-${node.id}-to`}
+                  value={dateFromDay(to)}
+                  onChange={(picked) =>
+                    onChange({
+                      ...node,
+                      settings: {
+                        ...node.settings,
+                        to: picked ? dayFromDate(picked) : null,
+                      },
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <p
+              className={
+                dateProblem
+                  ? "text-xs text-destructive"
+                  : "text-xs text-muted-foreground"
+              }
+            >
+              {dateProblem ??
+                `Both days included — ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} in all. A day past today is cut back to now.`}
+            </p>
+          </>
+        ) : (
+          <TradeNumberField
+            id={`markets-${node.id}-days`}
+            label="Days to test"
+            hint="How much history the run walks, counting back from today. A younger coin is tested from the day its selected exchange first has prices for it, and the result says when that was."
+            value={days}
+            min={1}
+            max={MAX_BACKTEST_DAYS}
+            suffix="days"
+            onChange={(next) =>
+              onChange({ ...node, settings: { ...node.settings, days: next } })
+            }
+          />
+        )}
       </InspectorCard>
 
       <InspectorCard title="Protocol">
@@ -476,7 +608,7 @@ export default function TradeMarketsFields({
             <p className="text-xs text-muted-foreground">
               {marketKeys.length === 0
                 ? "No coins chosen yet."
-                : `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, ${(marketKeys.length * candlesPerCoin("4h", days)).toLocaleString()} candles to read at 4h.`}
+                : `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, ${(marketKeys.length * candlesPerCoin("4h", windowLength)).toLocaleString()} candles to read at 4h.`}
               {tradeable
                 ? ""
                 : " These can be tested but not traded yet — this one gives prices, not orders."}

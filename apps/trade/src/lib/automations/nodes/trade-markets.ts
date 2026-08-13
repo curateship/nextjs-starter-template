@@ -101,6 +101,123 @@ export function coinsAllowedFor(interval: string, days: number): number {
   )
 }
 
+const DAY_MS = 86_400_000
+
+/** A day the way this step writes one down: `2025-10-10`, and nothing else. */
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/** The two dates a step may name, or the two nulls that mean it named none. */
+export type MarketWindowDates = {
+  from?: string | null
+  to?: string | null
+}
+
+/**
+ * Midnight UTC on that day, or null when that is not a day.
+ *
+ * The answer is read back and compared with what was asked for, because
+ * `Date.parse` does NOT refuse a day that never existed — it rolls it forward.
+ * The 31st of February comes back as the 3rd of March, so a typo that was meant
+ * to end February would silently move the window into spring. Checked rather
+ * than trusted.
+ */
+export function dayStartMs(day: string | null | undefined): number | null {
+  if (typeof day !== "string" || !DAY_PATTERN.test(day)) return null
+  const ms = Date.parse(`${day}T00:00:00.000Z`)
+  if (!Number.isFinite(ms)) return null
+  return new Date(ms).toISOString().slice(0, 10) === day ? ms : null
+}
+
+/**
+ * That day, written the way this step stores one, and back again.
+ *
+ * Both read the day off the calendar rather than off the clock — the day a
+ * picker was showing when it was clicked is the day that gets written down, and
+ * the day written down is the day the picker shows again. The window maths then
+ * reads that day as UTC, which is the part that has to be the same everywhere.
+ */
+export function dayFromDate(date: Date): string {
+  const year = String(date.getFullYear()).padStart(4, "0")
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+export function dateFromDay(day: string | null | undefined): Date | undefined {
+  if (typeof day !== "string" || !DAY_PATTERN.test(day)) return undefined
+  const [year, month, date] = day.split("-").map(Number)
+  const made = new Date(year, month - 1, date)
+  return Number.isFinite(made.getTime()) ? made : undefined
+}
+
+/**
+ * The stretch of time two chosen dates mean, or null when none were chosen.
+ *
+ * **Read as UTC, never as the clock of whoever opened the panel.** A run has to
+ * cover the same ground whichever chair it was started from; a date that slides
+ * by a day depending on the reader is a run that cannot be compared with
+ * itself.
+ *
+ * **The last day is included.** October 1st to October 10th is ten days,
+ * because that is what somebody typing those two dates means — so the far end
+ * is midnight at the start of the day *after*, not midnight at the start of the
+ * day itself. Ending at the day's own midnight would drop the last day from
+ * every run, which is exactly the day people pick these dates to look at.
+ */
+export function chosenWindow(
+  dates: MarketWindowDates
+): { from: number; to: number } | null {
+  const from = dayStartMs(dates.from)
+  const to = dayStartMs(dates.to)
+  if (from === null || to === null) return null
+  return { from, to: to + DAY_MS }
+}
+
+/**
+ * How long this step's window is, in days — the number every memory sum is
+ * worked out from, whichever way the window was chosen.
+ */
+export function windowDays(settings: { days: number } & MarketWindowDates): number {
+  const window = chosenWindow(settings)
+  if (!window) return settings.days
+  return Math.max(1, Math.round((window.to - window.from) / DAY_MS))
+}
+
+/**
+ * What is wrong with the two chosen dates, in words somebody can act on, or
+ * null when nothing is.
+ *
+ * Both dates or neither: one date alone has no window in it, and guessing the
+ * other end would be inventing the answer rather than asking for it.
+ *
+ * Says nothing about dates in the future, because it has no clock and should
+ * not have one — it is read while a panel is being drawn. A window that merely
+ * runs past today is cut off at the last finished bar anyway, which is what "to
+ * today" means, and refusing that would make picking today an error. A window
+ * ENTIRELY in the future has nothing left after that cut, and is turned away
+ * with its own sentence in `startBacktestForRun`, where the clock is.
+ */
+export function windowProblem(dates: MarketWindowDates): string | null {
+  const from = dates.from ?? null
+  const to = dates.to ?? null
+  if (from === null && to === null) return null
+  if (from === null || to === null) {
+    return "Set both dates, or clear both to test the last few days instead."
+  }
+  const window = chosenWindow({ from, to })
+  if (!window) {
+    return "Those dates could not be read. Write them as 2025-10-10."
+  }
+  if (window.to <= window.from) {
+    return "The end date is before the start date."
+  }
+  const days = Math.round((window.to - window.from) / DAY_MS)
+  if (days > MAX_BACKTEST_DAYS) {
+    return `That is ${days.toLocaleString()} days. The longest window a run may cover is ${MAX_BACKTEST_DAYS.toLocaleString()} days.`
+  }
+  return null
+}
+
 /** How long one candle lasts, in milliseconds. */
 const INTERVAL_MS: Record<string, number> = {
   "1m": 60_000,
@@ -155,6 +272,26 @@ export const tradeMarketsSettingsSchema = z.object({
     .min(1, "Choose at least one coin to test.")
     .max(MAX_BACKTEST_MARKETS),
   days: z.number().int().min(1).max(MAX_BACKTEST_DAYS),
+  /**
+   * The exact stretch to walk, when "the last few days" is not what you mean.
+   *
+   * Both dates or neither — see {@link windowProblem}. When they are set they
+   * decide the window outright and `days` is ignored, worked out from the dates
+   * instead wherever a length is needed.
+   *
+   * Null on every flow saved before dates were on offer, which is how those
+   * flows go on meaning "the last `days` days" without being touched.
+   */
+  from: z
+    .string()
+    .regex(DAY_PATTERN, "Write the date as 2025-10-10.")
+    .nullable()
+    .default(null),
+  to: z
+    .string()
+    .regex(DAY_PATTERN, "Write the date as 2025-10-10.")
+    .nullable()
+    .default(null),
 })
 
 export type TradeMarketsSettings = z.infer<typeof tradeMarketsSettingsSchema>
@@ -180,6 +317,8 @@ export const tradeMarketsNode = defineNode({
     protocol: "hyperliquid",
     marketKeys: [],
     days: DEFAULT_BACKTEST_DAYS,
+    from: null,
+    to: null,
   }),
   settingsSchema: tradeMarketsSettingsSchema,
   name: () => "Markets",
@@ -187,9 +326,15 @@ export const tradeMarketsNode = defineNode({
     const keys = Array.isArray(settings.marketKeys)
       ? settings.marketKeys.length
       : 0
-    const days = typeof settings.days === "number" ? settings.days : null
     if (keys === 0) return "No coins chosen yet."
-    return `${keys} ${plural(keys, "coin", "coins")}${days === null ? "" : `, over the last ${days} ${plural(days, "day", "days")}`}.`
+    const coins = `${keys} ${plural(keys, "coin", "coins")}`
+    // Two chosen dates are the whole point of choosing them, so the card says
+    // them rather than the length they add up to.
+    const from = typeof settings.from === "string" ? settings.from : null
+    const to = typeof settings.to === "string" ? settings.to : null
+    if (from !== null && to !== null) return `${coins}, ${from} to ${to}.`
+    const days = typeof settings.days === "number" ? settings.days : null
+    return `${coins}${days === null ? "" : `, over the last ${days} ${plural(days, "day", "days")}`}.`
   },
   icon: ListIcon,
   outputPorts: [{ id: "then", label: "Then" }],
