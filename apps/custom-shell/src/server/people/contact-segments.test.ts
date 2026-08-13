@@ -9,6 +9,7 @@ import {
 } from "@/lib/contacts/contact-segments"
 import {
   addContactsToSegment,
+  addMatchingContactsToSegment,
   countDraftSegmentContacts,
   countSegmentContacts,
   createWorkspaceSegment,
@@ -831,6 +832,202 @@ describe("adding people to a segment from the contacts list", () => {
       { id: expect.any(String), name: "By hand", kind: "static" },
       { id: expect.any(String), name: "By rules", kind: "rules" },
     ])
+  })
+})
+
+/**
+ * Adding everybody the contacts list's filters match, rather than ticked rows.
+ *
+ * Same question as the delete-by-filter checks next door: the people who end up
+ * in the segment have to be the people the list was showing, worked out by the
+ * same condition rather than a second copy of it.
+ */
+describe("adding everybody the filter matches to a segment", () => {
+  async function handPicked(name: string, contactIds: string[]) {
+    return createWorkspaceSegment(
+      WORKSPACE_ID,
+      {
+        name,
+        description: "",
+        kind: "static",
+        rules: { conditions: [] },
+        contactIds,
+      },
+      db
+    )
+  }
+
+  /** Who is in the segment now, whichever way they got there. */
+  async function membersOf(segmentId: string) {
+    const people = await listSegmentContacts(
+      WORKSPACE_ID,
+      { id: segmentId, kind: "static", rules: { conditions: [] } },
+      {},
+      db,
+      TODAY
+    )
+    return people.map((person) => person.email).sort()
+  }
+
+  it("puts in exactly the people those rules describe", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    await insertContact("cat")
+    const segment = await handPicked("Testers", [])
+
+    expect(
+      await addMatchingContactsToSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          rules: {
+            conditions: [{ type: "tag", operator: "includes", tags: ["beta"] }],
+          },
+        },
+        db
+      )
+    ).toEqual({ added: 2, alreadyThere: 0 })
+
+    expect(await membersOf(segment.id)).toEqual([
+      "ada@example.test",
+      "bob@example.test",
+    ])
+  })
+
+  it("narrows by the search box as well as the rules", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("adam", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    const segment = await handPicked("Testers", [])
+
+    expect(
+      await addMatchingContactsToSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          search: "ada",
+          rules: {
+            conditions: [{ type: "tag", operator: "includes", tags: ["beta"] }],
+          },
+        },
+        db
+      )
+    ).toEqual({ added: 2, alreadyThere: 0 })
+
+    expect(await membersOf(segment.id)).toEqual([
+      "ada@example.test",
+      "adam@example.test",
+    ])
+  })
+
+  it("counts the ones already in it separately instead of claiming them", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await insertContact("bob", { tags: ["beta"] })
+    const segment = await handPicked("Testers", ["ada"])
+
+    expect(
+      await addMatchingContactsToSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          rules: {
+            conditions: [{ type: "tag", operator: "includes", tags: ["beta"] }],
+          },
+        },
+        db
+      )
+    ).toEqual({ added: 1, alreadyThere: 1 })
+  })
+
+  it("takes everybody when there are no filters at all", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    const segment = await handPicked("Everyone", [])
+
+    expect(
+      await addMatchingContactsToSegment(WORKSPACE_ID, segment.id, {}, db)
+    ).toEqual({ added: 2, alreadyThere: 0 })
+  })
+
+  it("adds nobody when the filter matches nobody", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    const segment = await handPicked("Testers", [])
+
+    expect(
+      await addMatchingContactsToSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          rules: {
+            conditions: [{ type: "tag", operator: "includes", tags: ["gone"] }],
+          },
+        },
+        db
+      )
+    ).toEqual({ added: 0, alreadyThere: 0 })
+    expect(await membersOf(segment.id)).toEqual([])
+  })
+
+  it("refuses a rules segment, which works itself out", async () => {
+    await insertContact("ada")
+    const rules = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("By rules", [
+        { type: "status", operator: "is", status: "subscribed" },
+      ]),
+      db
+    )
+
+    await expect(
+      addMatchingContactsToSegment(WORKSPACE_ID, rules.id, {}, db)
+    ).rejects.toThrow("SEGMENT_IS_RULES")
+  })
+
+  it("refuses a segment belonging to another workspace", async () => {
+    await insertContact("ada")
+    const elsewhere = await createWorkspaceSegment(
+      OTHER_WORKSPACE_ID,
+      {
+        name: "Theirs",
+        description: "",
+        kind: "static",
+        rules: { conditions: [] },
+        contactIds: [],
+      },
+      db
+    )
+
+    await expect(
+      addMatchingContactsToSegment(WORKSPACE_ID, elsewhere.id, {}, db)
+    ).rejects.toThrow("SEGMENT_NOT_FOUND")
+  })
+
+  it("never picks up another workspace's matching contacts", async () => {
+    await insertContact("ada", { tags: ["beta"] })
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: ["beta"],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    const segment = await handPicked("Testers", [])
+
+    expect(
+      await addMatchingContactsToSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          rules: {
+            conditions: [{ type: "tag", operator: "includes", tags: ["beta"] }],
+          },
+        },
+        db
+      )
+    ).toEqual({ added: 1, alreadyThere: 0 })
+    expect(await membersOf(segment.id)).toEqual(["ada@example.test"])
   })
 })
 

@@ -4,6 +4,7 @@ import {
   asc,
   eq,
   gte,
+  ilike,
   inArray,
   isNotNull,
   isNull,
@@ -47,6 +48,13 @@ import { now, uuid } from "@/server/auth/security"
  * the send path all call it, so the number somebody was shown is the number
  * that gets emailed. A second copy of "what this segment means" is exactly how
  * a preview and a send end up disagreeing.
+ *
+ * `contactFilterConditions` is the same idea for the contacts list's own
+ * filters — the search box and the rules together. It reads through
+ * `segmentConditions` rather than beside it, and the rows, the total, deleting
+ * everyone matching and adding everyone matching all go through it. That is
+ * what makes "the people acted on" and "the people shown" the same query
+ * instead of two that happen to agree today.
  */
 
 /** A segment as the rest of this file wants it: rules already parsed. */
@@ -289,6 +297,56 @@ function conditionSql(
       return and(...excluded) as SQL
     }
   }
+}
+
+/**
+ * What the contacts list is currently showing, as one database condition.
+ *
+ * The search box and the filter rules together, scoped to the workspace. Every
+ * screen and every action that means "the people this list is showing" reads
+ * through here: the rows, the total under them, deleting everyone matching, and
+ * adding everyone matching to a segment.
+ *
+ * One condition rather than four copies of it is the whole point. A bulk delete
+ * that built its own version of the same filter would only have to drift by one
+ * rule to delete people the admin was never shown.
+ */
+export type ContactListFilter = {
+  search?: string
+  rules?: SegmentRules
+}
+
+export async function contactFilterConditions(
+  workspaceId: string,
+  filter: ContactListFilter = {},
+  database: CustomShellDb = db
+): Promise<SQL> {
+  const filters = [eq(customShellContacts.workspaceId, workspaceId)]
+
+  const search = filter.search?.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    const searchFilter = or(
+      ilike(customShellContacts.email, pattern),
+      ilike(customShellContacts.firstName, pattern),
+      ilike(customShellContacts.lastName, pattern)
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
+
+  if (filter.rules?.conditions.length) {
+    filters.push(
+      await segmentConditions(
+        workspaceId,
+        // Not a saved segment — a draft one, standing in for the filters on
+        // screen. The id is only there for the loop guard to hold on to.
+        { id: "contacts-filter", kind: "rules", rules: filter.rules },
+        database
+      )
+    )
+  }
+
+  return and(...filters) as SQL
 }
 
 /** How many contacts are in one segment right now. */
@@ -756,14 +814,65 @@ export async function listSegmentNames(
   }))
 }
 
+/** The segment people may actually be put into, or a refusal saying why not. */
+async function requireHandPickedSegment(
+  workspaceId: string,
+  segmentId: string,
+  database: CustomShellDb
+) {
+  const segment = await getWorkspaceSegment(workspaceId, segmentId, database)
+  if (!segment) throw new Error("SEGMENT_NOT_FOUND")
+  if (segment.kind !== "static") throw new Error("SEGMENT_IS_RULES")
+  return segment
+}
+
+/**
+ * A statement carries three values per row and Postgres stops at 65,535 of
+ * them. Ticking rows by hand could never reach that; "everyone the filter
+ * matches" can, so the rows go in a batch at a time.
+ */
+const MEMBER_INSERT_BATCH = 1_000
+
+/**
+ * Writes the membership rows and says what actually landed.
+ *
+ * Adding the same person twice is impossible — the pair is the table's primary
+ * key, so a repeat is simply not inserted and does not come back in
+ * `returning`. That is what lets "already in it" be counted rather than guessed.
+ */
+async function insertSegmentMembers(
+  segmentId: string,
+  contactIds: string[],
+  database: CustomShellDb
+): Promise<{ added: number; alreadyThere: number }> {
+  const timestamp = now()
+  let added = 0
+
+  for (let at = 0; at < contactIds.length; at += MEMBER_INSERT_BATCH) {
+    const inserted = await database
+      .insert(customShellContactSegmentMembers)
+      .values(
+        contactIds.slice(at, at + MEMBER_INSERT_BATCH).map((contactId) => ({
+          segmentId,
+          contactId,
+          createdAt: timestamp,
+        }))
+      )
+      .onConflictDoNothing()
+      .returning({ contactId: customShellContactSegmentMembers.contactId })
+    added += inserted.length
+  }
+
+  return { added, alreadyThere: contactIds.length - added }
+}
+
 /**
  * Puts people into a hand-picked segment from wherever they were selected.
  *
  * Says what it actually did rather than "done": somebody already in the segment
  * is counted separately instead of being reported as added, because "5 people
  * added" when three of them were already there is the kind of small lie that
- * makes a number nobody trusts. Adding the same person twice is impossible —
- * the pair is the table's primary key, and a repeat is simply not inserted.
+ * makes a number nobody trusts.
  */
 export async function addContactsToSegment(
   workspaceId: string,
@@ -771,9 +880,7 @@ export async function addContactsToSegment(
   contactIds: string[],
   database: CustomShellDb = db
 ): Promise<{ added: number; alreadyThere: number }> {
-  const segment = await getWorkspaceSegment(workspaceId, segmentId, database)
-  if (!segment) throw new Error("SEGMENT_NOT_FOUND")
-  if (segment.kind !== "static") throw new Error("SEGMENT_IS_RULES")
+  await requireHandPickedSegment(workspaceId, segmentId, database)
   if (contactIds.length === 0) return { added: 0, alreadyThere: 0 }
 
   // Scoped to the workspace here, so an id from somewhere else is simply not
@@ -789,23 +896,43 @@ export async function addContactsToSegment(
     )
   if (theirs.length === 0) throw new Error("SEGMENT_CONTACT_MISSING")
 
-  const timestamp = now()
-  const inserted = await database
-    .insert(customShellContactSegmentMembers)
-    .values(
-      theirs.map((contact) => ({
-        segmentId,
-        contactId: contact.id,
-        createdAt: timestamp,
-      }))
-    )
-    .onConflictDoNothing()
-    .returning({ contactId: customShellContactSegmentMembers.contactId })
+  return insertSegmentMembers(
+    segmentId,
+    theirs.map((contact) => contact.id),
+    database
+  )
+}
 
-  return {
-    added: inserted.length,
-    alreadyThere: theirs.length - inserted.length,
-  }
+/**
+ * Puts everybody the contacts list's filters match into a hand-picked segment.
+ *
+ * The people are found through `contactFilterConditions`, the very condition
+ * the list itself is drawn from, so "everyone matching" can only ever mean the
+ * people the admin was looking at. Nothing here trusts a list of ids from the
+ * browser, which is why the 500-at-a-time cap on the ticked-rows path does not
+ * apply — there are no ids to send.
+ *
+ * A filter matching nobody adds nobody rather than failing: an empty answer to
+ * a filter is a real answer, unlike an id that points at no contact.
+ */
+export async function addMatchingContactsToSegment(
+  workspaceId: string,
+  segmentId: string,
+  filter: ContactListFilter,
+  database: CustomShellDb = db
+): Promise<{ added: number; alreadyThere: number }> {
+  await requireHandPickedSegment(workspaceId, segmentId, database)
+
+  const matching = await database
+    .select({ id: customShellContacts.id })
+    .from(customShellContacts)
+    .where(await contactFilterConditions(workspaceId, filter, database))
+
+  return insertSegmentMembers(
+    segmentId,
+    matching.map((contact) => contact.id),
+    database
+  )
 }
 
 export type SegmentDeleteResult = {

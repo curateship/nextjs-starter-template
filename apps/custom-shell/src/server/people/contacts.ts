@@ -1,18 +1,10 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm"
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm"
 
-import type { SegmentRules } from "@/lib/contacts/contact-segments"
 import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
-import { segmentConditions } from "@/server/people/contact-segments"
+import {
+  contactFilterConditions,
+  type ContactListFilter,
+} from "@/server/people/contact-segments"
 import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -205,15 +197,13 @@ function cleanTags(tags: string[]): string[] {
 
 export async function listWorkspaceContacts(
   workspaceId: string,
-  options: {
-    search?: string
-    /**
-     * The list's filters, written in exactly the same rules a segment is.
-     * One description of "who these people are" for the whole app, so the list
-     * you filtered down to and a segment you save from it cannot mean two
-     * different things — see `segmentConditions`.
-     */
-    rules?: SegmentRules
+  /**
+   * The search box and the filter rules, plus how to order and page them. The
+   * filters are written in exactly the same rules a segment is, so the list you
+   * filtered down to and a segment you save from it cannot mean two different
+   * things — see `contactFilterConditions`.
+   */
+  options: ContactListFilter & {
     sort?: ContactSortColumn
     direction?: "asc" | "desc"
     limit?: number
@@ -223,30 +213,7 @@ export async function listWorkspaceContacts(
 ) {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
-  const search = options.search?.trim()
-
-  const filters = [eq(customShellContacts.workspaceId, workspaceId)]
-  if (search) {
-    const pattern = `%${search}%`
-    const searchFilter = or(
-      ilike(customShellContacts.email, pattern),
-      ilike(customShellContacts.firstName, pattern),
-      ilike(customShellContacts.lastName, pattern)
-    )
-    if (searchFilter) filters.push(searchFilter)
-  }
-  if (options.rules?.conditions.length) {
-    filters.push(
-      await segmentConditions(
-        workspaceId,
-        // Not a saved segment — a draft one, standing in for the filters on
-        // screen. The id is only there for the loop guard to hold on to.
-        { id: "contacts-filter", kind: "rules", rules: options.rules },
-        database
-      )
-    )
-  }
-  const where = and(...filters)
+  const where = await contactFilterConditions(workspaceId, options, database)
 
   // Ordered here rather than in the browser, because the page only ever holds
   // one page of contacts — sorting what has already arrived would only shuffle
@@ -397,6 +364,32 @@ export async function deleteWorkspaceContacts(
         inArray(customShellContacts.id, contactIds)
       )
     )
+    .returning({ id: customShellContacts.id })
+  return deleted.length
+}
+
+/**
+ * Deletes everybody the list's filters match, without naming them one by one.
+ *
+ * The same condition the list itself is drawn from, so the people deleted are
+ * the people the admin was shown — see `contactFilterConditions`. Sending the
+ * filters rather than a frozen list of ids is also the honest thing at this
+ * scale: accounts sync into the list on every page load, so a list of ids
+ * gathered a minute ago is already a different set of people.
+ *
+ * It gives back how many rows really went, which is what the toast says. That
+ * can differ from the number on the confirm button if somebody signed up in
+ * between, and saying the number that happened beats repeating the number that
+ * was promised.
+ */
+export async function deleteWorkspaceContactsMatching(
+  workspaceId: string,
+  filter: ContactListFilter,
+  database: CustomShellDb = db
+) {
+  const deleted = await database
+    .delete(customShellContacts)
+    .where(await contactFilterConditions(workspaceId, filter, database))
     .returning({ id: customShellContacts.id })
   return deleted.length
 }

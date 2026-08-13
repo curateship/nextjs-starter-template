@@ -3,13 +3,17 @@ import { z } from "zod"
 
 import { CONTACT_SORT_COLUMNS } from "@/lib/contacts/contact-sort"
 import {
-  segmentRulesSchema,
-  type SegmentKind,
-  type SegmentRuleOptions,
+  contactFilterSchema,
+  type ContactFilterInput,
+} from "@/lib/contacts/contact-filter"
+import type {
+  SegmentKind,
+  SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
 
 import {
   deleteWorkspaceContacts,
+  deleteWorkspaceContactsMatching,
   listWorkspaceContacts,
   listWorkspaceTags,
   setContactStatus,
@@ -99,12 +103,9 @@ export const getContactLoadErrorMessage = createErrorMessage(
   "We could not load your contacts. Please try again."
 )
 
-const listSchema = z.object({
-  search: z.string().trim().max(200).optional(),
-  // The list's filters, in the same rules a segment is written in. Checked
-  // against the same schema, so nothing the browser sends can describe a group
-  // the segment builder could not.
-  rules: segmentRulesSchema.optional(),
+// The list is the filter plus how to order and page it, so it extends the one
+// filter schema rather than restating it — see `contactFilterSchema`.
+const listSchema = contactFilterSchema.extend({
   // Checked against the fixed list rather than passed through: this names a
   // column, and anything the database is asked to order by has to come from
   // us, never from whatever the browser sent.
@@ -207,6 +208,23 @@ const deleteContactsFn = createServerFn({ method: "POST" })
     }
   })
 
+/**
+ * Deletes everybody the filters match, rather than a list of ticked rows.
+ *
+ * The ticked-rows path above caps at 500 ids because that is how many a browser
+ * can honestly hand over. This one sends the filters instead, so there is no
+ * cap and no chance of the set drifting from the list the admin was reading.
+ */
+const deleteMatchingContactsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(contactFilterSchema)
+  .handler(async ({ data, context }): Promise<{ deleted: number }> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    return {
+      deleted: await deleteWorkspaceContactsMatching(workspaceId, data),
+    }
+  })
+
 export function loadContactsPage(
   options: z.input<typeof listSchema> = {}
 ) {
@@ -226,4 +244,8 @@ export function setContactsStatus(
 
 export function deleteContacts(contactIds: string[]) {
   return deleteContactsFn({ data: { contactIds } })
+}
+
+export function deleteMatchingContacts(filter: ContactFilterInput) {
+  return deleteMatchingContactsFn({ data: filter })
 }
