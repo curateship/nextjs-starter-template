@@ -2,6 +2,7 @@ import type { AppServerOptions } from "@/server/app-options"
 import { directorySitemapEntries } from "@/server/directory/sitemap"
 import { directorySearchResults } from "@/server/directory/public"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
+import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -19,6 +20,10 @@ import { runFeaturedRenewalReminders } from "@/server/directory/featured"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  workspaces: {
+    copyChoices: [{ key: "listings", label: "Copy listings" }],
+    onCopy: copyDirectoryWorkspace,
+  },
   sitemap: { extraEntries: directorySitemapEntries },
   search: { sources: [directorySearchResults] },
   background: {

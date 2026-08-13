@@ -46,7 +46,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
       return {
         user: null,
         settings: null,
-        workspaces: { workspaces: [], baseDomain: "" },
+        workspaces: { workspaces: [], copyChoices: [], baseDomain: "" },
         plan: { planSlug: "free", planName: "Free", isPaid: false },
         unreadNotifications: 0,
         announcements: [],
