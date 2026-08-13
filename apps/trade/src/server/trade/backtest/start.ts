@@ -75,12 +75,32 @@ export async function startBacktestForRun(
     return { started: false, groupId: null, coins: 0, problem: read.problem }
   }
 
-  const created = await createBacktest(run.userId, {
-    automationId: run.automationId,
-    automationName: flow.name,
-    spec: read.spec,
-    now,
-  })
+  // Every other way this can go wrong comes back as a sentence written on the
+  // step, so this one has to as well. The store refuses a window with nothing
+  // left in it once the far end is cut back to now — two dates that have not
+  // happened yet — and it refuses by throwing, the way it refuses a mixed-up
+  // list of coins. Thrown from here that would reach the person as an engine
+  // error rather than as something they could act on.
+  let created
+  try {
+    created = await createBacktest(run.userId, {
+      automationId: run.automationId,
+      automationName: flow.name,
+      spec: read.spec,
+      now,
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === "BACKTEST_WINDOW") {
+      return {
+        started: false,
+        groupId: null,
+        coins: 0,
+        problem:
+          "Those dates have not happened yet, so there are no prices to test against. Pick a window that has already been and gone.",
+      }
+    }
+    throw error
+  }
 
   await db
     .update(tradeBacktestGroups)

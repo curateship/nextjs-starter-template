@@ -113,7 +113,7 @@ function specOf(marketKeys: string[]): BacktestSpec {
       makerFeePct: 0.015,
       slippagePct: 0.05,
     },
-    markets: { protocol: "hyperliquid", marketKeys, days: 30 },
+    markets: { protocol: "hyperliquid", marketKeys, days: 30, from: null, to: null },
     dca: {
       // Hung off the click price, so a ladder arms without needing a base
       // confirmed in the scripted history.
