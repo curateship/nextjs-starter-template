@@ -37,6 +37,8 @@ import { compileAutomationGraph } from "@/lib/automations/compile"
 import type {
   AutomationCanvasStatus,
   AutomationCanvasStatusProps,
+  AutomationRunControl,
+  AutomationRunControlProps,
 } from "@/lib/automations/canvas-panel"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
@@ -76,6 +78,7 @@ import {
   appCanvasHeaderStatus,
   appCanvasPanel,
   appOffersMemberTest,
+  appRunControl,
 } from "@/lib/app-options"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
@@ -644,6 +647,14 @@ export function AutomationEditor({
       }
       title={name}
       meta={templateMode ? "Template" : undefined}
+      centre={
+        templateMode ? undefined : (
+          <CanvasHeaderStatus
+            automationId={initial.id}
+            nodeKinds={nodeKinds}
+          />
+        )
+      }
       action={
         templateMode ? (
           <Button
@@ -688,10 +699,6 @@ export function AutomationEditor({
                 </label>
               </DisabledReason>
             ) : null}
-            <CanvasHeaderStatus
-              automationId={initial.id}
-              nodeKinds={nodeKinds}
-            />
             <Button
               type="button"
               variant="outline"
@@ -736,27 +743,20 @@ export function AutomationEditor({
               </DisabledReason>
             ) : null}
             {canRunManually ? (
-              <DisabledReason
-                disabled={paused || !compiled.config}
+              <RunControl
+                automationId={initial.id}
+                nodeKinds={nodeKinds}
+                canRun={!paused && Boolean(compiled.config) && !running}
                 reason={
                   paused
                     ? "Every automation is paused. Resume them to start this flow."
-                    : "Fix the steps marked in red before running this automation."
+                    : !compiled.config
+                      ? "Fix the steps marked in red before running this automation."
+                      : null
                 }
-              >
-                <Button
-                  type="button"
-                  disabled={paused || !compiled.config || running}
-                  onClick={() => void handleRunNow()}
-                >
-                  {running ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : (
-                    <PlayIcon className="size-4" />
-                  )}
-                  Run
-                </Button>
-              </DisabledReason>
+                running={running}
+                onRun={handleRunNow}
+              />
             ) : null}
           </div>
         )
@@ -960,6 +960,78 @@ export function AutomationEditor({
 const lazyCanvasPanels = new Map<
   string,
   React.LazyExoticComponent<ComponentType<AutomationCanvasPanelProps>>
+>()
+
+/**
+ * The Run button, or the app's own control in place of it.
+ *
+ * The shell keeps the judgement it is entitled to — paused, unreadable steps, a
+ * run already going — and hands it over. An app that has taken the button draws
+ * whatever it likes, including nothing; the shell's own Run is exactly what it
+ * has always been for every app that has not.
+ */
+function RunControl({
+  automationId,
+  nodeKinds,
+  canRun,
+  reason,
+  running,
+  onRun,
+}: {
+  automationId: string
+  nodeKinds: readonly string[]
+  canRun: boolean
+  reason: string | null
+  running: boolean
+  onRun: () => Promise<void>
+}) {
+  const declared = appRunControl()
+  const asked =
+    declared && (declared.appliesTo?.(nodeKinds) ?? true) ? declared : null
+
+  React.useEffect(() => {
+    if (asked) void asked.control()
+  }, [asked])
+
+  if (asked) {
+    let control = lazyRunControls.get(asked)
+    if (!control) {
+      control = React.lazy(asked.control)
+      lazyRunControls.set(asked, control)
+    }
+    return (
+      <React.Suspense fallback={null}>
+        {React.createElement(control, {
+          automationId,
+          canRun,
+          reason,
+          running,
+        })}
+      </React.Suspense>
+    )
+  }
+
+  return (
+    <DisabledReason
+      disabled={!canRun && !running}
+      reason={reason ?? ""}
+    >
+      <Button type="button" disabled={!canRun} onClick={() => void onRun()}>
+        {running ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
+          <PlayIcon className="size-4" />
+        )}
+        Run
+      </Button>
+    </DisabledReason>
+  )
+}
+
+/** Kept so the lazy import is made once rather than on every draw. */
+const lazyRunControls = new Map<
+  AutomationRunControl,
+  React.LazyExoticComponent<ComponentType<AutomationRunControlProps>>
 >()
 
 /**

@@ -8,6 +8,7 @@ import type {
 import type {
   AutomationCanvasPanel,
   AutomationCanvasStatus,
+  AutomationRunControl,
 } from "@/lib/automations/canvas-panel"
 import type { AppSettingsTab } from "@/lib/settings-tab"
 
@@ -214,6 +215,16 @@ type AutomationOptions = {
    * See the type for why it is a pointer to a file rather than a component.
    */
   canvasHeaderStatus?: AutomationCanvasStatus
+  /**
+   * The app's own control in place of the shell's Run button.
+   *
+   * For an app whose flows do more than one thing, where no single word on one
+   * button is honest. Unset means the shell's Run, which is what every app had
+   * before this existed.
+   *
+   * See the type for what the shell still decides and what it hands over.
+   */
+  runControl?: AutomationRunControl
   /**
    * Which flows offer "Test with member…". Unset means every flow does, which
    * is what every app did before this existed.
@@ -423,6 +434,17 @@ export function appCanvasHeaderStatus(
   options: AppOptions = appOptions
 ): AutomationCanvasStatus | null {
   return options.automations?.canvasHeaderStatus ?? null
+}
+
+/**
+ * The app's replacement for the Run button, or null for the shell's own.
+ *
+ * Null is the default and means the button is exactly what it has always been.
+ */
+export function appRunControl(
+  options: AppOptions = appOptions
+): AutomationRunControl | null {
+  return options.automations?.runControl ?? null
 }
 
 /**

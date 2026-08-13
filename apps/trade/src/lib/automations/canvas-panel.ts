@@ -103,3 +103,55 @@ export function defineCanvasStatus(
 ): AutomationCanvasStatus {
   return status
 }
+
+/** What an app's replacement for the Run button is handed. */
+export type AutomationRunControlProps = {
+  /** The flow open in the editor. */
+  automationId: string
+  /**
+   * Whether the shell would let it run at all: nothing paused, every step
+   * readable, and not already going. The app decides what to draw, but it
+   * cannot make a flow runnable that the shell has already refused.
+   */
+  canRun: boolean
+  /** Why not, in the shell's words, or null when it can. */
+  reason: string | null
+  /** True while a run this editor started is still going. */
+  running: boolean
+}
+
+/**
+ * The app's own control in place of the shell's Run button.
+ *
+ * **Why an app would replace it.** "Run" is the right word when a flow does one
+ * thing. Trade's flows do two: a flow with pretend money on it is a backtest,
+ * and a flow that names a wallet is switched on to trade — and once it is
+ * switched on there is nothing to press at all. One button called Run for all
+ * three states is the confusing part, and no wording the shell could choose
+ * would fix it, because the shell cannot know which of the three a flow is.
+ *
+ * The shell keeps the judgement it is entitled to — paused, unreadable steps,
+ * a run already going — and hands it over as `canRun` and `reason`. The app
+ * draws the rest, and starts a run through `runAutomationNow` like any other
+ * caller. Rendering nothing is allowed and means no button.
+ *
+ * `control` is **a pointer to another file, never the component itself**, for
+ * the reason written on `panel` above.
+ */
+export type AutomationRunControl = {
+  /**
+   * Which flows the app takes the button for, from the kinds of step on the
+   * canvas. Unset means all of them; the shell's own Run is used on the rest.
+   */
+  appliesTo?: (nodeKinds: readonly string[]) => boolean
+  control: () => Promise<{
+    default: ComponentType<AutomationRunControlProps>
+  }>
+}
+
+/** Identity helper so a control literal stays fully typed at the definition. */
+export function defineRunControl(
+  control: AutomationRunControl
+): AutomationRunControl {
+  return control
+}

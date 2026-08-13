@@ -12,6 +12,7 @@ import {
   type TradeFlowRunSpec,
 } from "@/lib/trade/flow-run"
 import { flowStartProblem } from "@/lib/trade/flow-words"
+import { venueLabel } from "@/lib/trade/wallets"
 import { getWorkspaceAutomation } from "@/server/automations/flows"
 import { adminGet, adminPost } from "@/server/guards"
 import {
@@ -50,6 +51,12 @@ export type FlowTrading =
       walletLabel: string
       /** True for real money, false for a practice wallet. */
       real: boolean
+      /**
+       * The exchange, written the way every other screen writes it — and
+       * "Hyperliquid Testnet" rather than "Hyperliquid" when it is the practice
+       * network, because that is the difference worth seeing at a glance.
+       */
+      venue: string
       capUsd: number | null
       coins: number
       /** Why it could not run as it stands, in plain words, or null. */
@@ -132,6 +139,7 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
         mode: "trades",
         walletLabel: live.spec.walletLabel,
         real: live.spec.real,
+        venue: venueLabel(live.spec.protocol, live.spec.network),
         capUsd: live.spec.capUsd,
         coins: live.spec.marketKeys.length,
         problem: null,
@@ -193,6 +201,9 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       mode: "trades",
       walletLabel: wallet?.label ?? named.label,
       real: (wallet?.kind ?? named.kind) === "live",
+      venue: wallet
+        ? venueLabel(wallet.protocol, wallet.network)
+        : (named.protocol ?? ""),
       capUsd: named.capUsd,
       coins,
       problem,

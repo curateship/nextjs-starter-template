@@ -37,12 +37,23 @@ export function WorkspacePanelHeader({
   icon,
   title,
   meta,
+  centre,
   action,
   className,
 }: {
   icon: React.ReactNode
   title: React.ReactNode
   meta?: React.ReactNode
+  /**
+   * Something in the middle of the bar, for whatever must be seen rather than
+   * reached for.
+   *
+   * Centred on the bar itself rather than on the space left over, so it does
+   * not slide about as the title grows — and taken out of the flow, so a long
+   * title cannot push it into the buttons. Unset on every header that has not
+   * asked for one, which is all of them but the automation canvas.
+   */
+  centre?: React.ReactNode
   action?: React.ReactNode
   className?: string
 }) {
@@ -50,7 +61,7 @@ export function WorkspacePanelHeader({
     <div
       data-slot="workspace-panel-header"
       className={cn(
-        "flex h-[3.15rem] shrink-0 items-center gap-2.5 border-b px-4 sm:px-5",
+        "relative flex h-[3.15rem] shrink-0 items-center gap-2.5 border-b px-4 sm:px-5",
         className
       )}
     >
@@ -61,6 +72,14 @@ export function WorkspacePanelHeader({
       {meta ? (
         <div className="min-w-0 truncate text-xs text-muted-foreground">
           {meta}
+        </div>
+      ) : null}
+      {centre ? (
+        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2">
+          {/* The wrapper ignores the pointer so it can span the middle without
+              swallowing a click meant for the canvas behind it; what it holds
+              takes its clicks back. */}
+          <div className="pointer-events-auto">{centre}</div>
         </div>
       ) : null}
       {action ? <div className="ml-auto shrink-0">{action}</div> : null}

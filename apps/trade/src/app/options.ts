@@ -87,5 +87,15 @@ export const appOptions: AppOptions = {
       appliesTo: (kinds) => kinds.includes(tradeDcaNode.kind),
       panel: () => import("@/components/automations/backtest-canvas-panel"),
     },
+    canvasHeaderStatus: {
+      appliesTo: (kinds) => kinds.includes(tradeWalletNode.kind),
+      status: () => import("@/components/automations/flow-status-header"),
+    },
+    runControl: {
+      // Only Trade's own flows. Every other flow in this app keeps the shell's
+      // Run, which is the right word when a flow does one thing.
+      appliesTo: (kinds) => kinds.includes(tradeWalletNode.kind),
+      control: () => import("@/components/automations/flow-run-control"),
+    },
   },
 }

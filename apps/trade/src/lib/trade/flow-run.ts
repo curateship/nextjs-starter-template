@@ -1,4 +1,8 @@
-import type { CandleInterval } from "@/lib/protocols/contracts"
+import type {
+  CandleInterval,
+  NetworkId,
+  ProtocolId,
+} from "@/lib/protocols/contracts"
 import type { DcaParams } from "@/lib/trade/dca"
 
 /**
@@ -21,8 +25,8 @@ export type TradeFlowRunStatus = "running" | "stopped"
  */
 export type TradeFlowRunSpec = {
   /** The exchange and network every coin on the list belongs to. */
-  protocol: string
-  network: "mainnet" | "testnet"
+  protocol: ProtocolId
+  network: NetworkId
   /** The coins this flow watches, as full market keys. */
   marketKeys: string[]
   /** The ladder settings, exactly as the DCA step held them. */
