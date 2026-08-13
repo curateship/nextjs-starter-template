@@ -558,6 +558,7 @@ async function finish(
   const equity = outcome?.equity ?? []
   const dip = worstDip(equity)
   const peak = peakInPlay(equity, outcome?.inPlay ?? [])
+  const shares = inPlayShares(equity, outcome?.inPlay ?? [])
   const endingUsd = outcome?.endingUsd ?? spec.startingUsd
   const warnings = await credibilityWarnings(spec, coins, outcome, skipped)
 
@@ -579,9 +580,13 @@ async function finish(
     coinsThatMadeMoney: coinSummaries.filter((coin) => coin.madeOrLost > 0)
       .length,
     peakInPlayUsd: peak.usd,
+    peakInPlayPct: peak.pct,
     peakInPlayAt: peak.at,
     peakInPlayHeldMs: peak.heldMs,
     typicalInPlayUsd: middleOf(outcome?.inPlay ?? []),
+    // Null rather than zero when there is no pot to take a share of, so the
+    // tile shows a dash like every other figure a run cannot answer.
+    typicalInPlayPct: shares.length > 0 ? middleOf(shares) : null,
     potAtWorstDipUsd:
       dip.at === null
         ? null
@@ -681,35 +686,67 @@ async function credibilityWarnings(
   return warnings
 }
 
+/** What share of the pot was in trades at each bar, where the pot is known. */
+function inPlayShares(
+  equity: readonly { t: number; usd: number }[],
+  inPlay: readonly number[]
+): number[] {
+  const shares: number[] = []
+  for (const [index, amount] of inPlay.entries()) {
+    const pot = equity[index]?.usd
+    // A pot at or below zero has no share to take: the run is over as a
+    // question about money in use, and dividing would invent a number.
+    if (typeof pot !== "number" || !(pot > 0)) continue
+    shares.push((amount / pot) * 100)
+  }
+  return shares
+}
+
 /**
- * The heaviest the pot was ever working, when that was, and how long it stayed
- * there.
+ * The moment the wallet was stretched furthest, what was in trades then, and
+ * how long it stayed there.
+ *
+ * **Found by share of the pot, not by dollars.** The tile asks how close the
+ * run came to running out of money, and with compounding on the biggest dollar
+ * figure is usually just the latest one — by then the pot is bigger too. The
+ * tightest moment is the one that nearly ran out, whenever it happened.
  *
  * "Held" is counted in real time over the bars that were within a whisker of
  * the peak, because a peak that lasted one candle and one that lasted a week
  * are very different risks wearing the same number.
+ *
+ * A share of zero and no share at all are different answers and stay different:
+ * a run that bought nothing used 0% of its wallet, which is worth saying, while
+ * a run with no pot to divide by cannot be asked and reads as a dash.
  */
-function peakInPlay(
+export function peakInPlay(
   equity: readonly { t: number; usd: number }[],
   inPlay: readonly number[]
-): { usd: number; at: number | null; heldMs: number } {
-  if (inPlay.length === 0) return { usd: 0, at: null, heldMs: 0 }
+): { usd: number; pct: number | null; at: number | null; heldMs: number } {
+  const shares = inPlayShares(equity, inPlay)
+  if (shares.length === 0) return { usd: 0, pct: null, at: null, heldMs: 0 }
 
+  let pct = 0
   let usd = 0
   let at: number | null = null
   for (const [index, amount] of inPlay.entries()) {
-    if (amount > usd) {
+    const pot = equity[index]?.usd
+    if (typeof pot !== "number" || !(pot > 0)) continue
+    const share = (amount / pot) * 100
+    if (share > pct) {
+      pct = share
       usd = amount
       at = equity[index]?.t ?? null
     }
   }
-  if (usd <= 0) return { usd: 0, at: null, heldMs: 0 }
+  // Nothing was ever in trades. That is 0%, on no particular day.
+  if (pct <= 0) return { usd: 0, pct: 0, at: null, heldMs: 0 }
 
   // A bar counts as "at the peak" when it is within a tenth of a percent of it.
-  const near = inPlay.filter((amount) => amount >= usd * 0.999).length
+  const near = shares.filter((share) => share >= pct * 0.999).length
   const barMs =
     equity.length > 1 ? Math.max(0, equity[1].t - equity[0].t) : 0
-  return { usd, at, heldMs: near * barMs }
+  return { usd, pct, at, heldMs: near * barMs }
 }
 
 async function skipCoin(

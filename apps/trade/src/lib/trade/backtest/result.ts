@@ -519,9 +519,23 @@ export const backtestSummarySchema = z.object({
   coinsSkipped: z.number(),
   /** How many of the tested coins ended up ahead. */
   coinsThatMadeMoney: z.number(),
-  /** The most money that was ever in trades at once, in dollars. */
+  /** How much was in trades at the moment the wallet was stretched furthest. */
   peakInPlayUsd: z.number(),
-  /** When it was at its heaviest. */
+  /**
+   * The same moment as a share of the pot **as it stood then** — how close the
+   * run came to running out of money.
+   *
+   * Against the pot at that bar, never against what the run started with. With
+   * compounding on those are different questions, and the second one flatters
+   * nothing — it exaggerates: a run that grew a $10,000 pot to $31,000 and then
+   * had $33,000 working read as "334% of the wallet" when it was using 106% of
+   * what it actually had.
+   *
+   * Absent on runs saved before it was worked out this way, and a wrong percent
+   * is worse than none — see how max drawdown handles the same gap.
+   */
+  peakInPlayPct: z.number().nullable().default(null),
+  /** When it was stretched furthest. */
   peakInPlayAt: z.number().nullable(),
   /**
    * How long it stayed there, in milliseconds.
@@ -532,6 +546,12 @@ export const backtestSummarySchema = z.object({
   peakInPlayHeldMs: z.number(),
   /** The typical amount in trades, in dollars — the middle of the run. */
   typicalInPlayUsd: z.number(),
+  /**
+   * The typical share of the pot that was in trades — the middle of every bar's
+   * own share, not the typical dollars divided by the typical pot. The pot
+   * moves, so dividing one middle by another answers a question nobody asked.
+   */
+  typicalInPlayPct: z.number().nullable().default(null),
   /** What was in the pot at the bottom of the worst dip, in dollars. */
   potAtWorstDipUsd: z.number().nullable(),
   /** How many coins were still holding something when the window closed. */

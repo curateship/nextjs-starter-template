@@ -8,7 +8,7 @@ import { defaultDcaParams } from "@/lib/trade/dca"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { createBacktest } from "@/server/trade/backtest/store"
-import { backtestTick } from "@/server/trade/backtest/worker"
+import { backtestTick, peakInPlay } from "@/server/trade/backtest/worker"
 import {
   tradeBacktestGroups,
   tradeBacktests,
@@ -182,6 +182,10 @@ describe("a run the worker picks up", () => {
     expect(group.result?.equity.length).toBeGreaterThan(0)
     expect(group.summary?.fundingPaid).toBe(0)
     expect(group.summary?.warnings.join(" ")).not.toContain("funding history")
+    // Written when the run finishes, so the tile never has to work a share out
+    // of a pot it does not hold. A run that saved null here shows a dash.
+    expect(group.summary?.peakInPlayPct).not.toBeNull()
+    expect(group.summary?.typicalInPlayPct).not.toBeNull()
 
     const coins = await db
       .select()
@@ -614,5 +618,47 @@ describe("a run the worker picks up", () => {
 
   it("does nothing at all when there is nothing waiting", async () => {
     await expect(backtestTick(START)).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * "Peak wallet" answers one question: how close did the run come to running out
+ * of money. Against the pot at that moment, because with compounding on the
+ * opening dollars stop being the wallet after the first winning week.
+ */
+describe("peak wallet", () => {
+  const bars = (usd: number[]) =>
+    usd.map((amount, index) => ({ t: START + index * FOUR_HOURS, usd: amount }))
+
+  it("measures against the pot as it stood, not what the run started with", () => {
+    // The run that started this: a $10,000 pot grown to $31,445 with $33,440
+    // working. Divided by the opening dollars that reads 334%; the honest
+    // answer is that it was using a little more than it had.
+    const peak = peakInPlay(bars([10_000, 31_445]), [0, 33_440])
+    expect(Math.round(peak.pct!)).toBe(106)
+    expect(peak.usd).toBe(33_440)
+    expect(peak.at).toBe(START + FOUR_HOURS)
+  })
+
+  it("finds the tightest moment, not the biggest pile of dollars", () => {
+    // $9,000 of a $10,000 pot is a wallet nearly out of money. $12,000 of a
+    // $40,000 pot is a quiet week that happens to hold more dollars.
+    const peak = peakInPlay(bars([10_000, 40_000]), [9_000, 12_000])
+    expect(Math.round(peak.pct!)).toBe(90)
+    expect(peak.at).toBe(START)
+  })
+
+  it("counts how long it stayed there by share, so held matches the peak", () => {
+    const peak = peakInPlay(bars([10_000, 10_000, 20_000]), [9_000, 9_000, 9_000])
+    expect(peak.heldMs).toBe(2 * FOUR_HOURS)
+  })
+
+  it("says nothing rather than dividing by a pot that is gone", () => {
+    expect(peakInPlay(bars([0, 0]), [500, 500]).pct).toBeNull()
+    expect(peakInPlay([], []).pct).toBeNull()
+  })
+
+  it("calls a run that bought nothing 0%, which is not the same as a dash", () => {
+    expect(peakInPlay(bars([10_000, 10_000]), [0, 0]).pct).toBe(0)
   })
 })

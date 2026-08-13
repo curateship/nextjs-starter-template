@@ -146,20 +146,26 @@ export function BacktestStatsPanel({
                 <BacktestKpi
                   label="Peak wallet"
                   value={
-                    summary.startingUsd > 0
-                      ? `${Math.round((summary.peakInPlayUsd / summary.startingUsd) * 100)}%`
-                      : "—"
+                    // Against the pot as it stood at that moment, not what the
+                    // run started with — see `peakInPlayPct`. This used to
+                    // divide by the opening dollars, so a compounded run read
+                    // "334%" while it was using 106% of the money it had.
+                    // Older runs did not record it, and a wrong percent is
+                    // worse than none.
+                    figure(summary.peakInPlayPct) === null
+                      ? "—"
+                      : `${Math.round(summary.peakInPlayPct!)}%`
                   }
                   sub={peakSub(summary)}
                 />
                 <BacktestKpi
                   label="Avg wallet"
                   value={
-                    summary.startingUsd > 0
-                      ? `${Math.round((summary.typicalInPlayUsd / summary.startingUsd) * 100)}%`
-                      : "—"
+                    figure(summary.typicalInPlayPct) === null
+                      ? "—"
+                      : `${Math.round(summary.typicalInPlayPct!)}%`
                   }
-                  sub="typically in use"
+                  sub={`${formatUsd(summary.typicalInPlayUsd)} typically in use`}
                 />
                 <BacktestKpi
                   label="In coins"
@@ -320,14 +326,19 @@ function Line({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * "Jun 6 2026 · held 12h" — WHEN the pot was working hardest beside how long it
- * stayed there. The date is what makes the number checkable: it names the crash
- * the wallet was answering.
+ * "$33,440 · Jun 6 2026 · held 12h" — what was in trades when the pot was
+ * working hardest, when that was, and how long it stayed there.
+ *
+ * The date is what makes the number checkable: it names the crash the wallet
+ * was answering. The dollars lead because a run saved before the share was
+ * worked out shows a dash above this line, and the dollars are then the only
+ * thing the tile can still say.
  */
 function peakSub(summary: BacktestSummary): string {
   const at = figure(summary.peakInPlayAt)
   const held = figure(summary.peakInPlayHeldMs)
-  if (at === null) return held === null ? "" : heldFor(held)
-  const day = formatDate(new Date(at))
-  return held === null ? day : `${day} · ${heldFor(held)}`
+  const parts = [formatUsd(summary.peakInPlayUsd)]
+  if (at !== null) parts.push(formatDate(new Date(at)))
+  if (held !== null) parts.push(heldFor(held))
+  return parts.join(" · ")
 }
